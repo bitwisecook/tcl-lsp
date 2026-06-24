@@ -14,8 +14,8 @@ pub const fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: tainted data in a log message → log injection /
-        // forging (IRULE3003). Mirrors `irules/log.py`.
+        // Tainted data in a log message → log injection /
+        // forging (IRULE3003).
         taint_log_sink: Some("IRULE3003"),
         forms: &[FormSpec {
             kind: FormKind::Default,

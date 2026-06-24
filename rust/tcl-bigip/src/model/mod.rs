@@ -1,9 +1,8 @@
-//! BIG-IP object model — Rust port of `dialects/f5/bigip/model/`.
+//! BIG-IP object model.
 //!
 //! The long-tail kinds share [`minimal::BigipMinimalObject`] /
 //! [`minimal::BigipGenericObject`]; rich typed kinds (pool, virtual,
-//! node, monitor, profile, rule, …) land in their per-module submodules
-//! as they are ported.
+//! node, monitor, profile, rule, …) live in their per-module submodules.
 
 pub mod enums;
 pub mod r#gen;
@@ -20,7 +19,7 @@ mod tests {
 
     #[test]
     fn generated_structs_carry_python_defaults() {
-        // Non-empty Python string defaults survive into the Rust Default.
+        // Non-empty string defaults survive into the Rust Default.
         let pool = BigipPool::default();
         assert_eq!(pool.module, "ltm");
         assert!(pool.full_path.is_empty());

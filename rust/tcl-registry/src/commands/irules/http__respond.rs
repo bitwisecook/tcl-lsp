@@ -3,7 +3,6 @@ use crate::prelude::*;
 
 /// Bareword option tokens that follow the `<status>` positional
 /// argument (`HTTP::respond 302 content|noserver|reset|version`).
-/// Mirrors the form-level `arg_values[1]` in `irules/http__respond.py`.
 const RESPOND_OPTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "content",
@@ -29,8 +28,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(1),
-        // Option set mirrors `irules/http__respond.py` (the reference
-        // standard): `-version`/`-content`/`-ifile`/`-noserver`/`-reset`.
+        // Option set: `-version`/`-content`/`-ifile`/`-noserver`/`-reset`.
         // (`-status` is the positional status arg, not an option.)
         options: &[
             OptionSpec {
@@ -77,8 +75,8 @@ pub const fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: tainted data in the response body → XSS/content
-        // injection (IRULE3001). Mirrors `irules/http__respond.py`.
+        // Tainted data in the response body → XSS/content
+        // injection (IRULE3001).
         taint_output_sink: Some("IRULE3001"),
         event_requires: Some(EventRequires {
             client_side: false,
@@ -102,8 +100,7 @@ pub const fn spec() -> CommandSpec {
         }),
         // Command-level arg-value completion: the bareword option
         // tokens that follow the `<status>` positional argument
-        // (`HTTP::respond 302 content|noserver|reset|version`).  Mirrors
-        // the form-level `arg_values[1]` in `irules/http__respond.py`.
+        // (`HTTP::respond 302 content|noserver|reset|version`).
         arg_values: &[(1, RESPOND_OPTION_VALUES)],
         forms: &[FormSpec {
             kind: FormKind::Default,

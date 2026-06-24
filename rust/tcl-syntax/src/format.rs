@@ -2,7 +2,7 @@
 //!
 //! Parses one `%…` conversion (`%[flags][width][.precision]verb`) into a
 //! [`Spec`], the structured form both consumers render from: the LSP/compiler's
-//! version-aware const-folder (`tcl-registry`) and the runtime port's renderer
+//! version-aware const-folder (`tcl-registry`) and the WASM runtime's renderer
 //! over its own value type. Rendering is **not** here — it is value-type- and
 //! dialect-specific, so each consumer owns it; this module is the one place the
 //! specifier *grammar* lives (reference Tcl 9.0 `Tcl_AppendFormatToObj`,

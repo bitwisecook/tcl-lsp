@@ -411,7 +411,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-/// Command-level `chan configure` options (mirrors `tcl/chan.py`
+/// Command-level `chan configure` options (the `chan configure`
 /// form options) — surfaced at the command level for completion parity.
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {

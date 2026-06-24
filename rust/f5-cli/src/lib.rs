@@ -1,12 +1,10 @@
-//! Native Rust port of the `f5-query` BIG-IP / iRules CLI.
+//! The `f5-query` BIG-IP / iRules CLI.
 //!
-//! Owns the `clap` command tree mirroring `tooling/f5/main.py` + the
-//! `tooling/f5/verbs/*` registry (and the `irule` verb group), plus dispatch
-//! into the BIG-IP engine crates (`tcl-bigip`, `tcl-bigip-query`,
-//! `tcl-bigip-remote`, `tcl-bigip-pcap`).
+//! Owns the `clap` command tree (the verb registry and the `irule` verb
+//! group), plus dispatch into the BIG-IP engine crates (`tcl-bigip`,
+//! `tcl-bigip-query`, `tcl-bigip-remote`, `tcl-bigip-pcap`).
 //!
-//! As with `tcl-cli`, the command surface is the parity contract; verb engines
-//! land phase by phase. Until a verb is ported its handler returns a clear
+//! A verb whose engine is not yet implemented returns a clear
 //! "not yet implemented" error (exit code 2).
 
 #![forbid(unsafe_code)]
@@ -265,7 +263,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json: _,
             output,
         } => {
-            // `--output -` (the default) means stdout, mirroring the Python verb.
+            // `--output -` (the default) means stdout.
             let path = (output != "-").then(|| std::path::Path::new(output));
             commands::registry_dump::run_registry_dump(section, path)
         }
@@ -418,14 +416,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
     }
 }
 
-/// Route `Command::Query` to the read-only query verb, mapping the output-mode
-/// flags and rejecting the deferred help actions.
 /// Handle the `--help-*` actions, which short-circuit before requiring an
-/// expression / inputs (mirroring argparse's immediate-exit custom actions).
+/// expression / inputs.
 ///
 /// Returns `Ok(Some(code))` when a help action fired (so the caller exits with
-/// `code`), `Ok(None)` when no help flag was set, or an error for the deferred
-/// builtins-prose surfaces (`--help-builtins` / `--help-manual`).
+/// `code`), `Ok(None)` when no help flag was set, or an error for the
+/// unimplemented builtins-prose surfaces (`--help-builtins` / `--help-manual`).
 fn dispatch_query_help(command: &Command) -> Option<u8> {
     let Command::Query {
         help_dsl,
@@ -440,8 +436,8 @@ fn dispatch_query_help(command: &Command) -> Option<u8> {
         unreachable!("dispatch_query_help is only called with Command::Query");
     };
 
-    // `--help-renderers` / `--help-inputs` are fully ported (static catalogues;
-    // no user-plugin scan in the Rust port).
+    // `--help-renderers` / `--help-inputs` print static catalogues (no
+    // user-plugin scan).
     if *help_renderers {
         print!("{}", commands::query::help_renderers_text());
         return Some(0);
@@ -451,9 +447,8 @@ fn dispatch_query_help(command: &Command) -> Option<u8> {
         return Some(0);
     }
 
-    // `--help-dsl` prints the static grammar reference (ported byte-for-byte
-    // from `dialects/f5/query/grammar.py`); `--help-examples` the cookbook
-    // (from `dialects/f5/query/examples.py`).
+    // `--help-dsl` prints the static grammar reference; `--help-examples`
+    // the cookbook.
     if *help_dsl {
         print!("{}", tcl_bigip_query::grammar::format_grammar());
         return Some(0);
@@ -463,8 +458,7 @@ fn dispatch_query_help(command: &Command) -> Option<u8> {
         return Some(0);
     }
 
-    // `--help-builtins [NAME]` and `--help-manual` are idiomatic Rust surfaces
-    // rather than byte-for-byte ports: the Rust `BuiltinSpec` omits the Python
+    // `--help-builtins [NAME]` and `--help-manual`: `BuiltinSpec` carries no
     // doc prose, so the catalogue is generated from the registry metadata
     // (name / category / arity / flags). `--help-manual` composes grammar +
     // builtins + cookbook.
@@ -516,16 +510,15 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         unreachable!("dispatch_query is only called with Command::Query");
     };
 
-    // Help actions short-circuit before any expression / input is required,
-    // mirroring argparse's custom actions that `parser.exit()` immediately.
+    // Help actions short-circuit before any expression / input is required.
     if let Some(code) = dispatch_query_help(command) {
         return Ok(code);
     }
 
-    // Resolve the query expression, honouring `-f/--from-file` — port of
-    // `query._resolve_expression`. When `--from-file` is set, the positional
-    // `expression` is actually the first input file (argparse fills the
-    // positional slot before `inputs`), so promote it into `inputs`.
+    // Resolve the query expression, honouring `-f/--from-file`. When
+    // `--from-file` is set, the positional `expression` is actually the first
+    // input file (the positional slot is filled before `inputs`), so promote
+    // it into `inputs`.
     let mut inputs = inputs.clone();
     let resolved_expression: Option<String> = if let Some(from_file) = from_file {
         if let Some(expr) = expression {
@@ -534,8 +527,8 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         match std::fs::read_to_string(from_file) {
             Ok(text) => Some(text),
             Err(e) => {
-                // Mirror Python: print the read error, then fall through with
-                // `None` so the verb prints the "no query expression" message.
+                // Print the read error, then fall through with `None` so the
+                // verb prints the "no query expression" message.
                 eprintln!("error: {e}");
                 None
             }
@@ -547,7 +540,7 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     // `--render NAME` re-uses the same output dispatch path as the built-in
     // modes: `output::render` falls through to the renderer registry on an
     // unknown mode, so we swap the output mode for the requested name and
-    // thread the parsed `--render-opt` map through. Mirrors `_run_query`.
+    // thread the parsed `--render-opt` map through.
     let mode = if let Some(name) = render_name {
         name.clone()
     } else {

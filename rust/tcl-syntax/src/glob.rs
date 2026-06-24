@@ -36,95 +36,149 @@ fn fold(c: char, nocase: bool) -> char {
     }
 }
 
-fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) -> bool {
-    loop {
-        // End of both ⇒ match; end of pattern but not string ⇒ no match.
-        if pi >= p.len() {
-            return si >= s.len();
-        }
-        let pc = p[pi];
-        // End of string with a non-`*` pattern char left ⇒ no match.
-        if si >= s.len() && pc != '*' {
-            return false;
-        }
+/// Match one non-`*` pattern atom at `p[pi]` against the single string char
+/// `sc`, returning the pattern index just past the atom if it matched, else
+/// `None`. Handles `?`, a `[...]` set/range, a `\`-escaped literal, and a plain
+/// folded char — every glob atom except `*` (whose backtracking the caller
+/// drives). `pi` is assumed `< p.len()`; the returned index always advances.
+///
+/// Factored out so the iterative star loop below can call it from both the
+/// "try to extend the current match" path and the "resume after a `*`" path
+/// without duplicating the atom semantics (which must stay byte-identical to
+/// `Tcl_StringCaseMatch`).
+fn match_one(p: &[char], pi: usize, sc: char, nocase: bool) -> Option<usize> {
+    let pc = p[pi];
 
-        // `*` — collapse a run, then try the tail at each remaining position.
-        if pc == '*' {
+    // `?` — any single char.
+    if pc == '?' {
+        return Some(pi + 1);
+    }
+
+    // `[...]` — a set, possibly with `a-z`/reversed `z-a` ranges.
+    if pc == '[' {
+        let mut pj = pi + 1;
+        let ch1 = fold(sc, nocase);
+        let mut matched = false;
+        // Scan members until the closing `]`. A member match doesn't stop the
+        // scan early — we still walk to `]` so the returned index is correct.
+        while pj < p.len() && p[pj] != ']' {
+            let start = fold(p[pj], nocase);
+            pj += 1;
+            if pj < p.len() && p[pj] == '-' {
+                pj += 1;
+                if pj >= p.len() {
+                    // Dangling `-` with the pattern exhausted (an unterminated
+                    // class ending in `-`): the C just runs off the end skipping
+                    // it, so any *earlier* member match still stands. Stop the
+                    // scan and keep whatever `matched` we already have.
+                    break;
+                }
+                let end = fold(p[pj], nocase);
+                pj += 1;
+                if (start <= ch1 && ch1 <= end) || (end <= ch1 && ch1 <= start) {
+                    matched = true;
+                }
+            } else if start == ch1 {
+                matched = true;
+            }
+        }
+        if !matched {
+            return None;
+        }
+        // Skip past the closing `]`. If the pattern ran out before `]` (an
+        // unterminated class that still matched a member), the C treats the rest
+        // of the pattern as consumed — leave `pj` at `p.len()` so the caller's
+        // end-of-pattern check decides the overall match on the string's end.
+        while pj < p.len() && p[pj] != ']' {
+            pj += 1;
+        }
+        if pj < p.len() {
+            pj += 1; // step over the `]`
+        }
+        return Some(pj);
+    }
+
+    // `\` — strip it and match the next char literally (the escaped char folds
+    // like any other). A trailing `\` (nothing to escape) cannot match.
+    let mut pj = pi;
+    if pc == '\\' {
+        pj += 1;
+        if pj >= p.len() {
+            return None;
+        }
+    }
+
+    // Ordinary (or escaped) character: fold-compare one char from each side.
+    if fold(p[pj], nocase) == fold(sc, nocase) {
+        Some(pj + 1)
+    } else {
+        None
+    }
+}
+
+/// Iterative glob matcher with a single `*` resume point, giving `O(n·m)` worst
+/// case instead of the old recursion's `O(2^n)` (a pattern like
+/// `a*a*…a*b` against a run of `a`s used to blow up exponentially — a denial of
+/// service, since glob patterns come from attacker-controllable LSP buffers via
+/// `string match`, `lsearch -glob`, `switch -glob`, `array names`, and the
+/// compiler's glob folding). This is the classic backtracking wildcard match: on
+/// a literal mismatch we rewind only to the most recent `*` and let it swallow
+/// one more string char, never re-exploring earlier `*`s. Results are
+/// byte-identical to the previous recursion (verified against the existing
+/// tests).
+fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) -> bool {
+    // The single resume point: `star_pat` is the pattern index just after the
+    // last `*` we committed to, and `star_str` is the string index it was first
+    // tried at; on a mismatch we backtrack there with `star_str` advanced by one.
+    let mut star_pat: Option<usize> = None;
+    let mut star_str = 0usize;
+
+    loop {
+        let advanced = if pi < p.len() && p[pi] == '*' {
+            // Collapse a `*` run and record the single resume point. A trailing
+            // `*` matches the remaining string outright.
             while pi < p.len() && p[pi] == '*' {
                 pi += 1;
             }
             if pi >= p.len() {
-                return true; // trailing `*` matches the rest
+                return true;
             }
-            loop {
-                if do_match(p, pi, s, si, nocase) {
-                    return true;
-                }
-                if si >= s.len() {
-                    return false;
-                }
-                si += 1;
-            }
-        }
-
-        // `?` — any single char.
-        if pc == '?' {
-            pi += 1;
+            star_pat = Some(pi);
+            star_str = si;
+            true
+        } else if pi < p.len()
+            && si < s.len()
+            && let Some(next_pi) = match_one(p, pi, s[si], nocase)
+        {
+            // The atom at `pi` matched `s[si]`: advance both. (`match_one` may
+            // push `pi` to `p.len()` for an unterminated `[`; the end-of-pattern
+            // check below then settles the match on whether `si` is also at the
+            // end, exactly as the C's unclosed-bracket rule does.)
+            pi = next_pi;
             si += 1;
+            true
+        } else {
+            false
+        };
+        if advanced {
             continue;
         }
 
-        // `[...]` — a set, possibly with ranges.
-        if pc == '[' {
-            pi += 1;
-            let ch1 = fold(s[si], nocase);
-            si += 1;
-            loop {
-                if pi >= p.len() || p[pi] == ']' {
-                    return false; // exhausted the set with no member match
-                }
-                let start = fold(p[pi], nocase);
-                pi += 1;
-                if pi < p.len() && p[pi] == '-' {
-                    pi += 1;
-                    if pi >= p.len() {
-                        return false;
-                    }
-                    let end = fold(p[pi], nocase);
-                    pi += 1;
-                    if (start <= ch1 && ch1 <= end) || (end <= ch1 && ch1 <= start) {
-                        break; // matched a range ([a-z] or reversed [z-a])
-                    }
-                } else if start == ch1 {
-                    break; // matched a literal set member
-                }
-            }
-            // Skip to past the closing `]` (C's unclosed-bracket handling: if we
-            // run out, it's a match only if the string also ended).
-            while pi < p.len() && p[pi] != ']' {
-                pi += 1;
-            }
-            if pi >= p.len() {
-                return si >= s.len();
-            }
-            pi += 1;
-            continue;
+        // Could not advance the pattern here. If both sides ended together it is
+        // a match; otherwise rewind to the last `*` (letting it absorb one more
+        // char) if there is one, else fail.
+        if pi >= p.len() && si >= s.len() {
+            return true;
         }
-
-        // `\` — strip it and match the next char literally.
-        if pc == '\\' {
-            pi += 1;
-            if pi >= p.len() {
-                return false;
-            }
-        }
-
-        // Ordinary character: fold-compare one char from each side.
-        if fold(p[pi], nocase) != fold(s[si], nocase) {
+        let Some(resume) = star_pat else {
             return false;
+        };
+        if star_str >= s.len() {
+            return false; // the `*` has already swallowed the whole string
         }
-        pi += 1;
-        si += 1;
+        star_str += 1;
+        si = star_str;
+        pi = resume;
     }
 }
 
@@ -193,5 +247,28 @@ mod tests {
         assert!(!string_match("[abc", "ab"));
         // No member match before the (missing) close ⇒ no match.
         assert!(!string_match("[xyz", "a"));
+        // An unterminated class ending in a dangling `-` still honours an earlier
+        // member match (the old recursion's run-to-`]` skip of the `-`).
+        assert!(string_match("[ab-", "a"));
+        assert!(!string_match("[ab-", "aa"));
+    }
+
+    #[test]
+    fn star_backtracking_is_not_exponential() {
+        // Regression test: the old recursive `*` handling was O(2^n), so
+        // `a*a*…a*b` (16 stars) against a run of 'a's with no trailing 'b' took
+        // ~14s for 32 'a's — a DoS reachable from `string match`/`switch -glob`/
+        // `array names` on attacker-controlled buffers. The iterative single-
+        // resume matcher is O(n·m), so 40 'a's must return (no match) instantly.
+        let pattern = "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*b";
+        let text = "a".repeat(40);
+        let start = std::time::Instant::now();
+        assert!(!string_match(pattern, &text));
+        // Generous bound: the pathological recursion was seconds; this is µs.
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(1),
+            "glob match took too long: {:?}",
+            start.elapsed()
+        );
     }
 }

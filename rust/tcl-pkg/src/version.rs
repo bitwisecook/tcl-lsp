@@ -1,6 +1,6 @@
 //! Semantic version type with Tcl-friendly parsing.
 //!
-//! Faithful port of `tooling/tclpkg/version.py`. Version ordering agrees with
+//! Version ordering agrees with
 //! semver 2.0 and with C Tcl's `package require` ordering: missing patch digits
 //! default to zero, a leading `v` is tolerated, and Tcl-style `a1`/`b2`/`rc1`
 //! prereleases collate alongside semver's `-alpha.1` form (`8.6.3a1` sorts
@@ -64,7 +64,7 @@ pub enum PreItem {
 impl PreItem {
     const fn rank(&self) -> u8 {
         match self {
-            // Mirrors the Python (0, …) / (1, …) / (2,) tuple tags.
+            // Tag scheme: numeric items sort before alpha, alpha before the sentinel.
             PreItem::Num(_) => 0,
             PreItem::Alpha(_) => 1,
             PreItem::Sentinel => 2,

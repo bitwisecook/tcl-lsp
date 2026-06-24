@@ -1,7 +1,5 @@
 //! Lower the `incr` command to a typed IR statement.
 //!
-//! Mirrors `core/compiler/lowering_hooks/_var.py::lower_incr`.
-//!
 //! `incr name ?amount?` increments `name` by `amount` (default 1)
 //! and returns the new value. Specialises to [`Statement::Incr`]
 //! when:
@@ -36,11 +34,8 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
         name: cmd.args[0].clone(),
         name_braced,
         amount: cmd.args.get(1).cloned(),
-        // The Python hook queries the registry's ``safe_on_uninit``
-        // trait via ``REGISTRY.is_safe_on_uninit``. The Rust port
-        // leaves this ``false`` until the registry trait surface is
-        // wired up; downstream passes treat ``incr`` as if it reads
-        // the variable first, which is the conservative choice.
+        // Conservatively `false`: downstream passes treat ``incr``
+        // as if it reads the variable first.
         safe_on_uninit: false,
     }
 }

@@ -1,11 +1,10 @@
 //! Convert a constant-mapping `switch` to a `dict` lookup.
-//! Ports `tooling/refactoring/_switch_to_dict.py`.
 
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// A parsed single-command arm body.
@@ -16,9 +15,9 @@ enum BranchBody {
     Return(String),
 }
 
-/// Parse a single-command switch-branch body via the tokeniser.  Ports
-/// `_parse_branch_assignment`: the value keeps its original source span
-/// (quotes / braces intact) so the generated dict preserves the literal.
+/// Parse a single-command switch-branch body via the tokeniser: the
+/// value keeps its original source span (quotes / braces intact) so the
+/// generated dict preserves the literal.
 fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
     let commands = segment_commands_with_offset(body_text, 0);
     if commands.len() != 1 || commands[0].texts.is_empty() {
@@ -39,8 +38,7 @@ fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
 }
 
 /// Convert a `switch` where every arm sets the same variable / returns a
-/// constant into a `dict` lookup at byte offset `cursor`.  Ports
-/// `switch_to_dict`.
+/// constant into a `dict` lookup at byte offset `cursor`.
 #[must_use]
 pub fn switch_to_dict(
     source: &str,
@@ -174,9 +172,13 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 
     let mut parts: Vec<String> = vec![format!("set {dict_name} [dict create {dict_items}]")];
     if let Some(default) = &arms.default_value {
-        parts.push(format!("{indent}if {{[dict exists ${dict_name} {subject}]}} {{"));
+        parts.push(format!(
+            "{indent}if {{[dict exists ${dict_name} {subject}]}} {{"
+        ));
         if arms.use_return {
-            parts.push(format!("{indent}    return [dict get ${dict_name} {subject}]"));
+            parts.push(format!(
+                "{indent}    return [dict get ${dict_name} {subject}]"
+            ));
             parts.push(format!("{indent}}} else {{"));
             parts.push(format!("{indent}    return {default}"));
         } else {
@@ -213,8 +215,8 @@ mod tests {
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("dict"));
         let applied = r.apply(source);
-        // Byte-for-byte parity with the Python oracle: the segmenter
-        // canonicalises the `$method` subject to `${method}`.
+        // The segmenter canonicalises the `$method` subject to
+        // `${method}`.
         assert_eq!(
             applied,
             "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map ${method}]"
@@ -273,7 +275,7 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         let li = LineIndex::new(source);
-        let cursor = source.find("switch").unwrap() as u32;
+        let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
         let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
     }

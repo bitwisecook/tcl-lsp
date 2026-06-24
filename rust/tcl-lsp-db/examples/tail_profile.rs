@@ -120,7 +120,7 @@ fn main() {
     });
     println!("  (functions in unit: {})", cu.functions().count());
 
-    // Decompose the run_all_checks tail across phases — sets Task 2's ceiling:
+    // Decompose the run_all_checks tail across phases:
     // per-function checks (GVN, shimmer/thunking) reuse cleanly under a per-proc
     // memo; the whole-unit interproc taint solve does not.
     println!("\n== run_all_checks phase decomposition (whole-file, no memo) ==");
@@ -130,7 +130,8 @@ fn main() {
             + find_loop_invariants_for_cu(&cu, &registry, Some(dialect)).len()
     });
     let t_shimmer = time("shimmer + thunking (per-fn)", 3, || {
-        find_shimmer_warnings_for_cu(&cu, &registry).len() + find_thunking_warnings_for_cu(&cu).len()
+        find_shimmer_warnings_for_cu(&cu, &registry).len()
+            + find_thunking_warnings_for_cu(&cu).len()
     });
     let t_taint = time("solve_interprocedural_taints (whole-unit)", 3, || {
         solve_interprocedural_taints(&cu, &registry, Some(dialect))
@@ -141,15 +142,15 @@ fn main() {
         t_taint,
     );
 
-    // 2b gate: the warm cost of a SECOND `memoised_compilation_unit` build on the
+    // The warm cost of a SECOND `memoised_compilation_unit` build on the
     // same db — exactly what a checks-path `proc_taint_solve` query would re-run to
     // recover the offset-0 `FnLatticeKey`s locally (they cannot be threaded out of
     // the shared `compilation_unit`: a salsa tracked return must be `'static`). The
     // per-proc lattice demands route through the already-hot `function_lattice` /
     // `taint_cascade` memos, so this measures only the whole-file structural
     // reassembly (lex + segment + IR skeleton + interproc summary) the second build
-    // cannot avoid. This delta is the gate on whether 2b's ~120 ms summary-floor win
-    // survives the duplicate build it costs.
+    // cannot avoid. This delta is the duplicate-build cost the checks-path memo
+    // must pay against its ~120 ms summary-floor saving.
     println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
     {
         let dialect_opt = Some(dialect);
@@ -159,7 +160,14 @@ fn main() {
         file.set_text(&mut db).to(edited.clone());
         let _ = compiler_check_diagnostics(&db, file);
         let dup = time("memoised_compilation_unit (2nd build, warm)", 5, || {
-            tcl_lsp_db::memoised_compilation_unit(&db, &edited, &registry, false, cfg_d, dialect_opt)
+            tcl_lsp_db::memoised_compilation_unit(
+                &db,
+                &edited,
+                &registry,
+                false,
+                cfg_d,
+                dialect_opt,
+            )
         });
         println!(
             "  -> duplicate-build delta ~{dup:.0} ms (cold whole-file build was ~59 ms above); \
@@ -182,7 +190,11 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
     let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&log);
     let mut db = TclDatabase::with_event_logger(move |k| sink.lock().unwrap().push(k));
-    let cfg = AnalyserConfig::new(&db, Vec::new(), tcl_compiler::analyser::NonAsciiMode::Default);
+    let cfg = AnalyserConfig::new(
+        &db,
+        Vec::new(),
+        tcl_compiler::analyser::NonAsciiMode::Default,
+    );
     let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file);

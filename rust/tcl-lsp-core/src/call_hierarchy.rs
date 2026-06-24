@@ -1,5 +1,4 @@
-//! Call-hierarchy provider — Rust port of
-//! `lsp/features/call_hierarchy.py`.
+//! Call-hierarchy provider.
 //!
 //! Three entry points:
 //!
@@ -11,9 +10,8 @@
 //! * [`outgoing_calls`] — every call site inside the given
 //!   proc's / method's body, grouped by the callee.
 //!
-//! Proc edge enumeration mirrors Python's per-proc call-site
-//! computation by walking `analysis.command_invocations` and
-//! intersecting their byte spans with each proc's body span.
+//! Proc edge enumeration walks `analysis.command_invocations` and
+//! intersects their byte spans with each proc's body span.
 //!
 //! Class-method edges are computed differently: the analyser's
 //! `command_invocations` collection only records top-level
@@ -73,7 +71,7 @@ pub fn prepare(
     }
     // Class-method fallback — cursor inside a class body on a
     // method / classmethod name.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((class_def, method)) = enclosing_class_method(analysis, &word, cursor_offset) {
         return vec![item_for_method(source, class_def, method, &line_index)];
     }
@@ -254,7 +252,7 @@ fn item_for_proc(
     };
     CallHierarchyItem {
         // Short display name (`helper`), not the qualified key (`::helper`) —
-        // matches the Python server and the editor's call-hierarchy UI.  The
+        // matches the editor's call-hierarchy UI.  The
         // incoming/outgoing lookups match this against both forms.
         name: proc_def.name.clone(),
         detail,
@@ -318,8 +316,7 @@ fn invocation_targets(
 }
 
 /// One incoming-call entry: the caller proc plus the spans at
-/// which it calls the target.  Mirrors
-/// `lsprotocol.types.CallHierarchyIncomingCall`.
+/// which it calls the target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncomingCall {
     /// The proc that contains the call sites.
@@ -329,8 +326,7 @@ pub struct IncomingCall {
 }
 
 /// One outgoing-call entry: the called proc plus the spans
-/// from which it's called.  Mirrors
-/// `lsprotocol.types.CallHierarchyOutgoingCall`.
+/// from which it's called.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutgoingCall {
     /// The proc being called.
@@ -713,9 +709,9 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 
@@ -773,7 +769,7 @@ mod tests {
         );
     }
 
-    // -- S-call-hierarchy-rich: incoming + outgoing calls -----------
+    // incoming + outgoing calls
 
     #[test]
     fn incoming_calls_from_other_procs() {
@@ -898,7 +894,7 @@ mod tests {
         assert_eq!(sibling.from_ranges.len(), 2, "{unresolved:?}");
     }
 
-    // -- S-call-hierarchy-rich: class methods -----------------------
+    // class methods
 
     #[test]
     fn prepare_resolves_method_at_cursor() {
@@ -948,7 +944,7 @@ mod tests {
         assert_eq!(names, vec!["helper"], "{outgoing:?}");
     }
 
-    // -- workspace-index: cross-document incoming calls -------------
+    // workspace-index: cross-document incoming calls
 
     #[test]
     fn incoming_calls_for_target_finds_callers_in_other_doc() {

@@ -1,6 +1,6 @@
 //! Shared control-flow-graph edge-routing model for the compiler explorer.
 //!
-//! A faithful port of `tooling/explorer/cfg_layout.py`. The web GUI (SVG)
+//! The web GUI (SVG)
 //! and the CLI/TUI (ASCII box-drawing gutter) draw control-flow edges in
 //! different media, but they must agree on *routing* — which edges exist
 //! and which lane each one occupies — so a reader sees the same graph
@@ -8,10 +8,10 @@
 //! serialiser, the CLI/TUI renderers, and the planned diagram extractor
 //! all reuse it rather than each re-deriving lanes.
 //!
-//! Lane assignment mirrors the original in-JS algorithm exactly (shortest
-//! span first → innermost lane, greedy interval colouring over block
-//! ordinals) so every surface nests edges identically. Only the *drawing*
-//! differs between surfaces; the model does not.
+//! Lane assignment is shortest span first → innermost lane, greedy
+//! interval colouring over block ordinals, so every surface nests edges
+//! identically. Only the *drawing* differs between surfaces; the model
+//! does not.
 
 use std::collections::HashMap;
 
@@ -63,12 +63,10 @@ pub struct CfgEdge {
 /// lane index per span (in input order). Two spans share a lane only if
 /// their closed ordinal intervals do not overlap (touching endpoints count
 /// as overlap, so an edge into a block and an edge out of that same block
-/// never share a lane). Identical to the web GUI's lane loop in
-/// `drawOrthogonalEdges`.
+/// never share a lane).
 #[must_use]
 pub fn assign_lanes(spans: &[(usize, usize)]) -> Vec<usize> {
-    // Shortest span first; stable so equal-length spans keep input order
-    // (matches Python's `sorted(..., key=abs(...))`).
+    // Shortest span first; stable so equal-length spans keep input order.
     let mut by_span: Vec<usize> = (0..spans.len()).collect();
     by_span.sort_by_key(|&i| spans[i].1.abs_diff(spans[i].0));
 
@@ -97,14 +95,17 @@ pub fn assign_lanes(spans: &[(usize, usize)]) -> Vec<usize> {
 ///
 /// Block names are minted as `{prefix}_{counter}` with a monotonically
 /// increasing counter (`cfg_builder::new_block`), so the creation order —
-/// which is the insertion order Python's `CFGFunction.blocks` dict
-/// preserves and the explorer renders in — is recovered by sorting on the
+/// the order the explorer renders in — is recovered by sorting on the
 /// trailing numeric suffix. Rust's `Function.blocks` is a `HashMap`, so
-/// callers that need Python-parity ordering (the CFG view, the edge
+/// callers that need this ordering (the CFG view, the edge
 /// router) go through this rather than iterating the map.
 #[must_use]
 pub fn ordered_block_names(func: &Function) -> Vec<String> {
-    let mut names: Vec<String> = func.blocks.keys().cloned().collect();
+    let mut names: Vec<String> = func
+        .blocks
+        .keys()
+        .map(|id| func.block_name(*id).to_owned())
+        .collect();
     names.sort_by_key(|name| (suffix_ordinal(name), name.clone()));
     names
 }
@@ -123,8 +124,7 @@ fn suffix_ordinal(name: &str) -> u64 {
 /// against (Rust's `Function.blocks` is a `HashMap`, so the order is the
 /// caller's concern — typically the CFG view's display order). Edges follow
 /// terminator successors only (the same set the CFG view draws); `try`
-/// exception edges are analysis-only and not shown here, matching Python's
-/// `_block_successors`.
+/// exception edges are analysis-only and not shown here.
 #[must_use]
 pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
     let pos: HashMap<&str, usize> = order
@@ -135,7 +135,7 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
 
     let mut raw: Vec<(String, String, usize, usize, EdgeKind)> = Vec::new();
     for name in order {
-        let Some(block) = func.blocks.get(name) else {
+        let Some(block) = func.block_by_name(name) else {
             continue;
         };
         let Some(term) = &block.terminator else {
@@ -143,12 +143,13 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
         };
         let src_pos = pos[name.as_str()];
         for target in term.successors() {
-            let Some(&dst_pos) = pos.get(target) else {
+            let target_name = func.block_name(target);
+            let Some(&dst_pos) = pos.get(target_name) else {
                 continue;
             };
             let kind = match term {
                 Terminator::Branch { true_target, .. } => {
-                    if target == true_target {
+                    if target == *true_target {
                         EdgeKind::True
                     } else {
                         EdgeKind::False
@@ -156,7 +157,7 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
                 }
                 _ => EdgeKind::Goto,
             };
-            raw.push((name.clone(), target.to_owned(), src_pos, dst_pos, kind));
+            raw.push((name.clone(), target_name.to_owned(), src_pos, dst_pos, kind));
         }
     }
 

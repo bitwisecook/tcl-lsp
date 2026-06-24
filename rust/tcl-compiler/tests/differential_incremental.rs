@@ -1,4 +1,4 @@
-//! Differential fuzzer for incremental analysis (Phase-0 E5 / permanent guard).
+//! Differential fuzzer for incremental analysis (permanent guard).
 //!
 //! The contract: `analyse_incremental` must converge to *exactly* what a
 //! from-scratch `analyse` produces. We apply random edit sequences to corpus

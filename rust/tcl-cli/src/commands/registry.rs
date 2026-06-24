@@ -1,16 +1,14 @@
 //! `registry-dump` verb: serialise the command registry as canonical JSON.
 //!
-//! Port of `_run_registry_dump` in `tooling/tcl/verbs/registry.py`, driving
-//! the snapshot builders in `tcl_registry::command_snapshot`. The output is
-//! `json.dumps(indent=2, sort_keys=True)`-faithful.
+//! Drives the snapshot builders in `tcl_registry::command_snapshot`. The output is
+//! canonical 2-space-indented JSON with keys sorted.
 
 use std::path::Path;
 
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry_snapshots};
 
-/// The Tcl dialects `--all-dialects` snapshots, in stable order — Python
-/// `TCL_DIALECTS`.
+/// The Tcl dialects `--all-dialects` snapshots, in stable order.
 const TCL_DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
 
 /// `tcl registry-dump` — dump the command registry for one dialect (or

@@ -1,11 +1,12 @@
 //! Packet/byte decoding: pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5
-//! trailer. Faithful port of `dialects/f5/bigip/flow/packets.py`.
+//! trailer.
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use indexmap::IndexMap;
 
 use super::model::{Flow, FlowKey};
+use crate::error::BigipError;
 use crate::f5_trailer::{
     DPT_HDR_LEN, DPT_HDR_MAGIC, DPT_PROVIDER_NOISE, DPT_TLV_HDR_LEN, TrailerFmt, parse_trailer,
 };
@@ -22,7 +23,7 @@ fn pcap_magic_big_endian(magic: u32) -> Option<bool> {
 }
 
 /// Yield `(linktype, packet_bytes)` for every packet in *data*.
-fn iter_pcap_packets(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, String> {
+fn iter_pcap_packets(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, BigipError> {
     if data.len() < 4 {
         return Ok(Vec::new());
     }
@@ -40,9 +41,9 @@ fn iter_libpcap(data: &[u8]) -> Vec<(u16, Vec<u8>)> {
     }
     let magic = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
     let Some(big_endian) = pcap_magic_big_endian(magic) else {
-        // Python raises ValueError on an unrecognised magic; the CLI surfaces
-        // it as `error: pcap: unrecognised magic ...`. We mirror that at the
-        // call site, but here a bad magic simply yields no packets.
+        // The CLI surfaces an unrecognised magic at the call site as
+        // `error: pcap: unrecognised magic ...`; here a bad magic simply
+        // yields no packets.
         return out;
     };
     let rd_u32 = |b: &[u8], off: usize| -> u32 {
@@ -67,7 +68,7 @@ fn iter_libpcap(data: &[u8]) -> Vec<(u16, Vec<u8>)> {
     out
 }
 
-fn iter_pcapng(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, String> {
+fn iter_pcapng(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, BigipError> {
     let blocks = pcapng::read_blocks(data)?;
     let mut out: Vec<(u16, Vec<u8>)> = Vec::new();
     let mut interface_linktypes: Vec<u16> = Vec::new();
@@ -192,13 +193,13 @@ const HTTP_METHODS: &[&[u8]] = &[
 const HTTP_RESPONSE_PREFIX: &[u8] = b"HTTP/";
 
 /// Decode CRLF-separated HTTP headers into a lowercase-keyed map, first-seen
-/// position preserved, last value winning on a duplicate name (Python dict
-/// `out[key] = value` semantics).
+/// position preserved, last value winning on a duplicate name.
 fn split_http_headers(raw: &[u8]) -> IndexMap<String, String> {
     let mut out: IndexMap<String, String> = IndexMap::new();
     for line in raw.split(|&b| b == b'\n') {
-        // Python splits on b"\r\n"; we split on \n and trim a trailing \r so a
-        // bare-\n payload behaves the same as the CRLF form for our purposes.
+        // The reference splits on CRLF; we split on \n and trim a trailing \r
+        // so a bare-\n payload behaves the same as the CRLF form for our
+        // purposes.
         let line = line.strip_suffix(b"\r").unwrap_or(line);
         if line.is_empty() || !line.contains(&b':') {
             continue;
@@ -485,9 +486,9 @@ fn extract_rst_cause_from_trailer(trailer: &[u8]) -> Vec<String> {
 /// Walk *pcap* bytes and accumulate one [`Flow`] per unique 5-tuple.
 ///
 /// Returns an `IndexMap` keyed as `(src_ip, src_port, dst_ip, dst_port,
-/// proto)`, preserving first-seen order to match Python's dict iteration.
+/// proto)`, preserving first-seen insertion order.
 #[allow(clippy::too_many_lines)]
-pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, String> {
+pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, BigipError> {
     let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
     for (linktype, packet) in iter_pcap_packets(data)? {
         let Some((ip_off, is_v6)) = find_ip_offset(&packet, linktype) else {
@@ -648,7 +649,7 @@ fn imap_to_vec(m: &IndexMap<String, String>) -> Vec<(String, String)> {
     m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
-// Byte-string helpers mirroring Python's bytes operations.
+// Byte-string helpers.
 
 fn split_once<'a>(hay: &'a [u8], sep: &[u8]) -> Option<(&'a [u8], &'a [u8])> {
     hay.windows(sep.len())
@@ -656,7 +657,7 @@ fn split_once<'a>(hay: &'a [u8], sep: &[u8]) -> Option<(&'a [u8], &'a [u8])> {
         .map(|i| (&hay[..i], &hay[i + sep.len()..]))
 }
 
-/// Split on ASCII space into at most `n` parts (Python `bytes.split(b" ", n-1)`).
+/// Split on ASCII space into at most `n` parts.
 fn splitn_space(hay: &[u8], n: usize) -> Vec<&[u8]> {
     let mut parts: Vec<&[u8]> = Vec::new();
     let mut start = 0usize;
@@ -675,7 +676,7 @@ fn splitn_space(hay: &[u8], n: usize) -> Vec<&[u8]> {
     parts
 }
 
-/// `bytes.decode("ascii", errors="replace")` — non-ASCII bytes become U+FFFD.
+/// Decode as ASCII, non-ASCII bytes become U+FFFD.
 fn decode_ascii_replace(bytes: &[u8]) -> String {
     bytes
         .iter()
@@ -683,7 +684,7 @@ fn decode_ascii_replace(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// `bytes.decode("utf-8", errors="replace")`.
+/// Decode as UTF-8 with lossy replacement.
 fn decode_utf8_replace(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }

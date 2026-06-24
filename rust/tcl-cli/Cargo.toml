@@ -1,6 +1,6 @@
 [package]
 name = "tcl-cli"
-description = "Native Rust port of the unified `tcl` toolchain CLI"
+description = "The unified `tcl` toolchain CLI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -49,12 +49,12 @@ regex = "1"
 
 [features]
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI
-# build doesn't pull the terminal-UI stack (mirrors Python's optional Textual).
+# build doesn't pull the terminal-UI stack (optional).
 tui = ["dep:ratatui"]
 
 [build-dependencies]
 # Build the embedded KCS help database (FTS5) from the committed
-# docs/kcs/features/*.md at compile time — port of scripts/build/kcs_db.py.
+# docs/kcs/features/*.md at compile time.
 rusqlite = { version = "0.32", features = ["bundled"] }
 regex = "1"
 

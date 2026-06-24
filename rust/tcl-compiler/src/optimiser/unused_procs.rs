@@ -1,6 +1,4 @@
-//! Unused-proc commenting pass (O124) for iRules (C30b).
-//!
-//! Ported from `core/compiler/optimiser/_unused_procs.py`.
+//! Unused-proc commenting pass (O124) for iRules.
 //!
 //! When an iRule defines procs that are never called from any
 //! event handler (transitively), this pass suggests commenting
@@ -17,6 +15,7 @@
 //! avoid false positives.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::when_event_name;
@@ -28,7 +27,7 @@ use super::{Optimisation, PassContext};
 /// Run the unused-procs pass.
 ///
 /// No-op unless [`PassContext::dialect`] is `Some("f5-irules")`
-/// or `Some("irules")` (the two names Python's `active_dialect()`
+/// or `Some("irules")` (the two names `active_dialect()`
 /// accepts interchangeably for iRules).
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if !is_irules_dialect(ctx.dialect) {
@@ -103,13 +102,16 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             ir_proc.name,
         );
 
-        ctx.report(Optimisation::new("O124", message, span, replacement));
+        ctx.report(Optimisation::new(
+            DiagCode::O124,
+            message,
+            span,
+            replacement,
+        ));
     }
 }
 
-// ---------------------------------------------------------------------------
 // Library-iRule detection
-// ---------------------------------------------------------------------------
 
 /// Return `true` when the set of event names looks like a library
 /// iRule — nothing except optionally `RULE_INIT`.
@@ -117,9 +119,7 @@ fn is_library_irule(event_names: &HashSet<String>) -> bool {
     event_names.iter().all(|n| n == "RULE_INIT")
 }
 
-// ---------------------------------------------------------------------------
 // Reachability walk
-// ---------------------------------------------------------------------------
 
 fn reachable_procs(
     roots: &HashSet<String>,
@@ -142,9 +142,7 @@ fn reachable_procs(
     visited
 }
 
-// ---------------------------------------------------------------------------
 // Comment-out renderer
-// ---------------------------------------------------------------------------
 
 /// Comment every non-empty line of `text` (preserving empties as
 /// `#`) and prepend an explanatory banner.
@@ -188,7 +186,7 @@ mod tests {
         ip
     }
 
-    // -- helper tests --------------------------------------------------------
+    // helper tests
 
     #[test]
     fn library_irule_detected_when_only_rule_init_events() {
@@ -246,7 +244,7 @@ mod tests {
         assert!(!is_irules_dialect(None));
     }
 
-    // -- end-to-end tests ----------------------------------------------------
+    // end-to-end tests
 
     fn run_pass(
         source: &str,
@@ -256,14 +254,12 @@ mod tests {
         use tcl_registry::CommandRegistry;
         use tcl_registry::prelude::DialectSet;
         let mut registry = CommandRegistry::build_default();
-        // C43 sub-strip 4 fallout: `when` (and any other dialect-
-        // gated structured command) is registry-resolved now, so
-        // the test registry must carry the dialect's command set
-        // before lowering iRule code.  Mirrors the production
-        // path in `tcl-lsp-server` / `tcl-lsp-py::registry`,
-        // which always pair `build_default()` with the active
-        // dialect.  Both `"irules"` and `"f5-irules"` resolve to
-        // `DialectSet::IRULES` here (the optimiser passes
+        // `when` (and any other dialect-gated structured command)
+        // is registry-resolved, so the test registry must carry the
+        // dialect's command set before lowering iRule code. This
+        // matches how production pairs `build_default()` with the
+        // active dialect.  Both `"irules"` and `"f5-irules"` resolve
+        // to `DialectSet::IRULES` here (the optimiser passes
         // recognise both aliases via `is_irules_dialect`, so the
         // registry has to as well).
         let parsed = dialect.and_then(|d| {
@@ -348,7 +344,7 @@ mod tests {
         let opts = run_pass(source, Some("f5-irules"), ip);
         assert_eq!(opts.len(), 1);
         let opt = &opts[0];
-        assert_eq!(opt.code, "O124");
+        assert_eq!(opt.code, DiagCode::O124);
         assert!(opt.message.contains("dead"));
         assert!(opt.replacement.contains("[O124] Unused proc"));
         assert!(opt.replacement.contains("# proc ::dead"));
@@ -382,7 +378,7 @@ mod tests {
         ]);
         let opts = run_pass(source, Some("f5-irules"), ip);
         assert_eq!(opts.len(), 3);
-        // Python sorts by qualified name; Rust matches.
+        // Results are sorted by qualified name.
         let names: Vec<&str> = opts.iter().map(|o| o.message.as_str()).collect();
         assert!(names[0].contains("alpha"));
         assert!(names[1].contains("beta"));

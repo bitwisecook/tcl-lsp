@@ -143,7 +143,7 @@ pub fn is_list_space(c: u8) -> bool {
 }
 
 /// Locate the next list element in `s` at/after `start`. Returns `Ok(None)` when
-/// only trailing whitespace remains. Mirrors `FindElement` (`tclUtil.c:577`).
+/// only trailing whitespace remains. (`tclUtil.c:577`).
 pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError> {
     let bytes = s.as_bytes();
     let len = bytes.len();
@@ -317,9 +317,7 @@ pub fn describe_bad_value(s: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
-// ---------------------------------------------------------------------------
 
 /// How a value must be quoted to appear as one Tcl list element. Mirrors the
 /// `CONVERT_*` modes of `TclConvertElement` (tclUtil.c, COMPAT path).
@@ -344,7 +342,7 @@ fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
         return Quote::Brace; // the empty element renders as `{}`.
     }
     let b = s.as_bytes();
-    // Ported from `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
+    // Follows `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
     // actually ships). Flags:
     //   forbid_none    ⇒ cannot copy verbatim (must brace or escape).
     //   require_escape ⇒ cannot brace-quote (must escape every special byte).

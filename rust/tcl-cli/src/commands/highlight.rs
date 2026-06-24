@@ -1,9 +1,9 @@
 //! The `highlight` verb — emit ANSI- or HTML-highlighted source.
 //!
-//! Port of `_run_highlight` in `tooling/tcl/verbs/highlight.py`. Note the tab
+//! Note the tab
 //! handling differs from the transform verbs: here highlighting runs *first*
-//! and tab expansion *after* (so `str.expandtabs` sees the escape codes), which
-//! is the Python order for this verb specifically.
+//! and tab expansion *after* (so tab expansion sees the escape codes), which
+//! is the order for this verb specifically.
 
 use tcl_cli_support::{
     OutputTarget, combine_sources, expand_tabs, highlight_ansi, highlight_html,

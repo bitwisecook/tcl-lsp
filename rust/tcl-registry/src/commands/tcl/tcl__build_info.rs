@@ -1,4 +1,4 @@
-//! `tcl::build-info` command (name-parity reconcile, GAP-d).
+//! `tcl::build-info` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

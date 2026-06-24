@@ -1,5 +1,4 @@
-//! Find-references / document-highlight provider — Rust port
-//! of `lsp/features/references.py`.
+//! Find-references / document-highlight provider.
 //!
 //! Locates every usage of the symbol at the cursor:
 //!
@@ -20,20 +19,20 @@
 //! * [`document_highlights`] — returns
 //!   `Vec<(LspRange, HighlightKind)>` for the LSP
 //!   `textDocument/documentHighlight` request.  Variables get
-//!   the `Write` / `Read` distinction
-//!   (`S-document-highlight-rich`); command-invocation matches
+//!   the `Write` / `Read` distinction;
+//!   command-invocation matches
 //!   stay `Text` because the analyser's
 //!   `command_invocations` doesn't currently surface read /
 //!   write semantics on call-head matches.
 //!
-//! Class-member references also land: when the cursor sits
+//! Class-member references: when the cursor sits
 //! on a method, classmethod, or property name inside the
 //! class body, the provider re-segments every sibling method
 //! body and surfaces each invocation that names the same
 //! member.  `document_highlights` returns the declaration as
 //! `Write` and every call site as `Text`.
 //!
-//! External `$obj method` references also land: when the
+//! External `$obj method` references: when the
 //! cursor sits on the method-name token of a `$obj method`
 //! call (or inside the class body), the provider additionally
 //! scans the whole document for `$v method` / `[$v method]`
@@ -41,18 +40,17 @@
 //! `analysis.instance_classes`) matches.  See
 //! [`find_obj_method_call_sites`] for the scan's coverage.
 //!
-//! What is *still deferred* (planned as `S-references-rich`
-//! follow-ups):
+//! Limitations:
 //!
-//! * Cross-document references — the workspace-index integration
-//!   that surfaces references across every open document; lands
-//!   alongside `S-workspace-symbols` and the workspace-index
-//!   chunks.
+//! * Cross-document references — surfacing references across
+//!   every open document via a workspace-index integration —
+//!   are not supported.
 //! * `$obj method` sites embedded in quoted / word tokens
 //!   (`"prefix[$d bark]"`) — the scan descends into
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
@@ -65,10 +63,10 @@ use crate::hover::{find_var_at_position, find_word_span_at_position};
 ///
 /// This is the matching core shared by [`references`] (the peek / Find
 /// All References) and the code-lens reference count, so the two can never
-/// disagree (issue #637 / PR #644).  It takes the resolved `proc_def`
+/// disagree.  It takes the resolved `proc_def`
 /// directly — no cursor, no `LineIndex`, no proc-table rescan — so a
 /// caller iterating every proc (the code-lens provider) doesn't pay that
-/// per-proc overhead (PR #646 review).
+/// per-proc overhead.
 #[must_use]
 pub(crate) fn proc_reference_spans(
     analysis: &AnalysisResult,
@@ -125,7 +123,7 @@ pub fn references(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
         let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             byte_offset,
@@ -147,8 +145,7 @@ pub fn references(
         return Vec::new();
     };
 
-    // Class references (checked first because Python checks
-    // class name before proc name in get_references).
+    // Class references (checked first, before proc names).
     for class_def in analysis.all_classes.values() {
         if class_def.name == word
             || class_def.qualified_name == word
@@ -186,7 +183,7 @@ pub fn references(
     // (so `helper` at the `a::helper` decl resolves to *that* namespace's
     // proc, not a same-named one in another namespace); else the first proc
     // matching the word.
-    let cursor_off = crate::definition::byte_offset_at(source, line, character);
+    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
     let proc_match = analysis
         .all_procs
         .iter()
@@ -236,7 +233,7 @@ pub fn references(
     // every invocation that names the same member, then append
     // external `$obj method` call sites.  Mirrors the
     // `rename_method` walk in `crate::rename`.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(spans) =
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
@@ -451,9 +448,8 @@ pub(crate) fn find_obj_method_call_sites(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    use std::collections::HashSet;
     // Variables of the target class.
-    let var_set: HashSet<&str> = analysis
+    let var_set: FxHashSet<&str> = analysis
         .instance_classes
         .iter()
         .filter(|(_, c)| c.as_str() == class_q)
@@ -463,7 +459,7 @@ pub(crate) fn find_obj_method_call_sites(
         return Vec::new();
     }
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
-    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
 
     // Region 1: the whole document.
     scan_obj_method_region(
@@ -517,10 +513,10 @@ fn scan_obj_method_body(
     source: &str,
     dialect: &str,
     body_span: tcl_lexer::Span,
-    var_set: &std::collections::HashSet<&str>,
+    var_set: &FxHashSet<&str>,
     method: &str,
     out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut std::collections::HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
 ) {
     if body_span.is_empty() {
         return;
@@ -544,7 +540,7 @@ fn scan_obj_method_body(
 /// args.  `var_set` holds the bare names of in-scope instance
 /// variables.
 // `too_many_arguments`: the recursive OO-method scan threads its working
-// state by value; the added `dialect` (SYNC-MAY19-dialect-contextvar)
+// state by value; the added `dialect`
 // tips it to 8.  A context struct is a separate cleanup.
 #[allow(clippy::too_many_arguments)]
 fn scan_obj_method_region(
@@ -552,10 +548,10 @@ fn scan_obj_method_region(
     dialect: &str,
     start: usize,
     end: usize,
-    var_set: &std::collections::HashSet<&str>,
+    var_set: &FxHashSet<&str>,
     method: &str,
     out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut std::collections::HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
@@ -641,8 +637,7 @@ fn strip_var_decoration(raw: &str) -> Option<&str> {
     if inner.is_empty() { None } else { Some(inner) }
 }
 
-/// Read / write kind for a document-highlight span.  Mirrors
-/// `lsprotocol.types.DocumentHighlightKind`.
+/// Read / write kind for a document-highlight span.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightKind {
     /// The cursor's symbol appears here as a read (`$var`,
@@ -678,7 +673,7 @@ pub fn document_highlights(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
         let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             byte_offset,
@@ -709,7 +704,7 @@ pub fn document_highlights(
             let mut out = Vec::new();
             // Non-variable symbols (procs / classes / methods) highlight as
             // `Text` for both declaration and uses — only variables carry the
-            // Write/Read distinction (matches the Python server).
+            // Write/Read distinction.
             out.push((
                 span_to_range(source, &line_index, class_def.name_span),
                 HighlightKind::Text,
@@ -756,7 +751,7 @@ pub fn document_highlights(
     // Class-member highlights — re-segment sibling method
     // bodies via `find_class_member_references` and mark the
     // declaration as Write, every call site as Text.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((decl_span, call_spans)) =
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
@@ -780,8 +775,7 @@ pub fn document_highlights(
 /// records both as a write and as a Read keeps the Write
 /// label.
 fn dedup_kinded(mut entries: Vec<(LspRange, HighlightKind)>) -> Vec<(LspRange, HighlightKind)> {
-    use std::collections::HashMap;
-    let mut by_key: HashMap<(u32, u32, u32, u32), HighlightKind> = HashMap::new();
+    let mut by_key: FxHashMap<(u32, u32, u32, u32), HighlightKind> = FxHashMap::default();
     for (range, kind) in &entries {
         let key = (
             range.start_line,
@@ -799,8 +793,7 @@ fn dedup_kinded(mut entries: Vec<(LspRange, HighlightKind)>) -> Vec<(LspRange, H
             })
             .or_insert(kind);
     }
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     entries.retain_mut(|(range, kind)| {
         let key = (
             range.start_line,
@@ -830,15 +823,14 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 
 fn dedup_ranges(ranges: &mut Vec<LspRange>) {
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     ranges.retain(|r| {
         let key = (r.start_line, r.start_character, r.end_line, r.end_character);
         seen.insert(key)
@@ -895,7 +887,7 @@ mod tests {
         assert!(refs.iter().any(|r| r.start_line == 0));
     }
 
-    // -- S-document-highlight-rich: read/write distinction -----------
+    // read/write distinction
 
     #[test]
     fn document_highlights_var_records_write_at_definition() {
@@ -927,7 +919,7 @@ mod tests {
         // populates `references` for a given source depends
         // on its body-walk heuristics (single-arg `set x`
         // reads are tracked, `$x` substitutions in arg
-        // positions are not in the current Rust port).  This
+        // positions are not).  This
         // test injects a synthetic `VarDef` with a known
         // `references` entry to verify the tagging logic in
         // isolation from the body-walk gap.
@@ -974,7 +966,7 @@ mod tests {
         let analysis = analyse(src);
         let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
         // Declaration on line 0 should be Text — procs carry no Write/Read
-        // distinction (only variables do), matching the Python server.
+        // distinction (only variables do).
         let line0 = highlights
             .iter()
             .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Text);
@@ -999,7 +991,7 @@ mod tests {
         assert!(document_highlights(src, "tcl", 0, 6, &analysis).is_empty());
     }
 
-    // -- S-references-rich: resolved-qualified-name matching ---------
+    // resolved-qualified-name matching
 
     #[test]
     fn resolved_qualified_name_matches_call_site_from_namespace() {
@@ -1021,7 +1013,7 @@ mod tests {
 
     #[test]
     fn document_highlights_surfaces_var_reads_from_arg_positions() {
-        // After the `record_arg_var_reads` follow-up, `$x`
+        // With `record_arg_var_reads`, `$x`
         // reads in command arguments populate
         // `VarDef.references` and surface as `Read` spans in
         // the document-highlight provider.
@@ -1065,7 +1057,7 @@ mod tests {
         );
     }
 
-    // -- S-references-rich: class-member references -----------------
+    // class-member references
 
     #[test]
     fn references_for_method_includes_decl_and_call_sites() {
@@ -1099,7 +1091,7 @@ mod tests {
         assert_eq!(texts, 3, "{h:?}");
     }
 
-    // -- S-references-rich: external $obj method sites --------------
+    // external $obj method sites
 
     #[test]
     fn references_from_external_obj_method_site() {

@@ -8,12 +8,10 @@
 //! - Precise unused-variable detection.
 //! - Foundation for copy propagation and GVN.
 //!
-//! The chain is derived from an [`SsaFunction`] (produced by C6's
+//! The chain is derived from an [`SsaFunction`] (produced by
 //! `build_ssa`) in two passes over all blocks. Phi nodes act as both
 //! definitions (LHS) and uses (incoming edges from predecessor
 //! blocks).
-//!
-//! Ported from `core/compiler/def_use.py` (C24).
 
 use std::collections::HashMap;
 
@@ -160,9 +158,7 @@ impl DefUseResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Builder
-// ---------------------------------------------------------------------------
 
 /// Build def-use chains from an SSA function in two passes.
 ///
@@ -173,15 +169,15 @@ impl DefUseResult {
 pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> DefUseResult {
     let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
 
-    // ── Pass 1: definitions ─────────────────────────────────────────
-    for (bn, block) in &ssa.blocks {
+    // Pass 1: definitions
+    for block in ssa.blocks.values() {
         // Phi definitions.
         for phi in &block.phis {
-            let key = (phi.name.clone(), phi.version);
+            let key = (ssa.var_name(phi.name).to_owned(), phi.version);
             chains.entry(key.clone()).or_insert_with(|| DefUseChain {
                 key,
                 definition: DefSite {
-                    block: bn.clone(),
+                    block: block.name.clone(),
                     kind: DefKind::Phi,
                     statement_index: -1,
                 },
@@ -190,12 +186,12 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         }
         // Statement definitions.
         for (idx, stmt) in block.statements.iter().enumerate() {
-            for (name, ver) in &stmt.defs {
-                let key = (name.clone(), *ver);
+            for (sym, ver) in &stmt.defs {
+                let key = (ssa.var_name(*sym).to_owned(), *ver);
                 chains.entry(key.clone()).or_insert_with(|| DefUseChain {
                     key,
                     definition: DefSite {
-                        block: bn.clone(),
+                        block: block.name.clone(),
                         kind: DefKind::Statement,
                         statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
                     },
@@ -205,21 +201,23 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         }
     }
 
-    // ── Pass 2: uses ────────────────────────────────────────────────
+    // Pass 2: uses
+    let entry_name = ssa.block_name(ssa.entry);
     for (bn, block) in &ssa.blocks {
         // Phi incoming edges are uses of the incoming versions.
         for phi in &block.phis {
+            let phi_var = ssa.var_name(phi.name).to_owned();
             for (pred_block, incoming_ver) in &phi.incoming {
-                let key = (phi.name.clone(), *incoming_ver);
+                let key = (phi_var.clone(), *incoming_ver);
                 add_use(
                     &mut chains,
-                    &ssa.entry,
+                    entry_name,
                     key,
                     UseSite {
-                        block: pred_block.clone(),
+                        block: ssa.block_name(*pred_block).to_owned(),
                         kind: UseKind::PhiIncoming,
                         statement_index: -1,
-                        variable: phi.name.clone(),
+                        variable: phi_var.clone(),
                         phi_version: phi.version,
                     },
                 );
@@ -228,14 +226,14 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 
         // Statement operand uses.
         for (idx, stmt) in block.statements.iter().enumerate() {
-            for (name, ver) in &stmt.uses {
-                let key = (name.clone(), *ver);
+            for (sym, ver) in &stmt.uses {
+                let key = (ssa.var_name(*sym).to_owned(), *ver);
                 add_use(
                     &mut chains,
-                    &ssa.entry,
+                    entry_name,
                     key,
                     UseSite {
-                        block: bn.clone(),
+                        block: block.name.clone(),
                         kind: UseKind::Operand,
                         statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
                         variable: String::new(),
@@ -250,14 +248,18 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
             && let Some(cfg_block) = cfg.blocks.get(bn)
         {
             for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
-                let version = block.exit_versions.get(&var_name).copied().unwrap_or(0);
+                let version = ssa
+                    .var_symbol(&var_name)
+                    .and_then(|s| block.exit_versions.get(&s))
+                    .copied()
+                    .unwrap_or(0);
                 let key = (var_name, version);
                 add_use(
                     &mut chains,
-                    &ssa.entry,
+                    entry_name,
                     key,
                     UseSite {
-                        block: bn.clone(),
+                        block: block.name.clone(),
                         kind: UseKind::Terminator,
                         statement_index: -1,
                         variable: String::new(),
@@ -272,9 +274,8 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 }
 
 /// Variable names a terminator reads: a `Branch` condition's vars, or a
-/// `return $x` value's reads.  Recording the latter (so an earlier
-/// overwritten store is a real dead store, not a "truly unused" var) matches
-/// Python, whose CFG models the return value's reads.
+/// `return $x` value's reads.  The latter is recorded so an earlier
+/// overwritten store is a real dead store, not a "truly unused" var.
 fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
     match terminator {
         Some(Terminator::Branch { condition, .. }) => condition.vars().into_iter().collect(),
@@ -327,43 +328,60 @@ fn add_use(
     chains.insert(key, chain);
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Statement;
+    use crate::cfg::BlockId;
     use crate::ssa::{Phi, SsaBlock, SsaStatement};
     use std::collections::HashMap;
     use tcl_lexer::Span;
 
-    fn empty_ssa(name: &str, entry: &str) -> SsaFunction {
-        let mut blocks = HashMap::new();
-        blocks.insert(
-            entry.to_owned(),
-            SsaBlock {
-                name: entry.to_owned(),
-                phis: Vec::new(),
-                statements: Vec::new(),
-                entry_versions: HashMap::new(),
-                exit_versions: HashMap::new(),
-            },
-        );
-        SsaFunction {
-            name: name.to_owned(),
-            entry: entry.to_owned(),
-            blocks,
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        }
+    /// Resolve a block name to its `BlockId` via the function's name table.
+    fn bid(ssa: &SsaFunction, name: &str) -> BlockId {
+        let idx = ssa
+            .block_names()
+            .iter()
+            .position(|n| n == name)
+            .expect("block name interned");
+        BlockId(u32::try_from(idx).expect("block count fits in u32"))
     }
 
-    fn assign_stmt(name: &str, value: &str, ver: Version) -> SsaStatement {
+    /// Build an SSA function whose name table is exactly `block_names` (in
+    /// `BlockId` order), with an empty `SsaBlock` inserted for each name. The
+    /// first name is the entry block.
+    fn ssa_with_blocks(name: &str, block_names: &[&str]) -> SsaFunction {
+        let names: Vec<String> = block_names.iter().map(|n| (*n).to_owned()).collect();
+        let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial(name, entry, names);
+        for (idx, bn) in block_names.iter().enumerate() {
+            let id = BlockId(u32::try_from(idx).expect("block count fits in u32"));
+            ssa.blocks.insert(
+                id,
+                SsaBlock {
+                    name: (*bn).to_owned(),
+                    phis: Vec::new(),
+                    statements: Vec::new(),
+                    entry_versions: HashMap::new(),
+                    exit_versions: HashMap::new(),
+                },
+            );
+        }
+        ssa
+    }
+
+    fn empty_ssa(name: &str, entry: &str) -> SsaFunction {
+        ssa_with_blocks(name, &[entry])
+    }
+
+    /// Intern `name` into `ssa` and build a `set name value` statement whose
+    /// `defs` records `name@ver` under its interned symbol.
+    fn assign_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: Version) -> SsaStatement {
+        let sym = ssa.intern_var(name);
         let mut defs = HashMap::new();
-        defs.insert(name.to_owned(), ver);
+        defs.insert(sym, ver);
         SsaStatement {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
@@ -376,16 +394,20 @@ mod tests {
         }
     }
 
+    /// Intern `defs_name` + every used name into `ssa` and build a statement
+    /// recording one symbol-keyed def and the given symbol-keyed uses.
     fn assign_uses_stmt(
+        ssa: &mut SsaFunction,
         defs_name: &str,
         defs_ver: Version,
         uses: &[(&str, Version)],
     ) -> SsaStatement {
+        let defs_sym = ssa.intern_var(defs_name);
         let mut d = HashMap::new();
-        d.insert(defs_name.to_owned(), defs_ver);
+        d.insert(defs_sym, defs_ver);
         let mut u = HashMap::new();
         for (name, ver) in uses {
-            u.insert((*name).to_owned(), *ver);
+            u.insert(ssa.intern_var(name), *ver);
         }
         SsaStatement {
             statement: Statement::AssignConst {
@@ -410,11 +432,9 @@ mod tests {
     #[test]
     fn single_def_is_dead() {
         let mut ssa = empty_ssa("f", "entry");
-        ssa.blocks
-            .get_mut("entry")
-            .unwrap()
-            .statements
-            .push(assign_stmt("x", "1", 1));
+        let entry = bid(&ssa, "entry");
+        let s = assign_stmt(&mut ssa, "x", "1", 1);
+        ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
         let r = build_def_use_chains(&ssa, None);
         assert_eq!(r.total_defs(), 1);
         assert!(r.is_dead("x", 1));
@@ -424,9 +444,12 @@ mod tests {
     #[test]
     fn def_with_single_use() {
         let mut ssa = empty_ssa("f", "entry");
-        let blk = ssa.blocks.get_mut("entry").unwrap();
-        blk.statements.push(assign_stmt("x", "1", 1));
-        blk.statements.push(assign_uses_stmt("y", 1, &[("x", 1)]));
+        let entry = bid(&ssa, "entry");
+        let s1 = assign_stmt(&mut ssa, "x", "1", 1);
+        let s2 = assign_uses_stmt(&mut ssa, "y", 1, &[("x", 1)]);
+        let blk = ssa.blocks.get_mut(&entry).unwrap();
+        blk.statements.push(s1);
+        blk.statements.push(s2);
         let r = build_def_use_chains(&ssa, None);
         assert!(!r.is_dead("x", 1));
         assert_eq!(r.uses_of("x", 1).len(), 1);
@@ -436,46 +459,44 @@ mod tests {
 
     #[test]
     fn phi_def_and_incoming_uses() {
-        let mut ssa = empty_ssa("f", "entry");
         // entry defines x@1 and x@2 via two hypothetical predecessors
         // modelled inline, then `join` has a phi merging them.
+        let mut ssa = ssa_with_blocks("f", &["entry", "p1", "p2", "join"]);
+        let p1 = bid(&ssa, "p1");
+        let p2 = bid(&ssa, "p2");
+        let join = bid(&ssa, "join");
+        let sx = ssa.intern_var("x");
+        let p1_stmt = assign_stmt(&mut ssa, "x", "1", 1);
         ssa.blocks.insert(
-            "p1".into(),
+            p1,
             SsaBlock {
                 name: "p1".into(),
                 phis: Vec::new(),
-                statements: vec![assign_stmt("x", "1", 1)],
+                statements: vec![p1_stmt],
                 entry_versions: HashMap::new(),
-                exit_versions: {
-                    let mut m = HashMap::new();
-                    m.insert("x".into(), 1);
-                    m
-                },
+                exit_versions: HashMap::from([(sx, 1)]),
             },
         );
+        let p2_stmt = assign_stmt(&mut ssa, "x", "2", 2);
         ssa.blocks.insert(
-            "p2".into(),
+            p2,
             SsaBlock {
                 name: "p2".into(),
                 phis: Vec::new(),
-                statements: vec![assign_stmt("x", "2", 2)],
+                statements: vec![p2_stmt],
                 entry_versions: HashMap::new(),
-                exit_versions: {
-                    let mut m = HashMap::new();
-                    m.insert("x".into(), 2);
-                    m
-                },
+                exit_versions: HashMap::from([(sx, 2)]),
             },
         );
         let mut incoming = HashMap::new();
-        incoming.insert("p1".into(), 1);
-        incoming.insert("p2".into(), 2);
+        incoming.insert(p1, 1);
+        incoming.insert(p2, 2);
         ssa.blocks.insert(
-            "join".into(),
+            join,
             SsaBlock {
                 name: "join".into(),
                 phis: vec![Phi {
-                    name: "x".into(),
+                    name: sx,
                     version: 3,
                     incoming,
                 }],
@@ -498,10 +519,14 @@ mod tests {
     #[test]
     fn reaching_defs_lists_all_versions() {
         let mut ssa = empty_ssa("f", "entry");
-        let blk = ssa.blocks.get_mut("entry").unwrap();
-        blk.statements.push(assign_stmt("x", "1", 1));
-        blk.statements.push(assign_stmt("x", "2", 2));
-        blk.statements.push(assign_stmt("x", "3", 3));
+        let entry = bid(&ssa, "entry");
+        let s1 = assign_stmt(&mut ssa, "x", "1", 1);
+        let s2 = assign_stmt(&mut ssa, "x", "2", 2);
+        let s3 = assign_stmt(&mut ssa, "x", "3", 3);
+        let blk = ssa.blocks.get_mut(&entry).unwrap();
+        blk.statements.push(s1);
+        blk.statements.push(s2);
+        blk.statements.push(s3);
         let r = build_def_use_chains(&ssa, None);
         let mut defs = r.reaching_defs("x");
         defs.sort_by_key(|(_, v)| *v);
@@ -516,11 +541,9 @@ mod tests {
         // Use of x@0 without a prior definition should synthesise a
         // Parameter chain.
         let mut ssa = empty_ssa("f", "entry");
-        ssa.blocks
-            .get_mut("entry")
-            .unwrap()
-            .statements
-            .push(assign_uses_stmt("y", 1, &[("x", 0)]));
+        let entry = bid(&ssa, "entry");
+        let s = assign_uses_stmt(&mut ssa, "y", 1, &[("x", 0)]);
+        ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
         let r = build_def_use_chains(&ssa, None);
         let chain = r.chain_for("x", 0).expect("synthesised param chain");
         assert_eq!(chain.definition.kind, DefKind::Parameter);

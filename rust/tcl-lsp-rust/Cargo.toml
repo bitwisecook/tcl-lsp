@@ -1,6 +1,6 @@
 [package]
 name = "tcl-lsp-rust"
-description = "Transitional alias for tcl-lsp-py — re-exports the public PyO3 surface under the legacy `tcl_lsp_rust` module name. Retires in vNext."
+description = "Alias for tcl-lsp-py — re-exports the public PyO3 surface under the `tcl_lsp_rust` module name."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

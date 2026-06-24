@@ -1,7 +1,6 @@
 //! Structured-input parsers + the input-format registry for side-inputs.
 //!
-//! Faithful port of `dialects/f5/query/_inputs.py`, `inputs.py`, and the
-//! built-in registrations in `_builtin_inputs.py`. Side-inputs
+//! Side-inputs
 //! (`--input-json` / `--input-jsonl` / `--input-csv` / `--input-f5log`,
 //! plus user-defined formats) bind a file's parsed content to a DSL
 //! `$NAME` variable; this module owns the per-format parsers and the
@@ -15,22 +14,21 @@
 //!   `headers` is supplied).
 //! - `f5log` — a list of structured BIG-IP log-event dicts.
 //!
-//! The `f5log` tokeniser is a direct, deterministic port of the Python
-//! line-parsing logic (no regex tower beyond stripping the optional
-//! syslog `<NNN>` PRI prefix).
+//! The `f5log` tokeniser is deterministic line-parsing logic (no regex tower
+//! beyond stripping the optional syslog `<NNN>` PRI prefix).
 
 use crate::builtins::json_to_value;
 use crate::errors::QueryError;
 use crate::value::Value;
 
-/// Metadata for one registered input format (port of `InputFormatSpec`).
+/// Metadata for one registered input format.
 pub struct InputFormatSpec {
     pub name: &'static str,
     pub summary: &'static str,
     pub details: &'static str,
 }
 
-/// How to parse a side-input URI (port of `_inputs.InputSpec`).
+/// How to parse a side-input URI.
 ///
 /// `kind` names the format; `headers` carries the optional `csv_headers`
 /// option (the only per-format knob the CLI exposes today).
@@ -59,8 +57,7 @@ impl InputSpec {
     }
 }
 
-/// The four built-in input formats, sorted by name (port of
-/// `list_input_formats` after the built-in registrations).
+/// The four built-in input formats, sorted by name.
 #[must_use]
 pub fn list_input_formats() -> Vec<InputFormatSpec> {
     // Sorted by name: csv, f5log, json, jsonl.
@@ -88,7 +85,7 @@ pub fn list_input_formats() -> Vec<InputFormatSpec> {
     ]
 }
 
-/// Return whether *name* is a registered input format (port of `lookup`).
+/// Return whether *name* is a registered input format.
 #[must_use]
 pub fn is_registered(name: &str) -> bool {
     matches!(name, "json" | "jsonl" | "csv" | "f5log")
@@ -134,11 +131,9 @@ pub fn parse_input(source: &str, uri: &str, spec: &InputSpec) -> Result<Value, Q
     }
 }
 
-// ---------------------------------------------------------------------------
 // JSON
-// ---------------------------------------------------------------------------
 
-/// Parse a single JSON value (port of `_builtin_inputs._parse_json`).
+/// Parse a single JSON value.
 ///
 /// # Errors
 ///
@@ -151,12 +146,9 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
     Ok(json_to_value(&parsed))
 }
 
-// ---------------------------------------------------------------------------
 // JSON Lines (NDJSON)
-// ---------------------------------------------------------------------------
 
-/// Parse newline-delimited JSON into a list of values (port of
-/// `_inputs.parse_jsonl`).
+/// Parse newline-delimited JSON into a list of values.
 ///
 /// Blank lines are ignored; each non-blank line must be a single JSON
 /// value. Errors quote the line number.
@@ -164,7 +156,7 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
 /// # Errors
 ///
 /// Returns a [`QueryError`] for a line that is not valid JSON; the
-/// message mirrors `{source}: line {n}: invalid JSON (...)`.
+/// message
 pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
     let mut out: Vec<Value> = Vec::new();
     for (line_no, raw) in text.lines().enumerate() {
@@ -185,11 +177,9 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
     Ok(Value::List(out))
 }
 
-// ---------------------------------------------------------------------------
 // CSV
-// ---------------------------------------------------------------------------
 
-/// Parse CSV text into a list of row-dicts (port of `_inputs.parse_csv`).
+/// Parse CSV text into a list of row-dicts.
 ///
 /// When *headers* is `None` the first row names the columns; otherwise
 /// every row is data and *headers* names each column. Empty /
@@ -198,8 +188,8 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
 ///
 /// # Errors
 ///
-/// Returns a [`QueryError`] when there are no header columns (matches
-/// the Python "no header columns" message).
+/// Returns a [`QueryError`] when there are no header columns (the
+/// "no header columns" message).
 pub fn parse_csv(
     text: &str,
     headers: Option<&[String]>,
@@ -243,13 +233,13 @@ pub fn parse_csv(
     Ok(Value::List(out))
 }
 
-/// Parse CSV text into rows of cells, matching Python's `csv.reader`
-/// defaults (RFC 4180: `"`-quoting, `""` escapes a quote, embedded
+/// Parse CSV text into rows of cells, following RFC 4180
+/// defaults (`"`-quoting, `""` escapes a quote, embedded
 /// commas / newlines inside quotes).
 ///
-/// Python's `csv.reader` over a `StringIO` splits records on `\r\n`,
-/// `\r`, or `\n` (outside quotes) and treats a quoted field's embedded
-/// newlines literally. A trailing newline does not produce an extra
+/// Records are split on `\r\n`,
+/// `\r`, or `\n` (outside quotes) and a quoted field's embedded
+/// newlines are treated literally. A trailing newline does not produce an extra
 /// empty record.
 fn read_csv_records(text: &str) -> Vec<Vec<String>> {
     let mut records: Vec<Vec<String>> = Vec::new();
@@ -314,9 +304,7 @@ fn read_csv_records(text: &str) -> Vec<Vec<String>> {
     records
 }
 
-// ---------------------------------------------------------------------------
 // F5 BIG-IP logs
-// ---------------------------------------------------------------------------
 
 const F5_SEVERITIES: &[&str] = &[
     "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",
@@ -324,7 +312,7 @@ const F5_SEVERITIES: &[&str] = &[
 
 const SOURCE_TAGS: &[&str] = &["audit", "gtm", "ltm", "security", "tmm", "user"];
 
-/// One parsed BIG-IP log line (port of `_inputs.F5LogEvent`).
+/// One parsed BIG-IP log line.
 #[derive(Debug, Clone, Default)]
 struct F5LogEvent {
     timestamp: String,
@@ -339,8 +327,8 @@ struct F5LogEvent {
     raw: String,
 }
 
-/// Parse a BIG-IP log file into a list of event dicts (port of
-/// `_inputs.parse_f5log`). Blank lines are skipped.
+/// Parse a BIG-IP log file into a list of event dicts. Blank lines are
+/// skipped.
 #[must_use]
 pub fn parse_f5log(text: &str) -> Value {
     let mut events: Vec<Value> = Vec::new();
@@ -348,15 +336,14 @@ pub fn parse_f5log(text: &str) -> Value {
         if raw_line.trim().is_empty() {
             continue;
         }
-        // Python `rstrip("\n")`; `.lines()` already strips the newline.
+        // `rstrip("\n")`; `.lines()` already strips the newline.
         let event = parse_one_f5log(raw_line);
         events.push(event_to_value(&event));
     }
     Value::List(events)
 }
 
-/// Tokenise a single line into an [`F5LogEvent`] (port of
-/// `_inputs._parse_one_f5log`).
+/// Tokenise a single line into an [`F5LogEvent`].
 fn parse_one_f5log(line: &str) -> F5LogEvent {
     let raw = line.to_string();
     let body = strip_pri_prefix(line);
@@ -412,7 +399,7 @@ fn parse_one_f5log(line: &str) -> F5LogEvent {
     }
 }
 
-/// Strip a leading syslog `<NNN>` PRI prefix (port of `_PRI_PREFIX`).
+/// Strip a leading syslog `<NNN>` PRI prefix.
 fn strip_pri_prefix(line: &str) -> &str {
     let bytes = line.as_bytes();
     if bytes.first() != Some(&b'<') {
@@ -432,12 +419,11 @@ fn strip_pri_prefix(line: &str) -> &str {
     }
 }
 
-/// Drop a leading `audit `/`gtm `/`ltm `/… facility tag (port of
-/// `_strip_source_tag`).
+/// Drop a leading `audit `/`gtm `/`ltm `/… facility tag.
 fn strip_source_tag(text: &str) -> &str {
     let (head, rest) = take_token(text);
     if !head.is_empty() && SOURCE_TAGS.contains(&head.as_str()) {
-        // `rest.lstrip()` — return a slice into the original `text`.
+        // Strip leading whitespace, returning a slice into the original `text`.
         let trimmed = rest.trim_start();
         // Find where `trimmed` begins within `text`.
         let offset = text.len() - trimmed.len();
@@ -447,7 +433,7 @@ fn strip_source_tag(text: &str) -> &str {
     }
 }
 
-/// Peel a timestamp off the head (port of `_take_timestamp`).
+/// Peel a timestamp off the head.
 ///
 /// Returns `(timestamp_or_None, remainder, swap_host_level_flag)`.
 fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
@@ -489,7 +475,7 @@ fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
     if !bytes[..3].iter().all(u8::is_ascii_alphabetic) {
         return (None, text, false);
     }
-    // Python `text.split(None, 3)` — split on runs of whitespace, max 4 parts.
+    // `text.split(None, 3)` — split on runs of whitespace, max 4 parts.
     let parts = py_split_whitespace(text, 3);
     if parts.len() < 4 {
         return (None, text, false);
@@ -518,9 +504,8 @@ fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
     (Some(text[..i].to_string()), &text[i..], false)
 }
 
-/// Python `str.split(None, maxsplit)` — split on whitespace runs, up to
-/// `maxsplit` splits (so at most `maxsplit + 1` parts), leading
-/// whitespace ignored.
+/// Split on whitespace runs, up to `maxsplit` splits (so at most
+/// `maxsplit + 1` parts), leading whitespace ignored.
 fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
     let chars: Vec<char> = text.chars().collect();
@@ -535,8 +520,8 @@ fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
             break;
         }
         if parts.len() == maxsplit {
-            // Remainder is the final part (with no trailing strip — Python
-            // keeps trailing content but strips the leading split-whitespace).
+            // Remainder is the final part (with no trailing strip — trailing
+            // content is kept, but the leading split-whitespace is stripped).
             parts.push(chars[i..].iter().collect());
             return parts;
         }
@@ -549,10 +534,10 @@ fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
     parts
 }
 
-/// Return `(first whitespace-delimited token, rest)` (port of `_take_token`).
+/// Return `(first whitespace-delimited token, rest)`.
 ///
-/// Mirrors Python: `lstrip()` first, then split at the next whitespace;
-/// `rest` keeps the whitespace that followed the token.
+/// `lstrip()` first, then split at the next whitespace; `rest` keeps the
+/// whitespace that followed the token.
 fn take_token(text: &str) -> (String, String) {
     let trimmed = text.trim_start();
     if trimmed.is_empty() {
@@ -568,7 +553,7 @@ fn take_token(text: &str) -> (String, String) {
     (trimmed[..end].to_string(), trimmed[end..].to_string())
 }
 
-/// Peel a severity word when present (port of `_take_severity`).
+/// Peel a severity word when present.
 fn take_severity(text: &str) -> (String, String) {
     let (head, rest) = take_token(text);
     let head_lower = head.to_lowercase();
@@ -579,8 +564,7 @@ fn take_severity(text: &str) -> (String, String) {
     }
 }
 
-/// Peel `daemon[pid]` or `daemon` off the head, conservatively (port of
-/// `_take_daemon_pid`).
+/// Peel `daemon[pid]` or `daemon` off the head, conservatively.
 fn take_daemon_pid(text: &str) -> (String, Option<i64>, String) {
     let stripped = text.trim_start();
     if stripped.is_empty() {
@@ -619,7 +603,6 @@ fn take_daemon_pid(text: &str) -> (String, Option<i64>, String) {
 }
 
 /// Peel an F5 message code (`XXXXXXXX:N`) off the head when present
-/// (port of `_take_f5_code`).
 ///
 /// Returns `(code, module, level, rest)`.
 fn take_f5_code(text: &str) -> (String, String, Option<i64>, String) {
@@ -645,7 +628,7 @@ fn take_f5_code(text: &str) -> (String, String, Option<i64>, String) {
     (code, module, Some(level), rest)
 }
 
-/// `true` when every char is a hex digit (port of `_is_hex`).
+/// `true` when every char is a hex digit.
 fn is_hex(text: &str) -> bool {
     if text.is_empty() {
         return false;
@@ -653,7 +636,7 @@ fn is_hex(text: &str) -> bool {
     text.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
-/// Return the event as an object value (port of `_event_to_dict`).
+/// Return the event as an object value.
 fn event_to_value(event: &F5LogEvent) -> Value {
     let mut m: indexmap::IndexMap<String, Value> = indexmap::IndexMap::new();
     m.insert("timestamp".to_string(), Value::Str(event.timestamp.clone()));

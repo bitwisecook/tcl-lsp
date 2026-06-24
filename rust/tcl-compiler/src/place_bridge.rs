@@ -1,5 +1,4 @@
-//! Bridge from the IR/CFG to the unified [`Place`] model (Phase 8 /
-//! SYNC-MAY31-1b, stage 3).
+//! Bridge from the IR/CFG to the unified [`Place`] model.
 //!
 //! Resolves each IR statement's *def* and *read* targets to canonical
 //! [`Place`]s on demand, so the dataflow consumers (dead-store / unused /
@@ -9,8 +8,7 @@
 //! once by scanning the CFG for `global` / `variable` / `upvar` / `trace`
 //! declarations (reusing the [`crate::var_scoping`] grammar).
 //!
-//! Faithful port of `compiler/place_bridge.py` on `main`.  No consumer is wired
-//! yet (that is stage 4) — this stage is output-equivalent.
+//! No consumer is wired yet.
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -180,8 +178,8 @@ fn collect_upvar_aliases(
 /// Detected via the `Str` token kind: a `$var` lexes to `Var`, a `[cmd]` to
 /// `Cmd`, and a `"…"` (which *does* substitute) to `Esc` — only a brace-quoted
 /// word is `Str`.  `tokens.argv` is command-name-first, so args are 1-based.
-/// Mirrors `place_bridge.py`'s brace-aware `add_refs` (it scans the arg *with*
-/// its braces; the Rust IR keeps args de-braced, so we gate on the token kind).
+/// The IR keeps args de-braced, so we gate on the token kind rather than
+/// re-scanning the braced text.
 fn is_braced_literal(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
     tokens
         .and_then(|t| t.argv_kinds.get(arg_index + 1))
@@ -477,8 +475,7 @@ fn same_literal_element(a: &Place, b: &Place) -> bool {
 /// block to the EXACT same place, with no intervening read of that specific
 /// element.  Such a store is dead regardless of any later-version read of the
 /// element — the must-alias kill overrides the over-approximating
-/// element-observed suppression.  Mirrors Python's
-/// `_must_alias_killed_in_block` (PR #498 G15).
+/// element-observed suppression.
 fn must_alias_killed_in_block(
     block: &crate::cfg::Block,
     def_idx: usize,
@@ -581,7 +578,7 @@ pub fn element_writes_observed_by_reads(
         }
     }
 
-    for (block_name, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         for (idx, stmt) in block.statements.iter().enumerate() {
             if !is_array_assign(stmt) {
                 continue;
@@ -590,15 +587,14 @@ pub fn element_writes_observed_by_reads(
             // it is not overwritten by a later same-element write first: a
             // must-alias kill (a later write to the exact same literal key with
             // no intervening read of it) makes this store dead regardless of any
-            // later-version read.  Mirrors Python's
-            // `if must_alias_killed: dead elif element_observed: suppress`.
+            // later-version read.
             let suppress = def_places(stmt, &ctx, registry).iter().any(|d| {
                 matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
                     && reads.iter().any(|r| overlap(d, r))
                     && !must_alias_killed_in_block(block, idx, d, &ctx, registry)
             });
             if suppress && let Ok(i) = i32::try_from(idx) {
-                out.insert((block_name.clone(), i));
+                out.insert((block.name.clone(), i));
             }
         }
     }
@@ -634,9 +630,9 @@ mod tests {
 
     #[test]
     fn array_element_def_and_read_are_element_granular() {
-        // The end-to-end stage-3 point: `set a(k) 1` defs a(k); `puts $a(k)`
-        // reads a(k); `set a(j) 2` defs a(j), which NO read observes.  Stage 4
-        // will suppress the W220 on a(k) (a read overlaps it) but keep a(j)'s.
+        // Element-granular defs/reads: `set a(k) 1` defs a(k); `puts $a(k)`
+        // reads a(k); `set a(j) 2` defs a(j), which NO read observes.  Dead-store
+        // analysis suppresses the W220 on a(k) (a read overlaps it) but keeps a(j)'s.
         let (defs, reads) = places_of("proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }", "::f");
         let ak = array_elem("a", Index::literal("k"), LOCAL_NS, false);
         let aj = array_elem("a", Index::literal("j"), LOCAL_NS, false);

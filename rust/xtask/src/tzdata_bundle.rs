@@ -1,10 +1,9 @@
-//! Bundled tzdata blob builder — Rust port of
-//! `scripts/build/tzdata_bundle.py`.
+//! Bundled tzdata blob builder.
 //!
 //! Packs a curated set of IANA zones from a host `zoneinfo` directory into
 //! the `TZBL` bundle the WASM runtime falls back on when it can't preopen
-//! `/usr/share/zoneinfo`. The output format is byte-for-byte identical to
-//! the Python script (verified by `cmp` on the produced artifact):
+//! `/usr/share/zoneinfo`. The output format is stable and canonical
+//! (verified by `cmp` on the produced artifact):
 //!
 //! ```text
 //! magic     "TZBL"   version u8=1   pad 3   n_entries u32 LE
@@ -16,7 +15,7 @@
 //! Entries are sorted ascending by name so the resolver can binary-search
 //! the index. Aliases share one deduplicated payload. With `--trim-from` /
 //! `--trim-to` the `TZif` transition list is trimmed to the window
-//! (`v1`-only, leap tables dropped), matching the Python `_trim_tzif`.
+//! (`v1`-only, leap tables dropped), matching `_trim_tzif`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -26,7 +25,7 @@ use anyhow::{Context, Result};
 
 /// `(name, relative-path)` for every curated zone. Aliases (e.g.
 /// `US/Eastern` → `America/New_York`) share a payload. Transcribed from
-/// the Python `_CURATED_ZONES`; output is invariant to this ordering
+/// `_CURATED_ZONES`; output is invariant to this ordering
 /// (entries are sorted by name before packing).
 const CURATED_ZONES: &[(&str, &str)] = &[
     ("UTC", "Etc/UTC"),
@@ -188,7 +187,7 @@ pub fn run(
 }
 
 /// Read the curated zones from `zoneinfo` and pack them into a bundle.
-/// Returns `Err(message)` for the Python `SystemExit(msg)` cases.
+/// Returns `Err(message)` for `SystemExit(msg)` cases.
 fn build_bundle(
     zoneinfo: &Path,
     trim_from: Option<i64>,
@@ -234,7 +233,7 @@ fn build_bundle(
     }
 
     // Sorted index — the resolver binary-searches it. Zone names are
-    // ASCII, so byte order matches the Python code-point sort.
+    // ASCII, so byte order matches the code-point sort.
     entries.sort_by(|a, b| a.0.cmp(b.0));
 
     // First pass: lay out payload addresses (first-occurrence order over
@@ -284,7 +283,7 @@ fn build_bundle(
 
 /// Drop transitions outside `[trim_from, trim_to]` from a `TZif` blob,
 /// re-emitting a `v1`-only blob (leap tables stripped). Malformed input is
-/// returned unchanged. Faithful port of the Python `_trim_tzif`.
+/// returned unchanged.
 fn trim_tzif(blob: &[u8], trim_from: Option<i64>, trim_to: Option<i64>) -> Vec<u8> {
     if trim_from.is_none() && trim_to.is_none() {
         return blob.to_vec();
@@ -393,7 +392,7 @@ fn count_entries(blob: &[u8]) -> u32 {
     u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]])
 }
 
-/// Format `n` with `,` thousands separators (matches Python `{:,}`).
+/// Format `n` with `,` thousands separators.
 fn group_thousands(n: usize) -> String {
     let digits = n.to_string();
     let len = digits.len();

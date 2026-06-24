@@ -1,5 +1,4 @@
-//! Cleanup analysis — Rust port of `dialects/f5/bigip/cleanup.py` (powers
-//! `f5 cleanup` / `clean`).
+//! Cleanup analysis (powers `f5 cleanup` / `clean`).
 //!
 //! Walks the forward reference graph from every `ltm virtual` / `gtm wide-IP`
 //! root; any in-scope, deletable object not reached is a cleanup candidate. The
@@ -12,7 +11,7 @@ use crate::graph::{ObjectEdge, ObjectGraph, ObjectNode};
 use crate::range::Range;
 use crate::stats::{deletable_kinds, is_root_kind};
 
-/// One BIG-IP object proposed for deletion (mirrors `CleanupCandidate`).
+/// One BIG-IP object proposed for deletion.
 pub struct CleanupCandidate {
     /// Stable graph node id.
     pub node_id: String,
@@ -34,7 +33,7 @@ pub struct CleanupCandidate {
     pub range: Range,
 }
 
-/// Result of [`compute_cleanup`] (mirrors `CleanupReport`).
+/// Result of [`compute_cleanup`].
 pub struct CleanupReport {
     /// Candidates in reverse-topological (delete) order.
     pub candidates: Vec<CleanupCandidate>,
@@ -67,7 +66,7 @@ fn matches_keep_filter(
 }
 
 /// Compute the cleanup report. `source_uris` should be the sorted input URIs
-/// (used only in the script header). Mirrors `compute_cleanup`.
+/// (used only in the script header).
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn compute_cleanup(
@@ -172,7 +171,7 @@ pub fn compute_cleanup(
 }
 
 /// Topologically sort candidates so referrers precede referents, with a
-/// deterministic `(kind, identifier)` tie-break (mirrors `_topological_order`).
+/// deterministic `(kind, identifier)` tie-break.
 fn topological_order(candidates: &HashMap<&str, &ObjectNode>, edges: &[ObjectEdge]) -> Vec<String> {
     let mut in_degree: HashMap<&str, usize> = candidates.keys().map(|k| (*k, 0usize)).collect();
     let mut out_adj: HashMap<&str, Vec<&str>> = HashMap::new();
@@ -268,8 +267,8 @@ fn format_tmsh_script(
     lines.join("\n")
 }
 
-/// `json.dumps(report_to_dict(report), indent=2)`-compatible JSON (mirrors
-/// `report_to_dict`), built by hand for key-order parity.
+/// 2-space-indented JSON, built
+/// by hand for a deterministic key order.
 #[must_use]
 pub fn report_to_json(report: &CleanupReport) -> String {
     use std::fmt::Write as _;

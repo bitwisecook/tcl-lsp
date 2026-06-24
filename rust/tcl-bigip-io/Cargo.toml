@@ -17,10 +17,9 @@ flate2 = "1"
 tar = "0.4"
 
 # Encrypted UCS = OpenPGP symmetric message (S2K + AES-CFB, F5 KB K5437).
-# Pure-Rust RustCrypto stack — a faithful port of the Python `_openpgp` /
-# `_aes` fallback decryptor (NO shelling out to gpg). The block cipher comes
+# Pure-Rust RustCrypto stack (NO shelling out to gpg). The block cipher comes
 # from the audited `aes` crate; everything around it (packet framing, S2K,
-# OpenPGP-CFB, quick-check + SHA-1 MDC) mirrors the Python line for line.
+# OpenPGP-CFB, quick-check + SHA-1 MDC) is implemented here.
 aes = "0.8"
 digest = "0.10"
 md-5 = "0.10"

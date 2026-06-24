@@ -2,15 +2,15 @@
 //! PCAP flow tracer (`tcl-bigip::flow` + the `explain_flow` driver).
 //!
 //! Runs the built `f5-query` binary against committed libpcap / PCAPNG fixtures
-//! plus a small `bigip.conf`, and asserts stdout is byte-for-byte identical to a
-//! golden produced by `python -m tooling.f5.main explain-flow`. The binary runs
-//! with its working directory set to the fixtures dir and bare filenames, so the
+//! plus a small `bigip.conf`, and asserts stdout is byte-for-byte identical to
+//! the captured golden output for `explain-flow`. The binary runs with its
+//! working directory set to the fixtures dir and bare filenames, so the
 //! `explain-flow: <pcap>` header line is path-stable across machines.
 //!
 //! These captures do not target the sample VS, so they exercise the
 //! flow-extraction + session-pairing + unmatched-report path end to end
 //! (libpcap and pcapng readers, IPv4/IPv6, TCP/UDP/ICMP, HTTP request peek).
-//! Self-contained: no Python at test time.
+//! Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -49,7 +49,7 @@ fn assert_unmatched_parity(pcap: &str) {
     assert_eq!(
         stdout,
         golden(&format!("explain-flow-{pcap}.golden")),
-        "explain-flow stdout for {pcap} must match the Python golden"
+        "explain-flow stdout for {pcap} must match the golden"
     );
     // No session matches the sample VS, so the verb exits 1.
     assert_eq!(code, 1, "exit code for {pcap}");
@@ -82,7 +82,7 @@ fn matched_virtual_with_back_side_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-matched.golden"),
-        "matched explain-flow stdout must match the Python golden"
+        "matched explain-flow stdout must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
@@ -98,7 +98,7 @@ fn matched_virtual_with_ltm_policies_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-policy.golden"),
-        "matched explain-flow with LTM policy decisions must match the Python golden"
+        "matched explain-flow with LTM policy decisions must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
@@ -113,15 +113,15 @@ fn matched_virtual_with_irule_events_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-rich.golden"),
-        "matched explain-flow with iRule events must match the Python golden"
+        "matched explain-flow with iRule events must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
 
 #[test]
 fn json_output_matches_golden() {
-    // `--json` mirrors `report_to_dict` serialised like `json.dumps(indent=2)`:
-    // the full per-flow dicts, the event/annotation/policy structures, and the
+    // `--json` serialised as two-space-indented JSON:
+    // the full per-flow maps, the event/annotation/policy structures, and the
     // empty `simulated_*` fields. Covered for an iRule-event capture, a
     // policy-bearing capture, and an unmatched multi-flow capture.
     for (pcap, conf, golden_name) in [
@@ -145,7 +145,7 @@ fn json_output_matches_golden() {
         assert_eq!(
             stdout,
             golden(golden_name),
-            "explain-flow --json for {conf} must match the Python golden"
+            "explain-flow --json for {conf} must match the golden"
         );
     }
 }
@@ -158,15 +158,22 @@ fn tshark_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-/// Whether this tshark accepts the exact EK command the port (and the Python
-/// reference) builds — `-T ek -l --no-duplicate-keys`. tshark gained
-/// `--no-duplicate-keys` for EK output in 4.4; on older builds the overlay run
-/// exits non-zero and the report degrades to `tshark: no` (the Python
-/// reference degrades identically — this is the parity contract, so the port
-/// keeps the command byte-for-byte rather than "fixing" it locally).
+/// Whether this tshark accepts the exact EK command the CLI builds —
+/// `-T ek -l --no-duplicate-keys`. tshark gained `--no-duplicate-keys` for EK
+/// output in 4.4; on older builds the overlay run exits non-zero and the
+/// report degrades to `tshark: no` (the reference degrades identically — this
+/// is the parity contract, so the command is kept as-is rather than "fixed"
+/// locally).
 fn tshark_ek_ok() -> bool {
     Command::new("tshark")
-        .args(["-r", "explain-flow-matched.pcap", "-T", "ek", "-l", "--no-duplicate-keys"])
+        .args([
+            "-r",
+            "explain-flow-matched.pcap",
+            "-T",
+            "ek",
+            "-l",
+            "--no-duplicate-keys",
+        ])
         .current_dir(fixtures_dir())
         .output()
         .is_ok_and(|o| o.status.success())
@@ -177,7 +184,7 @@ fn tshark_enrichment_marks_used_tshark() {
     // The `--tshark` overlay path runs the built-in walker, then enriches via
     // `tcl_bigip::flow::tshark`. `used_tshark` reflects whether the tshark run
     // succeeded — which depends on this tshark's EK support, exactly as the
-    // Python reference does. The byte-level Rust↔Python parity of the enriched
+    // golden was captured. The byte-level parity of the enriched
     // fields is checked by the differential harness offline.
     if !tshark_available() {
         eprintln!("skipping: tshark not on PATH");
@@ -191,7 +198,11 @@ fn tshark_enrichment_marks_used_tshark() {
     );
     let text = String::from_utf8(stdout).expect("utf8 report");
     assert_eq!(code, 0, "matched VS exits 0");
-    let want = if expect_yes { "tshark: yes" } else { "tshark: no" };
+    let want = if expect_yes {
+        "tshark: yes"
+    } else {
+        "tshark: no"
+    };
     assert!(
         text.contains(want),
         "text header must record `{want}` for this tshark: {text}"
@@ -213,9 +224,9 @@ fn tshark_enrichment_marks_used_tshark() {
 #[test]
 fn tshark_filter_is_reported_python_repr_style() {
     // `--tshark-filter` makes tshark the canonical flow source: `used_tshark`
-    // is true whenever a tshark binary exists (mirroring Python's
-    // `bool(flows) or tshark_available()`), independent of EK support, and the
-    // filter is echoed in the header rendered like Python's `repr()`.
+    // is true whenever a tshark binary exists, independent of EK support, and
+    // the filter is echoed in the header rendered `repr()`-style
+    // (single-quoted).
     if !tshark_available() {
         eprintln!("skipping: tshark not on PATH");
         return;
@@ -262,10 +273,7 @@ fn simulate_runs_irule_and_selects_pool() {
     assert_eq!(code, 0, "matched capture exits 0: {text}");
     assert!(text.contains("iRule simulation:"), "{text}");
     assert!(text.contains("pool: pool_api"), "{text}");
-    assert!(
-        text.contains("decision: lb pool_select pool_api"),
-        "{text}"
-    );
+    assert!(text.contains("decision: lb pool_select pool_api"), "{text}");
     assert!(text.contains("routing host="), "captured iRule log: {text}");
 }
 

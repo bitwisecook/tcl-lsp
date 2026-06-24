@@ -6,8 +6,7 @@
 //!
 //! Results are cached in a bounded LRU keyed by source text — the same
 //! word/script strings are scanned repeatedly across SSA, GVN, and
-//! interprocedural passes.  This is the Rust port of Python's
-//! `core/compiler/var_refs.py`.
+//! interprocedural passes.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
@@ -29,7 +28,6 @@ pub struct VarScanOptions {
     /// `VarWrite` target as a *read* (it reads the prior value).  Name-level
     /// only — intended for dead-store / unused-variable liveness recovery,
     /// kept out of SSA `uses` so read-before-set versioning is unperturbed.
-    /// Mirrors Python's `include_reads_before_write`.
     pub include_reads_before_write: bool,
 }
 
@@ -311,8 +309,7 @@ fn collect_ref_forms(text: &str, out: &mut Vec<String>) {
 /// `$a` → `"a"`, `$a(k)` → `"a(k)"`, `$state($whom)` → `"state($whom)"`.
 /// Recurses into `[...]` command substitutions.  Unlike the name-set scanners,
 /// this preserves enough structure for `var_resolve::resolve_place` to
-/// distinguish a scalar from an array element from a dynamic ref.  Mirrors
-/// `compiler/var_refs.py::scan_var_ref_forms`.
+/// distinguish a scalar from an array element from a dynamic ref.
 #[must_use]
 pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
     let mut out = Vec::new();

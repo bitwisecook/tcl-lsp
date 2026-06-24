@@ -1,6 +1,6 @@
 //! Per-document `# tcl-lsp: stub` command overlay.
 //!
-//! Registry-side mirror of the user-declared stub-command
+//! Registry-side view of the user-declared stub-command
 //! surface that participates in analyser / compiler queries
 //! (param-trait inference, role lookup, scope-alias detection,
 //! barrier detection).  Stubs are parsed from comment
@@ -11,14 +11,10 @@
 //! overlay alongside the global [`crate::CommandRegistry`]
 //! when scanning a proc body for parameter traits.
 //!
-//! Mirrors the design called out in the
-//! `SYNC-MAY19-stub-overlay-a` chunk-log row — the Python side
-//! threads stub state through a `_stub_signatures_var`
-//! `ContextVar` wrapped by a `stub_signature_scope()` context
-//! manager.  Rust doesn't need the `ContextVar` dance because
-//! the analyser is single-threaded and already owns the
-//! per-document state; instead an `Option<StubOverlay>` lives
-//! on the analyser and is rebuilt per `analyse()` call.
+//! The analyser is single-threaded and already owns the
+//! per-document state, so stub state needs no thread-local
+//! plumbing: an `Option<StubOverlay>` lives on the analyser and
+//! is rebuilt per `analyse()` call.
 //!
 //! ## Why keep it separate from `CommandRegistry`
 //!
@@ -48,8 +44,7 @@ use crate::arg_role::ArgRole;
 /// parameter list — name, role (typed), and an optional flag
 /// (`?...?` markers on the source token).
 ///
-/// Mirrors `core/analysis/semantic_model.py::StubArgDef` but
-/// keyed by the typed [`ArgRole`] enum rather than a string —
+/// Keyed by the typed [`ArgRole`] enum rather than a string —
 /// the analyser converts the source string (`"body"` /
 /// `"var"` / etc.) to [`ArgRole`] at overlay-construction
 /// time so all subsequent queries are typed.
@@ -94,9 +89,8 @@ bitflags::bitflags! {
 }
 
 /// One stub command's full signature — the overlay-side
-/// shape of a `# tcl-lsp: stub` directive.  Mirrors
-/// `core/analysis/semantic_model.py::StubCommandDef` but
-/// drops the source-span field (the overlay only cares about
+/// shape of a `# tcl-lsp: stub` directive.  Drops the
+/// source-span field (the overlay only cares about
 /// the semantic shape; the span lives on the original
 /// `StubCommandDef` that the analyser keeps for diagnostics).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -129,10 +123,9 @@ impl StubOverlay {
     }
 
     /// Insert / overwrite a stub signature.  Later inserts
-    /// for the same name replace earlier ones (matches the
-    /// "last directive wins" semantics that the Python
-    /// `_stub_signatures_var` overlay implements implicitly
-    /// through dict-update behaviour).
+    /// for the same name replace earlier ones — the
+    /// "last directive wins" semantics, implemented
+    /// implicitly through map-update behaviour.
     pub fn insert(&mut self, sig: StubSig) {
         self.sigs.insert(sig.name.clone(), sig);
     }
@@ -203,9 +196,7 @@ impl StubOverlay {
     /// Downstream consumers (compilation-unit cache,
     /// interprocedural-summary cache) include this in their
     /// cache key so stub edits invalidate the cached entries
-    /// that depended on the previous stub set.  Mirrors the
-    /// `compute_stub_fingerprint()` helper called out in the
-    /// `SYNC-MAY19-stub-overlay` chunk-log row.
+    /// that depended on the previous stub set.
     #[must_use]
     pub fn fingerprint(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
@@ -223,7 +214,7 @@ impl StubOverlay {
     /// `"channel"` / `"value"`) to the corresponding typed
     /// [`ArgRole`].  Returns [`ArgRole::Value`] for unknown
     /// strings (matches the analyser's "value is the default"
-    /// behaviour from `stub_comments.py`).
+    /// behaviour
     ///
     /// Centralised here so overlay builders in other crates
     /// (the analyser converts `StubArgDef` records to

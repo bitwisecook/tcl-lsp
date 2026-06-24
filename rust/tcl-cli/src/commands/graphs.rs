@@ -1,12 +1,13 @@
-//! Analysis/graph verbs: `symbols` (and, as the analyser engine converges,
-//! `callgraph` / `symbolgraph` / `dataflow` / `diagram`).
+//! Analysis/graph verbs: `symbols`, `callgraph`, `symbolgraph`, `dataflow`,
+//! and `diagram`.
 //!
-//! Ports the handlers in `tooling/tcl/verbs/graphs.py`. These verbs combine
-//! every resolved input into one source (`combine_sources`), analyse it, and
+//! These verbs combine every resolved input into one source
+//! (`combine_sources`), analyse it, and
 //! emit a JSON-serialisable graph/symbol shape (or a plain-text summary).
 //!
-//! Ordering note: the Python source iterates `Scope.procs` / `Scope.variables`
-//! (insertion-ordered dicts), so symbols come out in source-definition order.
+//! Ordering note: symbols are produced by iterating `Scope.procs` then
+//! `Scope.variables` in insertion order, so they come out in
+//! source-definition order.
 //! The Rust analyser stores them in `HashMap`s, so we sort by the defining
 //! token's source offset to recover that deterministic ordering.
 
@@ -32,10 +33,10 @@ use crate::cli::InputArgs;
 
 /// One symbol entry in the `symbols` payload.
 ///
-/// Field order mirrors the Python dict (`kind`, `name`, `line`, `depth`,
-/// then the function-only `params`). `params` is emitted only for functions
-/// (Python omits the key entirely for other kinds), and `line` may be `null`
-/// for a proc with no name token.
+/// Fields are emitted in order (`kind`, `name`, `line`, `depth`, then the
+/// function-only `params`). `params` is emitted only for functions (the key
+/// is omitted entirely for other kinds), and `line` may be `null` for a proc
+/// with no name token.
 #[derive(Serialize)]
 struct SymbolEntry {
     kind: &'static str,
@@ -60,10 +61,10 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
     line_index.position_at(offset).line + 1
 }
 
-/// Detect `when EVENT` iRules entries via the Python regex
+/// Detect `when EVENT` iRules entries via the regex
 /// `\bwhen\s+([A-Z_][A-Z0-9_]*)`, deduplicated, in first-seen order.
 ///
-/// Mirrors `_detect_event_entries`: runs unconditionally (every dialect),
+/// Runs unconditionally (every dialect),
 /// each entry at depth 0 with its 1-based line.
 fn detect_event_entries(source: &str, line_index: &LineIndex) -> Vec<SymbolEntry> {
     fn is_word(b: u8) -> bool {
@@ -116,7 +117,7 @@ fn detect_event_entries(source: &str, line_index: &LineIndex) -> Vec<SymbolEntry
 
 /// Recursively collect proc/variable/namespace symbol entries from a scope.
 ///
-/// Mirrors `_collect_scope_symbol_entries`: procs first (source order), then
+/// Procs first (source order), then
 /// global/namespace-scope variables, then children — namespace children get
 /// an entry and recurse, proc children only recurse (to surface nested procs).
 fn collect_scope_entries(
@@ -231,23 +232,21 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // symbolgraph
-// ---------------------------------------------------------------------------
 
-/// 0-based source line of a span-start offset (Python `range.start.line`).
+/// 0-based source line of a span-start offset (`range.start.line`).
 fn line0(line_index: &LineIndex, offset: u32) -> u32 {
     line_index.position_at(offset).line
 }
 
 /// `{"line": L, "character": C}` for a span-start offset, 0-based and counted
-/// in UTF-16 code units (mirrors `_pos_dict` over the analyser `Range`).
+/// in UTF-16 code units, over the analyser `Range`.
 fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
     let pos = line_index.position_at_utf16(offset, source);
-    json!({ "line": pos.line, "character": pos.character })
+    json!({ "line": pos.line, "character": pos.character.get() })
 }
 
-/// Call sites of a proc, deduplicated by span (port of `find_proc_call_sites`).
+/// Call sites of a proc, deduplicated by span.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
     let no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
     let mut seen = std::collections::HashSet::new();
@@ -266,7 +265,7 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 
 /// Serialise one scope (global / namespace) to the wire dict.
 ///
-/// Port of `_scope_to_dict`: procs first (source order), then this scope's
+/// Procs first (source order), then this scope's
 /// variables, then children — namespace children recurse with the full shape,
 /// proc children contribute a `{kind, name, variables, children:[]}` node only
 /// when they carry recorded variables. `HashMap` iteration is made
@@ -349,8 +348,8 @@ fn scope_to_value(
     Value::Object(map)
 }
 
-/// `[{name, line, references:[…]}]` for a scope's variables in Python's
-/// insertion order: parameters first (declaration order, since they share the
+/// `[{name, line, references:[…]}]` for a scope's variables in insertion
+/// order: parameters first (declaration order, since they share the
 /// proc-name span and can't be span-ordered), then body locals by definition
 /// offset. `params` is empty for namespace/global scopes.
 fn collect_var_values(
@@ -406,8 +405,7 @@ fn count_namespaces(scope: &Scope) -> usize {
         .sum()
 }
 
-/// Render the text form of a serialised scope (port of
-/// `_append_symbolgraph_scope`).
+/// Render the text form of a serialised scope.
 fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize) {
     let indent = "  ".repeat(depth);
     let kind = scope.get("kind").and_then(Value::as_str).unwrap_or("?");
@@ -545,18 +543,15 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // callgraph
-// ---------------------------------------------------------------------------
 
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
 
-/// Human-readable string for an [`EffectRegion`] — port of
-/// `_effect_region_str`. Empty → `"NONE"`; otherwise the contained
+/// Human-readable string for an [`EffectRegion`].
+/// Empty → `"NONE"`; otherwise the contained
 /// single-bit member names joined with `|` in definition order (which, for
-/// a single member, yields just that name — matching Python's `IntFlag`
-/// `.name`).
+/// a single member, yields just that name).
 fn effect_region_str(er: EffectRegion) -> String {
     const MEMBERS: &[(EffectRegion, &str)] = &[
         (EffectRegion::HTTP_STATE, "HTTP_STATE"),
@@ -585,8 +580,7 @@ fn proc_line_span(ir_module: &IrModule, qname: &str, line_index: &LineIndex) -> 
     })
 }
 
-/// Whether a span lies wholly within some proc's definition (port of
-/// `_is_inside_proc`).
+/// Whether a span lies wholly within some proc's definition.
 fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> bool {
     let start = line0(line_index, range.start());
     let end = line0(line_index, range.end());
@@ -597,8 +591,7 @@ fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> 
     })
 }
 
-/// Call-site positions of `callee_qname` within `caller_qname`'s body
-/// (port of `_find_call_sites_in_scope`).
+/// Call-site positions of `callee_qname` within `caller_qname`'s body.
 #[allow(clippy::similar_names)] // caller_qname / callee_qname mirror the domain
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
@@ -643,8 +636,8 @@ fn find_call_sites_in_scope(
     sites
 }
 
-/// Resolve a top-level invocation to a known proc qname (port of
-/// `_resolve_invocation_target`). Proc names are iterated in sorted order
+/// Resolve a top-level invocation to a known proc qname. Proc names are
+/// iterated in sorted order
 /// for a deterministic pick on the (rare) ambiguous short-name fallback.
 fn resolve_invocation_target(
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
@@ -692,13 +685,12 @@ fn build_nodes(
         .collect()
 }
 
-/// Build the full call-graph payload — port of `build_call_graph`.
+/// Build the full call-graph payload.
 fn build_call_graph(source: &str, dialect: &str) -> Value {
     let registry = registry_for_dialect(dialect);
-    // Build the full compilation unit (matching Python's
-    // `ensure_compilation_unit`) so the interprocedural pass sees the same
-    // lowered IR — raw `lower_to_ir` alone does not surface nested `[cmd …]`
-    // call sites to the call scanner.
+    // Build the full compilation unit (via `ensure_compilation_unit`) so the
+    // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
+    // does not surface nested `[cmd …]` call sites to the call scanner.
     let cu = CompilationUnit::build_for(source, registry, false)
         .with_interprocedural(registry, Some(dialect));
     let ir_module = &cu.ir_module;
@@ -709,7 +701,7 @@ fn build_call_graph(source: &str, dialect: &str) -> Value {
     let analysis = Analyser::new().analyse(source, dialect);
     let line_index = LineIndex::new(source);
 
-    // Proc qnames in sorted order (Python iterates the summary dict, which is
+    // Proc qnames in sorted order (iterates the summary dict, which is
     // keyed and surfaced in sorted qualified-name order).
     let mut proc_names: Vec<String> = interproc.procedures.keys().cloned().collect();
     proc_names.sort();
@@ -883,17 +875,14 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // dataflow
-// ---------------------------------------------------------------------------
 
 /// Aggregate every taint warning kind for one function unit into the
-/// dataflow JSON shape — a faithful port of the per-scope loop in Python
-/// `compiler.taint.find_taint_warnings`, which runs five families in a
-/// fixed order: sink injection (`_find_taint_sinks`), setter-constraint,
-/// uri-split, path-concat, then destructive-file. Mirrors the same order
+/// dataflow JSON shape. Runs five families in a
+/// fixed order: sink injection, setter-constraint,
+/// uri-split, path-concat, then destructive-file — the same order
 /// and dialect gating as `compiler_checks::run_all_checks`. Every kind
-/// yields a `variable` + `sink_command` (Python's path-concat warning is a
+/// yields a `variable` + `sink_command` (the path-concat warning is a
 /// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
 /// carries no command field, so we supply the same constant).
 fn collect_taint_warnings(
@@ -926,7 +915,13 @@ fn collect_taint_warnings(
         registry,
         Some(dialect),
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
     }
 
     // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
@@ -941,7 +936,13 @@ fn collect_taint_warnings(
             &fu.sccp.executable_blocks,
             Some(dialect),
         ) {
-            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+            push(
+                w.code.as_str(),
+                w.span,
+                &w.message,
+                &w.variable,
+                &w.sink_command,
+            );
         }
         for w in find_uri_split_suggestions(
             &fu.cfg,
@@ -951,11 +952,17 @@ fn collect_taint_warnings(
             registry,
             Some(dialect),
         ) {
-            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+            push(
+                w.code.as_str(),
+                w.span,
+                &w.message,
+                &w.variable,
+                &w.sink_command,
+            );
         }
     }
 
-    // 4. Path-concat (`W201`). Python reports `sink_command="set"`.
+    // 4. Path-concat (`W201`). Reports `sink_command="set"`.
     for w in find_path_concat_warnings(
         &fu.cfg,
         &fu.ssa,
@@ -963,7 +970,7 @@ fn collect_taint_warnings(
         taints,
         &fu.sccp.executable_blocks,
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, "set");
+        push(w.code.as_str(), w.span, &w.message, &w.variable, "set");
     }
 
     // 5. Destructive-file (`W313`).
@@ -974,27 +981,33 @@ fn collect_taint_warnings(
         &fu.sccp.executable_blocks,
         registry,
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
     }
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
-/// deterministic order). Python iterates the per-unit taint lattice map
-/// (`analysis.taints`) in SSA insertion order; the Rust taint map is a
-/// `HashMap`, so the order is recovered by sorting.
+/// deterministic order). The per-unit taint lattice map
+/// is iterated in SSA insertion order; the taint map is a `HashMap`, so the
+/// order is recovered by sorting.
 ///
 /// Version-0 entries are skipped: a `(name, 0)` slot is the enclosing-
 /// scope / pre-existing value, and the only way it becomes tainted is the
 /// conservative cross-procedure global-write seeding in `propagate_taints`
-/// (e.g. `::store` in `proc save {v} { set ::store $v }`). Python's
-/// per-unit `analysis.taints` does no such seeding, so it never surfaces a
-/// version-0-tainted variable — filtering them here matches Python's
+/// (e.g. `::store` in `proc save {v} { set ::store $v }`). The raw per-unit
+/// taint map does no such seeding, so it never surfaces a
+/// version-0-tainted variable — filtering them here keeps the
 /// `tainted_variables` output without disturbing the seeding the sink
 /// warnings rely on.
 fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
     // Definition-site offset of each `(name, version)` SSA value, so
     // tainted variables order by where they are defined — recovering
-    // Python's SSA/source iteration order over `analysis.taints` rather
+    // the SSA/source iteration order over the per-unit taint map rather
     // than an alphabetical sort. Each SSA version is defined once, so
     // `or_insert` records that single site.
     let mut def_offset: std::collections::HashMap<(&str, u32), u32> =
@@ -1003,7 +1016,9 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         for st in &block.statements {
             let off = st.statement.span().start();
             for (name, &ver) in &st.defs {
-                def_offset.entry((name.as_str(), ver)).or_insert(off);
+                def_offset
+                    .entry((fu.ssa.var_name(*name), ver))
+                    .or_insert(off);
             }
         }
     }
@@ -1012,7 +1027,7 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         .taints
         .iter()
         .filter(|((_, version), lattice)| *version != 0 && lattice.is_tainted())
-        .map(|((name, version), _)| (name.as_str(), *version))
+        .map(|((name, version), _)| (fu.ssa.var_name(*name), *version))
         .collect();
     // (def offset, version, name) keeps the order deterministic and
     // source-ordered; values defined outside this unit (no def site) sort
@@ -1031,8 +1046,7 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         .collect()
 }
 
-/// Build the dataflow / taint graph payload — port of
-/// `build_dataflow_graph`.
+/// Build the dataflow / taint graph payload.
 fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(source, registry, false)
@@ -1044,9 +1058,9 @@ fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
 
     // Interprocedural taint solve: colour-aware return summaries + parameter
     // entry taints. Its `top_taints` / `proc_taints` feed the warning
-    // families (cross-proc entry-taint), mirroring Python's
+    // families (cross-proc entry-taint), feeding
     // `find_taint_warnings`. The `tainted_variables` listing below keeps the
-    // per-unit `fu.taints` lattice, matching Python's `analysis.taints`.
+    // per-unit `fu.taints` lattice.
     let solved =
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(dialect));
 

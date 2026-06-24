@@ -1,7 +1,6 @@
 //! The canonical red-green concrete syntax tree (CST).
 //!
-//! Ports `compiler/parsing/syntax/` from the Python source of truth
-//! (landed on `main` by #533 / `SYNC-JUN06`).  The split mirrors
+//! The split mirrors
 //! Roslyn / rust-analyzer:
 //!
 //! - [`green`] — the **position-independent** layer: a node knows only

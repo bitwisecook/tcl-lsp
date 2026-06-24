@@ -1,7 +1,6 @@
 //! Parameter-list parser for Tcl proc declarations.
 //!
-//! Port of `parse_param_list` in
-//! `core/analysis/_analyser/_utils.py`. Splits a parameter-list
+//! Splits a parameter-list
 //! string (the literal `args` argument to `proc`) into [`ParamDef`]
 //! records, recognising the bare-word and `{name default}` forms.
 
@@ -89,9 +88,8 @@ fn is_whitespace_byte(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
 }
 
-/// Split on the first run of whitespace, mirroring Python's
-/// `str.split(None, 1)`. Returns `None` when the input contains no
-/// whitespace.
+/// Split on the first run of whitespace. Returns `None` when the input
+/// contains no whitespace.
 fn split_first_whitespace(s: &str) -> Option<(&str, &str)> {
     let bytes = s.as_bytes();
     let split_at = bytes.iter().position(|b| is_whitespace_byte(*b))?;

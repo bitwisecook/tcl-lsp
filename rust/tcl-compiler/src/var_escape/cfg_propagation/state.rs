@@ -1,7 +1,4 @@
-//! SSA-version-aware escape accumulator (C33e1).
-//!
-//! Mirrors `CfgEscapeResult` + `_CfgState` from
-//! `core/compiler/var_escape/_cfg_propagation.py`.
+//! SSA-version-aware escape accumulator.
 //!
 //! The intra-procedural state ([`super::super::state::EscapeState`])
 //! tracks per-name tags. The CFG variant tags every escape at the
@@ -10,7 +7,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::ssa::{SsaStatement, ValueKey, Version};
+use crate::ssa::{SsaFunction, SsaStatement, Version};
 use crate::var_escape::helpers::is_dynamic_name;
 use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
@@ -21,7 +18,7 @@ enum LiteralBinding {
     Invalidated,
 }
 
-/// Result of the CFG+SSA flow-sensitive analysis (C33e).
+/// Result of the CFG+SSA flow-sensitive analysis.
 ///
 /// `ssa_tags` is the authoritative per-version result;
 /// `name_tags` collapses to per-name (a name is `Frame` if any of
@@ -29,7 +26,7 @@ enum LiteralBinding {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CfgEscapeResult {
     /// Per-(name, version) escape tags.
-    pub ssa_tags: HashMap<ValueKey, EscapeTag>,
+    pub ssa_tags: HashMap<(String, Version), EscapeTag>,
     /// Per-name collapse: `Frame` iff any version was tagged.
     pub name_tags: HashMap<String, EscapeTag>,
     /// Pessimism / fallback flag set.
@@ -40,11 +37,9 @@ pub struct CfgEscapeResult {
     pub direct_callees: BTreeSet<String>,
     /// Every name the analysis saw (params + assigns + reads).
     pub known_names: HashSet<String>,
-    /// SYNC-JUN-FRAME356-population: structured barrier triggers
-    /// recorded by the CFG walk.
+    /// Structured barrier triggers recorded by the CFG walk.
     pub barriers: Vec<crate::var_escape::types::Barrier>,
-    /// SYNC-JUN-FRAME356-population: per-name escape reasons
-    /// recorded by the CFG walk.
+    /// Per-name escape reasons recorded by the CFG walk.
     pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
@@ -82,7 +77,7 @@ impl CfgEscapeResult {
 #[derive(Debug, Default)]
 pub struct CfgState {
     /// Per-(name, version) escape tags.
-    pub ssa_tags: HashMap<ValueKey, EscapeTag>,
+    pub ssa_tags: HashMap<(String, Version), EscapeTag>,
     /// Pessimism / fallback flag set.
     pub flags: EscapeFlags,
     /// Names the analysis has seen.
@@ -95,9 +90,9 @@ pub struct CfgState {
     literal_assigns: HashMap<String, LiteralBinding>,
     /// Most recent SSA version observed per name.
     ssa_for_name: HashMap<String, Version>,
-    /// SYNC-JUN-FRAME356-population: structured barrier triggers.
+    /// Structured barrier triggers.
     pub barriers: Vec<crate::var_escape::types::Barrier>,
-    /// SYNC-JUN-FRAME356-population: per-name escape reasons.
+    /// Per-name escape reasons.
     pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
@@ -147,17 +142,19 @@ impl CfgState {
     }
 
     /// Update the name → latest-version map from a [`SsaStatement`].
-    pub fn remember_versions(&mut self, stmt: &SsaStatement) {
-        for (name, version) in &stmt.defs {
-            self.ssa_for_name.insert(name.clone(), *version);
-            self.known_names.insert(name.clone());
+    pub fn remember_versions(&mut self, stmt: &SsaStatement, ssa: &SsaFunction) {
+        for (&sym, version) in &stmt.defs {
+            let name = ssa.var_name(sym);
+            self.ssa_for_name.insert(name.to_owned(), *version);
+            self.known_names.insert(name.to_owned());
         }
-        for (name, version) in &stmt.uses {
+        for (&sym, version) in &stmt.uses {
+            let name = ssa.var_name(sym);
             // Defensive: keep the latest if an SSA quirk hands us a
             // higher version on a use than on the def map.
             let cur = self.ssa_for_name.get(name).copied().unwrap_or(0);
             if *version > cur {
-                self.ssa_for_name.insert(name.clone(), *version);
+                self.ssa_for_name.insert(name.to_owned(), *version);
             }
         }
     }
@@ -192,7 +189,7 @@ impl CfgState {
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
-    /// SYNC-JUN-FRAME356-population: record a structured barrier
+    /// Record a structured barrier
     /// (sets [`EscapeFlags::DYNAMIC_BARRIER`] AND appends the
     /// barrier to [`Self::barriers`] for downstream rendering).
     pub fn record_barrier(&mut self, barrier: crate::var_escape::types::Barrier) {
@@ -200,7 +197,7 @@ impl CfgState {
         self.barriers.push(barrier);
     }
 
-    /// SYNC-JUN-FRAME356-population: escape *name* at its current
+    /// Escape *name* at its current
     /// SSA version and record the triggering reason.
     pub fn escape_with_reason(
         &mut self,

@@ -1,5 +1,5 @@
-//! Byte-parity for `compute_cleanup` (tmsh script + JSON) against the Python
-//! `dialects.f5.bigip.cleanup`, across keep-filter variants. Self-contained.
+//! Byte-stable fixtures for `compute_cleanup` (tmsh script + JSON), checked
+//! against captured expected output across keep-filter variants. Self-contained.
 
 use std::collections::HashSet;
 
@@ -32,12 +32,18 @@ fn check(name: &str, keep_paths: &[&str], keep_partitions: &[&str]) {
     }
     let want_tmsh = std::fs::read_to_string(format!("{dir}/cleanup_{name}.tmsh.golden"))
         .expect("read tmsh golden");
-    assert_eq!(tmsh, want_tmsh, "cleanup tmsh ({name}) differs from Python");
+    assert_eq!(
+        tmsh, want_tmsh,
+        "cleanup tmsh ({name}) differs from the expected fixture"
+    );
 
     let json = report_to_json(&report);
     let want_json = std::fs::read_to_string(format!("{dir}/cleanup_{name}.json.golden"))
         .expect("read json golden");
-    assert_eq!(json, want_json, "cleanup JSON ({name}) differs from Python");
+    assert_eq!(
+        json, want_json,
+        "cleanup JSON ({name}) differs from the expected fixture"
+    );
 }
 
 #[test]

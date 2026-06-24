@@ -18,8 +18,7 @@ pub enum ArgRole {
     /// Variable name read without modification (`info exists`, `array get`).
     VarRead,
     /// Loop variable-binding list evaluated once before the body
-    /// (`dict for {k v} …`, `dict map {k v} …`). Mirrors Python
-    /// `ArgRole.LOOP_VAR_LIST`.
+    /// (`dict for {k v} …`, `dict map {k v} …`).
     LoopVarList,
     /// Procedure parameter list.
     ParamList,
@@ -43,8 +42,8 @@ pub enum ArgRole {
     /// `try`'s `on`/`trap`/`finally`. These sit at argument positions
     /// (not the command-name slot), so the semantic-token layer marks
     /// them with this role to highlight them as keywords rather than
-    /// strings. Mirrors Python's `ArgRole.KEYWORD`. Adding `Keyword`
-    /// to a position that previously had no role is inert for every
-    /// other role consumer — they filter by the roles they care about.
+    /// strings. Adding `Keyword` to a position that previously had no
+    /// role is inert for every other role consumer — they filter by the
+    /// roles they care about.
     Keyword,
 }

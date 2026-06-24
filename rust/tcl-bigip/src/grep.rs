@@ -1,12 +1,10 @@
-//! BIG-IP reference-graph search engine — Rust port of
-//! `dialects/f5/bigip/grep.py` (powers `f5 grep` / `related`).
+//! BIG-IP reference-graph search engine (powers `f5 grep` / `related`).
 //!
 //! Seeds from every [`ObjectNode`] whose identifier (or, for `--cidr`, whose
 //! path / header / body) matches the pattern, then BFS-walks the reference graph
 //! produced by [`crate::graph::build_bigip_object_graph`] forward / reverse /
 //! both to `max_depth` (bounded by `max_nodes`), and renders a text or JSON
-//! report. The seed-matching, BFS ordering / dedup, and report formatting are
-//! reproduced faithfully so the output is byte-identical to the Python verb.
+//! report.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
@@ -14,14 +12,14 @@ use std::net::IpAddr;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use regex::Regex;
 
+use crate::error::BigipError;
 use crate::graph::{ObjectEdge, ObjectGraph, ObjectNode};
 use crate::range::Range;
 
-/// The accepted traversal directions (mirrors Python `DIRECTIONS`).
+/// The accepted traversal directions.
 pub const DIRECTIONS: [&str; 3] = ["both", "forward", "reverse"];
 
-/// One object in the grep result — a seed or a related object (mirrors
-/// `GrepObject`).
+/// One object in the grep result — a seed or a related object.
 #[derive(Debug, Clone)]
 pub struct GrepObject {
     /// Stable graph node id.
@@ -48,8 +46,7 @@ pub struct GrepObject {
     pub range: Range,
 }
 
-/// One reference edge between two objects in the grep result (mirrors
-/// `GrepEdge`).
+/// One reference edge between two objects in the grep result.
 #[derive(Debug, Clone)]
 pub struct GrepEdge {
     /// Referencing node id.
@@ -63,7 +60,7 @@ pub struct GrepEdge {
 }
 
 /// Result of [`compute_grep`] — seeds, related objects, edges, and the rendered
-/// text report (mirrors `GrepReport`).
+/// text report.
 pub struct GrepReport {
     /// The search pattern.
     pub pattern: String,
@@ -87,7 +84,7 @@ pub struct GrepReport {
     pub text_report: String,
 }
 
-/// A parsed IP network, mirroring `ipaddress.ip_network(text, strict=False)`.
+/// A parsed IP network (host bits cleared / non-strict).
 #[derive(Clone, Copy)]
 enum Net {
     V4(Ipv4Net),
@@ -102,8 +99,8 @@ impl Net {
         }
     }
 
-    /// `self.overlaps(other)` — `ipaddress` network overlap (same version only;
-    /// the caller guards the version match exactly like the Python).
+    /// `self.overlaps(other)` — network overlap (same version only; the caller
+    /// guards the version match).
     fn overlaps(self, other: Net) -> bool {
         match (self, other) {
             (Net::V4(a), Net::V4(b)) => a.contains(&b) || b.contains(&a),
@@ -128,23 +125,24 @@ fn parse_ip_network(token: &str) -> Option<Net> {
     }
 }
 
-/// Parse one or more whitespace / comma-separated IPs or CIDRs (mirrors
-/// `_parse_cidr_pattern`). Returns `Err` when the pattern is empty or any token
-/// is not a valid IP / network.
-fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, String> {
+/// Parse one or more whitespace / comma-separated IPs or CIDRs. Returns `Err`
+/// when the pattern is empty or any token is not a valid IP / network.
+fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, BigipError> {
     let tokens: Vec<&str> = pattern
         .trim()
         .split(|c: char| c == ',' || c.is_whitespace())
         .filter(|t| !t.is_empty())
         .collect();
     if tokens.is_empty() {
-        return Err("CIDR pattern must contain at least one IP address or network".to_owned());
+        return Err(BigipError::grep(
+            "CIDR pattern must contain at least one IP address or network",
+        ));
     }
     let mut networks = Vec::with_capacity(tokens.len());
     for token in tokens {
         match parse_ip_network(token) {
             Some(net) => networks.push(net),
-            None => return Err(format!("invalid CIDR pattern {token:?}")),
+            None => return Err(BigipError::grep(format!("invalid CIDR pattern {token:?}"))),
         }
     }
     Ok(networks)
@@ -159,7 +157,7 @@ fn ip_regexes() -> &'static (Regex, Regex) {
     RE.get_or_init(|| {
         let ipv4 = Regex::new(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:/(\d{1,2}))?\b")
             .expect("valid IPv4 regex");
-        // The Python IPV6_RE core alternation, minus the `(?<![:\w])` /
+        // The IPv6 core alternation, minus the `(?<![:\w])` /
         // `(?![:\w])` boundary lookarounds (handled manually below).
         let ipv6 = Regex::new(concat!(
             r"(",
@@ -183,14 +181,14 @@ fn ip_regexes() -> &'static (Regex, Regex) {
     })
 }
 
-/// `c` is in the `[:\w]` boundary class the Python IPv6 lookarounds exclude.
+/// `c` is in the `[:\w]` boundary class the IPv6 lookarounds exclude.
 fn is_ipv6_boundary_char(c: char) -> bool {
     c == ':' || c == '_' || c.is_alphanumeric()
 }
 
-/// Yield every IP / CIDR token in `text` as a network (mirrors
-/// `_extract_ip_networks`): scan IPv4 then IPv6 literals and validate each via
-/// the stdlib parser, silently skipping anything it rejects.
+/// Yield every IP / CIDR token in `text` as a network: scan IPv4 then IPv6
+/// literals and validate each via the stdlib parser, silently skipping
+/// anything it rejects.
 fn extract_ip_networks(text: &str) -> Vec<Net> {
     let (ipv4_re, ipv6_re) = ip_regexes();
     let mut out = Vec::new();
@@ -223,8 +221,8 @@ fn extract_ip_networks(text: &str) -> Vec<Net> {
     out
 }
 
-/// Whether any IP / CIDR mentioned by `node` overlaps a seed network (mirrors
-/// `_node_matches_cidrs`): identifier + header + body are searched together.
+/// Whether any IP / CIDR mentioned by `node` overlaps a seed network:
+/// identifier + header + body are searched together.
 fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Net]) -> bool {
     let haystack = format!("{}\n{}\n{}", node.identifier, node.header, node.body);
     for found in extract_ip_networks(&haystack) {
@@ -240,7 +238,7 @@ fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Net]) -> bool {
     false
 }
 
-/// The compiled seed matcher (port of `_build_matcher`).
+/// The compiled seed matcher.
 enum Matcher {
     Substring(String),
     Regex(Regex),
@@ -259,8 +257,8 @@ impl Matcher {
     }
 }
 
-/// Build a seed matcher for the given mode (port of `_build_matcher`). The three
-/// flag modes are mutually exclusive.
+/// Build a seed matcher for the given mode. The three flag modes are mutually
+/// exclusive.
 ///
 /// # Errors
 /// Returns `Err` on conflicting modes, a bad regex, or an unparseable CIDR.
@@ -269,7 +267,7 @@ fn build_matcher(
     use_regex: bool,
     use_cidr: bool,
     use_exact: bool,
-) -> Result<Matcher, String> {
+) -> Result<Matcher, BigipError> {
     let selected: Vec<&str> = [
         ("regex", use_regex),
         ("cidr", use_cidr),
@@ -279,9 +277,9 @@ fn build_matcher(
     .filter_map(|(name, flag)| flag.then_some(name))
     .collect();
     if selected.len() > 1 {
-        return Err(format!(
+        return Err(BigipError::grep(format!(
             "match modes are mutually exclusive; got {selected:?}"
-        ));
+        )));
     }
     if use_cidr {
         return Ok(Matcher::Cidr(parse_cidr_pattern(pattern)?));
@@ -289,7 +287,7 @@ fn build_matcher(
     if use_regex {
         return Regex::new(pattern)
             .map(Matcher::Regex)
-            .map_err(|exc| format!("invalid regex pattern {pattern:?}: {exc}"));
+            .map_err(|exc| BigipError::grep(format!("invalid regex pattern {pattern:?}: {exc}")));
     }
     if use_exact {
         return Ok(Matcher::Exact(pattern.to_owned()));
@@ -313,7 +311,7 @@ fn to_grep_object(node: &ObjectNode, depth: usize, is_seed: bool) -> GrepObject 
     }
 }
 
-/// Split `text` into lines like Python's `str.splitlines()`: split on every
+/// Split `text` into lines: split on every
 /// Unicode line boundary and never emit a trailing empty string for a final
 /// terminator.
 fn splitlines(text: &str) -> Vec<&str> {
@@ -352,8 +350,7 @@ fn splitlines(text: &str) -> Vec<&str> {
     out
 }
 
-/// Metadata threaded into [`format_text_report`] (mirrors the Python
-/// `report_meta` dict).
+/// Metadata threaded into [`format_text_report`].
 struct ReportMeta<'a> {
     pattern: &'a str,
     use_regex: bool,
@@ -363,7 +360,7 @@ struct ReportMeta<'a> {
     source_uris: Vec<String>,
 }
 
-/// Render the text report (port of `_format_text_report`).
+/// Render the text report.
 fn format_text_report(
     meta: &ReportMeta,
     seeds: &[GrepObject],
@@ -445,14 +442,14 @@ fn format_text_report(
     lines.join("\n")
 }
 
-/// Arguments for [`compute_grep`] (mirrors the keyword-only Python signature).
-// The flags mirror the Python verb's mutually-related boolean keyword args
-// one-for-one; collapsing them into enums would diverge from the source.
+/// Arguments for [`compute_grep`].
+// One field per CLI flag; collapsing the mutually-related booleans into enums
+// would obscure that structure.
 #[allow(clippy::struct_excessive_bools)]
 pub struct GrepArgs<'a> {
     /// The search pattern.
     pub pattern: &'a str,
-    /// Treat the pattern as a Python-style regex.
+    /// Treat the pattern as a regex.
     pub use_regex: bool,
     /// Treat the pattern as one or more IP / CIDR values.
     pub use_cidr: bool,
@@ -486,8 +483,8 @@ impl Default for GrepArgs<'_> {
     }
 }
 
-/// Find every BIG-IP object related to seeds whose identifiers match the pattern
-/// (port of `compute_grep`). `graph` must come from
+/// Find every BIG-IP object related to seeds whose identifiers match the
+/// pattern. `graph` must come from
 /// [`crate::graph::build_bigip_object_graph`] (built with the iRules dialect
 /// active, which the caller arranges). `source_uris` are the input URIs used
 /// only for the report header.
@@ -495,30 +492,32 @@ impl Default for GrepArgs<'_> {
 /// # Errors
 /// Returns `Err` on an invalid direction, a non-positive `max_nodes`, a negative
 /// `max_depth`, or a bad regex / CIDR pattern.
-// The seed matching, BFS expansion, and report assembly are a faithful single
-// port of the (long) Python `compute_grep`; splitting it would obscure the
-// ordering / dedup contract.
+// The seed matching, BFS expansion, and report assembly read most clearly as
+// one function; splitting it would obscure the ordering / dedup contract.
 #[allow(clippy::too_many_lines)]
 pub fn compute_grep(
     graph: &ObjectGraph,
     source_uris: &[String],
     args: &GrepArgs,
-) -> Result<GrepReport, String> {
+) -> Result<GrepReport, BigipError> {
     if !DIRECTIONS.contains(&args.direction) {
         let mut sorted = DIRECTIONS;
         sorted.sort_unstable();
-        return Err(format!(
+        return Err(BigipError::grep(format!(
             "direction must be one of {sorted:?}, got {:?}",
             args.direction
-        ));
+        )));
     }
     if args.max_nodes < 1 {
-        return Err(format!("max_nodes must be >= 1, got {}", args.max_nodes));
+        return Err(BigipError::grep(format!(
+            "max_nodes must be >= 1, got {}",
+            args.max_nodes
+        )));
     }
 
     let matcher = build_matcher(args.pattern, args.use_regex, args.use_cidr, args.use_exact)?;
 
-    // Flatten nodes by id, in source order (mirrors `all_nodes`).
+    // Flatten nodes by id, in source order.
     let mut all_nodes: HashMap<&str, &ObjectNode> = HashMap::new();
     for (_uri, nodes) in &graph.nodes_by_uri {
         for node in nodes {
@@ -689,7 +688,7 @@ pub fn compute_grep(
     })
 }
 
-/// Serialise one [`GrepObject`] (port of `report_to_dict._obj_to_dict`).
+/// Serialise one [`GrepObject`].
 fn obj_to_json(obj: &GrepObject, include_body: bool) -> String {
     use std::fmt::Write as _;
 
@@ -739,10 +738,9 @@ fn obj_to_json(obj: &GrepObject, include_body: bool) -> String {
     s
 }
 
-/// Render `report` as `json.dumps(report_to_dict(report), indent=2)` (port of
-/// `report_to_dict` + the CLI's `json.dumps(..., indent=2) + "\n"`). Built by
-/// hand for key-order parity (including the insertion-ordered `summary`), like
-/// the graph / stats exports.
+/// Render `report` as 2-space-indented JSON. Built by
+/// hand for a deterministic key order (including the insertion-ordered
+/// `summary`), like the graph / stats exports.
 #[must_use]
 pub fn report_to_json(report: &GrepReport, include_body: bool) -> String {
     use std::fmt::Write as _;

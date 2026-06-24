@@ -1,9 +1,8 @@
 //! Differential parity tests for the `f5 convert scf2as3` verb (AS3 engine).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf` fixture
-//! and asserts stdout / stderr match goldens captured from
-//! `python -m tooling.f5.main convert scf2as3 …`. Self-contained: no Python at
-//! test time.
+//! and asserts stdout / stderr match the captured golden output for
+//! `convert scf2as3 …`. Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;

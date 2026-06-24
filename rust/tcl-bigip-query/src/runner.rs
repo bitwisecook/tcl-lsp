@@ -1,6 +1,6 @@
-//! Query runner — port of `dialects/f5/query/runner.py` (`run_query`,
-//! `QueryOptions`, `QueryResult`), covering both the per-file (non-merge)
-//! path and `--merge` (every loaded config as one logical namespace).
+//! Query runner (`run_query`, `QueryOptions`, `QueryResult`), covering both
+//! the per-file (non-merge) path and `--merge` (every loaded config as one
+//! logical namespace).
 //!
 //! This is the pure, I/O-free orchestration layer the `f5 query` verb calls:
 //! given a list of `(uri, source_text)` BIG-IP configs plus a query
@@ -52,7 +52,7 @@ pub struct QueryOptions {
     /// KIND`). Each entry binds `$name` to a JSON-backed [`Root`] parsed from
     /// `source` per its [`InputSpec`]. The `uri` is the side-input's file
     /// URI; it participates in the multi-file source count (so a single
-    /// config + one side input renders with a banner, matching Python) but
+    /// config + one side input renders with a banner) but
     /// never iterates as the primary `.` input.
     pub side_inputs: Vec<SideInput>,
     /// Opt the query in to live network probes (`--enable-probes`). When
@@ -87,8 +87,8 @@ impl std::fmt::Debug for QueryOptions {
     }
 }
 
-/// One bound structured side-input — port of the runner's `input_specs` +
-/// `side_resolved_names` pairing.
+/// One bound structured side-input, pairing an input spec with its resolved
+/// name.
 #[derive(Debug, Clone)]
 pub struct SideInput {
     /// The `$NAME` the parsed value binds to.
@@ -108,18 +108,18 @@ pub struct SideInput {
 /// queries cleanly.
 #[derive(Debug, Default)]
 pub struct QueryResult {
-    /// `(uri, values)` in source order — port of `values_per_file`, kept as
-    /// an ordered `Vec` so the verb renders files in input order.
+    /// `(uri, values)` in source order, kept as an ordered `Vec` so the verb
+    /// renders files in input order.
     pub values_per_file: Vec<(String, Vec<Value>)>,
-    /// Per-file `AppliedSource` for mutating queries, in source order — port
-    /// of `edits_per_file`. Empty for read-only queries.
+    /// Per-file `AppliedSource` for mutating queries, in source order. Empty
+    /// for read-only queries.
     pub edits_per_file: Vec<(String, AppliedSource)>,
     /// Whether the query *attempted* a mutation (queued any edit op). A
     /// read-only query is `false`.
     pub has_mutation: bool,
 }
 
-/// Derive a default `$name` from a URI (port of `runner._filename_stem`).
+/// Derive a default `$name` from a URI.
 ///
 /// Strips any directory prefix and the trailing extension; `-` (stdin)
 /// becomes `stdin`.
@@ -147,11 +147,11 @@ fn build_root(uri: &str, source: &str, opts: &QueryOptions) -> std::rc::Rc<Root>
 }
 
 /// Parse every structured side-input into a JSON-backed [`Root`] keyed by
-/// its bound `$NAME` — port of the runner's `_build_structured_root` loop.
+/// its bound `$NAME`.
 ///
 /// Each side-input's `source` is parsed per its [`InputSpec`] into a
 /// [`Value`] and wrapped in [`Root::json`]; parse failures surface with the
-/// same `{uri}: invalid {kind} input (...)` wording the Python runner uses.
+/// same `{uri}: invalid {kind} input (...)` wording the runner uses.
 fn build_side_roots(
     side_inputs: &[SideInput],
 ) -> Result<HashMap<String, std::rc::Rc<Root>>, QueryError> {
@@ -235,8 +235,8 @@ pub fn run_query(
     let program = crate::parse_query(query)?;
 
     // Parse every structured side-input into a JSON-backed root once. These
-    // bind to `$NAME` but never iterate as the primary `.` input — mirroring
-    // the runner's `_is_json_source` skip of the per-file loop.
+    // bind to `$NAME` but never iterate as the primary `.` input — they are
+    // skipped by the per-file loop.
     let side_roots = build_side_roots(&opts.side_inputs)?;
 
     if opts.merge {
@@ -313,8 +313,7 @@ pub fn run_query(
         if attempted_mutation {
             result.has_mutation = true;
             // Fold this source's accumulated self-edit onto any entry a prior
-            // iteration's cross-file edit already created for this URI (port of
-            // `_run_query`'s `existing = result.edits_per_file.get(uri)`).
+            // iteration's cross-file edit already created for this URI.
             let (base_renames, base_edits) = take_existing_edit(&result, uri);
             let mut rename_reports = base_renames;
             rename_reports.extend(accumulated_rename_reports);
@@ -336,7 +335,7 @@ pub fn run_query(
 
 /// Insert or replace the [`AppliedSource`] for *uri* in
 /// `result.edits_per_file`, preserving first-insertion position — the
-/// `Vec`-backed equivalent of Python's `edits_per_file[uri] = …` dict write.
+/// `Vec`-backed equivalent of `edits_per_file[uri] = …` dict write.
 fn upsert_edit(result: &mut QueryResult, uri: &str, applied: AppliedSource) {
     if let Some(entry) = result.edits_per_file.iter_mut().find(|(u, _)| u == uri) {
         entry.1 = applied;
@@ -346,8 +345,7 @@ fn upsert_edit(result: &mut QueryResult, uri: &str, applied: AppliedSource) {
 }
 
 /// Read (without removing) the accumulated rename reports + field-edit count
-/// already recorded for *uri*, or `(empty, 0)` — port of the `base_renames` /
-/// `base_edits` reads guarding each `edits_per_file` write.
+/// already recorded for *uri*, or `(empty, 0)`.
 fn take_existing_edit(
     result: &QueryResult,
     uri: &str,
@@ -364,7 +362,7 @@ fn take_existing_edit(
 
 /// Merge a cross-file [`AppliedSource`] (an edit that originated while
 /// iterating a *different* source) into `result.edits_per_file`, accumulating
-/// onto any prior entry — port of `_run_query`'s cross-file edit loop.
+/// onto any prior entry.
 fn merge_cross_file_edit(
     result: &mut QueryResult,
     other_uri: &str,
@@ -391,18 +389,15 @@ fn merge_cross_file_edit(
     );
 }
 
-// ---------------------------------------------------------------------------
 // --merge: every loaded config as one logical namespace
-// ---------------------------------------------------------------------------
 
-/// The `BigipConfig` dataclass field-declaration index for each collision
-/// table this port models, mirroring Python's `__dataclass_fields__` order.
+/// The `BigipConfig` field-declaration index for each collision table.
 ///
-/// `_detect_collisions` iterates the dataclass fields in declaration order
-/// (then dict-insertion / source order within a field), so the collision
-/// list — and the `head[:5]` slice the error message renders — depends on
-/// this ordering. `generic_objects` (index 529 in Python) sorts after every
-/// typed table, matching the "typed line then generic-objects line" output.
+/// Collision detection iterates the fields in declaration order (then
+/// source order within a field), so the collision list — and the `head[:5]`
+/// slice the error message renders — depends on this ordering.
+/// `generic_objects` (index 529) sorts after every typed table, matching the
+/// "typed line then generic-objects line" output.
 fn collision_field_index(table_name: &str) -> u32 {
     match table_name {
         "data_groups" => 0,
@@ -420,16 +415,14 @@ fn collision_field_index(table_name: &str) -> u32 {
         "gtm_monitors" => 440,
         "gtm_topologies" => 445,
         "generic_objects" => 529,
-        // Any future typed table the Rust model grows lands after the
-        // modelled tables but before generic_objects; an unknown name is a
-        // bug, but ordering it just before generic_objects is the least
-        // surprising fallback.
+        // An unmodelled table name sorts after the modelled tables but before
+        // generic_objects; an unknown name is a bug, but ordering it just
+        // before generic_objects is the least surprising fallback.
         _ => 528,
     }
 }
 
-/// Hard-error if two roots define the same `(kind, full-path)` — port of
-/// `runner._detect_collisions`.
+/// Hard-error if two roots define the same `(kind, full-path)`.
 ///
 /// Merge mode walks every config as one namespace; an identical object
 /// identity across files would yield ambiguous lookups and unsafe edits, so
@@ -437,8 +430,8 @@ fn collision_field_index(table_name: &str) -> u32 {
 /// `head[:5]` / `... and N more` truncation) is reproduced byte-for-byte.
 fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> {
     // `(field_index, label, full_path)` for every collision candidate, in
-    // Python's iteration order: roots in source order, then dataclass fields
-    // in declaration order, then dict / source order within each field.
+    // iteration order: roots in source order, then table fields by
+    // ascending field index, then dict / source order within each field.
     let mut seen: HashMap<(String, String), String> = HashMap::new();
     // (label, full_path, prior_uri, uri)
     let mut collisions: Vec<(String, String, String, String)> = Vec::new();
@@ -503,8 +496,7 @@ fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> 
     )))
 }
 
-/// Run *program* in `--merge` mode — port of `runner._run_query_merged` /
-/// `_run_merge_statements`.
+/// Run *program* in `--merge` mode.
 ///
 /// Builds every root once, refuses colliding object identities, then runs the
 /// program a single time: each statement is evaluated once per root with
@@ -513,7 +505,7 @@ fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> 
 /// from every source; `refs` / `referenced_by` walk the merged graph; edits
 /// route back to their originating source via [`apply`]'s URI partitioning.
 /// All values land under the first source's URI (the synthetic merged bucket),
-/// matching Python's `result.values_per_file[primary_uri]`.
+/// matching `result.values_per_file[primary_uri]`.
 fn run_query_merged(
     program: &crate::ast::Program,
     sources: &[(String, String)],
@@ -535,8 +527,8 @@ fn run_query_merged(
     let mut accumulated_field_edits_per_uri: HashMap<String, usize> = HashMap::new();
     let mut attempted_mutation = false;
 
-    // Up-front collision check against the initial parse (Python builds the
-    // roots once and runs `_detect_collisions` before the statement loop).
+    // Up-front collision check against the initial parse (build the
+    // roots once and run `_detect_collisions` before the statement loop).
     let initial_roots: Vec<Rc<crate::eval::Root>> = current_sources
         .iter()
         .map(|(uri, src)| build_root(uri, src, opts))

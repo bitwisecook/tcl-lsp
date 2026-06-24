@@ -1,22 +1,22 @@
-//! Value / stream / path-category builtins (port of those sections of
-//! `builtins.py`): `defined` / `in` / `kind` / `path` / `json_parse`
-//! (value); `all` / `any` / `halt` / `halt_error` / `inside` / `limit` /
-//! `nth` (stream); `basename` / `partition` / `with_partition` (path).
+//! Value / stream / path-category builtins: `defined` / `in` / `kind` /
+//! `path` / `json_parse` (value); `all` / `any` / `halt` / `halt_error` /
+//! `inside` / `limit` / `nth` (stream); `basename` / `partition` /
+//! `with_partition` (path).
 //!
 //! Parity notes:
 //! - `in(key)` is the inverse of `has` and `inside(container)` the inverse
 //!   of `contains`; both delegate to the already-registered implementations
 //!   via [`crate::builtins::lookup`] with the arguments swapped, so their
 //!   coercion / error wording matches the originals exactly.
-//! - `all` / `any` flatten one level (`_flatten_one_level`) before applying
-//!   `_truthy`, recovering the "did the predicate hold?" semantics for
+//! - `all` / `any` flatten one level before applying the truthiness test,
+//!   recovering the "did the predicate hold?" semantics for
 //!   `any(stream | map(predicate))`.
 //! - `halt` / `halt_error` raise `BuiltinError`; `halt_error` reads an
-//!   optional integer exit-code argument (default 5) and reproduces Python's
+//!   optional integer exit-code argument (default 5) and produces the
 //!   `halt_error: query halted (exit_code=N)` text.
 //! - `json_parse` parses a JSON string into the value model (objects
-//!   preserve key order, integers stay `Int`); its `JSONDecodeError` line /
-//!   column wording differs from `CPython`'s so error cases stay out of the
+//!   preserve key order, integers stay `Int`); the JSON parse-error line /
+//!   column wording is custom (divergent), so error cases stay out of the
 //!   golden fixture.
 //! - `partition` / `basename` / `with_partition` are TMSH path-string
 //!   helpers operating purely on the `/`-segmented string.
@@ -113,9 +113,9 @@ fn bi_path(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_json_parse(args: &[Value]) -> Result<Value, QueryError> {
     let text = as_str(&args[0], "json_parse", 1)?;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-        // CPython's JSONDecodeError wording differs; keep error cases out of
-        // the fixture. We surface the parse failure with line/column to stay
-        // shape-compatible.
+        // The JSON parse-error wording is custom (divergent); keep error cases
+        // out of the fixture. We surface the parse failure with line/column to
+        // stay shape-compatible.
         QueryError::builtin(format!(
             "json_parse: invalid JSON ({} at line {} col {})",
             e,
@@ -136,8 +136,8 @@ fn bi_any(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(items.iter().any(truthy)))
 }
 
-/// Port of `builtins._flatten_one_level`: `_as_sequence` plus one level of
-/// list-flattening when *every* element is itself a list.
+/// Coerce to a sequence, then flatten one level of
+/// lists when *every* element is itself a list.
 fn flatten_one_level(value: &Value, name: &str) -> Result<Vec<Value>, QueryError> {
     let seq = as_sequence(value, name, 1)?;
     if !seq.is_empty() && seq.iter().all(|item| matches!(item, Value::List(_))) {
@@ -195,8 +195,8 @@ fn bi_partition(args: &[Value]) -> Result<Value, QueryError> {
     if !s.starts_with('/') {
         return Ok(Value::Str(String::new()));
     }
-    // Python `s.split("/", 2)` => ["", first, rest?]; index 1 is the first
-    // segment after the leading slash.
+    // Split on `/` into at most 3 parts => ["", first, rest?]; index 1 is the
+    // first segment after the leading slash.
     let part = s.split('/').nth(1).unwrap_or("");
     Ok(Value::Str(part.to_string()))
 }
@@ -243,8 +243,8 @@ mod tests {
 
     #[test]
     fn all_any_follow_jq_empty_semantics() {
-        // jq parity (TEST-MIGRATE — value2.rs had no unit coverage):
-        // all([]) is true (vacuous), any([]) is false; null/false are falsy.
+        // jq parity: all([]) is true (vacuous), any([]) is false; null/false
+        // are falsy.
         assert!(call_bool(bi_all, &[Value::List(vec![])]));
         assert!(!call_bool(bi_any, &[Value::List(vec![])]));
         assert!(call_bool(

@@ -1,7 +1,7 @@
 //! Pure utility functions for compile-time folding.
 //!
 //! These are standalone helpers with no emitter state — used by every
-//! other codegen submodule.  Ported from `core/compiler/codegen/_helpers.py`.
+//! other codegen submodule.
 
 /// Tcl 9.0 default trim characters — pushed when `string trim` is
 /// called without an explicit chars argument.  Includes ASCII
@@ -202,7 +202,7 @@ use std::collections::HashMap;
 /// Format a string as a canonical Tcl list element (`Tcl_ConvertElement`).
 ///
 /// Delegates to the shared [`tcl_syntax::list::list_element`] (now also used by
-/// the runtime port and the registry const-folder) — the single Tcl-faithful
+/// the runtime and the registry const-folder) — the single Tcl-faithful
 /// quoter, correct on the leading-`#` and control-char cases this local copy
 /// previously mis-quoted.
 #[must_use]
@@ -446,7 +446,7 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
 }
 
 /// Resolve backslash-newline continuations (`\<newline><whitespace>`)
-/// to a single space, matching `re.sub(r"\\\n\s*", " ", s)`.
+/// to a single space, matching the regex `\\\n\s*` replaced with a space.
 fn resolve_backslash_newline(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let bytes = s.as_bytes();

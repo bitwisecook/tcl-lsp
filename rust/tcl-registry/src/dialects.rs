@@ -50,12 +50,12 @@ bitflags! {
 
         /// Every modelled dialect *except* F5 iRules and Tk.
         ///
-        /// The Python registry marks the math-operator commands
-        /// (`+`, `eq`, `tcl::mathop::*`, …) valid in every command
+        /// The math-operator commands
+        /// (`+`, `eq`, `tcl::mathop::*`, …) are valid in every command
         /// dialect *except* `f5-irules` (in iRules, operators live
         /// inside `expr`, never as standalone command heads) and
-        /// `tk`. Mirrors that membership so the iRules event/command
-        /// cross-product (`commands_for_event`) excludes them.
+        /// `tk`. This set captures that membership so the iRules
+        /// event/command cross-product (`commands_for_event`) excludes them.
         const NON_IRULES_OPERATORS = Self::ALL_TCL.bits()
             | Self::IAPPS.bits() | Self::EXPECT.bits()
             | Self::SYNOPSYS.bits() | Self::CADENCE.bits()
@@ -66,14 +66,13 @@ bitflags! {
 
 /// Canonical dialect profile names, in sorted order.
 ///
-/// Faithful port of Python's `KNOWN_DIALECTS`
-/// (`compiler/registry/dialects.py`), kept pre-sorted so
-/// [`available_dialects`] matches `sorted(KNOWN_DIALECTS)` exactly. This
+/// Kept pre-sorted so [`available_dialects`] returns them in sorted
+/// order. This
 /// is the single source of truth for the explorer's dialect dropdown and
 /// the CLI's `--dialect` choices. Note it is a *superset* of the names
 /// [`DialectSet::parse`] resolves to a flag — config-only dialects
 /// (`f5-bigip`, `f5-tmsh`) appear here but collapse to plain Tcl when
-/// parsed, matching the Python registry's graceful fallback.
+/// parsed.
 pub const KNOWN_DIALECTS: &[&str] = &[
     "bpf",
     "cadence-eda-tcl",
@@ -93,8 +92,6 @@ pub const KNOWN_DIALECTS: &[&str] = &[
 ];
 
 /// Return the canonical dialect profile names in sorted order.
-///
-/// Mirrors `available_dialects()` in `compiler/registry/runtime.py`.
 #[must_use]
 pub fn available_dialects() -> &'static [&'static str] {
     KNOWN_DIALECTS
@@ -186,12 +183,10 @@ mod tests {
 
     #[test]
     fn is_irules_dialect_accepts_canonical_and_legacy_alias() {
-        // Ported from `tests/test_dialect_helpers.py` (TEST-MIGRATE): the
-        // canonical `f5-irules` and the legacy `irules` alias both match;
-        // every other dialect — and `None` — do not. The Python
-        // `dialect_scope` active-dialect-wrapper case is bridge-only (a
-        // contextvar mechanism the Rust side has no global equivalent for
-        // by design).
+        // The canonical `f5-irules` and the legacy `irules` alias both match;
+        // every other dialect — and `None` — do not. There is no
+        // active-dialect-wrapper case: that contextvar mechanism has no
+        // global equivalent here by design.
         assert!(DialectSet::is_irules_dialect(Some("f5-irules")));
         assert!(DialectSet::is_irules_dialect(Some("irules")));
         assert!(!DialectSet::is_irules_dialect(Some("tcl8.6")));

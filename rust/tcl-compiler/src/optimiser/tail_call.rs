@@ -1,6 +1,6 @@
-//! Tail-call detection pass (C30h).
+//! Tail-call detection pass.
 //!
-//! Ported from `core/compiler/optimiser/_tail_call.py`. Emits:
+//! Emits:
 //!
 //! - **O121** — "Use `tailcall` for self-recursion". Two
 //!   variants:
@@ -14,11 +14,11 @@
 //! - **O123** (hint-only) — "Accumulator-eligible non-tail
 //!   self-recursion". Fires when there is at least one non-tail
 //!   self-call inside an expression body (e.g., `return [expr
-//!   {$n * [f [expr {$n - 1}]]}]`) — a common pattern that the
-//!   Python pass flags as worth converting to an accumulator
-//!   recurrence.
+//!   {$n * [f [expr {$n - 1}]]}]`) — a common pattern worth
+//!   converting to an accumulator recurrence.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
@@ -28,8 +28,8 @@ use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Dialects whose base Tcl version supports `tailcall` (Tcl 8.6+,
-/// TIP 327).  Mirrors Python's `dialects_since("tcl8.6")` — every
-/// dialect whose `DIALECT_BASE_VERSION` entry is `tcl8.6` or later.
+/// TIP 327): every dialect whose `DIALECT_BASE_VERSION` entry is
+/// `tcl8.6` or later.
 /// `f5-irules` (tcl8.4-based), `f5-iapps` / `f5-tmsh` /
 /// `xilinx-eda-tcl` / `intel-quartus-eda-tcl` / `mentor-eda-tcl`
 /// (tcl8.5-based) are deliberately excluded.
@@ -65,8 +65,7 @@ const LASSIGN_DIALECTS: &[&str] = &[
 
 /// Whether `tailcall` is available in `dialect`.  `None` (no dialect
 /// info on the context — only set by the public-API entry points
-/// that don't carry one) defaults to **enabled** to preserve
-/// pre-#433 behaviour for callers that haven't been updated.
+/// that don't carry one) defaults to **enabled**.
 fn tailcall_supported(dialect: Option<&str>) -> bool {
     dialect.is_none_or(|d| TAILCALL_DIALECTS.contains(&d))
 }
@@ -106,10 +105,10 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }
 
         // O123: any non-tail self-call embedded in an expression
-        // → accumulator candidate (hint-only, matches Python).
+        // → accumulator candidate (hint-only).
         if non_tail_self_call_in_expression(&proc.body, &self_names) {
             let mut opt = Optimisation::new(
-                "O123",
+                DiagCode::O123,
                 format!(
                     "Proc '{}' is a candidate for accumulator-style rewriting",
                     proc.name
@@ -135,16 +134,23 @@ struct TailSite {
 }
 
 /// Produce the replacement parameter reassignment for a tail
-/// call — `set p v` for a single param, `lassign {v1 v2 …} p1
-/// p2 …` for multiple. Matches the Python `_make_reassignment`
-/// output.
+/// call — `set p v` for a single param, `lassign [list v1 v2 …]
+/// p1 p2 …` for multiple.
+///
+/// The multi-param form must use `[list …]`, **not** a braced
+/// `{v1 v2 …}` word: a braced word suppresses all substitution, so
+/// for plain `$var` args the params would be reassigned the literal
+/// strings, and for the common `[expr {…}]` argument the braced list
+/// is malformed (`list element in braces followed by "]"`) and Tcl
+/// raises a hard runtime error.  `[list …]` evaluates each argument
+/// and builds a proper list before `lassign` distributes it.
 fn make_reassignment(params: &[String], args: &[String]) -> String {
     if params.len() == 1 {
         format!("set {} {}", params[0], args[0])
     } else {
         let arg_list = args.join(" ");
         let param_list = params.join(" ");
-        format!("lassign {{{arg_list}}} {param_list}")
+        format!("lassign [list {arg_list}] {param_list}")
     }
 }
 
@@ -227,7 +233,7 @@ fn emit_loop_conversion(
     );
 
     ctx.report(Optimisation::new(
-        "O122",
+        DiagCode::O122,
         format!("Convert tail-recursive '{short_name}' to iterative loop"),
         full_rewrite_span(ctx.source, proc.span),
         replacement,
@@ -365,8 +371,8 @@ fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
 }
 
 /// Whether `value` (a `return` argument) is an accumulator-eligible
-/// non-tail self-recursion. Mirrors Python's `_is_accumulator_pattern`
-/// plus the `first_word == "expr"` wrapper gate:
+/// non-tail self-recursion, gated on the argument being an `[expr {…}]`
+/// wrapper:
 ///
 /// 1. the argument is an `[expr {…}]` command substitution (not a plain
 ///    `[self …]` tail call, which O121 already handles);
@@ -407,14 +413,14 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             ..
         } => {
             // Braced `return {[f $n]}` is literal text — never
-            // executed as a call. Matches the Python guard.
+            // executed as a call.
             if *braced {
                 return false;
             }
             is_accumulator_pattern(v, self_names)
         }
-        // Python's `_find_accumulator_sites` inspects `return` statements
-        // only, so an assignment never contributes an O123 candidate.
+        // Accumulator sites come from `return` statements only, so
+        // an assignment never contributes an O123 candidate.
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -464,10 +470,9 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
     }
 }
 
-/// Return the set of command names that refer to `qname`.
-/// Matches Python's `_self_name_variants` — the normalised
-/// qualified name, its short (final) segment, and the global
-/// form without the leading `::`.
+/// Return the set of command names that refer to `qname` — the
+/// normalised qualified name, its short (final) segment, and the
+/// global form without the leading `::`.
 fn self_name_variants(qname: &str) -> HashSet<String> {
     let mut names: HashSet<String> = HashSet::new();
     let normalised = normalise_qualified_name(qname);
@@ -512,7 +517,7 @@ fn collect_tail_sites(
             let rewrite_span = full_rewrite_span(ctx.source, *span);
             if emit_o121 {
                 ctx.report(Optimisation::new(
-                    "O121",
+                    DiagCode::O121,
                     format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                     rewrite_span,
                     format!("tailcall {command}"),
@@ -532,8 +537,7 @@ fn collect_tail_sites(
             // `return {[f $n]}` is a braced literal — the
             // substitution is never executed — so neither O121
             // (tailcall rewrite) nor the site count toward O122
-            // (loop conversion) should fire. Matches the Python
-            // guard in `_tail_call.py::_is_tail_call_return`.
+            // (loop conversion) should fire.
             if *braced {
                 return;
             }
@@ -548,7 +552,7 @@ fn collect_tail_sites(
                         format!("tailcall {call_head} {call_args}")
                     };
                     ctx.report(Optimisation::new(
-                        "O121",
+                        DiagCode::O121,
                         format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                         rewrite_span,
                         replacement,
@@ -653,7 +657,7 @@ mod tests {
             run_pass("proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
             "expected O121, got {opts:?}",
         );
     }
@@ -669,7 +673,7 @@ mod tests {
         for dialect in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps"] {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
-                opts.iter().all(|o| o.code != "O121"),
+                opts.iter().all(|o| o.code != DiagCode::O121),
                 "O121 must not fire on {dialect}, got {opts:?}",
             );
         }
@@ -688,7 +692,7 @@ mod tests {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
                 opts.iter()
-                    .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                    .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
                 "O121 expected on {dialect}, got {opts:?}",
             );
         }
@@ -702,7 +706,7 @@ mod tests {
         let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
-            opts.iter().any(|o| o.code == "O122"),
+            opts.iter().any(|o| o.code == DiagCode::O122),
             "O122 expected on tcl8.4 single-param body, got {opts:?}",
         );
     }
@@ -715,9 +719,41 @@ mod tests {
         let src = "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
-            opts.iter().all(|o| o.code != "O122"),
+            opts.iter().all(|o| o.code != DiagCode::O122),
             "O122 must not fire on tcl8.4 multi-param body, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn o122_multi_param_rewrite_uses_list_not_braces() {
+        // The multi-param reassignment must be
+        // `lassign [list …] a b`, never the braced `lassign {…} a b`
+        // form (which breaks `[expr {…}]` args with a hard tclsh error).
+        let src = "proc ::f {a b} {\n    if {$a <= 0} { return $b }\n    f [expr {$a - 1}] [expr {$b + $a}]\n}";
+        let opts = run_pass_with_dialect(src, "tcl8.6");
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire on multi-param tail recursion");
+        assert!(
+            opt.replacement.contains("lassign [list "),
+            "O122 must use `lassign [list …]`, got {:?}",
+            opt.replacement,
+        );
+        assert!(
+            !opt.replacement.contains("lassign {"),
+            "O122 must not emit a braced `lassign {{…}}`, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn make_reassignment_multi_param_emits_list() {
+        let r = make_reassignment(
+            &["a".to_string(), "b".to_string()],
+            &["[expr {$a - 1}]".to_string(), "$b".to_string()],
+        );
+        assert_eq!(r, "lassign [list [expr {$a - 1}] $b] a b");
     }
 
     #[test]
@@ -725,7 +761,7 @@ mod tests {
         // The self-call is NOT the last statement — puts follows.
         let opts = run_pass("proc ::f {n} {\n    f $n\n    puts \"done\"\n}");
         assert!(
-            opts.iter().all(|o| o.code != "O121"),
+            opts.iter().all(|o| o.code != DiagCode::O121),
             "non-tail call should not fire, got {opts:?}",
         );
     }
@@ -738,7 +774,7 @@ mod tests {
              }",
         );
         assert!(
-            opts.iter().any(|o| o.code == "O121"),
+            opts.iter().any(|o| o.code == DiagCode::O121),
             "expected O121 inside else branch, got {opts:?}",
         );
     }
@@ -750,7 +786,7 @@ mod tests {
         );
         assert!(
             opts.iter()
-                .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
             "expected O121 for return [self …] variant, got {opts:?}",
         );
     }
@@ -777,7 +813,7 @@ mod tests {
             run_pass("proc ::fact {n} { if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] } }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O122")
+            .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire");
         assert!(!opt.hint_only, "O122 should now be a real rewrite");
         assert!(
@@ -801,7 +837,7 @@ mod tests {
         );
         let opt = opts
             .iter()
-            .find(|o| o.code == "O122")
+            .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire");
         assert!(
             opt.replacement.contains("lassign"),
@@ -815,7 +851,7 @@ mod tests {
         // Tail-call passes wrong number of args → fold refused.
         let opts = run_pass("proc ::f {a b} { if {$a <= 0} { return 0 } else { f 1 } }");
         assert!(
-            opts.iter().all(|o| o.code != "O122"),
+            opts.iter().all(|o| o.code != DiagCode::O122),
             "arity mismatch should suppress O122, got {opts:?}",
         );
     }
@@ -829,7 +865,7 @@ mod tests {
             "proc ::fact {n} { if {$n <= 1} { return 1 } else { return [expr {$n * [fact [expr {$n - 1}]]}] } }",
         );
         assert!(
-            opts.iter().any(|o| o.code == "O123" && o.hint_only),
+            opts.iter().any(|o| o.code == DiagCode::O123 && o.hint_only),
             "expected O123 accumulator hint, got {opts:?}",
         );
     }
@@ -842,7 +878,7 @@ mod tests {
             "proc ::fib {n} { if {$n < 2} { return $n } else { return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}] } }",
         );
         assert!(
-            opts.iter().all(|o| o.code != "O123"),
+            opts.iter().all(|o| o.code != DiagCode::O123),
             "tree recursion must not emit O123, got {opts:?}",
         );
     }
@@ -855,7 +891,7 @@ mod tests {
             "proc ::g {n} { if {$n <= 0} { return 0 } else { return [expr {-[g [expr {$n - 1}]]}] } }",
         );
         assert!(
-            opts.iter().all(|o| o.code != "O123"),
+            opts.iter().all(|o| o.code != DiagCode::O123),
             "non-associative wrapper must not emit O123, got {opts:?}",
         );
     }
@@ -866,7 +902,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::TailCall]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O121"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O121),
             "expected O121 via run_passes, got {:?}",
             ctx.optimisations,
         );

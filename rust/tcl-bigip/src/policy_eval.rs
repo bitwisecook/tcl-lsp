@@ -1,6 +1,6 @@
 //! Evaluate parsed BIG-IP LTM policies against captured request state.
 //!
-//! Faithful port of `dialects/f5/bigip/policy_eval.py`. Purely declarative — no
+//! Purely declarative — no
 //! runtime needed; the captured request fully determines the outcome. Operates
 //! on the parsed [`BigipPolicy`] model and a [`RequestState`] derived from an
 //! explain-flow [`Session`].
@@ -109,8 +109,7 @@ pub struct PolicyDecision {
     pub rules: Vec<RuleDecision>,
 }
 
-/// Evaluate `policy` against `state` and return per-rule decisions. Faithful
-/// port of `evaluate_policy`.
+/// Evaluate `policy` against `state` and return per-rule decisions.
 #[must_use]
 pub fn evaluate_policy(policy: &BigipPolicy, state: &RequestState) -> PolicyDecision {
     let mut rules_built: Vec<RuleDecision> = Vec::new();
@@ -190,7 +189,7 @@ pub fn evaluate_policy(policy: &BigipPolicy, state: &RequestState) -> PolicyDeci
 }
 
 /// Derive a [`RequestState`] from an explain-flow session (front-side client
-/// flow only). Faithful port of `request_state_from_session`.
+/// flow only).
 #[must_use]
 pub fn request_state_from_session(session: &Session) -> RequestState {
     let fc = &session.front.client;
@@ -269,8 +268,7 @@ fn evaluate_condition(cond: &BigipPolicyCondition, state: &RequestState) -> Cond
     }
 }
 
-/// Return `(observed_value, present, note, unevaluable)`. Faithful port of
-/// `_extract_actual`.
+/// Return `(observed_value, present, note, unevaluable)`.
 #[allow(clippy::too_many_lines)]
 fn extract_actual(
     cond: &BigipPolicyCondition,
@@ -422,7 +420,7 @@ fn apply_operator(operator: &str, actual: &str, values: &[String], case_insensit
         "ends-with" => vs.iter().any(|v| a.ends_with(v)),
         "contains" => vs.iter().any(|v| a.contains(v.as_str())),
         // `matches` uses the original-case values + actual with an IGNORECASE
-        // flag. An invalid regex no-matches here (Python would raise; flagged).
+        // flag. An invalid regex no-matches here (it is flagged separately).
         "matches" => values.iter().any(|v| {
             RegexBuilder::new(v)
                 .case_insensitive(case_insensitive)
@@ -499,7 +497,7 @@ fn action_summary_value(action: &BigipPolicyAction) -> String {
     String::new()
 }
 
-/// `urlsplit(uri).path` with the Python fallback `or uri.split("?",1)[0]`.
+/// The URL path component, with a fallback to `uri.split("?",1)[0]` for a bare path.
 fn split_path(uri: &str) -> String {
     if uri.is_empty() {
         return String::new();
@@ -512,7 +510,7 @@ fn split_path(uri: &str) -> String {
     }
 }
 
-/// `urlsplit(uri).query` with the Python fallback for a bare `?query`.
+/// The URL query component, with a fallback for a bare `?query`.
 fn split_query(uri: &str) -> String {
     if uri.is_empty() {
         return String::new();
@@ -526,7 +524,7 @@ fn split_query(uri: &str) -> String {
     }
 }
 
-/// Minimal `urllib.parse.urlsplit` for request URIs: strips a `#fragment`, an
+/// Minimal URL splitter for request URIs: strips a `#fragment`, an
 /// optional `scheme:` prefix and `//netloc`, then splits `path?query`. Exotic
 /// forms (`;params`) are not modelled, but `request_state_from_session` reaches
 /// here only when the walker left `http_path`/`http_query` empty.
@@ -555,8 +553,8 @@ fn urlsplit(url: &str) -> (String, String) {
     (path.to_owned(), query.to_owned())
 }
 
-/// Render a string as Python `repr()` does (single-quoted, with the standard
-/// escapes), used in the unevaluable-condition notes.
+/// Render a string in `repr()` form: single-quoted, with the standard
+/// escapes, used in the unevaluable-condition notes.
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');
     let quote = if use_double { '"' } else { '\'' };
@@ -591,7 +589,12 @@ mod tests {
         xs.iter().map(|s| (*s).to_string()).collect()
     }
 
-    fn cond(operand: &str, selector: &str, operator: &str, values: &[&str]) -> BigipPolicyCondition {
+    fn cond(
+        operand: &str,
+        selector: &str,
+        operator: &str,
+        values: &[&str],
+    ) -> BigipPolicyCondition {
         BigipPolicyCondition {
             index: 0,
             operand: operand.into(),
@@ -652,10 +655,25 @@ mod tests {
 
     #[test]
     fn apply_operator_covers_string_and_numeric_ops() {
-        assert!(apply_operator("equals", "GET", &vals(&["GET", "POST"]), false));
+        assert!(apply_operator(
+            "equals",
+            "GET",
+            &vals(&["GET", "POST"]),
+            false
+        ));
         assert!(!apply_operator("equals", "PUT", &vals(&["GET"]), false));
-        assert!(apply_operator("starts-with", "/api/v1", &vals(&["/api"]), false));
-        assert!(apply_operator("ends-with", "/login", &vals(&[".com", "/login"]), false));
+        assert!(apply_operator(
+            "starts-with",
+            "/api/v1",
+            &vals(&["/api"]),
+            false
+        ));
+        assert!(apply_operator(
+            "ends-with",
+            "/login",
+            &vals(&[".com", "/login"]),
+            false
+        ));
         assert!(apply_operator("contains", "abcdef", &vals(&["cde"]), false));
         // `matches` honours the case-insensitive flag (regex over the original).
         assert!(apply_operator("matches", "GET", &vals(&["^g.t$"]), true));
@@ -663,7 +681,12 @@ mod tests {
         // Numeric comparisons parse both sides as f64.
         assert!(apply_operator("greater", "443", &vals(&["80"]), false));
         assert!(apply_operator("less", "80", &vals(&["443"]), false));
-        assert!(apply_operator("greater-or-equal", "443", &vals(&["443"]), false));
+        assert!(apply_operator(
+            "greater-or-equal",
+            "443",
+            &vals(&["443"]),
+            false
+        ));
         assert!(apply_operator("less-or-equal", "80", &vals(&["80"]), false));
         // Edge cases: empty values, unknown operator, non-numeric operand → no match.
         assert!(!apply_operator("equals", "x", &[], false));
@@ -713,7 +736,12 @@ mod tests {
             path: "/api/x".into(),
             ..Default::default()
         };
-        let r1 = rule("r1", 0, vec![cond("http-method", "", "equals", &["GET"])], vec![]);
+        let r1 = rule(
+            "r1",
+            0,
+            vec![cond("http-method", "", "equals", &["GET"])],
+            vec![],
+        );
         let r2 = rule(
             "r2",
             1,
@@ -732,7 +760,12 @@ mod tests {
             path: "/api/x".into(),
             ..Default::default()
         };
-        let ra = rule("a", 0, vec![cond("http-method", "", "equals", &["GET"])], vec![]);
+        let ra = rule(
+            "a",
+            0,
+            vec![cond("http-method", "", "equals", &["GET"])],
+            vec![],
+        );
         let rb = rule(
             "b",
             1,
@@ -763,7 +796,10 @@ mod tests {
             method: "GET".into(),
             ..Default::default()
         };
-        let d = evaluate_policy(&policy("first-match", vec![rule("r", 0, vec![c], vec![])]), &state);
+        let d = evaluate_policy(
+            &policy("first-match", vec![rule("r", 0, vec![c], vec![])]),
+            &state,
+        );
         // method is GET, "equals POST" is false, negated → matches.
         assert!(d.rules[0].matched);
     }
@@ -797,7 +833,11 @@ mod tests {
         let r = rule("r", 0, vec![cond("geoip", "", "equals", &["US"])], vec![]);
         let d = evaluate_policy(&policy("first-match", vec![r]), &RequestState::default());
         assert!(!d.rules[0].matched);
-        assert!(d.rules[0].conditions[0].note.contains("not supported in v1"));
+        assert!(
+            d.rules[0].conditions[0]
+                .note
+                .contains("not supported in v1")
+        );
     }
 
     #[test]
@@ -859,7 +899,10 @@ mod tests {
             &RequestState::default(),
         );
         let ActionTrace { target, value, .. } = &d.rules[0].actions[0];
-        assert_eq!((target.as_str(), value.as_str()), ("forward", "/Common/pool"));
+        assert_eq!(
+            (target.as_str(), value.as_str()),
+            ("forward", "/Common/pool")
+        );
     }
 
     #[test]

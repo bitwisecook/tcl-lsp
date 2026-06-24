@@ -1,5 +1,5 @@
 //! Unified variable **Place** model — the single identity for what a Tcl
-//! read/write touches (Phase 8 / SYNC-MAY31-1b).
+//! read/write touches.
 //!
 //! A *place* (an lvalue) is what a variable reference denotes: a scalar, a
 //! specific array element, a whole array, a dict path, an OO instance
@@ -18,9 +18,8 @@
 //! * [`places_read_to_form`] — the scalars read to *compute* a dynamic index,
 //!   dict key, or runtime variable name (`$i` in `a($i)`, `X` in `set $X`).
 //!
-//! Faithful port of `compiler/place.py` on `main` (Phase 8A + the 8E
-//! `overlap` refinement that separates a dynamic *index* on a known base from a
-//! dynamic *alias/name*).  The resolution layer ([`crate::var_resolve`]) maps a
+//! The `overlap` relation separates a dynamic *index* on a known base from a
+//! dynamic *alias/name*.  The resolution layer ([`crate::var_resolve`]) maps a
 //! syntactic reference + scope context to a canonical place.
 
 /// Sentinel namespace marking a procedure-*local* scalar (frame-relative), as
@@ -164,7 +163,7 @@ impl Place {
     }
 }
 
-// Constructors -------------------------------------------------------------
+// Constructors
 
 /// A scalar place.
 #[must_use]
@@ -260,7 +259,7 @@ pub fn unknown_top() -> Place {
     }
 }
 
-// Relations ----------------------------------------------------------------
+// Relations
 
 /// Could indices/keys *a* and *b* denote the same slot?  Over-approximates:
 /// `ANY` or `DYNAMIC` overlaps anything; two literals overlap iff equal text.
@@ -366,9 +365,8 @@ pub fn overlap(p: &Place, q: &Place) -> bool {
 
 /// Scalars read to *compute* this place's identity — dynamic array/dict
 /// indices and runtime variable names.  These are genuine reads at the access
-/// site (`$i` in `a($i)`, `X` in `set $X v`).  Mirrors Python's
-/// `places_read_to_form` (a `frozenset`); returned de-duplicated, first-seen
-/// order.
+/// site (`$i` in `a($i)`, `X` in `set $X v`).  Returned de-duplicated,
+/// first-seen order.
 #[must_use]
 pub fn places_read_to_form(p: &Place) -> Vec<Place> {
     let mut out: Vec<Place> = Vec::new();
@@ -401,7 +399,7 @@ mod tests {
         scalar(name, LOCAL_NS, false)
     }
 
-    // -- core scalar / array overlap ----------------------------------
+    // core scalar / array overlap
 
     #[test]
     fn scalar_overlap_basics() {
@@ -458,7 +456,7 @@ mod tests {
         assert!(!overlap(&s, &ak));
     }
 
-    // -- 8E refinement: dynamic *index* ≠ dynamic *alias* -------------
+    // 8E refinement: dynamic *index* ≠ dynamic *alias*
 
     #[test]
     fn dynamic_alias_does_not_observe_differently_named_local() {
@@ -492,7 +490,7 @@ mod tests {
         assert!(overlap(&date_dyn, &unknown_top()));
     }
 
-    // -- upvar aliases -------------------------------------------------
+    // upvar aliases
 
     #[test]
     fn upvar_aliases_compare_by_owner() {
@@ -509,7 +507,7 @@ mod tests {
         assert!(overlap(&dyn_alias, &local_scalar("z")));
     }
 
-    // -- instance vars + dict paths -----------------------------------
+    // instance vars + dict paths
 
     #[test]
     fn instance_vars_compare_by_owner_and_name() {
@@ -579,7 +577,7 @@ mod tests {
         }
     }
 
-    // -- helpers -------------------------------------------------------
+    // helpers
 
     #[test]
     fn base_drops_index_and_keys() {

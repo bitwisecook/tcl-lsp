@@ -1,15 +1,15 @@
-//! Crate-local error type for the value layer.
+//! Crate-local error type for the value layer, modelling the `ValueError`
+//! raised by the `parse` classmethods on the typed value dataclasses.
 //!
-//! Mirrors Python's `ValueError` raised by the `parse` classmethods on
-//! the typed value dataclasses. The message text matches the Python
-//! source where practical so differential-parity comparisons line up.
+//! The message text is kept stable where practical so
+//! differential-parity comparisons line up.
 
 use std::fmt;
 
 /// Error raised by a value-type `parse` when the input is invalid.
 ///
 /// The wrapped string is the human-readable message, kept byte-identical
-/// to the Python `ValueError` text where practical.
+/// to `ValueError` text where practical.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueError(pub String);
 

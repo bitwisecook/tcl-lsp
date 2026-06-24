@@ -23,19 +23,19 @@
 //! A `binary scan $v …` re-binarifies `v` in place (the documented fix) and
 //! clears [`ByteProv::Damaged`].
 //!
-//! Ported from `compiler/shimmer.py`'s `_find_byte_array_corruption` family
-//! (Python PR #656); see `docs/design/rust/s110-byte-array-corruption-port.md`.
+//! See `docs/design/rust/s110-byte-array-corruption-port.md`.
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 use crate::var_refs::vars_in_word;
 
@@ -195,7 +195,7 @@ fn payload_replace_data_index(
 
 /// Join byte provenance over several inputs — DAMAGED dominates BINARY
 /// (may-corrupt); the first non-empty source of each state is kept for the
-/// diagnostic. Mirrors Python's `_join_prov`.
+/// diagnostic.
 fn join_prov(infos: impl IntoIterator<Item = Option<ByteProvInfo>>) -> Option<ByteProvInfo> {
     let mut damaged: Option<ByteProvInfo> = None;
     let mut binary: Option<ByteProvInfo> = None;
@@ -210,7 +210,7 @@ fn join_prov(infos: impl IntoIterator<Item = Option<ByteProvInfo>>) -> Option<By
 }
 
 /// Build the S110 warning, with related spans pointing at the binary source
-/// and the coercion site. Mirrors Python's `_byte_corruption_warning`.
+/// and the coercion site.
 fn byte_warning(
     span: Span,
     variable: &str,
@@ -246,7 +246,7 @@ fn byte_warning(
         to_type: TclType::String,
         command,
         in_loop: false,
-        code: "S110".to_owned(),
+        code: DiagCode::S110,
         message,
         related,
     }
@@ -279,13 +279,13 @@ impl<'a> ByteCorruption<'a> {
         mut self,
         cfg: &CfgFunction,
         ssa: &SsaFunction,
-        executable_blocks: &HashSet<String>,
+        executable_blocks: &HashSet<BlockId>,
     ) -> Vec<ShimmerWarning> {
-        for block_name in cfg_order(cfg) {
-            if !executable_blocks.contains(&block_name) {
+        for block_id in cfg_order(cfg) {
+            if !executable_blocks.contains(&block_id) {
                 continue;
             }
-            let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+            let Some(ssa_block) = ssa.blocks.get(&block_id) else {
                 continue;
             };
 
@@ -294,10 +294,10 @@ impl<'a> ByteCorruption<'a> {
                     phi.incoming
                         .values()
                         .filter(|&&v| v > 0)
-                        .map(|&v| self.prov.get(&(phi.name.clone(), v)).cloned()),
+                        .map(|&v| self.prov.get(&(phi.name, v)).cloned()),
                 );
                 if let Some(joined) = joined {
-                    self.prov.insert((phi.name.clone(), phi.version), joined);
+                    self.prov.insert((phi.name, phi.version), joined);
                 }
             }
 
@@ -305,16 +305,16 @@ impl<'a> ByteCorruption<'a> {
                 match &ss.statement {
                     Statement::AssignValue {
                         name, value, span, ..
-                    } => self.track_assign_value(name, value, *span, &ss.defs, &ss.uses),
+                    } => self.track_assign_value(name, value, *span, &ss.defs, &ss.uses, ssa),
                     Statement::AssignExpr { name, span, .. } => {
-                        self.track_assign_expr(name, *span, &ss.defs, &ss.uses);
+                        self.track_assign_expr(name, *span, &ss.defs, &ss.uses, ssa);
                     }
                     Statement::Call {
                         command,
                         args,
                         span,
                         ..
-                    } => self.track_call(command, args, *span, &ss.defs, &ss.uses),
+                    } => self.track_call(command, args, *span, &ss.defs, &ss.uses, ssa),
                     _ => {}
                 }
             }
@@ -328,17 +328,23 @@ impl<'a> ByteCorruption<'a> {
     }
 
     /// Provenance of a single argument expression (var ref, command
-    /// substitution, or interpolation). Mirrors Python's `_arg_byte_prov`.
-    fn arg_byte_prov(&self, arg_text: &str, uses: &HashMap<String, u32>) -> Option<ByteProvInfo> {
+    /// substitution, or interpolation).
+    fn arg_byte_prov(
+        &self,
+        arg_text: &str,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
+    ) -> Option<ByteProvInfo> {
         let a = arg_text.trim();
         if a.is_empty() {
             return None;
         }
         if is_pure_var_ref(a) {
-            let name = normalise_var_name(a).to_owned();
-            let ver = uses.get(&name).copied().unwrap_or(0);
+            let name = normalise_var_name(a);
+            let sym = ssa.var_symbol(name)?;
+            let ver = uses.get(&sym).copied().unwrap_or(0);
             return (ver > 0)
-                .then(|| self.prov.get(&(name, ver)).cloned())
+                .then(|| self.prov.get(&(sym, ver)).cloned())
                 .flatten();
         }
         if let Some((cmd, cargs)) = parse_command_substitution(a) {
@@ -348,7 +354,8 @@ impl<'a> ByteCorruption<'a> {
             // `<proto>::payload replace … [encoding convertto …]` is DAMAGED,
             // not a clean source.
             if is_intrinsic_corrupt(&cmd, &cargs) {
-                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                let operand =
+                    join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses, ssa)));
                 if let Some(op) = operand {
                     return Some(ByteProvInfo::damaged(
                         &op,
@@ -369,14 +376,14 @@ impl<'a> ByteCorruption<'a> {
                 return Some(ByteProvInfo::binary(None, source_label(&cmd, &cargs)));
             }
             // A string transform applied to a binary operand inside the arg.
-            let inner = join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses)));
+            let inner = join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses, ssa)));
             if let Some(inner) = inner {
                 return Some(ByteProvInfo::damaged(&inner, None, cmd));
             }
             return None;
         }
         if a.contains('$') || a.contains('[') {
-            let joined = join_prov(self.interpolated_prov(a, uses));
+            let joined = join_prov(self.interpolated_prov(a, uses, ssa));
             if let Some(joined) = joined {
                 return Some(ByteProvInfo::damaged(
                     &joined,
@@ -392,31 +399,37 @@ impl<'a> ByteCorruption<'a> {
     fn interpolated_prov(
         &self,
         text: &str,
-        uses: &HashMap<String, u32>,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
     ) -> Vec<Option<ByteProvInfo>> {
         self.vars_in(text)
             .into_iter()
             .filter_map(|name| {
-                let ver = uses.get(&name).copied().unwrap_or(0);
-                (ver > 0).then(|| self.prov.get(&(name, ver)).cloned())
+                let sym = ssa.var_symbol(&name)?;
+                let ver = uses.get(&sym).copied().unwrap_or(0);
+                (ver > 0).then(|| self.prov.get(&(sym, ver)).cloned())
             })
             .collect()
     }
 
-    /// Transfer function for `set name value`. Mirrors `_track_assign_value`.
+    /// Transfer function for `set name value`.
     fn track_assign_value(
         &mut self,
         name: &str,
         value: &str,
         span: Span,
-        defs: &HashMap<String, u32>,
-        uses: &HashMap<String, u32>,
+        defs: &HashMap<Symbol, u32>,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
     ) {
         let nm = normalise_var_name(name).to_owned();
-        let Some(&ver) = defs.get(&nm) else {
+        let Some(sym) = ssa.var_symbol(&nm) else {
             return;
         };
-        let key = (nm.clone(), ver);
+        let Some(&ver) = defs.get(&sym) else {
+            return;
+        };
+        let key = (sym, ver);
         let val = value.trim();
 
         if let Some((cmd, cargs)) = parse_command_substitution(val) {
@@ -428,7 +441,8 @@ impl<'a> ByteCorruption<'a> {
             // double-encode bug — warn, then treat the (byte-array) result as
             // binary.
             if cmd == "encoding" && cargs.first().map(String::as_str) == Some("convertto") {
-                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                let operand =
+                    join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses, ssa)));
                 if let Some(op) = operand {
                     let msg = format!(
                         "Byte-array corruption: 'encoding convertto' on binary data from \
@@ -454,7 +468,8 @@ impl<'a> ByteCorruption<'a> {
             }
             // `string` case-folding directly mangles a byte array.
             if cmd == "string" && cargs.first().is_some_and(|s| is_case_fold_sub(s)) {
-                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                let operand =
+                    join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses, ssa)));
                 if let Some(op) = operand {
                     let sub = &cargs[0];
                     let msg = format!(
@@ -473,7 +488,7 @@ impl<'a> ByteCorruption<'a> {
             }
             // String value subcommands / other string-coercing commands derive
             // a character string from a (possibly binary) operand.
-            if let Some(derived) = self.coerced_from_binary(&cmd, &cargs, uses) {
+            if let Some(derived) = self.coerced_from_binary(&cmd, &cargs, uses, ssa) {
                 self.prov.insert(
                     key,
                     ByteProvInfo::damaged(&derived, Some(span), coercion_label(&cmd, &cargs)),
@@ -483,18 +498,20 @@ impl<'a> ByteCorruption<'a> {
         }
 
         if is_pure_var_ref(val) {
-            let src = normalise_var_name(val).to_owned();
-            let src_ver = uses.get(&src).copied().unwrap_or(0);
-            if src_ver > 0
-                && let Some(info) = self.prov.get(&(src, src_ver)).cloned()
-            {
-                self.prov.insert(key, info);
+            let src = normalise_var_name(val);
+            if let Some(src_sym) = ssa.var_symbol(src) {
+                let src_ver = uses.get(&src_sym).copied().unwrap_or(0);
+                if src_ver > 0
+                    && let Some(info) = self.prov.get(&(src_sym, src_ver)).cloned()
+                {
+                    self.prov.insert(key, info);
+                }
             }
             return;
         }
 
         if val.contains('$') || val.contains('[') {
-            let joined = join_prov(self.interpolated_prov(val, uses));
+            let joined = join_prov(self.interpolated_prov(val, uses, ssa));
             if let Some(joined) = joined {
                 self.prov.insert(
                     key,
@@ -505,12 +522,13 @@ impl<'a> ByteCorruption<'a> {
     }
 
     /// If `[cmd cargs]` is a string-coercing op over a binary operand, return
-    /// the originating binary provenance. Mirrors `_coerced_from_binary`.
+    /// the originating binary provenance.
     fn coerced_from_binary(
         &self,
         cmd: &str,
         cargs: &[String],
-        uses: &HashMap<String, u32>,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
     ) -> Option<ByteProvInfo> {
         let is_string_value_sub = cmd == "string"
             && cargs
@@ -519,31 +537,35 @@ impl<'a> ByteCorruption<'a> {
         if !(is_string_value_sub || STRING_COERCING_COMMANDS.contains(&cmd)) {
             return None;
         }
-        join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses)))
+        join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses, ssa)))
     }
 
     /// Transfer function for `set name [expr …]`. Any binary/damaged use makes
-    /// the result DAMAGED. Mirrors `_track_assign_expr`.
+    /// the result DAMAGED.
     fn track_assign_expr(
         &mut self,
         name: &str,
         span: Span,
-        defs: &HashMap<String, u32>,
-        uses: &HashMap<String, u32>,
+        defs: &HashMap<Symbol, u32>,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
     ) {
-        let nm = normalise_var_name(name).to_owned();
-        let Some(&ver) = defs.get(&nm) else {
+        let nm = normalise_var_name(name);
+        let Some(sym) = ssa.var_symbol(nm) else {
+            return;
+        };
+        let Some(&ver) = defs.get(&sym) else {
             return;
         };
         let joined = join_prov(
             uses.iter()
                 .filter(|(_, v)| **v > 0)
-                .map(|(n, v)| self.prov.get(&(n.clone(), *v)).cloned())
+                .map(|(&n, v)| self.prov.get(&(n, *v)).cloned())
                 .collect::<Vec<_>>(),
         );
         if let Some(joined) = joined {
             self.prov.insert(
-                (nm, ver),
+                (sym, ver),
                 ByteProvInfo::damaged(&joined, Some(span), "expr".to_owned()),
             );
         }
@@ -551,28 +573,30 @@ impl<'a> ByteCorruption<'a> {
 
     /// Transfer function for a command call: `binary scan` re-binarifies its
     /// value operand; `append` damages its target; `*::payload replace` is the
-    /// byte sink. Mirrors `_track_call`.
+    /// byte sink.
     fn track_call(
         &mut self,
         command: &str,
         args: &[String],
         span: Span,
-        defs: &HashMap<String, u32>,
-        uses: &HashMap<String, u32>,
+        defs: &HashMap<Symbol, u32>,
+        uses: &HashMap<Symbol, u32>,
+        ssa: &SsaFunction,
     ) {
         // `binary scan $v …` re-binarifies its value operand in place (the
         // documented fix). `binary format … $v` does NOT mutate `$v`, so it
         // must not clear provenance here.
         if command == "binary" && args.len() >= 2 && args[0] == "scan" {
             let a = args[1].trim();
-            if is_pure_var_ref(a) {
-                let nm = normalise_var_name(a).to_owned();
-                let v = uses.get(&nm).copied().unwrap_or(0);
+            if is_pure_var_ref(a)
+                && let Some(sym) = ssa.var_symbol(normalise_var_name(a))
+            {
+                let v = uses.get(&sym).copied().unwrap_or(0);
                 if v > 0
-                    && let Some(old) = self.prov.get(&(nm.clone(), v)).cloned()
+                    && let Some(old) = self.prov.get(&(sym, v)).cloned()
                 {
                     self.prov.insert(
-                        (nm, v),
+                        (sym, v),
                         ByteProvInfo::binary(old.source_range, old.source_label),
                     );
                 }
@@ -583,19 +607,21 @@ impl<'a> ByteCorruption<'a> {
         // `append v …` coerces the target to a character string when either the
         // target or an appended operand carries binary data.
         if command == "append" && !args.is_empty() {
-            let target = normalise_var_name(&args[0]).to_owned();
-            if let Some(&new_ver) = defs.get(&target) {
+            let Some(target_sym) = ssa.var_symbol(normalise_var_name(&args[0])) else {
+                return;
+            };
+            if let Some(&new_ver) = defs.get(&target_sym) {
                 let old = self
                     .prov
-                    .get(&(target.clone(), uses.get(&target).copied().unwrap_or(0)))
+                    .get(&(target_sym, uses.get(&target_sym).copied().unwrap_or(0)))
                     .cloned();
                 let operand = join_prov(
                     std::iter::once(old)
-                        .chain(args[1..].iter().map(|a| self.arg_byte_prov(a, uses))),
+                        .chain(args[1..].iter().map(|a| self.arg_byte_prov(a, uses, ssa))),
                 );
                 if let Some(op) = operand {
                     self.prov.insert(
-                        (target, new_ver),
+                        (target_sym, new_ver),
                         ByteProvInfo::damaged(&op, Some(span), "append".to_owned()),
                     );
                 }
@@ -605,7 +631,7 @@ impl<'a> ByteCorruption<'a> {
 
         // Sink: `<proto>::payload replace … <data>` (data index is per-protocol).
         if let Some(data_idx) = payload_replace_data_index(self.payload_layouts, command, args) {
-            let info = self.arg_byte_prov(&args[data_idx], uses);
+            let info = self.arg_byte_prov(&args[data_idx], uses, ssa);
             if let Some(info) = info.filter(|i| i.state == ByteProv::Damaged) {
                 let data_arg = args[data_idx].trim();
                 let data_var = if is_pure_var_ref(data_arg) {
@@ -653,7 +679,7 @@ fn is_intrinsic_corrupt(cmd: &str, cargs: &[String]) -> bool {
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
@@ -698,7 +724,7 @@ mod tests {
                    TCP::payload replace 0 100 $q\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for payload round-trip, got: {w:?}"
         );
     }
@@ -712,7 +738,7 @@ mod tests {
                    binary scan $q a* q\n  TCP::payload replace 0 100 $q\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().all(|w| w.code != "S110"),
+            w.iter().all(|w| w.code != DiagCode::S110),
             "binary scan fix must silence S110, got: {w:?}"
         );
     }
@@ -734,7 +760,7 @@ mod tests {
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set u [string toupper $b]\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for case fold on binary, got: {w:?}"
         );
     }
@@ -746,7 +772,7 @@ mod tests {
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set e [encoding convertto utf-8 $b]\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for convertto double-encode, got: {w:?}"
         );
     }
@@ -783,7 +809,7 @@ mod tests {
                    set r $q\n  TCP::payload replace 0 100 $r\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 through copy chain, got: {w:?}"
         );
     }

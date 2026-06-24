@@ -271,7 +271,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-/// Command-level `clock format`/`scan` options (mirrors `tcl/clock.py`
+/// Command-level `clock format`/`scan` options (the `clock format`/`scan`
 /// form options) — surfaced at the command level for completion parity.
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {

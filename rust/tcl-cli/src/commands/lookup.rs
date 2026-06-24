@@ -1,7 +1,6 @@
 //! Lookup verbs: `command-info` (registry metadata).
 //!
-//! Port of `_run_command_info` in `tooling/tcl/verbs/lookup.py`, driving the
-//! command registry in `tcl-registry`.
+//! Drives the command registry in `tcl-registry` to report command metadata.
 
 use std::path::Path;
 
@@ -9,7 +8,7 @@ use serde::Serialize;
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_registry::dialects::DialectSet;
 
-/// JSON payload when the command resolves (field order matches the Python dict).
+/// JSON payload when the command resolves (fields are emitted in a fixed order).
 #[derive(Serialize)]
 struct FoundPayload {
     found: bool,
@@ -92,7 +91,7 @@ pub fn run_command_info(
         .collect();
     switches.sort();
     // NOTE: iRules `validEvents` resolution (event_requires → events_matching)
-    // is not ported yet; non-iRules dialects resolve to an empty list anyway.
+    // is not implemented; non-iRules dialects resolve to an empty list anyway.
     let valid_events: Vec<String> = Vec::new();
 
     if json {

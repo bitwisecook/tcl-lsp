@@ -7,9 +7,9 @@
 //! Family-B contract. `forbid(unsafe)` and compiler-optional: runtime `eval`
 //! comes through an injected [`CompileService`].
 //!
-//! This is the M1 foundation — `set`/`puts`/`incr`/`expr`, arithmetic,
+//! The foundation — `set`/`puts`/`incr`/`expr`, arithmetic,
 //! comparisons, and jumps over a flat global scope. Control flow / procs / catch
-//! (M2) and the rest of the Family-B impls (M3+) build on this skeleton. See
+//! and the rest of the Family-B impls build on this skeleton. See
 //! `docs/design/common-runtime-emitter-architecture.md`.
 
 pub mod debug;
@@ -55,5 +55,5 @@ pub use value::Value;
 pub use tcl_runtime_api::{Code, CompileError, CompileService, Completion};
 // The Family-B role traits the VM satisfies, re-exported so a consumer can call
 // the impls (a trait must be in scope to use its methods). More land as the VM
-// advances through the milestones.
+// grows.
 pub use tcl_runtime_api::{Commands, Frames, Introspect, Namespaces, Traces, VarStore};

@@ -1,9 +1,7 @@
 //! WASM binary encoding helpers — pure functions, no emitter state.
 //!
 //! LEB128 for integers and length-prefixed UTF-8 for strings: the input
-//! side of every byte the module serialiser writes. Port of
-//! `compiler/codegen/wasm/_encoding.py` (plus the LEB128 decoders the WAT
-//! formatter needs, which live alongside the encoders in `_ir.py`).
+//! side of every byte the module serialiser writes.
 //!
 //! The `& 0x7F` masking makes the `as u8` truncations exact, and lengths
 //! are bounded by source size, so the cast lints are noise here.

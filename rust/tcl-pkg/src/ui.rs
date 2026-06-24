@@ -1,6 +1,6 @@
 //! CLI output helpers — colour, `--json` mode, status symbols.
 //!
-//! Faithful port of `tooling/tclpkg/ui.py`. Centralises the conventions shared
+//! Centralises the conventions shared
 //! by all `tcl pkg` / `tcl venv` subcommands: ANSI colour codes, the
 //! check/cross/warning symbols, and the canonical JSON output mode.
 
@@ -80,8 +80,8 @@ pub fn bold(text: &str, colour: bool) -> String {
     colourise(BOLD, text, colour)
 }
 
-/// Render `data` as canonical JSON (sorted keys, 2-space indent), matching the
-/// Python `--json` output, with a trailing newline ready for `println!`-style
+/// Render `data` as canonical JSON (sorted keys, 2-space indent) for the
+/// `--json` output, with a trailing newline ready for `println!`-style
 /// printing without doubling the newline.
 #[must_use]
 pub fn json_output(data: &Value) -> String {

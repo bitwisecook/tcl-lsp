@@ -7,7 +7,7 @@
 //! `lsearch` reuses the same primitives but reports its own coercion errors, so
 //! it calls [`parse_wide`]/[`parse_real`]/[`dictionary_compare`] directly.
 //!
-//! `dictionary_compare` in particular is a faithful, fiddly port of C's
+//! `dictionary_compare` in particular reproduces the fiddly logic of C's
 //! `DictionaryCompare` (`tclCmdIL.c`) — exactly the kind of subtle logic worth
 //! writing once. (The bytecode VM had no dictionary comparison at all before
 //! this; its `lsort -dictionary` fell back to a plain byte compare.)
@@ -59,7 +59,7 @@ pub fn parse_real(b: &[u8]) -> Option<f64> {
 
 /// Dictionary comparison (`lsort -dictionary`): case-insensitive, with embedded
 /// decimal runs compared as numbers; a run with more leading zeros sorts later
-/// only as a secondary tiebreak. Ported from C's `DictionaryCompare`.
+/// only as a secondary tiebreak. Follows C's `DictionaryCompare`.
 #[must_use]
 pub fn dictionary_compare(left: &[u8], right: &[u8]) -> Ordering {
     let (mut li, mut ri) = (0usize, 0usize);

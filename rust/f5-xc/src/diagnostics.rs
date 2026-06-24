@@ -1,5 +1,4 @@
-//! XC-series translatability diagnostics for inline editor feedback — the
-//! Rust port of `dialects/f5/xc/diagnostics.py`.
+//! XC-series translatability diagnostics for inline editor feedback.
 //!
 //! Walks the same IR as the translator (via [`translate_irule`]) but
 //! produces ranged [`XcDiagnostic`]s for the LSP diagnostics pipeline.
@@ -11,7 +10,7 @@ use crate::translator::translate_irule;
 
 /// Severity of an XC diagnostic. The XC-series codes only ever emit
 /// `Hint` (`XC1xx` — translatable) or `Info` (`XC2xx` / `XC3xx` — partial /
-/// untranslatable), mirroring Python's `_SEVERITY_MAP`.
+/// untranslatable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XcSeverity {
     /// Advisory hint (`XC1xx` — translatable).
@@ -40,8 +39,7 @@ pub struct Range {
 }
 
 /// One XC translatability diagnostic, ready to lift into an LSP
-/// `Diagnostic`. Mirrors the `Diagnostic` the Python `get_xc_diagnostics`
-/// builds.
+/// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XcDiagnostic {
     /// XC-series code (e.g. `"XC100"`).
@@ -54,21 +52,20 @@ pub struct XcDiagnostic {
     pub range: Range,
 }
 
-/// Severity from a diagnostic-code prefix, mirroring Python's
-/// `_SEVERITY_MAP`: `XC1xx` → Hint, `XC2xx`/`XC3xx` → Info (default Info).
+/// Severity from a diagnostic-code prefix: `XC1xx` → Hint,
+/// `XC2xx`/`XC3xx` → Info (default Info).
 fn severity_for_code(code: &str) -> XcSeverity {
     if code.starts_with("XC1") {
         XcSeverity::Hint
     } else {
-        // XC2 / XC3 (and any other) → Info, matching the Python default.
+        // XC2 / XC3 (and any other) → Info (the default).
         XcSeverity::Info
     }
 }
 
 /// Convert a [`TranslationItem`] to an [`XcDiagnostic`], resolving its byte
 /// span to line/UTF-16-column positions via `line_index` / `source`.
-/// Returns `None` when the item carries no range or no code (mirrors
-/// Python `_item_to_diagnostic`).
+/// Returns `None` when the item carries no range or no code.
 fn item_to_diagnostic(
     item: &TranslationItem,
     line_index: &LineIndex,
@@ -93,18 +90,18 @@ fn item_to_diagnostic(
         range: Range {
             start: Position {
                 line: start.line,
-                character: start.character,
+                character: start.character.get(),
             },
             end: Position {
                 line: end.line,
-                character: end.character,
+                character: end.character.get(),
             },
         },
     })
 }
 
 /// Analyse an iRule and return XC translatability diagnostics, suitable for
-/// the LSP diagnostics pipeline. Mirrors Python `get_xc_diagnostics`.
+/// the LSP diagnostics pipeline.
 #[must_use]
 pub fn get_xc_diagnostics(source: &str) -> Vec<XcDiagnostic> {
     let result = translate_irule(source);

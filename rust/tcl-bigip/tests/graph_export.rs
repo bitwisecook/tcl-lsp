@@ -1,6 +1,6 @@
-//! Byte-parity for `export_graph` (DOT / JSON / Mermaid) against the Python
-//! `graph_export.export_graph`, on a drift-free fixture (so the Rust and Python
-//! edge sets are identical and the serialised text matches exactly).
+//! Byte-stable fixtures for `export_graph` (DOT / JSON / Mermaid), checked
+//! against captured expected output on a drift-free fixture (so the two
+//! implementations agree and the serialised text matches exactly).
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph, export_graph};
 use tcl_bigip::parser::parse_bigip_conf;
@@ -21,7 +21,10 @@ fn graph_export_matches_python() {
         let want = std::fs::read_to_string(format!("{dir}/graph_export.{fmt}.golden"))
             .expect("read golden");
         let export = export_graph(&graph, fmt, &[], false, None).expect("export");
-        assert_eq!(export.text, want, "{fmt} export differs from Python");
+        assert_eq!(
+            export.text, want,
+            "{fmt} export differs from the expected fixture"
+        );
         assert_eq!(export.node_count, 5, "{fmt} node_count");
         assert_eq!(export.edge_count, 8, "{fmt} edge_count");
     }
@@ -46,7 +49,7 @@ fn graph_export_seeded_subgraph_matches_python() {
         .expect("read golden");
     assert_eq!(
         export.text, want,
-        "seeded subgraph export differs from Python"
+        "seeded subgraph export differs from the expected fixture"
     );
     assert_eq!(export.node_count, 2);
     assert_eq!(export.edge_count, 2);

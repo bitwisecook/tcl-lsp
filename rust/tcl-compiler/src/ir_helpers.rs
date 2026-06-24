@@ -17,8 +17,7 @@ use crate::naming::normalise_var_name;
 ///
 /// Walks through structured IR nodes (`If`, `For`, `While`, `Foreach`,
 /// `Catch`, `Try`, `Switch`) to find every assignment, call-def, and
-/// iteration variable. This is the Rust port of Python's
-/// `_defs_from_ir_script` in `cfg.py`.
+/// iteration variable.
 #[must_use]
 pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
     let mut defs = Vec::new();
@@ -209,8 +208,7 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
 /// These builtins write result variables as a side effect, so a read of
 /// such a variable in the guarded body is **not** read-before-set — the
 /// CFG records them as defs on the synthetic `<cond>` statement so the
-/// def-use / W210 analysis sees the write. Mirrors the Python analyser
-/// modelling the condition substitution's writes (FP-RBS family).
+/// def-use / W210 analysis sees the write.
 pub(crate) fn condition_command_out_vars(condition: &ExprNode) -> Vec<String> {
     let mut cmds = Vec::new();
     collect_expr_commands(condition, &mut cmds);
@@ -296,7 +294,7 @@ fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
 /// Return `true` if *expr* contains at least one command
 /// substitution (`[cmd ...]`). Used by CFG lowering to decide
 /// whether a branch condition needs a synthetic `<cond>` placeholder
-/// for emission-time startCommand wrapping (C18 case 5).
+/// for emission-time startCommand wrapping.
 #[must_use]
 pub fn expr_has_command(expr: &ExprNode) -> bool {
     match expr {
@@ -324,7 +322,7 @@ pub fn expr_has_command(expr: &ExprNode) -> bool {
 ///
 /// Respects short-circuit evaluation: for `&&`/`||`, the RHS is
 /// always included (conservative — we do not attempt compile-time
-/// constant evaluation in this port).
+/// constant evaluation).
 pub(crate) fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
     match expr {
         ExprNode::Command { text, .. } => {

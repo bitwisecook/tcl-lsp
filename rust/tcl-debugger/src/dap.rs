@@ -14,7 +14,7 @@
 
 use std::io::{BufRead, Write};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::backend::{DebugBackend, DebugError, VmBackend};
 use crate::types::StopReason;
@@ -195,9 +195,7 @@ pub fn run_server(reader: &mut impl BufRead, writer: &mut impl Write) -> std::io
                     .stack_trace()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|f| {
-                        json!({ "id": f.id, "name": f.name, "line": f.line, "column": 1 })
-                    })
+                    .map(|f| json!({ "id": f.id, "name": f.name, "line": f.line, "column": 1 }))
                     .collect();
                 let resp = srv.response(
                     &req,
@@ -225,9 +223,7 @@ pub fn run_server(reader: &mut impl BufRead, writer: &mut impl Write) -> std::io
                     .variables(0)
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|v| {
-                        json!({ "name": v.name, "value": v.value, "variablesReference": 0 })
-                    })
+                    .map(|v| json!({ "name": v.name, "value": v.value, "variablesReference": 0 }))
                     .collect();
                 let resp = srv.response(&req, true, json!({ "variables": vars }));
                 outgoing.push(resp);
@@ -326,6 +322,7 @@ mod tests {
         msgs
     }
 
+    #[allow(clippy::needless_pass_by_value)] // test helper; `arguments` is moved into the json
     fn req(seq: i64, command: &str, arguments: Value) -> Value {
         json!({ "seq": seq, "type": "request", "command": command, "arguments": arguments })
     }
@@ -376,8 +373,7 @@ mod tests {
         // continue → stopped at the breakpoint.
         let stopped = msgs
             .iter()
-            .filter(|m| m["event"] == "stopped")
-            .next_back()
+            .rfind(|m| m["event"] == "stopped")
             .expect("stopped after continue");
         assert_eq!(stopped["body"]["reason"], "breakpoint");
 

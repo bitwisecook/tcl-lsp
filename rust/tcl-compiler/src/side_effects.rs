@@ -12,21 +12,14 @@
 //!    [`EffectRegion`] (coarse bitflags for GVN / interprocedural kill
 //!    checks).
 //! 2. **Dataclasses** ([`SideEffect`], [`CommandSideEffects`]) compose
-//!    those into per-invocation facts — landed in C23b.
+//!    those into per-invocation facts.
 //! 3. **Classification functions** resolve registry metadata +
-//!    runtime arguments into a [`CommandSideEffects`] — landed in C23d.
+//!    runtime arguments into a [`CommandSideEffects`].
 //!
 //! Consumers include the optimiser (kill safety, CSE), the iRules
 //! flow checker (response-commit tracking), the taint engine, and
 //! later data-flow analyses that need to know *what* a command
 //! touches rather than just *whether* it is pure.
-//!
-//! Ported from `core/compiler/side_effects.py` in strips:
-//!
-//! - **C23a** (this file) — enums + `target_to_region`.
-//! - **C23b** — `SideEffect`, `CommandSideEffects`, predefined consts.
-//! - **C23c** — `scope_from_varname`, `storage_type_for_command`.
-//! - **C23d** — `classify_side_effects` entry point.
 //!
 //! The registry's lightweight `tcl_registry::SideEffect` /
 //! `SideEffectTarget` / `StorageType` / `ConnectionSide` types stay
@@ -43,9 +36,7 @@ use tcl_registry::side_effects::{
 };
 use tcl_registry::{CommandRegistry, CommandSpec, Traits};
 
-// ---------------------------------------------------------------------------
 // StorageType — data shape of a target
-// ---------------------------------------------------------------------------
 
 /// Data shape of the target being read or written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,9 +53,7 @@ pub enum StorageType {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // StorageScope — where data resides
-// ---------------------------------------------------------------------------
 
 /// Where the data resides at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -105,9 +94,7 @@ pub enum StorageScope {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // ConnectionSide — F5 proxy context
-// ---------------------------------------------------------------------------
 
 /// F5 proxy connection context in which a side effect occurs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -124,9 +111,7 @@ pub enum ConnectionSide {
     None,
 }
 
-// ---------------------------------------------------------------------------
 // SideEffectTarget — what category of external resource is touched
-// ---------------------------------------------------------------------------
 
 /// The category of external resource that a command touches.
 ///
@@ -245,9 +230,7 @@ pub enum SideEffectTarget {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // EffectRegion — coarse bitflags for GVN / interprocedural kill checks
-// ---------------------------------------------------------------------------
 
 bitflags! {
     /// Abstract mutable regions used for effect invalidation.
@@ -299,9 +282,7 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
     }
 }
 
-// ---------------------------------------------------------------------------
-// Scope / storage-type inference helpers (C23c)
-// ---------------------------------------------------------------------------
+// Scope / storage-type inference helpers
 
 /// Infer storage scope and namespace from a variable-name prefix.
 ///
@@ -323,15 +304,15 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
 pub fn scope_from_varname(name: &str) -> (StorageScope, Option<String>) {
     if let Some(rest) = name.strip_prefix("static::") {
         // Only treat as iRules static if the rest doesn't itself
-        // contain further qualification — but the Python port
-        // doesn't distinguish here, so we match behaviour.
+        // contain further qualification — but this does not distinguish
+        // there, treating any `static::` prefix as static scope.
         let _ = rest;
         return (StorageScope::Static, None);
     }
     if let Some(rest) = name.strip_prefix("::") {
         // Peel all "::"-separated segments except the last (the
         // variable name itself). Empty leading segments from "::"
-        // are ignored in the rebuild, matching Python's behaviour.
+        // are ignored in the rebuild.
         let parts: Vec<&str> = rest.split("::").collect();
         if parts.len() <= 1 {
             // Pure "::VAR" — global scope, namespace is root.
@@ -369,14 +350,12 @@ fn lift_registry_storage_type(rt: RegistryStorageType) -> StorageType {
 
 /// Infer the storage type for a command invocation by querying the
 /// registry's `inferred_storage_type` metadata. Falls back to
-/// [`StorageType::Scalar`] for commands without a declared shape —
-/// matching the Python `_storage_type_for_command` behaviour where
+/// [`StorageType::Scalar`] for commands without a declared shape, so
 /// `set`, `incr`, `append`, and similar scalar commands default to
 /// the scalar shape.
 ///
-/// `args` is accepted for API symmetry with the Python port but
-/// currently ignored; argument-dependent shape inference is left
-/// for a follow-up strip if needed.
+/// `args` is accepted for API symmetry but currently ignored;
+/// argument-dependent shape inference is not implemented.
 #[must_use]
 pub fn storage_type_for_command(
     registry: &CommandRegistry,
@@ -391,9 +370,7 @@ pub fn storage_type_for_command(
     StorageType::Scalar
 }
 
-// ---------------------------------------------------------------------------
-// Dataclasses — SideEffect, CommandSideEffects (C23b)
-// ---------------------------------------------------------------------------
+// SideEffect, CommandSideEffects
 
 /// One discrete read or write produced by a command invocation.
 ///
@@ -461,7 +438,7 @@ impl SideEffect {
 ///
 /// Wraps zero or more individual [`SideEffect`] instances plus
 /// summary flags for quick consumer queries. Produced by
-/// [`classify_side_effects`] (C23d).
+/// [`classify_side_effects`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CommandSideEffects {
     /// Individual side effects produced by this invocation.
@@ -582,16 +559,13 @@ impl CommandSideEffects {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Classification (C23d)
-// ---------------------------------------------------------------------------
+// Classification
 
 /// Optional summary of a procedure's side effects, provided by
 /// interprocedural analysis. When supplied to
 /// [`classify_side_effects`], it bypasses registry-based classification
 /// and the summary's effect regions are translated directly into
-/// [`CommandSideEffects`]. Mirrors the `callee_summary` shim in
-/// `core/compiler/side_effects.py`.
+/// [`CommandSideEffects`].
 #[derive(Debug, Clone, Copy)]
 pub struct CalleeSummary {
     /// Coarse regions read by the callee.
@@ -622,16 +596,16 @@ impl Default for CalleeSummary {
 /// skipped and the summary's effect regions are translated directly
 /// into effects — see [`classify_from_callee_summary`].
 ///
-/// This is a focused port of the Python classifier. The registry
+/// The registry
 /// traits consulted today are `PURE`, `PURE_EVALUATION`,
 /// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
 /// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
-/// field, and the spec's structured `side_effects` (Python's
-/// `side_effect_hints`). A `PURE` command with a mutator subcommand
+/// field, and the spec's structured `side_effects`. A `PURE` command
+/// with a mutator subcommand
 /// (`HTTP::header insert …`) is downgraded to impure and a still-pure
 /// command surfaces its hint read-only. Full arity-based form
 /// resolution and the per-subcommand protocol-namespace write modelling
-/// (`_classify_protocol_ns_command`) are left as follow-ups.
+/// are not implemented.
 #[must_use]
 #[allow(
     clippy::too_many_lines,
@@ -666,7 +640,7 @@ pub fn classify_side_effects(
     }
 
     // Pure evaluation (`expr` when braced) is always pure — checked first
-    // and unconditionally, mirroring Python's `is_pure_evaluation` short-
+    // and unconditionally, mirroring `is_pure_evaluation` short-
     // circuit (no subcommand / hint handling applies).
     if spec.traits.contains(Traits::PURE_EVALUATION) {
         return CommandSideEffects {
@@ -677,7 +651,7 @@ pub fn classify_side_effects(
         };
     }
 
-    // Command-level `PURE` commands. Two refinements from Python's pure
+    // Command-level `PURE` commands. Two refinements on the pure
     // branch:
     //   1. A *mutator* subcommand downgrades purity — e.g. `HTTP::header`
     //      is `PURE` but `HTTP::header insert …` mutates header state, so
@@ -685,8 +659,8 @@ pub fn classify_side_effects(
     //      below (which yields the read+write effect). Without this a
     //      header mutation reads as pure with no effects.
     //   2. A still-pure command may carry a *read-only* hint — `HTTP::header`
-    //      (getter) reads header state. Python returns the structured hint
-    //      with `reads=true, writes=false`; reproduce that by forcing the
+    //      (getter) reads header state. Return the structured hint
+    //      with `reads=true, writes=false` by forcing the
     //      spec's hints read-only.
     if spec.traits.contains(Traits::PURE) {
         let effective_sub = args.first().map(String::as_str);
@@ -719,9 +693,9 @@ pub fn classify_side_effects(
 
     // Subcommand-level purity: ensemble commands (`string`, `dict`, `array`,
     // …) are not pure at the command level but most of their subcommands are
-    // (`string length`, `dict get`, `array names`). Mirror Python's
-    // `is_pure = is_pure(command); if not is_pure and sub_spec: is_pure =
-    // sub_spec.pure`, with a `mutator` subcommand overriding back to impure.
+    // (`string length`, `dict get`, `array names`). A command that is not
+    // pure inherits purity from a pure subcommand spec, with a `mutator`
+    // subcommand overriding back to impure.
     // Without this the side-effect classifier treats every ensemble call as a
     // conservative unknown-write, which (e.g.) hides redundant `string length`
     // computations from GVN.
@@ -787,10 +761,10 @@ pub fn classify_side_effects(
     }
 
     // Hints-first: consult the spec's structured `side_effects`
-    // (Python's `side_effect_hints`). Dialect-gated, subcommand hints
+    // (`side_effect_hints`). Dialect-gated, subcommand hints
     // first. e.g. `puts`/`read` declare a `FileIo` write whose coarse
     // region is `NONE` — so a proc that only calls `puts` is impure
-    // (`writes_any`) yet has no tracked effect region, matching Python.
+    // (`writes_any`) yet has no tracked effect region.
     let effective_sub = args.first().map(String::as_str);
     if let Some(effects) = dialect_side_effect_hints(registry, command, effective_sub, dialect) {
         return CommandSideEffects {
@@ -805,8 +779,7 @@ pub fn classify_side_effects(
 }
 
 /// Translate an interprocedural [`CalleeSummary`] into a
-/// [`CommandSideEffects`]. Mirrors the `callee_summary` branch in
-/// the Python `_classify_side_effects_impl`.
+/// [`CommandSideEffects`].
 fn classify_from_callee_summary(
     summary: &CalleeSummary,
     dialect: Option<&str>,
@@ -852,7 +825,7 @@ fn classify_from_callee_summary(
 }
 
 /// Build a `SideEffect` for a command that assigns a variable at
-/// position `idx`. Applies the Python heuristics for:
+/// position `idx`. Applies these heuristics:
 ///
 /// - Read-before-write commands (`incr`, `append`, `lappend`) always
 ///   read and write.
@@ -907,9 +880,9 @@ fn classify_variable_assignment(
 /// Translate a registry [`RegistryTarget`] into the richer
 /// compiler-side [`SideEffectTarget`]. The two enums share variant
 /// names 1:1 except for the registry-only `Process` / `ChannelIo`
-/// targets (no Python counterpart): `Process` collapses to
+/// targets: `Process` collapses to
 /// [`SideEffectTarget::Unknown`] (its coarse region is
-/// `UNKNOWN_STATE`, matching Python's `exec` fallback) and `ChannelIo`
+/// `UNKNOWN_STATE`, matching `exec` fallback) and `ChannelIo`
 /// maps to [`SideEffectTarget::FileIo`] (channel I/O is file-shaped,
 /// region `NONE`).
 // Each variant is mapped explicitly (1:1 by name, plus the two
@@ -958,7 +931,7 @@ fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
         R::ProcDefinition => SideEffectTarget::ProcDefinition,
         R::NamespaceState => SideEffectTarget::NamespaceState,
         R::InterpState => SideEffectTarget::InterpState,
-        // Registry-only targets with no Python / compiler counterpart.
+        // Registry-only targets with no compiler counterpart.
         R::Process => SideEffectTarget::Unknown,
         R::ChannelIo => SideEffectTarget::FileIo,
         R::Unknown => SideEffectTarget::Unknown,
@@ -978,9 +951,8 @@ fn lift_registry_side(s: RegistryConnectionSide) -> ConnectionSide {
 }
 
 /// Lift one registry [`RegistrySideEffect`] hint into a compiler
-/// [`SideEffect`], stamping the active `dialect` onto it (mirroring
-/// Python `side_effect_hints`, which `replace(effect, dialect=dialect)`
-/// when a dialect is supplied). The registry hint carries only
+/// [`SideEffect`], stamping the active `dialect` onto it when a dialect
+/// is supplied. The registry hint carries only
 /// `target`/`reads`/`writes`/`connection_side`; the remaining fields
 /// stay at their defaults.
 fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEffect {
@@ -991,13 +963,11 @@ fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEff
 }
 
 /// Whether `spec` is available in the (already `irules`→`f5-irules`
-/// normalised) `filter` dialect, mirroring Python
-/// `CommandRegistry.side_effect_hints`'s `spec.supports_dialect`
-/// gate. When no dialect is requested every spec qualifies; when the
+/// normalised) `filter` dialect, gating on `spec.supports_dialect`.
+/// When no dialect is requested every spec qualifies; when the
 /// dialect string fails to parse to a known [`DialectSet`] (e.g. the
 /// bare `"tcl"` family alias) only universal (`dialects = None`) specs
-/// qualify — an unknown name intersects no explicit dialect set, as in
-/// Python.
+/// qualify — an unknown name intersects no explicit dialect set.
 fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
     match filter {
         None => true,
@@ -1009,22 +979,20 @@ fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
 }
 
 /// Resolve the dialect-gated structured side-effect hints for a
-/// command invocation — a focused port of Python
-/// `CommandRegistry.side_effect_hints`.
+/// command invocation.
 ///
-/// Iterates the command's specs newest-first (Python's
-/// `reversed(specs)`), skipping specs that don't support the active
+/// Iterates the command's specs newest-first, skipping specs that don't
+/// support the active
 /// dialect. Subcommand-level hints take precedence over command-level
 /// hints. Returns `None` when no qualifying spec declares any hint
-/// (so the caller falls back to the conservative UNKNOWN write, exactly
-/// as Python's classifier does).
+/// (so the caller falls back to the conservative UNKNOWN write).
 fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
     dialect: Option<&str>,
 ) -> Option<Vec<SideEffect>> {
-    // Python: lookup_dialect = "f5-irules" if dialect == "irules" else dialect.
+    // lookup_dialect is "f5-irules" when dialect == "irules", else dialect.
     let filter = match dialect {
         Some("irules") => Some("f5-irules"),
         other => other,
@@ -1147,7 +1115,7 @@ mod tests {
         assert!(!combined.contains(EffectRegion::UNKNOWN_STATE));
     }
 
-    // -- C23b: SideEffect / CommandSideEffects --
+    // -- SideEffect / CommandSideEffects --
 
     #[test]
     fn side_effect_new_defaults() {
@@ -1227,7 +1195,7 @@ mod tests {
         assert!(!w.contains(EffectRegion::HTTP_STATE));
     }
 
-    // -- C23c: scope + storage-type inference --
+    // -- scope + storage-type inference --
 
     #[test]
     fn scope_proc_local_for_bare_names() {
@@ -1294,7 +1262,7 @@ mod tests {
         );
     }
 
-    // -- C23d: classify_side_effects --
+    // -- classify_side_effects --
 
     #[test]
     fn classify_pure_expr() {
@@ -1418,8 +1386,8 @@ mod tests {
         // `puts` carries no purity/assign/proc-def trait, so it used to
         // fall through to the conservative UNKNOWN write. It now resolves
         // via the spec's structured `side_effects` (a `FileIo` write) —
-        // impure (`writes_any`) but region-free, matching Python's
-        // `classify_side_effects("puts")` (pure=False, regions=(NONE, NONE)).
+        // impure (`writes_any`) but region-free: `classify_side_effects`
+        // for `puts` yields pure=False, regions=(NONE, NONE).
         let registry = CommandRegistry::build_default();
         let cse = classify_side_effects(&registry, "puts", &["hi".into()], None, None);
         assert!(!cse.pure);
@@ -1437,9 +1405,9 @@ mod tests {
         // `HTTP::header` carries `Traits::PURE` + a structured `HttpHeader`
         // read+write hint + `mutator` subcommands. The getter stays pure with
         // a read-only effect; a mutator subcommand (`insert`) downgrades to
-        // impure with a read+write effect. Matches Python's pure branch
-        // (`HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
-        // HTTP_STATE) impure).
+        // impure with a read+write effect. On the pure branch,
+        // `HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
+        // HTTP_STATE) impure.
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(DialectSet::IRULES);
 
@@ -1479,9 +1447,9 @@ mod tests {
     fn classify_hints_are_dialect_gated() {
         // `log` is irules-only. Under a Tcl dialect its irules `LogIo`
         // hint must NOT apply — the spec doesn't support `tcl8.6`, so the
-        // classifier falls back to the conservative UNKNOWN write, exactly
-        // as Python (whose `side_effect_hints` skips dialect-mismatched
-        // specs). With no dialect requested the hint applies.
+        // classifier falls back to the conservative UNKNOWN write
+        // (dialect-mismatched specs are skipped). With no dialect requested
+        // the hint applies.
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(DialectSet::IRULES);
         // Dialect-agnostic (interproc path): LogIo, region-free, impure.

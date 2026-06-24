@@ -1,31 +1,27 @@
 //! Definition / declaration / type-definition / implementation
-//! provider — minimal Rust port of `lsp/features/definition.py`,
-//! `declaration.py`, `type_definition.py`, and `implementation.py`.
+//! provider.
 //!
 //! The four LSP methods all answer the same fundamental question
 //! ("where is the symbol at this position defined?") with slightly
-//! different priorities for proc / class / variable matches; in
-//! practice the Python providers are almost identical for our
-//! minimal port, so they share the same core function and the
-//! server lifts each method onto it.
+//! different priorities for proc / class / variable matches.  The
+//! four share the same core function and the server lifts each
+//! method onto it.
 //!
-//! What lands here:
+//! Resolved here:
 //!
 //! * `$var` references resolve to the `definition_span` of the
 //!   matching `VarDef` in the global scope.  Scope-chain
-//!   descent is deferred until the cached-analysis surface lands
-//!   under `S-diagnostics` (the analyser's body-span line index
-//!   isn't currently threaded into the search path).
+//!   descent is not done — the analyser's body-span line index
+//!   isn't currently threaded into the search path.
 //! * Bare-word references resolve to a user-defined `proc` or
 //!   `TclOO` class via `name_span`.
 //!
-//! Also lands: command-alias resolution — when the cursor's
-//! word matches an `interp alias {} ALIAS {} TARGET` recorded
-//! in `analysis.command_aliases`, the provider jumps to the
-//! target proc's definition (when the target is a user
-//! proc).
+//! Command-alias resolution: when the cursor's word matches an
+//! `interp alias {} ALIAS {} TARGET` recorded in
+//! `analysis.command_aliases`, the provider jumps to the target
+//! proc's definition (when the target is a user proc).
 //!
-//! Class-member lookup also lands: when the cursor sits on a
+//! Class-member lookup: when the cursor sits on a
 //! word inside a class body span, the provider walks that
 //! class's `methods` / `class_methods` / `properties` /
 //! `constructors` / `destructor` looking for a name match
@@ -33,28 +29,28 @@
 //! method` calls inside the body and bare references to the
 //! class's own members.
 //!
-//! `$obj method` dispatch also lands: when the cursor sits on
+//! `$obj method` dispatch: when the cursor sits on
 //! the method-name token of a `$obj method` / `[$obj method]`
 //! call and `$obj`'s class is known (recorded in
 //! `analysis.instance_classes` from a `set obj [Cls new]` /
 //! `Cls create obj` site), the provider jumps to the method
 //! declaration on that class.
 //!
-//! What is *still deferred* (planned as further
-//! `S-definition-rich` sub-strips):
+//! Limitations:
 //!
 //! * Flow-sensitive / scope-aware instance-class tracking —
 //!   `analysis.instance_classes` is a best-effort global
 //!   var-name → class map (last assignment wins).  Re-binding
 //!   the same name to a different class, or two locals of the
 //!   same name in different procs, isn't disambiguated.
-//! * `BigIP` definition (`get_bigip_definition`) — entirely
-//!   separate provider keyed off iRules dialect that resolves
-//!   pool / data-group / iRule / virtual-server names against
-//!   a parsed `bigip.conf`.
+//! * `BigIP` definition — a separate provider keyed off iRules
+//!   dialect that resolves pool / data-group / iRule /
+//!   virtual-server names against a parsed `bigip.conf` — is
+//!   not implemented here.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 
@@ -105,10 +101,9 @@ pub fn definition(
     // 1. Variable reference — walk the scope chain inward
     //    from the global scope toward the innermost scope
     //    whose body span contains the cursor's byte offset,
-    //    then walk back outward looking for the var.  Mirrors
-    //    Python's `find_scope_at_line` + scope-chain ascent.
+    //    then walk back outward looking for the var.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let cursor_offset = byte_offset_at(source, line, character);
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         if let Some(var_def) =
             lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
         {
@@ -151,14 +146,13 @@ pub fn definition(
     // constructors / destructor for a name match.  Covers
     // `my method` calls inside the body plus bare member
     // references.
-    let cursor_offset = byte_offset_at(source, line, character);
+    let cursor_offset = byte_offset_at(&line_index, source, line, character);
     if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     // Alias resolution — when the cursor's word matches an
     // `interp alias {} ALIAS {} TARGET` recorded in
     // `analysis.command_aliases`, jump to the TARGET proc.
-    // Mirrors Python's `lookup_alias_for_word`.
     if let Some(alias) = lookup_alias(analysis, &word) {
         for (qname, proc_def) in &analysis.all_procs {
             if proc_def.name == alias.target
@@ -322,8 +316,16 @@ fn lookup_alias<'a>(
 
 /// Compute the byte offset of a 0-based LSP `(line, character)`
 /// pair in `source`. `character` is a UTF-16 code-unit offset.
-pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
-    LineIndex::new(source).offset_at_utf16(line, character, source)
+///
+/// Takes a pre-built `line_index` so callers that perform several
+/// position conversions per request share a single index.
+pub(crate) fn byte_offset_at(
+    line_index: &LineIndex,
+    source: &str,
+    line: u32,
+    character: u32,
+) -> u32 {
+    line_index.offset_at_utf16(line, Utf16Col::new(character), source)
 }
 
 /// Walk the scope tree to find the variable definition that
@@ -331,9 +333,8 @@ pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
 /// scope whose body span contains the offset takes precedence
 /// over any enclosing scope.
 ///
-/// Mirrors Python's `find_scope_at_line` (descend into the
-/// innermost matching child) followed by a scope-chain walk
-/// outward for the var lookup.
+/// Descend into the innermost matching child, then walk the
+/// scope chain outward for the var lookup.
 pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -408,13 +409,13 @@ pub(crate) fn visible_variable_names(
 
 /// Names of every namespace / global scope in the cursor's lexical chain.
 /// Used by completion to skip cross-namespace candidates already offered as
-/// bare names.  Mirrors `_lexical_namespace_chain`.
+/// bare names.
 pub(crate) fn lexical_namespace_chain(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
-) -> std::collections::HashSet<String> {
+) -> FxHashSet<String> {
     use tcl_compiler::analyser::ScopeKind;
-    let mut chain = std::collections::HashSet::new();
+    let mut chain = FxHashSet::default();
     for sc in scope_chain_at(scope, byte_offset) {
         if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
             chain.insert(sc.name.clone());
@@ -442,7 +443,7 @@ pub(crate) fn innermost_namespace_at(
 }
 
 /// Fully-qualified `::ns::var` form for a var stored in a namespace / global
-/// scope.  Mirrors `_qualified_var_name`.
+/// scope.
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
     use tcl_compiler::analyser::ScopeKind;
     if var.starts_with("::") {
@@ -456,14 +457,13 @@ fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> Strin
 
 /// Walk the scope tree and return the fully-qualified names of every
 /// namespace / global variable whose enclosing namespace is not in the
-/// cursor's lexical `chain` (proc locals excluded).  Mirrors
-/// `_collect_cross_namespace_vars`.
+/// cursor's lexical `chain` (proc locals excluded).
 pub(crate) fn cross_namespace_qualified_vars(
     global: &tcl_compiler::analyser::Scope,
-    chain: &std::collections::HashSet<String>,
+    chain: &FxHashSet<String>,
 ) -> Vec<String> {
     use tcl_compiler::analyser::{Scope, ScopeKind};
-    fn visit(scope: &Scope, chain: &std::collections::HashSet<String>, out: &mut Vec<String>) {
+    fn visit(scope: &Scope, chain: &FxHashSet<String>, out: &mut Vec<String>) {
         if matches!(scope.kind, ScopeKind::Namespace | ScopeKind::Global)
             && !chain.contains(&scope.name)
         {
@@ -492,8 +492,7 @@ fn scope_chain_at(
     loop {
         let next = cursor.children.iter().find(|c| {
             // `Span` is half-open `[start, end)` — the byte at
-            // `s.end()` lives outside the scope (PR #454 Copilot
-            // review).
+            // `s.end()` lives outside the scope.
             c.body_span
                 .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
         });
@@ -511,8 +510,7 @@ fn scope_chain_at(
 /// Return the `body_span`s of the scope chain containing
 /// `byte_offset`, innermost first.  The global scope has no
 /// `body_span`, so an empty result means "the whole file is
-/// visible" — mirrors Python `declaration.py::_collect_scope_ranges`,
-/// whose empty list signals a file-wide walk.
+/// visible" — an empty list signals a file-wide walk.
 pub(crate) fn scope_body_spans_at(
     root: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -533,9 +531,9 @@ pub(crate) fn span_to_range(
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 
@@ -589,7 +587,7 @@ mod tests {
         }
     }
 
-    // -- S-definition-rich: alias resolution ------------------------
+    // alias resolution
 
     #[test]
     fn jump_to_alias_target_proc() {
@@ -633,7 +631,7 @@ mod tests {
         }
     }
 
-    // -- S-definition-rich: scope-chain $var descent ---------------
+    // scope-chain $var descent
 
     #[test]
     fn proc_local_var_jumps_to_proc_scope_definition() {
@@ -653,19 +651,21 @@ mod tests {
     #[test]
     fn byte_offset_at_handles_newlines() {
         let src = "abc\ndef\nghi\n";
-        assert_eq!(byte_offset_at(src, 0, 0), 0);
-        assert_eq!(byte_offset_at(src, 0, 3), 3);
-        assert_eq!(byte_offset_at(src, 1, 0), 4);
-        assert_eq!(byte_offset_at(src, 2, 2), 10);
+        let line_index = LineIndex::new(src);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 0), 0);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 3), 3);
+        assert_eq!(byte_offset_at(&line_index, src, 1, 0), 4);
+        assert_eq!(byte_offset_at(&line_index, src, 2, 2), 10);
     }
 
     #[test]
     fn byte_offset_at_uses_lsp_utf16_columns() {
         let src = "a😀b";
-        assert_eq!(byte_offset_at(src, 0, 0), 0);
-        assert_eq!(byte_offset_at(src, 0, 1), 1);
-        assert_eq!(byte_offset_at(src, 0, 3), 5);
-        assert_eq!(byte_offset_at(src, 0, 4), 6);
+        let line_index = LineIndex::new(src);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 0), 0);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 1), 1);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 3), 5);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 4), 6);
     }
 
     #[test]
@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(range.end_character, 4);
     }
 
-    // -- S-definition-rich: class-member lookup ---------------------
+    // class-member lookup
 
     #[test]
     fn definition_jumps_to_method_inside_class_body() {
@@ -752,7 +752,7 @@ mod tests {
         assert!(locs.is_empty(), "{locs:?}");
     }
 
-    // -- S-definition-rich: $obj method dispatch --------------------
+    // $obj method dispatch
 
     #[test]
     fn definition_resolves_obj_method_call() {

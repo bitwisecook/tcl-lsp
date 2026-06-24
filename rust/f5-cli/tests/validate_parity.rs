@@ -1,8 +1,8 @@
 //! Differential parity tests for `f5 validate` (alias `lint`).
 //!
 //! Runs the built `f5-query` binary on committed fixtures and asserts stdout +
-//! exit code match goldens captured from `python -m tooling.f5.main validate`.
-//! Self-contained: no Python is needed at test time.
+//! exit code match the captured golden output for `validate`.
+//! Self-contained: no external tool is needed at test time.
 //!
 //! The lint engine is a *sibling* of the query engine — it walks the BIG-IP
 //! model directly (reusing `tcl-bigip`'s model, the `tcl-irules` object-ref
@@ -59,8 +59,8 @@ fn assert_golden(args: &[&str], golden: &str, code: i32) {
     assert_eq!(got_code, code, "exit code mismatch for {args:?}");
 }
 
-// ── Existing corpus fixture (empty-pool + irule-missing-{pool,data-group,
-//    snat-pool}) across all three formats. ─────────────────────────────
+// Existing corpus fixture (empty-pool + irule-missing-{pool,data-group,
+//    snat-pool}) across all three formats.
 
 #[test]
 fn bigip_text_matches_python() {
@@ -85,9 +85,9 @@ fn bigip_sarif_matches_python() {
     );
 }
 
-// ── Dedicated fixture firing the other six rules: orphan-monitor (warning +
+// Dedicated fixture firing the other six rules: orphan-monitor (warning +
 //    /Common/ info), virtual-without-pool, pool-without-monitor,
-//    irule-deprecated-command, irule-empty-when, irule-unknown-event. ────
+//    irule-deprecated-command, irule-empty-when, irule-unknown-event.
 
 #[test]
 fn rules_text_matches_python() {
@@ -116,7 +116,7 @@ fn rules_sarif_matches_python() {
     );
 }
 
-// ── Filters. ─────────────────────────────────────────────────────────
+// Filters.
 
 #[test]
 fn category_irule_matches_python() {
@@ -146,8 +146,8 @@ fn severity_info_matches_python() {
     );
 }
 
-// ── irule-missing buckets (node + pool), with a resolvable ref that must
-//    NOT fire. ─────────────────────────────────────────────────────────
+// irule-missing buckets (node + pool), with a resolvable ref that must
+//    NOT fire.
 
 #[test]
 fn irule_refs_json_matches_python() {
@@ -158,7 +158,7 @@ fn irule_refs_json_matches_python() {
     );
 }
 
-// ── Multi-file merge (cross-file reference resolution). ───────────────
+// Multi-file merge (cross-file reference resolution).
 
 #[test]
 fn multi_file_json_matches_python() {
@@ -175,7 +175,7 @@ fn multi_file_json_matches_python() {
     );
 }
 
-// ── No findings (clean config) — text + sarif, exit 0. ────────────────
+// No findings (clean config) — text + sarif, exit 0.
 
 #[test]
 fn clean_text_matches_python() {
@@ -195,7 +195,7 @@ fn clean_sarif_matches_python() {
     );
 }
 
-// ── Alias parity: `lint` == `validate`. ──────────────────────────────
+// Alias parity: `lint` == `validate`.
 
 #[test]
 fn lint_alias_matches_validate() {
@@ -208,8 +208,8 @@ fn lint_alias_matches_validate() {
     assert_eq!(vc, lc, "lint alias exit code differs from validate");
 }
 
-// ── Input error: missing file → `error: not a file: <path>` on stderr,
-//    exit 2 (matches Python's OSError path). ────────────────────────────
+// Input error: missing file → `error: not a file: <path>` on stderr,
+//    exit 2 (the OS-error path).
 
 #[test]
 fn missing_file_errors_like_python() {

@@ -19,7 +19,7 @@
 
 use crate::line_index::LineIndex;
 use crate::span::Span;
-use crate::tokens::{SourcePosition, Token, TokenType};
+use crate::tokens::{ByteCol, SourcePosition, Token, TokenType};
 
 /// A source buffer paired with its line index.
 ///
@@ -67,9 +67,8 @@ impl<'src> SourceMap<'src> {
 
     /// Set sub-lexing base offsets. These are added to every
     /// `SourcePosition` returned by [`Self::position_at`] and
-    /// [`Self::range_positions`], matching Python's
-    /// `base_offset` / `base_line` / `base_col` constructor
-    /// parameters on `TclLexer`.
+    /// [`Self::range_positions`] so positions resolved from a
+    /// sub-lexed fragment are reported relative to the parent source.
     #[must_use]
     pub fn with_base(mut self, base_offset: u32, base_line: u32, base_col: u32) -> Self {
         self.base_offset = base_offset;
@@ -96,9 +95,8 @@ impl<'src> SourceMap<'src> {
     /// byte range — including any syntactic delimiters (`$`, `${`,
     /// `{`, `"`, etc.) that the token's span covers. Pure-Rust
     /// callers that want to inspect raw source should use this.
-    /// Callers that want the "human-readable" content matching the
-    /// Python `Token.text` field should use [`Self::token_text`]
-    /// instead.
+    /// Callers that want the "human-readable" content of a token
+    /// should use [`Self::token_text`] instead.
     ///
     /// # Panics
     ///
@@ -110,7 +108,7 @@ impl<'src> SourceMap<'src> {
     }
 
     /// Return the "human-readable" text of a token — the same thing
-    /// the Python `Token.text` field contains.
+    /// `Token.text` field contains.
     ///
     /// For most kinds this is identical to `self.text(tok.span)`.
     /// For `VAR` tokens, the leading `$` (and the `{` of a `${…}`
@@ -118,12 +116,12 @@ impl<'src> SourceMap<'src> {
     /// alone. As more wrapper-style tokens arrive (`STR` braced
     /// strings in L6, quoted strings in L7), this helper grows
     /// additional stripping rules; it is the **one place** in the
-    /// codebase that encodes the Python-API convention of "position
-    /// range spans the full token, text field is the inner content".
+    /// codebase that encodes the convention of "position range spans
+    /// the full token, text field is the inner content".
     ///
     /// The `PyO3` binding uses this helper when constructing
-    /// `PyToken.text`; Rust consumers that want parity with the
-    /// Python API should use it too.
+    /// `PyToken.text`; Rust consumers that want the same
+    /// inner-content text should use it too.
     #[must_use]
     pub fn token_text(&self, tok: Token) -> &'src str {
         let raw = self.text(tok.span);
@@ -192,7 +190,7 @@ impl<'src> SourceMap<'src> {
         SourcePosition::new(
             self.base_line + raw.line,
             if raw.line == 0 {
-                self.base_col + raw.character
+                ByteCol::new(self.base_col + raw.character.get())
             } else {
                 raw.character
             },
@@ -202,7 +200,7 @@ impl<'src> SourceMap<'src> {
 
     /// Resolve a span to `(start, end)` positions, where `start` is
     /// the position of the first byte and `end` is the position of
-    /// the **last** byte (inclusive), matching the Python lexer's
+    /// the **last** byte (inclusive), following the lexer's
     /// `Token.start` / `Token.end` convention. For an empty span,
     /// both positions point at `span.start()`.
     #[must_use]
@@ -239,8 +237,14 @@ mod tests {
     #[test]
     fn position_at_start_of_line() {
         let map = SourceMap::new("abc\ndef");
-        assert_eq!(map.position_at(0), SourcePosition::new(0, 0, 0));
-        assert_eq!(map.position_at(4), SourcePosition::new(1, 0, 4));
+        assert_eq!(
+            map.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
+        assert_eq!(
+            map.position_at(4),
+            SourcePosition::new(1, ByteCol::new(0), 4)
+        );
     }
 
     #[test]
@@ -248,16 +252,16 @@ mod tests {
         let map = SourceMap::new("abc def");
         // span covering "abc" — start at (0,0,0), end at (0,2,2) for 'c'
         let (start, end) = map.range_positions(Span::new(0, 3));
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
     }
 
     #[test]
     fn range_positions_for_empty_span_point_at_start() {
         let map = SourceMap::new("abc");
         let (start, end) = map.range_positions(Span::empty(3));
-        assert_eq!(start, SourcePosition::new(0, 3, 3));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(3), 3));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
     }
 
     #[test]
@@ -265,12 +269,12 @@ mod tests {
         let map = SourceMap::new("ab\ncd");
         // Span covering just the '\n' at offset 2
         let (start, end) = map.range_positions(Span::new(2, 3));
-        assert_eq!(start, SourcePosition::new(0, 2, 2));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(2), 2));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
         // Span covering "cd" on line 1
         let (start, end) = map.range_positions(Span::new(3, 5));
-        assert_eq!(start, SourcePosition::new(1, 0, 3));
-        assert_eq!(end, SourcePosition::new(1, 1, 4));
+        assert_eq!(start, SourcePosition::new(1, ByteCol::new(0), 3));
+        assert_eq!(end, SourcePosition::new(1, ByteCol::new(1), 4));
     }
 
     #[test]

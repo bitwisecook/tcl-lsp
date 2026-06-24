@@ -1,13 +1,13 @@
 //! SCF → AS3 declaration emitter (best-effort, partial coverage).
 //!
-//! Port of `dialects/f5/bigip/convert/as3.py`. AS3 (F5 Application Services 3)
+//! AS3 (F5 Application Services 3)
 //! is a declarative API for BIG-IP configuration. This converts the most common
 //! LTM objects from a parsed [`BigipConfig`] into an AS3 `Application`; anything
 //! without a clear AS3 mapping is recorded in [`AS3ConversionReport::unmapped`]
 //! so nothing silently disappears.
 //!
 //! The declaration is built as an insertion-ordered [`Json`] tree and rendered
-//! with [`crate::jsonfmt::json_string`] for `json.dumps(indent=2)` byte-parity.
+//! with [`crate::jsonfmt::json_string`] for 2-space-indented JSON byte-parity.
 
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -17,8 +17,8 @@ use crate::model::{ModelObject, ProfileType};
 use crate::parser::BigipConfig;
 use crate::value::bigip_list::ListItemValue;
 
-/// A minimal insertion-ordered JSON value, mirroring the Python dict/list
-/// shapes `scf_to_as3` builds. Object keys preserve insertion order.
+/// A minimal insertion-ordered JSON value. Object keys preserve insertion
+/// order.
 #[derive(Debug, Clone)]
 pub enum Json {
     /// A JSON string.
@@ -73,8 +73,8 @@ impl Json {
         }
     }
 
-    /// Serialise this value as `json.dumps(value, indent=2)` would (no trailing
-    /// newline). `ensure_ascii=True` escaping is handled by `json_string`.
+    /// Serialise this value as 2-space-indented JSON (no trailing
+    /// newline). ASCII-escaping is handled by `json_string`.
     #[must_use]
     pub fn dumps_indent2(&self) -> String {
         let mut out = String::new();
@@ -110,7 +110,7 @@ fn short_name(full_path: &str) -> &str {
     }
 }
 
-/// Parse `/Common/ADDR[:.]PORT` -> `(addr, port)`. Mirrors `_split_destination`.
+/// Parse `/Common/ADDR[:.]PORT` -> `(addr, port)`.
 ///
 /// BIG-IP separates address and port with `:` for IPv4 and `.` for IPv6. The
 /// port half may be a decimal port or a service name. The IPv6 form is checked
@@ -141,7 +141,6 @@ fn split_destination(dest: &str) -> (String, Option<i64>) {
 }
 
 /// Resolve a port token to an integer (decimal string or BIG-IP service name).
-/// Mirrors `dialects/f5/bigip/port_names.resolve_port`.
 fn resolve_port(value: &str) -> Option<i64> {
     if value.is_empty() {
         return None;
@@ -153,7 +152,7 @@ fn resolve_port(value: &str) -> Option<i64> {
     crate::model::port_names::name_to_port(&value.to_ascii_lowercase())
 }
 
-/// Look up a typed object by table and full-path. Mirrors `cfg.<dict>[name]`.
+/// Look up a typed object by table and full-path.
 fn find<'a>(cfg: &'a BigipConfig, table: &str, full_path: &str) -> Option<&'a ModelObject> {
     cfg.objects
         .iter()
@@ -161,8 +160,7 @@ fn find<'a>(cfg: &'a BigipConfig, table: &str, full_path: &str) -> Option<&'a Mo
         .map(|p| &p.object)
 }
 
-/// Iterate the full-paths of a typed table in source order (mirrors iterating
-/// the Python insertion-ordered dict's keys).
+/// Iterate the full-paths of a typed table in source order.
 fn table_paths<'a>(cfg: &'a BigipConfig, table: &str) -> impl Iterator<Item = &'a str> {
     cfg.objects
         .iter()
@@ -376,8 +374,7 @@ fn convert_monitor(monitor: &crate::model::BigipMonitor) -> Json {
 }
 
 /// The set of `(module, object_type)` generic kinds that have a typed AS3
-/// mapping and so are *not* re-reported as unmapped generics. Mirrors the
-/// Python literal set.
+/// mapping and so are *not* re-reported as unmapped generics.
 const MAPPED_GENERIC_KINDS: &[(&str, &str)] = &[
     ("ltm", "pool"),
     ("ltm", "virtual"),
@@ -390,7 +387,7 @@ const MAPPED_GENERIC_KINDS: &[(&str, &str)] = &[
     ("ltm", "snatpool"),
 ];
 
-/// Convert `cfg` to a minimal AS3 declaration. Port of `scf_to_as3`.
+/// Convert `cfg` to a minimal AS3 declaration.
 #[must_use]
 pub fn scf_to_as3(cfg: &BigipConfig, tenant: &str, application: &str) -> AS3ConversionReport {
     let mut app: Vec<(String, Json)> = vec![

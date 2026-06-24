@@ -1,13 +1,11 @@
 //! `textDocument/typeDefinition` — jump to the class that *types* the
 //! symbol at the cursor.
 //!
-//! Port of `lsp/features/type_definition.py::get_type_definition`
-//! (GAP-B3, strip 2).  Two receiver shapes:
+//! Two receiver shapes:
 //!
 //! - **Variable receiver** (`$obj`) — when the analyser has inferred the
 //!   variable's class (the Rust analyser records this in
-//!   `AnalysisResult::instance_classes`, its equivalent of Python's
-//!   `TypeLattice.object_of` / `class_name`), jump to that `ClassDef`'s
+//!   `AnalysisResult::instance_classes`), jump to that `ClassDef`'s
 //!   name span.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing
@@ -47,7 +45,7 @@ pub fn type_definition(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
-    let cursor = byte_offset_at(source, line, character);
+    let cursor = byte_offset_at(&line_index, source, line, character);
     if let Some(cd) = innermost_class_containing(analysis, cursor)
         && (cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word))
     {

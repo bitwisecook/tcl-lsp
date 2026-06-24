@@ -1,13 +1,13 @@
 //! Shared CLI plumbing for the native `tcl` / `f5` Rust CLIs.
 //!
-//! This is the Rust home of `tooling/cli/_utils.py`: input-document
-//! resolution (files / directories / inline `--source` / stdin), the
-//! source-combining rule the verbs share, output writers (with Python-faithful
+//! Provides input-document resolution (files / directories / inline
+//! `--source` / stdin), the
+//! source-combining rule the verbs share, output writers (with faithful
 //! tab expansion), and the per-dialect [`CommandRegistry`] cache.
 //!
-//! Behaviour here is part of the parity contract with the Python CLI, so the
+//! Behaviour here is part of the parity contract (asserted against the captured golden output), so the
 //! discovery order, supported-extension set, skip-directory set, and the
-//! `"\n\n".join(rstrip)` combine rule all mirror `_utils.py` exactly.
+//! `"\n\n".join(rstrip)` combine rule all match the captured behaviour exactly.
 
 #![forbid(unsafe_code)]
 

@@ -1,10 +1,10 @@
 //! `Destination` value type — F5 `[folder/]address[%route-domain][:port]`
-//! triples. Rust port of `_destination.py`.
+//! triples.
 //!
 //! The parser is hand-written, not regex-driven: it splits the input on
 //! the structural anchors (`/`, `[`, `]`, `%`, the last `.` or `:` for the
 //! port separator) and delegates each piece to its dedicated value type's
-//! parser. Every spelling in the Python module docstring is handled.
+//! parser. Every documented spelling is handled.
 
 use super::address::{Address, IPAddress, parse_address};
 use super::error::ValueError;
@@ -260,7 +260,7 @@ fn split_route_domain(text: &str) -> Result<(String, Option<RouteDomain>, String
     if !text.contains('%') {
         return Ok((text.to_owned(), None, String::new()));
     }
-    // Python str.partition('%') splits on the FIRST '%'.
+    // Split on the FIRST '%'.
     let (addr, rd_text) = text.split_once('%').unwrap_or((text, ""));
     let rd_digits: String = rd_text.chars().take_while(char::is_ascii_digit).collect();
     let remainder = &rd_text[rd_digits.len()..];
@@ -340,9 +340,9 @@ mod tests {
     fn wildcards() {
         assert_eq!(roundtrip("0.0.0.0:any"), "0.0.0.0:any");
         assert_eq!(roundtrip("::.0"), "::.0");
-        // ``*.*`` is listed in the docstring but the real parser treats
-        // it as an FQDN with an invalid label and rejects it (matching
-        // the Python implementation, whose docstring is aspirational).
+        // ``*.*`` is an aspirational spelling that is documented but not
+        // accepted here: the real parser treats it as an FQDN with an
+        // invalid label and rejects it.
         assert!(Destination::try_parse("*.*").is_none());
     }
 
@@ -368,9 +368,9 @@ mod tests {
         assert!(Destination::try_parse("[2001:db8::1").is_none());
     }
 
-    /// Differential parity: each `(input, expected)` pair was produced by
-    /// `str(Destination.parse(input))` against the Python source. `None`
-    /// expectations are inputs Python rejects.
+    /// Differential parity fixtures: each `(input, expected)` pair is
+    /// `str(Destination.parse(input))`. `None`
+    /// expectations are inputs that are rejected.
     #[test]
     fn parity_against_python() {
         let cases: &[(&str, Option<&str>)] = &[
@@ -419,9 +419,9 @@ mod tests {
             ("/Common/2001:db8::5.443", Some("/Common/2001:db8::5.443")),
             ("255.255.255.255:65535", Some("255.255.255.255:65535")),
             // ``/Common/just_a_folder`` — the trailing segment is treated as
-            // an FQDN host and rejected (no dot), matching Python.
+            // an FQDN host and rejected (no dot).
             ("/Common/just_a_folder", None),
-            // Non-numeric route-domain inside brackets — Python rejects.
+            // Non-numeric route-domain inside brackets — rejected.
             ("/Common/[fe80::1]%3.80", None),
         ];
         for (input, expected) in cases {

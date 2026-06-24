@@ -1,20 +1,18 @@
 //! `help` (`docs`) verb: full-text search the bundled KCS help database.
 //!
-//! Port of `tooling/tcl/verbs/lookup.py` `_run_help` + the `search_help` /
-//! `list_features` query layer in `shared/help/kcs_db.py`, over the embedded
+//! Runs the `search_help` / `list_features` query layer over the embedded
 //! `kcs_help.db` (an `FTS5` index built at compile time by `build.rs` from
 //! `docs/kcs/features/*.md`). The database is compiled into the binary
 //! (`include_bytes!`) and opened read-only via `rusqlite`'s bundled `SQLite`
 //! (which ships `FTS5`); to give `SQLite` a file path it is written to a unique
-//! temp file for the duration of the queries (mirroring the Python
-//! pre-3.12 fallback path).
+//! temp file for the duration of the queries.
 //!
 //! `--json` embeds the raw `BM25` `rank` float. Codes, content and ordering
-//! match Python byte-for-byte, but the `rank` value is computed by whichever
-//! `SQLite` version is linked (Python the host's, this crate rusqlite's bundled
+//! match the captured golden output byte-for-byte, but the `rank` value is computed by whichever
+//! `SQLite` version is linked (this crate uses rusqlite's bundled
 //! one) and the two diverge in the low-order digits on some corpora — so it is
 //! not a cross-environment-stable parity field (the json golden is captured
-//! from this binary, not the Python CLI).
+//! from this binary).
 
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -27,8 +25,8 @@ use tcl_cli_support::{OutputTarget, ensure_ascii, write_text_output};
 /// `docs/kcs/features/*.md`) into `$OUT_DIR` and embedded here.
 static KCS_DB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/kcs_help.db"));
 
-/// Per-dialect substring terms used to filter help entries (port of
-/// `_HELP_DIALECT_TERMS`). `all` (and any unknown dialect) yields no terms,
+/// Per-dialect substring terms used to filter help entries.
+/// `all` (and any unknown dialect) yields no terms,
 /// meaning "no filtering".
 fn dialect_terms(dialect: &str) -> &'static [&'static str] {
     match dialect {
@@ -72,9 +70,8 @@ struct Feature {
 }
 
 impl Feature {
-    /// The lowercased searchable blob used by the dialect filter (port of
-    /// `_help_entry_matches_dialect`'s `searchable_parts`; `surface` is always
-    /// empty for these rows).
+    /// The lowercased searchable blob used by the dialect filter (`surface` is
+    /// always empty for these rows).
     fn dialect_haystack(&self) -> String {
         format!(
             "{} {} {} {} {} {}",
@@ -110,7 +107,7 @@ fn load_db() -> anyhow::Result<(Connection, PathBuf)> {
     Ok((conn, path))
 }
 
-/// Sorted `applies_to` tags for a feature file (port of `_fetch_tags`).
+/// Sorted `applies_to` tags for a feature file.
 fn fetch_tags(conn: &Connection, file: &str) -> rusqlite::Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT tag FROM feature_tags WHERE file = ?1 ORDER BY tag")?;
     let tags = stmt
@@ -119,9 +116,9 @@ fn fetch_tags(conn: &Connection, file: &str) -> rusqlite::Result<Vec<String>> {
     Ok(tags)
 }
 
-/// Full-text search across KCS features, ranked by relevance (port of
-/// `search_help`). Falls back to a `LIKE` scan if the FTS `MATCH` query
-/// errors, exactly as the Python helper does.
+/// Full-text search across KCS features, ranked by relevance. Falls back to a
+/// `LIKE` scan if the FTS `MATCH` query
+/// errors.
 fn search_help(conn: &Connection, query: &str, limit: usize) -> anyhow::Result<Vec<Feature>> {
     let safe = query.replace('"', "\"\"");
     let match_expr = format!("\"{safe}\" OR {safe}*");
@@ -163,7 +160,7 @@ fn search_help(conn: &Connection, query: &str, limit: usize) -> anyhow::Result<V
     let mut features = if let Ok(rows) = fts {
         rows
     } else {
-        // Fallback: simple LIKE search (Python's `except OperationalError`).
+        // Fallback: simple LIKE search (`except OperationalError`).
         {
             let like = format!("%{query}%");
             let mut stmt = conn.prepare(
@@ -205,8 +202,8 @@ fn search_help(conn: &Connection, query: &str, limit: usize) -> anyhow::Result<V
     Ok(features)
 }
 
-/// All features grouped by category, in `(category, name)` order (port of
-/// `list_features`). Categories appear in first-seen order, which — because the
+/// All features grouped by category, in `(category, name)` order.
+/// Categories appear in first-seen order, which — because the
 /// query is `ORDER BY category, name` — is sorted category order.
 fn list_features(conn: &Connection) -> anyhow::Result<Vec<(String, Vec<Feature>)>> {
     let mut stmt = conn.prepare(
@@ -246,7 +243,7 @@ fn list_features(conn: &Connection) -> anyhow::Result<Vec<(String, Vec<Feature>)
     Ok(catalogue)
 }
 
-/// JSON object for a catalogue feature (port of the `list_features` row dict:
+/// JSON object for a catalogue feature (row dict:
 /// `name`, `summary`, `how_to_use`, `file`, `applies_to` — category is the
 /// grouping key, not a field).
 fn catalogue_feature_json(feature: &Feature) -> Value {
@@ -259,7 +256,7 @@ fn catalogue_feature_json(feature: &Feature) -> Value {
     })
 }
 
-/// JSON object for a search result (port of the `search_help` row dict, key
+/// JSON object for a search result (row dict, key
 /// order: `name`, `summary`, `category`, `how_to_use`, `file`, `rank`,
 /// `applies_to`).
 fn search_result_json(feature: &Feature) -> Value {
@@ -274,7 +271,7 @@ fn search_result_json(feature: &Feature) -> Value {
     Value::Object(obj)
 }
 
-/// Render the catalogue as text (port of `_print_help_catalogue`).
+/// Render the catalogue as text.
 fn render_catalogue(catalogue: &[(String, Vec<Feature>)]) -> String {
     if catalogue.is_empty() {
         return "no help entries found".to_owned();
@@ -307,7 +304,7 @@ fn render_catalogue(catalogue: &[(String, Vec<Feature>)]) -> String {
     lines.join("\n")
 }
 
-/// Render search results as text (port of `_print_help_search_results`).
+/// Render search results as text.
 fn render_search_results(results: &[Feature], query: &str) -> String {
     let match_word = if results.len() == 1 {
         "match"
@@ -428,8 +425,8 @@ fn run_help_inner(
     Ok(1)
 }
 
-/// JSON for the catalogue: `{category: [feature, ...]}` (port of
-/// `json.dumps(catalogue, indent=2)`), category order preserved.
+/// JSON for the catalogue: `{category: [feature, ...]}`
+/// (2-space-indented JSON), category order preserved.
 fn catalogue_json(catalogue: &[(String, Vec<Feature>)]) -> String {
     let mut obj = Map::new();
     for (category, features) in catalogue {

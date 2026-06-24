@@ -1,10 +1,9 @@
 //! Taint analysis — data-flow from tainted sources to dangerous
 //! sinks, tracked through a multi-colour lattice.
 //!
-//! Ported from `core/compiler/taint/` (C29). This module provides:
+//! This module provides:
 //!
-//! 1. **`TaintColour`** / **`TaintLattice`** — the colour lattice
-//!    (unchanged from the prior stub strip).
+//! 1. **`TaintColour`** / **`TaintLattice`** — the colour lattice.
 //! 2. **`propagate_taints`** — intra-procedural worklist that seeds
 //!    taint from known source commands (`gets`, `read`, `exec`,
 //!    `chan`, `encoding convertfrom`) and propagates through SSA phi
@@ -47,12 +46,11 @@
 //!   `f5-irules` / `irules`. IRULE3102 (unnormalised getter) lives
 //!   in the sibling [`crate::irules_checks`] module.
 //! - **URI-split / IRULE3103** (`*::uri` getter + manual
-//!   decomposition) — see [`crate::uri_split`].  Ported from
-//!   `core/compiler/taint/_uri_split.py` (C45).
+//!   decomposition) — see [`crate::uri_split`].
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!
-//! ARCH3 moved the source / sanitiser tables into
+//! The source / sanitiser tables live in
 //! [`tcl_registry::taint`]. This module asks the registry the
 //! questions it used to answer locally:
 //!
@@ -68,26 +66,26 @@
 //! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use bitflags::bitflags;
+use rustc_hash::FxHashSet;
 
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
-use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
+use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
-// ---------------------------------------------------------------------------
 // Colour lattice
-// ---------------------------------------------------------------------------
 
 bitflags! {
     /// A taint colour — each bit records one safety property or
@@ -167,8 +165,8 @@ impl TaintColour {
     /// *value position* of an iRules header or log sink (IRULE3002 /
     /// IRULE3003).
     ///
-    /// Matches the Python `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT
-    /// | FQDN`. `HEADER_TOKEN_SAFE` is deliberately **not** included —
+    /// The CRLF-safe mask is `CRLF_FREE | IP_ADDRESS | PORT |
+    /// FQDN`. `HEADER_TOKEN_SAFE` is deliberately **not** included —
     /// it only suppresses IRULE3002 in the header/cookie *name*
     /// position and is handled by the call-site-aware
     /// `irule3002_name_position_safe` helper. `HTML_ESCAPED` and
@@ -252,9 +250,7 @@ impl TaintLattice {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Diagnostic type
-// ---------------------------------------------------------------------------
 
 /// Tainted data flowing into a dangerous sink.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -266,7 +262,7 @@ pub struct TaintWarning {
     /// Command that acted as the sink.
     pub sink_command: String,
     /// Diagnostic code (`"T100"` family).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Optional replacement text for a code-action fix. Currently
@@ -275,14 +271,11 @@ pub struct TaintWarning {
     pub replacement: Option<String>,
 }
 
-// ---------------------------------------------------------------------------
 // Source-command classification
-// ---------------------------------------------------------------------------
 
 /// Return `true` when `command` is a known taint source — i.e. its
 /// return value may carry attacker-influenced data.
 ///
-/// Mirrors the Python `TAINT_HINTS` entries for core Tcl commands.
 /// Commands with `UNNORMALISED_HTTP_GETTER` trait (iRules dialect) are
 /// also included once the registry carries that flag on actual specs.
 /// When `dialect` is `"f5-irules"` / `"irules"`, iRules namespace
@@ -319,8 +312,7 @@ fn reg_colour(c: tcl_registry::TaintColour) -> TaintColour {
 /// The colour a command stamps on a tainted value it returns — its
 /// `taint_transform` (e.g. `uri::encode` ⇒ `URL_ENCODED`,
 /// `file normalize` ⇒ `PATH_NORMALISED`).  Subcommand transforms take
-/// precedence over the bare-command form.  Mirrors the registry lookup
-/// in `_derive_transform_colours`.
+/// precedence over the bare-command form.
 fn transform_colour(
     registry: &CommandRegistry,
     command: &str,
@@ -337,7 +329,7 @@ fn transform_colour(
 }
 
 /// Human-readable label for a double-encode colour, for the T106
-/// message.  Mirrors `_COLOUR_LABELS`.
+/// message.
 fn double_encode_label(colour: TaintColour) -> &'static str {
     if colour.contains(TaintColour::URL_ENCODED) {
         "URL-encoded"
@@ -374,9 +366,7 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
     tcl_registry::taint::is_sanitiser(registry, command, args)
 }
 
-// ---------------------------------------------------------------------------
 // Taint propagation
-// ---------------------------------------------------------------------------
 
 /// Shared inputs for the per-statement taint helpers.
 ///
@@ -390,6 +380,10 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
 #[derive(Clone, Copy)]
 pub(crate) struct TaintCtx<'a> {
     pub(crate) registry: &'a CommandRegistry,
+    /// The SSA function whose taint is being computed, used to resolve a
+    /// scanned variable name to its interned [`Symbol`] when indexing the
+    /// [`Symbol`]-keyed `uses` / `taints` maps.
+    pub(crate) ssa: &'a SsaFunction,
     pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
     pub(crate) known_procs: Option<&'a HashSet<String>>,
     pub(crate) caller_qname: Option<&'a str>,
@@ -398,8 +392,7 @@ pub(crate) struct TaintCtx<'a> {
     /// solve (`taint_interproc::solve_interprocedural_taints`). When
     /// present, calls to a known proc apply the full
     /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
-    /// instead of the conservative single-passthrough rule. Mirrors
-    /// Python's `_make_call_return_provider`.
+    /// instead of the conservative single-passthrough rule.
     pub(crate) taint_summaries:
         Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 }
@@ -411,7 +404,7 @@ pub(crate) struct TaintCtx<'a> {
 /// substitutions (`[cmd ...]`), and interpolated strings.
 pub(crate) fn word_taint(
     word: &str,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
@@ -420,7 +413,7 @@ pub(crate) fn word_taint(
     // Pure variable reference — inherit taint directly.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        return var_taint(name, uses, taints);
+        return var_taint(name, uses, taints, ctx.ssa);
     }
 
     // Bracketed command substitution.
@@ -446,7 +439,7 @@ pub(crate) fn word_taint(
         // Stamp the encoder/transform colour the command adds to a
         // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
         // later pass through the same encoder is detectable as a
-        // double-encode (T106).  Mirrors `_derive_transform_colours`.
+        // double-encode (T106).
         if t.is_tainted()
             && let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs)
         {
@@ -506,7 +499,7 @@ pub(crate) fn word_taint(
             };
             if !raw_name.is_empty() {
                 let name = normalise_var_name(raw_name);
-                t = t.join(var_taint(name, uses, taints));
+                t = t.join(var_taint(name, uses, taints, ctx.ssa));
             }
         }
         return interpolation_carve_out(word, t);
@@ -516,8 +509,7 @@ pub(crate) fn word_taint(
 }
 
 /// Re-derive the structural / option-prefix colours of an interpolated
-/// (concatenated) word from its literal fragments — the port of Python
-/// `_evaluate_interpolated_word_taint`'s tail.
+/// (concatenated) word from its literal fragments.
 ///
 /// Interpolation invalidates every structural guarantee unless the
 /// literal text re-establishes it: the canonical-list / normalised-path /
@@ -558,10 +550,10 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
 /// Return the leading literal character of `value`, or `None` when the
 /// word starts with a variable/command substitution (dynamic prefix).
 ///
-/// Ports Python `_leading_literal_prefix_char`: the first `Esc` token is
-/// rendered through `backslash_subst` (so `\x2f` → `/`); the first `Str`
-/// (braced) token contributes its literal first char; a leading `Var` or
-/// `Cmd` token means the prefix is dynamic.
+/// The first `Esc` token is rendered through `backslash_subst` (so
+/// `\x2f` → `/`); the first `Str` (braced) token contributes its literal
+/// first char; a leading `Var` or `Cmd` token means the prefix is
+/// dynamic.
 fn leading_literal_prefix_char(value: &str) -> Option<char> {
     let source_map = SourceMap::new(value);
     let tokens = Lexer::new(value).tokenise_all().ok()?;
@@ -593,7 +585,7 @@ fn leading_literal_prefix_char(value: &str) -> Option<char> {
 }
 
 /// Return `true` when any rendered literal fragment of `value` contains a
-/// CR or LF. Ports Python `_literal_contains_crlf`: `Esc` fragments are
+/// CR or LF.: `Esc` fragments are
 /// `backslash_subst`-rendered (so `\n` resolves to a real newline) before
 /// the scan.
 fn literal_contains_crlf(value: &str) -> bool {
@@ -634,7 +626,7 @@ fn literal_contains_crlf(value: &str) -> bool {
 fn interproc_call_taint(
     command: &str,
     args: &[String],
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
 ) -> Option<TaintLattice> {
@@ -643,7 +635,7 @@ fn interproc_call_taint(
 
     // Colour-aware return-summary path: when the interprocedural taint
     // solve has computed per-proc summaries, apply the full transfer.
-    // Mirrors Python's `_make_call_return_provider` — a resolved callee
+    // A resolved callee
     // always yields a result (untainted when the arity rejects the call),
     // so the bare argument join below is bypassed for internal calls.
     if let Some(summaries) = ctx.taint_summaries {
@@ -669,37 +661,36 @@ fn interproc_call_taint(
     Some(word_taint(actual, uses, taints, ctx))
 }
 
-/// Look up taint for a named variable at its current SSA version.
+/// Look up taint for a named variable at its current SSA version. A name not
+/// interned in `ssa` is not a tracked SSA variable, so it is clean.
 fn var_taint(
     name: &str,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
+    ssa: &SsaFunction,
 ) -> TaintLattice {
-    let ver = uses.get(name).copied().unwrap_or(0);
-    if ver == 0 {
-        // Version 0 means the variable may be read from enclosing scope.
-        taints
-            .get(&(name.to_owned(), 0))
-            .copied()
-            .unwrap_or(TaintLattice::clean())
-    } else {
-        taints
-            .get(&(name.to_owned(), ver))
-            .copied()
-            .unwrap_or(TaintLattice::clean())
-    }
+    let Some(sym) = ssa.var_symbol(name) else {
+        return TaintLattice::clean();
+    };
+    // Version 0 means the variable may be read from enclosing scope.
+    let ver = uses.get(&sym).copied().unwrap_or(0);
+    taints
+        .get(&(sym, ver))
+        .copied()
+        .unwrap_or(TaintLattice::clean())
 }
 
 /// Determine the taint produced by a statement's definition(s).
 fn evaluate_taint_def(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
+    ssa: &SsaFunction,
 ) -> TaintLattice {
     match stmt {
         // Expression: join taint from all used variables.
-        Statement::AssignExpr { .. } => join_uses(uses, taints),
+        Statement::AssignExpr { .. } => join_uses(uses, taints, ssa),
 
         // Value assignment: evaluate the RHS word.
         Statement::AssignValue { value, .. } => word_taint(value, uses, taints, ctx),
@@ -707,7 +698,7 @@ fn evaluate_taint_def(
         // incr propagates taint from the variable being incremented.
         Statement::Incr { name, .. } => {
             let base = normalise_var_name(name);
-            var_taint(base, uses, taints)
+            var_taint(base, uses, taints, ssa)
         }
 
         // Generic call that defines variables.
@@ -780,13 +771,12 @@ fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLa
 ///
 /// Version-0 (`(name, 0)`) taints arise from two sources: the
 /// interprocedural solve's parameter entry-taint (a genuine cross-proc
-/// flow that Python surfaces) and the conservative cross-procedure
-/// global-write seeding ([`collect_global_reads`], which only ever seeds
-/// `::`-prefixed global / namespace names). Python never surfaces the
-/// latter, so a version-0 use is suppressed only when its name is
-/// global/namespace-scoped; a non-`::` version-0 use is a real parameter
-/// entry-taint and is reported, matching Python's
-/// `for name, ver in uses.items(): taints.get((name, ver))`.
+/// flow) and the conservative cross-procedure global-write seeding
+/// ([`collect_global_reads`], which only ever seeds `::`-prefixed global
+/// / namespace names). The latter is not a genuine taint, so a version-0
+/// use is suppressed only when its name is global/namespace-scoped; a
+/// non-`::` version-0 use is a real parameter entry-taint and is
+/// reported.
 fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
     ver == 0 && name.starts_with("::")
 }
@@ -794,25 +784,26 @@ fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
 /// Join taint from all SSA uses in a statement.
 ///
 /// Version-0 uses contribute when they carry a genuine parameter
-/// entry-taint (non-`::` name): mirrors Python `_join_uses_map`, which
-/// joins `(name, 0)` when present in the taint map. The Rust-only
+/// entry-taint (non-`::` name): the join takes `(name, 0)` when
+/// present in the taint map. The Rust-only
 /// global-write seeding (`::` names at version 0) is excluded so it does
 /// not over-propagate into expression results.
 fn join_uses(
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
+    ssa: &SsaFunction,
 ) -> TaintLattice {
     let mut t = TaintLattice::clean();
-    for (name, &ver) in uses {
+    for (&sym, &ver) in uses {
         if ver > 0 {
             t = t.join(
                 taints
-                    .get(&(name.clone(), ver))
+                    .get(&(sym, ver))
                     .copied()
                     .unwrap_or(TaintLattice::clean()),
             );
-        } else if !name.starts_with("::")
-            && let Some(&v0) = taints.get(&(name.clone(), 0))
+        } else if !ssa.var_name(sym).starts_with("::")
+            && let Some(&v0) = taints.get(&(sym, 0))
         {
             t = t.join(v0);
         }
@@ -847,7 +838,7 @@ fn reachable_writes_global(
     // Unknown / top-level caller: walk the CFG for direct Call
     // targets, resolve them, and union the transitive closures.
     let known: HashSet<String> = ia.procedures.keys().cloned().collect();
-    let mut visited: HashSet<String> = HashSet::new();
+    let mut visited: FxHashSet<String> = FxHashSet::default();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             if let Statement::Call { command, .. } = stmt
@@ -881,26 +872,26 @@ fn reachable_writes_global(
 /// map, and every phi's incoming edges so we catch globals reached
 /// from any predecessor — the entry block alone typically has no
 /// seeded versions for globals.
-fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
-    let mut out: HashSet<String> = HashSet::new();
+fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
+    let mut out: FxHashSet<String> = FxHashSet::default();
     let mut consider = |name: &str| {
         if name.starts_with("::") {
             out.insert(name.to_owned());
         }
     };
     for block in ssa.blocks.values() {
-        for name in block.entry_versions.keys() {
-            consider(name);
+        for &sym in block.entry_versions.keys() {
+            consider(ssa.var_name(sym));
         }
         for phi in &block.phis {
             if phi.incoming.values().any(|&v| v == 0) {
-                consider(&phi.name);
+                consider(ssa.var_name(phi.name));
             }
         }
         for stmt in &block.statements {
-            for (name, &ver) in &stmt.uses {
+            for (&sym, &ver) in &stmt.uses {
                 if ver == 0 {
-                    consider(name);
+                    consider(ssa.var_name(sym));
                 }
             }
         }
@@ -931,7 +922,7 @@ fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
 ///   as taint sources.
 /// * `param_taints` — entry taints seeded by the interprocedural
 ///   solve: each tainted entry seeds the version-0 slot of the named
-///   parameter (mirrors Python `taint_propagation`'s `param_taints`).
+///   parameter.
 /// * `taint_summaries` — colour-aware return summaries from the
 ///   interprocedural solve; when present, internal calls apply the
 ///   full return-summary transfer (`apply_proc_return_summary`)
@@ -955,7 +946,7 @@ pub(crate) fn propagate_taints(
     // Precompute the set of known procedure names once so per-call
     // resolution in `interproc_call_taint` is O(1) rather than
     // O(procedures) per call site. The solve's summaries take
-    // precedence (their key set mirrors Python's `set(summaries)`).
+    // precedence (their key set).
     let known_procs: Option<HashSet<String>> = match (taint_summaries, interproc) {
         (Some(s), _) => Some(s.keys().cloned().collect()),
         (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
@@ -963,6 +954,7 @@ pub(crate) fn propagate_taints(
     };
     let ctx = TaintCtx {
         registry,
+        ssa,
         interproc,
         known_procs: known_procs.as_ref(),
         caller_qname: Some(ssa.name.as_str()),
@@ -974,11 +966,16 @@ pub(crate) fn propagate_taints(
 
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
-    // slot absent (implicitly clean). Mirrors Python's `param_taints`.
+    // slot absent (implicitly clean).
     if let Some(pt) = param_taints {
         for (name, t) in pt {
-            if t.is_tainted() {
-                taints.insert((name.clone(), 0), *t);
+            // A tainted param only matters if the body reads it, and any read
+            // interns the name; a never-read param's seed slot would never be
+            // consulted, so skipping an un-interned name is behaviour-neutral.
+            if t.is_tainted()
+                && let Some(sym) = ssa.var_symbol(name)
+            {
+                taints.insert((sym, 0), *t);
             }
         }
     }
@@ -996,7 +993,11 @@ pub(crate) fn propagate_taints(
     {
         let globals = collect_global_reads(ssa);
         for name in globals {
-            taints.entry((name, 0)).or_insert(TaintLattice::tainted());
+            // `collect_global_reads` only returns names that appear in the SSA
+            // (entry versions / phi names / statement uses), so each is interned.
+            if let Some(sym) = ssa.var_symbol(&name) {
+                taints.entry((sym, 0)).or_insert(TaintLattice::tainted());
+            }
         }
     }
 
@@ -1019,10 +1020,7 @@ pub(crate) fn propagate_taints(
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
+                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
@@ -1044,7 +1042,7 @@ pub(crate) fn propagate_taints(
                     // enclosing-scope reads (possibly pre-seeded with
                     // taint when a reachable callee writes globals).
                     let incoming = taints
-                        .get(&(phi.name.clone(), ver))
+                        .get(&(phi.name, ver))
                         .copied()
                         .unwrap_or(TaintLattice::clean());
                     phi_taint = Some(match phi_taint {
@@ -1054,7 +1052,7 @@ pub(crate) fn propagate_taints(
                 }
 
                 let Some(phi_taint) = phi_taint else { continue };
-                let key = (phi.name.clone(), phi.version);
+                let key = (phi.name, phi.version);
                 let merged = match taints.get(&key) {
                     Some(&old) => old.join(phi_taint),
                     None => phi_taint,
@@ -1068,16 +1066,16 @@ pub(crate) fn propagate_taints(
             // Statements.
             for ssa_stmt in &ssa_block.statements {
                 let stmt = &ssa_stmt.statement;
-                for (var, &ver) in &ssa_stmt.defs {
-                    let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx);
+                for (&var, &ver) in &ssa_stmt.defs {
+                    let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx, ssa);
                     // Enrich the inferred taint with rendered-property
                     // colours when available.
                     if let Some(rp) = rendered_props
-                        && let Some(p) = rp.get(&(var.clone(), ver))
+                        && let Some(p) = rp.get(&(var, ver))
                     {
                         inferred = colour_from_rendered(inferred, *p);
                     }
-                    let key = (var.clone(), ver);
+                    let key = (var, ver);
                     let merged = match taints.get(&key) {
                         Some(&old) => old.join(inferred),
                         None => inferred,
@@ -1094,9 +1092,7 @@ pub(crate) fn propagate_taints(
     taints
 }
 
-// ---------------------------------------------------------------------------
 // Sink detection
-// ---------------------------------------------------------------------------
 
 /// Return the diagnostic code and human-readable sink label for a
 /// statement that acts as a taint sink, or `None` if the statement is
@@ -1114,20 +1110,20 @@ fn classify_sink(
     command: &str,
     args: &[String],
     dialect: Option<&str>,
-) -> Option<(&'static str, String)> {
+) -> Option<(DiagCode, String)> {
     if let Some(spec) = registry.get(command) {
         // T100: dangerous code-execution sinks.
         if spec.traits.contains(Traits::EVALUATES_CODE) {
-            return Some(("T100", command.to_owned()));
+            return Some((DiagCode::T100, command.to_owned()));
         }
         // expr, subst, exec also carry TAINT_SINK but not EVALUATES_CODE.
         if spec.traits.contains(Traits::TAINT_SINK) {
             // puts → T101 (output, not code execution).
             if command == "puts" {
-                return Some(("T101", "puts".to_owned()));
+                return Some((DiagCode::T101, "puts".to_owned()));
             }
             // Everything else with TAINT_SINK is T100.
-            return Some(("T100", command.to_owned()));
+            return Some((DiagCode::T100, command.to_owned()));
         }
     }
 
@@ -1145,7 +1141,7 @@ fn classify_sink(
 
 /// Classify iRules-specific output sinks.
 ///
-/// Mirrors `_classify_sink` in `core/compiler/taint/_sinks.py`:
+/// Recognised sinks:
 ///
 /// | Command                               | Code        | Label              |
 /// |---------------------------------------|-------------|--------------------|
@@ -1157,30 +1153,27 @@ fn classify_sink(
 ///
 /// TODO: once the Rust command registry carries `taint_hints` /
 /// `taint_output_sink_subcommands` metadata, replace the hardcoded
-/// command list with registry lookups (matching the Python path via
-/// `REGISTRY.classify_taint_sinks`).
-fn classify_irules_sink(command: &str, args: &[String]) -> Option<(&'static str, String)> {
+/// command list with registry lookups.
+fn classify_irules_sink(command: &str, args: &[String]) -> Option<(DiagCode, String)> {
     match command {
-        "HTTP::respond" => Some(("IRULE3001", command.to_owned())),
+        "HTTP::respond" => Some((DiagCode::Irule3001, command.to_owned())),
         "HTTP::header" | "HTTP::cookie" => {
             let sub = args.first().map(String::as_str);
             if matches!(sub, Some("insert" | "replace")) {
-                Some(("IRULE3002", format!("{command} {}", sub.unwrap())))
+                Some((DiagCode::Irule3002, format!("{command} {}", sub.unwrap())))
             } else {
                 None
             }
         }
-        "HTTP::redirect" => Some(("IRULE3004", command.to_owned())),
-        "log" => Some(("IRULE3003", command.to_owned())),
+        "HTTP::redirect" => Some((DiagCode::Irule3004, command.to_owned())),
+        "log" => Some((DiagCode::Irule3003, command.to_owned())),
         _ => None,
     }
 }
 
 /// Registry-driven SSRF / cross-interpreter sinks (T104 / T105),
 /// returned in addition to the primary [`classify_sink`] match so a
-/// single statement can trip multiple categories (Python's
-/// `_classify_sink` returns a list).  Mirrors the `T104` / `T105` arms
-/// of `core/compiler/taint/_sinks.py::_classify_sink`:
+/// single statement can trip multiple categories:
 ///
 /// * **T104** — the command's spec carries `taint_network_sink_args`
 ///   (a network-address argument → SSRF risk; e.g. `socket`).
@@ -1191,18 +1184,18 @@ fn classify_network_interp_sinks(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-) -> Vec<(&'static str, String)> {
+) -> Vec<(DiagCode, String)> {
     let mut out = Vec::new();
     let Some(spec) = registry.get(command) else {
         return out;
     };
     if spec.taint_network_sink_args.is_some() {
-        out.push(("T104", command.to_owned()));
+        out.push((DiagCode::T104, command.to_owned()));
     }
     if let Some(sub) = args.first()
         && spec.taint_interp_eval_subcommands.contains(&sub.as_str())
     {
-        out.push(("T105", format!("{command} {sub}")));
+        out.push((DiagCode::T105, format!("{command} {sub}")));
     }
     out
 }
@@ -1215,15 +1208,14 @@ fn classify_network_interp_sinks(
 /// `[file normalize …]`) *and* bounds-checked — the latter via
 /// branch-guard analysis ([`compute_branch_guard_map`]) or a
 /// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
-/// normalised-but-unguarded path.  Mirrors
-/// `core/compiler/taint/_sinks.py::_find_destructive_file_warnings`.
+/// normalised-but-unguarded path.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn find_destructive_file_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
 ) -> Vec<TaintWarning> {
     let destructive = destructive_file_subs(registry);
@@ -1273,7 +1265,7 @@ pub fn find_destructive_file_warnings(
             // nondeterministic variable for a multi-path sink like
             // `file rename $a $b` — making the warning's message (and the memo
             // vs whole-module builds) differ run-to-run.
-            let mut seen: HashSet<String> = HashSet::new();
+            let mut seen: FxHashSet<String> = FxHashSet::default();
             let mut ordered: Vec<String> = Vec::new();
             for a in args.iter().skip(path_start) {
                 for name in arg_var_names_ordered(a) {
@@ -1283,11 +1275,14 @@ pub fn find_destructive_file_warnings(
                 }
             }
             for name in &ordered {
-                let Some(&ver) = ssa_stmt.uses.get(name) else {
+                let Some(sym) = ssa.var_symbol(name) else {
+                    continue;
+                };
+                let Some(&ver) = ssa_stmt.uses.get(&sym) else {
                     continue;
                 };
                 let t = taints
-                    .get(&(name.clone(), ver))
+                    .get(&(sym, ver))
                     .copied()
                     .unwrap_or(TaintLattice::clean());
                 let is_normalised = (t.is_tainted()
@@ -1315,7 +1310,7 @@ pub fn find_destructive_file_warnings(
                     span: *span,
                     variable: name.clone(),
                     sink_command: format!("file {sub}"),
-                    code: "W313".to_owned(),
+                    code: DiagCode::W313,
                     message,
                     replacement: None,
                 });
@@ -1339,8 +1334,8 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 }
 
 /// Variable names referenced (via `$name` / `${name}`) anywhere in `arg`.
-/// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
-/// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
+/// A lightweight VAR-token scan covering the path-argument shapes W313
+/// cares about (`$p`, `${p}`, `"$d/$f"`).
 fn arg_var_names(arg: &str) -> HashSet<String> {
     arg_var_names_ordered(arg).into_iter().collect()
 }
@@ -1383,11 +1378,14 @@ fn arg_var_names_ordered(arg: &str) -> Vec<String> {
 }
 
 /// True when the SSA def of `name`@`ver` is a `[file normalize …]`
-/// command substitution.  Mirrors `_is_normalised_def`.
+/// command substitution.
 fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
+    let Some(sym) = ssa.var_symbol(name) else {
+        return false;
+    };
     for ssa_block in ssa.blocks.values() {
         for ssa_stmt in &ssa_block.statements {
-            if ssa_stmt.defs.get(name) == Some(&ver) {
+            if ssa_stmt.defs.get(&sym) == Some(&ver) {
                 if let Statement::AssignValue { value, .. } = &ssa_stmt.statement {
                     return value.trim().starts_with("[file normalize ");
                 }
@@ -1400,13 +1398,12 @@ fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
 
 /// Build a `block → {bounds-checked var}` map: a `Branch` whose condition
 /// is `[string match|first|equal … $var]` marks `$var` as `PATH_BOUNDED`
-/// in the guarded successor (and its exclusive successors).  Mirrors
-/// `_compute_branch_guard_map`.
+/// in the guarded successor (and its exclusive successors).
 fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
-) -> HashMap<String, HashSet<String>> {
-    let mut guarded: HashMap<String, HashSet<String>> = HashMap::new();
+) -> HashMap<BlockId, HashSet<String>> {
+    let mut guarded: HashMap<BlockId, HashSet<String>> = HashMap::new();
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
@@ -1422,9 +1419,9 @@ fn compute_branch_guard_map(
             continue;
         };
         let (guarded_target, other_target) = if negated {
-            (false_target, true_target)
+            (*false_target, *true_target)
         } else {
-            (true_target, false_target)
+            (*true_target, *false_target)
         };
         propagate_guard(
             cfg,
@@ -1438,10 +1435,9 @@ fn compute_branch_guard_map(
     guarded
 }
 
-/// Extract `(negated, path-var)` from a branch condition.  Mirrors
-/// `_extract_guard_var`: a unary operator flips negation; a binary
-/// operator checks both sides; a `[string …]` command sub yields the
-/// bounds-checked variable.
+/// Extract `(negated, path-var)` from a branch condition: a unary
+/// operator flips negation; a binary operator checks both sides; a
+/// `[string …]` command sub yields the bounds-checked variable.
 fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
     match expr {
         ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated),
@@ -1458,8 +1454,7 @@ fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
 }
 
 /// Parse `[string match|first|equal … $var]` and return the path
-/// variable it bounds-checks.  Mirrors the `string` arm of
-/// `_extract_guard_var`.
+/// variable it bounds-checks.
 fn guard_var_from_string_command(text: &str) -> Option<String> {
     let (command, args) = parse_command_substitution(text.trim())?;
     if command != "string" || args.is_empty() {
@@ -1492,8 +1487,8 @@ fn guard_var_from_string_command(text: &str) -> Option<String> {
     }
 }
 
-/// Extract a variable name from a `$name` / `${name}` word.  Mirrors
-/// `_extract_var_name` (identifier chars only — no `::` qualification).
+/// Extract a variable name from a `$name` / `${name}` word (identifier
+/// chars only — no `::` qualification).
 fn extract_var_name(arg: &str) -> Option<String> {
     let text = arg.trim();
     if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
@@ -1508,12 +1503,11 @@ fn extract_var_name(arg: &str) -> Option<String> {
     None
 }
 
-/// True when `block_name` executes a block-terminating command
+/// True when block `id` executes a block-terminating command
 /// (`error` / `return` / `exit` — the `TERMINATES_BLOCK` trait) so its
-/// successors are unreachable from this path.  Mirrors
-/// `_is_dead_end_block`.
-fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegistry) -> bool {
-    let Some(block) = cfg.blocks.get(block_name) else {
+/// successors are unreachable from this path.
+fn is_dead_end_block(cfg: &CfgFunction, id: BlockId, registry: &CommandRegistry) -> bool {
+    let Some(block) = cfg.blocks.get(&id) else {
         return false;
     };
     block.statements.iter().any(|stmt| {
@@ -1525,19 +1519,18 @@ fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegi
 /// Mark `guarded_target` and its successors that aren't also reachable
 /// from `other_target` (i.e. before the merge point) as guarding `var`.
 /// When `other_target` is a dead-end (error/return), the merge is only
-/// reachable through the guard, so the guard extends through it.  Mirrors
-/// `_propagate_guard`.
+/// reachable through the guard, so the guard extends through it.
 fn propagate_guard(
     cfg: &CfgFunction,
-    guarded_target: &str,
-    other_target: &str,
+    guarded_target: BlockId,
+    other_target: BlockId,
     var: &str,
     registry: &CommandRegistry,
-    guarded: &mut HashMap<String, HashSet<String>>,
+    guarded: &mut HashMap<BlockId, HashSet<String>>,
 ) {
-    let mut other_reachable: HashSet<String> = HashSet::new();
+    let mut other_reachable: HashSet<BlockId> = HashSet::new();
     if !is_dead_end_block(cfg, other_target, registry) {
-        let mut stack = vec![other_target.to_owned()];
+        let mut stack = vec![other_target];
         while let Some(b) = stack.pop() {
             if other_reachable.contains(&b) {
                 continue;
@@ -1545,14 +1538,14 @@ fn propagate_guard(
             let Some(block) = cfg.blocks.get(&b) else {
                 continue;
             };
-            other_reachable.insert(b.clone());
+            other_reachable.insert(b);
             for succ in block.terminator.iter().flat_map(Terminator::successors) {
-                stack.push(succ.to_owned());
+                stack.push(succ);
             }
         }
     }
-    let mut visit = vec![guarded_target.to_owned()];
-    let mut visited: HashSet<String> = HashSet::new();
+    let mut visit = vec![guarded_target];
+    let mut visited: HashSet<BlockId> = HashSet::new();
     while let Some(b) = visit.pop() {
         if visited.contains(&b) {
             continue;
@@ -1563,10 +1556,10 @@ fn propagate_guard(
         let Some(block) = cfg.blocks.get(&b) else {
             continue;
         };
-        visited.insert(b.clone());
-        guarded.entry(b.clone()).or_default().insert(var.to_owned());
+        visited.insert(b);
+        guarded.entry(b).or_default().insert(var.to_owned());
         for succ in block.terminator.iter().flat_map(Terminator::successors) {
-            visit.push(succ.to_owned());
+            visit.push(succ);
         }
     }
 }
@@ -1574,15 +1567,15 @@ fn propagate_guard(
 /// **T106.** Emit a double-encoding warning when a tainted value that
 /// already carries a command's `taint_double_encode_colour` is passed
 /// through that command again (e.g. `uri::encode [uri::encode $x]`).
-/// Mirrors the T106 arm of `_sinks.py::find_taint_warnings` (one warning
-/// per variable).
+/// Emit T106 (double-encode) warnings — one warning per variable.
 fn emit_double_encode_warnings(
     registry: &CommandRegistry,
     command: &str,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
     let Some(dup_colour) = registry
         .get(command)
@@ -1592,49 +1585,49 @@ fn emit_double_encode_warnings(
         return;
     };
     let label = double_encode_label(dup_colour);
-    let mut emitted: HashSet<String> = HashSet::new();
-    for (name, &ver) in uses {
-        if is_seeded_global_v0(name, ver) || emitted.contains(name) {
+    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    for (&sym, &ver) in uses {
+        let name = ssa.var_name(sym);
+        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) {
             continue;
         }
         let t = taints
-            .get(&(name.clone(), ver))
+            .get(&(sym, ver))
             .copied()
             .unwrap_or(TaintLattice::clean());
         if t.is_tainted() && t.colours.intersects(dup_colour) {
             warnings.push(TaintWarning {
                 span,
-                variable: name.clone(),
+                variable: name.to_owned(),
                 sink_command: command.to_owned(),
-                code: "T106".to_owned(),
+                code: DiagCode::T106,
                 message: format!(
                     "Variable ${name} is already {label}; passing through {command} \
                      double-encodes the value"
                 ),
                 replacement: None,
             });
-            emitted.insert(name.clone());
+            emitted.insert(sym);
         }
     }
 }
 
 /// Return `true` when a tainted value `lat` is mitigated for the given
-/// iRules sink code. Mirrors `_should_suppress_sink_warning` in
-/// Python for the IRULE3001/3002/3003/3004 branches.
+/// iRules sink code (the IRULE3001/3002/3003/3004 branches).
 ///
 /// For IRULE3002 in the name-position (arg-index 1 of
 /// `HTTP::header`/`HTTP::cookie` `insert`/`replace`), the
 /// `HEADER_TOKEN_SAFE` colour is an additional mitigation. That extra
 /// check is handled at the call site because it needs the per-use arg
 /// index; the function signature here is deliberately kept narrow.
-fn irules_sink_suppressed(code: &str, lat: TaintLattice) -> bool {
+fn irules_sink_suppressed(code: DiagCode, lat: TaintLattice) -> bool {
     if !lat.is_tainted() {
         return false;
     }
     match code {
-        "IRULE3001" => lat.colours.intersects(TaintColour::HTML_ESCAPED),
-        "IRULE3002" | "IRULE3003" => lat.colours.intersects(TaintColour::CRLF_SAFE),
-        "IRULE3004" => lat.colours.intersects(TaintColour::REDIRECT_SAFE),
+        DiagCode::Irule3001 => lat.colours.intersects(TaintColour::HTML_ESCAPED),
+        DiagCode::Irule3002 | DiagCode::Irule3003 => lat.colours.intersects(TaintColour::CRLF_SAFE),
+        DiagCode::Irule3004 => lat.colours.intersects(TaintColour::REDIRECT_SAFE),
         _ => false,
     }
 }
@@ -1713,17 +1706,15 @@ pub fn find_taint_warnings_for_cu(
 /// Emit taint sink warnings (`T100` family) for one function.
 ///
 /// This is the per-function sink scan; the whole-unit `dataflow` / `diag`
-/// aggregation calls it over the top level and every procedure unit. Mirrors
-/// the `_find_taint_sinks` half of Python's
-/// `compiler.taint.find_taint_warnings`; the other Python warning kinds
-/// (setter-constraint / uri-split / path-concat / destructive-file) are not
-/// ported yet (the documented T-code gap).
+/// aggregation calls it over the top level and every procedure unit. The
+/// other warning kinds (setter-constraint / uri-split / path-concat /
+/// destructive-file) are not emitted here yet.
 #[allow(clippy::implicit_hasher)]
 pub fn find_taint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
@@ -1738,7 +1729,7 @@ pub fn find_taint_warnings(
         };
 
         for ssa_stmt in &ssa_block.statements {
-            emit_statement_warnings(ssa_stmt, taints, registry, dialect, &mut warnings);
+            emit_statement_warnings(ssa_stmt, taints, registry, dialect, &mut warnings, ssa);
         }
     }
 
@@ -1758,6 +1749,7 @@ fn emit_statement_warnings(
     registry: &CommandRegistry,
     dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
     let stmt = &ssa_stmt.statement;
     let span = stmt.span();
@@ -1768,7 +1760,7 @@ fn emit_statement_warnings(
         stmt,
         Statement::AssignExpr { .. } | Statement::ExprEval { .. }
     ) {
-        emit_expr_warnings(&ssa_stmt.uses, taints, span, warnings);
+        emit_expr_warnings(&ssa_stmt.uses, taints, span, warnings, ssa);
         return;
     }
 
@@ -1793,9 +1785,9 @@ fn emit_statement_warnings(
         _ => return,
     };
 
-    // Emission order mirrors Python `_find_taint_sinks` per statement:
-    // T103 (regexp pattern) → T106 (double-encode) → the sink loop in
-    // `_classify_sink` order (T100/output/log, then T102, then T104/T105).
+    // Emission order per statement:
+    // T103 (regexp pattern) → T106 (double-encode) → the sink loop
+    // (T100/output/log, then T102, then T104/T105).
 
     // T103: tainted data in a regexp/regsub pattern position.
     emit_regexp_pattern_warnings(
@@ -1806,10 +1798,19 @@ fn emit_statement_warnings(
         span,
         registry,
         warnings,
+        ssa,
     );
 
     // T106: re-encoding an already-encoded tainted value.
-    emit_double_encode_warnings(registry, command, &ssa_stmt.uses, taints, span, warnings);
+    emit_double_encode_warnings(
+        registry,
+        command,
+        &ssa_stmt.uses,
+        taints,
+        span,
+        warnings,
+        ssa,
+    );
 
     let sink_call = SinkCall {
         command,
@@ -1826,11 +1827,12 @@ fn emit_statement_warnings(
             &sink_label,
             &sink_call,
             warnings,
+            ssa,
         );
     }
 
     // T102: option injection — only for Call statements, after the primary
-    // sink (Python's `_classify_sink` lists T102 after T100/output/log).
+    // sink (T100/output/log).
     if let Statement::Call { args, .. } = stmt {
         emit_option_injection(
             command,
@@ -1841,6 +1843,7 @@ fn emit_statement_warnings(
             registry,
             dialect,
             warnings,
+            ssa,
         );
     }
 
@@ -1855,14 +1858,14 @@ fn emit_statement_warnings(
             &sink_label,
             &sink_call,
             warnings,
+            ssa,
         );
     }
 }
 
 /// First positional (pattern) argument index of `regexp` / `regsub`,
 /// after skipping option switches (`-start` consumes a value, `--`
-/// terminates). `args` excludes the command name. Mirrors
-/// `compiler.registry.runtime.regexp_pattern_index`.
+/// terminates). `args` excludes the command name.
 fn regexp_pattern_index(args: &[String]) -> Option<usize> {
     let mut i = 0;
     while i < args.len() {
@@ -1885,17 +1888,18 @@ fn regexp_pattern_index(args: &[String]) -> Option<usize> {
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
 /// the regex-pattern argument of a regex command (`regexp` / `regsub` —
-/// gated on `pattern_type == Regex`). Port of the `T103` loop in Python
-/// `_find_taint_sinks` + `_regexp_pattern_arg_index`. Suppressed when the
-/// value carries the `REGEX_LITERAL` colour (`_should_suppress_sink_warning`).
+/// gated on `pattern_type == Regex`). Suppressed when the
+/// value carries the `REGEX_LITERAL` colour.
+#[allow(clippy::too_many_arguments)]
 fn emit_regexp_pattern_warnings(
     command: &str,
     args: &[String],
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
     registry: &CommandRegistry,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
     let is_regex = registry
         .get(command)
@@ -1912,12 +1916,15 @@ fn emit_regexp_pattern_warnings(
     let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
     names.sort_unstable();
     for var in names {
-        let Some(&ver) = uses.get(&var) else { continue };
+        let Some(sym) = ssa.var_symbol(&var) else {
+            continue;
+        };
+        let Some(&ver) = uses.get(&sym) else { continue };
         if is_seeded_global_v0(&var, ver) {
             continue;
         }
         let t = taints
-            .get(&(var.clone(), ver))
+            .get(&(sym, ver))
             .copied()
             .unwrap_or(TaintLattice::clean());
         if !t.is_tainted() {
@@ -1931,7 +1938,7 @@ fn emit_regexp_pattern_warnings(
             span,
             variable: var.clone(),
             sink_command: command.to_owned(),
-            code: "T103".to_owned(),
+            code: DiagCode::T103,
             message: format!(
                 "Tainted variable ${var} in regexp pattern position ({command}); \
                  risk of regex injection or ReDoS"
@@ -1943,25 +1950,27 @@ fn emit_regexp_pattern_warnings(
 
 /// Emit T100 warnings for every tainted use in an expression context.
 fn emit_expr_warnings(
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
-    for (name, &ver) in uses {
+    for (&sym, &ver) in uses {
+        let name = ssa.var_name(sym);
         if is_seeded_global_v0(name, ver) {
             continue;
         }
         let t = taints
-            .get(&(name.clone(), ver))
+            .get(&(sym, ver))
             .copied()
             .unwrap_or(TaintLattice::clean());
         if t.is_tainted() {
             warnings.push(TaintWarning {
                 span,
-                variable: name.clone(),
+                variable: name.to_owned(),
                 sink_command: "expr".to_owned(),
-                code: "T100".to_owned(),
+                code: DiagCode::T100,
                 message: format!(
                     "Tainted variable ${name} flows into expr operand; \
                      numeric coercion may misinterpret value \
@@ -1997,7 +2006,7 @@ struct SinkCall<'a> {
 /// Positional argument strings of `args` under `spec`, skipping option
 /// flags (`-foo`) and the value of any option whose [`OptionSpec`] declares
 /// `takes_value`. `--` ends option processing; everything after is
-/// positional. Mirrors the option-skipping arity walk in the analyser.
+/// positional.
 fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
@@ -2023,11 +2032,10 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 
 /// Position-aware sink filter: `true` when a tainted variable `name`
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
-/// the sink. Mirrors the positional filters in
-/// `core/compiler/taint/_sinks.py`.
+/// the sink.
 fn sink_var_position_safe(
     registry: &CommandRegistry,
-    code: &str,
+    code: DiagCode,
     command: &str,
     args: &[String],
     name: &str,
@@ -2035,13 +2043,13 @@ fn sink_var_position_safe(
     match code {
         // `puts ?-nonewline? ?channelId? string` — only the trailing
         // content arg is an output sink; a tainted channel id is a handle.
-        "T101" if command == "puts" => args
+        DiagCode::T101 if command == "puts" => args
             .last()
             .is_none_or(|content| !arg_var_names(content).contains(name)),
         // T104 SSRF — only the network-address positional slots named by
         // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
         // imposes no filter.
-        "T104" => {
+        DiagCode::T104 => {
             let Some(spec) = registry.get(command) else {
                 return false;
             };
@@ -2104,22 +2112,25 @@ fn list_wrapped_arg_command_is_literal(
     false
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_sink_warnings(
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
-    code: &str,
+    code: DiagCode,
     sink_label: &str,
     call: &SinkCall<'_>,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
-    let mut emitted: HashSet<String> = HashSet::new();
-    for (name, &ver) in uses {
-        if is_seeded_global_v0(name, ver) || emitted.contains(name) {
+    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    for (&sym, &ver) in uses {
+        let name = ssa.var_name(sym);
+        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) {
             continue;
         }
         let t = taints
-            .get(&(name.clone(), ver))
+            .get(&(sym, ver))
             .copied()
             .unwrap_or(TaintLattice::clean());
         if !t.is_tainted() {
@@ -2129,7 +2140,9 @@ fn emit_sink_warnings(
         if irules_sink_suppressed(code, t) {
             continue;
         }
-        if code == "IRULE3002" && irule3002_name_position_safe(call.command, call.args, name, t) {
+        if code == DiagCode::Irule3002
+            && irule3002_name_position_safe(call.command, call.args, name, t)
+        {
             continue;
         }
         // Position-aware sink filter: a tainted variable only trips the
@@ -2141,55 +2154,55 @@ fn emit_sink_warnings(
         // `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]`: the
         // command word of the constructed list is a literal known command,
         // so the tainted `$v` is a quoted argument, not the command word —
-        // no code-injection vector (mirrors `_sinks.py` LIST_CANONICAL
+        // no code-injection vector LIST_CANONICAL
         // head-literal filter).
-        if matches!(code, "T100" | "T105")
+        if matches!(code, DiagCode::T100 | DiagCode::T105)
             && list_wrapped_arg_command_is_literal(call.registry, call.args, name)
         {
             continue;
         }
-        // T104 / T105 mitigations (mirror `_sinks.py:287-296`): a
+        // T104 / T105 mitigations: a
         // validated network address (IP / port / FQDN colour) clears
         // T104; a canonical list (`LIST_CANONICAL`) clears T105.
-        if code == "T104"
+        if code == DiagCode::T104
             && t.colours
                 .intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN)
         {
             continue;
         }
-        if code == "T105" && t.colours.intersects(TaintColour::LIST_CANONICAL) {
+        if code == DiagCode::T105 && t.colours.intersects(TaintColour::LIST_CANONICAL) {
             continue;
         }
         let message = match code {
-            "T100" => format!(
+            DiagCode::T100 => format!(
                 "Tainted variable ${name} flows into {sink_label}; \
                  possible code injection"
             ),
-            "T101" => format!(
+            DiagCode::T101 => format!(
                 "Tainted variable ${name} flows into {sink_label}; \
                  output may contain injected content"
             ),
-            "IRULE3001" => format!(
+            DiagCode::Irule3001 => format!(
                 "Tainted variable ${name} in HTTP response body ({sink_label}); \
                  risk of XSS or content injection"
             ),
-            "IRULE3002" => format!(
+            DiagCode::Irule3002 => format!(
                 "Tainted variable ${name} in HTTP header/cookie value ({sink_label}); \
                  risk of header injection"
             ),
-            "IRULE3003" => format!(
+            DiagCode::Irule3003 => format!(
                 "Tainted variable ${name} in log output ({sink_label}); \
                  risk of log injection or log forging"
             ),
-            "IRULE3004" => format!(
+            DiagCode::Irule3004 => format!(
                 "Tainted variable ${name} in redirect URL ({sink_label}); \
                  risk of open redirect"
             ),
-            "T104" => format!(
+            DiagCode::T104 => format!(
                 "Tainted variable ${name} in network address argument of {sink_label}; \
                  risk of SSRF (server-side request forgery)"
             ),
-            "T105" => format!(
+            DiagCode::T105 => format!(
                 "Tainted variable ${name} in {sink_label} script argument; \
                  risk of cross-interpreter code injection"
             ),
@@ -2197,13 +2210,13 @@ fn emit_sink_warnings(
         };
         warnings.push(TaintWarning {
             span,
-            variable: name.clone(),
+            variable: name.to_owned(),
             sink_command: sink_label.to_owned(),
-            code: code.to_owned(),
+            code,
             message,
             replacement: None,
         });
-        emitted.insert(name.clone());
+        emitted.insert(sym);
     }
 }
 
@@ -2221,7 +2234,7 @@ fn emit_sink_warnings(
 /// (mis)interpreted as a switch — a leading literal `-`, or a leading
 /// substitution (`$` / `[` / `{*}` expansion) whose runtime value is
 /// unknown. Any other leading literal char is a definite positional and
-/// ends option scanning. Port of Python `_arg_can_be_option`.
+/// ends option scanning.
 fn arg_can_be_option(arg: &str) -> bool {
     match arg.as_bytes().first() {
         None => false,
@@ -2232,8 +2245,7 @@ fn arg_can_be_option(arg: &str) -> bool {
 /// Return the argument indexes still within Tcl's option-scanning region.
 /// Tcl scans for `-switch` args from `scan_start` until the first definite
 /// positional literal (one that cannot begin with `-`) or `--`. A literal
-/// `-option` that takes a value also consumes the following arg. Port of
-/// Python `_option_scan_region`.
+/// `-option` that takes a value also consumes the following arg.
 fn option_scan_region(
     args: &[String],
     scan_start: usize,
@@ -2268,21 +2280,21 @@ fn option_scan_region(
 /// Emit `T102` (option injection) for tainted variables that sit in an
 /// option-scanning position of a command declaring a `--` terminator.
 ///
-/// Port of the `T102` half of Python `_classify_sink` + the per-var loop
-/// in `_find_taint_sinks`: the option-terminator profile
+/// The option-terminator profile
 /// (`resolve_option_terminator`) supplies the subcommand-aware command
 /// label and the scan start, `option_scan_region` filters positions, and
-/// `_should_suppress_t102` (the `T102_SAFE` colour set) mitigates.
+/// the `T102_SAFE` colour set mitigates.
 #[allow(clippy::too_many_arguments)]
 fn emit_option_injection(
     command: &str,
     args: &[String],
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
     registry: &CommandRegistry,
     dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
 ) {
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(profile) =
@@ -2293,7 +2305,7 @@ fn emit_option_injection(
     };
 
     // Ensemble subcommands report a compound label ("file delete"),
-    // mirroring Python's `cmd_label`.
+    // mirroring `cmd_label`.
     let cmd_label = match profile.subcommand {
         Some(sub) => format!("{command} {sub}"),
         None => command.to_owned(),
@@ -2309,21 +2321,24 @@ fn emit_option_injection(
     // deterministic, source-ordered emission.
     let mut ordered: Vec<usize> = region.into_iter().collect();
     ordered.sort_unstable();
-    let mut emitted: HashSet<String> = HashSet::new();
+    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for i in ordered {
         let Some(arg) = args.get(i) else { continue };
         let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
         names.sort_unstable();
         for var in names {
-            if emitted.contains(&var) {
+            let Some(sym) = ssa.var_symbol(&var) else {
+                continue;
+            };
+            if emitted.contains(&sym) {
                 continue;
             }
-            let Some(&ver) = uses.get(&var) else { continue };
+            let Some(&ver) = uses.get(&sym) else { continue };
             if is_seeded_global_v0(&var, ver) {
                 continue;
             }
             let t = taints
-                .get(&(var.clone(), ver))
+                .get(&(sym, ver))
                 .copied()
                 .unwrap_or(TaintLattice::clean());
             if !t.is_tainted() {
@@ -2331,8 +2346,7 @@ fn emit_option_injection(
             }
             // Suppress when a mitigating colour proves the value cannot
             // start with `-` (PATH_PREFIXED / NON_DASH_PREFIXED /
-            // IP_ADDRESS / PORT / FQDN) — the T102_SAFE set. Port of
-            // `_should_suppress_t102`.
+            // IP_ADDRESS / PORT / FQDN) — the T102_SAFE set.
             if t.colours.intersects(TaintColour::T102_SAFE) {
                 continue;
             }
@@ -2340,24 +2354,21 @@ fn emit_option_injection(
                 span,
                 variable: var.clone(),
                 sink_command: cmd_label.clone(),
-                code: "T102".to_owned(),
+                code: DiagCode::T102,
                 message: format!(
                     "Tainted variable ${var} in option position of '{cmd_label}' \
                      without '--' terminator; risk of option injection"
                 ),
                 replacement: None,
             });
-            emitted.insert(var);
+            emitted.insert(sym);
         }
     }
 }
 
-// ---------------------------------------------------------------------------
 // IRULE3101 — setter-constraint violations
-// ---------------------------------------------------------------------------
 
-/// Find setter-constraint violations (IRULE3101) — ports
-/// `_find_setter_constraint_violations` in Python. Currently constrains
+/// Find setter-constraint violations (IRULE3101). Currently constrains
 /// `HTTP::uri` / `HTTP::path` setters to paths beginning with `/`.
 ///
 /// Dialect-gated: returns an empty vector unless `dialect` is
@@ -2379,7 +2390,7 @@ pub fn find_setter_constraint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
     let mut out: Vec<TaintWarning> = Vec::new();
@@ -2415,7 +2426,7 @@ pub fn find_setter_constraint_warnings(
                     span,
                     variable,
                     sink_command: command.clone(),
-                    code: constraint.code.to_owned(),
+                    code: constraint.code,
                     message: constraint.message.to_owned(),
                     replacement: None,
                 };
@@ -2431,9 +2442,13 @@ pub fn find_setter_constraint_warnings(
                 // Pure variable reference: check SSA-resolved taint colour.
                 if is_pure_var_ref(stripped) {
                     let var_name = normalise_var_name(stripped);
-                    let ver = ssa_stmt.uses.get(var_name).copied().unwrap_or(0);
-                    let t = taints
-                        .get(&(var_name.to_owned(), ver))
+                    let sym = ssa.var_symbol(var_name);
+                    let ver = sym
+                        .and_then(|s| ssa_stmt.uses.get(&s))
+                        .copied()
+                        .unwrap_or(0);
+                    let t = sym
+                        .and_then(|s| taints.get(&(s, ver)))
                         .copied()
                         .unwrap_or(TaintLattice::clean());
                     if t.is_tainted() && t.colours.intersects(safe_path_colours) {
@@ -2452,19 +2467,17 @@ pub fn find_setter_constraint_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::sccp::SccpResult;
 
-    fn simple_sccp(blocks: &[&str]) -> SccpResult {
+    fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().copied().map(String::from).collect(),
+            executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),
             constant_branches: Vec::new(),
         }
@@ -2511,7 +2524,7 @@ mod tests {
 
     #[test]
     fn crlf_safe_mask_matches_python() {
-        // Mirror Python's `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
+        // `CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
         // HEADER_TOKEN_SAFE only suppresses IRULE3002 in the name position
         // (handled by `irule3002_name_position_safe`); HTML_ESCAPED / URL_ENCODED
         // do not prove CRLF-injection safety in the value position.
@@ -2543,33 +2556,28 @@ mod tests {
             tokens: None,
         };
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(stmt.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
         let ssa_stmt = SsaStatement {
             statement: stmt,
             uses: HashMap::new(),
-            defs: [("x".to_string(), 1u32)].into_iter().collect(),
-        };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
+            defs: [(x, 1u32)].into_iter().collect(),
         };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2579,12 +2587,10 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
-            taints
-                .get(&("x".to_string(), 1))
-                .is_some_and(|t| t.is_tainted()),
+            taints.get(&(x, 1)).is_some_and(|t| t.is_tainted()),
             "gets stdin result should be tainted"
         );
     }
@@ -2620,44 +2626,39 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(eval_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
         let ssa_assign = SsaStatement {
             statement: assign,
             uses: HashMap::new(),
-            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
+            defs: [(x, 1u32)].into_iter().collect(),
         };
         let ssa_eval = SsaStatement {
             statement: eval_call,
-            uses: [("x".to_owned(), 1u32)].into_iter().collect(),
+            uses: [(x, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2667,7 +2668,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
@@ -2681,7 +2682,7 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T100" && w.variable == "x"),
+                .any(|w| w.code == DiagCode::T100 && w.variable == "x"),
             "expected T100 for tainted $x passed to eval, got {warnings:?}"
         );
     }
@@ -2689,10 +2690,7 @@ mod tests {
     /// Wire `set x [gets stdin]` (a taint source) followed by `sink`
     /// (which uses `$x`) and return the taint warnings.  Shared by the
     /// T104 / T105 sink tests.
-    fn warnings_for_tainted_sink(
-        sink: Statement,
-        sink_uses: HashMap<String, u32>,
-    ) -> Vec<TaintWarning> {
+    fn warnings_for_tainted_sink(sink: Statement, sink_uses: &[(&str, u32)]) -> Vec<TaintWarning> {
         use crate::cfg::{Function, Terminator};
         use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
         use tcl_lexer::Span;
@@ -2707,8 +2705,9 @@ mod tests {
             tokens: None,
         };
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             b.statements.push(assign.clone());
             b.statements.push(sink.clone());
             b.terminator = Some(Terminator::Return {
@@ -2718,26 +2717,22 @@ mod tests {
                 braced: false,
             });
         }
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let ssa_assign = SsaStatement {
             statement: assign,
             uses: HashMap::new(),
-            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
+            defs: [(ssa.intern_var("x"), 1u32)].into_iter().collect(),
         };
         let ssa_sink = SsaStatement {
             statement: sink,
-            uses: sink_uses,
+            uses: sink_uses
+                .iter()
+                .map(|&(n, v)| (ssa.intern_var(n), v))
+                .collect(),
             defs: HashMap::new(),
         };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2746,7 +2741,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_taint_warnings(
             &cfg,
@@ -2777,10 +2772,10 @@ mod tests {
     fn t104_ssrf_for_tainted_socket_address() {
         // `socket $x 80` with tainted `$x` → SSRF (T104).
         let sink = call_stmt("socket", &["$x", "80"]);
-        let uses = [("x".to_owned(), 1u32)].into_iter().collect();
-        let w = warnings_for_tainted_sink(sink, uses);
+        let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
         assert!(
-            w.iter().any(|w| w.code == "T104" && w.variable == "x"),
+            w.iter()
+                .any(|w| w.code == DiagCode::T104 && w.variable == "x"),
             "expected T104 for tainted socket address; got {w:?}"
         );
     }
@@ -2789,9 +2784,10 @@ mod tests {
     fn t105_cross_interp_for_tainted_interp_eval() {
         // `interp eval $child $x` with tainted `$x` → cross-interp (T105).
         let sink = call_stmt("interp", &["eval", "$child", "$x"]);
-        let uses = [("x".to_owned(), 1u32)].into_iter().collect();
-        let w = warnings_for_tainted_sink(sink, uses);
-        let t105 = w.iter().find(|w| w.code == "T105" && w.variable == "x");
+        let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
+        let t105 = w
+            .iter()
+            .find(|w| w.code == DiagCode::T105 && w.variable == "x");
         assert!(t105.is_some(), "expected T105 for interp eval; got {w:?}");
         assert_eq!(t105.unwrap().sink_command, "interp eval");
     }
@@ -2829,8 +2825,9 @@ mod tests {
         let s2 = call_stmt("URI::encode", &["$y"]);
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             b.statements.push(s0.clone());
             b.statements.push(s1.clone());
             b.statements.push(s2.clone());
@@ -2841,31 +2838,26 @@ mod tests {
                 braced: false,
             });
         }
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
+        let y = ssa.intern_var("y");
         let ssa_s0 = SsaStatement {
             statement: s0,
             uses: HashMap::new(),
-            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
+            defs: [(x, 1u32)].into_iter().collect(),
         };
         let ssa_s1 = SsaStatement {
             statement: s1,
-            uses: [("x".to_owned(), 1u32)].into_iter().collect(),
-            defs: [("y".to_owned(), 1u32)].into_iter().collect(),
+            uses: [(x, 1u32)].into_iter().collect(),
+            defs: [(y, 1u32)].into_iter().collect(),
         };
         let ssa_s2 = SsaStatement {
             statement: s2,
-            uses: [("y".to_owned(), 1u32)].into_iter().collect(),
+            uses: [(y, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
         };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2874,15 +2866,15 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
-        // The transform colour must have landed on y.
+        // The transform colour must have propagated to y.
         assert!(
             taints
-                .get(&("y".to_string(), 1))
+                .get(&(y, 1))
                 .is_some_and(|t| t.colours.intersects(TaintColour::URL_ENCODED)),
             "y should carry URL_ENCODED after URI::encode; got {:?}",
-            taints.get(&("y".to_string(), 1))
+            taints.get(&(y, 1))
         );
         let warnings = find_taint_warnings(
             &cfg,
@@ -2894,7 +2886,7 @@ mod tests {
         );
         let t106 = warnings
             .iter()
-            .find(|w| w.code == "T106" && w.variable == "y");
+            .find(|w| w.code == DiagCode::T106 && w.variable == "y");
         assert!(
             t106.is_some(),
             "expected T106 double-encode; got {warnings:?}"
@@ -2906,15 +2898,21 @@ mod tests {
         );
     }
 
-    /// Run W313 over a single-block function built from `ssa_stmts`.
-    fn w313_warnings(ssa_stmts: Vec<crate::ssa::SsaStatement>) -> Vec<TaintWarning> {
+    /// Run W313 over a single-block function whose SSA statements are built by
+    /// `build` against the function's variable interner.
+    fn w313_warnings(
+        build: impl FnOnce(&mut SsaFunction) -> Vec<crate::ssa::SsaStatement>,
+    ) -> Vec<TaintWarning> {
         use crate::cfg::{Function, Terminator};
         use crate::ssa::{SsaBlock, SsaFunction};
 
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let ssa_stmts = build(&mut ssa);
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             for s in &ssa_stmts {
                 b.statements.push(s.statement.clone());
             }
@@ -2925,16 +2923,8 @@ mod tests {
                 braced: false,
             });
         }
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2943,7 +2933,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
     }
@@ -2966,13 +2956,14 @@ mod tests {
     #[test]
     fn w313_variable_path_to_file_delete() {
         use crate::ssa::SsaStatement;
-        let ssa = SsaStatement {
-            statement: file_call(&["delete", "$p"]),
-            uses: [("p".to_owned(), 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-        };
-        let w = w313_warnings(vec![ssa]);
-        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        let w = w313_warnings(|ssa| {
+            vec![SsaStatement {
+                statement: file_call(&["delete", "$p"]),
+                uses: [(ssa.intern_var("p"), 1u32)].into_iter().collect(),
+                defs: HashMap::new(),
+            }]
+        });
+        let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
         assert_eq!(d.variable, "p");
         assert!(
             d.message
@@ -2995,18 +2986,22 @@ mod tests {
             value_needs_backsubst: false,
             tokens: None,
         };
-        let s0 = SsaStatement {
-            statement: assign,
-            uses: [("base".to_owned(), 0u32)].into_iter().collect(),
-            defs: [("p".to_owned(), 1u32)].into_iter().collect(),
-        };
-        let s1 = SsaStatement {
-            statement: file_call(&["delete", "$p"]),
-            uses: [("p".to_owned(), 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-        };
-        let w = w313_warnings(vec![s0, s1]);
-        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        let w = w313_warnings(|ssa| {
+            let base = ssa.intern_var("base");
+            let p = ssa.intern_var("p");
+            let s0 = SsaStatement {
+                statement: assign,
+                uses: [(base, 0u32)].into_iter().collect(),
+                defs: [(p, 1u32)].into_iter().collect(),
+            };
+            let s1 = SsaStatement {
+                statement: file_call(&["delete", "$p"]),
+                uses: [(p, 1u32)].into_iter().collect(),
+                defs: HashMap::new(),
+            };
+            vec![s0, s1]
+        });
+        let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
         assert!(
             d.message.contains("file delete with normalised path ($p)"),
             "{}",
@@ -3026,12 +3021,16 @@ mod tests {
     fn w313_silent_for_literal_path() {
         use crate::ssa::SsaStatement;
         // `file delete /tmp/foo` has no variable path argument.
-        let ssa = SsaStatement {
-            statement: file_call(&["delete", "/tmp/foo"]),
-            uses: HashMap::new(),
-            defs: HashMap::new(),
-        };
-        assert!(w313_warnings(vec![ssa]).is_empty());
+        assert!(
+            w313_warnings(|_ssa| {
+                vec![SsaStatement {
+                    statement: file_call(&["delete", "/tmp/foo"]),
+                    uses: HashMap::new(),
+                    defs: HashMap::new(),
+                }]
+            })
+            .is_empty()
+        );
     }
 
     #[test]
@@ -3056,11 +3055,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         assert_eq!(
             classify_network_interp_sinks(&reg, "socket", &["host".into(), "80".into()]),
-            vec![("T104", "socket".to_owned())]
+            vec![(DiagCode::T104, "socket".to_owned())]
         );
         assert_eq!(
             classify_network_interp_sinks(&reg, "interp", &["eval".into(), "$c".into()]),
-            vec![("T105", "interp eval".to_owned())]
+            vec![(DiagCode::T105, "interp eval".to_owned())]
         );
         // A non-eval interp subcommand and a plain command map to nothing.
         assert!(classify_network_interp_sinks(&reg, "interp", &["share".into()]).is_empty());
@@ -3081,31 +3080,29 @@ mod tests {
             name_braced: false,
             value: "hello".into(),
         };
-        let ssa_stmt = SsaStatement {
-            statement: stmt.clone(),
-            uses: HashMap::new(),
-            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
-        };
-
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(stmt);
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        let entry = cfg.entry;
+        cfg.blocks
+            .get_mut(&entry)
+            .unwrap()
+            .statements
+            .push(stmt.clone());
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
+        let ssa_stmt = SsaStatement {
+            statement: stmt,
+            uses: HashMap::new(),
+            defs: [(x, 1u32)].into_iter().collect(),
         };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3115,12 +3112,10 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
-            taints
-                .get(&("x".to_string(), 1))
-                .is_none_or(|t| !t.is_tainted()),
+            taints.get(&(x, 1)).is_none_or(|t| !t.is_tainted()),
             "constant assignment should not be tainted"
         );
     }
@@ -3157,44 +3152,39 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(regexp_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let pattern = ssa.intern_var("pattern");
         let ssa_assign = SsaStatement {
             statement: assign,
             uses: HashMap::new(),
-            defs: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            defs: [(pattern, 1u32)].into_iter().collect(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
-            uses: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3204,7 +3194,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
@@ -3218,7 +3208,7 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T102" && w.variable == "pattern"),
+                .any(|w| w.code == DiagCode::T102 && w.variable == "pattern"),
             "expected T102 for tainted $pattern passed to regexp, got {warnings:?}"
         );
     }
@@ -3255,44 +3245,39 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(regexp_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let pattern = ssa.intern_var("pattern");
         let ssa_assign = SsaStatement {
             statement: assign,
             uses: HashMap::new(),
-            defs: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            defs: [(pattern, 1u32)].into_iter().collect(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
-            uses: [("pattern".to_owned(), 1u32)].into_iter().collect(),
+            uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3302,7 +3287,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
@@ -3313,7 +3298,10 @@ mod tests {
             None,
         );
 
-        let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
+        let t102: Vec<_> = warnings
+            .iter()
+            .filter(|w| w.code == DiagCode::T102)
+            .collect();
         assert!(
             t102.is_empty(),
             "expected no T102 when '--' terminator present, got {t102:?}"
@@ -3337,7 +3325,7 @@ mod tests {
         let out_tainted = fu
             .taints
             .iter()
-            .any(|((name, _ver), t)| name == "out" && t.is_tainted());
+            .any(|((name, _ver), t)| fu.ssa.var_name(*name) == "out" && t.is_tainted());
         assert!(
             out_tainted,
             "expected 'out' to be tainted via interpolated string embedding tainted $x"
@@ -3352,10 +3340,10 @@ mod tests {
 
         let registry = CommandRegistry::build_default();
 
-        // Python's `TAINT_HINTS` is an import-time global, so `HTTP::uri`
+        // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
         // is a taint source in *every* dialect — including a `tcl8.6`
         // document whose registry never loaded the iRules commands. (The
-        // Python analyser taints `u` here; only the separate W002
+        // analyser taints `u` here; only the separate W002
         // "disabled command" check is dialect-gated.) The getter form
         // carries the path-prefixed, option-injection-safe colours.
         for dialect in [None, Some("f5-irules")] {
@@ -3365,7 +3353,7 @@ mod tests {
             let u = fu
                 .taints
                 .iter()
-                .find(|((n, _), _)| n == "u")
+                .find(|((n, _), _)| fu.ssa.var_name(*n) == "u")
                 .map(|(_, t)| *t);
             assert!(
                 u.is_some_and(TaintLattice::is_tainted),
@@ -3398,7 +3386,7 @@ mod tests {
         assert!(
             fu.taints
                 .iter()
-                .any(|((n, _), t)| n == "out" && t.is_tainted()),
+                .any(|((n, _), t)| fu.ssa.var_name(*n) == "out" && t.is_tainted()),
             "expected 'out' to be tainted via passthrough proc: {:?}",
             fu.taints,
         );
@@ -3426,7 +3414,7 @@ mod tests {
         let local_tainted = fu
             .taints
             .iter()
-            .any(|((n, _), t)| n == "local" && t.is_tainted());
+            .any(|((n, _), t)| fu.ssa.var_name(*n) == "local" && t.is_tainted());
         assert!(
             !local_tainted,
             "`local` must stay clean — `::writer` is unreachable from top-level: {:?}",
@@ -3446,7 +3434,7 @@ mod tests {
         let entry = fu
             .taints
             .iter()
-            .find(|((n, _), _)| n == "path")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "path")
             .expect("path taint entry");
         assert!(
             entry.1.colours.contains(TaintColour::PATH_PREFIXED),
@@ -3454,9 +3442,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // IRULE3001–3004 sink classifier + end-to-end detection
-    // -----------------------------------------------------------------------
 
     fn irules_warnings_for(source: &str) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
@@ -3489,7 +3475,7 @@ mod tests {
     #[test]
     fn classify_irules_sink_http_respond() {
         let hit = classify_irules_sink("HTTP::respond", &[]);
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3001"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3001));
     }
 
     #[test]
@@ -3498,7 +3484,7 @@ mod tests {
             "HTTP::header",
             &["insert".to_owned(), "X-Foo".to_owned(), "bar".to_owned()],
         );
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3002"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::header insert");
     }
 
@@ -3508,7 +3494,7 @@ mod tests {
             "HTTP::cookie",
             &["replace".to_owned(), "sid".to_owned(), "val".to_owned()],
         );
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3002"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::cookie replace");
     }
 
@@ -3524,13 +3510,13 @@ mod tests {
             classify_irules_sink("log", &["local0.info".to_owned(), "x".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
-            Some("IRULE3003"),
+            Some(DiagCode::Irule3003),
         );
         assert_eq!(
             classify_irules_sink("HTTP::redirect", &["https://evil".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
-            Some("IRULE3004"),
+            Some(DiagCode::Irule3004),
         );
     }
 
@@ -3545,7 +3531,7 @@ mod tests {
     fn irule3001_fires_on_tainted_respond_body() {
         let w = irules_warnings_for("set u [HTTP::uri]\nHTTP::respond 200 content $u");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3001"),
+            w.iter().any(|x| x.code == DiagCode::Irule3001),
             "expected IRULE3001, got {w:?}"
         );
     }
@@ -3554,7 +3540,7 @@ mod tests {
     fn irule3001_no_warning_for_literal_body() {
         let w = irules_warnings_for("HTTP::respond 200 content \"hello\"");
         assert!(
-            w.iter().all(|x| x.code != "IRULE3001"),
+            w.iter().all(|x| x.code != DiagCode::Irule3001),
             "expected no IRULE3001 on literal body, got {w:?}"
         );
     }
@@ -3563,7 +3549,7 @@ mod tests {
     fn irule3002_fires_on_tainted_header_value() {
         let w = irules_warnings_for("set v [HTTP::header X-Src]\nHTTP::header insert X-Echo $v");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3002"),
+            w.iter().any(|x| x.code == DiagCode::Irule3002),
             "expected IRULE3002, got {w:?}"
         );
     }
@@ -3578,7 +3564,7 @@ mod tests {
             "set v [HTTP::header X-Src]\nset _ [HTTP::header insert X-Echo $v]",
         );
         assert!(
-            w.iter().any(|x| x.code == "IRULE3002"),
+            w.iter().any(|x| x.code == DiagCode::Irule3002),
             "expected IRULE3002 inside command-sub sink, got {w:?}"
         );
     }
@@ -3587,7 +3573,7 @@ mod tests {
     fn irule3002_skipped_on_remove_subcommand() {
         let w = irules_warnings_for("set v [HTTP::header X-Src]\nHTTP::header remove $v");
         assert!(
-            w.iter().all(|x| x.code != "IRULE3002"),
+            w.iter().all(|x| x.code != DiagCode::Irule3002),
             "remove subcommand must not fire IRULE3002, got {w:?}"
         );
     }
@@ -3596,7 +3582,7 @@ mod tests {
     fn irule3003_fires_on_tainted_log() {
         let w = irules_warnings_for("set u [HTTP::uri]\nlog local0.info $u");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3003"),
+            w.iter().any(|x| x.code == DiagCode::Irule3003),
             "expected IRULE3003, got {w:?}"
         );
     }
@@ -3605,7 +3591,7 @@ mod tests {
     fn irule3004_fires_on_tainted_redirect() {
         let w = irules_warnings_for("set target [HTTP::header Location]\nHTTP::redirect $target");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3004"),
+            w.iter().any(|x| x.code == DiagCode::Irule3004),
             "expected IRULE3004, got {w:?}"
         );
     }
@@ -3614,15 +3600,15 @@ mod tests {
     fn irule3004_redirect_safe_suppresses_via_lattice() {
         // Direct lattice check: tainted + REDIRECT_SAFE must suppress.
         // (Latent as an end-to-end test until iRules sources are tagged
-        // with PATH_PREFIXED from their `taint_hints` — `HTTP::path` in
-        // Python carries PATH_PREFIXED on the getter form.)
+        // with PATH_PREFIXED from their `taint_hints` — `HTTP::path`
+        // carries PATH_PREFIXED on the getter form.)
         let lat = TaintLattice::tainted().with(TaintColour::PATH_PREFIXED);
-        assert!(irules_sink_suppressed("IRULE3004", lat));
+        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
         let lat = TaintLattice::tainted().with(TaintColour::PATH_NORMALISED);
-        assert!(irules_sink_suppressed("IRULE3004", lat));
+        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
         // Plain tainted should not suppress.
         assert!(!irules_sink_suppressed(
-            "IRULE3004",
+            DiagCode::Irule3004,
             TaintLattice::tainted()
         ));
     }
@@ -3648,7 +3634,7 @@ mod tests {
             &registry,
             Some("tcl8.6"),
         );
-        let t102 = warnings.iter().find(|w| w.code == "T102");
+        let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
         assert!(
             t102.is_some_and(|w| w.sink_command == "file delete"),
             "expected a T102 with ensemble label 'file delete', got {warnings:?}",
@@ -3656,11 +3642,11 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T103" && w.sink_command == "regexp"),
+                .any(|w| w.code == DiagCode::T103 && w.sink_command == "regexp"),
             "expected T103 for tainted regexp pattern, got {warnings:?}",
         );
-        // T103 must precede the regexp T102 (Python `_find_taint_sinks`
-        // emits the pattern check before the sink loop).
+        // T103 must precede the regexp T102 (the pattern check is
+        // emitted before the sink loop).
         let regexp_codes: Vec<&str> = warnings
             .iter()
             .filter(|w| w.sink_command == "regexp")
@@ -3691,7 +3677,7 @@ mod tests {
             Some("tcl8.6"),
         );
         assert!(
-            warnings.iter().all(|w| w.code != "T102"),
+            warnings.iter().all(|w| w.code != DiagCode::T102),
             "no T102 when `--` precedes the tainted path, got {warnings:?}",
         );
     }
@@ -3717,7 +3703,9 @@ mod tests {
             None,
         );
         assert!(
-            warnings.iter().all(|w| !w.code.starts_with("IRULE")),
+            warnings
+                .iter()
+                .all(|w| !w.code.as_str().starts_with("IRULE")),
             "no IRULE warnings without dialect, got {warnings:?}"
         );
     }
@@ -3726,21 +3714,27 @@ mod tests {
     fn irules_sink_suppressed_html_escaped_only_mitigates_3001() {
         let tainted_html = TaintLattice::tainted().with(TaintColour::HTML_ESCAPED);
         // IRULE3001 (HTTP response body) — HTML_ESCAPED directly mitigates.
-        assert!(irules_sink_suppressed("IRULE3001", tainted_html));
+        assert!(irules_sink_suppressed(DiagCode::Irule3001, tainted_html));
         // IRULE3002/3003 (header / log) — HTML_ESCAPED does NOT prove
         // CRLF-injection safety (the escape rewrites `<`/`>`/`&` but
-        // leaves raw CR/LF untouched). Python parity: `_CRLF_SAFE`
-        // excludes `HTML_ESCAPED`.
-        assert!(!irules_sink_suppressed("IRULE3002", tainted_html));
-        assert!(!irules_sink_suppressed("IRULE3003", tainted_html));
+        // leaves raw CR/LF untouched). The CRLF-safe mask excludes
+        // `HTML_ESCAPED`.
+        assert!(!irules_sink_suppressed(DiagCode::Irule3002, tainted_html));
+        assert!(!irules_sink_suppressed(DiagCode::Irule3003, tainted_html));
         // IRULE3004 (redirect) — also not mitigated by HTML_ESCAPED.
-        assert!(!irules_sink_suppressed("IRULE3004", tainted_html));
+        assert!(!irules_sink_suppressed(DiagCode::Irule3004, tainted_html));
 
         // `CRLF_FREE` does suppress IRULE3002/3003 (the one mitigation
-        // Python accepts in the value position).
+        // accepted in the value position).
         let tainted_crlf_free = TaintLattice::tainted().with(TaintColour::CRLF_FREE);
-        assert!(irules_sink_suppressed("IRULE3002", tainted_crlf_free));
-        assert!(irules_sink_suppressed("IRULE3003", tainted_crlf_free));
+        assert!(irules_sink_suppressed(
+            DiagCode::Irule3002,
+            tainted_crlf_free
+        ));
+        assert!(irules_sink_suppressed(
+            DiagCode::Irule3003,
+            tainted_crlf_free
+        ));
     }
 
     #[test]
@@ -3779,9 +3773,7 @@ mod tests {
         ));
     }
 
-    // -----------------------------------------------------------------------
     // IRULE3101 — setter-constraint violations
-    // -----------------------------------------------------------------------
 
     /// Default helper: run the setter check under the `f5-irules` dialect
     /// (which is the only dialect that can surface IRULE3101 post-internal-gate).
@@ -3818,7 +3810,7 @@ mod tests {
     fn irule3101_literal_missing_slash_warns() {
         let w = setter_warnings_for("HTTP::uri foo");
         assert_eq!(w.len(), 1);
-        assert_eq!(w[0].code, "IRULE3101");
+        assert_eq!(w[0].code, DiagCode::Irule3101);
         assert!(w[0].message.contains("HTTP::uri value must start"));
     }
 
@@ -3832,7 +3824,7 @@ mod tests {
     fn irule3101_http_path_literal_variants() {
         let bad = setter_warnings_for("HTTP::path bar");
         assert_eq!(bad.len(), 1);
-        assert_eq!(bad[0].code, "IRULE3101");
+        assert_eq!(bad[0].code, DiagCode::Irule3101);
         let good = setter_warnings_for("HTTP::path /bar");
         assert!(good.is_empty());
     }
@@ -3843,22 +3835,22 @@ mod tests {
         // has generic taint (no PATH_PREFIXED / _NORMALISED / _BOUNDED).
         let w = setter_warnings_for("set v [HTTP::header X-Foo]\nHTTP::uri $v");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "generic taint must fire IRULE3101, got {w:?}"
         );
     }
 
     #[test]
     fn irule3101_pure_var_ref_always_warns_without_safe_colour() {
-        // Matches Python parity: a plain `$p` setter value (no taint +
-        // no provable path colour) cannot be proved `/`-prefixed by the
-        // static analyser, so IRULE3101 fires. Latent suppression paths
+        // A plain `$p` setter value (no taint + no provable path colour)
+        // cannot be proved `/`-prefixed by the static analyser, so
+        // IRULE3101 fires. Latent suppression paths
         // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
         // will light up once iRules source `taint_hints` reach the Rust
         // lattice.
         let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
         );
     }
@@ -3866,10 +3858,10 @@ mod tests {
     #[test]
     fn irule3101_dynamic_command_sub_warns() {
         // RHS is a command sub `[foo]` → hits the dynamic branch, which
-        // always warns. The Python literal-check also bails on `[`.
+        // always warns. The literal-check also bails on `[`.
         let w = setter_warnings_for("HTTP::uri [something]");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "command-sub setter value must warn, got {w:?}"
         );
     }
@@ -3883,7 +3875,7 @@ mod tests {
         // `HTTP::path`.
         let under_irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
         assert_eq!(under_irules.len(), 1);
-        assert_eq!(under_irules[0].code, "IRULE3101");
+        assert_eq!(under_irules[0].code, DiagCode::Irule3101);
 
         let under_none = setter_warnings_for_dialect("HTTP::uri foo", None);
         assert!(
@@ -3898,9 +3890,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
-    // ARCH3 — registry-driven source / sink / setter-constraint coverage
-    // -----------------------------------------------------------------------
+    // registry-driven source / sink / setter-constraint coverage
 
     /// The Tcl-core source classification flows from the registry's
     /// [`Traits::TAINT_SOURCE`] flag: registry-side query and
@@ -3943,7 +3933,7 @@ mod tests {
             ));
         }
         assert!(
-            warnings.iter().any(|w| w.code == "T100"),
+            warnings.iter().any(|w| w.code == DiagCode::T100),
             "expected T100 from gets→eval with registry-driven source, got {warnings:?}",
         );
     }
@@ -3966,7 +3956,7 @@ mod tests {
         // surfaces T100 under the iRules dialect.
         let w = irules_warnings_for("set u [HTTP::uri]\nexpr $u");
         assert!(
-            w.iter().any(|d| d.code == "T100"),
+            w.iter().any(|d| d.code == DiagCode::T100),
             "expected T100 on tainted expr sink under iRules, got {w:?}",
         );
     }
@@ -3981,7 +3971,7 @@ mod tests {
         // an IRULE3101 setter-constraint violation.
         let irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
         assert!(
-            irules.iter().any(|w| w.code == "IRULE3101"),
+            irules.iter().any(|w| w.code == DiagCode::Irule3101),
             "expected IRULE3101 under iRules dialect, got {irules:?}",
         );
 
@@ -3989,7 +3979,7 @@ mod tests {
         // `HTTP::uri` is legal and the setter check must stay silent.
         let plain = setter_warnings_for_dialect("HTTP::uri foo", None);
         assert!(
-            plain.iter().all(|w| w.code != "IRULE3101"),
+            plain.iter().all(|w| w.code != DiagCode::Irule3101),
             "no IRULE3101 outside iRules, got {plain:?}",
         );
     }

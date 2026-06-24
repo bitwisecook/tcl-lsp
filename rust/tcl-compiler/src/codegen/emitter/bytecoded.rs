@@ -2,14 +2,11 @@
 //!
 //! Commands with compiled bytecode forms (beyond what
 //! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
-//! through this dispatcher. ARCH2 made hook selection
-//! registry-driven; ARCH5 finished the threading by reading the
-//! active [`tcl_registry::CommandRegistry`] from `ctx.registry` so dialect-loaded
-//! specs (iRules, Tk, EDA) drive codegen-hook resolution. The
-//! compiler still owns the per-variant emitter; the registry
-//! decides which variant applies.
-//!
-//! Ported from `core/compiler/codegen/_bytecoded.py` (C21).
+//! through this dispatcher. Hook selection is registry-driven: it
+//! reads the active [`tcl_registry::CommandRegistry`] from
+//! `ctx.registry` so dialect-loaded specs (iRules, Tk, EDA) drive
+//! codegen-hook resolution. The compiler still owns the per-variant
+//! emitter; the registry decides which variant applies.
 
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::CodegenHookId;
@@ -76,7 +73,7 @@ pub fn dispatch_codegen_hook(
     }
 }
 
-// ── list ──────────────────────────────────────────────────────────
+// list
 
 /// `llength $list` → `emit_word list; LIST_LENGTH; POP`.
 fn llength(ctx: &mut CodegenCtx, args: &[String]) -> bool {
@@ -233,7 +230,7 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── dict ──────────────────────────────────────────────────────────
+// dict
 
 /// `dict SUBCOMMAND …` — dispatch to a handful of specialised
 /// opcodes when the target variable is a proc-local (non-qualified)
@@ -380,7 +377,7 @@ fn dict_ensemble(ctx: &mut CodegenCtx, sub: &str, sub_args: &[String]) {
     ctx.seen_generic_invoke = true;
 }
 
-// ── array ─────────────────────────────────────────────────────────
+// array
 
 /// `array names $arr ...` / `array size $arr` in non-proc context:
 /// invoke the fully-qualified `::tcl::array::<sub>` form rather than
@@ -413,7 +410,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
 }
 
-// ── append / lappend ───────────────────────────────────────────────
+// append / lappend
 
 /// True when `var` names a variable codegen can resolve to a compiled
 /// local — a proc context, a plain (non-`::`-qualified) name, and not a
@@ -548,7 +545,7 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── unset ──────────────────────────────────────────────────────────
+// unset
 
 /// `unset ?-nocomplain? ?--? name ...` — statement-position specialisation
 /// in a proc body. Each variable unsets via `unsetScalar`/`unsetArray`
@@ -607,7 +604,7 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── tailcall ───────────────────────────────────────────────────────
+// tailcall
 
 /// `tailcall command ?arg ...?` — push the literal `"tailcall"` word, then
 /// each argument, and emit `tailcall N` where N counts the `"tailcall"`
@@ -630,7 +627,7 @@ fn tailcall_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── concat ─────────────────────────────────────────────────────────
+// concat
 
 /// `concat ?arg ...?` — const-fold when every argument is a plain literal
 /// (trim each, drop the empties, join with a single space — mirroring
@@ -665,7 +662,7 @@ fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── global / upvar ─────────────────────────────────────────────────
+// global / upvar
 
 /// `global varName ...` — link each (simple, proc-local) variable to the
 /// same-named global, byte-true with C Tcl's `TclCompileGlobalCmd`:
@@ -839,7 +836,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
     }
 
-    // -- C21 follow-ups: lrange / linsert / lset --
+    // -- lrange / linsert / lset --
 
     #[test]
     fn lrange_constant_indices() {
@@ -919,7 +916,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
     }
 
-    // -- C21e4: dict subcommands --
+    // -- dict subcommands --
 
     #[test]
     fn dict_set_proc_uses_dict_set_opcode() {
@@ -1625,7 +1622,7 @@ mod tests {
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
 
-    /// ARCH5 — `try_bytecoded` reads its registry from `ctx.registry`,
+    /// `try_bytecoded` reads its registry from `ctx.registry`,
     /// not from a private static. Loading the iRules dialect into the
     /// registry passed into the context must therefore make
     /// dialect-only specs visible to codegen-hook resolution. Today

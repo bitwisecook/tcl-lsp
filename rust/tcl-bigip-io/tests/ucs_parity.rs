@@ -1,8 +1,8 @@
-//! Differential parity tests for UCS handling against the Python reference.
+//! Differential parity tests for UCS handling against the captured reference.
 //!
 //! Fixtures are captured once from `tooling.f5.f5_remote.ucs` (a plain UCS, an
 //! encrypted UCS produced by `gpg --symmetric`, and the golden SCF text from
-//! `ucs_to_scf`). The tests themselves are self-contained — no Python, no gpg —
+//! `ucs_to_scf`). The tests themselves are self-contained — no external oracle, no gpg —
 //! so they run under plain `cargo test`.
 
 use std::path::PathBuf;
@@ -121,7 +121,7 @@ fn read_path_extracts_encrypted_ucs_file() {
     assert_eq!(source, read_text("sample.scf.golden"));
 }
 
-// --- Passphrase resolution order (explicit → env → prompt → error) ----------
+// Passphrase resolution order (explicit → env → prompt → error)
 
 // The `Result` is required to match the `PassphraseOptions::prompt` fn-pointer
 // type, so the always-`Ok` wrap is intentional.

@@ -1,7 +1,7 @@
 //! Intrep shimmer analysis — detect places where a variable's
 //! Tcl-value intrep (list/dict/int/…) is converted at a use site.
 //!
-//! Ported from `core/compiler/shimmer.py` (C27d). Decomposed into
+//! Decomposed into
 //! independently-testable sub-modules:
 //!
 //! | Sub-module    | Responsibility                                  |
@@ -25,11 +25,12 @@ pub mod thunking;
 pub mod use_site;
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::TypeLattice;
 
@@ -49,7 +50,7 @@ pub struct ShimmerWarning {
     /// Whether the use is inside a loop body.
     pub in_loop: bool,
     /// Diagnostic code (`"S100"` / `"S101"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Related spans + labels for diagnostic context.
@@ -68,7 +69,7 @@ pub struct ThunkingWarning {
     /// Second observed type.
     pub type_b: TclType,
     /// Diagnostic code (`"S102"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Related spans.
@@ -102,7 +103,7 @@ pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
 ) -> Vec<ShimmerWarning> {
@@ -173,7 +174,7 @@ pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ThunkingWarning> {
     thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks)
 }
@@ -190,7 +191,7 @@ pub(crate) fn find_thunking_warnings(
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {

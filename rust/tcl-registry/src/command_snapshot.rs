@@ -1,17 +1,12 @@
 //! Canonical JSON snapshot of the command registry per dialect.
 //!
-//! Rust port of `command_registry_snapshot` / `command_registry_snapshots`
-//! / `command_entry` in Python `tooling/registry_snapshot.py`, driving the
-//! `tcl registry-dump` verb. The output matches Python's
-//! `json.dumps(indent=2, sort_keys=True)` byte-for-byte on the faithful
-//! subset (the Tcl dialects); see `docs/rust-cli-port.md` for the
-//! documented data-divergence pins.
+//! Drives the `tcl registry-dump` verb. The output is deterministic
+//! JSON serialised with two-space indentation and sorted keys.
 //!
 //! **iRules note:** the per-command `info.validEvents*` fields embed the
 //! event-validity cross-product, which only applies to the `f5-irules`
 //! dialect (every Tcl command resolves to an empty valid-event set). The
-//! Tcl path therefore emits the constant empty-list count/digest; the
-//! f5-irules cross-product is a separate engine-gap workstream.
+//! Tcl path therefore emits the constant empty-list count/digest.
 
 use std::collections::BTreeMap;
 
@@ -25,16 +20,15 @@ use crate::snapshot::Json;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
-/// `sha256` of the empty string — `digest_list([])` in Python. Every Tcl
+/// `sha256` of the empty string — the digest of an empty list. Every Tcl
 /// command's `valid_events` set is empty, so this constant is the only
 /// digest the Tcl path emits.
 const EMPTY_LIST_DIGEST: &str =
     "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 /// The boolean `CommandSpec` trait fields backed by a [`Traits`] bit, paired
-/// with their Python field name (the snapshot's `traits` keys). Mirrors
-/// Python's `_command_bool_traits`, which captures every boolean field on
-/// the dataclass; the Rust spec folds these into the [`Traits`] bitflags.
+/// with their field name (the snapshot's `traits` keys). The spec folds
+/// these boolean fields into the [`Traits`] bitflags.
 const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("byte_compiled", Traits::BYTE_COMPILED),
     ("configures_channel", Traits::CONFIGURES_CHANNEL),
@@ -86,7 +80,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("wasm_emits_nothing", Traits::WASM_EMITS_NOTHING),
 ];
 
-/// Every dialect bit paired with its canonical name string (Python's
+/// Every dialect bit paired with its canonical name string (the
 /// dialect identifiers). Used to serialise `CommandSpec.dialects`.
 const DIALECT_NAMES: &[(DialectSet, &str)] = &[
     (DialectSet::CADENCE, "cadence-eda-tcl"),
@@ -119,7 +113,7 @@ fn arity_json(arity: Arity) -> Json {
     Json::Object(m)
 }
 
-/// `_jsonable(spec.dialects)`: `null` for "all dialects", else the sorted
+/// The spec's dialect set: `null` for "all dialects", else the sorted
 /// list of dialect-name strings.
 fn dialects_json(dialects: Option<DialectSet>) -> Json {
     match dialects {
@@ -136,9 +130,8 @@ fn dialects_json(dialects: Option<DialectSet>) -> Json {
     }
 }
 
-/// Whether `dialect` is allowed for a subcommand, mirroring Python
-/// `SubCommand.supports_dialect` (own set wins; else inherit the parent
-/// `CommandSpec.dialects`; else available).
+/// Whether `dialect` is allowed for a subcommand (own set wins; else
+/// inherit the parent `CommandSpec.dialects`; else available).
 fn sub_supports_dialect(sub: &SubCommand, dialect: DialectSet, parent: Option<DialectSet>) -> bool {
     match sub.dialects {
         Some(own) => own.contains(dialect),
@@ -147,8 +140,8 @@ fn sub_supports_dialect(sub: &SubCommand, dialect: DialectSet, parent: Option<Di
 }
 
 /// Sorted union of every option name declared on `spec` (no dialect
-/// filter) — Python `sorted(switch_names())` / a single form's
-/// `sorted(opt.name for opt in form.options)`.
+/// filter) — the sorted `switch_names()`, or for a single form the
+/// sorted option names.
 fn all_option_names(spec: &CommandSpec) -> Vec<&'static str> {
     let mut names = spec.switch_names(None);
     names.sort_unstable();
@@ -194,7 +187,7 @@ fn form_kind_value(kind: FormKind) -> &'static str {
     }
 }
 
-/// `BodyKind` → Python enum `.name` (`INLINE` / `STRUCTURAL`).
+/// `BodyKind` → enum `.name` (`INLINE` / `STRUCTURAL`).
 fn body_kind_name(kind: BodyKind) -> &'static str {
     match kind {
         BodyKind::Plain => "INLINE",
@@ -202,7 +195,7 @@ fn body_kind_name(kind: BodyKind) -> &'static str {
     }
 }
 
-/// `StorageType` → Python enum `.name`.
+/// `StorageType` → enum `.name`.
 fn storage_type_name(t: StorageType) -> &'static str {
     match t {
         StorageType::Dict => "DICT",
@@ -262,7 +255,7 @@ fn scalars_json(spec: &CommandSpec) -> Json {
 }
 
 /// The per-command `traits` block: every boolean `CommandSpec` field with
-/// its Python name. `xc_translatable` is `bool | None` in Python, so it is
+/// its name. `xc_translatable` is an optional boolean, so it is
 /// emitted only when set.
 fn traits_json(spec: &CommandSpec) -> Json {
     let mut m = BTreeMap::new();
@@ -288,7 +281,7 @@ fn traits_json(spec: &CommandSpec) -> Json {
 }
 
 /// The `subcommands` block: subcommands available in `dialect`, sorted by
-/// name (Python `_subcommands_json` over `subcommands_for_dialect`).
+/// name.
 fn subcommands_json(spec: &CommandSpec, dialect: DialectSet) -> Json {
     let mut subs: Vec<&SubCommand> = spec
         .subcommands
@@ -342,8 +335,8 @@ fn info_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// Deterministically pick the `CommandSpec` for `name` in `dialect`,
-/// mirroring Python `resolve_spec`: among specs supporting the dialect,
+/// Deterministically pick the `CommandSpec` for `name` in `dialect`.
+/// Among specs supporting the dialect,
 /// prefer the most dialect-specific (scoped beats catch-all, then the
 /// smallest scope).
 fn resolve_spec<'a>(
@@ -367,8 +360,8 @@ fn resolve_spec<'a>(
 /// Full structured snapshot of a single command in `dialect`.
 fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     let mut switches: Vec<&str> = spec.switch_names(Some(dialect));
-    // Top-level `switches` preserves declaration order (Python
-    // `list(spec.switch_names(dialect))`) — no sort.
+    // Top-level `switches` preserves declaration order
+    // (`spec.switch_names(dialect)`) — no sort.
     let switches_json: Vec<Json> = switches.drain(..).map(Json::s).collect();
 
     let mut excluded: Vec<&str> = spec.excluded_events.to_vec();
@@ -391,9 +384,8 @@ fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     Json::Object(m)
 }
 
-/// Sorted command names available in `dialect` — Python
-/// `REGISTRY.command_names(dialect)` (no package filtering: the default
-/// `active_packages = None` makes every package-gated command visible).
+/// Sorted command names available in `dialect` (no package filtering:
+/// with no active-package set, every package-gated command is visible).
 fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String> {
     let mut names: Vec<String> = registry
         .command_names()
@@ -405,16 +397,15 @@ fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String>
 }
 
 /// The full snapshot entry for a single `name` in `dialect`, or `None`
-/// when the command is unavailable. Used by the faithful-subset golden
-/// test to compare individual command entries.
+/// when the command is unavailable. Used by the golden test to compare
+/// individual command entries.
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
     let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
     resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset))
 }
 
-/// Snapshot of every command available in `dialect` — Python
-/// `command_registry_snapshot`.
+/// Snapshot of every command available in `dialect`.
 #[must_use]
 pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
     let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
@@ -433,7 +424,7 @@ pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> J
     Json::Object(m)
 }
 
-/// Multi-dialect snapshot — Python `command_registry_snapshots`.
+/// Multi-dialect snapshot.
 #[must_use]
 pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str]) -> Json {
     let mut by_dialect = BTreeMap::new();

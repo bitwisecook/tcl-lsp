@@ -1,7 +1,6 @@
 //! Type propagation over the SSA graph.
 //!
-//! Ported from `core/compiler/core_analyses.py::_type_propagation`
-//! (C26). Computes a `TypeLattice` for every SSA value by iterating
+//! Computes a `TypeLattice` for every SSA value by iterating
 //! to a fixed point over the CFG in SCCP-executable-block order.
 //!
 //! The pass is intentionally conservative: it only assigns a `Known`
@@ -28,17 +27,17 @@ use std::collections::HashSet;
 
 use tcl_registry::{CommandRegistry, TclType, Traits};
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::SccpResult;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, type_join};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
-// Float literal pattern matching Python's `_FLOAT_RE`: requires a decimal
-// point so that forms like `1e3` (no `.`) are NOT classified as floats.
+// Float literal pattern: requires a decimal point so that forms like `1e3`
+// (no `.`) are NOT classified as floats.
 fn looks_like_float(s: &str) -> bool {
     let s = s.trim();
     s.contains('.') && s.parse::<f64>().is_ok()
@@ -47,10 +46,10 @@ fn looks_like_float(s: &str) -> bool {
 const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
 
 /// True when `s` is a Tcl integer literal: decimal, or a `0x`/`0X` hex or
-/// `0b`/`0B` binary form (each optionally signed).  Mirrors
-/// `core_analyses._literal_type`'s INT cases — hex/binary store an INT intrep
-/// (`set n 0x80; incr n` is one clean parse, not per-iteration shimmer), while
-/// `0o` octal stays STRING (Python's set-statement classifier excludes it).
+/// `0b`/`0B` binary form (each optionally signed).  Hex/binary store an INT
+/// intrep (`set n 0x80; incr n` is one clean parse, not per-iteration
+/// shimmer), while `0o` octal stays STRING (the set-statement classifier
+/// excludes it).
 #[must_use]
 fn is_tcl_int_literal(s: &str) -> bool {
     if s.parse::<i64>().is_ok() {
@@ -75,15 +74,14 @@ fn literal_type(text: &str) -> TypeLattice {
     if looks_like_float(s) {
         return TypeLattice::of(TclType::Double);
     }
-    // Case-insensitive boolean check, matching Python's behaviour.
+    // Case-insensitive boolean check.
     if BOOL_LITERALS.contains(&s.to_ascii_lowercase().as_str()) {
         return TypeLattice::of(TclType::Boolean);
     }
     TypeLattice::of(TclType::String)
 }
 
-/// Classify a literal's type in **expr context**, mirroring
-/// `expr_types._literal_type_from_text`.
+/// Classify a literal's type in **expr context**.
 ///
 /// The expr parser tokenises every integer spelling — decimal, hex
 /// (`0xff`), octal (`0o15`), and binary (`0b1010`) — as an integer
@@ -95,7 +93,7 @@ fn literal_type(text: &str) -> TypeLattice {
 fn expr_literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
     let low = s.to_ascii_lowercase();
-    // Boolean first (matches Python's ordering).
+    // Boolean first.
     if BOOL_LITERALS.contains(&low.as_str()) {
         return TypeLattice::of(TclType::Boolean);
     }
@@ -124,8 +122,7 @@ fn function_namespace(qname: &str) -> String {
 
 /// Type a `TclOO` / snit constructor call (`Foo new` / `Foo create x` /
 /// `Foo %AUTO%` / `Widget .path`) as `OBJECT(class)` when its head resolves
-/// to a known class, else `OVERDEFINED`.  Mirrors the constructor arm of
-/// Python `_return_type_for_command`.  The relative head is resolved as-is,
+/// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
 /// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
 /// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
 fn constructor_object_type(
@@ -157,7 +154,7 @@ fn constructor_object_type(
             }
         }
     }
-    // D4-F6: do not infer `object_of` from the `new` spelling alone.
+    // Do not infer `object_of` from the `new` spelling alone.
     TypeLattice::overdefined()
 }
 
@@ -178,9 +175,8 @@ pub(crate) fn return_type_for_command(
     let Some(spec) = registry.get(command) else {
         // Not a registered built-in — recognise a TclOO / snit constructor
         // (`Foo new` / `Foo create x` / `Foo %AUTO%` / `Widget .path`) whose
-        // head names a known class, typing it `OBJECT(::ns::Foo)`.  Mirrors
-        // Python `_return_type_for_command`'s constructor arm + the D4-F6
-        // guard (no `object_of` from the `new` spelling alone).
+        // head names a known class, typing it `OBJECT(::ns::Foo)` — but not
+        // `object_of` from the `new` spelling alone.
         return constructor_object_type(command, args, known_classes, namespace);
     };
 
@@ -229,13 +225,13 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         } => {
             match op {
                 // BITWISE / shift → always Int (Tcl `expr` coerces the
-                // operands to integers).  GAP-B4(c): these were grouped
+                // operands to integers). Previously these were grouped
                 // with arithmetic and degraded to Numeric.
                 BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
                     TypeLattice::of(TclType::Int)
                 }
 
-                // LOGICAL / COMPARISON → always Boolean.  GAP-B4(b): the
+                // LOGICAL / COMPARISON → always Boolean.  The
                 // six iRules string predicates (`contains` / `starts_with`
                 // / `ends_with` / `equals` / `matches_glob` /
                 // `matches_regex`) plus the word-logical `and` / `or` used
@@ -267,7 +263,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
 
                 // ARITHMETIC / DIVISION → `_arithmetic_result` over the
                 // operand types, but only when both are `Known`;
-                // otherwise Numeric (mirrors `expr_types.py`).
+                // otherwise Numeric.
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
                     let lt = infer_expr_type(left, var_types);
                     let rt = infer_expr_type(right, var_types);
@@ -283,8 +279,8 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         ExprNode::Unary { op, operand, .. } => match op {
             // Arithmetic sign is identity (same intrep as the operand);
             // bitwise NOT always coerces to `Int` (`~$double` → Int);
-            // logical NOT yields `Boolean`.  Mirrors `expr_types`'
-            // `UnaryOpKind` BITWISE arm (GAP-B4: `~` was grouped with
+            // logical NOT yields `Boolean`.'
+            // `UnaryOpKind` BITWISE arm (`~` was grouped with
             // the identity ops and leaked the operand's `Double`).
             UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types),
             UnaryOp::BitNot => TypeLattice::of(TclType::Int),
@@ -302,7 +298,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         }
 
         // Math-function calls resolve through the expr-function table
-        // (GAP-B4(a)) — `sqrt($x)` is Double, `int(...)` is Int, etc.,
+        // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
         // where they previously degraded to overdefined.
         ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types),
 
@@ -315,7 +311,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
     }
 }
 
-/// Port of `expr_types.py::_arithmetic_result`: INT op INT → INT
+/// INT op INT → INT
 /// (boolean counts as int), DOUBLE anywhere → DOUBLE, otherwise
 /// NUMERIC.  Callers guarantee both operand types are `Known`.
 fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
@@ -328,10 +324,9 @@ fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
     }
 }
 
-/// Port of `core/compiler/expr_registry.py::EXPR_FUNC_REGISTRY` —
-/// resolve a Tcl `expr` math-function call to its result type.
+/// Resolve a Tcl `expr` math-function call to its result type.
 ///
-/// Mirrors `expr_types.py`'s `ExprCall` arm: `abs` is identity
+/// `abs` is identity
 /// (preserves its operand's type), `max` / `min` join their operand
 /// types, every other built-in returns its declared type, and an
 /// unknown function is conservatively `Numeric` (an `expr` function
@@ -373,7 +368,7 @@ fn expr_call_type(
         | "srand" => TypeLattice::of(TclType::Double),
         // Boolean-returning predicates.
         "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
-        // Unknown function — conservative (matches Python's NUMERIC).
+        // Unknown function — conservative.
         _ => TypeLattice::of(TclType::Numeric),
     }
 }
@@ -387,7 +382,7 @@ fn expr_call_type(
 /// use-site / merge shimmer check fires on a nominally-`String`-typed
 /// alias.  Derived from the registry's `CREATES_SCOPE_ALIAS` trait
 /// (top-level commands) and the per-subcommand `creates_scope_alias` flag
-/// (`namespace upvar`), mirroring Python's `scope_alias_commands()`.
+/// (`namespace upvar`).
 fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
     let Some(spec) = registry.get(command) else {
         return false;
@@ -404,11 +399,12 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
 #[must_use]
 fn evaluate_type_def(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     known_classes: &HashSet<String>,
     namespace: &str,
+    ssa: &SsaFunction,
 ) -> TypeLattice {
     match stmt {
         Statement::AssignConst { value, .. } => literal_type(value),
@@ -417,12 +413,12 @@ fn evaluate_type_def(
             // Build a name→TypeLattice map for variables used in the expression.
             let var_types: HashMap<String, TypeLattice> = uses
                 .iter()
-                .filter_map(|(name, &ver)| {
+                .filter_map(|(&sym, &ver)| {
                     if ver == 0 {
                         return None;
                     }
-                    let t = types.get(&(name.clone(), ver))?;
-                    Some((name.clone(), t.clone()))
+                    let t = types.get(&(sym, ver))?;
+                    Some((ssa.var_name(sym).to_owned(), t.clone()))
                 })
                 .collect();
             infer_expr_type(expr, &var_types)
@@ -433,11 +429,12 @@ fn evaluate_type_def(
             // Pure variable reference: inherit source type.
             if is_pure_var_ref(stripped) {
                 let name = normalise_var_name(stripped);
-                if let Some(&ver) = uses.get(name)
+                if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
                     && ver > 0
                 {
-                    return types
-                        .get(&(name.to_owned(), ver))
+                    return ssa
+                        .var_symbol(name)
+                        .and_then(|s| types.get(&(s, ver)))
                         .cloned()
                         .unwrap_or_else(TypeLattice::unknown);
                 }
@@ -517,16 +514,13 @@ pub fn propagate_types(
             };
 
             // Phi nodes at non-entry blocks.
-            if bn != &cfg.entry {
-                let mut exec_preds: Vec<&str> = preds
+            if *bn != cfg.entry {
+                let mut exec_preds: Vec<BlockId> = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
-                            .map(String::as_str)
+                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
+                            .copied()
                             .collect()
                     })
                     .unwrap_or_default();
@@ -543,17 +537,17 @@ pub fn propagate_types(
                     }
                     let mut phi_type = TypeLattice::unknown();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(*pred).copied().unwrap_or(0);
+                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
                         if ver == 0 {
                             continue;
                         }
                         let t = types
-                            .get(&(phi.name.clone(), ver))
+                            .get(&(phi.name, ver))
                             .cloned()
                             .unwrap_or_else(TypeLattice::unknown);
                         phi_type = type_join(&phi_type, &t);
                     }
-                    let key = (phi.name.clone(), phi.version);
+                    let key = (phi.name, phi.version);
                     let old = types
                         .get(&key)
                         .cloned()
@@ -573,7 +567,7 @@ pub fn propagate_types(
                 // mutated them arbitrarily); a scope-alias declaration
                 // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
                 // widens its defs — the imported variable's intrep is
-                // external and unknown.  Mirrors `_type_propagation`'s
+                // external and unknown.'s
                 // barrier + `alias_cmds` arms.  Every def of one statement
                 // gets the same inferred type, so compute it once.
                 let inferred = match stmt {
@@ -593,10 +587,11 @@ pub fn propagate_types(
                         registry,
                         known_classes,
                         &namespace,
+                        ssa,
                     ),
                 };
-                for (var, &ver) in &ssa_stmt.defs {
-                    let key = (var.clone(), ver);
+                for (&var, &ver) in &ssa_stmt.defs {
+                    let key = (var, ver);
                     let old = types
                         .get(&key)
                         .cloned()
@@ -616,8 +611,7 @@ pub fn propagate_types(
 
 /// Infer a function's overall return type by joining the result types
 /// of every executable exit — explicit `Return` terminators *and*
-/// fall-through exits (SYNC-MAY31-10 item 2, mirroring Python's
-/// `infer_return_type`).
+/// fall-through exits.
 ///
 /// `types` is the [`propagate_types`] result for the same function.
 /// SSA reaching-defs aren't tracked at terminators, so a `return $x`
@@ -640,14 +634,15 @@ pub(crate) fn infer_function_return_type(
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     known_classes: &HashSet<String>,
+    ssa: &SsaFunction,
 ) -> TypeLattice {
     let namespace = function_namespace(&cfg.name);
     // Collapse the versioned type map to a name-keyed map by joining
     // every version of each name — the over-approximation noted above.
     let mut var_types: HashMap<String, TypeLattice> = HashMap::new();
-    for ((name, _ver), t) in types {
+    for ((sym, _ver), t) in types {
         var_types
-            .entry(name.clone())
+            .entry(ssa.var_name(*sym).to_owned())
             .and_modify(|acc| *acc = type_join(acc, t))
             .or_insert_with(|| t.clone());
     }
@@ -682,7 +677,7 @@ pub(crate) fn infer_function_return_type(
     result.unwrap_or_else(TypeLattice::unknown)
 }
 
-/// Infer the type of a `return`'s textual value, mirroring the
+/// Infer the type of a `return`'s textual value, following the
 /// `Statement::AssignValue` arm of [`evaluate_type_def`] but keyed on
 /// the version-collapsed `var_types` map.
 fn infer_return_value_type(
@@ -729,10 +724,13 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    fn empty_sccp(blocks: &[&str]) -> SccpResult {
+    fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().copied().map(String::from).collect(),
+            executable_blocks: blocks
+                .iter()
+                .map(|n| f.block_id(n).expect("interned block"))
+                .collect(),
             executable_edges: HashSet::default(),
             constant_branches: Vec::new(),
         }
@@ -747,47 +745,40 @@ mod tests {
         }
     }
 
-    fn make_ssa_stmt(stmt: Statement, defs: &[(&str, u32)]) -> SsaStatement {
+    fn make_ssa_stmt(ssa: &mut SsaFunction, stmt: Statement, defs: &[(&str, u32)]) -> SsaStatement {
         SsaStatement {
             statement: stmt,
             uses: HashMap::new(),
-            defs: defs.iter().map(|&(n, v)| (String::from(n), v)).collect(),
+            defs: defs.iter().map(|&(n, v)| (ssa.intern_var(n), v)).collect(),
         }
     }
 
     #[test]
     fn integer_literal_infers_int() {
         let mut f = Function::new("::top", "entry");
+        let entry = f.entry;
         f.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign_const("x", "42"));
 
-        let sccp = empty_sccp(&["entry"]);
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let sccp = empty_sccp(&f, &["entry"]);
+        let mut ssa = SsaFunction::trivial("::top", entry, f.block_names().to_vec());
+        let stmt = make_ssa_stmt(&mut ssa, assign_const("x", "42"), &[("x", 1)]);
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
-                statements: vec![make_ssa_stmt(assign_const("x", "42"), &[("x", 1)])],
+                statements: vec![stmt],
                 entry_versions: HashMap::new(),
                 exit_versions: HashMap::new(),
             },
         );
+        let x = ssa.var_symbol("x").unwrap();
         let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
-        assert_eq!(
-            types.get(&("x".to_owned(), 1)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
     #[test]
@@ -799,6 +790,7 @@ mod tests {
             amount: None,
             safe_on_uninit: false,
         };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let t = evaluate_type_def(
             &stmt,
             &HashMap::new(),
@@ -806,6 +798,7 @@ mod tests {
             &registry(),
             &HashSet::new(),
             "::",
+            &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::Int));
     }
@@ -851,28 +844,24 @@ mod tests {
         // A minimal two-block CFG: entry → exit.
         // The phi in exit merges version 1 (INT) from entry.
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(crate::cfg::Terminator::Goto {
-            target: "exit".into(),
+        let entry = cfg.entry;
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(crate::cfg::Terminator::Goto {
+            target: exit,
             span: None,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
         let phi = Phi {
-            name: "x".into(),
+            name: x,
             version: 2,
-            incoming: [("entry".into(), 1u32)].into_iter().collect(),
+            incoming: [(entry, 1u32)].into_iter().collect(),
         };
-        let entry_stmt = make_ssa_stmt(assign_const("x", "10"), &[("x", 1)]);
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let entry_stmt = make_ssa_stmt(&mut ssa, assign_const("x", "10"), &[("x", 1)]);
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -882,7 +871,7 @@ mod tests {
             },
         );
         ssa.blocks.insert(
-            "exit".into(),
+            exit,
             SsaBlock {
                 name: "exit".into(),
                 phis: vec![phi],
@@ -892,21 +881,14 @@ mod tests {
             },
         );
 
-        let mut sccp = empty_sccp(&["entry", "exit"]);
-        sccp.executable_edges
-            .insert(("entry".into(), "exit".into()));
+        let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
+        sccp.executable_edges.insert((entry, exit));
 
         let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
         // x@1 (entry) should be Int.
-        assert_eq!(
-            types.get(&("x".to_owned(), 1)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.
-        assert_eq!(
-            types.get(&("x".to_owned(), 2)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 2)), Some(&TypeLattice::of(TclType::Int)));
     }
 
     /// `AssignValue` with a pure variable reference inherits the source type.
@@ -916,14 +898,12 @@ mod tests {
         let cu = CompilationUnit::build_for("set x 42\nset y $x", &registry(), false);
         let fu = cu.function("::top").unwrap();
         // x should be Int; y (which copies x) should also be Int.
-        let x_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "x" && t.tcl_type == Some(TclType::Int));
-        let y_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "y" && t.tcl_type == Some(TclType::Int));
+        let x_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+        });
+        let y_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "y" && t.tcl_type == Some(TclType::Int)
+        });
         assert!(x_is_int, "expected x to be Int");
         assert!(y_is_int, "expected y to inherit Int type from x");
     }
@@ -936,14 +916,13 @@ mod tests {
         let cu =
             CompilationUnit::build_for("set lst {a b c}\nset n [llength $lst]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let n_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "n" && t.tcl_type == Some(TclType::Int));
+        let n_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "n" && t.tcl_type == Some(TclType::Int)
+        });
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 
-    // GAP-B4: expr type-inference precision
+    // expr type-inference precision
 
     /// Infer the type of a standalone expression string (no SSA
     /// context — variable refs stay `Unknown`).
@@ -970,7 +949,7 @@ mod tests {
         assert_eq!(infer_str("abs(2)").tcl_type, Some(TclType::Int));
         // max/min join operands: max(1, 2) stays Int.
         assert_eq!(infer_str("max(1, 2)").tcl_type, Some(TclType::Int));
-        // Unknown function → Numeric (conservative, matches Python).
+        // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type, Some(TclType::Numeric));
     }
 
@@ -1078,7 +1057,7 @@ mod tests {
         let widened = fu
             .types
             .iter()
-            .any(|((n, _), t)| n == "counter" && t.kind == TypeKind::Overdefined);
+            .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind == TypeKind::Overdefined);
         assert!(
             widened,
             "scope-aliased 'counter' should be OVERDEFINED: {:?}",

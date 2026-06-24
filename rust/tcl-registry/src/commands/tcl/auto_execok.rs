@@ -1,4 +1,4 @@
-//! `auto_execok` command (name-parity reconcile, GAP-d).
+//! `auto_execok` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

@@ -1,4 +1,4 @@
-//! Tcl 9 `regexp.test` (the `regexp`/`regsub` command suite) ported to a Rust
+//! Tcl 9 `regexp.test` (the `regexp`/`regsub` command suite) as a Rust
 //! cargo test: each case's body is run end-to-end through the VM (compiled
 //! bytecode → the `tcl-regex` ARE engine) and its result compared against the
 //! value real `tclsh` produced. The corpus in `tests/data/regexp_cmd_cases.tsv`
@@ -118,7 +118,7 @@ fn skip_reason(c: &Case) -> Option<&'static str> {
     }
     // `regexp -about` and `regsub -command` are command-plumbing features in
     // `tcl-cmd-core` (shared with the C-engine runtime), explicitly "not yet
-    // supported" there — not part of the ARE engine this crate ports.
+    // supported" there — not part of the ARE engine this crate provides.
     if c.name == "regexp-20.2" || c.name.starts_with("regexp-27.") {
         return Some("cmd-core option unimplemented (-about / regsub -command)");
     }

@@ -1,38 +1,34 @@
 //! Canonical JSON snapshots of the F5 registries and graphs.
 //!
-//! Rust port of the snapshot builders in Python `tooling/registry_snapshot.py`.
-//! These produce deterministic, byte-for-byte snapshots of the registry data,
-//! serialised with `json.dumps`-parity (`indent=2`, `sort_keys=True`).
+//! These produce deterministic JSON snapshots of the registry data,
+//! serialised with two-space indentation and sorted keys.
 //!
-//! Ported snapshots:
+//! Snapshots:
 //!
 //! - [`profile_graph_snapshot`] — the protocol profile graph and the
-//!   protocol-namespace map (`profile_graph_snapshot` in Python).
+//!   protocol-namespace map.
 //! - [`object_graph_snapshot`] — the BIG-IP object graph: object kinds,
-//!   the header→kind map, and property reference edges (`object_graph_snapshot`).
+//!   the header→kind map, and property reference edges.
 //! - [`event_graph_snapshot`] — the iRules event graph: per-event protocol
 //!   props (with the `transport` string/list/null remapping), firing order,
-//!   flow chains, and the content-addressed valid-command digests
-//!   (`event_graph_snapshot`).
+//!   flow chains, and the content-addressed valid-command digests.
 //!
-//! The `commands` snapshot is **not** ported here: it embeds the full
-//! per-command traits/scalars dicts (mirroring the Python `CommandSpec`
-//! dataclass field layout) and the hover prose catalogue (`summary`), which
-//! reflect Python-internal derivation machinery without a clean, byte-identical
-//! Rust equivalent. The `f5 registry-dump` verb reports that section (and the
-//! `all` aggregate containing it) as deferred.
+//! The `commands` snapshot is **not** produced here: it embeds the full
+//! per-command traits/scalars dicts and the hover prose catalogue
+//! (`summary`), which have no clean, stable serialisation in this module.
+//! The `f5 registry-dump` verb reports that section (and the `all`
+//! aggregate containing it) as unavailable.
 
 use std::collections::BTreeMap;
 
 use crate::bigip::{BigipPropertySpec, default_registry};
 use crate::profiles::ProfileRegistry;
 
-/// Minimal JSON value tree with a `json.dumps(indent=2, sort_keys=True)`-parity
+/// Minimal JSON value tree with a two-space-indented, key-sorted
 /// serialiser.
 ///
-/// Object keys are always emitted in sorted (byte-wise) order, matching
-/// Python's `sort_keys=True`. The serialiser escapes strings exactly like
-/// `CPython`'s `json` module with the default `ensure_ascii=True`.
+/// Object keys are always emitted in sorted (byte-wise) order. The
+/// serialiser escapes non-ASCII as `\uXXXX` (ASCII-only output).
 #[derive(Debug, Clone)]
 pub enum Json {
     /// JSON `null`.
@@ -64,8 +60,8 @@ impl Json {
         Json::Array(items.into_iter().map(|v| Json::Str(v.into())).collect())
     }
 
-    /// Serialise to a string matching Python `json.dumps(indent=2,
-    /// sort_keys=True)` byte-for-byte (no trailing newline).
+    /// Serialise to a string as JSON with a 2-space indent and keys sorted
+    /// alphabetically (no trailing newline).
     #[must_use]
     pub fn dumps_indent2(&self) -> String {
         let mut out = String::new();
@@ -105,8 +101,7 @@ impl Json {
                 }
                 out.push('{');
                 let child = indent + 2;
-                // BTreeMap already iterates in sorted key order, matching
-                // Python's `sort_keys=True`.
+                // BTreeMap already iterates in sorted key order.
                 for (i, (key, value)) in map.iter().enumerate() {
                     if i > 0 {
                         out.push(',');
@@ -131,8 +126,8 @@ fn push_spaces(out: &mut String, n: usize) {
     }
 }
 
-/// Escape `value` as a JSON string literal exactly like `CPython`'s `json` module
-/// with the default `ensure_ascii=True`: the standard short escapes, `\uXXXX`
+/// Escape `value` as a JSON string literal with ASCII-only output
+/// (escape non-ASCII as `\uXXXX`): the standard short escapes, `\uXXXX`
 /// for every other control character, and `\uXXXX` (with surrogate pairs for
 /// astral code points) for every non-ASCII character.
 fn write_json_string(out: &mut String, value: &str) {
@@ -151,8 +146,8 @@ fn write_json_string(out: &mut String, value: &str) {
             }
             c if (c as u32) < 0x7f => out.push(c),
             c => {
-                // ensure_ascii=True: emit \uXXXX, surrogate-pairing astral
-                // code points (matching `CPython`'s behaviour).
+                // ASCII-only output: emit \uXXXX, surrogate-pairing astral
+                // code points.
                 let cp = c as u32;
                 if cp <= 0xffff {
                     push_u_escape(out, cp);
@@ -175,8 +170,6 @@ fn push_u_escape(out: &mut String, code: u32) {
 }
 
 /// Snapshot of the protocol profile graph and protocol-namespace map.
-///
-/// Mirrors Python `profile_graph_snapshot()`.
 #[must_use]
 pub fn profile_graph_snapshot() -> Json {
     let reg = ProfileRegistry::build();
@@ -190,7 +183,7 @@ pub fn profile_graph_snapshot() -> Json {
         entry.insert("name".to_owned(), Json::s(spec.name));
         // The Rust crate stores `tls_shared` for the shared TLS/persistence
         // layer (PERSIST / SSL_PERSISTENCE) to drive its infrastructure logic;
-        // the Python registry the snapshot mirrors reports both as `tls`.
+        // both are reported as `tls`.
         let layer = if spec.layer == "tls_shared" {
             "tls"
         } else {
@@ -243,14 +236,12 @@ pub fn profile_graph_snapshot() -> Json {
 }
 
 /// Snapshot of the BIG-IP object graph: object kinds and reference edges.
-///
-/// Mirrors Python `object_graph_snapshot()`.
 #[must_use]
 pub fn object_graph_snapshot() -> Json {
     let reg = default_registry();
 
-    // objectKinds: sorted by kind name; each kind is `_jsonable(spec)` —
-    // the BigipObjectKindSpec dataclass, whose keys `sort_keys=True` then
+    // objectKinds: sorted by kind name; each kind is the serialised
+    // `BigipObjectKindSpec` fields, whose keys the serialiser then
     // re-sorts alphabetically.
     let mut specs: Vec<_> = reg.specs().to_vec();
     specs.sort_by_key(|s| s.kind_spec.kind);
@@ -296,10 +287,10 @@ pub fn object_graph_snapshot() -> Json {
         })
         .collect();
 
-    // propertyReferences: mirrors PROPERTY_REFERENCE_SPECS — for every
+    // propertyReferences: for every
     // (module, object_type) header, the properties carrying references,
-    // keyed by property name. The Python snapshot iterates
-    // sorted((module, object_type)) then sorted(property_name); within a
+    // keyed by property name. The snapshot iterates
+    // sorted by (module, object_type) then property name; within a
     // property name the spec tuple preserves registration (append) order.
     let property_references = build_property_references(reg.specs());
 
@@ -318,12 +309,12 @@ pub fn object_graph_snapshot() -> Json {
     Json::Object(root)
 }
 
-/// Build the sorted `propertyReferences` list, reproducing Python's
-/// `PROPERTY_REFERENCE_SPECS` assembly + snapshot ordering.
+/// Build the sorted `propertyReferences` list: the property-reference
+/// assembly plus snapshot ordering.
 fn build_property_references(specs: &[&'static crate::bigip::BigipObjectSpec]) -> Vec<Json> {
     // (module, object_type) -> (property name -> appended specs).
     // BTreeMap gives the sorted iteration the snapshot relies on; the inner
-    // Vec preserves the registration (append) order Python uses for the spec
+    // Vec preserves the registration (append) order used for the spec
     // tuple of a repeated property name.
     type SectionMap = BTreeMap<String, Vec<&'static BigipPropertySpec>>;
     let mut by_header: BTreeMap<(String, String), SectionMap> = BTreeMap::new();
@@ -382,7 +373,7 @@ fn sorted(items: &[&str]) -> Vec<String> {
     v
 }
 
-/// Stable content digest of a string list (port of `digest_list`): sort the
+/// Stable content digest of a string list: sort the
 /// items, join with newlines, and SHA-256 — `"sha256:" + hexdigest`. The two
 /// heaviest registry facts (the per-event valid-command cross-product) are
 /// content-addressed this way so the snapshot stays small.
@@ -396,10 +387,10 @@ fn digest_list(items: &[String]) -> String {
     format!("sha256:{digest:x}")
 }
 
-/// Serialise an [`EventProps`](crate::events::EventProps) as the Python
-/// `_jsonable(props)` dict (the 9 dataclass fields; `sort_keys` reorders them
+/// Serialise an [`EventProps`](crate::events::EventProps) as a JSON
+/// object (the 9 fields; `sort_keys` reorders them
 /// at emit time). `transport` is remapped: empty → `null`, one → a string,
-/// many → a list (Python stores `str | tuple | None`).
+/// many → a list.
 fn event_props_json(props: &crate::events::EventProps) -> Json {
     let transport = match props.transport {
         [] => Json::Null,
@@ -426,11 +417,10 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
 }
 
 /// Snapshot of the iRules event graph: per-event protocol properties, firing
-/// order, flow chains, and the commands valid in each event. Port of
-/// `event_graph_snapshot` (`tooling/registry_snapshot.py`).
+/// order, flow chains, and the commands valid in each event.
 ///
 /// The per-event valid-command list is content-addressed (`validCommandsDigest`)
-/// rather than emitted verbatim, exactly as Python does.
+/// rather than emitted verbatim.
 #[must_use]
 pub fn event_graph_snapshot() -> Json {
     use crate::events::EventRegistry;
@@ -442,7 +432,7 @@ pub fn event_graph_snapshot() -> Json {
     let mut cmds = CommandRegistry::build_default();
     cmds.load_irules();
 
-    // `sorted(NAMESPACE_REGISTRY.all_event_names())`.
+    // Sorted event names.
     let mut names = events.all_event_names();
     names.sort_unstable();
 
@@ -484,7 +474,7 @@ pub fn event_graph_snapshot() -> Json {
         event_items.push(Json::Object(entry));
     }
 
-    // `[{"event": event, "profiles": sorted(profiles)} for event, profiles in MASTER_ORDER]`.
+    // One entry per event with its sorted profiles, in MASTER_ORDER.
     let master_order: Vec<Json> = events
         .master_order()
         .iter()
@@ -499,7 +489,7 @@ pub fn event_graph_snapshot() -> Json {
         })
         .collect();
 
-    // `_jsonable(FLOW_CHAINS)` — a `dict[chain_id, FlowChain]`.
+    // The flow chains, serialised as a map keyed by chain id.
     let mut flow_chains = BTreeMap::new();
     for chain in events.flow_chains() {
         let steps: Vec<Json> = chain

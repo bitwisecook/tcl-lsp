@@ -9,17 +9,15 @@
 //! * **IRULE5004** — `DNS::return` without a subsequent `return`
 //!   (iRule processing continues after `DNS::return`).
 //!
-//! C44-irules-flow status (audited at port time): IRULE3102, IRULE5002,
-//! IRULE5004 land here.  IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008
-//! (collect/release/payload pairing across `when` events), IRULE1201 /
-//! IRULE1202 (HTTP-after-respond and multi-respond), IRULE4004
-//! (per-request set hoistable to once-per-connection) require richer
-//! cross-event analysis built on `connection_scope.rs` —  ported as
-//! their own follow-up sub-strips per the chunk-log row's
-//! "each diagnostic is its own sub-strip" sequencing.
+//! The cross-event diagnostics — IRULE1005 / IRULE1006 / IRULE1007 /
+//! IRULE1008 (collect/release/payload pairing across `when` events),
+//! IRULE1201 / IRULE1202 (HTTP-after-respond and multi-respond), and
+//! IRULE4004 (per-request set hoistable to once-per-connection) — build
+//! on the richer cross-event analysis in `connection_scope.rs`.
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
@@ -46,9 +44,9 @@ fn irules_registry() -> &'static CommandRegistry {
 }
 
 /// Commands that commit an HTTP response — derived from the registry's
-/// `ResponseCommit` side-effect (Python `_commits_response_commands`), so the
-/// bare iRules `redirect` is included alongside `HTTP::respond` /
-/// `HTTP::redirect` without a hardcoded list.
+/// `ResponseCommit` side-effect, so the bare iRules `redirect` is
+/// included alongside `HTTP::respond` / `HTTP::redirect` without a
+/// hardcoded list.
 fn commits_response_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -66,9 +64,9 @@ fn commits_response_commands() -> &'static HashSet<String> {
     })
 }
 
-/// Registered `HTTP::` namespace commands (Python `_http_namespace_commands`).
+/// Registered `HTTP::` namespace commands.
 /// Only *registered* commands count, so an unregistered `HTTP::log` does not
-/// trip IRULE1201 (matches the Python set of 32 commands).
+/// trip IRULE1201 (the set of 32 registered commands).
 fn http_namespace_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -100,8 +98,7 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
 /// insertion point (e.g. the end of a `drop`), a replacement covers the text it
 /// rewrites.  This is the lower-level twin of the analyser's `CodeFix`, which
 /// re-exports this type (see `analyser::types`); it lives here because the
-/// iRules-flow / compiler-checks layer is below the analyser.  Mirrors Python
-/// `shared/diagnostic.py::CodeFix`.
+/// iRules-flow / compiler-checks layer is below the analyser.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CodeFix {
     /// Source span the `new_text` replaces (zero-width for an insertion).
@@ -119,7 +116,7 @@ pub struct IrulesCheckWarning {
     /// Source span of the offending call.
     pub span: Span,
     /// Diagnostic code (`"IRULE3102"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Optional replacement text (currently always `None`).
@@ -130,10 +127,10 @@ pub struct IrulesCheckWarning {
 }
 
 /// Return `true` when `args` suggests a *getter* invocation — no args,
-/// or every arg starts with `-` (all flags, no positional value). The
-/// Python canonical form resolves a `FormKind::GETTER` via the command
-/// registry; the Rust registry has no form-kind model yet, so this is
-/// a conservative approximation. `HTTP::path /foo` (setter) is excluded
+/// or every arg starts with `-` (all flags, no positional value).
+/// Resolving a getter form properly would need a form-kind model on the
+/// command registry, which it does not have yet, so this is a
+/// conservative approximation. `HTTP::path /foo` (setter) is excluded
 /// because `/foo` is a non-flag first arg.
 fn is_getter_form(args: &[String]) -> bool {
     args.iter().all(|a| a.starts_with('-'))
@@ -209,7 +206,7 @@ pub fn find_unnormalised_getter_warnings(
                         if is_unnormalised_getter(registry, command, args) {
                             out.push(IrulesCheckWarning {
                                 span: fu.abs_span(*span),
-                                code: "IRULE3102".to_owned(),
+                                code: DiagCode::Irule3102,
                                 message: format_message(command),
                                 replacement: None,
                                 fixes: Vec::new(),
@@ -237,7 +234,7 @@ pub fn find_unnormalised_getter_warnings(
                                     .unwrap_or(*span);
                                 out.push(IrulesCheckWarning {
                                     span: fu.abs_span(arg_span),
-                                    code: "IRULE3102".to_owned(),
+                                    code: DiagCode::Irule3102,
                                     message: format_message(&cmd),
                                     replacement: None,
                                     fixes: Vec::new(),
@@ -252,7 +249,7 @@ pub fn find_unnormalised_getter_warnings(
                         if is_unnormalised_getter(registry, &cmd, &sub_args) {
                             out.push(IrulesCheckWarning {
                                 span: fu.abs_span(*span),
-                                code: "IRULE3102".to_owned(),
+                                code: DiagCode::Irule3102,
                                 message: format_message(&cmd),
                                 replacement: None,
                                 fixes: Vec::new(),
@@ -268,19 +265,11 @@ pub fn find_unnormalised_getter_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
-// ---------------------------------------------------------------------------
 //
-// Mirrors `core/compiler/irules_flow.py::_check_unguarded_drops`
-// (lines 807-1050).  The Python implementation is path-sensitive
-// (walks each branch of every `if` / `switch` / `try` separately
-// and emits at branch joins where the drop survived).  This Rust
-// minimum-viable port linear-scans each `::when::*` proc body in
-// CFG order and emits when no terminator follows the drop in the
-// same block run.  Catches the most common shape (top-level
-// `drop` / `reject` without a guard); branch-sensitive coverage
-// is the C44 follow-up sub-strip.
+// Path-sensitive: each `::when::*` proc body is walked with each branch
+// of every `if` / `switch` / `try` tracked separately, emitting at
+// branch joins where the drop survived unguarded.
 
 fn is_drop_command(cmd: &str) -> bool {
     matches!(cmd, "drop" | "reject" | "discard")
@@ -290,8 +279,7 @@ fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
     // Any `DNS::return` (with or without options) requires a
     // following `return`; option-bearing forms (`DNS::return -...`)
     // are valid Tcl and equally affected by the missing-`return`
-    // hazard.  Mirrors Python `irules_flow.py` parity (no
-    // option-prefix gate) — addresses Codex review on PR #389.
+    // hazard (no option-prefix gate).
     cmd == "DNS::return"
 }
 
@@ -302,8 +290,8 @@ fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
 }
 
 /// One drop / DNS-return flow fact along a path.  Dedup keys on the
-/// `(dropped, dns_returned)` pair only (Python `_DropState` dedup), so the
-/// first unguarded occurrence on any surviving path wins.
+/// `(dropped, dns_returned)` pair only, so the first unguarded occurrence
+/// on any surviving path wins.
 #[derive(Clone, Default)]
 struct DropFlowState {
     dropped: bool,
@@ -313,8 +301,7 @@ struct DropFlowState {
     dns_at: Option<Span>,
 }
 
-/// Deduplicate drop states by `(dropped, dns_returned)`, keeping the first
-/// (Python `_dedupe`).
+/// Deduplicate drop states by `(dropped, dns_returned)`, keeping the first.
 fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
     let mut seen: HashSet<(bool, bool)> = HashSet::new();
     let mut out = Vec::new();
@@ -328,8 +315,7 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
 
 /// Leaf transfer for the drop-flow walk: `drop`/`reject`/`discard` set the
 /// dropped fact, `DNS::return` sets the DNS fact, and `event disable all`
-/// clears the dropped fact (it guards the drop).  Mirrors the leaf handling
-/// in Python `_analyse_drop_without_disable._walk`.
+/// clears the dropped fact (it guards the drop).
 fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
     let Statement::Call {
         command,
@@ -371,7 +357,7 @@ fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
 /// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
 /// `discard` (no following `event disable all` / `return`) or a `DNS::return`
 /// without a following `return`, on at least one path through a `::when::*`
-/// body.  Port of Python `irules_flow._analyse_drop_without_disable`.
+/// body.
 #[must_use]
 pub fn find_unguarded_drop_warnings(
     cu: &CompilationUnit,
@@ -384,7 +370,7 @@ pub fn find_unguarded_drop_warnings(
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
         drop_flow_leaf(st, stmt)
     };
-    // Honour the FE-DATAFLOW complexity guard (#652) but walk the structured
+    // Honour the complexity guard but walk the structured
     // IR body of each analysable `::when::*` event handler.
     for fu in cu.analysable_functions() {
         if !fu.name.starts_with("::when::") {
@@ -407,7 +393,7 @@ pub fn find_unguarded_drop_warnings(
             {
                 out.push(IrulesCheckWarning {
                     span,
-                    code: "IRULE5002".to_owned(),
+                    code: DiagCode::Irule5002,
                     message: format!(
                         "'{}' without 'event disable all' or 'return' — other iRules and later \
                          priorities in this event will still execute, which may cause TCL errors.",
@@ -415,8 +401,7 @@ pub fn find_unguarded_drop_warnings(
                     ),
                     replacement: None,
                     // Insert `event disable all` + `return` right after the drop
-                    // (a zero-width edit at the drop command's end).  Mirrors the
-                    // IRULE5002 `CodeFix` in Python `irules_flow.py`.
+                    // (a zero-width edit at the drop command's end).
                     fixes: vec![CodeFix {
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    event disable all\n    return".to_owned(),
@@ -429,12 +414,11 @@ pub fn find_unguarded_drop_warnings(
             {
                 out.push(IrulesCheckWarning {
                     span,
-                    code: "IRULE5004".to_owned(),
+                    code: DiagCode::Irule5004,
                     message: "'DNS::return' must be followed by 'return' to stop iRule processing."
                         .to_owned(),
                     replacement: None,
-                    // Insert `return` right after `DNS::return`.  Mirrors the
-                    // IRULE5004 `CodeFix` in Python `irules_flow.py`.
+                    // Insert `return` right after `DNS::return`.
                     fixes: vec![CodeFix {
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    return".to_owned(),
@@ -447,11 +431,8 @@ pub fn find_unguarded_drop_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
-// ---------------------------------------------------------------------------
 //
-// Mirrors `irules_flow.py::_find_collect_flow_warnings` (lines 680-806).
 // Cross-event analysis: classifies every `*::collect` / `*::release` /
 // `*::payload` call across every `::when::*` proc body, then emits:
 //
@@ -463,11 +444,10 @@ pub fn find_unguarded_drop_warnings(
 //   * IRULE1008 — `*::release` without matching `*::collect` on the
 //     same connection side.
 //
-// Side awareness mirrors Python's `_default_collect_side`: events
-// starting with SERVER prefer the server side; CLIENT prefer client;
-// `_RESPONSE` events default to server, `_REQUEST` to client; the
-// registry's `EventProps.client_side` / `server_side` flags override
-// when set exclusively.
+// Side awareness: events starting with SERVER prefer the server side;
+// CLIENT prefer client; `_RESPONSE` events default to server, `_REQUEST`
+// to client; the registry's `EventProps.client_side` / `server_side`
+// flags override when set exclusively.
 
 fn default_collect_side(event_name: &str) -> &'static str {
     let upper = event_name.to_ascii_uppercase();
@@ -550,8 +530,7 @@ fn scan_when_body_for_collect_flow(
 /// client-side event issues a server-side collect, and vice-versa).
 /// These commands carry an `ArgRole::Body` arg so they lower to a
 /// `Statement::Barrier` (or a `Statement::Call` with the body in
-/// `args[0]`); both shapes keep the body text in `args[0]`.  Mirrors
-/// `_scan_ir_body_with_side` in `compiler/irules_flow.py` (#501).
+/// `args[0]`); both shapes keep the body text in `args[0]`.
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
     side: &str,
@@ -630,7 +609,7 @@ fn scan_side_switch_body(
     registry: &CommandRegistry,
 ) {
     // iRules side-switch flow — lower under the iRules dialect so `{*}` is
-    // literal and `}{` splits words (SYNC-MAY19-dialect-contextvar, strip 3).
+    // literal and `}{` splits words.
     let module = lower_to_ir_with_config(
         body_text,
         registry,
@@ -650,8 +629,7 @@ fn scan_side_switch_body(
     }
 }
 
-/// Collect/release/payload pairing across all `when` events.  Mirrors
-/// `irules_flow.py::_find_collect_flow_warnings`.
+/// Collect/release/payload pairing across all `when` events.
 #[must_use]
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
@@ -714,7 +692,7 @@ pub fn find_collect_flow_warnings(
         let proto_hint: Vec<String> = protocols.iter().map(|p| format!("{p}::collect")).collect();
         out.push(IrulesCheckWarning {
             span: anchor_span,
-            code: "IRULE1005".to_owned(),
+            code: DiagCode::Irule1005,
             message: format!(
                 "'{event}' will never fire without a {required_side} {} call in another event.",
                 proto_hint.join(" or "),
@@ -730,7 +708,7 @@ pub fn find_collect_flow_warnings(
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
-                code: "IRULE1006".to_owned(),
+                code: DiagCode::Irule1006,
                 message: format!(
                     "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
                 ),
@@ -746,7 +724,7 @@ pub fn find_collect_flow_warnings(
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
-                code: "IRULE1007".to_owned(),
+                code: DiagCode::Irule1007,
                 message: format!(
                     "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
                 ),
@@ -762,7 +740,7 @@ pub fn find_collect_flow_warnings(
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
-                code: "IRULE1008".to_owned(),
+                code: DiagCode::Irule1008,
                 message: format!(
                     "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
                 ),
@@ -775,13 +753,11 @@ pub fn find_collect_flow_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
-// ---------------------------------------------------------------------------
 //
-// Path-sensitive port of `irules_flow.py::_analyse_when_body` (the C44
-// follow-up).  Walks the *structured* IR body of each `::when::HTTP*`
-// procedure, tracking a set of per-path response states so that:
+// Path-sensitive analysis of the *structured* IR body of each
+// `::when::HTTP*` procedure, tracking a set of per-path response states
+// so that:
 //
 //   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
 //     on a path that already responded; only the first response takes effect.
@@ -812,8 +788,8 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
-    // Iterate the *analysable* functions (honouring the FE-DATAFLOW
-    // complexity guard, #652) but walk their structured IR body.
+    // Iterate the *analysable* functions (honouring the complexity
+    // guard) but walk their structured IR body.
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
@@ -847,7 +823,7 @@ pub fn find_http_flow_warnings(
     out
 }
 
-/// Deduplicate flow states by `(responded, respond_at)` (Python `_dedupe`).
+/// Deduplicate flow states by `(responded, respond_at)`.
 fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
     let mut seen: HashSet<(bool, i64)> = HashSet::new();
     let mut out = Vec::new();
@@ -861,8 +837,8 @@ fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
 }
 
 /// The command word + span a statement applies to the response flow, or `None`.
-/// Mirrors Python `_stmt_command`: direct `Call`/`Barrier` heads, plus a
-/// whole-value `[cmd …]` command substitution assigned by `set`.
+/// Direct `Call`/`Barrier` heads, plus a whole-value `[cmd …]` command
+/// substitution assigned by `set`.
 fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
     match stmt {
         Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
@@ -888,7 +864,7 @@ fn apply_http_flow_command(
         if state.responded {
             out.push(IrulesCheckWarning {
                 span,
-                code: "IRULE1202".to_owned(),
+                code: DiagCode::Irule1202,
                 message: format!(
                     "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
                 ),
@@ -905,7 +881,7 @@ fn apply_http_flow_command(
     if state.responded && http_namespace_commands().contains(cmd) {
         out.push(IrulesCheckWarning {
             span,
-            code: "IRULE1201".to_owned(),
+            code: DiagCode::Irule1201,
             message: format!(
                 "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
             ),
@@ -921,8 +897,7 @@ fn apply_http_flow_command(
 /// branch and merge (`dedupe`) at join points; `return` terminates the current
 /// paths.  Leaf statements are transferred by `leaf` (which may emit warnings
 /// into `out`).  Shared by the IRULE1201/1202 and IRULE5002/5004 analyses —
-/// they differ only in their state type, `leaf`, and `dedupe`.  Mirrors Python
-/// `irules_flow._analyse_script` / `_walk`.
+/// they differ only in their state type, `leaf`, and `dedupe`.
 ///
 /// `return_sink` is the nearest enclosing `catch` body's collection point.
 /// Tcl `catch` swallows `TCL_RETURN`, so a `return` inside a catch body does
@@ -1075,9 +1050,7 @@ where
             for st in states {
                 // `catch` swallows TCL_RETURN: both the body's normal exits and
                 // any at-return states continue past the catch.  Fall back to
-                // the incoming state if the body yields nothing.  Mirrors
-                // Python `IRCatch`: `next_states.extend(body_out + catch_returns
-                // or [st])`.
+                // the incoming state if the body yields nothing.
                 let mut catch_returns = Vec::new();
                 let mut body_out =
                     walk_flow(body, one(st), out, leaf, dedupe, Some(&mut catch_returns));
@@ -1144,23 +1117,19 @@ where
     })
 }
 
-// ---------------------------------------------------------------------------
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
-// ---------------------------------------------------------------------------
 //
-// Mirrors `irules_flow.py::_check_hoistable_sets` (lines 1075-1280).
 // Per-request events (HTTP_REQUEST, HTTP_REQUEST_DATA, etc.) run on
 // every request; once-per-connection events (CLIENT_ACCEPTED,
 // CLIENTSSL_HANDSHAKE) run once.  An `AssignConst` whose value
 // doesn't depend on per-request data could be hoisted to the
 // once-per-connection event, saving work per request.
 //
-// Minimum-viable port: flag every `set var value` in a per-request
-// event whose value is a literal (no `$` substitutions, no
-// `[cmd]` substitutions) and whose variable name is also literal.
-// The Python implementation additionally checks that the variable
-// isn't reassigned later in the same body (otherwise hoisting
-// changes semantics) — that branch-aware check is the follow-up.
+// Flags every `set var value` in a per-request event whose value is a
+// literal (no `$` substitutions, no `[cmd]` substitutions) and whose
+// variable name is also literal.  It does not check that the variable
+// isn't reassigned later in the same body (which would change the
+// hoisting semantics).
 
 fn is_per_request_event(event: &str) -> bool {
     // Strip priority index suffix.
@@ -1222,7 +1191,7 @@ pub fn find_hoistable_set_warnings(
                 }
                 out.push(IrulesCheckWarning {
                     span: fu.abs_span(span),
-                    code: "IRULE4004".to_owned(),
+                    code: DiagCode::Irule4004,
                     message: format!(
                         "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",
                     ),
@@ -1235,20 +1204,15 @@ pub fn find_hoistable_set_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE4002 — generic `static::` variable name that will collide
-// ---------------------------------------------------------------------------
 //
-// Mirrors `irules_flow.py::_find_generic_static_names`. Walks every
-// `::when::` CFG body for statements that define a `static::` variable
-// and flags bare names matching a fixed set of generic patterns
-// (`DEFAULT_GENERIC_VARIABLE_PATTERNS`). Deduplicated across events —
-// the first occurrence's span wins. Custom user patterns are not
-// plumbed here (the analyser uses the default set, same as Python's
-// default-config path).
+// Walks every `::when::` CFG body for statements that define a
+// `static::` variable and flags bare names matching a fixed set of
+// generic patterns. Deduplicated across events — the first occurrence's
+// span wins. Custom user patterns are not plumbed here (the analyser
+// uses the default set).
 
-/// Lowercased bare names considered generic. Every default pattern in
-/// `compiler/irules_static_names.py::DEFAULT_GENERIC_VARIABLE_PATTERNS`
+/// Lowercased bare names considered generic. Every generic-name pattern
 /// is fully `^…$`-anchored over a finite alternation, so the regex
 /// `search` over the lowercased bare name is equivalent to exact
 /// membership in this set.
@@ -1369,7 +1333,7 @@ fn check_generic_static(
     let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
     out.push(IrulesCheckWarning {
         span,
-        code: "IRULE4002".to_owned(),
+        code: DiagCode::Irule4002,
         message: format!(
             "'{var_name}' is a generic name that will collide with other iRules. \
              static:: variables are shared across every iRule on the BIG-IP system — \
@@ -1380,9 +1344,7 @@ fn check_generic_static(
     });
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -1403,7 +1365,7 @@ mod tests {
     fn irule3102_warns_on_bare_http_uri_getter() {
         let w = warnings_for_irules("set u [HTTP::uri]");
         assert_eq!(w.len(), 1, "expected one IRULE3102, got {w:?}");
-        assert_eq!(w[0].code, "IRULE3102");
+        assert_eq!(w[0].code, DiagCode::Irule3102);
         assert!(w[0].message.contains("HTTP::uri -normalized"));
     }
 
@@ -1429,7 +1391,7 @@ mod tests {
             "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri]\n}\n",
         );
         assert_eq!(w.len(), 1, "expected one IRULE3102, got {w:?}");
-        assert_eq!(w[0].code, "IRULE3102");
+        assert_eq!(w[0].code, DiagCode::Irule3102);
         assert!(w[0].message.contains("HTTP::uri -normalized"));
     }
 
@@ -1484,7 +1446,7 @@ mod tests {
         ]));
     }
 
-    /// ARCH3 — IRULE3102 must derive its command set from the
+    /// IRULE3102 must derive its command set from the
     /// registry's `OptionSpec` table (not a hardcoded list). When
     /// the registry-side option is present, the check fires; when
     /// the registered command does not declare `-normalized`, no
@@ -1512,7 +1474,7 @@ mod tests {
         // IRULE3102; HTTP::header (no -normalized in registry) does not.
         let with_uri = warnings_for_irules("set u [HTTP::uri]");
         assert!(
-            with_uri.iter().any(|w| w.code == "IRULE3102"),
+            with_uri.iter().any(|w| w.code == DiagCode::Irule3102),
             "expected IRULE3102 on HTTP::uri, got {with_uri:?}",
         );
         let with_header = warnings_for_irules("set u [HTTP::header Content-Type]");
@@ -1522,7 +1484,7 @@ mod tests {
         );
     }
 
-    // -- IRULE5002 / IRULE5004 ----------------------------------------
+    // IRULE5002 / IRULE5004
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -1533,7 +1495,7 @@ mod tests {
     fn irule5002_drop_without_return_fires() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE5002"),
+            ws.iter().any(|w| w.code == DiagCode::Irule5002),
             "expected IRULE5002, got {ws:?}",
         );
     }
@@ -1542,7 +1504,7 @@ mod tests {
     fn irule5002_drop_followed_by_return_clean() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop; return }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE5002"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule5002),
             "no IRULE5002 expected when `return` guards the drop, got {ws:?}",
         );
     }
@@ -1551,7 +1513,7 @@ mod tests {
     fn irule5002_drop_followed_by_event_disable_all_clean() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop; event disable all }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE5002"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule5002),
             "no IRULE5002 expected when `event disable all` guards the drop, got {ws:?}",
         );
     }
@@ -1560,7 +1522,7 @@ mod tests {
     fn irule5002_reject_also_fires() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { reject }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE5002"),
+            ws.iter().any(|w| w.code == DiagCode::Irule5002),
             "expected IRULE5002 on `reject`, got {ws:?}",
         );
     }
@@ -1578,7 +1540,7 @@ mod tests {
     fn irule5004_dns_return_without_return_fires() {
         let ws = drop_warnings("when DNS_REQUEST { DNS::return }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE5004"),
+            ws.iter().any(|w| w.code == DiagCode::Irule5004),
             "expected IRULE5004, got {ws:?}",
         );
     }
@@ -1587,7 +1549,7 @@ mod tests {
     fn irule5004_dns_return_followed_by_return_clean() {
         let ws = drop_warnings("when DNS_REQUEST { DNS::return; return }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE5004"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule5004),
             "no IRULE5004 expected when `return` follows `DNS::return`, got {ws:?}",
         );
     }
@@ -1601,7 +1563,7 @@ mod tests {
     fn drop_codes(source: &str) -> Vec<String> {
         let mut c: Vec<String> = drop_warnings(source)
             .iter()
-            .map(|w| w.code.clone())
+            .map(|w| w.code.to_string())
             .collect();
         c.sort();
         c
@@ -1636,7 +1598,7 @@ mod tests {
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
         let w = ws
             .iter()
-            .find(|w| w.code == "IRULE5002")
+            .find(|w| w.code == DiagCode::Irule5002)
             .expect("IRULE5002");
         assert_eq!(w.span.start(), 23, "span should point at `drop`");
     }
@@ -1645,11 +1607,11 @@ mod tests {
     fn irule5002_carries_insertion_fix() {
         // The quick-fix inserts `event disable all` + `return` *after* the drop
         // (a zero-width edit anchored at the drop command's end), independent of
-        // the diagnostic span.  Text matches the Python IRULE5002 `CodeFix`.
+        // the diagnostic span.
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
         let w = ws
             .iter()
-            .find(|w| w.code == "IRULE5002")
+            .find(|w| w.code == DiagCode::Irule5002)
             .expect("IRULE5002");
         assert_eq!(w.fixes.len(), 1, "expected one fix, got {:?}", w.fixes);
         let fix = &w.fixes[0];
@@ -1665,7 +1627,7 @@ mod tests {
         let ws = drop_warnings("when DNS_REQUEST { DNS::return }");
         let w = ws
             .iter()
-            .find(|w| w.code == "IRULE5004")
+            .find(|w| w.code == DiagCode::Irule5004)
             .expect("IRULE5004");
         assert_eq!(w.fixes.len(), 1);
         let fix = &w.fixes[0];
@@ -1688,9 +1650,11 @@ mod tests {
     fn irule5002_drop_and_return_inside_catch_still_warns() {
         // `catch` swallows the `return`, so it does NOT stop iRule processing —
         // the unguarded `drop` still leaks past the catch and must be flagged.
-        // Mirrors Python `test_drop_and_return_inside_catch_still_warns`.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop; return }\n}");
-        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5002").collect();
+        let hits: Vec<_> = ws
+            .iter()
+            .filter(|w| w.code == DiagCode::Irule5002)
+            .collect();
         assert_eq!(hits.len(), 1, "expected one IRULE5002, got {ws:?}");
         assert!(
             hits[0].message.contains("drop"),
@@ -1702,11 +1666,10 @@ mod tests {
     #[test]
     fn irule5002_catch_body_without_return_still_warns_drop() {
         // A catch whose body does not return continues normally and the
-        // unguarded drop still leaks out.  Mirrors Python
-        // `test_catch_body_without_return_still_warns_drop`.
+        // unguarded drop still leaks out.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop }\n}");
         assert_eq!(
-            ws.iter().filter(|w| w.code == "IRULE5002").count(),
+            ws.iter().filter(|w| w.code == DiagCode::Irule5002).count(),
             1,
             "expected one IRULE5002, got {ws:?}",
         );
@@ -1714,11 +1677,10 @@ mod tests {
 
     #[test]
     fn irule5002_catch_without_drop_no_warning() {
-        // A benign catch body must not spuriously warn.  Mirrors Python
-        // `test_catch_without_drop_no_warning`.
+        // A benign catch body must not spuriously warn.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { set x 1; return }\n}");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE5002"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule5002),
             "no IRULE5002 expected for a benign catch, got {ws:?}",
         );
     }
@@ -1726,10 +1688,12 @@ mod tests {
     #[test]
     fn irule5004_dns_return_and_return_inside_catch_still_warns() {
         // `catch` swallows the `return` so it does not stop processing — the
-        // unguarded `DNS::return` still leaks out.  Mirrors Python
-        // `test_dns_return_and_return_inside_catch_still_warns`.
+        // unguarded `DNS::return` still leaks out.
         let ws = drop_warnings("when DNS_REQUEST {\n    catch { DNS::return; return }\n}");
-        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5004").collect();
+        let hits: Vec<_> = ws
+            .iter()
+            .filter(|w| w.code == DiagCode::Irule5004)
+            .collect();
         assert_eq!(hits.len(), 1, "expected one IRULE5004, got {ws:?}");
         assert!(
             hits[0].message.contains("DNS::return"),
@@ -1738,7 +1702,7 @@ mod tests {
         );
     }
 
-    // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
+    // IRULE1005 / 1006 / 1007 / 1008
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let reg = registry();
@@ -1751,7 +1715,7 @@ mod tests {
         // CLIENT_DATA needs a TCP::collect or UDP::collect somewhere.
         let ws = flow_warnings("when CLIENT_DATA { log local0. \"data\" }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1005"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "expected IRULE1005, got {ws:?}",
         );
     }
@@ -1766,7 +1730,7 @@ mod tests {
              when SERVER_CONNECTED { TCP::release }",
         );
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1005"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "no IRULE1005 expected — CLIENT_ACCEPTED supplies the collect, got {ws:?}",
         );
     }
@@ -1775,7 +1739,7 @@ mod tests {
     fn irule1006_payload_without_collect_fires() {
         let ws = flow_warnings("when HTTP_REQUEST { HTTP::payload }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1006"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1006),
             "expected IRULE1006 on HTTP::payload without HTTP::collect, got {ws:?}",
         );
     }
@@ -1784,7 +1748,7 @@ mod tests {
     fn irule1007_collect_without_release_fires() {
         let ws = flow_warnings("when CLIENT_ACCEPTED { TCP::collect }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1007"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1007),
             "expected IRULE1007, got {ws:?}",
         );
     }
@@ -1793,7 +1757,7 @@ mod tests {
     fn irule1008_release_without_collect_fires() {
         let ws = flow_warnings("when CLIENT_ACCEPTED { TCP::release }");
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1008"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1008),
             "expected IRULE1008, got {ws:?}",
         );
     }
@@ -1806,16 +1770,16 @@ mod tests {
         );
         // Both sides — same side — should NOT fire 1007 or 1008.
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1007"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1007),
             "1007 unexpected, got {ws:?}",
         );
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1008"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1008),
             "1008 unexpected, got {ws:?}",
         );
     }
 
-    // -- SYNC-MAY31-4 (#501): side-switch body descent + peer flip -----
+    // -- side-switch body descent + peer flip -----
 
     #[test]
     fn collect_inside_clientside_body_is_seen() {
@@ -1829,7 +1793,7 @@ mod tests {
              when CLIENT_DATA { log local0. \"data\" }",
         );
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1005"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "no IRULE1005 expected — the clientside body supplies the collect, got {ws:?}",
         );
     }
@@ -1847,7 +1811,7 @@ mod tests {
         );
         let irule1005: Vec<&str> = ws
             .iter()
-            .filter(|w| w.code == "IRULE1005")
+            .filter(|w| w.code == DiagCode::Irule1005)
             .map(|w| w.message.as_str())
             .collect();
         assert_eq!(
@@ -1863,7 +1827,7 @@ mod tests {
 
     #[test]
     fn side_switch_specs_have_body_role_and_arity() {
-        // Registry-level guard for the #501 spec edits.
+        // Registry-level guard for the spec edits.
         let r = registry();
         for cmd in ["clientside", "serverside", "peer"] {
             assert!(r.is_side_switch(cmd), "{cmd} must be a side-switch");
@@ -1897,7 +1861,7 @@ mod tests {
         assert!(none.is_empty(), "got {none:?}");
     }
 
-    // -- IRULE1201 / 1202 ---------------------------------------------
+    // IRULE1201 / 1202
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -1910,7 +1874,7 @@ mod tests {
             "when HTTP_REQUEST { HTTP::respond 200 content x; HTTP::respond 404 content y }",
         );
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1202"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1202),
             "expected IRULE1202, got {ws:?}",
         );
     }
@@ -1921,7 +1885,7 @@ mod tests {
             "when HTTP_REQUEST { HTTP::respond 200 content ok; HTTP::header Cache-Control no-cache }",
         );
         assert!(
-            ws.iter().any(|w| w.code == "IRULE1201"),
+            ws.iter().any(|w| w.code == DiagCode::Irule1201),
             "expected IRULE1201, got {ws:?}",
         );
     }
@@ -1931,7 +1895,7 @@ mod tests {
         let ws = http_warnings("when HTTP_REQUEST { HTTP::respond 200 content ok; return }");
         assert!(
             !ws.iter()
-                .any(|w| w.code == "IRULE1201" || w.code == "IRULE1202"),
+                .any(|w| w.code == DiagCode::Irule1201 || w.code == DiagCode::Irule1202),
             "no IRULE1201/1202 expected, got {ws:?}",
         );
     }
@@ -1941,15 +1905,17 @@ mod tests {
         // `catch` swallows the `return`, so control continues past the catch
         // with the response already committed — the post-catch HTTP::header
         // insert must still be flagged, and the at-catch-return `responded`
-        // state must propagate out.  Mirrors Python
-        // `test_respond_then_return_inside_catch_warns`.
+        // state must propagate out.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { HTTP::respond 200 content ok; return }\n\
             \x20   HTTP::header insert X-Debug \"yes\"\n\
             }",
         );
-        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE1201").collect();
+        let hits: Vec<_> = ws
+            .iter()
+            .filter(|w| w.code == DiagCode::Irule1201)
+            .collect();
         assert_eq!(hits.len(), 1, "expected one IRULE1201, got {ws:?}");
         assert!(
             hits[0].message.contains("HTTP::header"),
@@ -1961,8 +1927,7 @@ mod tests {
     #[test]
     fn irule1201_catch_body_without_return_still_continues() {
         // A catch whose body does not return continues normally, carrying the
-        // responded state to flag the post-catch command.  Mirrors Python
-        // `test_catch_body_without_return_still_continues`.
+        // responded state to flag the post-catch command.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { HTTP::respond 200 content ok }\n\
@@ -1970,7 +1935,7 @@ mod tests {
             }",
         );
         assert_eq!(
-            ws.iter().filter(|w| w.code == "IRULE1201").count(),
+            ws.iter().filter(|w| w.code == DiagCode::Irule1201).count(),
             1,
             "expected one IRULE1201, got {ws:?}",
         );
@@ -1979,7 +1944,7 @@ mod tests {
     #[test]
     fn irule1201_catch_without_respond_no_warning() {
         // A benign catch body must not spuriously flag post-catch HTTP
-        // commands.  Mirrors Python `test_catch_without_respond_no_warning`.
+        // commands.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { set x 1; return }\n\
@@ -1987,7 +1952,7 @@ mod tests {
             }",
         );
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1201"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1201),
             "no IRULE1201 expected for a benign catch, got {ws:?}",
         );
     }
@@ -2000,7 +1965,7 @@ mod tests {
             "when CLIENT_ACCEPTED { HTTP::respond 200 content x; HTTP::respond 404 content y }",
         );
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1202"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule1202),
             "IRULE1202 should not fire outside HTTP events, got {ws:?}",
         );
     }
@@ -2008,7 +1973,7 @@ mod tests {
     fn http_codes(source: &str) -> Vec<String> {
         let mut c: Vec<String> = http_warnings(source)
             .iter()
-            .map(|w| w.code.clone())
+            .map(|w| w.code.to_string())
             .collect();
         c.sort();
         c
@@ -2090,7 +2055,7 @@ mod tests {
         assert!(commits_response_commands().contains("HTTP::respond"));
     }
 
-    // -- IRULE4004 ----------------------------------------------------
+    // IRULE4004
 
     fn hoist_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -2101,7 +2066,7 @@ mod tests {
     fn irule4004_literal_set_in_per_request_event_fires() {
         let ws = hoist_warnings(r#"when HTTP_REQUEST { set svc "foo" }"#);
         assert!(
-            ws.iter().any(|w| w.code == "IRULE4004"),
+            ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "expected IRULE4004, got {ws:?}",
         );
     }
@@ -2111,7 +2076,7 @@ mod tests {
         // Value depends on per-request data — can't hoist.
         let ws = hoist_warnings("when HTTP_REQUEST { set svc [HTTP::host] }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE4004"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "no IRULE4004 expected — value depends on request, got {ws:?}",
         );
     }
@@ -2120,7 +2085,7 @@ mod tests {
     fn irule4004_var_substitution_clean() {
         let ws = hoist_warnings("when HTTP_REQUEST { set svc $session }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE4004"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "no IRULE4004 expected — value uses $session, got {ws:?}",
         );
     }
@@ -2130,7 +2095,7 @@ mod tests {
         // CLIENT_ACCEPTED already runs once-per-connection; nothing to hoist.
         let ws = hoist_warnings(r#"when CLIENT_ACCEPTED { set svc "foo" }"#);
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE4004"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "no IRULE4004 expected — already once-per-connection, got {ws:?}",
         );
     }
@@ -2146,7 +2111,7 @@ mod tests {
         assert!(none.is_empty(), "got {none:?}");
     }
 
-    // -- IRULE4002 ----------------------------------------------------
+    // IRULE4002
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -2158,7 +2123,7 @@ mod tests {
         let ws = generic_warnings("when RULE_INIT { set static::debug 1 }");
         assert!(
             ws.iter()
-                .any(|w| w.code == "IRULE4002" && w.message.contains("'static::debug'")),
+                .any(|w| w.code == DiagCode::Irule4002 && w.message.contains("'static::debug'")),
             "expected IRULE4002 for static::debug, got {ws:?}",
         );
     }
@@ -2167,7 +2132,7 @@ mod tests {
     fn irule4002_quiet_for_specific_static_name() {
         let ws = generic_warnings("when RULE_INIT { set static::myapp_cache_ttl 60 }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE4002"),
+            !ws.iter().any(|w| w.code == DiagCode::Irule4002),
             "no IRULE4002 expected for a specific name, got {ws:?}",
         );
     }
@@ -2178,7 +2143,7 @@ mod tests {
                    when HTTP_REQUEST { set static::timeout 30 }";
         let ws = generic_warnings(src);
         assert_eq!(
-            ws.iter().filter(|w| w.code == "IRULE4002").count(),
+            ws.iter().filter(|w| w.code == DiagCode::Irule4002).count(),
             1,
             "expected a single deduplicated IRULE4002, got {ws:?}",
         );

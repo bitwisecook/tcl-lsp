@@ -1,6 +1,6 @@
 //! Signature-only scan for background-indexed Tcl files.
 //!
-//! Port of `core/analysis/signature_scan.py` (chunk **C40**). Walks
+//! Walks
 //! the segmented command stream of a Tcl source and extracts a
 //! lightweight [`SignatureScanResult`] subset — proc / class
 //! definitions, package requires, source targets, command aliases,
@@ -50,10 +50,9 @@ pub use types::SignatureScanResult;
 
 /// Extract a lightweight [`SignatureScanResult`] for a Tcl source.
 ///
-/// The public entry point for the signature scanner. Mirrors
-/// `extract_signatures` in `core/analysis/signature_scan.py` —
-/// runs the main walker (with segmenter-level error recovery seeded
-/// from the registry's command names), then resolves factory-wrapper
+/// The public entry point for the signature scanner. Runs the main
+/// walker (with segmenter-level error recovery seeded from the
+/// registry's command names), then resolves factory-wrapper
 /// synthetic procs.
 #[must_use]
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {

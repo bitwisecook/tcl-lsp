@@ -1,4 +1,4 @@
-//! `filename` command (name-parity reconcile, GAP-d).
+//! `filename` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

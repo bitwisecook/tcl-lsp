@@ -1,20 +1,17 @@
 //! The `f5 irule` verb group — iRules-specific sub-subcommands.
 //!
-//! Port of `tooling/f5/verbs/irule.py`. The sub-subcommands split into two
-//! groups by which engine they reuse:
+//! The sub-subcommands split into two groups by which engine they reuse:
 //!
-//! - **Ported, byte-parity** — `event-order` (firing-order event metadata from
+//! - **Implemented** — `event-order` (firing-order event metadata from
 //!   [`tcl_registry::events`]), `extract` (per-rule bodies from the
-//!   [`tcl_bigip`] model), and `format` / `minify` (the [`tcl_lsp_core`]
-//!   formatter / minifier engines, driven with the `f5-irules` dialect exactly
-//!   as the `tcl` CLI drives them).
-//!   as the `tcl` CLI drives them), and `event-info` (event metadata + the
-//!   `validCommands` cross-product over the reconciled command registry,
-//!   `CommandRegistry::event_info`).
-//! - **Deferred** — `lint` / `context` (the iRule analyser), and `trace` /
-//!   `pgo` (the compiler lowering / CFG / VM). Each parses its args (so
-//!   `--help` works) but its handler prints a clear "not yet ported" error and
-//!   exits 2.
+//!   [`tcl_bigip`] model), `format` / `minify` (the [`tcl_lsp_core`]
+//!   formatter / minifier engines, driven with the `f5-irules` dialect), and
+//!   `event-info` (event metadata + the `validCommands` cross-product over the
+//!   reconciled command registry, `CommandRegistry::event_info`).
+//! - **Not yet implemented** — `lint` / `context` (the iRule analyser), and
+//!   `trace` / `pgo` (the compiler lowering / CFG / VM). Each parses its args
+//!   (so `--help` works) but its handler prints a clear not-implemented error
+//!   and exits 2.
 
 use std::path::{Path, PathBuf};
 
@@ -27,7 +24,7 @@ use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact
 
 use crate::cli::{IruleColourArgs, IruleCommand, IruleFormatterArgs, IruleInputArgs};
 
-/// A single iRule body resolved from a CLI input (port of `IruleInput`).
+/// A single iRule body resolved from a CLI input.
 struct IruleInput {
     /// Display label, used for diagnostics and synthesising output names.
     label: String,
@@ -35,8 +32,8 @@ struct IruleInput {
     source: String,
     /// Origin URI of the file / inline snippet this body came from (the dict
     /// key shared with [`LoadedIrules::configs`] / [`LoadedIrules::sources`]).
-    // Part of the faithful `IruleInput` surface; consumed by `irule context`
-    // (next increment), not by `lint`/`format`/`minify`.
+    // Consumed by `irule context`, which is not yet wired up, so it is
+    // currently unused by `lint` / `format` / `minify`.
     #[allow(dead_code)]
     origin: String,
     /// BIG-IP full path when extracted from a config; `None` for standalone.
@@ -44,9 +41,7 @@ struct IruleInput {
 }
 
 /// The resolved iRule inputs plus the per-origin configs and post-decode
-/// source text the lint / context verbs consume (port of the
-/// `(inputs, configs, sources)` 3-tuple returned by Python's
-/// `load_irule_inputs`).
+/// source text the lint / context verbs consume.
 struct LoadedIrules {
     /// One body per `ltm rule` / standalone file / inline snippet, in load
     /// order.
@@ -59,8 +54,7 @@ struct LoadedIrules {
     /// The post-decode source text per origin (the *extracted* SCF for UCS),
     /// keyed identically to `configs`.
     // `lint` derives its `sources` from `configs` (joined rule bodies); this
-    // full-text view is part of the faithful loader surface and is consumed by
-    // `irule context` (next increment).
+    // full-text view is consumed by `irule context`, which is not yet wired up.
     #[allow(dead_code)]
     sources: Vec<(String, String)>,
 }
@@ -74,8 +68,8 @@ fn suffix_lower(path: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Python `Path(label).stem or "irule"` — the final path component without its
-/// last suffix, falling back to `"irule"` when empty.
+/// The final path component of *label* without its last suffix, falling back
+/// to `"irule"` when empty.
 fn label_stem(label: &str) -> String {
     Path::new(label)
         .file_stem()
@@ -84,10 +78,8 @@ fn label_stem(label: &str) -> String {
         .unwrap_or_else(|| "irule".to_owned())
 }
 
-/// Build a synthetic single-rule [`BigipConfig`] (port of
-/// `BigipConfig(rules={synth_path: BigipRule(name, full_path, source)})`): one
-/// `ltm rule` at `full_path`, `default_partition = "Common"` (the Python
-/// dataclass default).
+/// Build a synthetic single-rule [`BigipConfig`]: one `ltm rule` at
+/// `full_path`, with `default_partition = "Common"`.
 fn synth_rule_config(name: &str, full_path: &str, source: &str) -> BigipConfig {
     let rule = tcl_bigip::model::BigipRule {
         name: name.to_owned(),
@@ -107,8 +99,8 @@ fn synth_rule_config(name: &str, full_path: &str, source: &str) -> BigipConfig {
 }
 
 /// Read each path's rules / synthesise a single-rule body, plus inline
-/// `--source` snippets. Mirrors `load_irule_inputs`, returning the inputs
-/// alongside the origin-keyed configs + post-decode sources.
+/// `--source` snippets, returning the inputs alongside the origin-keyed
+/// configs + post-decode sources.
 fn load_irule_inputs(paths: &[String], inline_sources: &[String]) -> Result<LoadedIrules, String> {
     let mut inputs: Vec<IruleInput> = Vec::new();
     let mut configs: Vec<(String, BigipConfig)> = Vec::new();
@@ -199,7 +191,7 @@ fn load_irule_inputs(paths: &[String], inline_sources: &[String]) -> Result<Load
 }
 
 /// Collect `(full_path, source)` for every `ltm rule` in a parsed config, in
-/// source order (mirrors `BigipConfig.rules` iteration).
+/// source order.
 fn collect_rules(cfg: &tcl_bigip::parser::BigipConfig) -> Vec<(String, String)> {
     cfg.objects
         .iter()
@@ -211,9 +203,8 @@ fn collect_rules(cfg: &tcl_bigip::parser::BigipConfig) -> Vec<(String, String)> 
         .collect()
 }
 
-/// Resolve iRule inputs with CLI error handling (mirrors
-/// `_resolve_irule_inputs`): prints the error and returns the exit code on
-/// failure.
+/// Resolve iRule inputs with CLI error handling: prints the error and returns
+/// the exit code on failure.
 fn resolve_irule_inputs(input: &IruleInputArgs) -> Result<LoadedIrules, u8> {
     if input.paths.is_empty() && input.source.is_empty() {
         eprintln!("error: no input provided; pass files, --source, or `-` for stdin");
@@ -248,9 +239,9 @@ fn flatten_rule_path(rule_full_path: Option<&str>, fallback_label: &str) -> Stri
     stem.replace('/', "__")
 }
 
-/// `str(pathlib.PurePosixPath(s))` — collapse repeated `/`, drop `.` and
-/// trailing slashes (keeping `..`); empty → `.`, root stays `/`. Used so the
-/// `irule context` directory message matches Python's `print(f"… {out_dir}")`.
+/// Normalise a POSIX path string: collapse repeated `/`, drop `.` and
+/// trailing slashes (keeping `..`); empty → `.`, root stays `/`. Used to
+/// canonicalise the `irule context` output-directory message.
 fn pathlib_str(s: &str) -> String {
     let absolute = s.starts_with('/');
     let parts: Vec<&str> = s
@@ -272,8 +263,7 @@ fn pathlib_str(s: &str) -> String {
     }
 }
 
-/// Decide whether `output` should be treated as a directory (port of
-/// `_is_directory_target`).
+/// Decide whether `output` should be treated as a directory.
 fn is_directory_target(output: &str) -> bool {
     if output == "-" {
         return false;
@@ -281,8 +271,7 @@ fn is_directory_target(output: &str) -> bool {
     Path::new(output).is_dir() || output.ends_with('/') || output.ends_with('\\')
 }
 
-/// Common output dispatcher for irule format / minify (port of
-/// `_write_iRule_outputs`).
+/// Common output dispatcher for irule format / minify.
 fn write_irule_outputs(
     output: &str,
     inputs: &[IruleInput],
@@ -325,12 +314,12 @@ fn write_irule_outputs(
     Ok(0)
 }
 
-/// Resolve the effective tab width (port of `_resolve_tab_width`).
+/// Resolve the effective tab width.
 fn resolve_tab_width(colour: Option<&IruleColourArgs>) -> usize {
     colour.and_then(|c| c.tabs).unwrap_or(4)
 }
 
-/// Whether ANSI colour should be applied (port of `_resolve_use_colour`).
+/// Whether ANSI colour should be applied.
 fn resolve_use_colour(output: &str, colour: Option<&IruleColourArgs>) -> bool {
     use tcl_cli_support::OutputTarget;
     let (force, no) = colour.map_or((false, false), |c| (c.colour, c.no_colour));
@@ -342,8 +331,7 @@ fn resolve_use_colour(output: &str, colour: Option<&IruleColourArgs>) -> bool {
     tcl_cli_support::resolve_use_colour(force, no, &target)
 }
 
-/// Write `text` with optional highlighting / tab expansion to `output`
-/// (mirrors `_write_highlighted_output`).
+/// Write `text` with optional highlighting / tab expansion to `output`.
 fn write_highlighted(
     output: &str,
     text: &str,
@@ -361,7 +349,7 @@ fn write_highlighted(
         .map_err(|e| e.to_string())
 }
 
-/// Write plain text to `output` (mirrors `_write_text_output`).
+/// Write plain text to `output`.
 fn write_text(output: &str, text: &str) -> Result<(), String> {
     use tcl_cli_support::OutputTarget;
     let target = if output == "-" {
@@ -419,33 +407,30 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             json,
         } => run_irule_context(input, rule, *no_transitive, *json),
         IruleCommand::Trace { event, input, json } => run_irule_trace(event, input, *json),
-        // Deferred sub: PGO needs the `compiler/pgo` branch-reorder engine
-        // (and `--capture` needs tclsh) — not yet ported.
+        // PGO needs the `compiler/pgo` branch-reorder engine (and `--capture`
+        // needs tclsh), neither of which is implemented yet.
         IruleCommand::Pgo { .. } => Err(deferred("pgo", "compiler-VM")),
     };
     // Both the success path and the printed-error path resolve to a process
-    // exit code (mirroring the Python handlers, which `return` an int either way).
+    // exit code.
     Ok(rc.unwrap_or_else(|code| code))
 }
 
-/// Print the standard "not yet ported" message for a deferred sub and return
-/// the exit code (2).
+/// Print the standard error for an unimplemented sub and return the exit
+/// code (2).
 fn deferred(sub: &str, engine: &str) -> u8 {
     eprintln!("error: f5 irule {sub} is not yet ported (requires the {engine} engine)");
     2
 }
 
-// ---------------------------------------------------------------------------
 // event-order
-// ---------------------------------------------------------------------------
 
-/// Scan `when EVENT` blocks and return events in canonical firing order
-/// (mirrors `order_events_for_file` + `order_events`).
+/// Scan `when EVENT` blocks and return events in canonical firing order.
 fn order_events_for_file(
     source: &str,
     events: &tcl_registry::events::EventRegistry,
 ) -> Vec<String> {
-    // `\bwhen\s+([A-Z_][A-Z0-9_]*)` — the Python `scan_file_events` regex.
+    // Match `\bwhen\s+([A-Z_][A-Z0-9_]*)` — the event-opener regex.
     let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let bytes = source.as_bytes();
     let mut i = 0;
@@ -496,7 +481,7 @@ fn is_word_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
 }
 
-/// Multiplicity category for a single event (mirrors `event_multiplicity`).
+/// Multiplicity category for a single event.
 fn event_multiplicity(name: &str, events: &tcl_registry::events::EventRegistry) -> &'static str {
     if name == "RULE_INIT" {
         "init"
@@ -529,7 +514,7 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
 
     if json {
         use std::fmt::Write as _;
-        // `json.dumps(payload, indent=2)` — insertion-ordered keys, no sort.
+        // Emit 2-space-indented JSON with insertion-ordered keys (no sort).
         let mut out = String::from("{\n");
         let _ = writeln!(out, "  \"count\": {},", items.len());
         out.push_str("  \"dialect\": ");
@@ -567,14 +552,12 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // event-info
-// ---------------------------------------------------------------------------
 
-/// `f5 irule event-info EVENT` — look up event metadata + valid commands.
-/// Port of `_run_event_info` (`tooling/f5/verbs/irule.py`) over the
-/// reconciled command-registry cross-product (`CommandRegistry::event_info`).
-/// Exit code is `0` for a known event, `1` otherwise (both streams written).
+/// `f5 irule event-info EVENT` — look up event metadata + valid commands
+/// over the reconciled command-registry cross-product
+/// (`CommandRegistry::event_info`). Exit code is `0` for a known event, `1`
+/// otherwise (both streams written).
 fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
     let mut cmds = tcl_registry::registry::CommandRegistry::build_default();
     cmds.load_irules();
@@ -585,7 +568,7 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
 
     if json {
         use std::fmt::Write as _;
-        // `json.dumps(payload, indent=2)` — insertion-ordered keys.
+        // Emit 2-space-indented JSON with insertion-ordered keys.
         let mut out = String::from("{\n");
         let _ = write!(out, "  \"event\": {}", json_string(&info.event));
         let _ = write!(out, ",\n  \"known\": {}", info.known);
@@ -641,9 +624,9 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
     Ok(rc)
 }
 
-/// Append a JSON array of strings rendered as `json.dumps(..., indent=2)`
-/// would at a top-level (2-space) key: `[]` when empty, else one item per
-/// line indented four spaces with the closing bracket at two.
+/// Append a JSON array of strings formatted as 2-space-indented JSON at a
+/// top-level key: `[]` when empty, else one item per line indented four
+/// spaces with the closing bracket at two.
 fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
     let rendered: Vec<String> = items.map(json_string).collect();
     if rendered.is_empty() {
@@ -662,18 +645,14 @@ fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a 
     out.push_str("  ]");
 }
 
-// ---------------------------------------------------------------------------
 // lint
-// ---------------------------------------------------------------------------
 
 /// `f5 irule lint` — run only the iRule-category lint rules over iRule sources.
-/// Port of `_run_irule_lint` (`tooling/f5/verbs/irule.py`): it shares the
-/// [`tcl_bigip::lint`] engine and the `f5 validate` output formatters
-/// ([`crate::commands::validate::to_json`] / [`to_text`]), passing
+/// Shares the [`tcl_bigip::lint`] engine and the `f5 validate` output
+/// formatters ([`crate::commands::validate::to_json`] / [`to_text`]), passing
 /// `category="irule"` so only the four irule rules run.
 ///
-/// Exit code mirrors Python: any `error` finding → `2`, any `warning` → `1`,
-/// else `0`.
+/// Exit code: any `error` finding → `2`, any `warning` → `1`, else `0`.
 ///
 /// [`to_text`]: crate::commands::validate::to_text
 fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) -> Result<u8, u8> {
@@ -711,8 +690,7 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
 
     let findings = run_lint(&config_refs, &source_refs, Some("irule"), severity);
 
-    // `to_json` / `to_text` already include the trailing newline, matching
-    // Python's `json.dumps(...) + "\n"` / `_to_text(findings) + "\n"`.
+    // `to_json` / `to_text` already include the trailing newline.
     let out = if json {
         validate::to_json(&findings)
     } else {
@@ -731,16 +709,14 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
     }
 }
 
-// ---------------------------------------------------------------------------
 // context
-// ---------------------------------------------------------------------------
 
 /// `f5 irule context` — bundle each iRule with the BIG-IP objects it
-/// references. Port of `_run_irule_context` (`tooling/f5/verbs/irule.py`) over
-/// the [`tcl_bigip::irule_context`] engine: resolve inputs, merge the configs
-/// once for cross-file resolution, build one bundle per rule, and render to
-/// JSON / Tcl-flavoured text (directory → one file per rule; otherwise a single
-/// concatenated stream). Exit `0`, or `1` when no iRules were found.
+/// references, using the [`tcl_bigip::irule_context`] engine: resolve inputs,
+/// merge the configs once for cross-file resolution, build one bundle per
+/// rule, and render to JSON / Tcl-flavoured text (directory → one file per
+/// rule; otherwise a single concatenated stream). Exit `0`, or `1` when no
+/// iRules were found.
 fn run_irule_context(
     input: &IruleInputArgs,
     rule_filter: &[String],
@@ -754,8 +730,8 @@ fn run_irule_context(
 
     let loaded = resolve_irule_inputs(input)?;
 
-    // Merge configs once so cross-file references all resolve (mirrors
-    // `_merge_configs_for_trace`: empty → default, else the merged union).
+    // Merge configs once so cross-file references all resolve (empty →
+    // default, else the merged union).
     let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
         .configs
         .iter()
@@ -837,15 +813,13 @@ fn run_irule_context(
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // trace
-// ---------------------------------------------------------------------------
 
-/// Return the body text inside the `{...}` starting at byte `open_brace` (port
-/// of `_slice_balanced_braces`). Brace-depth scan that skips `"…"` strings
-/// (honouring `\` escapes). Operates on bytes — `{` / `}` / `"` / `\` are all
-/// ASCII, so UTF-8 multibyte sequences are passed through untouched and the
-/// returned slice lands on char boundaries, matching Python's char-indexed slice.
+/// Return the body text inside the `{...}` starting at byte `open_brace`.
+/// Brace-depth scan that skips `"…"` strings (honouring `\` escapes). Operates
+/// on bytes — `{` / `}` / `"` / `\` are all ASCII, so UTF-8 multibyte
+/// sequences are passed through untouched and the returned slice lands on char
+/// boundaries.
 fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
     let bytes = source.as_bytes();
     if bytes.get(open_brace) != Some(&b'{') {
@@ -874,9 +848,8 @@ fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
     source[start..i.saturating_sub(1)].to_owned()
 }
 
-/// First token of each non-blank, non-comment line in `body` (port of
-/// `_extract_commands`): the leading whitespace-delimited word, right-trimmed
-/// of `{`, `}`, `;`.
+/// First token of each non-blank, non-comment line in `body`: the leading
+/// whitespace-delimited word, right-trimmed of `{`, `}`, `;`.
 fn extract_commands(body: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
     for raw in body.lines() {
@@ -893,8 +866,7 @@ fn extract_commands(body: &str) -> Vec<String> {
     cmds
 }
 
-/// One resolved object reference in a trace (mirrors the Python `references`
-/// payload entry).
+/// One resolved object reference in a trace.
 struct TraceRef {
     kind: &'static str,
     name: String,
@@ -903,7 +875,7 @@ struct TraceRef {
 }
 
 /// One event-handler trace: the commands the body runs and the objects it
-/// references (mirrors the Python `traces` payload entry).
+/// references.
 struct Trace {
     rule: String,
     commands: Vec<String>,
@@ -911,9 +883,8 @@ struct Trace {
 }
 
 /// `f5 irule trace EVENT` — static trace of a single event handler: the
-/// commands it runs and the BIG-IP objects it references. Port of
-/// `_run_irule_trace` (`tooling/f5/verbs/irule.py`). Purely static — no VM /
-/// simulator. Exit `0` when at least one rule has a matching `when EVENT`
+/// commands it runs and the BIG-IP objects it references. Purely static — no
+/// VM / simulator. Exit `0` when at least one rule has a matching `when EVENT`
 /// block, else `1`.
 fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     use tcl_bigip::irule_context::{classify_kind, resolve_reference};
@@ -931,7 +902,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     let mut registry = tcl_registry::registry::CommandRegistry::build_default();
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
 
-    // `\bwhen\s+<EVENT>\s*\{`, case-insensitive (mirrors the Python regex).
+    // Match `\bwhen\s+<EVENT>\s*\{`, case-insensitive.
     let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
         .map_err(|_| 2u8)?;
 
@@ -998,8 +969,8 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     Ok(u8::from(traces.is_empty()))
 }
 
-/// `json.dumps({"event": …, "traces": [...]}, indent=2)` + "\n", insertion-
-/// ordered keys (mirrors the Python trace payload).
+/// Render the trace payload `{"event": …, "traces": [...]}` as 2-space-indented
+/// JSON with insertion-ordered keys and a trailing newline.
 fn trace_json(event: &str, traces: &[Trace]) -> String {
     use std::fmt::Write as _;
 
@@ -1076,9 +1047,7 @@ fn push_str_array(out: &mut String, items: &[String], indent: usize) {
     out.push(']');
 }
 
-// ---------------------------------------------------------------------------
 // extract
-// ---------------------------------------------------------------------------
 
 fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
     if paths.is_empty() {
@@ -1139,9 +1108,7 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // format / minify
-// ---------------------------------------------------------------------------
 
 fn build_formatter_config(formatter: &IruleFormatterArgs) -> FormatterConfig {
     let mut config = FormatterConfig::default();
@@ -1273,7 +1240,7 @@ fn run_minify(
     Ok(0)
 }
 
-/// `json.dumps`-compatible quoted string (reuses [`tcl_bigip::jsonfmt`]).
+/// Render a JSON-quoted string (reuses [`tcl_bigip::jsonfmt`]).
 fn json_string(s: &str) -> String {
     tcl_bigip::jsonfmt::json_string(s)
 }

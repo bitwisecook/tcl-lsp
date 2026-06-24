@@ -1,5 +1,4 @@
-//! Generic typed list value for BIG-IP list-shaped properties. Rust port
-//! of `_bigip_list.py`.
+//! Generic typed list value for BIG-IP list-shaped properties.
 //!
 //! `BigipList` carries items as [`ListItem`] records, each pairing the
 //! typed item value with its lexical metadata (`key` / `body` / `raw` /
@@ -12,8 +11,7 @@ use super::firewall_rule::FirewallRule;
 use super::gtm_region_member::GtmRegionMember;
 use super::monitor_expression::MonitorExpression;
 
-/// Half-open byte span paired with absolute offsets. Mirrors the Python
-/// `SourceSpan`.
+/// Half-open byte span paired with absolute offsets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceSpan {
     /// Start byte offset (inclusive).
@@ -31,7 +29,7 @@ impl SourceSpan {
 }
 
 /// The lexical shape of a [`BigipList`]. [`ListSyntax::as_str`] returns the
-/// Python string literal.
+/// canonical string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ListSyntax {
     /// Unbraced scalar list (`ip-protocol icmp tcp`).
@@ -47,7 +45,7 @@ pub enum ListSyntax {
 }
 
 impl ListSyntax {
-    /// The Python string literal for this syntax.
+    /// The canonical string literal for this syntax.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -62,7 +60,7 @@ impl ListSyntax {
 
 /// The heterogeneous value of a [`ListItem`] — a plain string for scalar
 /// lists, or one of the typed attachment / record values for the
-/// structured shapes. Mirrors Python's `ListItem.value` union.
+/// structured shapes, as a value union.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ListItemValue {
     /// A plain string path or scalar.
@@ -81,17 +79,15 @@ pub enum ListItemValue {
     FirewallRule(FirewallRule),
     /// A monitor expression.
     MonitorExpression(MonitorExpression),
-    /// A typed pool member (`ltm pool`/`snatpool` members). Mirrors the
-    /// Python `BigipList` item holding a `BigipPoolMember` — an intra-crate
+    /// A typed pool member (`ltm pool`/`snatpool` members) — an intra-crate
     /// reference to the model struct (Rust allows the module cycle).
     PoolMember(crate::model::BigipPoolMember),
 }
 
 impl ListItemValue {
-    /// The path this value references, mirroring the `paths` logic in
-    /// Python: typed values with a `full_path` / `path` attribute return
-    /// it; plain strings return themselves verbatim. `None` when there is
-    /// no path-like attribute to surface.
+    /// The path this value references: typed values with a `full_path` /
+    /// `path` attribute return it; plain strings return themselves
+    /// verbatim. `None` when there is no path-like attribute to surface.
     #[must_use]
     fn path(&self) -> Option<String> {
         match self {
@@ -147,7 +143,7 @@ pub struct ListItem {
 
 impl ListItem {
     /// Construct a bare list item from a value, leaving lexical metadata
-    /// at its defaults (mirrors `_as_list_item`).
+    /// at its defaults.
     #[must_use]
     pub fn new(value: impl Into<ListItemValue>) -> Self {
         Self {
@@ -224,24 +220,24 @@ impl BigipList {
         self.items.len()
     }
 
-    /// `true` when the list has no items (Python `__bool__` is the inverse).
+    /// `true` when the list has no items (the bool test is the inverse).
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    /// Iterate the typed item values (Python `__iter__`).
+    /// Iterate the typed item values.
     pub fn iter(&self) -> impl Iterator<Item = &ListItemValue> {
         self.items.iter().map(|item| &item.value)
     }
 
-    /// The typed item values as an owned vector (Python `values`).
+    /// The typed item values as an owned vector.
     #[must_use]
     pub fn values(&self) -> Vec<ListItemValue> {
         self.items.iter().map(|item| item.value.clone()).collect()
     }
 
-    /// The string paths the items reference (Python `paths`).
+    /// The string paths the items reference.
     ///
     /// Typed values with a `full_path` / `path` return it; plain strings
     /// return themselves; otherwise the item `key` is used, falling back
@@ -263,7 +259,7 @@ impl BigipList {
         out
     }
 
-    /// `true` when `needle` matches an item's path (Python `__contains__`
+    /// `true` when `needle` matches an item's path (the containment test
     /// for the string case).
     #[must_use]
     pub fn contains_path(&self, needle: &str) -> bool {

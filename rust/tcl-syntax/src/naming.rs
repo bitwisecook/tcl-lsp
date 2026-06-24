@@ -1,8 +1,8 @@
 //! Variable and command name normalisation.
 //!
-//! Ports the relevant parts of `core/common/naming.py`. These live in
-//! the compiler crate because they are consumed by the expression
-//! parser and lowering — not by the lexer itself.
+//! These helpers live in the compiler-facing crates because they are
+//! consumed by the expression parser and lowering — not by the lexer
+//! itself.
 //!
 //! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) is the
 //! **one** canonical source for namespace-name parsing, shared by the compiler
@@ -115,8 +115,7 @@ pub fn normalise_var_name(name: &str) -> &str {
 
 /// Return `true` when `${name}` would successfully look up `name`.
 ///
-/// Mirrors `shared/naming.py::is_brace_substitutable`, which in turn
-/// mirrors Tcl 9.0.3's `Tcl_ParseVarName` brace-form parser
+/// Mirrors Tcl 9.0.3's `Tcl_ParseVarName` brace-form parser
 /// (`tclParse.c` §1383+):
 ///
 /// - `\X` (backslash + any char) consumes 2 source chars, both kept in
@@ -160,8 +159,7 @@ pub fn is_brace_substitutable(name: &str) -> bool {
 /// Mirrors `compiler/parsing/lexer._parse_var`'s bare-form rule: a name is
 /// one or more `::`-separated segments, each consisting of Unicode alnum or
 /// `_` characters, with an optional leading `::`.  Used to decide between
-/// the bare `$name` and brace `${name}` forms in quick fixes.  Mirrors
-/// `is_bare_var_name` in `shared/naming.py`.
+/// the bare `$name` and brace `${name}` forms in quick fixes.
 ///
 /// ```
 /// use tcl_syntax::naming::is_bare_var_name;
@@ -206,8 +204,7 @@ pub fn is_bare_var_name(name: &str) -> bool {
 ///
 /// This is the discriminator that keeps the W216 (brace-then-paren) and W212
 /// (substitution-where-name-expected) checks from false-positiving on the
-/// indirect idiom.  Mirrors `is_braced_indirect_array_ref` in
-/// `shared/naming.py`.
+/// indirect idiom.
 ///
 /// ```
 /// use tcl_syntax::naming::is_braced_indirect_array_ref;
@@ -290,8 +287,7 @@ pub fn normalise_qualified_name(name: &str) -> String {
 ///
 /// Strips `$` / `${…}` substitution sigils first, then separates the
 /// optional `(element)` array-index suffix from the base name.  Returns
-/// `(base, None)` for scalar references.  Mirrors Python's
-/// `shared/naming.py::split_array_name`, including the brace-form rule that
+/// `(base, None)` for scalar references.  Follows the brace-form rule that
 /// `${arr}(foo)` is the scalar `arr` followed by literal `(foo)`, whereas
 /// `${arr(foo)}` *is* the array element `arr(foo)`.
 ///
@@ -319,7 +315,7 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
         }
         return (inner, None);
     }
-    // No closing brace — fall through (Python gates on `"}" in base`).
+    // No closing brace — fall through (gated on `"}" in base`).
     let base = name.strip_prefix('$').unwrap_or(name);
     if base.ends_with(')')
         && let Some(idx) = base.find('(')

@@ -1,4 +1,4 @@
-//! `Port` + `PortRange` value types. Rust port of `_port.py`.
+//! `Port` + `PortRange` value types.
 
 use super::error::ValueError;
 use std::fmt;
@@ -23,7 +23,7 @@ pub struct Port {
 }
 
 impl Port {
-    /// Construct a port directly (mirrors `Port(port=..., spelling=...)`).
+    /// Construct a port directly from its number and spelling.
     #[must_use]
     pub fn new(port: u16, spelling: impl Into<String>) -> Self {
         Self {
@@ -111,7 +111,7 @@ impl PortRange {
                 py_repr(text)
             )));
         }
-        // Python str.partition splits on the FIRST '-'.
+        // Split on the FIRST '-'.
         let (low_text, high_text) = text.split_once('-').unwrap_or((text, ""));
         let parse_part = |s: &str| parse_decimal_int(s.trim());
         let (Some(low), Some(high)) = (parse_part(low_text), parse_part(high_text)) else {
@@ -164,7 +164,7 @@ impl fmt::Display for PortRange {
     }
 }
 
-/// Parse a base-10 integer exactly as Python's `int(text, 10)` does for
+/// Parse a base-10 integer exactly as `int(text, 10)` does for
 /// the spellings these parsers feed it: optional sign, ASCII digits, with
 /// surrounding ASCII whitespace tolerated. Returns `None` on anything else.
 pub(crate) fn parse_decimal_int(text: &str) -> Option<i64> {
@@ -182,10 +182,10 @@ pub(crate) fn parse_decimal_int(text: &str) -> Option<i64> {
     format!("{sign}{digits}").parse::<i64>().ok()
 }
 
-/// Render `text` the way Python's `repr()` would for a short single-line
+/// Render `text` the way `repr()` would for a short single-line
 /// string: wrapped in single quotes (double quotes when the value itself
 /// contains a single quote and no double quote), matching the `{text!r}`
-/// interpolation used in the Python error messages.
+/// interpolation used in the error messages.
 pub(crate) fn py_repr(text: &str) -> String {
     let has_single = text.contains('\'');
     let has_double = text.contains('"');

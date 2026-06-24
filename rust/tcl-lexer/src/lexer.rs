@@ -1,59 +1,48 @@
 //! Streaming Tcl lexer.
 //!
-//! **L3 + L4 + L5 + L6 + L7.** The first five lexer chunks, taken
-//! together, handle every top-level Tcl construct except backslash
-//! escapes (L9) and the `{*}` expansion prefix (L8):
+//! Handles every top-level Tcl construct:
 //!
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
-//!   source does not already end with an EOL token, matching the
-//!   Python lexer's `get_token()` / `tokenise_all()` contract.
+//!   source does not already end with an EOL token.
 //! - **SEP** — runs of horizontal whitespace (`' '`, `\t`, `\r`, VT, FF).
 //!   `\r` is horizontal whitespace in Tcl, not an EOL.
 //! - **EOL** — runs of EOL characters (`\n`, `;`) interleaved with
-//!   horizontal whitespace, mirroring Python's `_parse_eol`.
+//!   horizontal whitespace.
 //! - **COMMENT** — `#` at command start, scanned to the next `\n`
 //!   (exclusive). Backslash-newline continuation inside comments is
 //!   not handled yet; an input whose comment contains a `\` is
 //!   reported as a `SyntaxError` so the differential harness can
 //!   filter it.
 //! - **ESC** — runs of characters that are neither whitespace nor EOL
-//!   nor one of the "deferred" special characters. Terminated by
-//!   `$` (L4) or `[` (L5) so that variable and command substitutions
+//!   nor one of the special characters. Terminated by
+//!   `$` or `[` so that variable and command substitutions
 //!   dispatch on the next iteration.
-//! - **VAR (L4)** — variable substitution in all four Tcl forms:
+//! - **VAR** — variable substitution in all four Tcl forms:
 //!   `$name`, `$ns::var` (namespace-separated), `${name}` (braced),
 //!   and `$arr(idx)` (array index with nested parens and embedded
 //!   `${...}` support). A bare `$` with no name following is emitted
-//!   as an `STR` token whose span covers just the `$`, matching
-//!   Python's `_parse_var` fallback. Unterminated `${` and `$arr(`
-//!   tokenize best-effort (L9 will add the warning-collection
-//!   machinery to report them as diagnostics).
-//! - **CMD (L5)** — command substitution `[…]` with Python-parity
-//!   nesting rules. The scanner tracks three pieces of state while
-//!   inside the command body: outer bracket nesting (`level`),
-//!   brace nesting (`blevel`), and whether we are inside a `"…"`
-//!   quoted sub-region (`in_quotes`). A `[` increments `level` only
-//!   when not inside braces or quotes; a `]` closes the command only
-//!   when the outer bracket is the innermost nesting. Backslash
-//!   escapes consume two characters (CRLF counted as one line
-//!   advance); `${…}` sub-scans exist to stop a `)` or `}` inside a
-//!   braced variable name from fooling the counter. Unterminated
-//!   `[` tokenizes best-effort (L9 adds the warning).
-//! - **STR (L6)** — braced strings `{…}`. Emitted when a `{` appears
+//!   as an `STR` token whose span covers just the `$`. Unterminated
+//!   `${` and `$arr(` tokenize best-effort (warning collection reports
+//!   them as diagnostics).
+//! - **CMD** — command substitution `[…]`. The scanner tracks three
+//!   pieces of state while inside the command body: outer bracket
+//!   nesting (`level`), brace nesting (`blevel`), and whether we are
+//!   inside a `"…"` quoted sub-region (`in_quotes`). A `[` increments
+//!   `level` only when not inside braces or quotes; a `]` closes the
+//!   command only when the outer bracket is the innermost nesting.
+//!   Backslash escapes consume two characters (CRLF counted as one
+//!   line advance); `${…}` sub-scans exist to stop a `)` or `}` inside
+//!   a braced variable name from fooling the counter. Unterminated
+//!   `[` tokenizes best-effort.
+//! - **STR** — braced strings `{…}`. Emitted when a `{` appears
 //!   at a word boundary (the previous token was `EOL` / `SEP` / `STR`
-//!   / `EXPAND`, matching Python's `newword` predicate). The body
-//!   is scanned with balanced `{` / `}` counting; backslash
-//!   sequences consume two characters as a pair (preserving Python's
-//!   "backslash is inert inside braces" semantics — the backslash
-//!   and the following character are retained literally in the
-//!   token text). A `{` that is NOT at a word boundary is a regular
-//!   word character in the enclosing `ESC` token, matching Python's
-//!   `_parse_string` fall-through for mid-word braces. Unterminated
-//!   `{` tokenizes best-effort (L9 adds the warning). The `}{ ` iRules
-//!   word-boundary injection and the "extra characters after
-//!   close-brace" warning are deferred to L8 (dialect flags) and
-//!   L9 (warning collection) respectively.
-//! - **Quoted ESC (L7)** — `"…"` quoted strings emit `ESC` tokens
+//!   / `EXPAND`). The body is scanned with balanced `{` / `}` counting;
+//!   backslash sequences consume two characters as a pair (backslash is
+//!   inert inside braces — the backslash and the following character
+//!   are retained literally in the token text). A `{` that is NOT at a
+//!   word boundary is a regular word character in the enclosing `ESC`
+//!   token. Unterminated `{` tokenizes best-effort.
+//! - **Quoted ESC** — `"…"` quoted strings emit `ESC` tokens
 //!   carrying the `in_quote = true` flag for the duration of the
 //!   quoted run. The lexer keeps an `in_quote: bool` field that is
 //!   toggled on the opening and closing `"`; while it is set, the
@@ -63,22 +52,13 @@
 //!   captured in the first emitted `ESC`'s span (with
 //!   `token_text` stripping it), not as a separate token; if the
 //!   body begins with `$` or `[` the first `ESC` is an empty-body
-//!   token whose span is extended to cover the terminator so the
-//!   end position matches Python's clamp. Sub-tokens (`VAR`,
-//!   `CMD`) emitted inside a quoted run carry `in_quote = true`;
-//!   the **last** `ESC` before the closing `"` and the closing
-//!   `"` itself (emitted as a possibly empty `ESC`) reset
-//!   `in_quote` to `false` before the token is returned, matching
-//!   Python's `self.insidequote = False` placement inside
-//!   `_parse_string`. A `"` mid-word (not at a word boundary) is
-//!   a regular character inside the enclosing `ESC` — matching
-//!   Python's `_parse_string` fall-through for literal quotes
-//!   inside bare words.
-//!
-//! The "deferred" set is now just `\`. Only backslash escapes
-//! remain; chunk L9 drains it and turns the trigger into proper
-//! `\n` / `\t` / `\xNN` etc. handling plus line-continuation
-//! and warning collection.
+//!   token whose span is extended to cover the terminator. Sub-tokens
+//!   (`VAR`, `CMD`) emitted inside a quoted run carry
+//!   `in_quote = true`; the **last** `ESC` before the closing `"` and
+//!   the closing `"` itself (emitted as a possibly empty `ESC`) reset
+//!   `in_quote` to `false` before the token is returned. A `"` mid-word
+//!   (not at a word boundary) is a regular character inside the
+//!   enclosing `ESC`.
 //!
 //! ### Architecture
 //!
@@ -89,43 +69,30 @@
 //! amount of behavioural state (`at_command_start`, `last_kind`,
 //! `done`); there is no incremental column bookkeeping.
 //!
-//! This matches the broader "source map threaded throughout" rewrite
-//! design: every positional entity (Tokens now, future IR and CFG
-//! nodes later) carries only a span, and a single `SourceMap` per
-//! document is the canonical place that resolves spans to text and
-//! positions. See `docs/rust-rewrite.md` for the principle and the
-//! `tower-lsp` / `ropey` plan that follows it upstream.
+//! Every positional entity (Tokens now, IR and CFG nodes elsewhere)
+//! carries only a span, and a single `SourceMap` per document is the
+//! canonical place that resolves spans to text and positions.
 //!
 //! ### Offsets and columns
 //!
 //! [`SourcePosition::offset`] is a byte offset. The `character` field
-//! is **byte offset within the line** — the same thing the Python
-//! lexer produces when it does `col = offset - line_start`. ASCII
-//! parity is exact; non-ASCII drifts from the LSP UTF-16 contract.
-//! Multi-byte column parity is tracked as deferred work in
-//! `docs/rust-rewrite.md` and must be fixed in lock-step across both
-//! implementations.
+//! is **byte offset within the line** (`col = offset - line_start`).
+//! ASCII parity is exact; non-ASCII drifts from the LSP UTF-16
+//! contract — multi-byte column parity is not yet handled.
 //!
 //! ### Not yet implemented
 //!
-//! Explicit list of deferrals so reviewers can tell what lives where:
-//!
-//! - ~~L4: variable substitution (`$name`, `${name}`, `$arr(idx)`,~~
-//!   ~~`$ns::var`)~~ — landed
-//! - ~~L5: command substitution (`[…]`, possibly nested)~~ — landed
-//! - ~~L6: braced strings (`{…}`, possibly nested)~~ — landed
-//! - ~~L7: quoted strings (`"…"`)~~ — **landed in this chunk**
-//! - L8: expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
+//! - expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
 //!   `irules_brace_separator`
-//! - L9: backslash escapes and line continuation; warning collection
-//!   (which will turn L4's best-effort recovery of unterminated
+//! - backslash escapes and line continuation; warning collection
+//!   (which will turn the best-effort recovery of unterminated
 //!   `${` / `$arr(` into proper diagnostics); ghost character
 //!   insertion for error recovery. "Ghost" is our term of art
 //!   (chosen over "synthetic" / "virtual" to avoid collisions with
 //!   Rust vocabulary — `virtual` is a reserved keyword) for tokens
 //!   and characters that exist in the token stream without
 //!   corresponding bytes in the source buffer.
-//! - Later: sub-lexing support for nested constructs; UTF-16 column
+//! - sub-lexing support for nested constructs; UTF-16 column
 //!   parity; `LineIndex::from_rope_slice` adapter
 //!
 //! [`Span`]: crate::Span
@@ -141,10 +108,8 @@ use crate::tokens::{Token, TokenType};
 
 /// Configuration for the Tcl lexer.
 ///
-/// Holds dialect-specific flags and sub-lexing offsets that the
-/// Python lexer uses as class-level attributes or constructor
-/// parameters. In Rust these are explicit fields passed at
-/// construction time; the `Default` values match Python's
+/// Holds dialect-specific flags and sub-lexing offsets as explicit
+/// fields passed at construction time; the `Default` values are the
 /// non-strict, Tcl-8.5+ defaults with no sub-lexing offsets.
 #[derive(Debug, Clone, Copy)]
 pub struct LexerConfig {
@@ -188,10 +153,6 @@ impl Default for LexerConfig {
 impl LexerConfig {
     /// Build a config preset for the given dialect name.
     ///
-    /// Mirrors Python's per-request dialect resolution in
-    /// `core/parsing/lexer.py::_expand_syntax_active` /
-    /// `_irules_brace_separator_active`:
-    ///
     /// * `expand_syntax` — true for Tcl 8.5+ and dialects
     ///   that build on Tcl 8.5+ (Tk, Expect, EDA flavours).
     ///   False for Tcl 8.4 and iRules.
@@ -220,24 +181,21 @@ impl LexerConfig {
 /// Errors produced by the Tcl lexer.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum LexError {
-    /// A syntax error detected in strict-quoting mode. Mirrors
-    /// Python's `TclParseError`.
+    /// A syntax error detected in strict-quoting mode.
     #[error("{message}")]
     SyntaxError {
-        /// Human-readable message matching the Python error text.
+        /// Human-readable message.
         message: String,
     },
 }
 
-/// A non-fatal warning collected during lexing. The Python lexer
-/// stores these as `(SourcePosition, str)` tuples on
-/// `TclLexer.warnings` and the analyser harvests them to produce
-/// LSP diagnostics.
+/// A non-fatal warning collected during lexing. The analyser
+/// harvests these to produce LSP diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexWarning {
     /// Byte offset in the source where the issue was detected.
     pub offset: u32,
-    /// Human-readable message matching the Python warning text.
+    /// Human-readable message.
     pub message: String,
 }
 
@@ -271,14 +229,13 @@ pub struct Lexer<'src> {
     /// Once true, [`Iterator::next`] returns `None`.
     done: bool,
     config: LexerConfig,
-    /// GAP-A1: zero-width "ghost" closing delimiters injected for error
+    /// Zero-width "ghost" closing delimiters injected for error
     /// recovery, keyed by source byte offset (value is the delimiter
     /// byte, e.g. `b']'`).  When the scanner reaches a ghost offset it
     /// *sees* the ghost byte before the real one; consuming a ghost is
     /// zero-width (it removes the entry without advancing `pos`), so an
     /// unterminated `[foo bar` re-lexes as a terminated command without
-    /// shifting any downstream offsets.  Mirrors the Python lexer's
-    /// `virtual_insertions`.  Empty on the normal lexing path.
+    /// shifting any downstream offsets.  Empty on the normal lexing path.
     ghosts: std::collections::BTreeMap<u32, u8>,
 }
 
@@ -306,8 +263,7 @@ impl<'src> Lexer<'src> {
             pending_sep: None,
             warnings: Vec::new(),
             // Start in "last kind was EOL" so an empty source produces
-            // zero tokens rather than a lone ghost trailing EOL,
-            // matching `TclLexer.__init__` in Python.
+            // zero tokens rather than a lone ghost trailing EOL.
             last_kind: TokenType::Eol,
             done: false,
             config,
@@ -360,8 +316,6 @@ impl<'src> Lexer<'src> {
 
     /// Collect every token, including `SEP` and `EOL`, into a `Vec`.
     ///
-    /// Matches `TclLexer.tokenise_all` on the Python side.
-    ///
     /// # Errors
     ///
     /// Returns [`LexError::SyntaxError`] when strict-quoting mode
@@ -374,13 +328,11 @@ impl<'src> Lexer<'src> {
     /// Collect every token alongside the non-fatal warnings
     /// accumulated during lexing.
     ///
-    /// Mirrors `tokenise_all` but also surfaces the
-    /// `(offset, message)` warnings the Python side stores on
-    /// `TclLexer.warnings`. Needed by the `PyO3` fast-path so the
-    /// Python caller can merge them into its own `warnings`
-    /// list — without this, editors lose recoverable-syntax
-    /// diagnostics (extra chars after close-brace / close-quote,
-    /// unterminated strings) whenever the Rust wheel is loaded.
+    /// Like `tokenise_all` but also surfaces the `(offset, message)`
+    /// warnings, so callers can merge them into their own diagnostics.
+    /// Without these, editors lose recoverable-syntax diagnostics
+    /// (extra chars after close-brace / close-quote, unterminated
+    /// strings).
     ///
     /// # Errors
     ///
@@ -403,7 +355,7 @@ impl<'src> Lexer<'src> {
     #[inline]
     fn current_byte(&self) -> Option<u8> {
         // A ghost closing delimiter at `pos` is seen before the real
-        // byte (GAP-A1).
+        // byte.
         if let Some(g) = self.ghost_at(self.pos) {
             return Some(g);
         }
@@ -422,11 +374,9 @@ impl<'src> Lexer<'src> {
     }
 
     /// Emit a warning (non-strict) or return an error (strict).
-    /// Mirrors Python's `_strict_quoting()` / `warnings.append()`
-    /// pattern. Called from `parse_brace`, `parse_command`, and
+    /// Called from `parse_brace`, `parse_command`, and
     /// `parse_quoted` for unterminated constructs and
     /// extra-chars-after-close violations.
-    #[allow(dead_code)]
     fn warn_or_error(&mut self, message: &str) -> Result<(), LexError> {
         if self.config.strict_quoting {
             Err(LexError::SyntaxError {
@@ -461,8 +411,8 @@ impl<'src> Lexer<'src> {
 
     fn parse_eol(&mut self) -> Token {
         let start_offset = self.pos;
-        // Python's `_parse_eol` consumes a run mixing EOL characters
-        // and horizontal whitespace in a single token.
+        // Consume a run mixing EOL characters and horizontal
+        // whitespace in a single token.
         while let Some(byte) = self.current_byte() {
             if !is_horizontal_whitespace_byte(byte) && !is_eol_byte(byte) {
                 break;
@@ -481,7 +431,7 @@ impl<'src> Lexer<'src> {
                 '\\' => {
                     // Consume backslash + next char as a pair.
                     // `\<newline>` continues the comment to the
-                    // next line (matching Python / C Tcl behaviour).
+                    // next line (matching C Tcl behaviour).
                     self.pos += 1;
                     match self.current_char() {
                         Some(esc @ ('\n' | '\r')) => {
@@ -552,10 +502,9 @@ impl<'src> Lexer<'src> {
     }
 
     /// Consume a `\<newline>` line-continuation sequence at word
-    /// start as a SEP token. Matches Python's `_parse_string`
-    /// "backslash-newline at the very start of a token" path which
-    /// emits `TokenType.SEP` so the next token can recognise `{`
-    /// or `"` as brace/quote delimiters (a fresh word boundary).
+    /// start as a SEP token. A backslash-newline at the very start of
+    /// a token emits `TokenType::Sep` so the next token can recognise
+    /// `{` or `"` as brace/quote delimiters (a fresh word boundary).
     fn parse_backslash_newline_sep(&mut self) -> Token {
         let start = self.pos;
         self.pos += 1; // skip backslash
@@ -576,27 +525,22 @@ impl<'src> Lexer<'src> {
     /// - `$name`, `$ns::var` — identifier scan accepting Unicode
     ///   alphanumerics, underscores, and `::` namespace separators.
     /// - `${name}` — braced scan; the closing `}` is consumed but
-    ///   NOT included in the token span (matching Python's `_end =
-    ///   self.pos - 1` before the `}` advance).
+    ///   NOT included in the token span (`_end = pos - 1` before the
+    ///   `}` advance).
     /// - `$arr(idx)` — array indexing with balanced `(`/`)` and
-    ///   embedded `${…}` support, matching the Python lexer's
-    ///   `_parse_var` behaviour. The `)` IS included in the span.
+    ///   embedded `${…}` support. The `)` IS included in the span.
     /// - bare `$` — emitted as an `STR` token whose span covers
-    ///   just the `$`, matching `_parse_var`'s fallback.
+    ///   just the `$`.
     ///
     /// **Span convention.** The span always starts at the `$`
     /// position so the resolved start/end `SourcePosition`s include
-    /// the dollar sign, matching the Python lexer's `Token.start`
-    /// behaviour. The "human-readable" content (variable name
+    /// the dollar sign. The "human-readable" content (variable name
     /// without the leading `$` or `${`) is accessed via
-    /// [`SourceMap::token_text`] rather than `SourceMap::text(span)`;
-    /// the bridge layer uses `token_text` so Python callers see the
-    /// same `tok.text` they always have.
+    /// [`SourceMap::token_text`] rather than `SourceMap::text(span)`.
     ///
     /// Never fails. Unterminated `${` and `$arr(` tokenize
-    /// best-effort; the Python lexer emits non-fatal warnings for
-    /// those cases, which the Rust lexer will start reproducing in
-    /// L9 when warning collection lands.
+    /// best-effort, emitting non-fatal warnings once warning
+    /// collection is in place.
     fn parse_var(&mut self) -> Result<Token, LexError> {
         let dollar_pos = self.pos;
         self.pos += 1; // skip '$'
@@ -610,7 +554,7 @@ impl<'src> Lexer<'src> {
         // var `a\}b` and `${a{b}c}` reads var `a{b}c`. The Tcl(n) man
         // page's "no further substitution or modification" claim refers
         // only to `$` / `[` substitution; backslashes and inner braces
-        // ARE recognised as syntax. Mirrors `compiler/parsing/lexer.py`'s
+        // ARE recognised as syntax.'s
         // `_parse_var` braced branch.
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
@@ -722,9 +666,8 @@ impl<'src> Lexer<'src> {
                 }
                 '$' if self.peek_byte(1) == Some(b'{') => {
                     // `${…}` inside an array index — scan to the
-                    // matching `}`. Python does this to avoid
-                    // mis-counting any `(` or `)` characters inside
-                    // the braced name.
+                    // matching `}` to avoid mis-counting any `(` or
+                    // `)` characters inside the braced name.
                     self.pos += 2; // skip '${'
                     while let Some(inner) = self.current_char() {
                         if inner == '}' {
@@ -768,8 +711,8 @@ impl<'src> Lexer<'src> {
     /// `$` and `[` are left in the stream for the iterator to
     /// dispatch to `parse_var` / `parse_command` on the next
     /// iteration. `\` is left in the stream so the iterator can
-    /// surface it as an unsupported character (L9 adds proper
-    /// handling). Everything else — separators, EOL characters,
+    /// surface it as an unsupported character (proper handling is
+    /// not yet implemented). Everything else — separators, EOL characters,
     /// `#`, `{`, `}` — is consumed as literal content.
     ///
     /// ### Span convention
@@ -780,9 +723,7 @@ impl<'src> Lexer<'src> {
     /// **empty-content** case — where the scanner stopped
     /// immediately without consuming any content — the span is
     /// extended by one byte to cover the stop character itself,
-    /// so the end position lands on it. This matches Python's
-    /// end-offset clamp `end_offset = _end if _end >= _start else
-    /// _start` for the degenerate cases:
+    /// so the end position lands on it, for the degenerate cases:
     ///
     /// - `""` — empty body, stop char is the closing `"`. Span
     ///   covers `""`; `token_text` returns `""`.
@@ -798,7 +739,7 @@ impl<'src> Lexer<'src> {
     /// best-effort — the scanner consumes everything up to EOF
     /// and returns an `ESC` with `in_quote = true` still set, so
     /// the trailing synthetic EOL inherits the `true` flag too.
-    /// The "missing close-quote" warning is deferred to L9.
+    /// The "missing close-quote" warning is not yet emitted.
     fn parse_quoted(&mut self, opening: bool) -> Result<Token, LexError> {
         let start_offset = self.pos;
         if opening {
@@ -821,8 +762,7 @@ impl<'src> Lexer<'src> {
                     // the following character stay in the token
                     // text). `\<newline>` inside a quote is NOT a
                     // word break — it's just another pair of
-                    // literal bytes, matching Python's
-                    // `_parse_string` insidequote path.
+                    // literal bytes.
                     self.pos += 1;
                     match self.current_char() {
                         Some(esc @ ('\n' | '\r')) => {
@@ -886,10 +826,10 @@ impl<'src> Lexer<'src> {
         ))
     }
 
-    /// Mirror of Python's `_parse_string` `newword` predicate: the
-    /// next token is at a word boundary (so `{` at `self.pos`
-    /// starts a braced string rather than being part of a bare
-    /// word) when the previously emitted token was `Sep`, `Eol`,
+    /// Whether the next token is at a word boundary (so `{` at
+    /// `self.pos` starts a braced string rather than being part of a
+    /// bare word) — true when the previously emitted token was `Sep`,
+    /// `Eol`,
     /// `Str`, or `Expand`. The initial state before any token is
     /// emitted is `Eol`, so the first character of the source is
     /// always at a word boundary.
@@ -903,8 +843,7 @@ impl<'src> Lexer<'src> {
 
     /// Check for the `{*}` expansion prefix (Tcl 8.5+) at the
     /// current `{`, and dispatch to either `parse_expand` or
-    /// `parse_brace`. Matches the Python check inside
-    /// `_parse_string`:
+    /// `parse_brace`. The condition is:
     ///
     /// ```text
     /// if expand_syntax
@@ -924,22 +863,15 @@ impl<'src> Lexer<'src> {
         self.parse_brace()
     }
 
-    /// Emit an `EXPAND` token for the `{*}` prefix. The token's
-    /// span covers the three-byte `{*}` sequence with
-    /// `content_offset = 0` (Python's `Token.text` for EXPAND is
-    /// just `{`). The Python lexer sets `_start = self.pos`,
-    /// advances by 3, then sets `_end = _start` — a zero-width
-    /// marker where text = `{`. We match by setting `span = [pos,
-    /// pos+1)` so `SourceMap::text(span)` returns `{` and
-    /// `range_positions` gives start == end at the `{` position.
+    /// Emit an `EXPAND` token for the `{*}` prefix. The token is a
+    /// zero-width marker anchored at the `{` position (`span =
+    /// [pos, pos)`), so `range_positions` gives start == end there.
     /// The lexer then advances `self.pos` past the full `{*}` so
     /// the next dispatch starts at the word to expand.
     fn parse_expand(&mut self) -> Token {
         let start = self.pos;
         self.pos += 3; // skip `{*}`
-        // Emit an empty span anchored at the `{` position —
-        // matching Python's `_end = _start` (zero-width marker)
-        // where `Token.text` is empty.
+        // Emit an empty span anchored at the `{` position.
         Token::new(TokenType::Expand, Span::empty(start))
     }
 
@@ -957,18 +889,16 @@ impl<'src> Lexer<'src> {
     /// even though the scanner skips over it.
     ///
     /// The span starts at the `{` and normally ends at the last
-    /// character of the body (NOT the closing `}`), matching
-    /// Python's `_end = self.pos - 1` before the `}` advance. The
+    /// character of the body (NOT the closing `}`). The
     /// empty-body degenerate `{}` extends the span by one so
-    /// `range_positions` reports the `}` as the end position,
-    /// matching Python's `end_offset = _start` clamp.
+    /// `range_positions` reports the `}` as the end position.
     /// `SourceMap::token_text` strips the leading `{` (and the
-    /// trailing `}` for the degenerate `{}` case) so Python callers
+    /// trailing `}` for the degenerate `{}` case) so callers
     /// see just the inside of the braces.
     ///
     /// Never fails. Unterminated `{` tokenizes best-effort; the
     /// "extra characters after close-brace" warning and the
-    /// iRules `}{` word-boundary injection are deferred to L8/L9.
+    /// iRules `}{` word-boundary injection are not yet implemented.
     fn parse_brace(&mut self) -> Result<Token, LexError> {
         let brace_pos = self.pos;
         self.pos += 1; // skip opening '{'
@@ -981,9 +911,7 @@ impl<'src> Lexer<'src> {
             match ch {
                 '\\' => {
                     // Consume the backslash and the next character
-                    // as a pair. Matches Python's `_parse_brace`
-                    // which skips the backslash then the escaped
-                    // char, with CRLF counted as one character.
+                    // as a pair (CRLF counted as one character).
                     self.pos += 1;
                     match self.current_char() {
                         Some(esc @ ('\n' | '\r')) => {
@@ -1087,18 +1015,15 @@ impl<'src> Lexer<'src> {
     /// - `{` / `}` — adjust `blevel` when not quoted.
     ///
     /// The span always starts at the `[` and normally ends at the
-    /// last character of the body (NOT the closing `]`), matching
-    /// Python's `_end = self.pos - 1`. The empty-command degenerate
-    /// case `[]` extends the span by one so `range_positions`
-    /// reports the `]` as the end position, matching Python's
-    /// `end_offset = _start` clamp. `SourceMap::token_text` strips
-    /// the leading `[` (and the trailing `]` from the degenerate
-    /// case) so Python callers see just the command body.
+    /// last character of the body (NOT the closing `]`). The
+    /// empty-command degenerate case `[]` extends the span by one so
+    /// `range_positions` reports the `]` as the end position.
+    /// `SourceMap::token_text` strips the leading `[` (and the
+    /// trailing `]` from the degenerate case) so callers see just the
+    /// command body.
     ///
     /// Never fails. An unterminated `[` tokenizes best-effort; the
-    /// Python lexer emits a `missing close-bracket` warning, which
-    /// L9's warning-collection infrastructure will start
-    /// reproducing.
+    /// `missing close-bracket` warning is not yet emitted.
     fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
         self.pos += 1; // skip '['
@@ -1109,9 +1034,9 @@ impl<'src> Lexer<'src> {
         let mut in_quotes = false;
 
         while let Some(ch) = self.current_char() {
-            // A recovery ghost `]` (GAP-A1) is a deliberate insertion that
+            // A recovery ghost `]` is a deliberate insertion that
             // closes this command *unconditionally* — even inside a `"…"`
-            // sub-region or brace run the faithful quote/brace counters would
+            // sub-region or brace run the quote/brace counters would
             // otherwise keep open. Without this, a mid-word `"` (`[foo abc"`)
             // toggles `in_quotes`, and the ghost `]` that E201 recovery placed
             // before the following command would be swallowed as quoted text,
@@ -1149,9 +1074,8 @@ impl<'src> Lexer<'src> {
                 }
                 '\\' => {
                     // Consume the backslash and the next character
-                    // as a pair (CRLF counted as one). This matches
-                    // Python's "Skip backslash. Skip escaped char."
-                    // logic inside `_parse_command`.
+                    // as a pair (CRLF counted as one): skip the
+                    // backslash, then skip the escaped char.
                     self.pos += 1;
                     match self.current_char() {
                         Some(esc @ ('\n' | '\r')) => {
@@ -1202,7 +1126,7 @@ impl<'src> Lexer<'src> {
         // At this point `self.pos` is at the closing `]` or at EOF.
         let content_empty = self.pos == content_start;
         // `current_byte` reports a ghost `]` too; distinguish so the
-        // ghost is consumed zero-width (GAP-A1).
+        // ghost is consumed zero-width.
         let close_is_ghost = self.ghost_at(self.pos) == Some(b']');
         let has_close_bracket = self.current_byte() == Some(b']');
         let span_end = if content_empty && has_close_bracket && !close_is_ghost {
@@ -1260,7 +1184,7 @@ impl Iterator for Lexer<'_> {
         // the scanner ignores separators, EOL characters, `#`, and
         // `{` / `}` — they become literal content — and only `$`,
         // `[`, `"`, and `\` are meaningful. Outside a quoted
-        // string the dispatch is the full top-level one from L3–L6.
+        // string the dispatch is the full top-level one.
         let result = if self.in_quote {
             // Inside a quoted string: `$`, `[` dispatch to their
             // own parsers; `\` is still a deferred error; every
@@ -1300,9 +1224,7 @@ impl Iterator for Lexer<'_> {
                 // `parse_quoted` resets `self.in_quote = false`
                 // *before* returning when it consumes the closing
                 // `"`, so the last ESC of a quoted run picks up
-                // `false` here — mirroring Python's `get_token`
-                // which reads `self.insidequote` after
-                // `_parse_string` has already written to it.
+                // `false` here.
                 tok.in_quote = self.in_quote;
                 Some(Ok(tok))
             }
@@ -1335,24 +1257,21 @@ fn is_eol_byte(byte: u8) -> bool {
     byte == b'\n' || byte == b';'
 }
 
-/// Union of `is_horizontal_whitespace_byte` and `is_eol_byte`,
-/// matching Python's `_SEPARATOR_CHARS`. Used by the `{*}`
-/// expansion-prefix guard to test the byte after `}`.
+/// Union of `is_horizontal_whitespace_byte` and `is_eol_byte`.
+/// Used by the `{*}` expansion-prefix guard to test the byte after `}`.
 #[inline]
 fn is_separator_byte(byte: u8) -> bool {
     is_horizontal_whitespace_byte(byte) || is_eol_byte(byte)
 }
 
-// L9 removed the last deferred character (`\`). The
-// `is_deferred_special` function (and the iterator's error arm
-// that referenced it) no longer exist. Every valid ASCII character
-// in a Tcl source is now handled by the Rust lexer.
+// There is no "deferred special" character set: every valid ASCII
+// character in a Tcl source is handled by the lexer.
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::line_index::LineIndex;
-    use crate::tokens::SourcePosition;
+    use crate::tokens::{ByteCol, SourcePosition};
 
     struct Lexed<'src> {
         source_map: SourceMap<'src>,
@@ -1428,7 +1347,7 @@ mod tests {
 
     #[test]
     fn cr_is_separator_not_eol() {
-        // Python: `\r` is in `_SEP_CHARS`, not `_EOL_CHARS`.
+        // `\r` is a separator char, not an end-of-line char.
         let lexed = Lexed::run("foo\rbar");
         assert_eq!(
             lexed.kinds(),
@@ -1563,8 +1482,8 @@ mod tests {
     fn position_tracking_simple_word() {
         let lexed = Lexed::run("foo");
         let (start, end) = lexed.positions(0);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
     }
 
     #[test]
@@ -1573,19 +1492,19 @@ mod tests {
         // ESC "ab" at (0,0)-(0,1)
         let (start, end) = lexed.positions(0);
         assert_eq!(lexed.source_map.text(lexed.tokens[0].span), "ab");
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 1, 1));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(1), 1));
         // EOL "\n" at (0,2)-(0,2)
         let (start, end) = lexed.positions(1);
         assert_eq!(lexed.tokens[1].kind, TokenType::Eol);
         assert_eq!(lexed.source_map.text(lexed.tokens[1].span), "\n");
-        assert_eq!(start, SourcePosition::new(0, 2, 2));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(2), 2));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
         // ESC "cd" at (1,0)-(1,1)
         let (start, end) = lexed.positions(2);
         assert_eq!(lexed.source_map.text(lexed.tokens[2].span), "cd");
-        assert_eq!(start, SourcePosition::new(1, 0, 3));
-        assert_eq!(end, SourcePosition::new(1, 1, 4));
+        assert_eq!(start, SourcePosition::new(1, ByteCol::new(0), 3));
+        assert_eq!(end, SourcePosition::new(1, ByteCol::new(1), 4));
     }
 
     #[test]
@@ -1599,7 +1518,7 @@ mod tests {
 
     #[test]
     fn dollar_is_no_longer_an_unsupported_character() {
-        // Regression guard: L4 removed `$` from the deferred set.
+        // Regression guard: `$` is no longer in the deferred set.
         // The lexer should accept `$bar` as a VAR token, not error.
         let tokens = Lexer::new("foo $bar").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
@@ -1616,7 +1535,7 @@ mod tests {
 
     #[test]
     fn brace_is_no_longer_an_unsupported_character() {
-        // Regression guard: L6 removed `{` and `}` from the deferred
+        // Regression guard: `{` and `}` are no longer in the deferred
         // set. `foo {bar}` should now lex as ESC + SEP + STR + EOL.
         let tokens = Lexer::new("foo {bar}").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
@@ -1633,7 +1552,7 @@ mod tests {
 
     #[test]
     fn bracket_is_no_longer_an_unsupported_character() {
-        // Regression guard: L5 removed `[` from the deferred set.
+        // Regression guard: `[` is no longer in the deferred set.
         // `[cmd]` should now lex as a CMD token, not error.
         let tokens = Lexer::new("[cmd]").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
@@ -1662,7 +1581,7 @@ mod tests {
 
     #[test]
     fn backslash_in_bare_word_does_not_error() {
-        // Regression guard: L9 removed `\` from the deferred set.
+        // Regression guard: `\` is no longer in the deferred set.
         let lexed = Lexed::run(r"foo\nbar");
         assert_eq!(lexed.kinds(), vec![TokenType::Esc, TokenType::Eol]);
     }
@@ -1689,16 +1608,14 @@ mod tests {
         assert!(!tokens.is_empty());
     }
 
-    // ------------------------------------------------------------------
-    // L4 — variable substitution
-    // ------------------------------------------------------------------
+    // Variable substitution
 
     fn var_token_text(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
         let map = lexer.source_map().clone();
         let tokens = lexer.tokenise_all().expect("L4 lexer accepts fixture");
         // `token_text` strips the leading `$` / `${` for VAR tokens
-        // so the assertions mirror Python's `tok.text` field.
+        // so the assertions check just the variable name.
         let rows = tokens
             .iter()
             .map(|t| (t.kind, map.token_text(*t).to_owned()))
@@ -1730,7 +1647,7 @@ mod tests {
             var_token_text("$foo1").0[0],
             (TokenType::Var, "foo1".into())
         );
-        // Python allows digits at the start of variable names —
+        // Digits are allowed at the start of variable names —
         // Tcl uses `$1`, `$2` etc. for regexp backrefs.
         assert_eq!(var_token_text("$1").0[0], (TokenType::Var, "1".into()));
     }
@@ -1791,10 +1708,8 @@ mod tests {
 
     #[test]
     fn var_braced_unterminated_tokenises_best_effort() {
-        // Missing `}` — Python emits a non-fatal warning and
-        // tokenises the remaining input as the variable name. L4
-        // matches the tokenisation but does not emit the warning
-        // (L9 adds warning collection).
+        // Missing `}` tokenises the remaining input as the variable
+        // name; the non-fatal warning is not yet emitted.
         let (rows, _) = var_token_text("${unterminated");
         assert_eq!(rows[0], (TokenType::Var, "unterminated".into()));
     }
@@ -1808,9 +1723,8 @@ mod tests {
     // read reports — e.g. `${a\}b}` reads var `a\}b`, `${a{b}c}` reads var
     // `a{b}c`. NOTE: Tcl 8.4/8.5/8.6 instead stop at the *first* `}` (their
     // `Tcl_ParseVarName` is `while (numBytes && (*src != '}'))`, no brace
-    // counting, no backslash); the project deliberately standardises the
-    // `${…}` parse on 9.0.3 across all dialects, matching the Python lexer
-    // (`tests/test_tcl_corner_cases.py::test_brace_*`).
+    // counting, no backslash); the lexer deliberately standardises the
+    // `${…}` parse on 9.0.3 across all dialects.
 
     #[test]
     fn var_braced_escaped_close_brace_is_part_of_name() {
@@ -1853,8 +1767,7 @@ mod tests {
     #[test]
     fn var_braced_newline_in_name() {
         // A bare newline inside `${…}` is ordinary name content (it is not
-        // a delimiter and not a backslash). Name = `a\nb`. Mirrors the
-        // Python pin `test_tcl_corner_cases.py::test_brace_with_newline`.
+        // a delimiter and not a backslash). Name = `a\nb`.
         let (rows, _) = var_token_text("${a\nb}");
         assert_eq!(rows[0], (TokenType::Var, "a\nb".into()));
     }
@@ -1871,7 +1784,7 @@ mod tests {
     fn var_array_index() {
         let (rows, _) = var_token_text("$arr(idx)");
         // Span covers the whole `arr(idx)` — including the parens —
-        // but not the leading `$`, matching Python.
+        // but not the leading `$`.
         assert_eq!(rows[0], (TokenType::Var, "arr(idx)".into()));
     }
 
@@ -1885,8 +1798,8 @@ mod tests {
     fn var_array_index_with_inner_braced_var() {
         // `${key}` inside the index scans to the matching `}` as a
         // unit — the `(` / `)` inside such a braced name would not
-        // count against the array-index depth. Python does this so
-        // a variable-named-with-parens doesn't fool the index
+        // count against the array-index depth, so a
+        // variable-named-with-parens doesn't fool the index
         // scanner.
         let (rows, _) = var_token_text("$arr(${key})");
         assert_eq!(rows[0], (TokenType::Var, "arr(${key})".into()));
@@ -1900,7 +1813,7 @@ mod tests {
 
     #[test]
     fn bare_dollar_is_an_str_token() {
-        // Python emits bare `$` as an STR token whose text is the
+        // A bare `$` is emitted as an STR token whose text is the
         // `$` character — not a VAR.
         let (rows, _) = var_token_text("$");
         assert_eq!(rows[0], (TokenType::Str, "$".into()));
@@ -1960,10 +1873,9 @@ mod tests {
     #[test]
     fn var_span_positions() {
         // `$foo bar` — the VAR span covers the whole `$foo` (offset
-        // 0..4), matching the Python lexer's convention that
-        // `Token.start` points at the `$` and `Token.end` at the
-        // last char of the name. `token_text` is how you get just
-        // the "foo" part.
+        // 0..4): the span starts at the `$` and ends at the last char
+        // of the name. `token_text` is how you get just the "foo"
+        // part.
         let lexer = Lexer::new("$foo bar");
         let map = lexer.source_map().clone();
         let tokens = lexer.tokenise_all().unwrap();
@@ -1971,8 +1883,8 @@ mod tests {
         assert_eq!(var.span.start(), 0);
         assert_eq!(var.span.end(), 4);
         let (start, end) = map.range_positions(var.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
         assert_eq!(map.token_text(*var), "foo");
     }
 
@@ -2000,9 +1912,7 @@ mod tests {
         assert_eq!(map.line_index().line_count(), 3);
     }
 
-    // ------------------------------------------------------------------
-    // L5 — command substitution
-    // ------------------------------------------------------------------
+    // Command substitution
 
     fn cmd_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2151,9 +2061,8 @@ mod tests {
     #[test]
     fn cmd_span_positions() {
         // `[cmd] rest` — the CMD span covers the whole `[cmd]` range
-        // (offset 0..4 per Python's convention: start at `[`, end
-        // at the last char of the body, `token_text` strips the
-        // leading `[`).
+        // (offset 0..4: start at `[`, end at the last char of the
+        // body, `token_text` strips the leading `[`).
         let lexer = Lexer::new("[cmd] rest");
         let map = lexer.source_map().clone();
         let tokens = lexer.tokenise_all().unwrap();
@@ -2161,16 +2070,15 @@ mod tests {
         assert_eq!(cmd.span.start(), 0);
         assert_eq!(cmd.span.end(), 4);
         let (start, end) = map.range_positions(cmd.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
         assert_eq!(map.token_text(*cmd), "cmd");
     }
 
     #[test]
     fn standalone_closing_bracket_is_part_of_word() {
-        // `foo]bar` — `]` is not a deferred character after L5, so
-        // it's included in the bare word matching Python's
-        // `_parse_string` behaviour.
+        // `foo]bar` — `]` is not a deferred character, so it's
+        // included in the bare word.
         let (rows, _) = cmd_token_rows("foo]bar");
         assert_eq!(rows[0], (TokenType::Esc, "foo]bar".into()));
     }
@@ -2190,9 +2098,7 @@ mod tests {
         assert!(rows.iter().any(|(k, _)| *k == TokenType::Cmd));
     }
 
-    // ------------------------------------------------------------------
-    // L6 — braced strings
-    // ------------------------------------------------------------------
+    // Braced strings
 
     fn str_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2249,8 +2155,7 @@ mod tests {
     fn braced_midword_is_regular_character() {
         // `foo{bar}` — the `{` is NOT at a word boundary (the
         // previous token was ESC, not SEP/EOL/STR/EXPAND), so it's
-        // a regular character in the bare word. Matches Python's
-        // `_parse_string` fall-through.
+        // a regular character in the bare word.
         let (rows, _) = str_token_rows("foo{bar}");
         assert_eq!(rows[0], (TokenType::Esc, "foo{bar}".into()));
     }
@@ -2357,8 +2262,8 @@ mod tests {
         assert_eq!(brace.span.start(), 0);
         assert_eq!(brace.span.end(), 6);
         let (start, end) = map.range_positions(brace.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(5), 5));
         assert_eq!(map.token_text(*brace), "hello");
     }
 
@@ -2383,9 +2288,7 @@ mod tests {
         assert_eq!(rows[2], (TokenType::Str, "c".into()));
     }
 
-    // ------------------------------------------------------------------
-    // L7 — quoted strings
-    // ------------------------------------------------------------------
+    // Quoted strings
 
     fn quoted_rows(source: &str) -> (Vec<(TokenType, String, bool)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2427,9 +2330,7 @@ mod tests {
     #[test]
     fn quoted_contains_braces_literally() {
         // Inside a quoted string, `{` and `}` are regular content,
-        // NOT braced-string delimiters. Python's `_parse_string`
-        // fall-through reaches this path because `insidequote` is
-        // true.
+        // NOT braced-string delimiters.
         let (rows, _) = quoted_rows(r#""hello {world}""#);
         assert_eq!(rows[0], (TokenType::Esc, "hello {world}".into(), false));
     }
@@ -2544,8 +2445,8 @@ mod tests {
         assert_eq!(esc.span.start(), 0);
         assert_eq!(esc.span.end(), 6);
         let (start, end) = map.range_positions(esc.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(5), 5));
         assert_eq!(map.token_text(*esc), "hello");
     }
 
@@ -2570,7 +2471,7 @@ mod tests {
     #[test]
     fn quoted_in_quote_propagates_to_sub_tokens() {
         // Verify explicitly that sub-tokens inside a quoted run
-        // carry `in_quote = true`, matching Python's convention.
+        // carry `in_quote = true`.
         let (rows, _) = quoted_rows(r#""$a [b] $c""#);
         assert_eq!(rows[0], (TokenType::Esc, String::new(), true));
         assert_eq!(rows[1], (TokenType::Var, "a".into(), true));
@@ -2581,9 +2482,7 @@ mod tests {
         assert_eq!(rows[6], (TokenType::Esc, String::new(), false));
     }
 
-    // ------------------------------------------------------------------
-    // L8 — `{*}` expansion prefix + dialect flags
-    // ------------------------------------------------------------------
+    // `{*}` expansion prefix + dialect flags
 
     fn expand_rows(source: &str) -> Vec<(TokenType, String)> {
         let lexer = Lexer::new(source);
@@ -2682,8 +2581,8 @@ mod tests {
 
     #[test]
     fn expand_span_is_empty() {
-        // The EXPAND token's span covers just the `{` (one byte),
-        // matching Python's `_end = _start` zero-width marker.
+        // The EXPAND token's span covers just the `{` (one byte) —
+        // a zero-width marker.
         let lexer = Lexer::new("{*}list");
         let map = lexer.source_map().clone();
         let tokens = lexer.tokenise_all().unwrap();
@@ -2691,8 +2590,8 @@ mod tests {
         assert_eq!(expand.span.start(), 0);
         assert_eq!(expand.span.end(), 0);
         let (start, end) = map.range_positions(expand.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 0, 0));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(0), 0));
     }
 
     #[test]
@@ -2724,7 +2623,7 @@ mod tests {
         assert_eq!(cfg.irules_brace_separator, default.irules_brace_separator);
     }
 
-    // -- GAP-A1: ghost-token recovery -------------------------------
+    // ghost-token recovery
 
     #[test]
     fn ghost_bracket_terminates_unclosed_command() {

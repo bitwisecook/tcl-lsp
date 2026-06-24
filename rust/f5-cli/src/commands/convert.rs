@@ -1,9 +1,9 @@
 //! The `convert` verb — `ucs2scf` (UCS → SCF, same shape as `extract`) and
 //! `scf2as3` (bigip.conf → AS3 declaration JSON).
 //!
-//! Port of `tooling/f5/verbs/convert.py`. `ucs2scf` reuses the UCS-extraction
-//! path; `scf2as3` runs the `tcl_bigip::convert` AS3 engine and emits the
-//! declaration via the `json.dumps(indent=2)`-parity serializer.
+//! `ucs2scf` reuses the UCS-extraction path; `scf2as3` runs the
+//! `tcl_bigip::convert` AS3 engine and emits the declaration as
+//! two-space-indented JSON.
 
 use std::path::Path;
 

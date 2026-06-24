@@ -1,16 +1,15 @@
 //! Differential parity for the BIG-IP object-registry query layer.
 //!
 //! Asserts the Rust `kind_for_header` / `candidate_kinds_for_key` /
-//! `candidate_kinds_for_section_item` reproduce `object_registry.py` exactly,
-//! over a golden captured from the Python registry (every header in the
-//! registry, plus every property name per container, probed across several
-//! sections). Self-contained — no Python at test time.
+//! `candidate_kinds_for_section_item` reproduce the registry resolution exactly,
+//! over a captured golden registry (every header in the registry, plus every
+//! property name per container, probed across several sections).
+//! Self-contained — no external oracle at test time.
 //!
 //! `kind_for_header` (the structural header→kind map), `candidate_kinds_for_key`,
-//! and `candidate_kinds_for_section_item` must all match Python **exactly** —
+//! and `candidate_kinds_for_section_item` must all match the golden **exactly** —
 //! every probe, no exceptions. The registry **data** (`bigip/data`) is
-//! regenerated from the reconciled Python `OBJECT_SPECS` by
-//! `scripts/registry-audit/gen_bigip_rust.py`, so there is no data drift to pin.
+//! regenerated from the reconciled `OBJECT_SPECS`, so there is no data drift to pin.
 
 use std::collections::BTreeSet;
 
@@ -72,14 +71,14 @@ fn object_query_matches_python() {
     // The structural header→kind mapping must be exactly in sync.
     assert!(
         header_mismatches.is_empty(),
-        "kind_for_header diverged from Python:\n{}",
+        "kind_for_header diverged from the reference:\n{}",
         header_mismatches.join("\n")
     );
 
-    // candidate_kinds_* must match Python on every probe.
+    // candidate_kinds_* must match the golden on every probe.
     assert!(
         candidate_mismatches.is_empty(),
-        "candidate_kinds diverged from Python ({} rows):\n{}",
+        "candidate_kinds diverged from the reference ({} rows):\n{}",
         candidate_mismatches.len(),
         candidate_mismatches
             .iter()

@@ -2,14 +2,13 @@
 use crate::prelude::*;
 use crate::taint::SetterConstraint;
 
-/// GAP-D2: the setter form of `HTTP::path` requires its value to start
+/// The setter form of `HTTP::path` requires its value to start
 /// with `/` (IRULE3101). Registry-driven replacement for the hardcoded
-/// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`. Mirrors
-/// `irules/http__path.py`.
+/// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`.
 const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     arg_index: 0,
     required_prefix: "/",
-    code: "IRULE3101",
+    code: tcl_core_types::DiagCode::Irule3101,
     message: "HTTP::path value must start with '/'",
 }];
 

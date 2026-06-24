@@ -1,7 +1,7 @@
 //! `lsearch` — list search, shared over [`ValueOps`](tcl_syntax::value::ValueOps)
 //! and the [`RegexEngine`](crate::regex::RegexEngine) provider.
 //!
-//! A faithful port of C's `Tcl_LsearchObjCmd` (`tclCmdIL.c`): every option
+//! Implements the behaviour of C's `Tcl_LsearchObjCmd` (`tclCmdIL.c`): every option
 //! (`-exact`/`-glob`/`-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`,
 //! `-ascii`/`-dictionary`/`-integer`/`-real`/`-nocase`, `-increasing`/
 //! `-decreasing`, `-start`, `-stride`, `-index`, `-subindices`), the sorted
@@ -522,7 +522,7 @@ fn subindex_obj<O: ValueOps>(
     ops.new_list(out)
 }
 
-// -- index-path helpers -------------------------------------------------------
+// index-path helpers
 
 /// Split an `-index` argument (a Tcl list) into its component specs.
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsearchError> {
@@ -577,13 +577,13 @@ fn str_opt(b: &[u8]) -> Option<&str> {
 mod tests {
     use super::*;
 
-    /// `split_index` result as a `Vec<Vec<u8>>` (LsearchError has no Debug,
+    /// `split_index` result as a `Vec<Vec<u8>>` (`LsearchError` has no Debug,
     /// so we can't `.unwrap()`).
     fn split_ok(arg: &[u8]) -> Vec<Vec<u8>> {
-        match split_index(arg) {
-            Ok(v) => v,
-            Err(_) => panic!("expected a parseable index list"),
-        }
+        let Ok(v) = split_index(arg) else {
+            panic!("expected a parseable index list")
+        };
+        v
     }
 
     #[test]

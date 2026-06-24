@@ -21,9 +21,9 @@ use crate::expr_ast::ExprNode;
 /// downstream passes (optimiser, compiler checks) can inspect tokens
 /// without re-lexing.
 ///
-/// In the Rust pipeline, token references use [`Span`]s into the
+/// Token references use [`Span`]s into the
 /// source buffer. The `argv_texts` and `single_token_word` fields
-/// preserve the Python-era per-word metadata needed by analysis passes.
+/// preserve the per-word metadata needed by analysis passes.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CommandTokens {
     /// Per-word representative token spans.
@@ -34,8 +34,7 @@ pub struct CommandTokens {
     /// of each argv entry so analysis passes can distinguish a
     /// brace-string literal (`Str`) from a bareword (`Esc`), a
     /// variable reference (`Var`), or a command substitution
-    /// (`Cmd`). Mirrors Python's `Token.type` exposed via
-    /// `cmd.argv[i].type`.
+    /// (`Cmd`).
     pub argv_kinds: Vec<tcl_lexer::TokenType>,
     /// Whether each word consists of a single token.
     pub single_token_word: Vec<bool>,
@@ -47,15 +46,13 @@ pub struct CommandTokens {
 
 // IR node types
 //
-// The Python codebase uses frozen dataclasses for each IR node kind,
-// with `IRStatement` as a union type alias. In Rust we model this as
-// a flat enum with struct variants. Each variant carries a `Span` for
-// position tracking (replacing the Python `Range`), plus variant-specific
-// fields.
+// IR node kinds are modelled as a flat enum with struct variants.
+// Each variant carries a `Span` for position tracking, plus
+// variant-specific fields.
 
 /// A script: a sequence of IR statements.
 ///
-/// Corresponds to Python's `IRScript`. Using `Vec` rather than a tuple
+/// Using `Vec` rather than a tuple
 /// because scripts are built incrementally during lowering.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Script {
@@ -138,9 +135,8 @@ pub struct ForeachIterator {
 
 /// An IR statement — the building block of the compiler pipeline.
 ///
-/// Corresponds to Python's `IRStatement` union type. Each variant
-/// carries a [`Span`] for position tracking (replacing the Python
-/// `Range` with inline `SourcePosition` pairs). The span is resolved
+/// Each variant
+/// carries a [`Span`] for position tracking. The span is resolved
 /// to text or `(line, character)` via a `SourceMap` on demand.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
@@ -227,15 +223,13 @@ pub enum Statement {
         /// original spelling for diagnostics ("unknown command
         /// `Foo`" reads better than "unknown command `::Foo`").
         command: String,
-        /// SYNC7: canonical command name resolved against the
+        /// Canonical command name resolved against the
         /// registry.  `None` when the lowerer hasn't (yet)
         /// populated it or when the command is unknown to the
         /// registry; downstream dispatch sites use
         /// [`Statement::canonical_command_or_source`] so a `None`
-        /// canonical falls back to `command`.  Mirrors Python's
-        /// `IRCall.canonical_command` field added by `a042271a`
-        /// (closes `#246`).  The lowerer populates it when an
-        /// alias resolves (`interp alias {} foo {} ::ns::bar; foo
+        /// canonical falls back to `command`.  The lowerer populates
+        /// it when an alias resolves (`interp alias {} foo {} ::ns::bar; foo
         /// 1 2` lowers to a `Call` with `command="foo"` and
         /// `canonical_command=Some("::ns::bar")`).
         canonical_command: Option<String>,
@@ -257,9 +251,7 @@ pub enum Statement {
         /// `defs` is a flattened concatenation of `n0` + `n1` + …
         /// vars per iterator group, so the codegen can reconstruct
         /// the original `var-list` ↔ `list-arg` pairing.  ``None``
-        /// for every other call shape.  Mirrors Python's
-        /// `IRCall.foreach_groups` field added by upstream commit
-        /// ``342d4c7a`` (PR #331).
+        /// for every other call shape.
         foreach_groups: Option<Vec<usize>>,
     },
 
@@ -287,7 +279,7 @@ pub enum Statement {
         reason: String,
         /// Original command name (source-surface spelling).
         command: String,
-        /// SYNC7: canonical command name resolved against the
+        /// Canonical command name resolved against the
         /// registry.  See [`Statement::Call::canonical_command`].
         canonical_command: Option<String>,
         /// Original argument texts.
@@ -301,10 +293,8 @@ pub enum Statement {
     /// [`crate::inline_uplevel`] when a passthrough callsite is
     /// rewritten — the callee's body runs in the caller's frame, so
     /// it can be flattened directly into the parent block stream.
-    /// Also produced by C35's const-propagation when an `eval` /
+    /// Also produced by const-propagation when an `eval` /
     /// `uplevel` body resolves to a brace-literal.
-    ///
-    /// Mirrors Python's `IRBlock` (`core/compiler/ir.py`).
     Block {
         /// Source span of the original call that produced this block.
         span: Span,
@@ -323,9 +313,8 @@ pub enum Statement {
     /// restore frame" semantics that `uplevel` provides without the
     /// runtime [`Self::Barrier`] dispatch.
     ///
-    /// Introduced in main commit `2992e6cc` ("introduce `IRUpFrame`
-    /// for static-body uplevel"). Codegen emits `frame_depth_stash`
-    /// / `frame_depth_restore` around the body (matching `698f2f79`).
+    /// Codegen emits `frame_depth_stash`
+    /// / `frame_depth_restore` around the body.
     UpFrame {
         /// Source span of the original `uplevel` call.
         span: Span,
@@ -446,8 +435,7 @@ pub enum Statement {
         /// `tcl_eval`.  Without this, ``catch {$undef} msg`` would
         /// be reconstructed as ``catch $undef msg`` and the
         /// unset-var read would fire before catch could intercept
-        /// it.  Mirrors Python's `IRCatch.tokens` field added by
-        /// upstream commit ``31f5357f`` (PR #341).
+        /// it.
         tokens: Option<CommandTokens>,
     },
 
@@ -494,8 +482,7 @@ pub enum Statement {
         /// with no substitution. `false` when supplied as separate
         /// words (`switch $s $pat {body}`), where each pattern
         /// undergoes normal `$var` / `[cmd]` runtime substitution
-        /// before matching. Mirrors Python's `IRSwitch.patterns_braced`
-        /// (defaults `true`, the canonical braced form).
+        /// before matching. Defaults to `true`, the canonical braced form.
         patterns_braced: bool,
     },
 }
@@ -525,7 +512,7 @@ impl Statement {
         }
     }
 
-    /// SYNC7: dispatch helper that returns the canonical command name
+    /// Dispatch helper that returns the canonical command name
     /// when populated, falling back to the source-surface `command`
     /// otherwise.  Use from downstream dispatch sites (codegen hook
     /// lookup, side-effect classification, GVN purity) so a single
@@ -633,8 +620,7 @@ pub struct MethodDef {
     /// `variable` declarations + the method's own `variable` decls).
     /// A method that *writes* any of these mutates object state and is
     /// therefore impure for O126 purposes, even though the write looks
-    /// like a plain local `set`. Used by interprocedural method-purity
-    /// (SF-2). Mirrors Python's `IRMethodDef.instance_vars`.
+    /// like a plain local `set`. Used by interprocedural method-purity.
     pub instance_vars: std::collections::HashSet<String>,
 }
 
@@ -653,7 +639,7 @@ pub enum MethodKind {
 }
 
 impl MethodKind {
-    /// Parse from the Python string representation.
+    /// Parse from the string representation.
     #[must_use]
     pub fn from_str_lossy(s: &str) -> Self {
         match s {
@@ -699,8 +685,7 @@ pub struct Module {
     /// `oo::define` / in-body redefinition replaces the body at
     /// runtime). Method purity is forced impure for these — we can't
     /// prove which body a given dispatch runs, so the O126 `my
-    /// <method>` deletion gate must stay conservative. Mirrors
-    /// Python's `IRModule.redefined_methods`.
+    /// <method>` deletion gate must stay conservative.
     pub redefined_methods: std::collections::HashSet<String>,
     /// `namespace import` directives captured at lowering time —
     /// `(context_namespace, absolute_pattern)` pairs. Future codegen
@@ -710,28 +695,24 @@ pub struct Module {
     /// interpreter. Only absolute patterns (`::foo::*` /
     /// `::foo::bar`) are recorded; relative patterns require
     /// runtime namespace-path walking which compile-time
-    /// resolution does not model. Mirrors Python's
-    /// `IRModule.namespace_imports` (main commit `ea155a5c`).
+    /// resolution does not model.
     pub namespace_imports: Vec<(String, String)>,
     /// `namespace export` directives captured at lowering time —
     /// `(context_namespace, pattern)` pairs. Codegen consults this
     /// list to gate the import shortcut on actual exportedness so
     /// `namespace import ::foo::*` only resolves names that
-    /// `::foo` actually exports. Mirrors Python's
-    /// `IRModule.namespace_exports` (main commit `2f5cb008`).
+    /// `::foo` actually exports.
     pub namespace_exports: Vec<(String, String)>,
-    /// SYNC9: literal command names that have an execution trace
+    /// Literal command names that have an execution trace
     /// registered (`trace add execution NAME enter|leave HANDLER`).
     /// GVN consults this set to gate purity (a traced call is
     /// never pure because the trace handler composes side effects
-    /// in).  Mirrors Python's `IRModule.traced_commands` field
-    /// added by `8a6f4d58` (closes `#251`).
+    /// in).
     pub traced_commands: std::collections::BTreeSet<String>,
-    /// SYNC9: `true` when a `trace add execution` was seen with a
+    /// `true` when a `trace add execution` was seen with a
     /// non-literal command target (`trace add execution $cmd ...`).
     /// Forces GVN / partial-redundancy / loop-invariant passes to
-    /// treat *every* call as potentially traced.  Mirrors Python's
-    /// `IRModule.has_dynamic_trace`.
+    /// treat *every* call as potentially traced.
     pub has_dynamic_trace: bool,
 }
 
@@ -1143,7 +1124,7 @@ mod tests {
         }
     }
 
-    // -- SYNC7: canonical_command_or_source helper -------------------
+    // canonical_command_or_source helper
 
     #[test]
     fn canonical_command_or_source_falls_back_to_source_when_none() {

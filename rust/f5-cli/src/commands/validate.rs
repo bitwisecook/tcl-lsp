@@ -1,5 +1,5 @@
 //! `f5 validate` (alias `lint`) — run BIG-IP best-practice / structural lint
-//! rules across one or more configs. Mirrors `tooling/f5/verbs/validate.py`.
+//! rules across one or more configs.
 //!
 //! The lint engine ([`tcl_bigip::lint`]) is a *sibling* of the query engine:
 //! it walks the parsed model directly and reuses the model + iRule walker +
@@ -16,7 +16,7 @@ use tcl_cli_support::{OutputTarget, write_text_output};
 /// Run the lint rules over `inputs` and emit findings in the requested format.
 ///
 /// Returns the process exit code: `2` if any error-severity finding, `1` if
-/// any warning, else `0` (mirroring the Python verb).
+/// any warning, else `0`.
 pub fn run_validate(
     inputs: &[std::path::PathBuf],
     category: Option<&str>,
@@ -28,8 +28,8 @@ pub fn run_validate(
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
         .collect();
-    // The Python verb loads via `load_paths(args.paths)` with the default
-    // passphrase provider; on OSError it prints `error: {e}` and returns 2.
+    // Load inputs via the UCS-aware loader with the default passphrase
+    // provider; on I/O error, print `error: {e}` and return 2.
     let opts = tcl_bigip_io::PassphraseOptions {
         explicit: None,
         env_var: tcl_bigip_io::DEFAULT_PASSPHRASE_ENV.to_owned(),
@@ -73,10 +73,9 @@ pub fn run_validate(
     }
 }
 
-/// Render the text report (port of `_to_text`), with a trailing newline.
+/// Render the text report, with a trailing newline.
 ///
-/// `pub(crate)` so the `irule lint` verb can reuse the exact same formatter
-/// (it shares Python's `_to_text`).
+/// `pub(crate)` so the `irule lint` verb can reuse the exact same formatter.
 pub(crate) fn to_text(findings: &[Finding]) -> String {
     if findings.is_empty() {
         return "validate: no findings\n".to_owned();
@@ -107,8 +106,8 @@ pub(crate) fn to_text(findings: &[Finding]) -> String {
     lines.join("\n") + "\n"
 }
 
-/// Render the JSON report (port of `_to_json` + `json.dumps(indent=2)`),
-/// preserving Python key order and emitting findings in run order.
+/// Render the JSON report as 2-space-indented JSON, in a fixed key order and
+/// emitting findings in run order.
 ///
 /// `pub(crate)` so the `irule lint` verb can reuse the exact same formatter.
 pub(crate) fn to_json(findings: &[Finding]) -> String {
@@ -152,7 +151,7 @@ pub(crate) fn to_json(findings: &[Finding]) -> String {
     out
 }
 
-/// Map a finding severity to a SARIF level (port of `_sarif_level`).
+/// Map a finding severity to a SARIF level.
 fn sarif_level(severity: &str) -> &'static str {
     match severity {
         "error" => "error",
@@ -161,13 +160,13 @@ fn sarif_level(severity: &str) -> &'static str {
     }
 }
 
-/// Render the SARIF 2.1.0 report (port of `_to_sarif` + `json.dumps(indent=2)`).
+/// Render the SARIF 2.1.0 report as 2-space-indented JSON.
 fn to_sarif(findings: &[Finding]) -> String {
     use std::fmt::Write as _;
 
     use tcl_bigip::jsonfmt::json_string as q;
 
-    // Unique rules in first-seen order (Python `dict.setdefault`).
+    // Unique rules in first-seen order.
     let mut rule_order: Vec<&str> = Vec::new();
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for f in findings {

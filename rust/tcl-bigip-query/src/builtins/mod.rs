@@ -1,18 +1,16 @@
-//! Builtin function library for the query DSL — faithful port of
-//! `dialects/f5/query/builtins.py`.
+//! Builtin function library for the query DSL.
 //!
 //! This module owns the registry (`BuiltinSpec` + the dispatch metadata the
 //! evaluator reads), the shared argument-coercion / value-walking helpers,
 //! and the **plain** builtins. The special-form builtins (`select`, `map`,
 //! the `paths` / `getpath` family, …) are dispatched by [`crate::special`].
 //!
-//! The builtin set is ported in batches; each batch lands with golden
-//! differential coverage. Plain builtins raise [`QueryError::Builtin`] for
-//! argument-type mistakes so the CLI can map them to `error:` uniformly.
+//! Plain builtins raise [`QueryError::Builtin`] for argument-type mistakes so
+//! the CLI can map them to `error:` uniformly.
 
-// The DSL models Python's unbounded `int`; index / length / numeric
+// The DSL models an unbounded `int`; index / length / numeric
 // conversions between `usize`, `i64`, and `f64` are intentional and
-// pervasive in this faithful port.
+// pervasive.
 #![allow(
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
@@ -59,11 +57,11 @@ pub enum Builtin {
     Special,
 }
 
-/// The registry entry for one builtin (port of `builtins.BuiltinSpec`, minus
-/// the doc-only `summary` / `signatures` / `examples` / `details` fields).
+/// The registry entry for one builtin, minus the doc-only `summary` /
+/// `signatures` / `examples` / `details` fields.
 ///
-/// The flag set mirrors Python's `BuiltinSpec` dispatch flags one-for-one, so
-/// the several bools are intrinsic rather than a state-machine smell.
+/// Each flag is an intrinsic dispatch property rather than a state-machine
+/// smell, so the several bools are expected here.
 #[allow(clippy::struct_excessive_bools)]
 pub struct BuiltinSpec {
     pub name: &'static str,
@@ -75,8 +73,8 @@ pub struct BuiltinSpec {
     pub stream_aware: bool,
     /// Whether stream arguments broadcast element-wise (the scalar-builtin
     /// default). `with_ctx` builtins normally skip broadcast; `refs` /
-    /// `referenced_by` are the exception (plain — and so broadcasting — in
-    /// Python, but need `ctx` for the config here).
+    /// `referenced_by` are the exception (plain — and so broadcasting —
+    /// but need `ctx` for the config here).
     pub broadcasts: bool,
     pub imp: Builtin,
 }
@@ -111,9 +109,9 @@ fn arity(spec: &BuiltinSpec) -> String {
 /// matching builtin's metadata; otherwise lists every builtin grouped by
 /// category.
 ///
-/// This is the Rust port's idiomatic equivalent of `f5 query --help-builtins`:
+/// This is the idiomatic equivalent of `f5 query --help-builtins`:
 /// the [`BuiltinSpec`] carries the dispatch metadata (name, category, arity,
-/// flags) but not the Python doc prose, so the catalogue surfaces what the
+/// flags) but not the full doc prose, so the catalogue surfaces what the
 /// registry actually knows and points at the reference docs for the rest.
 #[must_use]
 pub fn format_catalogue(filter: Option<&str>) -> String {
@@ -208,8 +206,8 @@ pub(crate) fn ctx(
 }
 
 /// Like [`ctx`] but with stream arguments broadcasting element-wise — for the
-/// `refs` / `referenced_by` builtins, which are plain (broadcasting) in
-/// Python but need `ctx` for config access in this port.
+/// `refs` / `referenced_by` builtins, which are plain (broadcasting)
+/// but need `ctx` for config access here.
 pub(crate) fn ctx_broadcast(
     name: &'static str,
     category: &'static str,
@@ -329,11 +327,9 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r
 }
 
-// ---------------------------------------------------------------------------
-// Shared coercion / walking helpers (ported from builtins.py)
-// ---------------------------------------------------------------------------
+// Shared coercion / walking helpers
 
-/// Port of `builtins._type_name`.
+/// The type name of a value.
 #[must_use]
 pub(crate) fn type_name(v: &Value) -> &'static str {
     match v {
@@ -347,13 +343,13 @@ pub(crate) fn type_name(v: &Value) -> &'static str {
         Value::Stream(_) => "stream",
         Value::List(_) => "list",
         Value::Object(_) => "dict",
-        // Python `_type_name` falls back to `type(value).__name__`.
+        // Falls back to the type name for a Container.
         Value::Container(_) => "Container",
         Value::Drop => "Drop",
     }
 }
 
-/// Port of `builtins._as_sequence`.
+/// Coerce a value to a sequence (list or stream) of elements.
 pub(crate) fn as_sequence(v: &Value, name: &str, arg: usize) -> Result<Vec<Value>, QueryError> {
     match v {
         Value::List(items) | Value::Stream(items) => Ok(items.clone()),
@@ -364,7 +360,7 @@ pub(crate) fn as_sequence(v: &Value, name: &str, arg: usize) -> Result<Vec<Value
     }
 }
 
-/// Port of `builtins._as_str`.
+/// Coerce a value to a string.
 pub(crate) fn as_str(v: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
     match v {
         Value::PathRef(p) => Ok(p.full_path.clone()),
@@ -376,7 +372,7 @@ pub(crate) fn as_str(v: &Value, name: &str, arg: usize) -> Result<String, QueryE
     }
 }
 
-/// Port of `builtins._as_int`.
+/// Coerce a value to an integer.
 pub(crate) fn as_int(v: &Value, name: &str, arg: usize) -> Result<i64, QueryError> {
     match v {
         Value::Bool(_) => Err(QueryError::builtin(format!(
@@ -390,7 +386,7 @@ pub(crate) fn as_int(v: &Value, name: &str, arg: usize) -> Result<i64, QueryErro
     }
 }
 
-/// Port of `builtins._as_number` — preserves int / float.
+/// Coerce a value to a number, preserving int / float.
 pub(crate) fn as_number(v: &Value, name: &str, arg: usize) -> Result<Value, QueryError> {
     match v {
         Value::Bool(_) => Err(QueryError::builtin(format!(
@@ -405,7 +401,7 @@ pub(crate) fn as_number(v: &Value, name: &str, arg: usize) -> Result<Value, Quer
     }
 }
 
-/// Port of `builtins._object_entries` — sorted `(key, value)` pairs.
+/// Sorted `(key, value)` pairs of an object.
 pub(crate) fn object_entries(v: &Value, name: &str) -> Result<Vec<(String, Value)>, QueryError> {
     match v {
         Value::ObjectRef(o) => {
@@ -431,7 +427,7 @@ pub(crate) fn object_entries(v: &Value, name: &str) -> Result<Vec<(String, Value
     }
 }
 
-/// Port of `builtins._to_jsonable` — coerce to a JSON-shaped value.
+/// Coerce a value to a JSON-shaped value.
 #[must_use]
 pub(crate) fn to_jsonable(v: &Value) -> Value {
     match v {
@@ -454,7 +450,7 @@ pub(crate) fn to_jsonable(v: &Value) -> Value {
             }
             Value::Object(m)
         }
-        // Python `_to_jsonable` falls back to `str(value)` for a Container.
+        // Falls back to `str(value)` for a Container.
         Value::Container(c) => Value::Str(format!("container({})", c.kind)),
         Value::Drop => Value::Str("Drop".to_string()),
     }
@@ -467,7 +463,7 @@ pub(crate) fn is_container(v: &Value) -> bool {
     )
 }
 
-/// `(key, child)` pairs for a composite value — port of `_value_children`.
+/// `(key, child)` pairs for a composite value.
 /// Keys are `Value::Str` (objects, sorted) or `Value::Int` (lists).
 #[must_use]
 pub(crate) fn value_children(v: &Value) -> Vec<(Value, Value)> {
@@ -495,7 +491,7 @@ pub(crate) fn value_children(v: &Value) -> Vec<(Value, Value)> {
     }
 }
 
-/// Port of `builtins._all_paths`.
+/// All paths through a value (only leaf paths when `only_leaves`).
 #[must_use]
 pub(crate) fn all_paths(v: &Value, only_leaves: bool) -> Vec<Vec<Value>> {
     let mut out = Vec::new();
@@ -521,7 +517,7 @@ fn walk_paths(cur: &Value, prefix: &mut Vec<Value>, only_leaves: bool, out: &mut
     }
 }
 
-/// Port of `builtins._value_at_path` — `Null` for missing keys.
+/// Read the value at a path; `Null` for missing keys.
 #[must_use]
 pub(crate) fn value_at_path(value: &Value, path: &[Value]) -> Value {
     let mut cur = value.clone();
@@ -555,7 +551,7 @@ pub(crate) fn value_at_path(value: &Value, path: &[Value]) -> Value {
     cur
 }
 
-/// Port of `builtins._coerce_path_key`.
+/// Coerce a single path key to its canonical form.
 fn coerce_path_key(key: &Value, name: &str, idx: usize) -> Result<Value, QueryError> {
     match key {
         Value::Bool(_) => Err(QueryError::builtin(format!(
@@ -570,7 +566,7 @@ fn coerce_path_key(key: &Value, name: &str, idx: usize) -> Result<Value, QueryEr
     }
 }
 
-/// Port of `builtins._coerce_path_list`.
+/// Coerce a path argument to a list of canonical keys.
 pub(crate) fn coerce_path_list(
     path: &Value,
     name: &str,
@@ -583,7 +579,7 @@ pub(crate) fn coerce_path_list(
         .collect()
 }
 
-/// Port of `builtins._set_at_path`.
+/// Set the value at a path, creating intermediate containers as needed.
 pub(crate) fn set_at_path(
     value: Value,
     path: &[Value],
@@ -614,7 +610,7 @@ pub(crate) fn set_at_path(
             let sub = map.get(&key).cloned().unwrap_or(Value::Null);
             let placed = set_at_path(sub, rest, new_value)?;
             // `IndexMap::insert` updates an existing key in place (keeping its
-            // position) and appends a new one — matching Python dict semantics.
+            // position) and appends a new one — matching dict insertion order.
             map.insert(key, placed);
             Ok(Value::Object(map))
         }
@@ -651,7 +647,7 @@ pub(crate) fn set_at_path(
     }
 }
 
-/// Port of `builtins._delete_at_path`.
+/// Delete the value at a path.
 pub(crate) fn delete_at_path(value: Value, path: &[Value]) -> Value {
     if path.is_empty() {
         return Value::Null;
@@ -710,7 +706,7 @@ fn scalar_key_str(v: &Value) -> String {
     }
 }
 
-/// Port of `builtins._combinations_impl`.
+/// Compute `n`-length combinations of a value's elements.
 pub(crate) fn combinations_impl(value: &Value, n: Option<i64>) -> Result<Value, QueryError> {
     let items = as_sequence(value, "combinations", 1)?;
     let sub_lists: Vec<Vec<Value>> = if let Some(n) = n {
@@ -753,7 +749,7 @@ fn cart(prefix: &[Value], remaining: &[Vec<Value>], out: &mut Vec<Value>) {
     }
 }
 
-/// Port of `builtins._flatten_value`.
+/// Flatten a value up to `depth` levels.
 pub(crate) fn flatten_value(value: &Value, depth: i64) -> Result<Vec<Value>, QueryError> {
     let items = as_sequence(value, "flatten", 1)?;
     if depth < 0 {
@@ -780,9 +776,9 @@ fn flatten_go(seq: &[Value], remaining: i64) -> Vec<Value> {
 
 const MAX_REGEX_PATTERN_LENGTH: usize = 1024;
 
-/// Port of `builtins._safe_regex_compile` (length + nested-quantifier
-/// guards). The pattern dialect is the `regex` crate's, which differs from
-/// Python `re` on backreferences / lookaround (documented divergence).
+/// Compile a regex with length + nested-quantifier guards.
+/// The pattern dialect is the `regex` crate's, which differs on
+/// backreferences / lookaround (documented divergence).
 pub(crate) fn safe_regex_compile(pattern: &str, name: &str) -> Result<Regex, QueryError> {
     if pattern.chars().count() > MAX_REGEX_PATTERN_LENGTH {
         return Err(QueryError::builtin(format!(
@@ -802,9 +798,9 @@ pub(crate) fn safe_regex_compile(pattern: &str, name: &str) -> Result<Regex, Que
             crate::lexer::py_repr_str(pattern)
         )));
     }
-    // The `regex` crate's parse error wording differs from Python `re`'s, so
+    // The `regex` crate's parse error wording differs, so
     // the `: {e}` tail is not byte-identical (documented divergence); the
-    // `{pattern!r}` spelling still matches Python's repr quoting.
+    // `{pattern!r}` spelling still uses repr-style quoting.
     Regex::new(pattern).map_err(|e| {
         QueryError::builtin(format!(
             "{name}: invalid pattern {}: {e}",
@@ -818,9 +814,7 @@ fn pathological_regex() -> &'static Regex {
     P.get_or_init(|| Regex::new(r"\([^)]*[+*]\)\s*[+*]").expect("valid guard regex"))
 }
 
-// ---------------------------------------------------------------------------
 // Plain builtins
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::cast_possible_wrap)]
 fn bi_length(args: &[Value]) -> Result<Value, QueryError> {
@@ -1112,7 +1106,7 @@ fn bi_max(args: &[Value]) -> Result<Value, QueryError> {
     Ok(extreme(items, false))
 }
 
-/// Python `min`/`max` with `key=_sort_key`: first occurrence wins ties.
+/// `min`/`max` with `key=_sort_key`: first occurrence wins ties.
 fn extreme(items: Vec<Value>, want_min: bool) -> Value {
     let mut it = items.into_iter();
     let Some(mut best) = it.next() else {

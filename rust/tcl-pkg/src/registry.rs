@@ -1,6 +1,6 @@
 //! tcltk-pkgs registry client with TTL-based caching.
 //!
-//! Faithful port of `tooling/tclpkg/registry.py`. Fetches the upstream
+//! Fetches the upstream
 //! `packages.json` discovery metadata, caches it under
 //! `<cache_dir>/tclpkg/registry/`, and respects a 24-hour TTL with conditional
 //! GET (`If-None-Match` / `304 Not Modified`). Offline mode reads the cache

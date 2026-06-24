@@ -1,14 +1,13 @@
 //! Golden differential test for the deterministic probe surface.
 //!
-//! Two byte-parity guarantees are asserted against `tests/fixtures/probes.json`
-//! (captured from `dialects/f5/query/_probes.py` with `cryptography>=48`):
+//! Two byte-parity guarantees are asserted against `tests/fixtures/probes.json`:
 //!
-//! 1. `x509_parse(<pem>)` — the rich `cryptography`-shaped dict (subject /
+//! 1. `x509_parse(<pem>)` — the rich x509 dict (subject /
 //!    issuer / serial / validity / SANs / fingerprint / key-alg / key-size /
-//!    sig-alg / version / public-key PEM) must match Python exactly.
+//!    sig-alg / version / public-key PEM) must match the golden exactly.
 //! 2. The `--enable-probes` gating error for every gated network builtin
 //!    (`ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
-//!    `url_*` family) must reproduce Python's wording verbatim.
+//!    `url_*` family) must reproduce the expected wording verbatim.
 //!
 //! The live network probes themselves (faithful-but-not-golden) are exercised
 //! through the gating path only — they never touch the network here.
@@ -29,7 +28,7 @@ fn run_disabled(query: &str) -> Result<Vec<Value>, String> {
 }
 
 /// Convert a [`Value`] to a `serde_json::Value` for structural comparison with
-/// the Python-captured golden (objects preserve insertion order).
+/// the captured golden (objects preserve insertion order).
 fn value_to_json(v: &Value) -> J {
     match v {
         Value::Null => J::Null,
@@ -80,10 +79,7 @@ fn x509_parse_matches_python_byte_for_byte() {
     let values = run_disabled(&query).expect("x509_parse succeeds");
     assert_eq!(values.len(), 1, "x509_parse yields a single dict");
     let got = value_to_json(&values[0]);
-    assert_eq!(
-        &got, golden,
-        "x509_parse output diverged from the Python golden"
-    );
+    assert_eq!(&got, golden, "x509_parse output diverged from the golden");
 }
 
 #[test]
@@ -138,7 +134,7 @@ fn gated_probes_report_disabled_verbatim() {
 
 #[test]
 fn dns_is_ungated() {
-    // `dns` / `rev_dns` are NOT gated in Python — a bare lookup must not raise
+    // `dns` / `rev_dns` are NOT gated — a bare lookup must not raise
     // the probes-disabled error (it may return an empty list with no network).
     let out = run_disabled("dns(\"localhost\")");
     assert!(

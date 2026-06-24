@@ -1,7 +1,7 @@
 //! Integration: the real Tcl 9 `tcltest.tcl` library loads end-to-end.
 //!
-//! This is the M4 milestone — sourcing the genuine
-//! `tmp/tcl9.0.3/library/tcltest/tcltest.tcl` exercises namespaces, namespace
+//! Sources the genuine
+//! `tmp/tcl9.0.3/library/tcltest/tcltest.tcl`, exercising namespaces, namespace
 //! variables (scalar + array), `package`, variable traces, `file`/`pwd`/`cd`,
 //! `regexp`, `subst`, dynamic proc bodies, and `upvar` to namespace variables.
 //! The test is skipped when the Tcl source tree isn't present.

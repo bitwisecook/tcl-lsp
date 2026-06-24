@@ -1,8 +1,4 @@
 //! Namespace and qualified-name helpers for the optimiser.
-//!
-//! Ported from `core/compiler/optimiser/_helpers.py` —
-//! `_namespace_parts`, `_namespace_from_qualified`, and
-//! `_resolve_summary_proc_name`.
 
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::naming::normalise_qualified_name;
@@ -39,8 +35,8 @@ pub fn namespace_from_qualified(qname: &str) -> String {
 }
 
 /// Resolve a Tcl command name to a fully qualified proc summary
-/// key, walking up the caller's namespace for bare names. Matches
-/// Python's `_resolve_summary_proc_name` resolution order:
+/// key, walking up the caller's namespace for bare names.
+/// Resolution order:
 ///
 /// 1. Absolute names starting with `::` → looked up directly.
 /// 2. Names containing `::` (but not starting with `::`) → treated

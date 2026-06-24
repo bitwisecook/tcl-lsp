@@ -16,7 +16,8 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let succs = build_successors(cfg);
     let mut loop_blocks: HashSet<String> = HashSet::new();
-    for start in cfg.blocks.keys() {
+    for id in cfg.blocks.keys() {
+        let start = cfg.block_name(*id);
         if loop_blocks.contains(start) {
             continue;
         }
@@ -41,7 +42,7 @@ pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
             // forward BFS AND it can reach `start` — otherwise
             // the BFS merely passed through it on a dead-end branch.
             let reaching = blocks_reaching(&succs, start);
-            loop_blocks.insert(start.clone());
+            loop_blocks.insert(start.to_owned());
             for name in visited {
                 if reaching.contains(&name) {
                     loop_blocks.insert(name);
@@ -79,13 +80,17 @@ pub(crate) fn blocks_reaching(
 }
 
 /// Build a `block → successors` adjacency map from CFG terminators.
+///
+/// Nodes are keyed by block NAME (the data-flow graph the shimmer passes
+/// consume identifies blocks by name); terminator [`BlockId`] targets are
+/// resolved back to their names via [`CfgFunction::block_name`].
 pub(super) fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>> {
     let mut out: HashMap<String, Vec<String>> = HashMap::new();
-    for (bn, block) in &cfg.blocks {
+    for (id, block) in &cfg.blocks {
         let mut s: Vec<String> = Vec::new();
         match &block.terminator {
             Some(Terminator::Goto { target, .. }) if cfg.blocks.contains_key(target) => {
-                s.push(target.clone());
+                s.push(cfg.block_name(*target).to_owned());
             }
             Some(Terminator::Branch {
                 true_target,
@@ -93,15 +98,15 @@ pub(super) fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>
                 ..
             }) => {
                 if cfg.blocks.contains_key(true_target) {
-                    s.push(true_target.clone());
+                    s.push(cfg.block_name(*true_target).to_owned());
                 }
                 if cfg.blocks.contains_key(false_target) {
-                    s.push(false_target.clone());
+                    s.push(cfg.block_name(*false_target).to_owned());
                 }
             }
             _ => {}
         }
-        out.insert(bn.clone(), s);
+        out.insert(cfg.block_name(*id).to_owned(), s);
     }
     out
 }
@@ -109,42 +114,47 @@ pub(super) fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg::{Block, Function, Terminator};
+    use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 
-    fn branch(cond: ExprNode, tt: &str, ft: &str) -> Terminator {
+    /// Intern `name`, insert an empty block for it, and return its id.
+    fn block(f: &mut Function, name: &str) -> BlockId {
+        let id = f.intern_block(name);
+        f.blocks.insert(id, Block::new(name));
+        id
+    }
+
+    fn branch(cond: ExprNode, tt: BlockId, ft: BlockId) -> Terminator {
         Terminator::Branch {
             condition: cond,
-            true_target: tt.into(),
-            false_target: ft.into(),
+            true_target: tt,
+            false_target: ft,
             span: None,
         }
     }
 
-    fn goto(target: &str) -> Terminator {
-        Terminator::Goto {
-            target: target.into(),
-            span: None,
-        }
+    fn goto(target: BlockId) -> Terminator {
+        Terminator::Goto { target, span: None }
     }
 
     #[test]
     fn loop_body_blocks_detects_simple_cycle() {
         // entry → body → entry (back edge), entry → exit
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("body".into(), Block::new("body"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(branch(
+        let entry = f.entry;
+        let body = block(&mut f, "body");
+        let exit = block(&mut f, "exit");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(
             ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            "body",
-            "exit",
+            body,
+            exit,
         ));
-        f.blocks.insert("exit".into(), Block::new("exit"));
-        f.blocks.get_mut("body").unwrap().terminator = Some(goto("entry"));
-        f.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&body).unwrap().terminator = Some(goto(entry));
+        f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -159,9 +169,10 @@ mod tests {
     #[test]
     fn loop_body_blocks_linear_chain_is_empty() {
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("next".into(), Block::new("next"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(goto("next"));
-        f.blocks.get_mut("next").unwrap().terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        let next = block(&mut f, "next");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(goto(next));
+        f.blocks.get_mut(&next).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,

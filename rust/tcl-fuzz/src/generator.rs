@@ -1,8 +1,7 @@
 //! Grammar-aware Tcl script generator for differential fuzzing.
 //!
-//! Port of `tooling/fuzzing/tcl_gen.py`, scoped to the surface the native VM
-//! implements so a divergence points at a real miscompile rather than an
-//! unimplemented command. Every emitted script:
+//! Scoped to the surface the native VM implements so a divergence points at a
+//! real miscompile rather than an unimplemented command. Every emitted script:
 //!
 //! * is syntactically valid Tcl (balanced `{}` / `[]` / `""`);
 //! * is **pure** — no I/O, file, socket, exec, clock, or `after` commands;
@@ -55,7 +54,7 @@ const PROC_NAMES: &[&str] = &["p0", "p1", "p2", "helper", "compute"];
 
 /// Single-segment namespace names. Deliberately no `::` prefixes / trailing
 /// runs: namespace-name canonicalisation of multiple/trailing `::` is a known
-/// RT-VM gap, so steering clear of it keeps a divergence pointed at a real
+/// VM gap, so steering clear of it keeps a divergence pointed at a real
 /// miscompile rather than name-normalisation noise.
 const NS_NAMES: &[&str] = &["n1", "n2", "ns"];
 
@@ -103,7 +102,7 @@ impl Gen {
             self.leaf_statement(depth);
         } else {
             // proc / namespace definitions are top-level only (matching the
-            // Python oracle): nesting them changes scope semantics in ways the
+            // oracle): nesting them changes scope semantics in ways the
             // generator doesn't model.
             let arms = if depth == 0 { 9 } else { 7 };
             match self.rng.below(arms) {
@@ -460,22 +459,22 @@ mod tests {
         let cfg = GenConfig::default();
         for seed in 0..200 {
             let src = generate(seed, &cfg);
-            let (mut brace, mut brack) = (0i32, 0i32);
+            let (mut braces, mut brackets) = (0i32, 0i32);
             for b in src.bytes() {
                 match b {
-                    b'{' => brace += 1,
-                    b'}' => brace -= 1,
-                    b'[' => brack += 1,
-                    b']' => brack -= 1,
+                    b'{' => braces += 1,
+                    b'}' => braces -= 1,
+                    b'[' => brackets += 1,
+                    b']' => brackets -= 1,
                     _ => {}
                 }
                 assert!(
-                    brace >= 0 && brack >= 0,
+                    braces >= 0 && brackets >= 0,
                     "seed {seed}: closer before opener"
                 );
             }
-            assert_eq!(brace, 0, "seed {seed}: unbalanced braces\n{src}");
-            assert_eq!(brack, 0, "seed {seed}: unbalanced brackets\n{src}");
+            assert_eq!(braces, 0, "seed {seed}: unbalanced braces\n{src}");
+            assert_eq!(brackets, 0, "seed {seed}: unbalanced brackets\n{src}");
         }
     }
 

@@ -1,10 +1,9 @@
 //! Byte-parity tests for the static `f5 query` help surfaces.
 //!
 //! Runs the built `f5-query` binary with `--help-dsl` / `--help-examples` and
-//! asserts stdout matches goldens captured from
-//! `python -m tooling.f5.main query --help-*`. Self-contained: no Python at
-//! test time. These help actions short-circuit before any expression / input
-//! is required, mirroring argparse's custom actions.
+//! asserts stdout matches the captured golden output for `query --help-*`.
+//! Self-contained: no external tool runs at test time. These help actions
+//! short-circuit before any expression / input is required.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -35,7 +34,7 @@ fn assert_help(flag: &str, golden: &str) {
     let actual = run_help(flag);
     assert_eq!(
         actual, expected,
-        "`f5 query {flag}` output does not match the Python CLI ({golden})"
+        "`f5 query {flag}` output does not match the golden ({golden})"
     );
 }
 

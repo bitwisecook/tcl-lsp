@@ -12,7 +12,7 @@
 // structure.
 #![allow(clippy::too_many_lines)]
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::side_effects::ConnectionSide;
 
@@ -28,8 +28,7 @@ use crate::side_effects::ConnectionSide;
 // orthogonal classification facts. A bitflags consolidation is
 // possible but the type is part of the registry's public surface
 // and the static-data tables encode 247 events as `EventProps {
-// client_side: true, ... }` literals — deferred to a registry-
-// API audit chunk.
+// client_side: true, ... }` literals.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventProps {
     /// Fires on client side.
@@ -66,7 +65,6 @@ pub struct EventProps {
 impl EventProps {
     /// Human-readable connection-side label — one of `"client-side"`,
     /// `"server-side"`, `"client-side and server-side"`, or `"global"`.
-    /// Mirrors `event_side_label`.
     #[must_use]
     pub fn side_label(&self) -> &'static str {
         match (self.client_side, self.server_side) {
@@ -95,8 +93,7 @@ impl EventProps {
 
 /// What a command requires from the protocol stack.
 ///
-/// Embedded on command specs via `excluded_events` and `EventRequires`
-/// in the Python registry.
+/// Embedded on command specs via `excluded_events` and `EventRequires`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 // `client_side` / `server_side` / `init_only` / `flow` are
 // orthogonal protocol-stack requirements. Same deferral as
@@ -145,7 +142,7 @@ pub struct FlowChain {
     pub profiles: &'static [&'static str],
     /// Ordered steps.
     pub steps: Vec<FlowStep>,
-    /// Any caveats or implementation notes (mirrors Python `FlowChain.notes`).
+    /// Any caveats or implementation notes.
     pub notes: &'static str,
 }
 
@@ -160,12 +157,12 @@ pub struct OrderEntry {
 
 /// Event registry providing lookup over the static event tables.
 pub struct EventRegistry {
-    props: HashMap<&'static str, EventProps>,
+    props: FxHashMap<&'static str, EventProps>,
     order: Vec<OrderEntry>,
     flow_chains: Vec<FlowChain>,
-    once_per_connection: HashSet<&'static str>,
-    per_request: HashSet<&'static str>,
-    descriptions: HashMap<&'static str, &'static str>,
+    once_per_connection: FxHashSet<&'static str>,
+    per_request: FxHashSet<&'static str>,
+    descriptions: FxHashMap<&'static str, &'static str>,
 }
 
 impl EventRegistry {
@@ -174,7 +171,7 @@ impl EventRegistry {
     /// Called once at startup — the data is compiled into the binary.
     #[must_use]
     pub fn build() -> Self {
-        let mut props = HashMap::new();
+        let mut props = FxHashMap::default();
         for (name, ep) in event_props_table() {
             props.insert(name, ep);
         }
@@ -192,15 +189,13 @@ impl EventRegistry {
     }
 
     /// Description prose for `event`, or `None` when none is recorded.
-    /// Mirrors `get_event_description`.
     #[must_use]
     pub fn description(&self, event: &str) -> Option<&'static str> {
         self.descriptions.get(event).copied()
     }
 
     /// Multiplicity category for `event` — one of `"init"`,
-    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`. Mirrors
-    /// `event_multiplicity`.
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
     #[must_use]
     pub fn multiplicity(&self, event: &str) -> &'static str {
         if event == "RULE_INIT" {
@@ -291,8 +286,6 @@ impl EventRegistry {
 
     /// The multiplicity category for an event: `"init"`,
     /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
-    ///
-    /// Mirrors `event_multiplicity` in `namespace_data.py`.
     #[must_use]
     pub fn event_multiplicity(&self, event: &str) -> &'static str {
         if event == "RULE_INIT" {
@@ -309,7 +302,7 @@ impl EventRegistry {
     /// Sort `events` into canonical firing order. Events absent from the
     /// master-order table are appended in sorted order, so none are dropped.
     ///
-    /// Mirrors `order_events` in `namespace_data.py`. Callers pass a unique
+    /// Callers pass a unique
     /// set of names (duplicates would each be kept).
     #[must_use]
     pub fn order_events(&self, events: &[String]) -> Vec<String> {
@@ -329,8 +322,6 @@ impl EventRegistry {
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
-    /// Mirrors `variable_scope_note` in
-    /// `core/commands/registry/namespace_data.py:2125-2144`.
     /// Returns `None` when there's no concern — the caller's
     /// cross-event analysis (`ConnectionScope::build`) treats
     /// a `None` result as "valid cross-event flow" and records
@@ -364,7 +355,7 @@ impl EventRegistry {
     }
 
     /// Position of `event` in the master firing order, or `None` when the
-    /// event isn't in it (mirrors Python `NAMESPACE_REGISTRY.event_index`).
+    /// event isn't in it.
     #[must_use]
     pub fn event_index(&self, event: &str) -> Option<usize> {
         self.master_order_index(event)
@@ -373,8 +364,7 @@ impl EventRegistry {
 
 /// True when an event's [`EventProps`] satisfy a command's [`EventRequires`].
 ///
-/// The single canonical implementation of the event-validity test —
-/// mirrors Python `event_satisfies` in `namespace_data.py`.  Used both
+/// The single canonical implementation of the event-validity test.  Used both
 /// by the per-command "valid events" hover list and by
 /// [`crate::CommandRegistry::valid_irules_commands_for_event`].
 #[must_use]
@@ -412,9 +402,9 @@ pub fn event_satisfies(
     true
 }
 
-// Full static data — auto-generated from Python namespace_data.py
+// Full static data — auto-generated.
 
-// AUTO-GENERATED from Python namespace_data.py — do not edit manually
+// AUTO-GENERATED — do not edit manually
 
 fn event_props_table() -> Vec<(&'static str, EventProps)> {
     vec![
@@ -2396,7 +2386,7 @@ fn master_order() -> Vec<OrderEntry> {
     ]
 }
 
-fn once_per_connection() -> HashSet<&'static str> {
+fn once_per_connection() -> FxHashSet<&'static str> {
     [
         "ACCESS_POLICY_AGENT_EVENT",
         "ACCESS_POLICY_COMPLETED",
@@ -2416,7 +2406,7 @@ fn once_per_connection() -> HashSet<&'static str> {
     .collect()
 }
 
-fn per_request() -> HashSet<&'static str> {
+fn per_request() -> FxHashSet<&'static str> {
     [
         "ACCESS_ACL_ALLOWED",
         "ACCESS_ACL_DENIED",

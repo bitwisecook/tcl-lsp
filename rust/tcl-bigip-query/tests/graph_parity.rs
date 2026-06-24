@@ -1,13 +1,13 @@
 //! End-to-end golden differential test for the query *graph* layer.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/graph.json`
-//! (`scripts/codegen/gen_f5_query_graph_fixtures.py`): build a BIG-IP `Root`
+//! The pipeline captured in `tests/fixtures/graph.json`
+//! from the captured query DSL fixtures: build a BIG-IP `Root`
 //! from the real fixture config, parse → evaluate against the projected
 //! `Container` tree (which walks the reference graph for the graph-backed
 //! builtins `refs` / `referenced_by` / `references_to` /
 //! `check_partition_visibility` and the synthesised rule `.refs` sub-object)
 //! → `output::render`. For each `(query, mode)` the Rust output (or error
-//! message) must match Python byte-for-byte. Self-contained — no Python at
+//! message) must match the golden byte-for-byte. Self-contained — no external oracle at
 //! test time; the `bigip.conf` fixture is embedded via `include_str!`.
 
 use serde_json::Value as J;

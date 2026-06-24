@@ -37,9 +37,7 @@ pub struct ProcDef {
     pub has_args: bool,
     /// Pre-compiled body bytecode.
     pub body: Rc<FunctionAsm>,
-    /// Original body source text — retained for `info body` (M3). Keeping it
-    /// now avoids a frame/proc-model rework when `info` lands.
-    #[allow(dead_code)]
+    /// Original body source text — used by `info body`.
     pub body_src: Value,
     /// Overrides the leading token of the `wrong # args` usage message. `None`
     /// uses the (simple) proc name; `apply` sets `"apply lambdaExpr"` so the
@@ -846,7 +844,7 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
     // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
-    // level ≥ 1 takes effect immediately (M2 simplification: skip the countdown).
+    // level ≥ 1 takes effect immediately (simplification: skip the countdown).
     let final_code = if level == 0 {
         ret_code
     } else if ret_code == Code::Ok {
@@ -952,8 +950,8 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ]))
 }
 
-/// `encoding subcommand ?arg …?` — mirrors the tree-walking runtime
-/// (`runtime/rust`), the VM's parity oracle: the internal string model is
+/// `encoding subcommand ?arg …?` — matches the tree-walking runtime
+/// (`runtime/rust`): the internal string model is
 /// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
 /// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
 /// ignored (no encoding-file search). This is a documented simplification — real
@@ -1245,7 +1243,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     vm.eval_at_level(target, &script)
 }
 
-/// `variable ?name value ...? name ?value?` — namespace variables (global for M2).
+/// `variable ?name value ...? name ?value?` — namespace variables (currently global).
 fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() {
         return err("wrong # args: should be \"variable ?name value ...? name ?value?\"");

@@ -1,9 +1,8 @@
 //! Runtime value model for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/values.py` plus the scalar
-//! semantics the evaluator and builtins share (`_truthy`, `_eq`,
-//! `_sort_key`, scalar coercion) and a Python-`json.dumps`-faithful
-//! serialiser.
+//! Covers the runtime values plus the scalar semantics the evaluator and
+//! builtins share (`_truthy`, `_eq`, `_sort_key`, scalar coercion) and a
+//! serialiser matching the canonical JSON byte format.
 //!
 //! Most values flow as the plain JSON-shaped variants — `Null` / `Bool` /
 //! `Int` / `Float` / `Str` / `List` / `Object` — which keeps the evaluator
@@ -21,8 +20,8 @@
 //! - [`Drop`](Value::Drop) — the sentinel `select` returns to mean "drop
 //!   the current value"; `flatten` removes it from streams.
 //!
-//! `ObjectRef` / `PathRef` are populated by the projection layer (a later
-//! increment); the plain variants alone drive the entire jq-flavoured core.
+//! `ObjectRef` / `PathRef` are populated by the projection layer; the plain
+//! variants alone drive the entire jq-flavoured core.
 
 use std::cmp::Ordering;
 use std::rc::Rc;
@@ -35,7 +34,7 @@ use crate::projection::Container;
 ///
 /// `range` covers just the value half of `key value` — assigning a new value
 /// rewrites this span and leaves the key, indentation, and surrounding
-/// stanza untouched. Port of `values.FieldSlot`.
+/// stanza untouched.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSlot {
     pub source_uri: String,
@@ -44,7 +43,7 @@ pub struct FieldSlot {
     pub raw_text: String,
 }
 
-/// A string reference to another BIG-IP object (port of `values.PathRef`).
+/// A string reference to another BIG-IP object.
 ///
 /// String-like in every context that expects a scalar (the underlying
 /// full-path), but the evaluator follows `.field` access through to the
@@ -67,7 +66,7 @@ impl PathRef {
     }
 }
 
-/// A BIG-IP object exposed to the query DSL (port of `values.ObjectRef`).
+/// A BIG-IP object exposed to the query DSL.
 ///
 /// `kind` is the TMSH module + object type (`"ltm virtual"`). `fields` are
 /// the user-visible property names with their current values. `field_slots`
@@ -87,38 +86,38 @@ pub struct ObjectRef {
 
 impl ObjectRef {
     /// The object's short name — the last `/`-delimited segment of its
-    /// full-path. Mirrors the Python `ObjectRef.name` property.
+    /// full-path.
     #[must_use]
     pub fn name(&self) -> &str {
         self.full_path.rsplit('/').next().unwrap_or(&self.full_path)
     }
 
     /// The object's partition — the first segment of a `/partition/...`
-    /// path, or empty. Mirrors the Python `ObjectRef.partition` property.
+    /// path, or empty.
     #[must_use]
     pub fn partition(&self) -> &str {
         if let Some(rest) = self.full_path.strip_prefix('/') {
-            // `full_path.split("/", 2)[1]` in Python.
+            // Equivalent to `full_path.split("/", 2)[1]`.
             return rest.split('/').next().unwrap_or("");
         }
         ""
     }
 }
 
-/// The runtime value type. The plain variants mirror Python's native
-/// JSON-shaped objects; the rest are the DSL's specialised wrappers.
+/// The runtime value type. The plain variants model the standard JSON-shaped
+/// values; the rest are the DSL's specialised wrappers.
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
     Bool(bool),
-    /// An integer (Python `int`).
+    /// An integer.
     Int(i64),
-    /// A float (Python `float`).
+    /// A float.
     Float(f64),
     Str(String),
     /// An explicit list (a literal array or a builtin result like `keys`).
     List(Vec<Value>),
-    /// An object — insertion-ordered, matching Python `dict`.
+    /// An object — insertion-ordered, like a dict.
     Object(IndexMap<String, Value>),
     /// A flat sequence produced by `[]` / `map(...)` / `select(...)`.
     Stream(Vec<Value>),
@@ -127,9 +126,9 @@ pub enum Value {
     /// A projected BIG-IP object.
     ObjectRef(Rc<ObjectRef>),
     /// A navigable namespace / kind container projected from a
-    /// `BigipConfig` (port of `projection.Container`).
+    /// `BigipConfig`.
     Container(Rc<Container>),
-    /// The `select` "drop this value" sentinel (port of `evaluator._DROP`).
+    /// The `select` "drop this value" sentinel.
     Drop,
 }
 
@@ -140,8 +139,7 @@ impl Value {
         Value::Object(entries.into_iter().collect())
     }
 
-    /// A short human description used in error messages — the port of the
-    /// evaluator's `_describe`.
+    /// A short human description used in error messages.
     #[must_use]
     pub fn describe(&self) -> String {
         match self {
@@ -158,7 +156,7 @@ impl Value {
             ),
             Value::Stream(items) => format!("stream(len={})", items.len()),
             Value::List(items) => format!("list(len={})", items.len()),
-            // Python falls back to `type(value).__name__`.
+            // Falls back to the type name.
             Value::Bool(_) => "bool".to_string(),
             Value::Int(_) => "int".to_string(),
             Value::Float(_) => "float".to_string(),
@@ -168,7 +166,7 @@ impl Value {
         }
     }
 
-    /// The Python `type(value).__name__` spelling, used by a few builtin
+    /// The type name, used by a few builtin
     /// error messages (`flatten`, `combinations`, …) and the `type` builtin
     /// is handled separately.
     #[must_use]
@@ -190,7 +188,7 @@ impl Value {
     }
 }
 
-/// Truthiness — port of `builtins._truthy`.
+/// Truthiness.
 ///
 /// `null` / `false` / `""` / empty collections / `0` are falsy; everything
 /// else is truthy. A `PathRef` is truthy when its full-path is non-empty;
@@ -212,7 +210,8 @@ pub fn truthy(value: &Value) -> bool {
     }
 }
 
-/// Equality — port of the evaluator's `_eq`, which delegates to Python `==`.
+/// Equality semantics: a bool equals the matching int (`True == 1`,
+/// `False == 0`) and numbers compare across int/float/bool by value.
 ///
 /// Reproduces the quirks that matter to the DSL: `1 == 1.0`, `True == 1`,
 /// `False == 0`, deep list / object comparison (object equality is
@@ -221,7 +220,7 @@ pub fn truthy(value: &Value) -> bool {
 pub fn py_eq(lhs: &Value, rhs: &Value) -> bool {
     match (lhs, rhs) {
         (Value::Null, Value::Null) => true,
-        // Python: `bool` is a subclass of `int`, so `True == 1`, and
+        // A `bool` counts as the matching `int`, so `True == 1`, and
         // numbers compare across int/float/bool by numeric value.
         _ if is_number_like(lhs) && is_number_like(rhs) => num_value(lhs) == num_value(rhs),
         (Value::Str(a), Value::Str(b)) => a == b,
@@ -249,8 +248,8 @@ fn is_number_like(v: &Value) -> bool {
     matches!(v, Value::Bool(_) | Value::Int(_) | Value::Float(_))
 }
 
-/// The numeric value of a `bool`/`int`/`float` (Python's int-subclass-of
-/// view of `bool`), as `f64` for cross-type comparison.
+/// The numeric value of a `bool`/`int`/`float` (a `bool` counting as the
+/// matching `int`), as `f64` for cross-type comparison.
 #[allow(clippy::cast_precision_loss)]
 fn num_value(v: &Value) -> f64 {
     match v {
@@ -261,7 +260,7 @@ fn num_value(v: &Value) -> f64 {
     }
 }
 
-/// jq cross-type ordering — port of `builtins._sort_key` + tuple compare.
+/// jq cross-type ordering.
 ///
 /// Orders `null < false < true < numbers < strings < arrays < objects`,
 /// with lexicographic / numeric ordering inside each family. `PathRef`
@@ -293,7 +292,7 @@ fn sort_tag(v: &Value) -> u8 {
         Value::Str(_) | Value::PathRef(_) => 3,
         Value::List(_) => 4,
         Value::Object(_) | Value::ObjectRef(_) => 5,
-        // Stream / Container / Drop fall into Python's `(6, str(value))`
+        // Stream / Container / Drop fall into `(6, str(value))`
         // bucket.
         Value::Stream(_) | Value::Container(_) | Value::Drop => 6,
     }
@@ -351,7 +350,7 @@ fn sorted_object_pairs(v: &Value) -> Vec<(String, Value)> {
 }
 
 /// Resolve a possibly-negative index against a length; `None` if out of
-/// range. Mirrors Python's `-len <= i < len` slice-index check.
+/// range. The slice index check is `-len <= i < len`.
 #[must_use]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub fn resolve_index_pub(i: i64, len: usize) -> Option<usize> {

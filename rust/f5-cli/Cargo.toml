@@ -1,6 +1,6 @@
 [package]
 name = "f5-cli"
-description = "Native Rust port of the `f5-query` BIG-IP / iRules CLI"
+description = "The `f5-query` BIG-IP / iRules CLI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

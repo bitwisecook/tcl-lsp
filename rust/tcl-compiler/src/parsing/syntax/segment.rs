@@ -1,8 +1,5 @@
 //! Derive byte-identical `SegmentedCommand`s from the green CST.
 //!
-//! Ports `compiler/parsing/syntax/segment.py` (#533 / `SYNC-JUN06`),
-//! adapted to the Rust [`SegmentedCommand`] shape.
-//!
 //! This is the bridge that lets the segmenter produce its public
 //! [`SegmentedCommand`] from the canonical tree instead of its own token
 //! loop, without changing a single downstream consumer.  Every field —
@@ -11,10 +8,10 @@
 //! `expand_word`, and `preceding_comment` — is reconstructed to match the
 //! token-loop `segment_commands_local` exactly.
 //!
-//! **Span: `command_span`, not `range_end_rel`.**  Python's `segment.py`
-//! resolves the command range from the green `range_end_rel` (the
-//! `word_boundary` rule main adopted).  The Rust token-loop segmenter —
-//! the *oracle* this rebase must stay byte-identical to — instead derives
+//! **Span: `command_span`, not `range_end_rel`.**  The command range
+//! could be resolved from the green `range_end_rel` (the
+//! `word_boundary` rule), but the token-loop segmenter —
+//! the *oracle* this must stay byte-identical to — instead derives
 //! the command span via [`command_span`] / `widen_word_end`, which
 //! deliberately does **not** widen a quoted `"…"` last word over its
 //! closing quote (the two conventions differ by one byte only for a
@@ -22,7 +19,7 @@
 //! the span is computed with [`command_span`] over the derived
 //! `all_tokens` — the same function and inputs the oracle uses, so the
 //! result is identical by construction.  `range_end_rel` is still built
-//! (faithful to `build.py`) as the main-faithful range for future
+//! as an alternative range for future
 //! consumers, but is not the source of the Rust `SegmentedCommand.span`.
 
 use tcl_lexer::{SourceMap, Span, Token, TokenType};
@@ -69,7 +66,7 @@ fn command_segment(
         // is unreachable for trees produced by `build_document`.  Guard it
         // anyway: `segments_from_tree` is `pub`, and a hand-built or
         // otherwise malformed empty-fragment `Word` must not panic on the
-        // `frags[0]` / `frags[len-1]` indexing below (review L2).
+        // `frags[0]` / `frags[len-1]` indexing below.
         let (Some(first_frag), Some(last_frag)) = (frags.first(), frags.last()) else {
             continue;
         };
@@ -276,9 +273,7 @@ mod tests {
         // `puts "\<newline>"` runs `puts` with one argument. Verified
         // against tclsh 8.6.14 and 9.0.3 (`llength $args` == 1 for that
         // trailing word). The segmenter therefore keeps it: `puts` plus the
-        // quoted word == two words. (Was previously dropped — the
-        // build.rs/oracle backslash-newline divergence, now reconciled to
-        // `compiler/parsing/syntax/build.py`.)
+        // quoted word == two words.
         let segs = cst_segments("puts \"\\\n\"");
         assert_eq!(segs.len(), 1);
         assert_eq!(segs[0].texts.len(), 2, "puts + the quoted word");

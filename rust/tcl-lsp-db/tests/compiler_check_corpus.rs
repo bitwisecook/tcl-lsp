@@ -4,7 +4,7 @@
 //! rebase, via `build_for_memoized`) must be **byte-identical** to a fresh,
 //! whole-module [`compiler_check_diagnostics_uncached`] build
 //! (`build_for_with_config`) — they are the two halves of the salsa-native
-//! lattice graph (#604).
+//! lattice graph.
 //!
 //! This previously diverged for ~30% of the `tmp/` corpus, but the divergence
 //! was *nondeterminism*, not an offset-0-vs-whole-module analysis difference:
@@ -45,7 +45,7 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
     }
 }
 
-/// Focused regression for the SRV-INCREMENTAL 2b memo: `graphops.tcl`'s
+/// Focused regression for the `proc_summary_cascade` memo: `graphops.tcl`'s
 /// `::struct::graph::op::distance` tripped the debug fixpoint guard when the
 /// memoised `proc_summary_cascade` reconstructed only the *reachable* summaries
 /// — a resolved callee that was absent (rather than present-and-clean) made
@@ -64,14 +64,17 @@ fn compiler_check_memo_matches_uncached_graphops() {
     let got = compiler_check_diagnostics(&db, file);
     let registry = db.registry(dialect);
     let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
-    assert_eq!(got.checks, want.checks, "graphops checks diverge (memo vs uncached)");
+    assert_eq!(
+        got.checks, want.checks,
+        "graphops checks diverge (memo vs uncached)"
+    );
     assert_eq!(
         got.optimisations, want.optimisations,
         "graphops optimisations diverge (memo vs uncached)"
     );
 }
 
-/// Focused regression for SRV-INCREMENTAL 2a (per-function check memo):
+/// Focused regression for the per-function check memo:
 /// `init.tcl` has `foreach` loops whose constant-true condition emits an O100
 /// with a **`None`** span → the `(0, 0)` "unknown" sentinel.  The per-proc memo
 /// returns offset-0 spans rebased by `body_offset`, but that sentinel must be
@@ -91,7 +94,10 @@ fn compiler_check_memo_matches_uncached_init() {
     let got = compiler_check_diagnostics(&db, file);
     let registry = db.registry(dialect);
     let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
-    assert_eq!(got.checks, want.checks, "init.tcl checks diverge (memo vs uncached)");
+    assert_eq!(
+        got.checks, want.checks,
+        "init.tcl checks diverge (memo vs uncached)"
+    );
 }
 
 #[test]

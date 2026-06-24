@@ -1,7 +1,6 @@
-//! Pattern-recognition optimiser pass (C30g).
+//! Pattern-recognition optimiser pass.
 //!
-//! Ported from
-//! `core/compiler/optimiser/_pattern_recognition.py`. Entry points:
+//! Entry points:
 //!
 //! - **`optimise_incr_idioms`** (`O114`) — rewrite
 //!   `set x [expr {$x ± N}]` to `incr x N`.
@@ -22,6 +21,7 @@
 //! `docs/generated/optimisation_codes.md` table.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
@@ -55,23 +55,23 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
 /// Names whose **every** SSA version is a known `TclType::Int`. A name absent
 /// here is treated as not provably integer, so the `set/expr → incr` rewrite
-/// (O114) is suppressed — matching Python, which proves the loop variable is
+/// (O114) is suppressed — the loop variable must be proven
 /// `INT` (not `DOUBLE` / `NUMERIC` / `BOOLEAN`) at the use point before
 /// rewriting. `expr {$x + 1}` silently promotes a float operand, whereas
 /// `incr` errors, so the function-level join (all versions must be `INT`) is a
 /// sound over-approximation of the per-use check.
 fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
     use std::collections::HashMap;
-    let mut acc: HashMap<&str, bool> = HashMap::new();
-    for ((name, _ver), lattice) in &fu.types {
+    let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
+    for ((sym, _ver), lattice) in &fu.types {
         let is_int = lattice_is_int(lattice);
-        acc.entry(name.as_str())
+        acc.entry(*sym)
             .and_modify(|v| *v = *v && is_int)
             .or_insert(is_int);
     }
     acc.into_iter()
         .filter(|(_, ok)| *ok)
-        .map(|(n, _)| n.to_owned())
+        .map(|(sym, _)| fu.ssa.var_name(sym).to_owned())
         .collect()
 }
 
@@ -94,9 +94,8 @@ const SET_PACK_MIN_GROUP: usize = 3;
 /// (distinct variables, safe literal values) into one `lassign` (Tcl
 /// 8.5 / 8.6) or `foreach {…} {…} {break}` (8.4), emitting the applied
 /// rewrite plus paired deletions. Skipped on Tcl 9.0, where individual
-/// `set`s are faster. Mirrors `optimise_multi_set_packing` for the
-/// strictly-consecutive case (Python additionally reorders interspersed
-/// candidates; that flow-sensitive extension is the residual).
+/// `set`s are faster. Handles only the strictly-consecutive case;
+/// interspersed candidates are not reordered.
 fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
     // Tcl 9.0 prefers individual `set`s; 8.5 / 8.6 get `lassign`; older
     // (and dialect-unset) fall back to the universally-valid `foreach`.
@@ -204,7 +203,7 @@ fn emit_set_pack(
 
     let last_idx = run.last().unwrap().0;
     let mut pack = Optimisation::new(
-        "O119",
+        DiagCode::O119,
         pack_msg,
         full_rewrite_span(source, stmts[last_idx].span()),
         replacement,
@@ -216,7 +215,7 @@ fn emit_set_pack(
         let full = full_rewrite_span(source, stmts[*idx].span());
         let next_start = stmts.get(idx + 1).map(|s| s.span().start() as usize);
         let mut del = Optimisation::new(
-            "O119",
+            DiagCode::O119,
             del_msg,
             statement_delete_rewrite_range(source, full, next_start),
             "",
@@ -233,7 +232,7 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
         } => {
             if let Some(replacement) = try_incr_idiom(name, expr, int_vars) {
                 ctx.report(Optimisation::new(
-                    "O114",
+                    DiagCode::O114,
                     "Use incr instead of set/expr",
                     full_rewrite_span(ctx.source, *span),
                     replacement,
@@ -292,7 +291,7 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
 
 /// If `expr` is of the shape `$var ± literal` (where `var`
 /// normalises to `target_name`), return the equivalent `incr`
-/// command text. Matches Python's `_try_incr_idiom`.
+/// command text.
 ///
 /// Rewrites:
 ///
@@ -399,7 +398,7 @@ mod tests {
         ctx.optimisations
     }
 
-    // -- helpers ------------------------------------------------------------
+    // helpers
 
     #[test]
     fn var_matches_normalises_dollar_prefix() {
@@ -414,14 +413,14 @@ mod tests {
         assert_eq!(format_incr("x", -3), "incr x -3");
     }
 
-    // -- end-to-end tests ---------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn set_expr_plus_one_rewrites_to_incr() {
         // The seeding `set x 0` makes `x` provably INT, satisfying the
         // O114 soundness gate.
         let opts = run_pass("set x 0\nset x [expr {$x + 1}]");
-        let got = opts.iter().find(|o| o.code == "O114");
+        let got = opts.iter().find(|o| o.code == DiagCode::O114);
         assert!(got.is_some(), "expected O114, got {opts:?}");
         assert_eq!(got.unwrap().replacement, "incr x");
     }
@@ -430,7 +429,10 @@ mod tests {
     fn set_expr_plus_n_carries_the_amount() {
         let opts = run_pass("set x 0\nset x [expr {$x + 5}]");
         assert_eq!(
-            opts.iter().find(|o| o.code == "O114").unwrap().replacement,
+            opts.iter()
+                .find(|o| o.code == DiagCode::O114)
+                .unwrap()
+                .replacement,
             "incr x 5",
         );
     }
@@ -439,7 +441,10 @@ mod tests {
     fn set_expr_minus_one_becomes_incr_negative_one() {
         let opts = run_pass("set x 5\nset x [expr {$x - 1}]");
         assert_eq!(
-            opts.iter().find(|o| o.code == "O114").unwrap().replacement,
+            opts.iter()
+                .find(|o| o.code == DiagCode::O114)
+                .unwrap()
+                .replacement,
             "incr x -1",
         );
     }
@@ -450,7 +455,7 @@ mod tests {
         // float while `incr` would error — the rewrite must not fire.
         let opts = run_pass("set x 1.5\nset x [expr {$x + 1}]");
         assert!(
-            opts.iter().all(|o| o.code != "O114"),
+            opts.iter().all(|o| o.code != DiagCode::O114),
             "float var must not be rewritten to incr, got {opts:?}",
         );
     }
@@ -458,10 +463,10 @@ mod tests {
     #[test]
     fn set_expr_on_untyped_var_is_not_incr() {
         // No prior definition → `x` is not provably INT at the use point;
-        // the unsound rewrite is suppressed (matches Python).
+        // the unsound rewrite is suppressed.
         let opts = run_pass("set x [expr {$x + 1}]");
         assert!(
-            opts.iter().all(|o| o.code != "O114"),
+            opts.iter().all(|o| o.code != DiagCode::O114),
             "untyped var must not be rewritten to incr, got {opts:?}",
         );
     }
@@ -470,7 +475,7 @@ mod tests {
     fn set_expr_other_var_is_not_incr() {
         let opts = run_pass("set x [expr {$y + 1}]");
         assert!(
-            opts.iter().all(|o| o.code != "O114"),
+            opts.iter().all(|o| o.code != DiagCode::O114),
             "different variable should not be recognised, got {opts:?}",
         );
     }
@@ -479,7 +484,7 @@ mod tests {
     fn set_expr_not_add_or_sub_is_ignored() {
         let opts = run_pass("set x [expr {$x * 2}]");
         assert!(
-            opts.iter().all(|o| o.code != "O114"),
+            opts.iter().all(|o| o.code != DiagCode::O114),
             "multiplication should not be recognised, got {opts:?}",
         );
     }
@@ -490,7 +495,10 @@ mod tests {
         // recognised as an incr idiom.
         let opts = run_pass("set x 0\nset x [expr {1 + $x}]");
         assert_eq!(
-            opts.iter().find(|o| o.code == "O114").unwrap().replacement,
+            opts.iter()
+                .find(|o| o.code == DiagCode::O114)
+                .unwrap()
+                .replacement,
             "incr x",
         );
     }
@@ -501,11 +509,11 @@ mod tests {
         let opts = run_pass("set a 1\nset b 2\nset c 3");
         let pack = opts
             .iter()
-            .find(|o| o.code == "O119" && !o.replacement.is_empty())
+            .find(|o| o.code == DiagCode::O119 && !o.replacement.is_empty())
             .expect("expected an applied O119 pack");
         assert_eq!(pack.replacement, "foreach {a b c} {1 2 3} {break}");
         // One pack + two deletions, one group.
-        let o119: Vec<_> = opts.iter().filter(|o| o.code == "O119").collect();
+        let o119: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O119).collect();
         assert_eq!(o119.len(), 3);
     }
 
@@ -521,7 +529,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .any(|o| o.code == "O119" && o.replacement == "lassign {1 2 3} a b c"),
+                .any(|o| o.code == DiagCode::O119 && o.replacement == "lassign {1 2 3} a b c"),
             "expected lassign pack on 8.6, got {:?}",
             ctx.optimisations,
         );
@@ -537,7 +545,7 @@ mod tests {
         );
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != "O119"),
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O119),
             "Tcl 9.0 must not pack sets, got {:?}",
             ctx.optimisations,
         );
@@ -548,7 +556,7 @@ mod tests {
         // Mix of literal + dynamic values — not a pack candidate.
         let opts = run_pass("set a 1\nset b $x\nset c 3");
         assert!(
-            opts.iter().all(|o| o.code != "O119"),
+            opts.iter().all(|o| o.code != DiagCode::O119),
             "expected no O119 for mixed run, got {opts:?}",
         );
     }
@@ -559,8 +567,9 @@ mod tests {
         // detailed behaviour lives in `chain_fold`'s own tests.
         let opts = run_pass("set s {}\nappend s foo\nappend s bar");
         assert!(
-            opts.iter()
-                .any(|o| o.code == "O104" && !o.hint_only && o.replacement == "set s foobar"),
+            opts.iter().any(|o| o.code == DiagCode::O104
+                && !o.hint_only
+                && o.replacement == "set s foobar"),
             "expected applied O104 fold, got {opts:?}",
         );
     }
@@ -571,7 +580,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::PatternRecognition]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O114"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O114),
             "expected O114 via run_passes, got {:?}",
             ctx.optimisations,
         );

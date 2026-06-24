@@ -16,16 +16,17 @@
 //! - [`Statement::Incr`] — always reads its variable as `Int`.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, TclType};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
@@ -45,7 +46,7 @@ pub(crate) fn find_use_site_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, LatticeValue>,
 ) -> Vec<ShimmerWarning> {
@@ -56,18 +57,18 @@ pub(crate) fn find_use_site_shimmers(
     let loop_facts = LoopFacts::compute(cfg, ssa, &loop_blocks, registry);
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
-        let in_loop = loop_blocks.contains(&block_name);
+        let in_loop = loop_blocks.contains(cfg.block_name(block_id));
         // Per-block coercion ledger: once a use coerces `(var, ver)` to a
         // target intrep, the runtime representation has already changed, so a
         // later use to the *same* target in the same block is not a second
-        // shimmer. Mirrors Python `shimmer.py`'s `already_coerced`.
+        // shimmer.
         let mut already_coerced: HashSet<(String, u32, TclType)> = HashSet::new();
         for ss in &ssa_block.statements {
             check_statement(
@@ -79,6 +80,7 @@ pub(crate) fn find_use_site_shimmers(
                 &def_map,
                 values,
                 &loop_facts,
+                ssa,
                 &mut already_coerced,
                 &mut out,
             );
@@ -96,8 +98,7 @@ pub(crate) fn find_use_site_shimmers(
 /// shimmers once at the first iteration and is cached for the rest, so the
 /// right code is S100 (one-time) — *unless* it is coerced to two or more
 /// distinct target intreps inside the loop, in which case the converters
-/// re-thunk it each pass (genuine S101). Mirrors the `loop_def_names` +
-/// `loop_use_targets` maps in Python `shimmer.py`.
+/// re-thunk it each pass (genuine S101).
 #[derive(Default)]
 struct LoopFacts {
     /// Names defined anywhere in a loop block (statement defs + phis).
@@ -119,15 +120,20 @@ impl LoopFacts {
             return facts;
         }
         for lbn in loop_blocks {
-            if let Some(sb) = ssa.blocks.get(lbn) {
+            let Some(id) = cfg.block_id(lbn) else {
+                continue;
+            };
+            if let Some(sb) = ssa.blocks.get(&id) {
                 for st in &sb.statements {
-                    facts.def_names.extend(st.defs.keys().cloned());
+                    facts
+                        .def_names
+                        .extend(st.defs.keys().map(|&sym| ssa.var_name(sym).to_owned()));
                 }
                 for phi in &sb.phis {
-                    facts.def_names.insert(phi.name.clone());
+                    facts.def_names.insert(ssa.var_name(phi.name).to_owned());
                 }
             }
-            if let Some(cb) = cfg.blocks.get(lbn) {
+            if let Some(cb) = cfg.blocks.get(&id) {
                 for stmt in &cb.statements {
                     facts.record_use_targets(stmt, registry);
                 }
@@ -167,8 +173,7 @@ impl LoopFacts {
 
     /// Refine `in_loop` for a single use of `var`: a loop-invariant variable
     /// coerced to fewer than two distinct intreps inside the loop converts
-    /// once and is cached, so it is S100 (not S101). Mirrors Python's
-    /// `effective_in_loop` computation.
+    /// once and is cached, so it is S100 (not S101).
     fn effective_in_loop(&self, var: &str, in_loop: bool) -> bool {
         if in_loop && !self.def_names.contains(var) {
             self.use_targets.get(var).is_some_and(|t| t.len() >= 2)
@@ -183,7 +188,7 @@ impl LoopFacts {
 /// signed). These spellings classify as `String` by `literal_type` (the
 /// canonical stringified intrep differs from the source text) but
 /// promote cleanly to `Int` at the first arithmetic op — not a real
-/// shimmer. Mirrors Python's `_value_is_int_literal_string`.
+/// shimmer.
 fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
     let Some(LatticeValue::Const(ConstValue::String(text))) = value else {
         return false;
@@ -206,20 +211,19 @@ fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
 /// Check one command invocation's arguments for an intrep mismatch
 /// against the variables' known types. Used for both a top-level
 /// [`Statement::Call`] and a `[cmd …]` substitution lifted out of a
-/// [`Statement::AssignValue`] value (`set b [lindex $x 0]`), mirroring
-/// Python `shimmer.py`'s `_check_args_for_shimmer` dispatch over
-/// `IRCall` and `IRAssignValue`.
+/// [`Statement::AssignValue`] value (`set b [lindex $x 0]`).
 #[allow(clippy::too_many_arguments)]
 fn check_invocation(
     command: &str,
     args: &[String],
     span: Span,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
     loop_facts: &LoopFacts,
+    ssa: &SsaFunction,
     already_coerced: &mut HashSet<(String, u32, TclType)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -235,12 +239,15 @@ fn check_invocation(
             continue;
         }
         let var = normalise_var_name(stripped).to_owned();
-        let Some(&ver) = uses.get(&var) else { continue };
+        let Some(sym) = ssa.var_symbol(&var) else {
+            continue;
+        };
+        let Some(&ver) = uses.get(&sym) else { continue };
         if ver == 0 {
             continue;
         }
         let lattice = types
-            .get(&(var.clone(), ver))
+            .get(&(sym, ver))
             .cloned()
             .unwrap_or_else(TypeLattice::unknown);
         if lattice.kind != TypeKind::Known {
@@ -260,18 +267,17 @@ fn check_invocation(
             continue;
         }
         let related: Vec<(Span, String)> = def_map
-            .get(&(var.clone(), ver))
+            .get(&(sym, ver))
             .map(|&sp| vec![(sp, "value defined here".to_owned())])
             .unwrap_or_default();
         // A loop-invariant variable coerced to a single intrep inside the
         // loop converts once and is cached → S100, not the per-iteration
-        // S101.  Mirrors Python's `effective_in_loop`.
+        // S101.
         let code = if loop_facts.effective_in_loop(&var, in_loop) {
-            "S101"
+            DiagCode::S101
         } else {
-            "S100"
-        }
-        .to_owned();
+            DiagCode::S100
+        };
         out.push(ShimmerWarning {
             span,
             variable: var.clone(),
@@ -279,7 +285,7 @@ fn check_invocation(
             to_type: expected,
             command: command.to_owned(),
             in_loop,
-            code: code.clone(),
+            code,
             message: format!(
                 "{code}: variable '{var}' has {from} intrep \
                  but '{cmd}' expects {to} at arg {i}",
@@ -295,13 +301,14 @@ fn check_invocation(
 #[allow(clippy::too_many_arguments)]
 fn check_statement(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
     values: &HashMap<ValueKey, LatticeValue>,
     loop_facts: &LoopFacts,
+    ssa: &SsaFunction,
     already_coerced: &mut HashSet<(String, u32, TclType)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -317,6 +324,7 @@ fn check_statement(
                 in_loop,
                 def_map,
                 loop_facts,
+                ssa,
                 already_coerced,
                 out,
             );
@@ -324,8 +332,7 @@ fn check_statement(
 
         // A command substitution lifted into an assignment value
         // (`set b [lindex $x 0]`) reads its arguments just like a direct
-        // call. Mirrors Python `shimmer.py`'s `IRAssignValue` arm, which
-        // parses the value and runs the same arg-shimmer check.
+        // call.
         Statement::AssignValue { value, .. } => {
             if let Some((command, args)) =
                 crate::value_shapes::parse_command_substitution(value.trim())
@@ -340,6 +347,7 @@ fn check_statement(
                     in_loop,
                     def_map,
                     loop_facts,
+                    ssa,
                     already_coerced,
                     out,
                 );
@@ -350,8 +358,7 @@ fn check_statement(
             // `incr` reads both its target variable and (when present) its
             // increment argument as Int.  The two checks are independent —
             // an Int target with a String `$amount` still shimmers on the
-            // amount — so neither must short-circuit the other (mirrors the
-            // two separate `if` blocks in Python `shimmer.py`).
+            // amount — so neither must short-circuit the other.
             check_incr_var(
                 normalise_var_name(name),
                 stmt.span(),
@@ -360,6 +367,7 @@ fn check_statement(
                 values,
                 in_loop,
                 def_map,
+                ssa,
                 out,
             );
             if let Some(amt) = amount.as_deref().map(str::trim)
@@ -373,6 +381,7 @@ fn check_statement(
                     values,
                     in_loop,
                     def_map,
+                    ssa,
                     out,
                 );
             }
@@ -387,24 +396,28 @@ fn check_statement(
 ///
 /// `var` is the normalised variable name. Fires when its known intrep is a
 /// non-int, non-numeric type that is not a clean hex/octal/binary integer
-/// literal string (that spelling promotes cleanly to int — SYNC-MAY31-1e).
+/// literal string (that spelling promotes cleanly to int).
 #[allow(clippy::too_many_arguments)]
 fn check_incr_var(
     var: &str,
     span: Span,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     values: &HashMap<ValueKey, LatticeValue>,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
+    ssa: &SsaFunction,
     out: &mut Vec<ShimmerWarning>,
 ) {
-    let Some(&ver) = uses.get(var) else { return };
+    let Some(sym) = ssa.var_symbol(var) else {
+        return;
+    };
+    let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
     }
     let lattice = types
-        .get(&(var.to_owned(), ver))
+        .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind != TypeKind::Known {
@@ -416,14 +429,18 @@ fn check_incr_var(
     if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
         return;
     }
-    if value_is_int_literal_string(values.get(&(var.to_owned(), ver))) {
+    if value_is_int_literal_string(values.get(&(sym, ver))) {
         return;
     }
     let related: Vec<(Span, String)> = def_map
-        .get(&(var.to_owned(), ver))
+        .get(&(sym, ver))
         .map(|&sp| vec![(sp, "value defined here".to_owned())])
         .unwrap_or_default();
-    let code = if in_loop { "S101" } else { "S100" }.to_owned();
+    let code = if in_loop {
+        DiagCode::S101
+    } else {
+        DiagCode::S100
+    };
     out.push(ShimmerWarning {
         span,
         variable: var.to_owned(),
@@ -431,7 +448,7 @@ fn check_incr_var(
         to_type: TclType::Int,
         command: "incr".to_owned(),
         in_loop,
-        code: code.clone(),
+        code,
         message: format!(
             "{code}: variable '{var}' has {from} intrep but 'incr' expects int",
             from = type_name(current),
@@ -473,7 +490,7 @@ mod tests {
         assert_eq!(w.unwrap().to_type, TclType::Int);
     }
 
-    /// SYNC-MAY31-1e: a hex literal string (`0x80`) classifies as
+    /// A hex literal string (`0x80`) classifies as
     /// String but promotes cleanly to Int at `incr` — no shimmer.
     #[test]
     fn no_shimmer_for_hex_literal_string_used_with_incr() {
@@ -561,7 +578,7 @@ mod tests {
             "expected lindex S101 for foreach var, got: {warnings:?}"
         );
         let w = w.unwrap();
-        assert_eq!(w.code, "S101");
+        assert_eq!(w.code, DiagCode::S101);
         assert_eq!(w.from_type, TclType::String);
         assert_eq!(w.to_type, TclType::List);
     }
@@ -591,7 +608,7 @@ mod tests {
         );
         assert_eq!(
             w.unwrap().code,
-            "S100",
+            DiagCode::S100,
             "loop-invariant single-target use is one-time (S100): {warnings:?}"
         );
     }

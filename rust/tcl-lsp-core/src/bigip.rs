@@ -1,6 +1,4 @@
-//! F5 BIG-IP `*.conf` handling — Rust port of the Python BIG-IP
-//! config path (`server/workspace/scanner.py`,
-//! `dialects/f5/bigip/parser/`, `server/features/_bigip_symbols.py`).
+//! F5 BIG-IP `*.conf` handling.
 //!
 //! A BIG-IP config is **not** Tcl source: it is a tree of
 //! `module object-type identifier { ... }` stanzas (with embedded Tcl
@@ -8,21 +6,23 @@
 //! canonical BIG-IP basename on `did_open`, routes the document to
 //! this module for the outline, and suppresses the general Tcl
 //! analyser so its diagnostics (W123 / E002 / W210, the encrypted
-//! `$M$…$` marker mis-read as a `$var`) never leak (issues #534 / #571).
+//! `$M$…$` marker mis-read as a `$var`) never leak.
 //!
 //! Two pieces live here:
 //!
-//! * [`is_bigip_conf_name`] — the basename → BIG-IP test, mirroring
-//!   Python `is_bigip_conf_name` (`bigip.conf`, `bigip_base.conf`, …).
+//! * [`is_bigip_conf_name`] — the basename → BIG-IP test
+//!   (`bigip.conf`, `bigip_base.conf`, …).
 //! * [`document_symbols`] — a `module → kind → object` outline built
 //!   directly from the stanza headers, using the
 //!   [`BigipRegistry`](tcl_registry::bigip::BigipRegistry) object-type
 //!   index for longest-prefix `(module, object-type)` resolution.
 //!   Nameless global singletons (`auth password-policy`,
 //!   `net self-allow`, …) fall back to their kind label so no outline
-//!   symbol ever carries an empty `name` (#534).
+//!   symbol ever carries an empty `name`.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
@@ -30,7 +30,7 @@ use tcl_registry::bigip::BigipRegistry;
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
 
 /// Canonical BIG-IP configuration file names, matched by basename
-/// (not extension). Mirrors Python `_BIGIP_CONF_NAMES`.
+/// (not extension).
 const BIGIP_CONF_NAMES: &[&str] = &[
     "bigip.conf",
     "bigip_base.conf",
@@ -41,8 +41,7 @@ const BIGIP_CONF_NAMES: &[&str] = &[
 
 /// Return `true` when `uri`'s basename is a canonical BIG-IP config
 /// name. Single source of truth for the basename → BIG-IP test the
-/// `did_open` dialect routing relies on, mirroring Python
-/// `is_bigip_conf_name`.
+/// `did_open` dialect routing relies on.
 #[must_use]
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
@@ -63,9 +62,9 @@ struct Block {
 /// Extract all top-level `keyword ... { ... }` blocks from `source`.
 ///
 /// Brace-balanced scan that respects quoted strings and backslash
-/// escapes, mirroring Python `_extract_blocks`. Only ASCII structural
-/// bytes (`{`, `}`, `"`, `\`, whitespace, `#`) are inspected, so every
-/// recorded offset lands on a UTF-8 char boundary.
+/// escapes. Only ASCII structural bytes (`{`, `}`, `"`, `\`,
+/// whitespace, `#`) are inspected, so every recorded offset lands on a
+/// UTF-8 char boundary.
 fn extract_blocks(source: &str) -> Vec<Block> {
     let bytes = source.as_bytes();
     let length = bytes.len();
@@ -140,7 +139,7 @@ fn extract_blocks(source: &str) -> Vec<Block> {
 }
 
 /// Split `header` on whitespace, honouring `"..."` quoted spans and
-/// backslash escapes. Mirrors Python `_tokenise_header` — BIG-IP allows
+/// backslash escapes. BIG-IP allows
 /// quoted names with embedded spaces (`security bot-defense signature
 /// "/Common/Microsoft Access"`).
 fn tokenise_header(header: &str) -> Vec<String> {
@@ -171,8 +170,7 @@ fn tokenise_header(header: &str) -> Vec<String> {
     tokens
 }
 
-/// Parse a stanza header into `(module, object_type, identifier)`,
-/// mirroring Python `_parse_generic_header`.
+/// Parse a stanza header into `(module, object_type, identifier)`.
 ///
 /// When the registry knows multi-word object types for the module
 /// (`sys diags ihealth`, `ltm message-routing diameter route`), the
@@ -182,7 +180,7 @@ fn tokenise_header(header: &str) -> Vec<String> {
 /// the object type". An empty identifier denotes a global singleton.
 fn parse_header(
     header: &str,
-    object_types_by_module: &HashMap<&str, HashSet<&str>>,
+    object_types_by_module: &FxHashMap<&str, FxHashSet<&str>>,
 ) -> Option<(String, String, String)> {
     let parts = tokenise_header(header);
     if parts.len() < 2 {
@@ -223,8 +221,8 @@ fn parse_header(
 /// index, so `parse_header` can do longest-prefix object-type matching.
 fn object_types_by_module(
     registry: &BigipRegistry,
-) -> HashMap<&'static str, HashSet<&'static str>> {
-    let mut map: HashMap<&'static str, HashSet<&'static str>> = HashMap::new();
+) -> FxHashMap<&'static str, FxHashSet<&'static str>> {
+    let mut map: FxHashMap<&'static str, FxHashSet<&'static str>> = FxHashMap::default();
     for spec in registry.specs() {
         for &(module, object_type) in spec.header_types {
             map.entry(module).or_default().insert(object_type);
@@ -239,10 +237,10 @@ type Entry = (String, LineRange, usize);
 
 /// Build a `module → kind → object` outline for a BIG-IP config.
 ///
-/// Mirrors Python `get_bigip_document_symbols`: a three-level tree
+/// A three-level tree
 /// where the leaf is each object's full path, falling back to the kind
 /// label for nameless global singletons so no symbol carries an empty
-/// `name` (#534). A non-BIG-IP / empty document yields an empty list.
+/// `name`. A non-BIG-IP / empty document yields an empty list.
 #[must_use]
 pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
     if source.is_empty() {
@@ -262,7 +260,7 @@ pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
         };
         // A nameless global singleton (empty identifier) would make an
         // empty `DocumentSymbol.name`, which VS Code rejects for the
-        // whole outline — fall back to the kind label (#534).
+        // whole outline — fall back to the kind label.
         let name = if identifier.is_empty() {
             object_type.clone()
         } else {
@@ -322,9 +320,9 @@ fn offsets_to_range(source: &str, line_index: &LineIndex, start: usize, end: usi
     let end_pos = line_index.position_at_utf16(u32::try_from(end).unwrap_or(u32::MAX), source);
     LineRange {
         start_line: start_pos.line,
-        start_character: start_pos.character,
+        start_character: start_pos.character.get(),
         end_line: end_pos.line,
-        end_character: end_pos.character,
+        end_character: end_pos.character.get(),
     }
 }
 

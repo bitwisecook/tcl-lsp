@@ -1,5 +1,5 @@
 //! `f5 cleanup` (alias `clean`) — emit `tmsh delete` commands for objects
-//! unreferenced by any virtual / wide-IP. Mirrors `tooling/f5/verbs/cleanup.py`.
+//! unreferenced by any virtual / wide-IP.
 
 use std::collections::HashSet;
 use std::path::Path;

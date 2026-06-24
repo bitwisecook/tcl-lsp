@@ -1,8 +1,6 @@
-//! Model enums shared across BIG-IP kinds. Mirrors
-//! `dialects/f5/bigip/model/_enums.py`.
+//! Model enums shared across BIG-IP kinds.
 
 /// Whether a data-group is stored inline or in an external file.
-/// Mirrors Python `DataGroupType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataGroupType {
     /// Inline (`internal`) data-group.
@@ -13,7 +11,7 @@ pub enum DataGroupType {
 }
 
 impl DataGroupType {
-    /// The Python `DataGroupType` member name (`"INTERNAL"` / `"EXTERNAL"`).
+    /// The canonical `DataGroupType` member name (`"INTERNAL"` / `"EXTERNAL"`).
     #[must_use]
     pub const fn py_name(self) -> &'static str {
         match self {
@@ -23,8 +21,7 @@ impl DataGroupType {
     }
 }
 
-/// Broad classification of BIG-IP profile types. Mirrors Python
-/// `ProfileType`.
+/// Broad classification of BIG-IP profile types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ProfileType {
     /// `http`.
@@ -73,7 +70,7 @@ pub enum ProfileType {
 }
 
 impl ProfileType {
-    /// The Python `ProfileType` member name (`"HTTP"`, `"CLIENT_SSL"`, …).
+    /// The canonical `ProfileType` member name (`"HTTP"`, `"CLIENT_SSL"`, …).
     #[must_use]
     pub const fn py_name(self) -> &'static str {
         match self {

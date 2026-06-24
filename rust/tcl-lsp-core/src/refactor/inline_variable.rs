@@ -1,16 +1,15 @@
 //! Inline variable — replace a single-use variable with its value.
-//! Ports `tooling/refactoring/_inline_variable.py`.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::{Scope, VarDef};
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// Inline the variable defined by the `set` command at byte offset
-/// `cursor`.  Ports `inline_variable`.
+/// `cursor`.
 ///
 /// Only inlines when the cursor is on a `set var value` command and the
 /// variable has exactly one reference after the definition; returns
@@ -86,10 +85,7 @@ pub fn inline_variable(
         value_text.to_owned()
     } else {
         let inner = dequote(value_text);
-        let in_quoted_string = source
-            .as_bytes()
-            .get(ctx.word_start as usize)
-            == Some(&b'"');
+        let in_quoted_string = source.as_bytes().get(ctx.word_start as usize) == Some(&b'"');
         if !in_quoted_string && inner.chars().any(char::is_whitespace) {
             return None;
         }
@@ -118,7 +114,7 @@ struct RefContext {
     word_start: u32,
 }
 
-/// Port of `_reference_token`: resolve `ref_off` through the segmenter
+/// Resolve `ref_off` through the segmenter
 /// to its VAR token and enclosing word.
 fn reference_token(source: &str, ref_off: u32, registry: &CommandRegistry) -> Option<RefContext> {
     let cmd = find_command_at(source, ref_off, None, registry)?;

@@ -1,6 +1,6 @@
 //! Natural-loop forest over a function's CFG/SSA.
 //!
-//! Faithful port of `compiler/loops.py`: a back edge is `tail -> succ`
+//! A back edge is `tail -> succ`
 //! where `succ` dominates `tail`; the natural-loop bodies of all back
 //! edges sharing a header are unioned into one [`NaturalLoop`]. Lives in
 //! `tcl-compiler` next to the CFG/SSA so the compiler explorer (and any
@@ -11,7 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ssa::SsaFunction;
 
 /// One natural loop, identified by its header block.
@@ -41,36 +41,34 @@ impl LoopForest {
 }
 
 /// Whether `dominator` dominates `node` in the SSA dominator tree
-/// (reflexive). Walks the idom chain — identical to Python's fallback.
+/// (reflexive). Walks the idom chain.
 #[must_use]
-pub fn dominates(ssa: &SsaFunction, dominator: &str, node: &str) -> bool {
-    let mut current = Some(node.to_owned());
+pub fn dominates(ssa: &SsaFunction, dominator: BlockId, node: BlockId) -> bool {
+    let mut current = Some(node);
     while let Some(c) = current {
         if c == dominator {
             return true;
         }
-        current = ssa.idom.get(&c).and_then(Clone::clone);
+        current = ssa.idom.get(&c).copied().flatten();
     }
     false
 }
 
 /// Predecessor map restricted to `executable` blocks (terminator
-/// successors only). Mirrors `cfg_predecessors`.
+/// successors only).
 fn cfg_predecessors(
     cfg: &CfgFunction,
-    executable: &HashSet<String>,
-) -> HashMap<String, HashSet<String>> {
-    let mut preds: HashMap<String, HashSet<String>> = executable
-        .iter()
-        .map(|b| (b.clone(), HashSet::new()))
-        .collect();
+    executable: &HashSet<BlockId>,
+) -> HashMap<BlockId, HashSet<BlockId>> {
+    let mut preds: HashMap<BlockId, HashSet<BlockId>> =
+        executable.iter().map(|b| (*b, HashSet::new())).collect();
     for bn in executable {
         if let Some(block) = cfg.blocks.get(bn)
             && let Some(term) = &block.terminator
         {
             for succ in term.successors() {
-                if let Some(set) = preds.get_mut(succ) {
-                    set.insert(bn.clone());
+                if let Some(set) = preds.get_mut(&succ) {
+                    set.insert(*bn);
                 }
             }
         }
@@ -80,24 +78,24 @@ fn cfg_predecessors(
 
 /// Blocks in the natural loop for one back edge `latch -> header`.
 fn natural_loop_blocks(
-    header: &str,
-    latch: &str,
-    preds: &HashMap<String, HashSet<String>>,
-    executable: &HashSet<String>,
-) -> HashSet<String> {
-    let mut blocks: HashSet<String> = HashSet::new();
-    blocks.insert(header.to_owned());
-    blocks.insert(latch.to_owned());
-    let mut work = vec![latch.to_owned()];
+    header: BlockId,
+    latch: BlockId,
+    preds: &HashMap<BlockId, HashSet<BlockId>>,
+    executable: &HashSet<BlockId>,
+) -> HashSet<BlockId> {
+    let mut blocks: HashSet<BlockId> = HashSet::new();
+    blocks.insert(header);
+    blocks.insert(latch);
+    let mut work = vec![latch];
     while let Some(node) = work.pop() {
         if let Some(node_preds) = preds.get(&node) {
             for pred in node_preds {
                 if !executable.contains(pred) || blocks.contains(pred) {
                     continue;
                 }
-                blocks.insert(pred.clone());
-                if pred != header {
-                    work.push(pred.clone());
+                blocks.insert(*pred);
+                if *pred != header {
+                    work.push(*pred);
                 }
             }
         }
@@ -106,18 +104,18 @@ fn natural_loop_blocks(
 }
 
 /// Build the natural-loop forest for `cfg` / `ssa`, restricted to the
-/// `executable` blocks. Mirrors `build_loop_forest`.
+/// `executable` blocks.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn build_loop_forest(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable: &HashSet<String>,
+    executable: &HashSet<BlockId>,
 ) -> LoopForest {
     let preds = cfg_predecessors(cfg, executable);
-    let mut order: Vec<String> = Vec::new();
-    let mut blocks_by_header: HashMap<String, HashSet<String>> = HashMap::new();
-    let mut latches_by_header: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut order: Vec<BlockId> = Vec::new();
+    let mut blocks_by_header: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
+    let mut latches_by_header: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
 
     for tail in cfg.reverse_postorder() {
         if !executable.contains(&tail) {
@@ -130,33 +128,33 @@ pub fn build_loop_forest(
             continue;
         };
         for succ in term.successors() {
-            if !executable.contains(succ) || !dominates(ssa, succ, &tail) {
+            if !executable.contains(&succ) || !dominates(ssa, succ, tail) {
                 continue;
             }
-            let body = natural_loop_blocks(succ, &tail, &preds, executable);
-            if !blocks_by_header.contains_key(succ) {
-                order.push(succ.to_owned());
+            let body = natural_loop_blocks(succ, tail, &preds, executable);
+            if !blocks_by_header.contains_key(&succ) {
+                order.push(succ);
             }
-            blocks_by_header
-                .entry(succ.to_owned())
-                .or_default()
-                .extend(body);
-            latches_by_header
-                .entry(succ.to_owned())
-                .or_default()
-                .insert(tail.clone());
+            blocks_by_header.entry(succ).or_default().extend(body);
+            latches_by_header.entry(succ).or_default().insert(tail);
         }
     }
 
     let loops = order
         .into_iter()
         .map(|header| {
-            let mut blocks: Vec<String> = blocks_by_header[&header].iter().cloned().collect();
+            let mut blocks: Vec<String> = blocks_by_header[&header]
+                .iter()
+                .map(|id| cfg.block_name(*id).to_owned())
+                .collect();
             blocks.sort();
-            let mut latches: Vec<String> = latches_by_header[&header].iter().cloned().collect();
+            let mut latches: Vec<String> = latches_by_header[&header]
+                .iter()
+                .map(|id| cfg.block_name(*id).to_owned())
+                .collect();
             latches.sort();
             NaturalLoop {
-                header,
+                header: cfg.block_name(header).to_owned(),
                 blocks,
                 latches,
             }

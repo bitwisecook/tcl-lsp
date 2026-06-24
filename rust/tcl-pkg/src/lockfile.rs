@@ -1,6 +1,6 @@
 //! `tclpkg.lock` lockfile — canonical JSON representation.
 //!
-//! Faithful port of `tooling/tclpkg/lockfile.py`. The lockfile records the
+//! The lockfile records the
 //! exact resolved dependency graph. Two invocations against the same manifest
 //! and registry snapshot produce byte-identical output (only the `generated`
 //! timestamp varies, and `--frozen` preserves it). Canonical JSON rules:

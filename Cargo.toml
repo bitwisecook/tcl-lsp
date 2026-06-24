@@ -106,6 +106,13 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]
 
+[workspace.dependencies]
+# Non-cryptographic FxHash maps/sets (rustc's hasher). Used in the
+# per-keystroke HOT analysis/fixpoint/per-request paths in tcl-compiler,
+# tcl-registry, and tcl-lsp-core to avoid the default SipHash cost. See
+# PR #693 / AQ §D1 (O10).
+rustc-hash = "2"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

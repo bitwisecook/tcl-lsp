@@ -89,8 +89,8 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: 
 
         Statement::Return { span, .. } => {
             // Eval the `return` command so the runtime sets the result/code,
-            // then leave the function. (Eval-fallback discards the returned code
-            // today; faithful propagation lands with the runtime ABI.)
+            // then leave the function. (The eval-fallback discards the
+            // returned code.)
             emit.emit_command(slice(source, *span));
             emit.emit_return();
             Flow::Diverged

@@ -1,47 +1,42 @@
-//! Source-level style diagnostics — Rust port of the line/text
-//! style checks in `lsp/features/diagnostics.py`.
+//! Source-level style diagnostics — the line/text style checks.
 //!
 //! These five style codes are *source-text* checks: they read the
 //! raw document, not the lexer / segmenter / CST, because the
 //! questions they answer ("is this line too long", "does this line
 //! have trailing whitespace", "what line endings does the file
 //! use", "is this a backslash-continued comment") are inherently
-//! textual and have no structural Tcl representation.  This mirrors
-//! the Python implementation, which operates directly on
-//! `source.split("\n")`.
+//! textual and have no structural Tcl representation.  They operate
+//! directly on the source split into lines.
 //!
-//! Ported checks:
+//! Checks:
 //!
-//! * **W111** — line length (`_check_line_length`).
-//! * **W112** — trailing whitespace (`_check_trailing_whitespace`),
-//!   with a remove-whitespace quick-fix.
+//! * **W111** — line length.
+//! * **W112** — trailing whitespace, with a remove-whitespace
+//!   quick-fix.
 //! * **W115** — backslash-newline in a comment swallows the next
-//!   line (`_check_comment_continuation`), with a
-//!   convert-to-per-line-comments quick-fix.
-//! * **W118** — inconsistent line endings (`_check_line_endings`),
-//!   a single file-level diagnostic.
+//!   line, with a convert-to-per-line-comments quick-fix.
+//! * **W118** — inconsistent line endings, a single file-level
+//!   diagnostic.
 //!
-//! GAP-C1 strip 2 wires the orchestrator ([`style_diagnostics`])
-//! into the native server's `publish_analyser_diagnostics` so these
-//! source-style codes reach the editor alongside the analyser /
-//! compiler-check / optimiser sets.
+//! The orchestrator ([`style_diagnostics`]) wires into the native
+//! server's `publish_analyser_diagnostics` so these source-style
+//! codes reach the editor alongside the analyser / compiler-check /
+//! optimiser sets.
 //!
-//! **Range convention.**  The emitted ranges mirror Python's
-//! source-style emission exactly — the `end` position points at the
-//! *last affected character* (Python uses `character = length - 1`),
-//! not one-past-the-end.  This differs from the exclusive-`end`
+//! **Range convention.**  The `end` position points at the *last
+//! affected character* (`character = length - 1`), not
+//! one-past-the-end.  This differs from the exclusive-`end`
 //! convention the structural `tcl-lsp-core` providers use, but it
-//! preserves the live Python analyser's inclusive diagnostic anchors.
+//! preserves inclusive diagnostic anchors.
 //! Character columns are UTF-16 code units, matching the LSP convention.
 //!
-//! **Deferred (follow-ups, documented in GAP-C1 strip 2):** the
-//! W112 / W115 quick-fixes are *ported* (carried on
-//! [`StyleDiagnostic::fix`]) but not yet surfaced as code actions —
+//! The W112 / W115 quick-fixes are carried on
+//! [`StyleDiagnostic::fix`] but not yet surfaced as code actions —
 //! the code-action wiring is a separate concern, same posture as
-//! the optimiser O-code fixes (GAP-C3).  Per-check feature-config
-//! toggles beyond the file-level `# noqa` / `# tcl-lsp: disable`
-//! suppression are also a follow-up; today the checks run with the
-//! Python defaults (line length 120, expected line ending `\n`).
+//! the optimiser O-code fixes.  Per-check feature-config toggles
+//! beyond the file-level `# noqa` / `# tcl-lsp: disable` suppression
+//! are not yet wired; today the checks run with the defaults (line
+//! length 120, expected line ending `\n`).
 
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
@@ -49,18 +44,16 @@ use std::hash::BuildHasher;
 use crate::definition::{LspRange, utf16_len};
 
 /// Severity of a source-style diagnostic.  W111 / W115 are
-/// warnings; W112 / W118 are hints (matching Python's
-/// `Severity.WARNING` / `Severity.HINT`).
+/// warnings; W112 / W118 are hints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleSeverity {
-    /// LSP `Warning` (Python `Severity.WARNING`).
+    /// LSP `Warning`.
     Warning,
-    /// LSP `Hint` (Python `Severity.HINT`).
+    /// LSP `Hint`.
     Hint,
 }
 
-/// A quick-fix attached to a style diagnostic.  Mirrors the Python
-/// `CodeFix(range, new_text, description)`.
+/// A quick-fix attached to a style diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StyleFix {
     /// Document range the fix replaces.
@@ -88,22 +81,20 @@ pub struct StyleDiagnostic {
     pub fix: Option<StyleFix>,
 }
 
-/// Default maximum line length, matching Python's
-/// `line_length: int = 120`.
+/// Default maximum line length.
 pub const DEFAULT_LINE_LENGTH: usize = 120;
 
-/// Default expected line ending, matching Python's
-/// `line_ending: str = "\n"`.
+/// Default expected line ending.
 pub const DEFAULT_LINE_ENDING: &str = "\n";
 
-/// Python `_FILE_SUPPRESS_KEY` sentinel: a file-wide directive is
-/// recorded against line `-1` in `suppressed_lines`.
+/// Sentinel for a file-wide suppress directive: a file-wide directive
+/// is recorded against line `-1` in `suppressed_lines`.
 const FILE_SUPPRESS_KEY: i32 = -1;
 
 /// Return `true` when `code` is suppressed at `line` by an inline
 /// `# noqa` or a top-of-file `# tcl-lsp: disable=…` directive.
-/// Ports Python's `_is_suppressed`: a `"*"` entry suppresses every
-/// code, and the file-level (`-1`) bucket applies document-wide.
+/// A `"*"` entry suppresses every code, and the file-level (`-1`)
+/// bucket applies document-wide.
 fn is_suppressed<H: BuildHasher, I: BuildHasher>(
     code: &str,
     line: i32,
@@ -122,9 +113,8 @@ fn is_suppressed<H: BuildHasher, I: BuildHasher>(
 
 /// W111: flag lines exceeding `max_length` characters.
 ///
-/// Ports `_check_line_length`.  The length is the line's codepoint
-/// count *after* stripping a trailing `\r` so CRLF endings don't
-/// inflate the count.
+/// The length is the line's codepoint count *after* stripping a
+/// trailing `\r` so CRLF endings don't inflate the count.
 #[must_use]
 pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
@@ -153,8 +143,8 @@ pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic
 
 /// W112: flag trailing whitespace, with a remove-whitespace fix.
 ///
-/// Ports `_check_trailing_whitespace`.  A trailing `\r` is stripped
-/// first so CRLF endings aren't themselves flagged.
+/// A trailing `\r` is stripped first so CRLF endings aren't
+/// themselves flagged.
 #[must_use]
 pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
@@ -199,8 +189,7 @@ fn eol_label(ending: &str) -> String {
 
 /// W118: flag files whose line endings differ from `expected`.
 ///
-/// Ports `_check_line_endings`.  Emits at most one file-level
-/// diagnostic anchored at `(0, 0)`.
+/// Emits at most one file-level diagnostic anchored at `(0, 0)`.
 #[must_use]
 pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> {
     let crlf = source.matches("\r\n").count();
@@ -208,9 +197,8 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
     let cr = source.matches('\r').count() - crlf;
     let lf = source.matches('\n').count() - crlf;
 
-    // Build the set of endings present, in Python's insertion
-    // order (LF, CRLF, CR) so the "Mixed line endings" message is
-    // byte-identical.
+    // Build the set of endings present, in insertion order (LF,
+    // CRLF, CR) so the "Mixed line endings" message is stable.
     let mut present: Vec<(&str, usize)> = Vec::new();
     if lf > 0 {
         present.push(("\n", lf));
@@ -268,7 +256,7 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
 
 /// W115: flag backslash-newline continuation inside comments.
 ///
-/// Ports `_check_comment_continuation`.  In Tcl, a `\` immediately
+/// In Tcl, a `\` immediately
 /// before a newline inside a comment silently swallows the next
 /// line into the comment, which can hide live code.  The quick-fix
 /// converts the continued comment into separate per-line `#`
@@ -361,13 +349,13 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
 /// Run every source-style check and return the merged, suppression-
 /// filtered diagnostics.
 ///
-/// Ports the style portion of `get_basic_diagnostics`:
+/// Suppression and gating rules:
 ///
 /// * W111 / W112 / W115 honour inline `# noqa` / file-level
 ///   suppression (keyed by `suppressed`, the analyser's
 ///   `suppressed_lines`).
-/// * W118 is a file-level check and is *not* line-suppressed
-///   (matching Python — it is only gated by the `disabled` set).
+/// * W118 is a file-level check and is *not* line-suppressed; it is
+///   only gated by the `disabled` set.
 /// * Each code is skipped entirely when it appears in `disabled`
 ///   (the LSP user-config disabled-diagnostics set).
 #[must_use]
@@ -605,7 +593,7 @@ mod tests {
     #[test]
     fn orchestrator_w118_is_not_line_suppressed() {
         // A line-0 `*` noqa must NOT suppress the file-level W118
-        // (Python only line-suppresses W111/W112/W115).
+        // (only W111/W112/W115 are line-suppressible).
         let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
         suppressed.insert(0, std::iter::once("*".to_string()).collect());
         let diags = style_diagnostics(

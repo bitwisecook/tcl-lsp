@@ -1,7 +1,7 @@
 //! `selection` command.
 use crate::prelude::*;
 
-/// Subcommands ported from the Python source of truth.
+/// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "clear",

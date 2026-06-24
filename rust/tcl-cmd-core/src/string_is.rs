@@ -6,7 +6,7 @@
 //! [`ValueOps`](tcl_syntax::value::ValueOps) is needed — this operates on the
 //! already-extracted string — so each runtime's `string is` handler parses the
 //! options (`-strict`, `-failindex var`), calls [`class_check`], writes the fail
-//! variable, and returns the boolean. Mirrors `StringIsCmd` (tclCmdMZ.c).
+//! variable, and returns the boolean. (tclCmdMZ.c).
 
 use crate::error::CmdError;
 

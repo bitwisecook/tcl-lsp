@@ -1,14 +1,13 @@
-//! Faithful Rust port of the F5 iRules BIG-IP object-reference extractor
-//! (`dialects/f5/bigip/irules_object_refs.py` + `irules_refs.py`).
+//! F5 iRules BIG-IP object-reference extractor.
 //!
 //! Two layers:
 //!
 //! - [`resolve_object_ref_args`] — the declarative command→`(arg_index, kinds)`
 //!   table (`_BASE_SPECS` + `_POOL_REF_TEMPLATES` + the `class`/`persist` custom
 //!   resolvers). The hand-written specs are embedded from `data/`; the 1 MB
-//!   generated dependency graph backs *completion/coverage* in Python, not edge
-//!   resolution, so it is intentionally not ported here.
-//! - the walker (`extract_irules_object_references`, a later increment) that
+//!   generated dependency graph backs *completion/coverage* elsewhere, not edge
+//!   resolution, so it is intentionally not included here.
+//! - the walker (`extract_irules_object_references`) that
 //!   segments an iRule body, asks the table for each command's reference args,
 //!   and resolves them — including names that flow through `set <var> <literal>`.
 //!
@@ -94,7 +93,7 @@ fn tables() -> &'static Tables {
 }
 
 /// Delimiters stripped from a positional token before the falsey-keyword check
-/// (mirrors the Python `strip("{}\"'[](),")`).
+/// (strips the leading/trailing characters `{}"'[](),`).
 const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 
 /// `class match`/`search` comparison operators.
@@ -129,7 +128,7 @@ const PERSIST_NON_REFERENCE_KEYWORDS: &[&str] = &[
 ];
 
 /// Pool kinds for a rule module — GTM rules use the per-record-type GTM pool
-/// kinds (mirrors `pool_kinds_for_module`).
+/// kinds.
 fn pool_kinds_for_module(rule_module: Option<&str>) -> Vec<&'static str> {
     let t = tables();
     let src = if rule_module == Some("gtm") {
@@ -162,7 +161,7 @@ fn arg_index_for_position(position: &ObjectRefArg, args: &[&str]) -> Option<usiz
     None
 }
 
-/// `[(arg_index, kinds), …]` for `class <sub> …` (mirrors `_resolve_class_refs`).
+/// `[(arg_index, kinds), …]` for `class <sub> …`.
 fn resolve_class_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     let dg: Vec<&str> = tables()
         .data_group_kinds
@@ -216,7 +215,7 @@ fn resolve_class_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     }
 }
 
-/// `[(arg_index, kinds), …]` for `persist …` (mirrors `_resolve_persist_refs`).
+/// `[(arg_index, kinds), …]` for `persist …`.
 fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     let pk: Vec<&str> = tables()
         .persistence_kinds
@@ -240,7 +239,7 @@ fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
 }
 
 /// Return the `(arg_index, kinds)` pairs naming BIG-IP objects in an iRule
-/// `command args…` invocation (mirrors `resolve_object_ref_args`).
+/// `command args…` invocation.
 ///
 /// `rule_module` (`"ltm"` / `"gtm"`) selects the pool-kind family.
 #[must_use]
@@ -265,7 +264,7 @@ pub fn resolve_object_ref_args(
     let mut seen: HashSet<usize> = HashSet::new();
 
     // Try a single materialised spec: filter the positional token, dedup by
-    // index, and record `(idx, kinds)`. Mirrors the body of the Python loop.
+    // index, and record `(idx, kinds)`.
     let consider = |position: &ObjectRefArg,
                     kinds: Vec<&'static str>,
                     matches: &mut Vec<(usize, Vec<&'static str>)>,
@@ -287,8 +286,8 @@ pub fn resolve_object_ref_args(
         matches.push((idx, kinds));
     };
 
-    // Base specs first, then the pool templates — the same order
-    // `_materialise_specs` produces, so the shared `seen` dedup matches Python.
+    // Base specs first, then the pool templates, so the shared `seen` set
+    // dedups indices across both passes in a stable order.
     for spec in &t.base_specs {
         if spec.command != lower {
             continue;

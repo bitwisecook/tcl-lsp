@@ -18,12 +18,9 @@
 //! }
 //! ```
 //!
-//! The Python dispatcher in `lsp/features/document_symbols.py`
-//! materialises these into `lsprotocol.types.DocumentSymbol`
-//! values.  Keeping the materialisation in Python preserves the
-//! existing `lsprotocol`-coupled tests under `tests/` without a
-//! dependency-graph rewrite, mirroring the folding port's
-//! split.
+//! The Python dispatcher materialises these into
+//! `lsprotocol.types.DocumentSymbol` values, keeping the
+//! `lsprotocol`-coupled materialisation on the Python side.
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};

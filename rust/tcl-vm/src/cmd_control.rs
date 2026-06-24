@@ -53,7 +53,7 @@ fn no_script_following(token: &str) -> Completion<Value> {
     ))
 }
 
-// -- if --------------------------------------------------------------------
+// if
 
 /// `if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?`.
 fn cmd_if(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -119,7 +119,7 @@ fn cmd_if(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-// -- while -----------------------------------------------------------------
+// while
 
 /// `while test body`.
 fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -149,7 +149,7 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-// -- for -------------------------------------------------------------------
+// for
 
 /// `for start test next body`.
 fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -194,7 +194,7 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-// -- foreach / lmap --------------------------------------------------------
+// foreach / lmap
 
 /// `foreach varList list ?varList list ...? body`.
 fn cmd_foreach(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

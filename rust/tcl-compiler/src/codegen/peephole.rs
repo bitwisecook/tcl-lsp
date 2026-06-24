@@ -1,7 +1,7 @@
 //! Peephole optimisation passes.
 //!
 //! Post-emission passes that clean up the instruction stream to match
-//! tclsh 9.0 output.  Ported from `core/compiler/codegen/_peephole.py`.
+//! tclsh 9.0 output.
 
 use super::statements::{NO_DEDUP_TAG, SC_GENERIC_TAG};
 use super::{CodegenCtx, Instruction, Op, Operand};

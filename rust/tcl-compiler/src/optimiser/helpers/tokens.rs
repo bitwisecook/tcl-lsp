@@ -1,17 +1,13 @@
 //! Token / source-range helpers for the optimiser.
 //!
-//! Ported from `core/compiler/optimiser/_helpers.py`:
-//! `_extract_body_text` and (a simplified form of)
-//! `_full_command_range`. The full Python `_full_command_range`
-//! re-runs the lexer from the start of the command to discover
-//! trailing whitespace and closing braces; in the Rust port the
-//! IR statement `span` already covers the whole command
-//! (produced by `lowering::structured`), so the helper is a
-//! thin passthrough.
+//! The full-command-range helper is a thin passthrough: the IR
+//! statement `span` (produced by `lowering::structured`) already
+//! covers the whole command, including trailing whitespace and
+//! closing braces, so there is no need to re-run the lexer.
 //!
 //! Consumers: [`super::super::structure_elimination`] (body
 //! extraction when replacing a dead if/while/for/switch with its
-//! surviving branch), [`super::super::elimination`] (future).
+//! surviving branch).
 
 use tcl_lexer::Span;
 
@@ -19,7 +15,7 @@ use tcl_lexer::Span;
 /// its outer braces, leading newline, trailing whitespace, and
 /// re-indented to match `stmt_span`'s column.
 ///
-/// Matches `_extract_body_text` behaviour:
+/// Extracts body text as follows:
 ///
 /// 1. Slice `source[body_span]`.
 /// 2. Strip one leading `{` and one trailing `}`.

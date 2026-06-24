@@ -1,0 +1,1426 @@
+//! Usage and shape lint checks emitted during the command walk.
+//!
+//! These diagnostics inspect a single command's words and argument tokens
+//! for style and shape problems that need no control- or data-flow:
+//! unbraced `expr` / `if` / `while` bodies (W100, W105), unbraced `switch`
+//! bodies (W106), a redundant nested `expr` (W114), the `string`-vs-`==`
+//! comparison rewrite (W110), a `lappend` on a non-list value (W104),
+//! name-vs-value confusion in a variable write (W212), a `${name}(...)`
+//! array-write that should be `name(...)` (W216), non-ASCII and
+//! encoding-mismatch text (W108, W311), invalid `binary format` modifiers
+//! (W200), and an invalid subnet mask literal (W121).
+
+use rustc_hash::FxHashSet;
+use tcl_core_types::DiagCode;
+use tcl_lexer::SourceMap;
+
+use super::helpers::{find_dotted_quads, has_substitution, is_braced_word, source_slice};
+use crate::analyser::state::Analyser;
+use crate::analyser::types::Severity;
+use crate::expr_ast::{BinOp, ExprNode};
+
+impl Analyser {
+    /// **W105.** Emit "unbraced code block" warnings for body
+    /// arguments that aren't braced.
+    ///
+    /// Severity is ERROR when the unbraced body contains
+    /// substitutions (``$var`` / ``[cmd]``) — those risk double
+    /// substitution.  Severity is WARNING otherwise.  Single
+    /// barewords without substitution are silently allowed
+    /// (some commands accept a proc name as a body alternative).
+    pub(in crate::analyser) fn emit_w105_unbraced_body(
+        &mut self,
+        cmd_name: &str,
+        body_text: &str,
+        body_tok: tcl_lexer::Token,
+        is_single_token: bool,
+    ) {
+        // Already braced — `Str` token kind means the source
+        // started with ``{``.
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
+            return;
+        }
+        // A whole-word command-substitution body — `eval [list set y $x]`
+        // (the recommended *safe* form), `uplevel [buildScript]` — is
+        // produced dynamically and parsed once by the consumer: there is
+        // no double-substitution risk and it cannot be braced
+        // (`eval {[list …]}` changes the meaning).  (A `Var` body such as
+        // `while {$cond} $body` is *not* exempt — only a `Cmd` word is.)
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
+            return;
+        }
+        // A body that is a *single bare variable substitution* (`eval $cmd`,
+        // `proc $n $a $body`, `after 0 $coroName`, `$state(-command)`) is a
+        // script-valued reference, not an inline code block: the variable
+        // already holds the script.  Bracing it (`{$cmd}`) would turn the
+        // reference into the literal text `$cmd` — the W105 quick-fix is
+        // actively wrong here — and the genuine double-substitution (eval) /
+        // dynamic-dispatch (command name) risks are W101's and W307's to
+        // flag.  A *single-token* word whose token is a `Var` is exactly this
+        // case; a composite word (`${t}--Coro`) or quoted interpolated body
+        // (`"do $script"`) has more than one fragment and is not exempt.
+        if is_single_token && matches!(body_tok.kind, tcl_lexer::TokenType::Var) {
+            return;
+        }
+        let trimmed = body_text.trim();
+        // Textual ``$`` / ``[`` count as substitutions, and so do
+        // ``Var`` / ``Cmd`` tokens — even when the entire body is a direct
+        // substitution (``while {$cond} $body``).  Those still
+        // emit W105 at ERROR severity because an unbraced
+        // substituted body double-evaluates at runtime.
+        let has_substitution = trimmed.contains('$')
+            || trimmed.contains('[')
+            || matches!(
+                body_tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            );
+        // Single bareword + no substitution is the alternative
+        // form (e.g. body = a proc name).  Skip.
+        if !trimmed.contains(char::is_whitespace) && !has_substitution {
+            return;
+        }
+        let severity = if has_substitution {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        let message = if has_substitution {
+            format!(
+                "Code block argument to '{cmd_name}' is not braced and \
+contains substitutions \u{2014} risk of double substitution. \
+Use braces: {{ \u{2026} }}"
+            )
+        } else {
+            format!(
+                "Code block argument to '{cmd_name}' should be braced \
+for clarity and to prevent accidental substitution. \
+Use braces: {{ \u{2026} }}"
+            )
+        };
+        let new_text = format!("{{{body_text}}}");
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W105,
+            span: body_tok.span,
+            message,
+            severity,
+            fixes: vec![super::types::CodeFix {
+                span: body_tok.span,
+                new_text,
+                description: "Wrap code block in braces".to_string(),
+            }],
+        });
+    }
+
+    /// W100: an expression argument (`expr` / `if` / `while`
+    /// / `for` conditions) that is not braced suffers double
+    /// substitution and defeats byte-compilation.  Skips a braced
+    /// (`{…}`) argument and a substitution-free numeric/boolean literal;
+    /// otherwise emits W100 (ERROR when the text carries a `$`/`[`
+    /// substitution, else WARNING) with a brace-wrapping fix.
+    /// `args` / `arg_tokens` exclude the command name.
+    pub(in crate::analyser) fn emit_w100_unbraced_expr(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::Expr,
+        );
+        if indices.is_empty() {
+            return;
+        }
+        indices.sort_unstable();
+
+        let is_expr = cmd_name == "expr";
+        let dialect = self.dialect.clone();
+        // The whole-`expr` argument span (used when the command is
+        // `expr`, whose expression is the remaining words).
+        let expr_full_span = (!arg_tokens.is_empty()).then(|| {
+            tcl_lexer::Span::new(
+                arg_tokens[0].span.start(),
+                arg_tokens[arg_tokens.len() - 1].span.end(),
+            )
+        });
+        let any_sub_token = arg_tokens.iter().any(|t| {
+            matches!(
+                t.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            )
+        });
+
+        let mut pending: Vec<(tcl_lexer::Span, String, bool)> = Vec::new();
+        for idx in indices {
+            let (Some(tok), Some(arg_text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            // A braced word (`{…}`, i.e. a `Str` token) is already safe.
+            if tok.kind == tcl_lexer::TokenType::Str {
+                continue;
+            }
+            // Resolve the diagnostic span + text: for `expr` the whole
+            // remaining-argument span; otherwise the single argument's
+            // source slice (preserving `$var` substitutions).
+            let (span, text) = if is_expr {
+                let sp = expr_full_span.unwrap_or(tok.span);
+                (
+                    sp,
+                    source_slice(&self.source, sp).unwrap_or_else(|| args.join(" ")),
+                )
+            } else {
+                (
+                    tok.span,
+                    source_slice(&self.source, tok.span).unwrap_or_else(|| arg_text.clone()),
+                )
+            };
+            let stripped = text.trim();
+            let safe = if is_expr {
+                is_safe_literal_expr(stripped, &dialect)
+            } else {
+                is_safe_literal(stripped)
+            };
+            if safe {
+                continue;
+            }
+            let has_sub = text.contains('$')
+                || text.contains('[')
+                || if is_expr {
+                    any_sub_token
+                } else {
+                    matches!(
+                        tok.kind,
+                        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                    )
+                };
+            pending.push((span, text, has_sub));
+        }
+
+        for (span, text, has_sub) in pending {
+            self.push_w100(cmd_name, is_expr, span, &text, has_sub);
+        }
+    }
+
+    /// Push one W100 diagnostic for an unbraced expression argument.
+    fn push_w100(
+        &mut self,
+        cmd_name: &str,
+        is_expr: bool,
+        span: tcl_lexer::Span,
+        text: &str,
+        has_sub: bool,
+    ) {
+        let severity = if has_sub {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        let message = if is_expr {
+            "Expression is not braced: may cause double substitution and prevents \
+             byte-compilation. Use expr {...} instead."
+                .to_string()
+        } else {
+            format!(
+                "Expression argument to '{cmd_name}' is not braced: may cause double \
+                 substitution. Use braces: {{{text}}}"
+            )
+        };
+        // Brace-wrapping fix; for a quoted `expr "…"` drop the quotes.
+        let fix_inner = if is_expr {
+            let s = text.trim();
+            if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+                &s[1..s.len() - 1]
+            } else {
+                text
+            }
+        } else {
+            text
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W100,
+            span,
+            message,
+            severity,
+            fixes: vec![super::types::CodeFix {
+                span,
+                new_text: format!("{{{fix_inner}}}"),
+                description: "Wrap expression in braces".to_string(),
+            }],
+        });
+    }
+
+    /// W311: a channel configured with `-encoding binary` *and*
+    /// a non-binary `-translation` is contradictory (binary implies no
+    /// translation) and can corrupt data / enable encoding-differential
+    /// attacks.  Handles `fconfigure` and `chan configure`.
+    pub(in crate::analyser) fn emit_w311_encoding_mismatch(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let opt_start = if cmd_name == "fconfigure" {
+            1
+        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
+            2
+        } else {
+            return;
+        };
+        if args.len() <= opt_start {
+            return;
+        }
+        let mut binary_tok = None;
+        let mut translation_tok = None;
+        let mut i = opt_start;
+        while i + 1 < args.len() {
+            let (opt, val) = (&args[i], &args[i + 1]);
+            if opt == "-encoding" && val == "binary" {
+                binary_tok = arg_tokens.get(i + 1);
+            } else if opt == "-translation" && val != "binary" {
+                translation_tok = arg_tokens.get(i + 1);
+            }
+            i += 2;
+        }
+        if binary_tok.is_some() && translation_tok.is_some() {
+            let target = translation_tok
+                .or(binary_tok)
+                .or_else(|| arg_tokens.first());
+            if let Some(tok) = target {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W311,
+                    span: tok.span,
+                    message: "Channel configured with -encoding binary and a non-binary \
+                              -translation. Binary encoding implies no translation; the \
+                              conflicting -translation may silently corrupt data or enable \
+                              encoding-differential attacks."
+                        .to_string(),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W200: a `u` / `s` modifier on a `binary format` / `binary
+    /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
+    /// dialects (incl. F5 iRules / iApps) it is unavailable.
+    pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "binary" || args.is_empty() {
+            return;
+        }
+        let fmt_idx = match args[0].as_str() {
+            "format" if args.len() >= 2 => 1,
+            "scan" if args.len() >= 3 => 2,
+            _ => return,
+        };
+        if !matches!(self.dialect.as_str(), "tcl8.4" | "f5-irules" | "f5-iapps") {
+            return;
+        }
+        let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
+            return;
+        };
+        let fmt = args[fmt_idx].as_bytes();
+        let mut i = 0;
+        while i < fmt.len() {
+            if fmt[i].is_ascii_whitespace() {
+                i += 1;
+                continue;
+            }
+            while i < fmt.len() && fmt[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= fmt.len() {
+                break;
+            }
+            let spec = fmt[i];
+            i += 1;
+            if BINARY_INT_SPECIFIERS.contains(&spec)
+                && i < fmt.len()
+                && (fmt[i] == b'u' || fmt[i] == b's')
+            {
+                let modifier = fmt[i] as char;
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W200,
+                    span: fmt_tok.span,
+                    message: format!(
+                        "signed/unsigned modifier '{modifier}' on binary format specifier \
+                         requires Tcl 8.5+"
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                i += 1;
+            }
+            if i < fmt.len() && fmt[i] == b'*' {
+                i += 1;
+            }
+        }
+    }
+
+    /// W121: a dotted-quad literal that looks like a subnet mask
+    /// but has non-contiguous bits (`255.255.255.1`, `255.0.255.0`) is
+    /// almost certainly a mistake.
+    pub(in crate::analyser) fn emit_w121_invalid_subnet_mask(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let mut seen: FxHashSet<u32> = FxHashSet::default();
+        for (tok, text) in arg_tokens.iter().zip(args.iter()) {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            for quad in find_dotted_quads(text, 3) {
+                let octets: Vec<u32> = quad
+                    .octets
+                    .iter()
+                    .map(|o| o.parse::<u32>().unwrap_or(999))
+                    .collect();
+                if octets.iter().any(|&o| o > 255) {
+                    continue;
+                }
+                let (a, b, c, d) = (octets[0], octets[1], octets[2], octets[3]);
+                if !looks_like_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                if is_valid_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                seen.insert(tok.span.start());
+                let quad = format!("{a}.{b}.{c}.{d}");
+                let mut message = format!(
+                    "'{quad}' looks like a subnet mask but has non-contiguous bits. A valid \
+                     mask must be contiguous leading 1-bits followed by 0-bits."
+                );
+                if let Some(s) = nearest_valid_mask(a, b, c, d)
+                    && s != quad
+                {
+                    use std::fmt::Write as _;
+                    let _ = write!(message, " Did you mean '{s}'?");
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W121,
+                    span: tok.span,
+                    message,
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W108: a non-ASCII character in an argument token —
+    /// either a Unicode confusable (visually resembling ASCII) or a
+    /// known copy-paste artifact (smart quote, NBSP, em-dash, …).
+    /// `args` / `arg_tokens` exclude the command name (the command word
+    /// is not scanned).  Operates in the default **confusables** mode
+    /// (→ **strict** for F5 iRules / iApps); the `common` mode — which
+    /// needs Unicode general-category data Rust std lacks — is not yet
+    /// implemented.  One diagnostic per offending character, with an
+    /// ASCII-replacement fix when one is known.
+    pub(in crate::analyser) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
+        use super::confusables_table::{auto_fix_for, confusable_to_ascii};
+        use super::state::NonAsciiMode;
+
+        // Resolve the effective mode: an explicit `tclLsp.style.nonAscii`
+        // setting, or the per-dialect default (strict for ASCII-only F5
+        // dialects, confusables otherwise).
+        let mode = match self.non_ascii_mode {
+            NonAsciiMode::Default => {
+                if matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps") {
+                    NonAsciiMode::Strict
+                } else {
+                    NonAsciiMode::Confusables
+                }
+            }
+            explicit => explicit,
+        };
+        if mode == NonAsciiMode::Off {
+            return;
+        }
+
+        let mut seen: FxHashSet<u32> = FxHashSet::default();
+        for tok in arg_tokens {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            let Some(slice) = source_slice(&self.source, tok.span) else {
+                continue;
+            };
+            // Skip a multi-line braced body — its inner commands are
+            // checked when the body is recursed into.
+            if tok.kind == tcl_lexer::TokenType::Esc && slice.contains('\n') {
+                continue;
+            }
+            let mut flagged_here = false;
+            for (rel, ch) in slice.char_indices() {
+                if is_standard_ascii(ch) {
+                    continue;
+                }
+                let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
+                let is_confusable = fix.is_some();
+                // Mode-dependent filtering (strict flags everything):
+                //  * confusables — only confusables / auto-fix artifacts;
+                //  * common — those plus any non-benign character
+                //    (control / format / separator / unassigned / …).
+                match mode {
+                    NonAsciiMode::Confusables if !is_confusable => continue,
+                    NonAsciiMode::Common if !is_confusable && is_benign_unicode(ch) => continue,
+                    _ => {}
+                }
+                flagged_here = true;
+                let start = tok.span.start() + u32::try_from(rel).unwrap_or(0);
+                let end = start + u32::try_from(ch.len_utf8()).unwrap_or(1);
+                let span = tcl_lexer::Span::new(start, end);
+                let fixes = fix
+                    .map(|repl| {
+                        vec![super::types::CodeFix {
+                            span,
+                            new_text: repl.to_string(),
+                            description: "Replace with ASCII equivalent".to_string(),
+                        }]
+                    })
+                    .unwrap_or_default();
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W108,
+                    span,
+                    message: format!(
+                        "Non-ASCII character U+{:04X} '{ch}' \u{2014} outside the standard ASCII \
+                         printable/whitespace set",
+                        ch as u32
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes,
+                });
+            }
+            if flagged_here {
+                seen.insert(tok.span.start());
+            }
+        }
+    }
+
+    /// W104: `append` used with a space-padded value looks
+    /// like list construction — fragile if the data contains special
+    /// characters.  Fires once (HINT) on the first value argument that
+    /// starts or ends with a space.
+    pub(in crate::analyser) fn emit_w104_append_list(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
+            return;
+        }
+        for (i, text) in args.iter().enumerate().skip(1) {
+            if text.starts_with(' ') || text.ends_with(' ') {
+                let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W104,
+                    span: tok.span,
+                    message: "append with space-separated values looks like list \
+                              construction. Use [lappend] instead to safely handle values \
+                              containing spaces, braces, or backslashes."
+                        .to_string(),
+                    severity: super::types::Severity::Hint,
+                    fixes: Vec::new(),
+                });
+                return;
+            }
+        }
+    }
+
+    /// W106: an unbraced `switch` body undergoes an extra round
+    /// of substitution (especially dangerous under `-regexp`).  Handles
+    /// the single trailing-body form and the alternating pattern/body
+    /// form; skips braced bodies and the `-` fall-through.  ERROR when a
+    /// substitution is present or `-regexp` is set, else WARNING.
+    pub(in crate::analyser) fn emit_w106_unbraced_switch_body(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "switch" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        // Option flags, then the subject string.
+        let mut i = 0;
+        let mut has_regexp = false;
+        while i < args.len() && args[i].starts_with('-') {
+            if args[i] == "-regexp" {
+                has_regexp = true;
+            }
+            if args[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        if i >= args.len() {
+            return;
+        }
+        i += 1; // skip subject
+        if i >= args.len() {
+            return;
+        }
+
+        // Single trailing arg: the braced-list form (W105 / bracing
+        // handles a braced block); only flag an *unbraced* single block.
+        if i == args.len() - 1 {
+            if let Some(tok) = arg_tokens.get(i)
+                && !is_braced_word(tok)
+            {
+                let dangerous = has_substitution(&args[i], tok);
+                self.push_w106(tok.span, dangerous, has_regexp, true);
+            }
+            return;
+        }
+
+        // Alternating pattern/body pairs.
+        while i + 1 < args.len() {
+            let body_idx = i + 1;
+            if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx))
+                && !is_braced_word(tok)
+                && text != "-"
+            {
+                let dangerous = has_substitution(text, tok) || has_regexp;
+                self.push_w106(tok.span, dangerous, has_regexp, false);
+            }
+            i += 2;
+        }
+    }
+
+    /// Push one W106 diagnostic with the message variant selected by
+    /// `has_regexp` / substitution danger.
+    fn push_w106(
+        &mut self,
+        span: tcl_lexer::Span,
+        dangerous: bool,
+        has_regexp: bool,
+        single_block: bool,
+    ) {
+        let message = if has_regexp {
+            "switch -regexp body is not braced \u{2014} patterns and actions undergo extra \
+             substitution, risking code injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else if dangerous && single_block {
+            "switch body is not braced \u{2014} contains substitutions that risk code \
+             injection. Use braces: switch \u{2026} { pattern { body } \u{2026} }"
+                .to_string()
+        } else if single_block {
+            "switch body is not braced \u{2014} Use braces: switch \u{2026} { pattern { body } \
+             \u{2026} }"
+                .to_string()
+        } else if dangerous {
+            "switch body is not braced and contains substitutions \u{2014} risk of code \
+             injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else {
+            "switch body should be braced to prevent accidental substitution. Use braces: \
+             { \u{2026} }"
+                .to_string()
+        };
+        let severity = if dangerous {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W106,
+            span,
+            message,
+            severity,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// W212: a command argument that must be a variable
+    /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
+    /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
+    /// the command name.  Fires when the resolved name-position argument
+    /// is a `Var` token.
+    pub(in crate::analyser) fn emit_w212_name_vs_value(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        for idx in name_arg_indices(cmd_name, args) {
+            let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            if tok.kind != tcl_lexer::TokenType::Var {
+                continue;
+            }
+            // `set ${token}(status) …` in a variable-name position is the
+            // braced indirect-array-element idiom (`token` holds the array
+            // name), not a `set $token` dynamic-name foot-gun.  Both the
+            // W212 `did you mean token(status)` and the W216
+            // `did you mean $token(status)` suggestions are wrong there, so
+            // neither fires.  This is the `is_braced_indirect_array_ref`
+            // carve-out.
+            if tcl_syntax::naming::is_braced_indirect_array_ref(text) {
+                continue;
+            }
+            let bare = text
+                .trim_start_matches('$')
+                .trim_start_matches('{')
+                .trim_end_matches('}');
+            let display_cmd = if cmd_name == "info" && !args.is_empty() {
+                format!("info {}", args[0])
+            } else {
+                cmd_name.to_string()
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W212,
+                span: tok.span,
+                message: format!(
+                    "'{display_cmd}' expects a variable name, got substitution (${bare}). \
+                     Did you mean '{bare}'?"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W216** — broken brace-form variants of array element access.
+    ///
+    /// Two related shapes both look like array-element access but parse
+    /// differently than the user intends:
+    ///
+    /// 1. `${arr}(foo)` — the lexer ends the variable substitution at the
+    ///    `}`, so this is scalar `${arr}` followed by *literal* `(foo)`; no
+    ///    array access happens.
+    /// 2. `${arr($foo)}` — the brace form applies no further substitution to
+    ///    its content, so `$foo` inside the braces is the literal four-char
+    ///    string, not the value of `foo`.
+    ///
+    /// In a *variable-name* position (`set` / `incr` / `append` / `lappend` /
+    /// `unset` / `info exists` / `vwait`) Pattern (1) is the legitimate
+    /// indirect-array-element idiom (`token` holds the array name) and must
+    /// not fire — see [`tcl_syntax::naming::is_braced_indirect_array_ref`].
+    pub(in crate::analyser) fn emit_w216_brace_then_paren(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+    ) {
+        if cmd.texts.is_empty() {
+            return;
+        }
+        let sm = SourceMap::new(&self.source);
+        let source = self.source.as_bytes();
+        // Word-start offsets the command reads as a variable name; a
+        // `${name}(idx)` Pattern-(1) match starting there is the indirect
+        // idiom and must not fire W216.
+        let cmd_name = cmd.texts[0].as_str();
+        let args = &cmd.texts[1..];
+        let mut varname_word_starts: FxHashSet<u32> = FxHashSet::default();
+        for ai in w216_varname_word_indices(cmd_name, args) {
+            let wi = ai + 1;
+            if let Some(tok) = cmd.argv.get(wi) {
+                varname_word_starts.insert(tok.span.start());
+            }
+        }
+        for &t1 in &cmd.all_tokens {
+            // Token spans are absolute into the full document; skip any token
+            // whose span exceeds the current source (synthetic unit-test
+            // tokens, or a span past a truncated buffer) before slicing.
+            if t1.span.end() as usize > source.len() {
+                continue;
+            }
+            if !is_brace_form_var(&sm, t1) {
+                continue;
+            }
+            let text = sm.token_text(t1).to_string();
+
+            // Pattern (2) — `${arr($foo)}`: the VAR token's own text contains
+            // `(...)` with `$`/`[` inside.
+            if text.contains('(') && text.ends_with(')') {
+                if let Some(paren_idx) = text.find('(') {
+                    let name = &text[..paren_idx];
+                    let inner = &text[paren_idx + 1..text.len() - 1];
+                    if !name.is_empty() && index_has_substitution(inner) {
+                        let corrected = build_w216_replacement(name, inner);
+                        // Token span end is exclusive — it sits on the `}`.
+                        let span = tcl_lexer::Span::new(t1.span.start(), t1.span.end() + 1);
+                        let message = format!(
+                            "`${{{name}({inner})}}` does not substitute `{inner}` \
+(the brace form is documented to apply no further substitution to its \
+content); use `{corrected}` to access the array element with index substitution"
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: DiagCode::W216,
+                            span,
+                            message,
+                            severity: Severity::Warning,
+                            fixes: vec![super::types::CodeFix {
+                                span,
+                                new_text: corrected.clone(),
+                                description: format!("Replace with `{corrected}`"),
+                            }],
+                        });
+                    }
+                }
+                continue;
+            }
+
+            // Pattern (1) — `${arr}(foo)`: the VAR token ends at the last
+            // char before `}`; a literal `}` follows (the exclusive span end),
+            // then `(` opens a paren group.
+            let close_brace = t1.span.end() as usize;
+            if close_brace >= source.len() || source[close_brace] != b'}' {
+                continue;
+            }
+            let paren_start = close_brace + 1;
+            if paren_start >= source.len() || source[paren_start] != b'(' {
+                continue;
+            }
+            let Some(paren_end) = find_matching_close_paren(source, paren_start) else {
+                continue;
+            };
+            // Variable-name position → indirect-array idiom, suppress.
+            if varname_word_starts.contains(&t1.span.start()) {
+                continue;
+            }
+            let inner = &self.source[paren_start + 1..paren_end];
+            let corrected = build_w216_replacement(&text, inner);
+            let span = tcl_lexer::Span::new(
+                t1.span.start(),
+                u32::try_from(paren_end + 1).unwrap_or(t1.span.end()),
+            );
+            let message = format!(
+                "`${{{text}}}({inner})` is parsed as scalar `${{{text}}}` followed by \
+literal text `({inner})`; did you mean `{corrected}` for array element access?"
+            );
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W216,
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: vec![super::types::CodeFix {
+                    span,
+                    new_text: corrected.clone(),
+                    description: format!("Replace with `{corrected}`"),
+                }],
+            });
+        }
+    }
+
+    /// W114: a nested `[expr …]` inside an argument that is
+    /// *already* an expression context (`expr` / `if` / `while` / `for`
+    /// conditions) is redundant.  `diag_span` is the source span of the
+    /// expression argument; we scan its source slice for the first
+    /// `[`-`expr`-whitespace sequence and anchor the warning at the
+    /// nested `[expr … ]`.  One warning per argument (first match only).
+    pub(in crate::analyser) fn emit_w114_redundant_nested_expr(
+        &mut self,
+        _text: &str,
+        diag_span: tcl_lexer::Span,
+    ) {
+        let start = diag_span.start() as usize;
+        let end = diag_span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return;
+        }
+        let slice = &self.source[start..end];
+        let Some((open, close)) = first_nested_expr(slice) else {
+            return;
+        };
+        let nested_span = tcl_lexer::Span::new(
+            u32::try_from(start + open).unwrap_or(diag_span.start()),
+            u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W114,
+            span: nested_span,
+            message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **W110.** Emit "use `eq`/`ne` instead of `==`/`!=` for
+    /// string comparison" hints on the EXPR-role argument of
+    /// commands like `if`, `while`, `for`, `expr`.
+    ///
+    /// Fires when at
+    /// least one operand of a `==` / `!=` comparison is a string
+    /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
+    /// comparisons between variables (`$x == $y`) are left alone.
+    ///
+    /// `expr_text` is the post-substitution body of the EXPR-role
+    /// argument (already brace-stripped) — the caller is
+    /// responsible for joining multi-arg `expr` invocations with
+    /// spaces before calling.  `diag_span` is the source span the
+    /// diagnostic anchors to (the source range of the argument
+    /// token, or the full token range for `expr`).
+    pub(in crate::analyser) fn emit_w110_string_eq_ne(
+        &mut self,
+        expr_text: &str,
+        diag_span: tcl_lexer::Span,
+    ) {
+        // Quick bail-out: no equality operator at all.
+        if !expr_text.contains("==") && !expr_text.contains("!=") {
+            return;
+        }
+        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
+        // ``ExprNode::Raw`` means the expression was unparseable.
+        if matches!(parsed, ExprNode::Raw { .. }) {
+            return;
+        }
+        let matched_ops = find_string_eq_ne_ops(&parsed);
+        if matched_ops.is_empty() {
+            return;
+        }
+        let first_op = matched_ops[0];
+        let (op_text, replacement) = match first_op {
+            BinOp::Eq => ("==", "eq"),
+            BinOp::Ne => ("!=", "ne"),
+            _ => unreachable!("find_string_eq_ne_ops only returns Eq/Ne"),
+        };
+        // Only offer the regex-based code fix when every ``==``/
+        // ``!=`` in the expression has a string-literal operand;
+        // otherwise the blanket rewrite would incorrectly change
+        // non-string comparisons too.
+        let total = count_eq_ne_ops(&parsed);
+        let mut fixes = Vec::new();
+        if matched_ops.len() >= total {
+            let rewritten = rewrite_string_compare_ops(expr_text);
+            if rewritten != expr_text {
+                fixes.push(super::types::CodeFix {
+                    span: diag_span,
+                    new_text: rewritten,
+                    description: format!("Use '{replacement}' for string comparison"),
+                });
+            }
+        }
+        let message = format!(
+            "Use '{replacement}' instead of '{op_text}' for string \
+comparison in expressions to avoid ambiguous \
+numeric/string coercion."
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W110,
+            span: diag_span,
+            message,
+            severity: Severity::Hint,
+            fixes,
+        });
+    }
+}
+
+/// True when `tok` is a `${name}` (brace-form) VAR token.  Bare `$name` spans
+/// `name.len() + 1` (one `$`); brace `${name}` spans more (`${` + name).
+/// The [`tcl_lexer::Span`] end is exclusive, so the span length is
+/// `end - start`.
+fn is_brace_form_var(sm: &SourceMap<'_>, tok: tcl_lexer::Token) -> bool {
+    if tok.kind != tcl_lexer::TokenType::Var {
+        return false;
+    }
+    let span_len = (tok.span.end() - tok.span.start()) as usize;
+    span_len > sm.token_text(tok).len() + 1
+}
+
+/// Return `true` if `inner` contains a `$` or `[` the user likely expects to
+/// substitute — the trigger for the `${arr($foo)}` Pattern-(2) variant of
+/// W216.  Skips backslash escapes.
+fn index_has_substitution(inner: &str) -> bool {
+    let bytes = inner.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'$' | b'[' => return true,
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Render the safe replacement for a W216 array-element reference.  Bare
+/// `$name(idx)` is the only `$`-form that substitutes `$` inside the index,
+/// so prefer it when `name` allows it; otherwise `[set "name(idx)"]` (the
+/// command parser substitutes `$`-vars in `set`'s argument).
+fn build_w216_replacement(name: &str, inner: &str) -> String {
+    if tcl_syntax::naming::is_bare_var_name(name) {
+        format!("${name}({inner})")
+    } else {
+        format!("[set \"{name}({inner})\"]")
+    }
+}
+
+/// Indices into *args* (0-based, word index `i + 1`) that `cmd_name` reads as
+/// a **variable name** — where the braced indirect-array idiom
+/// `${name}(idx)` is correct rather than a typo.
+fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        "set" | "incr" | "append" | "lappend" | "vwait" => {
+            if args.is_empty() {
+                Vec::new()
+            } else {
+                vec![0]
+            }
+        }
+        "unset" => {
+            // unset ?-nocomplain? ?--? varName ?varName ...?
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Find the offset of the `)` matching the `(` at `paren_start`.  Skips
+/// balanced `{...}`, double-quoted strings, and backslash escapes.  Returns
+/// `None` on malformed input.
+fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize> {
+    let n = source.len();
+    let mut depth = 1i32;
+    let mut j = paren_start + 1;
+    let mut in_quote = false;
+    while j < n && depth > 0 {
+        let c = source[j];
+        if in_quote {
+            if c == b'\\' && j + 1 < n {
+                j += 2;
+                continue;
+            }
+            if c == b'"' {
+                in_quote = false;
+            }
+            j += 1;
+            continue;
+        }
+        match c {
+            b'"' => {
+                in_quote = true;
+                j += 1;
+                continue;
+            }
+            b'{' => {
+                let mut bd = 1i32;
+                j += 1;
+                while j < n && bd > 0 {
+                    if source[j] == b'\\' && j + 1 < n {
+                        j += 2;
+                        continue;
+                    }
+                    match source[j] {
+                        b'{' => bd += 1,
+                        b'}' => bd -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                continue;
+            }
+            b'\\' if j + 1 < n => {
+                j += 2;
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        j += 1;
+    }
+    if depth != 0 { None } else { Some(j - 1) }
+}
+
+/// True when `ch` is a standard ASCII character W108 leaves alone: tab
+/// / LF / CR, or printable ASCII `0x20`-`0x7e`.
+fn is_standard_ascii(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r' | ' '..='~')
+}
+
+/// W108 "common" mode benign-Unicode test. A character is
+/// *intentional* (not flagged) when its Unicode general category is a
+/// Letter, Number, Mark, Symbol, or Punctuation (any script). Control,
+/// format, separator, surrogate, private-use, and unassigned characters
+/// are *not* benign (they almost always indicate encoding/copy-paste
+/// issues) and are flagged.
+pub(super) fn is_benign_unicode(ch: char) -> bool {
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
+    matches!(
+        get_general_category(ch),
+        // Letters (L*)
+        G::UppercaseLetter
+            | G::LowercaseLetter
+            | G::TitlecaseLetter
+            | G::ModifierLetter
+            | G::OtherLetter
+            // Numbers (N*)
+            | G::DecimalNumber
+            | G::LetterNumber
+            | G::OtherNumber
+            // Marks (M*)
+            | G::NonspacingMark
+            | G::SpacingMark
+            | G::EnclosingMark
+            // Symbols (S*)
+            | G::MathSymbol
+            | G::CurrencySymbol
+            | G::ModifierSymbol
+            | G::OtherSymbol
+            // Punctuation (P*)
+            | G::ConnectorPunctuation
+            | G::DashPunctuation
+            | G::OpenPunctuation
+            | G::ClosePunctuation
+            | G::InitialPunctuation
+            | G::FinalPunctuation
+            | G::OtherPunctuation
+    )
+}
+
+/// Integer format specifiers for `binary format` / `binary scan` that
+/// accept the Tcl 8.5+ `u` / `s` modifier.
+const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
+
+/// Mask-octet values that can appear in a contiguous subnet mask.
+const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
+
+/// True when the four octets form a valid contiguous subnet mask
+/// (all-1s then all-0s).
+pub(super) fn is_valid_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    if val == 0 {
+        return true;
+    }
+    let inverted = val ^ 0xFFFF_FFFF;
+    (inverted & inverted.wrapping_add(1)) == 0
+}
+
+/// Heuristic: the dotted-quad plausibly *intends* to be a mask.
+pub(super) fn looks_like_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    if a == 255 && !(b == 255 && c == 255 && d == 255) {
+        return true;
+    }
+    a >= 128 && [a, b, c, d].iter().all(|o| VALID_MASK_OCTETS.contains(o))
+}
+
+/// Suggest the nearest valid contiguous mask, or `None`.
+pub(super) fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    let mut leading = 0u32;
+    for bit in (0..32).rev() {
+        if val & (1 << bit) != 0 {
+            leading += 1;
+        } else {
+            break;
+        }
+    }
+    if leading == 0 || leading == 32 {
+        return None;
+    }
+    let candidate = 0xFFFF_FFFFu32 << (32 - leading);
+    Some(format!(
+        "{}.{}.{}.{}",
+        (candidate >> 24) & 0xFF,
+        (candidate >> 16) & 0xFF,
+        (candidate >> 8) & 0xFF,
+        candidate & 0xFF
+    ))
+}
+
+/// True when `text` is a simple numeric or boolean literal that needs
+/// no bracing.
+pub(super) fn is_safe_literal(text: &str) -> bool {
+    let t = text.trim();
+    if t.parse::<f64>().is_ok() {
+        return true;
+    }
+    matches!(
+        t.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
+}
+
+/// True when an expr string is substitution-free numeric / boolean /
+/// operator text (safe to leave unbraced).
+pub(super) fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
+    use tcl_lexer::ExprTokenType as T;
+    if is_safe_literal(text) {
+        return true;
+    }
+    if text.contains('$') || text.contains('[') {
+        return false;
+    }
+    let tokens = tcl_lexer::tokenise_expr(text, Some(dialect));
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.iter().all(|tok| {
+        matches!(
+            tok.kind,
+            T::Number
+                | T::Bool
+                | T::Operator
+                | T::ParenOpen
+                | T::ParenClose
+                | T::Whitespace
+                | T::TernaryQ
+                | T::TernaryC
+                | T::Comma
+        )
+    })
+}
+
+/// Resolve which argument indices (into `args`, command-name excluded)
+/// must be plain variable *names* for `cmd_name`.
+pub(super) fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        // First argument is the variable name.
+        "set" | "incr" | "append" | "lappend" => {
+            if args.is_empty() {
+                vec![]
+            } else {
+                vec![0]
+            }
+        }
+        // `unset ?-nocomplain? ?--? var ?var …?` — names start after the
+        // leading option flags.
+        "unset" => {
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        // Only the `exists` subcommand of `info` takes a name.
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                vec![]
+            }
+        }
+        // `upvar ?level? other local ?other local …?` — the *local*
+        // names are every other arg after an optional level word.
+        "upvar" => {
+            if args.is_empty() {
+                return vec![];
+            }
+            let head = &args[0];
+            let is_level = head.starts_with('#')
+                || (!head.is_empty()
+                    && head
+                        .trim_start_matches('-')
+                        .bytes()
+                        .all(|b| b.is_ascii_digit())
+                    && head.trim_start_matches('-').bytes().next().is_some());
+            let start = usize::from(is_level);
+            (start + 1..args.len()).step_by(2).collect()
+        }
+        _ => vec![],
+    }
+}
+
+/// Find the first `[`-`expr`-whitespace sequence in `slice` (the
+/// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
+/// `(open_bracket_index, matching_close_bracket_index)`.  The close is
+/// located by a depth scan; an unmatched `[` falls back to the last
+/// byte.  Returns `None` when no nested `[expr ` is present.
+pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
+    let bytes = slice.as_bytes();
+    let len = bytes.len();
+    let mut open = 0;
+    while open < len {
+        if bytes[open] == b'[' {
+            // `\s*`
+            let mut after_ws = open + 1;
+            while after_ws < len && bytes[after_ws].is_ascii_whitespace() {
+                after_ws += 1;
+            }
+            // `expr` followed by a whitespace byte.
+            let kw_end = after_ws + 4;
+            if kw_end < len
+                && &bytes[after_ws..kw_end] == b"expr"
+                && bytes[kw_end].is_ascii_whitespace()
+            {
+                // Depth-scan for the matching `]` (the open `[` is
+                // already counted).
+                let mut depth = 1;
+                let mut scan = open + 1;
+                while scan < len && depth > 0 {
+                    match bytes[scan] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        _ => {}
+                    }
+                    scan += 1;
+                }
+                let close = if depth == 0 { scan - 1 } else { len - 1 };
+                return Some((open, close));
+            }
+        }
+        open += 1;
+    }
+    None
+}
+
+/// Walk `node` and collect every `==`/`!=` operator whose at least
+/// one operand is a string literal ([`ExprNode::String`]).
+///
+/// Comparisons between
+/// two variables (`$x == $y`) are intentionally *not* collected —
+/// the variables may hold integer values, making `==` correct.
+fn find_string_eq_ne_ops(node: &ExprNode) -> Vec<BinOp> {
+    let mut found = Vec::new();
+    walk_string_eq_ne(node, &mut found);
+    found
+}
+
+fn walk_string_eq_ne(node: &ExprNode, found: &mut Vec<BinOp>) {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            walk_string_eq_ne(left, found);
+            walk_string_eq_ne(right, found);
+            if matches!(op, BinOp::Eq | BinOp::Ne)
+                && (matches!(**left, ExprNode::String { .. })
+                    || matches!(**right, ExprNode::String { .. }))
+            {
+                found.push(*op);
+            }
+        }
+        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, found),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            walk_string_eq_ne(condition, found);
+            walk_string_eq_ne(true_branch, found);
+            walk_string_eq_ne(false_branch, found);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                walk_string_eq_ne(arg, found);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Count the total number of `==`/`!=` operators in the expression
+/// tree.
+fn count_eq_ne_ops(node: &ExprNode) -> usize {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            let mut n = count_eq_ne_ops(left) + count_eq_ne_ops(right);
+            if matches!(op, BinOp::Eq | BinOp::Ne) {
+                n += 1;
+            }
+            n
+        }
+        ExprNode::Unary { operand, .. } => count_eq_ne_ops(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            count_eq_ne_ops(condition)
+                + count_eq_ne_ops(true_branch)
+                + count_eq_ne_ops(false_branch)
+        }
+        ExprNode::Call { args, .. } => args.iter().map(count_eq_ne_ops).sum(),
+        _ => 0,
+    }
+}
+
+/// Rewrite `==`/`!=` operators to ` eq `/` ne ` for use in a code
+/// fix's replacement text.
+///
+/// The rewrite rules are:
+/// * `(?<![=!])==(?!=)`  → ` eq `
+/// * `!=`                → ` ne `
+/// * `[ \t]{2,}`         → ` `  (collapse runs of 2+ ws)
+fn rewrite_string_compare_ops(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut step1 = String::with_capacity(text.len() + 8);
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        // !=  →  " ne "
+        if c == '!' && i + 1 < chars.len() && chars[i + 1] == '=' {
+            step1.push_str(" ne ");
+            i += 2;
+            continue;
+        }
+        // ==  →  " eq "  (with negative look-around)
+        if c == '=' && i + 1 < chars.len() && chars[i + 1] == '=' {
+            let prev_ok = i == 0 || (chars[i - 1] != '=' && chars[i - 1] != '!');
+            let next_ok = i + 2 >= chars.len() || chars[i + 2] != '=';
+            if prev_ok && next_ok {
+                step1.push_str(" eq ");
+                i += 2;
+                continue;
+            }
+        }
+        step1.push(c);
+        i += 1;
+    }
+    // Collapse runs of 2+ space/tab into a single space.  Single
+    // whitespace characters are preserved.
+    let chars: Vec<char> = step1.chars().collect();
+    let mut out = String::with_capacity(step1.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if (chars[i] == ' ' || chars[i] == '\t')
+            && i + 1 < chars.len()
+            && (chars[i + 1] == ' ' || chars[i + 1] == '\t')
+        {
+            out.push(' ');
+            while i < chars.len() && (chars[i] == ' ' || chars[i] == '\t') {
+                i += 1;
+            }
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}

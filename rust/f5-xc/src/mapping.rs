@@ -1,13 +1,11 @@
-//! Declarative mapping from iRule commands and events to XC constructs —
-//! the Rust port of `dialects/f5/xc/mapping.py`.
+//! Declarative mapping from iRule commands and events to XC constructs.
 //!
 //! Used by the translator to determine whether each iRule construct has an
 //! XC equivalent and how to map it.
 
 use crate::model::XCConstructKind;
 
-/// Describes how an iRule command maps to an XC construct. Mirrors Python
-/// `XCMapping`.
+/// Describes how an iRule command maps to an XC construct.
 #[derive(Debug, Clone, Copy)]
 pub struct XCMapping {
     /// The XC construct kind.

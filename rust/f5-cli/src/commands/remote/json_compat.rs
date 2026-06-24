@@ -1,19 +1,18 @@
-//! `json.dumps`-compatible pretty serialization for the remote verbs.
+//! Pretty JSON serialization for the remote verbs.
 //!
-//! Python's `json.dumps(obj, indent=2)` defaults to `ensure_ascii=True` — every
-//! non-ASCII scalar is escaped to `\uXXXX` (astral characters as UTF-16
-//! surrogate pairs). `serde_json::to_string_pretty` does not do this. This
-//! module wraps `PrettyFormatter` to reproduce the ASCII-only output byte-for-
-//! byte (`preserve_order` keeps insertion order so keys match too).
+//! The output uses two-space indentation, `": "` / `", "` separators, and
+//! ASCII-only escaping: every non-ASCII scalar is escaped to `\uXXXX` (astral
+//! characters as UTF-16 surrogate pairs). `serde_json::to_string_pretty` does
+//! not do this. This module wraps `PrettyFormatter` to produce the ASCII-only
+//! output (`preserve_order` keeps insertion order so keys match too).
 
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::ser::{Formatter, PrettyFormatter, Serializer};
 use std::io::{self, Write};
 
-/// A `Formatter` that emits two-space-indented JSON identical to Python's
-/// `json.dumps(obj, indent=2)`: the standard pretty layout plus `ensure_ascii`
-/// escaping of every non-ASCII character.
+/// A `Formatter` that emits two-space-indented JSON: the standard pretty
+/// layout plus ASCII-only escaping of every non-ASCII character.
 struct AsciiPretty<'a> {
     inner: PrettyFormatter<'a>,
 }
@@ -27,7 +26,7 @@ impl AsciiPretty<'_> {
 }
 
 /// Delegate one structural `Formatter` method to the wrapped `PrettyFormatter`
-/// so indentation / separators match `json.dumps(indent=2)`.
+/// so indentation / separators stay two-space-indented.
 macro_rules! delegate {
     ($name:ident ( $($arg:ident : $ty:ty),* )) => {
         fn $name<W>(&mut self, writer: &mut W $(, $arg: $ty)*) -> io::Result<()>
@@ -57,7 +56,7 @@ impl Formatter for AsciiPretty<'_> {
     {
         // serde_json hands us runs of characters that need no JSON escaping
         // (control chars / `"` / `\` are emitted via `write_char_escape`).
-        // Escape any non-ASCII scalar here to match `ensure_ascii=True`.
+        // Escape any non-ASCII scalar here to keep the output ASCII-only.
         let mut start = 0;
         let bytes = fragment.as_bytes();
         for (idx, ch) in fragment.char_indices() {
@@ -80,9 +79,8 @@ impl Formatter for AsciiPretty<'_> {
     }
 }
 
-/// Serialize `value` exactly like Python `json.dumps(value, indent=2)` (no
-/// trailing newline). The verbs append the `"\n"` themselves, mirroring
-/// `sys.stdout.write(json.dumps(...) + "\n")`.
+/// Serialize `value` as two-space-indented, ASCII-escaped JSON
+/// (no trailing newline). The verbs append the `"\n"` themselves.
 #[must_use]
 pub fn dumps_indent2(value: &Value) -> String {
     let mut buf = Vec::new();

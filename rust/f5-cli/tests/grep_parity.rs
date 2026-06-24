@@ -1,10 +1,9 @@
 //! Differential parity tests for `f5 grep` (alias `related`).
 //!
 //! Runs the built `f5-query` binary on the committed `bigip.conf` fixture and
-//! asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main grep …`. The fixture is the same drift-free
-//! config the other BIG-IP verbs use, so the grep reference graph inherits
-//! their parity.
+//! asserts stdout matches the captured golden output for `grep …`. The fixture
+//! is the same drift-free config the other BIG-IP verbs use, so the grep
+//! reference graph inherits their parity.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -17,8 +16,8 @@ fn fixtures_dir() -> PathBuf {
 
 /// Collapse the fixture's absolute `file://` URI to a stable token.
 ///
-/// `f5 grep` echoes the absolute path of the source config (matching the
-/// Python CLI), so the `# Sources:` line and every JSON `source` field embed a
+/// `f5 grep` echoes the absolute path of the source config (as the captured
+/// golden does), so the `# Sources:` line and every JSON `source` field embed a
 /// directory prefix that varies by checkout location — the CI runner
 /// (`/home/runner/work/...`), a dev machine (`/Users/...`), or the agent
 /// sandbox the goldens were captured in (`/home/user/...`).  Normalising both
@@ -53,7 +52,7 @@ fn assert_grep_matches(args: &[&str], golden: &str) {
     assert_eq!(
         normalise_fixture_uri(&String::from_utf8_lossy(&output.stdout)),
         normalise_fixture_uri(&String::from_utf8_lossy(&expected)),
-        "f5 grep output does not match the Python CLI ({golden})"
+        "f5 grep output does not match the golden ({golden})"
     );
 }
 

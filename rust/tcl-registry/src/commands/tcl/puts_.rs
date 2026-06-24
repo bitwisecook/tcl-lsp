@@ -35,8 +35,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: tainted data reaching `puts` output → T101.
-        // Mirrors `tcl/puts_.py`.
+        // Tainted data reaching `puts` output → T101.
         taint_output_sink: Some("T101"),
         forms: FORMS,
         ..CommandSpec::DEFAULT

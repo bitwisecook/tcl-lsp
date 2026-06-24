@@ -1,4 +1,4 @@
-//! `pwd` command (name-parity reconcile, GAP-d).
+//! `pwd` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

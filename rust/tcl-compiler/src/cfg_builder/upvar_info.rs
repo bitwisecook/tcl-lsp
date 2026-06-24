@@ -1,7 +1,6 @@
-//! Per-proc `upvar` declaration summary (SYNC-JUN-CFG-upvar-info).
+//! Per-proc `upvar` declaration summary.
 //!
-//! Mirrors Python's `_UpvarInfo` dataclass and `_collect_upvar_targets`
-//! pass in `core/compiler/cfg.py` (commit `d5ac467c`).  The proc-summary
+//! The proc-summary
 //! integration point pre-populates caller-side `defs` from
 //! [`UpvarInfo::literal_targets`] / [`UpvarInfo::param_targets`] /
 //! [`UpvarInfo::args_tail_upvar`] so callers see the local-side names
@@ -21,27 +20,6 @@
 //! * **`args_tail_upvar`** — `upvar 1 args local_name`: the source is the
 //!   proc's `args` parameter (the trailing-vararg slot).  Each
 //!   call-site arg in the tail position is substituted into the alias.
-//!
-//! ## Status
-//!
-//! All three halves of the chunk have landed:
-//!
-//! * The **port** half — `UpvarInfo` data structure, the
-//!   `collect_upvar_targets` pass, and unit tests covering each
-//!   shape — landed via PR #389.
-//! * The **direct-call wiring** half — call-site `defs` pre-population
-//!   via [`UpvarInfo::caller_side_defs`] plus the
-//!   [`super::CfgBuilder::apply_upvar_invalidation`] pass invoked
-//!   from `lower_script`.  Mirrors Python's `_resolve_upvar_defs` /
-//!   `_apply_upvar_invalidation` at `cfg.py:529` / `:549` / `:560`.
-//! * The **embedded-substitution** half — scanning `AssignValue.value`
-//!   text and `Call.args` for `[upvar_proc arg]` substitutions via
-//!   [`super::CfgBuilder::upvar_defs_from_text`] and either merging
-//!   the resolved defs into the host Call or prepending a synthetic
-//!   `<upvar-invalidate>` Call before a non-Call host.  Mirrors
-//!   Python's `_upvar_defs_from_text` at `cfg.py:465-527` and the
-//!   embedded-substitution branch of `_apply_upvar_invalidation` at
-//!   `cfg.py:576-611`.
 
 use std::collections::BTreeMap;
 
@@ -49,7 +27,7 @@ use crate::ir::{Script, Statement};
 
 /// Per-proc summary of every `upvar` declaration in the body.
 ///
-/// Mirrors Python's `_UpvarInfo` dataclass.  `literal_targets` /
+/// `literal_targets` /
 /// `param_targets` / `args_tail_upvar` are mutually exclusive — each
 /// `(source, local)` pair lands in exactly one bucket.  Maps key on
 /// the *local* name (the alias target) so caller-side resolution can
@@ -58,20 +36,18 @@ use crate::ir::{Script, Statement};
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct UpvarInfo {
     /// `local_name -> caller_literal_name` for declarations whose
-    /// source word is a plain string (no `$` / `[`).  Mirrors
-    /// `_UpvarInfo.literal_targets`.
+    /// source word is a plain string (no `$` / `[`).
     pub literal_targets: BTreeMap<String, String>,
     /// `local_name -> param_name` for declarations whose source word
     /// is `$<param>` and `<param>` is a proc parameter.  The
     /// caller-side resolver substitutes the actual argument passed
-    /// for `<param>` to produce the caller-frame name.  Mirrors
-    /// `_UpvarInfo.param_targets`.
+    /// for `<param>` to produce the caller-frame name.
     pub param_targets: BTreeMap<String, String>,
     /// `local_name`s whose source is `$args` (the trailing-vararg
     /// param).  Each call-site arg in the tail position is aliased
     /// to one of these locals; the per-local pairing is positional,
     /// the order here matches the order of declarations in the
-    /// proc body.  Mirrors `_UpvarInfo.args_tail_upvar`.
+    /// proc body.
     pub args_tail_upvar: Vec<String>,
 }
 
@@ -131,10 +107,6 @@ impl UpvarInfo {
     ///   we pair it positionally with a tail argument at the call
     ///   site (tail start = `params.len() - 1`, since `args` consumes
     ///   the trailing slot in the param list).
-    ///
-    /// Mirrors Python's `_resolve_upvar_defs` in `core/compiler/cfg.py`
-    /// (extended with `args_tail_upvar` handling that Python's
-    /// `frozenset`-based `_UpvarInfo` couldn't represent).
     #[must_use]
     pub fn caller_side_defs(&self, call_args: &[String], params: &[String]) -> Vec<String> {
         let mut defs: Vec<String> = Vec::new();
@@ -189,8 +161,7 @@ fn is_dollar_param_ref(raw_src: &str) -> Option<&str> {
 }
 
 /// True if *name* is a plain literal name with no substitutions or
-/// special characters.  Mirrors the Python check that gates the
-/// literal-vs-dynamic split in `_collect_upvar_targets`.
+/// special characters.
 fn is_literal_name(name: &str) -> bool {
     !name.is_empty()
         && !name.contains('$')
@@ -235,8 +206,6 @@ fn upvar_pairs(args: &[String]) -> Vec<(&str, &str)> {
 /// `Statement::Call` and `Statement::Barrier` for `upvar`
 /// invocations, classifies each pair into one of the three buckets,
 /// and accumulates the result in [`UpvarInfo`].
-///
-/// Mirrors Python's `_collect_upvar_targets(proc)` in `cfg.py`.
 #[must_use]
 pub fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
     let mut info = UpvarInfo::default();

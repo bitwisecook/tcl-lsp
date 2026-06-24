@@ -1,5 +1,4 @@
-//! Cross-reference validator for BIG-IP configurations — a faithful port
-//! of `dialects/f5/bigip/validator.py`.
+//! Cross-reference validator for BIG-IP configurations.
 //!
 //! Where the sibling [`crate::lint`] engine emits coarse [`crate::lint::Finding`]s
 //! keyed only by object path, this validator produces ranged
@@ -9,7 +8,7 @@
 //! iRules / pools / profiles.
 //!
 //! Diagnostic codes (all internal — controlled by the BIG-IP dialect
-//! toggle, exactly as in Python):
+//! toggle):
 //!
 //! - **BIGIP6001** (WARNING): iRule references data-group not found in config
 //! - **BIGIP6002** (WARNING): iRule references pool not found in config
@@ -34,8 +33,7 @@ use crate::model::ProfileType;
 use crate::parser::driver::BigipConfig;
 use crate::range::Range;
 
-/// Severity of a config diagnostic — mirrors the subset of Python
-/// `shared.diagnostic.Severity` this validator emits.
+/// Severity of a config diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagSeverity {
     /// A likely-incorrect reference or value.
@@ -45,7 +43,7 @@ pub enum DiagSeverity {
 }
 
 /// One ranged BIG-IP config diagnostic — the validator analogue of an LSP
-/// `Diagnostic` (mirrors the Python `Diagnostic` this file builds).
+/// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigDiagnostic {
     /// Diagnostic code (e.g. `"BIGIP6001"`).
@@ -55,16 +53,16 @@ pub struct ConfigDiagnostic {
     /// Severity.
     pub severity: DiagSeverity,
     /// Source range. For per-iRule checks this is relative to the iRule
-    /// body (as in Python, which builds a fresh `DocumentBuffer` per rule);
-    /// for object-level checks it is the object's own range, or the zero
-    /// range when the model carries none.
+    /// body (each rule gets a fresh `DocumentBuffer`); for object-level checks
+    /// it is the object's own range, or the zero range when the model carries
+    /// none.
     pub range: Range,
 }
 
-// ── iRule source-scanning regexes (mirrors validator.py) ─────────────────
+// iRule source-scanning regexes
 //
-// The `regex` crate has no look-around, so the two Python negative
-// look-aheads (`pool (?!member)`, `persist (?!none)`) are handled by
+// The `regex` crate has no look-around, so the two negative look-ahead
+// guards (`pool (?!member)`, `persist (?!none)`) are handled by
 // filtering the captured name in code instead.
 
 const CLASS_OPERATORS: &str = "equals|starts_with|ends_with|contains|matches_glob|matches_regex";
@@ -107,24 +105,21 @@ static HTTP_COMMANDS_RE: LazyLock<Regex> =
 static SSL_COMMANDS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b(?:SSL|ssl)::\w+").expect("static regex"));
 
-/// Strip braces, quotes, and brackets from a captured name (port of
-/// `_clean_name`).
+/// Strip braces, quotes, and brackets from a captured name.
 fn clean_name(name: &str) -> &str {
     name.trim_matches(|c| matches!(c, '{' | '}' | '"' | '\'' | '[' | ']'))
 }
 
-/// Build a [`Range`] from a capture group's byte offsets, mirroring
-/// `_range_from_match(source_map, m, 1)` (`range_from_offsets(start,
-/// max(start, end - 1))`).
+/// Build a [`Range`] from a capture group's byte offsets (inclusive end =
+/// `max(start, end - 1)`).
 fn range_from_capture(source: &str, line_index: &LineIndex, start: usize, end: usize) -> Range {
     let end_inclusive = if end > start { end - 1 } else { start };
     Range::from_offsets(source, line_index, start, end_inclusive)
 }
 
 /// Collect `(capture_start, capture_end, data_group_name)` for every
-/// `class` data-group reference in `source` (port of
-/// `_iter_class_dg_references`). Dynamic names (`$var`, `[cmd]`) are
-/// skipped.
+/// `class` data-group reference in `source`. Dynamic names (`$var`, `[cmd]`)
+/// are skipped.
 fn iter_class_dg_references(source: &str) -> Vec<(usize, usize, String)> {
     let mut out: Vec<(usize, usize, String)> = Vec::new();
     for re in [&*CLASS_MATCH_RE, &*CLASS_LOOKUP_RE, &*CLASS_SINGLE_RE] {
@@ -140,8 +135,7 @@ fn iter_class_dg_references(source: &str) -> Vec<(usize, usize, String)> {
     out
 }
 
-/// Profile types attached to a virtual server (port of
-/// `profile_types_for_virtual`).
+/// Profile types attached to a virtual server.
 fn profile_types_for_virtual(
     view: &ModelView<'_>,
     vs: &crate::model::BigipVirtualServer,
@@ -164,7 +158,7 @@ fn object_range(range: Option<Range>) -> Range {
     range.unwrap_or_else(Range::zero)
 }
 
-// ── Per-iRule checks ─────────────────────────────────────────────────────
+// Per-iRule checks
 
 /// BIGIP6001: iRule references a data-group not found in config.
 fn check_irule_data_groups(
@@ -243,8 +237,7 @@ fn check_irule_snatpools(
     }
 }
 
-/// All data-group names referenced in an iRule body (port of
-/// `_collect_referenced_data_groups`).
+/// All data-group names referenced in an iRule body.
 fn collect_referenced_data_groups(rule: &crate::model::BigipRule) -> HashSet<String> {
     if rule.source.is_empty() {
         return HashSet::new();
@@ -255,7 +248,7 @@ fn collect_referenced_data_groups(rule: &crate::model::BigipRule) -> HashSet<Str
         .collect()
 }
 
-// ── Virtual-server-level checks ──────────────────────────────────────────
+// Virtual-server-level checks
 
 /// BIGIP6003 + BIGIP6009: virtual references an undefined iRule / has a
 /// duplicate iRule attachment.
@@ -408,7 +401,7 @@ fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnosti
     }
 }
 
-// ── Config-wide checks ───────────────────────────────────────────────────
+// Config-wide checks
 
 /// BIGIP6006: data-group defined but never referenced by any iRule.
 fn check_unused_data_groups(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
@@ -466,8 +459,8 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
                 continue;
             }
             let addr_ok = addr_text.parse::<std::net::IpAddr>().is_ok();
-            // Fall back to a network form ("10.0.0.0/8") like Python's
-            // ip_network(strict=False).
+            // Fall back to a network form ("10.0.0.0/8"), parsed non-strictly
+            // (host bits need not be zero).
             let net_ok = record.trim().parse::<ipnet::IpNet>().is_ok();
             if !addr_ok && !net_ok {
                 out.push(ConfigDiagnostic {
@@ -484,11 +477,11 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
     }
 }
 
-// ── Public API ───────────────────────────────────────────────────────────
+// Public API
 
 /// Run all BIG-IP cross-reference validations over a parsed config,
-/// returning ranged diagnostics in the same order as Python's
-/// `validate_bigip_config`.
+/// returning ranged diagnostics in a stable, deterministic order (per-iRule
+/// checks, then virtual-server checks, then config-wide checks).
 #[must_use]
 pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     let view = ModelView::build(config);
@@ -613,7 +606,8 @@ mod tests {
     #[test]
     fn bigip6007_skips_variable_snatpool_reference() {
         // A `$var` / `[cmd]` operand is dynamic — the checker must not flag it.
-        let src = "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool $dynamic_sp\n  }\n}\n";
+        let src =
+            "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool $dynamic_sp\n  }\n}\n";
         assert!(!has(src, "BIGIP6007"));
     }
 

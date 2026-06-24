@@ -1,12 +1,10 @@
 //! AES block cipher + OpenPGP-style CFB, the cryptographic primitives the
 //! encrypted-UCS path needs.
 //!
-//! Faithful port of `tooling/f5/f5_remote/_aes.py` (forward transform) and the
-//! `_cfb_decrypt` helper in `_openpgp.py`. The Python module hand-rolls AES so
-//! the zipapp can ship without a C extension; here we delegate the block
-//! transform to the audited pure-Rust [`aes`] crate and keep only the thin
-//! key-length dispatch + CFB feedback loop, which is exactly what the Python
-//! `_cfb_decrypt` does on top of `AES.encrypt_block`.
+//! Only the forward (encrypt) direction is needed. The block
+//! transform is delegated to the audited pure-Rust [`aes`] crate, leaving only
+//! the thin key-length dispatch + CFB feedback loop on top of
+//! `AES.encrypt_block`.
 
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockEncrypt, KeyInit};
@@ -53,9 +51,9 @@ impl Aes {
 
 /// Standard CFB-128 decryption (`OpenPGP` SEIPD v1 uses an all-zero IV).
 ///
-/// Mirrors `_cfb_decrypt`: the keystream is `E(feedback)` and the feedback for
+/// AES-CFB decryption: the keystream is `E(feedback)` and the feedback for
 /// the next block is the *ciphertext* block just consumed. A short trailing
-/// block is `XORed` against the leading keystream bytes (Python's `zip` stops at
+/// block is `XORed` against the leading keystream bytes (truncated to
 /// the shorter operand) and never re-used as feedback.
 pub(crate) fn cfb_decrypt(cipher: &Aes, iv: &[u8; BLOCK], data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len());

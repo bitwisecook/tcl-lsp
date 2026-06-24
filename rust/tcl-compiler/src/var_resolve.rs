@@ -1,5 +1,5 @@
 //! Variable canonicalisation / resolution — syntactic ref → canonical
-//! [`Place`] (Phase 8 / SYNC-MAY31-1b, stage 2).
+//! [`Place`].
 //!
 //! The variable analogue of lowering's command canonicalisation: given a
 //! variable reference as written (`x`, `a(k)`, `$x`, `${tok}(k)`,
@@ -13,8 +13,6 @@
 //! cannot be pinned down statically (dynamic variable name, computed array
 //! name, `upvar` to a dynamic target) resolves to `UNKNOWN` / `dynamic` so the
 //! [`overlap`](crate::place::overlap) relation stays sound (over-approximating).
-//!
-//! Faithful port of `compiler/var_resolve.py` on `main`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -26,8 +24,8 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 /// Per-frame scope context for resolving a variable reference.
 ///
-/// Built once per proc/method/namespace scope and reused (mirrors how the
-/// lowerer reuses its command-canonicalisation maps).
+/// Built once per proc/method/namespace scope and reused, the same way the
+/// lowerer reuses its command-canonicalisation maps.
 #[derive(Debug, Clone)]
 pub struct ResolveContext {
     /// Current FQ namespace.
@@ -66,8 +64,7 @@ fn has_subst(text: &str) -> bool {
 
 /// Resolve the variables read inside a dynamic index / name *text*.
 ///
-/// Returns the bound read-places sorted by `(ns, name)` (deterministic, like
-/// Python's sorted tuple over the scanner's name set).
+/// Returns the bound read-places sorted by `(ns, name)` (deterministic).
 fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistry) -> Vec<Place> {
     // Read-roles + cmd-sub recursion so `a([idx])` and `a($ns::i)` are covered.
     let mut scanner = VarReferenceScanner::new(VarScanOptions {

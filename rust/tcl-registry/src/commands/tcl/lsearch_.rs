@@ -145,8 +145,7 @@ static OPTIONS: &[OptionSpec] = &[
         dialects: None,
     },
     // NOTE: `lsearch` does NOT declare `--` in its option table.
-    // The convention matches the Python registry (`lsearch_.py`)
-    // and keeps W304 (missing-option-terminator) silent for
+    // This keeps W304 (missing-option-terminator) silent for
     // `lsearch -exact $x pattern` — the existing
     // `analyse_no_w304_for_lsearch` regression test depends on this.
 ];

@@ -1,8 +1,7 @@
 #![allow(clippy::doc_markdown, clippy::implicit_hasher)]
 
 //! Cross-event variable scope analysis for iRules connection
-//! lifecycles — Rust port of
-//! `core/compiler/connection_scope.py`.
+//! lifecycles.
 //!
 //! iRules ``when`` event handlers share a connection-scoped Tcl
 //! stack — variables set in one event persist until the
@@ -16,7 +15,7 @@
 //!
 //! - `analyser/diagnostics.rs::emit_racy_static_diagnostics`
 //!   (IRULE4005 — ``static::`` cross-event flow from a
-//!   non-RULE_INIT event).  Lands in **C41d7**.
+//!   non-RULE_INIT event).
 //! - The CFG/SSA RBS / unused-var emitters (cross-event
 //!   suppression).  The analyser threads
 //!   `connection_scope.cross_event_defs` /
@@ -33,9 +32,6 @@ use crate::compilation_unit::FunctionUnit;
 use crate::ir::{Statement, when_event_name};
 
 /// Variable summary for a single ``when`` event handler.
-///
-/// Mirrors `EventVarSummary` in
-/// `core/compiler/connection_scope.py:25-35`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventVarSummary {
     /// Event name (e.g. ``"CLIENT_ACCEPTED"``).
@@ -52,8 +48,7 @@ pub struct EventVarSummary {
 
 /// Cross-event variable scope analysis result.
 ///
-/// Mirrors `ConnectionScope` in
-/// `core/compiler/connection_scope.py:38-49`.  Built once from
+/// Built once from
 /// the ``::when::*`` subset of `CompilationUnit::procedures`
 /// and cached on `CompilationUnit::connection_scope`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -76,18 +71,14 @@ pub struct ConnectionScope {
 /// Build a [`ConnectionScope`] from compiled ``when``
 /// procedures.
 ///
-/// Mirrors `build_connection_scope` in
-/// `core/compiler/connection_scope.py:106-159`.  `when_procedures`
+/// `when_procedures`
 /// should be the subset of `CompilationUnit::procedures` whose
 /// qualified names start with ``::when::``.
 ///
-/// **Simplifications vs. Python.**  `_extract_event_summary`'s
-/// branch-condition scan (it walks `CFGBranch::condition` with
-/// `vars_in_expr_node`) is omitted — the Rust port treats
-/// branch-condition vars at version 0 as part of the SSA
-/// statement uses already, so the sweep is rarely load-bearing.
-/// When the differential corpus surfaces a fixture where it
-/// matters, port `vars_in_expr_node` and re-add the sweep.
+/// **Branch-condition vars.**  A dedicated branch-condition scan
+/// (walking `CFGBranch::condition`) is omitted — branch-condition
+/// vars at version 0 are already part of the SSA statement uses,
+/// so the sweep is rarely load-bearing.
 #[must_use]
 pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -> ConnectionScope {
     let registry = EventRegistry::build();
@@ -152,8 +143,7 @@ pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -
 /// Build a per-event variable summary from a compiled ``when``
 /// procedure.
 ///
-/// Mirrors `_extract_event_summary` in
-/// `core/compiler/connection_scope.py:52-103`.  Walks the SSA
+/// Walks the SSA
 /// statements collecting:
 ///
 /// - Names defined on at least one path (excluding global
@@ -174,26 +164,27 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
                 Statement::Call { command, .. } if command == "unset"
             );
 
-            for name in stmt.defs.keys() {
+            for &sym in stmt.defs.keys() {
+                let name = fu.ssa.var_name(sym);
                 if name.starts_with("::") {
                     continue;
                 }
                 if !(name.starts_with("static::") && is_unset) {
-                    defs.insert(name.clone());
+                    defs.insert(name.to_owned());
                 }
             }
 
-            for (name, ver) in &stmt.uses {
+            for (&sym, ver) in &stmt.uses {
+                let name = fu.ssa.var_name(sym);
                 if *ver == 0 && !name.starts_with("::") {
-                    uses_v0.insert(name.clone());
+                    uses_v0.insert(name.to_owned());
                 }
             }
 
             // Track unsets explicitly so the racy-static check
-            // can ignore them.  Mirrors the Python helper —
-            // it's the same condition as ``is_unset`` above, but
-            // walking ``stmt.defs`` for the names is the
-            // canonical shape.
+            // can ignore them.  It's the same condition as
+            // ``is_unset`` above, but walking ``stmt.defs`` for
+            // the names is the canonical shape.
             if is_unset && let Statement::Call { args, .. } = &stmt.statement {
                 for a in args {
                     if !a.starts_with("::") && !a.starts_with('-') {
@@ -219,7 +210,7 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn cu(source: &str) -> CompilationUnit {
-        // C43 sub-strip 4: `when` is registry-resolved.  This
+        // `when` is registry-resolved.  This
         // module's tests all lower iRule code (`when
         // CLIENT_ACCEPTED { ... }`), so the test registry must
         // load iRules to make `when` resolve to `LoweringHookId
@@ -296,8 +287,8 @@ mod tests {
 
     #[test]
     fn build_connection_scope_merges_duplicate_events() {
-        // Two ``when CLIENT_ACCEPTED`` blocks — Python merges
-        // their summaries.  Rust port should too.
+        // Two ``when CLIENT_ACCEPTED`` blocks — their summaries
+        // are merged.
         let source = "
             when CLIENT_ACCEPTED { set a 1 }
             when CLIENT_ACCEPTED { set b 2 }

@@ -5,48 +5,33 @@
 //! up in a dominator-tree-scoped hash table. A match means the same
 //! expression was computed at a dominating definition; the new
 //! occurrence can be replaced with the earlier result.
-//!
-//! Ported from `core/compiler/gvn.py` in four strips:
-//! - **C26a** (this file) — value-table types and the scoped
-//!   lookup table.
-//! - **C26b** — canonicalisation helpers and diagnostic message
-//!   builders.
-//! - **C26c** — statement-level helpers: purity classifier, cmd-
-//!   tokens extractor, per-statement pure-expression occurrence
-//!   collector.
-//! - **C26d** — `find_redundancies` driver that walks the
-//!   dominator tree and reports full/partial redundancies.
 
 #![allow(clippy::implicit_hasher, clippy::format_push_string)]
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
 
-use std::collections::HashSet;
-
-use crate::cfg::{CfgModule, Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
-// ---------------------------------------------------------------------------
-// Expression-key alias (C26a)
-// ---------------------------------------------------------------------------
+// Expression-key alias
 
 /// Canonical identity for a computed expression.
 ///
 /// A call to `cmd arg1 arg2 …` becomes `["call", "cmd", arg1, arg2, …]`
 /// after variable references have been rewritten to their SSA-
-/// versioned form (see `canonicalise_word` in C26b). Two occurrences
+/// versioned form (see `canonicalise_word`). Two occurrences
 /// that produce the same `ExprKey` are known to compute the same
 /// value under the current SSA.
 pub type ExprKey = Vec<String>;
 
-// ---------------------------------------------------------------------------
-// Redundant-computation diagnostic (C26a)
-// ---------------------------------------------------------------------------
+// Redundant-computation diagnostic
 
 /// A computation that re-evaluates an already-available expression.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -59,11 +44,11 @@ pub struct RedundantComputation {
     pub expression_text: String,
     /// Diagnostic code: `"O105"` for full **and** partial redundancy
     /// (GVN/CSE + GVN-PRE), `"O106"` for loop-invariant code motion.
-    /// Matches the canonical KCS codes and Python `gvn.py` (full /
+    /// Matches the canonical KCS codes (full /
     /// partial both default to O105; loop-invariant sets O106).
     /// `O107` is *unreachable dead code* and is owned by the
     /// elimination pass, never emitted here.
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted diagnostic message.
     pub message: String,
 }
@@ -75,22 +60,20 @@ impl RedundantComputation {
         span: Span,
         first_span: Span,
         expression_text: impl Into<String>,
-        code: impl Into<String>,
+        code: DiagCode,
         message: impl Into<String>,
     ) -> Self {
         Self {
             span,
             first_span,
             expression_text: expression_text.into(),
-            code: code.into(),
+            code,
             message: message.into(),
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Value-table entries (C26a)
-// ---------------------------------------------------------------------------
+// Value-table entries
 
 /// A single entry in a [`ScopedValueTable`] scope. Carries the
 /// block / statement coordinates and the rendered expression text
@@ -113,8 +96,8 @@ pub struct ValueEntry {
 
 /// One pure-expression occurrence observed in a statement stream.
 ///
-/// Produced by the per-statement collector in C26c and consumed by
-/// the fixed-point walk in C26d.
+/// Produced by the per-statement collector and consumed by
+/// the fixed-point walk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExprOccurrence {
     /// Canonical key.
@@ -132,9 +115,7 @@ pub struct ExprOccurrence {
     pub variable_uses: Vec<String>,
 }
 
-// ---------------------------------------------------------------------------
-// Dominator-tree-scoped value table (C26a)
-// ---------------------------------------------------------------------------
+// Dominator-tree-scoped value table
 
 /// Stack of `ExprKey → ValueEntry` maps, one per scope.
 ///
@@ -146,7 +127,7 @@ pub struct ExprOccurrence {
 /// or impure-call statements).
 #[derive(Debug, Default)]
 pub struct ScopedValueTable {
-    scopes: Vec<HashMap<ExprKey, ValueEntry>>,
+    scopes: Vec<FxHashMap<ExprKey, ValueEntry>>,
 }
 
 impl ScopedValueTable {
@@ -154,13 +135,13 @@ impl ScopedValueTable {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            scopes: vec![HashMap::new()],
+            scopes: vec![FxHashMap::default()],
         }
     }
 
     /// Push a new empty scope.
     pub fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(FxHashMap::default());
     }
 
     /// Pop the innermost scope, keeping the root scope in place.
@@ -182,7 +163,7 @@ impl ScopedValueTable {
     }
 
     /// Insert an entry in the innermost scope. An existing entry
-    /// at the same key is replaced (matching Python behaviour).
+    /// at the same key is replaced.
     pub fn insert(&mut self, entry: ValueEntry) {
         let key = entry.key.clone();
         self.scopes
@@ -194,7 +175,7 @@ impl ScopedValueTable {
     /// Drop every tracked entry. Used on barrier / impure-call
     /// statements where no previously-tracked value can be trusted.
     pub fn kill_all(&mut self) {
-        self.scopes = vec![HashMap::new()];
+        self.scopes = vec![FxHashMap::default()];
     }
 
     /// Number of scopes currently on the stack. Primarily exposed
@@ -212,9 +193,7 @@ impl ScopedValueTable {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Canonicalisation helpers (C26b)
-// ---------------------------------------------------------------------------
+// Canonicalisation helpers
 
 /// Rewrite `$var` / `${var}` references in `text` to their
 /// SSA-versioned canonical form `$var@N`.
@@ -231,13 +210,12 @@ impl ScopedValueTable {
 ///   grammar (`[A-Za-z0-9_:]+`).
 ///
 /// Names that are not present in `uses` are left unchanged.
-///
-/// Ported from `gvn.py::_canonicalise_word` — the Rust version
-/// corrects the `${x}` re-matching quirk of the Python `.replace`
-/// chain while preserving the observable result on inputs that do
-/// not already contain `@` sigils.
 #[must_use]
-pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
+pub fn canonicalise_word(
+    text: &str,
+    uses: &HashMap<crate::ssa::Symbol, u32>,
+    ssa: &SsaFunction,
+) -> String {
     if uses.is_empty() {
         return text.to_owned();
     }
@@ -260,7 +238,7 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
             }
             if j < bytes.len() {
                 let name = &text[start..j];
-                if let Some(ver) = uses.get(name) {
+                if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
                     out.push_str(&format!("${name}@{ver}"));
                 } else {
                     out.push_str(&text[i..=j]);
@@ -291,7 +269,7 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
             continue;
         }
         let name = &text[start..j];
-        if let Some(ver) = uses.get(name) {
+        if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
             out.push_str(&format!("${name}@{ver}"));
         } else {
             out.push_str(&text[i..j]);
@@ -303,21 +281,24 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
 
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
 /// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
-///
-/// Ported from `gvn.py::_build_call_key`.
 #[must_use]
-pub fn build_call_key(command: &str, args: &[String], uses: &HashMap<String, u32>) -> ExprKey {
+pub fn build_call_key(
+    command: &str,
+    args: &[String],
+    uses: &HashMap<crate::ssa::Symbol, u32>,
+    ssa: &SsaFunction,
+) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
     parts.push("call".into());
     parts.push(command.to_owned());
     for arg in args {
-        parts.push(canonicalise_word(arg, uses));
+        parts.push(canonicalise_word(arg, uses, ssa));
     }
     parts
 }
 
 /// Render a command invocation as human-readable text for
-/// diagnostic messages. Matches `gvn.py::_format_expression_text`.
+/// diagnostic messages.
 #[must_use]
 pub fn format_expression_text(command: &str, args: &[String]) -> String {
     if args.is_empty() {
@@ -331,9 +312,7 @@ pub fn format_expression_text(command: &str, args: &[String]) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
-// Diagnostic messages (C26b)
-// ---------------------------------------------------------------------------
+// Diagnostic messages
 
 /// Message shown when a pure expression is computed twice on the
 /// same control-flow path.
@@ -364,9 +343,7 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
     )
 }
 
-// ---------------------------------------------------------------------------
-// Intra-module pure-proc analysis (C26e4)
-// ---------------------------------------------------------------------------
+// Intra-module pure-proc analysis
 
 /// Set of procedure names proven pure by the intra-module
 /// analysis. Consumed by [`is_pure_with_procs`] /
@@ -376,7 +353,7 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
 pub struct PureProcs {
     /// Fully-qualified names of procs with no observable side
     /// effects.
-    pub names: std::collections::HashSet<String>,
+    pub names: FxHashSet<String>,
 }
 
 impl PureProcs {
@@ -431,8 +408,7 @@ pub fn find_pure_procs(
     cfg_module: &CfgModule,
     dialect: Option<&str>,
 ) -> PureProcs {
-    let mut pure: std::collections::HashSet<String> =
-        cfg_module.procedures.keys().cloned().collect();
+    let mut pure: FxHashSet<String> = cfg_module.procedures.keys().cloned().collect();
 
     let mut changed = true;
     while changed {
@@ -457,7 +433,7 @@ pub fn find_pure_procs(
 fn function_body_is_pure(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     dialect: Option<&str>,
 ) -> bool {
     for block in cfg.blocks.values() {
@@ -475,7 +451,7 @@ fn function_body_is_pure(
 fn statement_is_pure(
     registry: &CommandRegistry,
     stmt: &Statement,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     dialect: Option<&str>,
 ) -> bool {
     match stmt {
@@ -525,7 +501,7 @@ fn statement_is_pure(
 
 fn is_pure_with_procs_core(
     registry: &CommandRegistry,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     cmd: &str,
     args: &[String],
     dialect: Option<&str>,
@@ -584,14 +560,12 @@ pub fn is_worth_reporting_with_procs(
     is_worth_reporting(registry, cmd)
 }
 
-// ---------------------------------------------------------------------------
-// Statement-level helpers (C26c)
-// ---------------------------------------------------------------------------
+// Statement-level helpers
 
 /// Return `true` if the command invocation is pure for GVN
 /// purposes — i.e. has no observable side effects.
 ///
-/// Bridges to [`classify_side_effects`] from C23d. An optional
+/// Bridges to [`classify_side_effects`]. An optional
 /// dialect (`Some("irules")` / `Some("tcl")`) threads through to
 /// the classifier.
 #[must_use]
@@ -604,11 +578,11 @@ pub fn is_pure_command(
     if !classify_side_effects(registry, command, args, dialect, None).pure {
         return false;
     }
-    // O106 (SYNC-MAY31-1e): an outer pure command whose args read from
+    // O106: an outer pure command whose args read from
     // an impure command substitution is NOT loop-invariant — its value
     // depends on the inner side effect's per-call return (e.g.
     // `expr [incr counter]`). Recurse into every nested `[…]` and
-    // require each to be pure too. Mirrors `gvn.py::_is_pure_command`.
+    // require each to be pure too.
     arg_substitutions_pure(args, |c, a| is_pure_command(registry, c, a, dialect))
 }
 
@@ -626,16 +600,15 @@ fn arg_substitutions_pure(args: &[String], check: impl Fn(&str, &[String]) -> bo
     })
 }
 
-/// SYNC8: trace-aware purity gate.
+/// Trace-aware purity gate.
 ///
 /// Same purity classification as [`is_pure_command`] but additionally
 /// returns `false` for any command targeted by an active execution
 /// trace (`trace add execution NAME enter|leave HANDLER`) AND for
-/// every command when [`crate::ir::Module::has_dynamic_trace`] is set.  Mirrors
-/// `core/compiler/gvn.py:151-158`.
+/// every command when [`crate::ir::Module::has_dynamic_trace`] is set.
 ///
 /// Calls to a command with an active execution trace are never pure
-/// because the trace body composes side-effects in (issue `#251`).
+/// because the trace body composes side-effects in.
 /// GVN, partial-redundancy, and loop-invariant passes thread the
 /// module's trace facts through this gate so optimisations don't
 /// silently delete a second invocation that the trace re-armed.
@@ -659,7 +632,7 @@ pub fn is_pure_command_with_traces(
 
 /// Return `true` if a redundant use of `command` is worth
 /// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
-/// redundancy (interprocedural) is deferred.
+/// redundancy (interprocedural) is not flagged.
 #[must_use]
 pub fn is_worth_reporting(registry: &CommandRegistry, command: &str) -> bool {
     if let Some(spec) = registry.get(command) {
@@ -699,7 +672,7 @@ pub fn statement_writes_state(
 ///
 /// - The top-level `Statement::Call` itself, when the command is
 ///   pure and marked `CSE_CANDIDATE`.
-/// - **C26e1**: embedded `[cmd args…]` command substitutions
+/// - Embedded `[cmd args…]` command substitutions
 ///   inside `Statement::Call` argument text and
 ///   `Statement::AssignValue` value text. Each nested
 ///   substitution is parsed via
@@ -712,8 +685,16 @@ pub fn statement_occurrences(
     block_name: &str,
     statement_index: usize,
     dialect: Option<&str>,
+    ssa: &SsaFunction,
 ) -> Vec<ExprOccurrence> {
     let mut out: Vec<ExprOccurrence> = Vec::new();
+    let variable_uses = || -> Vec<String> {
+        stmt_ssa
+            .uses
+            .keys()
+            .map(|&s| ssa.var_name(s).to_owned())
+            .collect()
+    };
 
     // Top-level pure Call.
     if let Statement::Call {
@@ -726,12 +707,12 @@ pub fn statement_occurrences(
         && is_worth_reporting(registry, command)
     {
         out.push(ExprOccurrence {
-            key: build_call_key(command, args, &stmt_ssa.uses),
+            key: build_call_key(command, args, &stmt_ssa.uses, ssa),
             span: *span,
             expression_text: format_expression_text(command, args),
             block: block_name.to_owned(),
             statement_index,
-            variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+            variable_uses: variable_uses(),
         });
     }
 
@@ -751,12 +732,12 @@ pub fn statement_occurrences(
                 continue;
             }
             out.push(ExprOccurrence {
-                key: build_call_key(&cmd, &args, &stmt_ssa.uses),
+                key: build_call_key(&cmd, &args, &stmt_ssa.uses, ssa),
                 span,
                 expression_text: format_expression_text(&cmd, &args),
                 block: block_name.to_owned(),
                 statement_index,
-                variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+                variable_uses: variable_uses(),
             });
         }
     }
@@ -774,8 +755,7 @@ pub fn statement_occurrences(
 /// scanned normally because Tcl performs command substitution
 /// through quotes.
 ///
-/// Ported behaviour-equivalent with `gvn.py::_find_cmd_tokens_in_text`
-/// plus `_parse_cmd_token`: we emit one pair per `[…]` region,
+/// Emits one pair per `[…]` region,
 /// with nested regions emitted in depth-first order (outer first,
 /// then each nested inner).
 #[must_use]
@@ -928,9 +908,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
     Some((cmd, words))
 }
 
-// ---------------------------------------------------------------------------
-// Find-redundancies driver (C26d)
-// ---------------------------------------------------------------------------
+// Find-redundancies driver
 
 /// Walk `cfg` / `ssa` in dominator-tree preorder and return a
 /// [`RedundantComputation`] diagnostic for every pure-expression
@@ -943,7 +921,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 /// processes its statements, visits dominator-tree children, and
 /// pops the scope on exit.
 ///
-/// Focused subset of `gvn.py::_gvn_walk_function`:
+/// Behaviour:
 ///
 /// - Treats every CFG block as executable (no SCCP unreachability
 ///   filter). Callers that want SCCP pruning can pre-filter the
@@ -952,7 +930,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 ///   the same path) with the `"O105"` code and the
 ///   [`full_redundancy_message`] text.
 /// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
-///   detection are deferred to follow-up strips — they each need
+///   detection are not handled here — they each need
 ///   substantially more walker state.
 ///
 /// Returns the diagnostics in the order the walker encounters
@@ -960,8 +938,8 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 /// Iterative dominator-tree walk step. `Enter` pushes a fresh
 /// scope and processes the block; `Leave` pops the scope when all
 /// dominator children have been visited.
-enum WalkStep<'a> {
-    Enter(&'a str),
+enum WalkStep {
+    Enter(BlockId),
     Leave,
 }
 
@@ -976,7 +954,7 @@ enum WalkStep<'a> {
 /// processes its statements, visits dominator-tree children, and
 /// pops the scope on exit.
 ///
-/// Focused subset of `gvn.py::_gvn_walk_function`:
+/// Behaviour:
 ///
 /// - Treats every CFG block as executable (no SCCP unreachability
 ///   filter). Callers that want SCCP pruning can pre-filter the
@@ -985,7 +963,7 @@ enum WalkStep<'a> {
 ///   the same path) with the `"O105"` code and the
 ///   [`full_redundancy_message`] text.
 /// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
-///   detection are deferred to follow-up strips — they each need
+///   detection are not handled here — they each need
 ///   substantially more walker state.
 ///
 /// Returns the diagnostics in the order the walker encounters
@@ -1002,7 +980,7 @@ pub fn find_redundancies(
     if !cfg.blocks.contains_key(&ssa.entry) {
         return results;
     }
-    let mut stack: Vec<WalkStep> = vec![WalkStep::Enter(ssa.entry.as_str())];
+    let mut stack: Vec<WalkStep> = vec![WalkStep::Enter(ssa.entry)];
 
     while let Some(step) = stack.pop() {
         match step {
@@ -1013,12 +991,13 @@ pub fn find_redundancies(
                 table.push_scope();
                 stack.push(WalkStep::Leave);
 
-                let Some(cfg_block) = cfg.blocks.get(bn) else {
+                let Some(cfg_block) = cfg.blocks.get(&bn) else {
                     continue;
                 };
-                let Some(ssa_block) = ssa.blocks.get(bn) else {
+                let Some(ssa_block) = ssa.blocks.get(&bn) else {
                     continue;
                 };
+                let block_name = ssa.block_name(bn);
                 let stmt_count =
                     std::cmp::min(cfg_block.statements.len(), ssa_block.statements.len());
 
@@ -1031,7 +1010,8 @@ pub fn find_redundancies(
                         continue;
                     }
 
-                    let occurrences = statement_occurrences(registry, ssa_stmt, bn, idx, dialect);
+                    let occurrences =
+                        statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa);
                     for occ in occurrences {
                         if let Some(existing) = table.lookup(&occ.key) {
                             let text = existing.expression_text.clone();
@@ -1039,7 +1019,7 @@ pub fn find_redundancies(
                                 span: occ.span,
                                 first_span: existing.span,
                                 expression_text: text.clone(),
-                                code: "O105".into(),
+                                code: DiagCode::O105,
                                 message: full_redundancy_message(&text),
                             });
                             continue;
@@ -1056,11 +1036,9 @@ pub fn find_redundancies(
 
                 // Visit dominator-tree children. Push in reverse so
                 // they're popped in left-to-right order.
-                if let Some(children) = ssa.dominator_tree.get(bn) {
-                    // Store borrowed references; the `children`
-                    // Vec's strings outlive the walk.
+                if let Some(children) = ssa.dominator_tree.get(&bn) {
                     for child in children.iter().rev() {
-                        stack.push(WalkStep::Enter(child.as_str()));
+                        stack.push(WalkStep::Enter(*child));
                     }
                 }
             }
@@ -1070,49 +1048,47 @@ pub fn find_redundancies(
     results
 }
 
-// ---------------------------------------------------------------------------
-// Loop-invariant detection (C26e2)
-// ---------------------------------------------------------------------------
+// Loop-invariant detection
 
 /// True when `ancestor` dominates `node` in `ssa.idom`.
-fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
+fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     if ancestor == node {
         return true;
     }
-    let mut curr = node.to_owned();
+    let mut curr = node;
     loop {
         match ssa.idom.get(&curr) {
             Some(Some(parent)) => {
-                if parent == ancestor {
+                if *parent == ancestor {
                     return true;
                 }
-                curr = parent.clone();
+                curr = *parent;
             }
             _ => return false,
         }
     }
 }
 
-/// Enumerate block names reachable from `entry` via CFG edges.
-fn reachable_from(cfg: &CfgFunction, entry: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let mut stack = vec![entry.to_owned()];
-    while let Some(name) = stack.pop() {
-        if !out.insert(name.clone()) {
+/// Enumerate blocks reachable from `entry` via CFG edges.
+fn reachable_from(cfg: &CfgFunction, entry: BlockId) -> FxHashSet<BlockId> {
+    let mut out = FxHashSet::default();
+    let mut stack = vec![entry];
+    while let Some(id) = stack.pop() {
+        if !out.insert(id) {
             continue;
         }
-        if let Some(block) = cfg.blocks.get(&name)
+        if let Some(block) = cfg.blocks.get(&id)
             && let Some(term) = &block.terminator
         {
             match term {
-                Terminator::Goto { target, .. } => stack.push(target.clone()),
+                Terminator::Goto { target, .. } => stack.push(*target),
                 Terminator::Branch {
                     true_target,
                     false_target,
                     ..
                 } => {
-                    stack.push(true_target.clone());
-                    stack.push(false_target.clone());
+                    stack.push(*true_target);
+                    stack.push(*false_target);
                 }
                 Terminator::Return { .. } => {}
             }
@@ -1127,24 +1103,24 @@ fn reachable_from(cfg: &CfgFunction, entry: &str) -> HashSet<String> {
 /// the header.
 fn natural_loop_blocks(
     cfg: &CfgFunction,
-    header: &str,
-    latch: &str,
-    executable: &HashSet<String>,
-) -> HashSet<String> {
+    header: BlockId,
+    latch: BlockId,
+    executable: &FxHashSet<BlockId>,
+) -> FxHashSet<BlockId> {
     let preds = cfg.predecessors();
-    let mut blocks: HashSet<String> = HashSet::new();
-    blocks.insert(header.to_owned());
-    blocks.insert(latch.to_owned());
-    let mut work = vec![latch.to_owned()];
+    let mut blocks: FxHashSet<BlockId> = FxHashSet::default();
+    blocks.insert(header);
+    blocks.insert(latch);
+    let mut work = vec![latch];
     while let Some(node) = work.pop() {
         if let Some(ps) = preds.get(&node) {
             for p in ps {
                 if !executable.contains(p) || blocks.contains(p) {
                     continue;
                 }
-                blocks.insert(p.clone());
-                if p != header {
-                    work.push(p.clone());
+                blocks.insert(*p);
+                if *p != header {
+                    work.push(*p);
                 }
             }
         }
@@ -1154,16 +1130,19 @@ fn natural_loop_blocks(
 
 /// All variable names defined inside `loop_blocks` (phi LHS +
 /// statement defs).
-fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> HashSet<String> {
-    let mut defs = HashSet::new();
+fn loop_defined_variables(
+    ssa: &SsaFunction,
+    loop_blocks: &FxHashSet<BlockId>,
+) -> FxHashSet<String> {
+    let mut defs = FxHashSet::default();
     for bn in loop_blocks {
         if let Some(block) = ssa.blocks.get(bn) {
             for phi in &block.phis {
-                defs.insert(phi.name.clone());
+                defs.insert(ssa.var_name(phi.name).to_owned());
             }
             for stmt in &block.statements {
-                for name in stmt.defs.keys() {
-                    defs.insert(name.clone());
+                for &sym in stmt.defs.keys() {
+                    defs.insert(ssa.var_name(sym).to_owned());
                 }
             }
         }
@@ -1178,8 +1157,7 @@ fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> H
 /// references are all defined *outside* the loop (so the
 /// computation produces the same value on every iteration).
 ///
-/// Matches the Python LICM-style hint at
-/// `gvn.py::_find_loop_invariants`, with a simplified occurrence
+/// Uses a simplified occurrence
 /// walk that reuses [`statement_occurrences`].
 #[must_use]
 pub fn find_loop_invariants(
@@ -1188,46 +1166,41 @@ pub fn find_loop_invariants(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
+    let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
 
     // Collect unique header → loop_blocks pairs via back-edge
     // detection: edge tail → succ where succ dominates tail. The
     // back-edge tails (latches) are tracked per header for the
     // latch-dominance gate below.
-    let mut header_to_blocks: std::collections::HashMap<String, HashSet<String>> =
-        std::collections::HashMap::new();
-    let mut header_to_latches: std::collections::HashMap<String, HashSet<String>> =
-        std::collections::HashMap::new();
+    let mut header_to_blocks: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
+    let mut header_to_latches: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
     for tail in &executable {
         let Some(block) = cfg.blocks.get(tail) else {
             continue;
         };
-        let successors: Vec<String> = match &block.terminator {
-            Some(Terminator::Goto { target, .. }) => vec![target.clone()],
+        let successors: Vec<BlockId> = match &block.terminator {
+            Some(Terminator::Goto { target, .. }) => vec![*target],
             Some(Terminator::Branch {
                 true_target,
                 false_target,
                 ..
-            }) => vec![true_target.clone(), false_target.clone()],
+            }) => vec![*true_target, *false_target],
             _ => continue,
         };
         for succ in successors {
             if !executable.contains(&succ) {
                 continue;
             }
-            if !dominates(ssa, &succ, tail) {
+            if !dominates(ssa, succ, *tail) {
                 continue;
             }
-            let blocks = natural_loop_blocks(cfg, &succ, tail, &executable);
+            let blocks = natural_loop_blocks(cfg, succ, *tail, &executable);
             header_to_blocks
-                .entry(succ.clone())
-                .and_modify(|e| e.extend(blocks.iter().cloned()))
-                .or_insert(blocks);
-            header_to_latches
                 .entry(succ)
-                .or_default()
-                .insert(tail.clone());
+                .and_modify(|e| e.extend(blocks.iter().copied()))
+                .or_insert(blocks);
+            header_to_latches.entry(succ).or_default().insert(*tail);
         }
     }
 
@@ -1244,12 +1217,13 @@ pub fn find_loop_invariants(
             // on some iterations (it sits behind a branch inside the loop),
             // so hoisting it changes *when* it runs. Only blocks that
             // dominate every latch are guaranteed to execute each iteration.
-            if !latches.iter().all(|latch| dominates(ssa, bn, latch)) {
+            if !latches.iter().all(|latch| dominates(ssa, *bn, *latch)) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 continue;
             };
+            let block_name = ssa.block_name(*bn);
             for (idx, stmt_ssa) in ssa_block.statements.iter().enumerate() {
                 // Purity gate — loop-invariance only makes sense
                 // for computations that don't otherwise touch
@@ -1257,7 +1231,8 @@ pub fn find_loop_invariants(
                 if statement_writes_state(registry, &stmt_ssa.statement, dialect) {
                     continue;
                 }
-                let occurrences = statement_occurrences(registry, stmt_ssa, bn, idx, dialect);
+                let occurrences =
+                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect, ssa);
                 for occ in occurrences {
                     if occ.variable_uses.iter().any(|name| defined.contains(name)) {
                         continue;
@@ -1267,7 +1242,7 @@ pub fn find_loop_invariants(
                         span: occ.span,
                         first_span: occ.span,
                         expression_text: text.clone(),
-                        code: "O106".into(),
+                        code: DiagCode::O106,
                         message: loop_invariant_message(&text),
                     });
                 }
@@ -1278,9 +1253,7 @@ pub fn find_loop_invariants(
     results
 }
 
-// ---------------------------------------------------------------------------
-// Partial-redundancy detection (C26e3)
-// ---------------------------------------------------------------------------
+// Partial-redundancy detection
 
 /// One event in a block's occurrence stream: either a pure
 /// occurrence that *adds* a key to availability, or `None` — a
@@ -1308,11 +1281,10 @@ pub fn collect_function_occurrence_events(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> (
-    std::collections::HashMap<String, Vec<OccurrenceEvent>>,
+    FxHashMap<BlockId, Vec<OccurrenceEvent>>,
     Vec<ExprOccurrence>,
 ) {
-    let mut events_by_block: std::collections::HashMap<String, Vec<OccurrenceEvent>> =
-        std::collections::HashMap::new();
+    let mut events_by_block: FxHashMap<BlockId, Vec<OccurrenceEvent>> = FxHashMap::default();
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
     for (bn, cfg_block) in &cfg.blocks {
@@ -1320,6 +1292,7 @@ pub fn collect_function_occurrence_events(
             continue;
         };
         let stmt_count = cfg_block.statements.len().min(ssa_block.statements.len());
+        let block_name = cfg.block_name(*bn);
         let mut events: Vec<OccurrenceEvent> = Vec::new();
         for idx in 0..stmt_count {
             let ir_stmt = &cfg_block.statements[idx];
@@ -1328,13 +1301,13 @@ pub fn collect_function_occurrence_events(
                 events.push(OccurrenceEvent::Kill);
                 continue;
             }
-            for occ in statement_occurrences(registry, ssa_stmt, bn, idx, dialect) {
+            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa) {
                 all_occurrences.push(occ.clone());
                 events.push(OccurrenceEvent::Occur(occ));
             }
         }
         if !events.is_empty() {
-            events_by_block.insert(bn.clone(), events);
+            events_by_block.insert(*bn, events);
         }
     }
 
@@ -1345,8 +1318,8 @@ pub fn collect_function_occurrence_events(
 /// returning the resulting set at block exit.
 fn transfer_occurrence_keys(
     events: &[OccurrenceEvent],
-    mut state: std::collections::HashSet<ExprKey>,
-) -> std::collections::HashSet<ExprKey> {
+    mut state: FxHashSet<ExprKey>,
+) -> FxHashSet<ExprKey> {
     for e in events {
         match e {
             OccurrenceEvent::Kill => state.clear(),
@@ -1364,11 +1337,8 @@ fn transfer_occurrence_keys(
 /// path has already computed it) but not *must-available* (so
 /// hoisting before the merge point would save the computation
 /// on the path where it hadn't yet been run).
-///
-/// Matches the Python `gvn.py::_find_partial_redundancies`
-/// pipeline on a per-function basis.
 /// Maps tracked by the partial-redundancy dataflow fixpoint.
-type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
+type ExprKeySetMap = FxHashMap<BlockId, FxHashSet<ExprKey>>;
 
 /// Run the partial-redundancy may/must-availability dataflow
 /// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
@@ -1377,23 +1347,23 @@ type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet
 fn run_partial_redundancy_fixpoint(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable: &std::collections::HashSet<String>,
-    events_by_block: &std::collections::HashMap<String, Vec<OccurrenceEvent>>,
-    universe: &std::collections::HashSet<ExprKey>,
-    order: &[String],
+    executable: &FxHashSet<BlockId>,
+    events_by_block: &FxHashMap<BlockId, Vec<OccurrenceEvent>>,
+    universe: &FxHashSet<ExprKey>,
+    order: &[BlockId],
 ) -> (ExprKeySetMap, ExprKeySetMap, ExprKeySetMap, ExprKeySetMap) {
     let preds = cfg.predecessors();
-    let mut may_in: ExprKeySetMap = std::collections::HashMap::new();
-    let mut may_out: ExprKeySetMap = std::collections::HashMap::new();
-    let mut must_in: ExprKeySetMap = std::collections::HashMap::new();
-    let mut must_out: ExprKeySetMap = std::collections::HashMap::new();
+    let mut may_in: ExprKeySetMap = FxHashMap::default();
+    let mut may_out: ExprKeySetMap = FxHashMap::default();
+    let mut must_in: ExprKeySetMap = FxHashMap::default();
+    let mut must_out: ExprKeySetMap = FxHashMap::default();
     for bn in executable {
-        may_in.insert(bn.clone(), std::collections::HashSet::new());
-        may_out.insert(bn.clone(), std::collections::HashSet::new());
+        may_in.insert(*bn, FxHashSet::default());
+        may_out.insert(*bn, FxHashSet::default());
         must_in.insert(
-            bn.clone(),
+            *bn,
             if bn == &ssa.entry {
-                std::collections::HashSet::new()
+                FxHashSet::default()
             } else {
                 universe.clone()
             },
@@ -1406,7 +1376,7 @@ fn run_partial_redundancy_fixpoint(
             events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
             initial_must_in,
         );
-        must_out.insert(bn.clone(), out);
+        must_out.insert(*bn, out);
     }
 
     let mut changed = true;
@@ -1416,26 +1386,23 @@ fn run_partial_redundancy_fixpoint(
             if !executable.contains(bn) {
                 continue;
             }
-            let pred_set: Vec<String> = preds
+            let pred_set: Vec<BlockId> = preds
                 .get(bn)
                 .map(|s| {
                     s.iter()
                         .filter(|p| executable.contains(*p))
-                        .cloned()
+                        .copied()
                         .collect()
                 })
                 .unwrap_or_default();
             let (new_must_in, new_may_in) = if bn == &ssa.entry || pred_set.is_empty() {
-                (
-                    std::collections::HashSet::new(),
-                    std::collections::HashSet::new(),
-                )
+                (FxHashSet::default(), FxHashSet::default())
             } else {
                 let mut mi = must_out[&pred_set[0]].clone();
                 for p in &pred_set[1..] {
                     mi = mi.intersection(&must_out[p]).cloned().collect();
                 }
-                let mut my: std::collections::HashSet<ExprKey> = std::collections::HashSet::new();
+                let mut my: FxHashSet<ExprKey> = FxHashSet::default();
                 for p in &pred_set {
                     my.extend(may_out[p].iter().cloned());
                 }
@@ -1450,19 +1417,19 @@ fn run_partial_redundancy_fixpoint(
                 new_may_in.clone(),
             );
             if new_must_in != must_in[bn] {
-                must_in.insert(bn.clone(), new_must_in);
+                must_in.insert(*bn, new_must_in);
                 changed = true;
             }
             if new_may_in != may_in[bn] {
-                may_in.insert(bn.clone(), new_may_in);
+                may_in.insert(*bn, new_may_in);
                 changed = true;
             }
             if new_must_out != must_out[bn] {
-                must_out.insert(bn.clone(), new_must_out);
+                must_out.insert(*bn, new_must_out);
                 changed = true;
             }
             if new_may_out != may_out[bn] {
-                may_out.insert(bn.clone(), new_may_out);
+                may_out.insert(*bn, new_may_out);
                 changed = true;
             }
         }
@@ -1474,8 +1441,7 @@ fn run_partial_redundancy_fixpoint(
 /// times where one occurrence dominates another along some path
 /// but not on every path.  Uses the may/must-availability
 /// bidirectional dataflow from
-/// [`run_partial_redundancy_fixpoint`].  Mirrors Python's
-/// `gvn.find_partial_redundancies` (see `core/compiler/gvn.py`).
+/// [`run_partial_redundancy_fixpoint`].
 #[must_use]
 pub fn find_partial_redundancies(
     registry: &CommandRegistry,
@@ -1483,7 +1449,7 @@ pub fn find_partial_redundancies(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
+    let executable = reachable_from(cfg, ssa.entry);
     if !executable.contains(&ssa.entry) {
         return Vec::new();
     }
@@ -1492,14 +1458,13 @@ pub fn find_partial_redundancies(
     if all_occurrences.is_empty() {
         return Vec::new();
     }
-    let universe: std::collections::HashSet<ExprKey> =
-        all_occurrences.iter().map(|o| o.key.clone()).collect();
+    let universe: FxHashSet<ExprKey> = all_occurrences.iter().map(|o| o.key.clone()).collect();
 
-    let mut order: Vec<String> = cfg.reverse_postorder();
-    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
-    for name in &executable {
-        if !seen.contains(name) {
-            order.push(name.clone());
+    let mut order: Vec<BlockId> = cfg.reverse_postorder();
+    let seen: FxHashSet<BlockId> = order.iter().copied().collect();
+    for id in &executable {
+        if !seen.contains(id) {
+            order.push(*id);
         }
     }
 
@@ -1509,13 +1474,11 @@ pub fn find_partial_redundancies(
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
     sorted.sort_by_key(|o| o.span.start());
-    let mut first_by_key: std::collections::HashMap<ExprKey, ExprOccurrence> =
-        std::collections::HashMap::new();
+    let mut first_by_key: FxHashMap<ExprKey, ExprOccurrence> = FxHashMap::default();
     for occ in sorted {
         first_by_key.entry(occ.key.clone()).or_insert(occ);
     }
-    let mut key_offsets: std::collections::HashMap<ExprKey, std::collections::HashSet<u32>> =
-        std::collections::HashMap::new();
+    let mut key_offsets: FxHashMap<ExprKey, FxHashSet<u32>> = FxHashMap::default();
     for occ in &all_occurrences {
         key_offsets
             .entry(occ.key.clone())
@@ -1549,7 +1512,7 @@ pub fn find_partial_redundancies(
                             span: occ.span,
                             first_span: first.span,
                             expression_text: text.clone(),
-                            code: "O105".into(),
+                            code: DiagCode::O105,
                             message: partial_redundancy_message(&text),
                         });
                     }
@@ -1562,9 +1525,7 @@ pub fn find_partial_redundancies(
     results
 }
 
-// ---------------------------------------------------------------------------
-// Compilation-unit-level convenience wrappers (ARCH7)
-// ---------------------------------------------------------------------------
+// Compilation-unit-level convenience wrappers
 
 /// Run [`find_redundancies`] across every function in the
 /// compilation unit, concatenating the per-function findings in
@@ -1704,54 +1665,65 @@ mod tests {
             Span::new(10, 20),
             Span::new(0, 5),
             "llength $x",
-            "O105",
+            DiagCode::O105,
             "message",
         );
         assert_eq!(r.expression_text, "llength $x");
-        assert_eq!(r.code, "O105");
+        assert_eq!(r.code, DiagCode::O105);
         assert_eq!(r.span.start(), 10);
         assert_eq!(r.first_span.end(), 5);
     }
 
-    // -- C26b: canonicalisation + messages --
+    // -- canonicalisation + messages --
+
+    /// A bare SSA shell (no blocks) for tests that only need the variable
+    /// interner to resolve canonicalisation names.
+    fn bare_ssa() -> SsaFunction {
+        SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()])
+    }
 
     #[test]
     fn canonicalise_empty_uses_returns_input() {
+        let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("foo", &uses), "foo");
+        assert_eq!(canonicalise_word("foo", &uses, &ssa), "foo");
     }
 
     #[test]
     fn canonicalise_replaces_bare_and_braced() {
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("x".to_string(), 3);
-        assert_eq!(canonicalise_word("$x", &uses), "$x@3");
-        assert_eq!(canonicalise_word("${x}", &uses), "$x@3");
+        uses.insert(ssa.intern_var("x"), 3);
+        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x@3");
+        assert_eq!(canonicalise_word("${x}", &uses, &ssa), "$x@3");
     }
 
     #[test]
     fn canonicalise_sorts_by_name_length_desc() {
         // `$longname` must be replaced before `$long` so the
         // longer name is not partially matched.
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("long".to_string(), 1);
-        uses.insert("longname".to_string(), 2);
-        let out = canonicalise_word("$longname$long", &uses);
+        uses.insert(ssa.intern_var("long"), 1);
+        uses.insert(ssa.intern_var("longname"), 2);
+        let out = canonicalise_word("$longname$long", &uses, &ssa);
         assert_eq!(out, "$longname@2$long@1");
     }
 
     #[test]
     fn canonicalise_ignores_unmentioned_variables() {
+        let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("$x", &uses), "$x");
+        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x");
     }
 
     #[test]
     fn build_call_key_for_pure_command() {
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("x".to_string(), 3);
+        uses.insert(ssa.intern_var("x"), 3);
         let args = vec!["$x".into(), "literal".into()];
-        let key = build_call_key("llength", &args, &uses);
+        let key = build_call_key("llength", &args, &uses, &ssa);
         assert_eq!(
             key,
             vec![
@@ -1786,7 +1758,7 @@ mod tests {
         assert!(loop_invariant_message("expr {$x + 1}").contains("loop-invariant"));
     }
 
-    // -- C26c: statement-level helpers --
+    // -- statement-level helpers --
 
     fn call_stmt(cmd: &str, args: &[&str]) -> Statement {
         Statement::Call {
@@ -1824,7 +1796,7 @@ mod tests {
 
     #[test]
     fn is_pure_command_recurses_into_impure_substitution() {
-        // O106 (SYNC-MAY31-1e): `expr` is pure, but an arg that embeds
+        // O106: `expr` is pure, but an arg that embeds
         // an impure `[incr c]` substitution makes the whole invocation
         // impure — its value depends on the per-call side effect, so it
         // must not be hoisted as loop-invariant.
@@ -1845,7 +1817,7 @@ mod tests {
         );
     }
 
-    /// SYNC8: a pure command (`expr`) gates to non-pure once its
+    /// A pure command (`expr`) gates to non-pure once its
     /// canonical name appears in `traced_commands`.
     #[test]
     fn is_pure_command_with_traces_traced_command_not_pure() {
@@ -1864,7 +1836,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: `has_dynamic_trace=true` widens the gate to *every*
+    /// `has_dynamic_trace=true` widens the gate to *every*
     /// command (even ones the registry marks PURE).
     #[test]
     fn is_pure_command_with_traces_dynamic_trace_inhibits_all() {
@@ -1882,7 +1854,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: regression — untraced pure commands stay pure.
+    /// Regression — untraced pure commands stay pure.
     #[test]
     fn is_pure_command_with_traces_untraced_command_still_pure() {
         let registry = CommandRegistry::build_default();
@@ -1897,7 +1869,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: `::ns::foo` and `ns::foo` look up identically in the
+    /// `::ns::foo` and `ns::foo` look up identically in the
     /// trace set (mirrors `populate_trace_facts`'s `::`-strip).
     #[test]
     fn is_pure_command_with_traces_qualified_name_canonicalised() {
@@ -1968,7 +1940,8 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occurrences = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occurrences =
+            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert!(occurrences.is_empty());
     }
 
@@ -1985,7 +1958,9 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        assert!(statement_occurrences(&registry, &stmt_ssa, "entry", 0, None).is_empty());
+        assert!(
+            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).is_empty()
+        );
     }
 
     #[test]
@@ -1994,11 +1969,16 @@ mod tests {
         assert!(!is_worth_reporting(&registry, "__nonexistent"));
     }
 
-    // -- C26d: find_redundancies driver --
+    // -- find_redundancies driver --
 
     use crate::cfg::{Block, Function, Terminator};
     use crate::ssa::{SsaBlock, SsaStatement};
     use std::collections::HashMap as Map;
+
+    /// The [`BlockId`] a block name was interned to in `cfg`.
+    fn id_of(cfg: &Function, name: &str) -> BlockId {
+        cfg.block_id(name).expect("interned")
+    }
 
     fn llength_call() -> Statement {
         Statement::Call {
@@ -2015,10 +1995,14 @@ mod tests {
         }
     }
 
-    fn ssa_stmt_for(stmt: Statement, uses_x_ver: Option<u32>) -> SsaStatement {
+    fn ssa_stmt_for(
+        ssa: &mut SsaFunction,
+        stmt: Statement,
+        uses_x_ver: Option<u32>,
+    ) -> SsaStatement {
         let mut uses = Map::new();
         if let Some(v) = uses_x_ver {
-            uses.insert("x".to_string(), v);
+            uses.insert(ssa.intern_var("x"), v);
         }
         SsaStatement {
             statement: stmt,
@@ -2041,7 +2025,7 @@ mod tests {
     fn find_redundancies_detects_same_block_duplicate() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
@@ -2051,27 +2035,20 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].code, "O105");
+        assert_eq!(results[0].code, DiagCode::O105);
         assert!(results[0].expression_text.contains("llength"));
     }
 
@@ -2079,7 +2056,7 @@ mod tests {
     fn find_redundancies_ignores_different_ssa_version() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
@@ -2089,25 +2066,18 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         // Same expression but different SSA versions of $x → no
         // redundancy.
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(2)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(2)));
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
@@ -2118,7 +2088,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         // entry: llength $x; set ::g 1; llength $x
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(Statement::Call {
             span: Span::new(0, 0),
@@ -2140,27 +2110,21 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry.statements.push(ssa_stmt_for(
-            cfg.blocks["entry"].statements[1].clone(),
+            &mut ssa,
+            cfg.blocks[&cfg.entry].statements[1].clone(),
             None,
         ));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         // The global write should invalidate — no redundancy reported.
         let results = find_redundancies(&registry, &cfg, &ssa, None);
@@ -2173,51 +2137,47 @@ mod tests {
         // entry: llength $x
         // dom_child: llength $x   (should trigger)
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("child".into(), Block::new("child"));
+        let entry = cfg.entry;
+        let child = cfg.intern_block("child");
+        cfg.blocks.insert(child, Block::new("child"));
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Goto {
-            target: "child".into(),
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+            target: child,
             span: None,
         });
         cfg.blocks
-            .get_mut("child")
+            .get_mut(&child)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("child").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&child).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree
-            .insert("entry".into(), vec!["child".into()]);
-        ssa.dominator_tree.insert("child".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(entry, vec![child]);
+        ssa.dominator_tree.insert(child, Vec::new());
         let mut e = empty_ssa_block("entry");
-        e.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        e.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         let mut c = empty_ssa_block("child");
-        c.statements.push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), e);
-        ssa.blocks.insert("child".into(), c);
+        c.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(entry, e);
+        ssa.blocks.insert(child, c);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
     }
 
-    // -- C26e1: embedded command-substitution scanning --
+    // -- embedded command-substitution scanning --
 
     #[test]
     fn scan_bracketed_commands_simple() {
@@ -2281,7 +2241,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
         assert_eq!(occ[0].expression_text, "llength $y");
     }
@@ -2301,7 +2261,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
         assert_eq!(occ[0].expression_text, "llength $y");
     }
@@ -2309,20 +2269,16 @@ mod tests {
     #[test]
     fn find_redundancies_empty_for_no_blocks() {
         let registry = CommandRegistry::build_default();
-        let cfg = Function::new("::top", "entry");
-        let ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "nonexistent".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut cfg = Function::new("::top", "entry");
+        // Intern a name with no matching block so the SSA entry is absent
+        // from `cfg.blocks` and the walk early-returns.
+        let nonexistent = cfg.intern_block("nonexistent");
+        let ssa = SsaFunction::trivial(cfg.name.clone(), nonexistent, cfg.block_names().to_vec());
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
     }
 
-    // -- C26e2: loop-invariant detection --
+    // -- loop-invariant detection --
 
     #[test]
     fn find_loop_invariants_detects_hoistable_llength() {
@@ -2330,64 +2286,60 @@ mod tests {
         // header: branch on $i < 10 → body → header (back edge)
         // body: llength $x (invariant w.r.t. loop-defined $i)
         let mut cfg = Function::new("::top", "header");
-        cfg.blocks.insert("body".into(), Block::new("body"));
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let header = cfg.entry;
+        let body = cfg.intern_block("body");
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(body, Block::new("body"));
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "body".into(),
-            false_target: "exit".into(),
+            true_target: body,
+            false_target: exit,
             span: None,
         });
         cfg.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         // header dominates body and exit.
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("body".into(), Some("header".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
-        ssa.dominator_tree
-            .insert("header".into(), vec!["body".into(), "exit".into()]);
-        ssa.dominator_tree.insert("body".into(), Vec::new());
-        ssa.dominator_tree.insert("exit".into(), Vec::new());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(body, Some(header));
+        ssa.idom.insert(exit, Some(header));
+        ssa.dominator_tree.insert(header, vec![body, exit]);
+        ssa.dominator_tree.insert(body, Vec::new());
+        ssa.dominator_tree.insert(exit, Vec::new());
 
         let h = empty_ssa_block("header");
         let mut b = empty_ssa_block("body");
         // $x's SSA version comes from outside the loop (x@1).
-        b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("header".into(), h);
-        ssa.blocks.insert("body".into(), b);
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+        b.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(header, h);
+        ssa.blocks.insert(body, b);
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
         // Canonical: loop-invariant code motion is O106 (not O107,
-        // which is unreachable dead code) — GAP-B2.
-        assert_eq!(results[0].code, "O106");
+        // which is unreachable dead code).
+        assert_eq!(results[0].code, DiagCode::O106);
         assert!(results[0].expression_text.contains("llength"));
     }
 
@@ -2399,82 +2351,78 @@ mod tests {
         // some iterations — the latch-dominance gate must suppress O106.
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "header");
+        let header = cfg.entry;
         for b in ["cond", "then", "latch", "exit"] {
-            cfg.blocks.insert(b.into(), Block::new(b));
+            let id = cfg.intern_block(b);
+            cfg.blocks.insert(id, Block::new(b));
         }
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let cond = id_of(&cfg, "cond");
+        let then = id_of(&cfg, "then");
+        let latch = id_of(&cfg, "latch");
+        let exit = id_of(&cfg, "exit");
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "cond".into(),
-            false_target: "exit".into(),
+            true_target: cond,
+            false_target: exit,
             span: None,
         });
-        cfg.blocks.get_mut("cond").unwrap().terminator = Some(Terminator::Branch {
+        cfg.blocks.get_mut(&cond).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "then".into(),
-            false_target: "latch".into(),
+            true_target: then,
+            false_target: latch,
             span: None,
         });
         cfg.blocks
-            .get_mut("then")
+            .get_mut(&then)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("then").unwrap().terminator = Some(Terminator::Goto {
-            target: "latch".into(),
+        cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+            target: latch,
             span: None,
         });
-        cfg.blocks.get_mut("latch").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&latch).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("cond".into(), Some("header".into()));
-        ssa.idom.insert("then".into(), Some("cond".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(cond, Some(header));
+        ssa.idom.insert(then, Some(cond));
         // The latch is reachable from `cond` both directly and via `then`,
         // so its immediate dominator is `cond`, not `then`.
-        ssa.idom.insert("latch".into(), Some("cond".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
-        ssa.dominator_tree
-            .insert("header".into(), vec!["cond".into(), "exit".into()]);
-        ssa.dominator_tree
-            .insert("cond".into(), vec!["then".into(), "latch".into()]);
-        for b in ["then", "latch", "exit"] {
-            ssa.dominator_tree.insert(b.into(), Vec::new());
+        ssa.idom.insert(latch, Some(cond));
+        ssa.idom.insert(exit, Some(header));
+        ssa.dominator_tree.insert(header, vec![cond, exit]);
+        ssa.dominator_tree.insert(cond, vec![then, latch]);
+        for b in [then, latch, exit] {
+            ssa.dominator_tree.insert(b, Vec::new());
         }
 
-        ssa.blocks
-            .insert("header".into(), empty_ssa_block("header"));
-        ssa.blocks.insert("cond".into(), empty_ssa_block("cond"));
+        ssa.blocks.insert(header, empty_ssa_block("header"));
+        ssa.blocks.insert(cond, empty_ssa_block("cond"));
         let mut then_b = empty_ssa_block("then");
         then_b
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("then".into(), then_b);
-        ssa.blocks.insert("latch".into(), empty_ssa_block("latch"));
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(then, then_b);
+        ssa.blocks.insert(latch, empty_ssa_block("latch"));
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert!(
@@ -2489,16 +2437,19 @@ mod tests {
         // As above, but `$i` is defined inside the loop — llength
         // uses `$i` → not loop-invariant.
         let mut cfg = Function::new("::top", "header");
-        cfg.blocks.insert("body".into(), Block::new("body"));
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let header = cfg.entry;
+        let body = cfg.intern_block("body");
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(body, Block::new("body"));
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "body".into(),
-            false_target: "exit".into(),
+            true_target: body,
+            false_target: exit,
             span: None,
         });
         let llength_on_i = Statement::Call {
@@ -2514,38 +2465,31 @@ mod tests {
             foreach_groups: None,
         };
         cfg.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(llength_on_i.clone());
-        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("body".into(), Some("header".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(body, Some(header));
+        ssa.idom.insert(exit, Some(header));
 
         let h = empty_ssa_block("header");
         let mut b = empty_ssa_block("body");
         // `$i` defined in body.
         let mut defs = Map::new();
-        defs.insert("i".to_string(), 1);
+        defs.insert(ssa.intern_var("i"), 1);
         b.statements.push(SsaStatement {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
@@ -2558,15 +2502,15 @@ mod tests {
         });
         // llength $i — uses map tracks `i`, not `x`.
         let mut uses_i = Map::new();
-        uses_i.insert("i".to_string(), 1);
+        uses_i.insert(ssa.intern_var("i"), 1);
         b.statements.push(SsaStatement {
             statement: llength_on_i,
             uses: uses_i,
             defs: Map::new(),
         });
-        ssa.blocks.insert("header".into(), h);
-        ssa.blocks.insert("body".into(), b);
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+        ssa.blocks.insert(header, h);
+        ssa.blocks.insert(body, b);
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
@@ -2576,26 +2520,19 @@ mod tests {
     fn find_loop_invariants_no_loops_empty() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(cfg.entry, None);
+        ssa.blocks.insert(cfg.entry, empty_ssa_block("entry"));
         assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
     }
 
-    // -- C26e3: partial-redundancy detection --
+    // -- partial-redundancy detection --
 
     // Long match dispatcher over IR opcodes.
     #[allow(clippy::too_many_lines)]
@@ -2610,22 +2547,26 @@ mod tests {
         // branch.
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("tt".into(), Block::new("tt"));
-        cfg.blocks.insert("ff".into(), Block::new("ff"));
-        cfg.blocks.insert("join".into(), Block::new("join"));
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let tt = cfg.intern_block("tt");
+        let ff = cfg.intern_block("ff");
+        let join = cfg.intern_block("join");
+        cfg.blocks.insert(tt, Block::new("tt"));
+        cfg.blocks.insert(ff, Block::new("ff"));
+        cfg.blocks.insert(join, Block::new("join"));
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Var {
                 text: "$c".into(),
                 name: "c".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "tt".into(),
-            false_target: "ff".into(),
+            true_target: tt,
+            false_target: ff,
             span: None,
         });
         cfg.blocks
-            .get_mut("tt")
+            .get_mut(&tt)
             .unwrap()
             .statements
             .push(Statement::Call {
@@ -2640,16 +2581,16 @@ mod tests {
                 tokens: None,
                 foreach_groups: None,
             });
-        cfg.blocks.get_mut("tt").unwrap().terminator = Some(Terminator::Goto {
-            target: "join".into(),
+        cfg.blocks.get_mut(&tt).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("ff").unwrap().terminator = Some(Terminator::Goto {
-            target: "join".into(),
+        cfg.blocks.get_mut(&ff).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
         cfg.blocks
-            .get_mut("join")
+            .get_mut(&join)
             .unwrap()
             .statements
             .push(Statement::Call {
@@ -2664,28 +2605,21 @@ mod tests {
                 tokens: None,
                 foreach_groups: None,
             });
-        cfg.blocks.get_mut("join").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.idom.insert("tt".into(), Some("entry".into()));
-        ssa.idom.insert("ff".into(), Some("entry".into()));
-        ssa.idom.insert("join".into(), Some("entry".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(entry, None);
+        ssa.idom.insert(tt, Some(entry));
+        ssa.idom.insert(ff, Some(entry));
+        ssa.idom.insert(join, Some(entry));
 
         let mut uses_x = Map::new();
-        uses_x.insert("x".to_string(), 1);
+        uses_x.insert(ssa.intern_var("x"), 1);
 
         let entry_b = empty_ssa_block("entry");
         let mut tt_b = empty_ssa_block("tt");
@@ -2723,17 +2657,17 @@ mod tests {
             uses: uses_x,
             defs: Map::new(),
         });
-        ssa.blocks.insert("entry".into(), entry_b);
-        ssa.blocks.insert("tt".into(), tt_b);
-        ssa.blocks.insert("ff".into(), ff_b);
-        ssa.blocks.insert("join".into(), join_b);
+        ssa.blocks.insert(entry, entry_b);
+        ssa.blocks.insert(tt, tt_b);
+        ssa.blocks.insert(ff, ff_b);
+        ssa.blocks.insert(join, join_b);
 
         let results = find_partial_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
         // Canonical: partial redundancy (GVN-PRE) shares O105 with
         // full redundancy — the loop-invariant code O106 was wrong
-        // here (GAP-B2).
-        assert_eq!(results[0].code, "O105");
+        // here.
+        assert_eq!(results[0].code, DiagCode::O105);
         assert_eq!(results[0].span.start(), 200);
         assert_eq!(results[0].first_span.start(), 100);
     }
@@ -2745,38 +2679,30 @@ mod tests {
         // redundancy possible.
         let mut cfg = Function::new("::top", "entry");
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&cfg.entry)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(cfg.entry, None);
         let mut entry_b = empty_ssa_block("entry");
         entry_b
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), entry_b);
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
+        ssa.blocks.insert(cfg.entry, entry_b);
 
         assert!(find_partial_redundancies(&registry, &cfg, &ssa, None).is_empty());
     }
 
     #[test]
     fn transfer_occurrence_keys_kill_clears_state() {
-        use std::collections::HashSet;
         let key: ExprKey = vec!["call".into(), "llength".into(), "$x@1".into()];
         let occ = ExprOccurrence {
             key: key.clone(),
@@ -2787,11 +2713,11 @@ mod tests {
             variable_uses: Vec::new(),
         };
         let events = vec![OccurrenceEvent::Occur(occ), OccurrenceEvent::Kill];
-        let out = transfer_occurrence_keys(&events, HashSet::new());
+        let out = transfer_occurrence_keys(&events, FxHashSet::default());
         assert!(!out.contains(&key));
     }
 
-    // -- C26e4: intra-module pure-proc analysis --
+    // -- intra-module pure-proc analysis --
 
     fn module_with_procs(procs: Vec<(&str, Vec<Statement>)>) -> CfgModule {
         let mut cfg_module = CfgModule {
@@ -2800,10 +2726,11 @@ mod tests {
         };
         for (name, stmts) in procs {
             let mut cfg = Function::new(name, "entry");
+            let entry = cfg.entry;
             for s in stmts {
-                cfg.blocks.get_mut("entry").unwrap().statements.push(s);
+                cfg.blocks.get_mut(&entry).unwrap().statements.push(s);
             }
-            cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
                 value: None,
                 span: None,
                 expr: None,
@@ -3000,21 +2927,19 @@ mod tests {
 
     #[test]
     fn dominates_trivial_and_chain() {
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.idom.insert("a".into(), Some("entry".into()));
-        ssa.idom.insert("b".into(), Some("a".into()));
-        assert!(dominates(&ssa, "entry", "b"));
-        assert!(dominates(&ssa, "a", "b"));
-        assert!(!dominates(&ssa, "b", "a"));
-        assert!(dominates(&ssa, "b", "b"));
+        // Intern the chain through a CFG so the SSA shares its BlockIds.
+        let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
+        let a = cfg.intern_block("a");
+        let b = cfg.intern_block("b");
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(entry, None);
+        ssa.idom.insert(a, Some(entry));
+        ssa.idom.insert(b, Some(a));
+        assert!(dominates(&ssa, entry, b));
+        assert!(dominates(&ssa, a, b));
+        assert!(!dominates(&ssa, b, a));
+        assert!(dominates(&ssa, b, b));
     }
 
     #[test]

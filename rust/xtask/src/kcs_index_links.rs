@@ -1,8 +1,7 @@
-//! KCS / design-docs link + index-coverage check — Rust port of
-//! `scripts/check/kcs_index_links.py`.
+//! KCS / design-docs link + index-coverage check.
 //!
-//! Validates four things, matching the Python script's stdout and exit
-//! codes byte-for-byte:
+//! Validates four things, producing the expected stdout and exit
+//! codes:
 //!
 //! 1. every local markdown link in `docs/` (+ `CONTRIBUTING.md` /
 //!    `AGENTS.md`) resolves;
@@ -113,8 +112,7 @@ fn check_local_markdown_links(root: &Path, docs: &Path, link_re: &Regex) -> Resu
     let mut problems = Vec::new();
     for file in &files {
         // docs/archive/ holds historical snapshots whose links are
-        // expected to rot; skip them (matches the Python `"archive" in
-        // parts` test over the absolute path).
+        // expected to rot; skip any path with an `archive` segment.
         if file.components().any(|c| c.as_os_str() == "archive") {
             continue;
         }
@@ -249,7 +247,7 @@ fn check_kcs_audience_headers(
     Ok(warnings)
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────
+// helpers
 
 /// The portion of a link before its `#` anchor.
 fn link_before_anchor(link: &str) -> &str {

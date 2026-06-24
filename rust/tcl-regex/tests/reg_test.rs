@@ -1,4 +1,4 @@
-//! Tcl 9 `reg.test`, ported to a typed Rust cargo test.
+//! Tcl 9 `reg.test` as a typed Rust cargo test.
 //!
 //! Each row of `tests/data/reg_cases.tsv` was produced by driving the real Tcl
 //! 9 engine (`testregexp`, in the built `tcltest` shell) over every variant of

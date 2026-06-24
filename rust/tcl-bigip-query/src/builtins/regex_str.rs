@@ -1,20 +1,19 @@
-//! Regex / string-category builtins (port of the regex family in the
-//! `string` section of `builtins.py`): `match`, `sub`, `gsub`, `test`,
-//! `scan`, `capture`, `splits`, plus the codepoint / row-format helpers
-//! `index`, `ltrimstr`, `rtrimstr`, `explode`, `implode`, `ascii`,
-//! `utf8bytelength`, `csv`, `tsv`.
+//! Regex / string-category builtins — the regex family `match`, `sub`,
+//! `gsub`, `test`, `scan`, `capture`, `splits`, plus the codepoint /
+//! row-format helpers `index`, `ltrimstr`, `rtrimstr`, `explode`, `implode`,
+//! `ascii`, `utf8bytelength`, `csv`, `tsv`.
 //!
 //! Parity notes:
 //! - Every regex compile routes through the parent `safe_regex_compile`
 //!   chokepoint (length + nested-quantifier guards) so the guard error
-//!   text matches the Python `_safe_regex_compile`.
-//! - The `regex` crate's dialect differs from Python `re` on
+//!   text matches `_safe_regex_compile`.
+//! - The `regex` crate's dialect differs on
 //!   backreferences / lookaround (documented divergence the user accepted).
-//!   `sub` / `gsub` reproduce Python's replacement-template syntax
+//!   `sub` / `gsub` reproduce the `\g<1>`-style replacement-template syntax
 //!   (`\1`, `\g<name>`, `\g<1>`) by expanding it by hand rather than using
 //!   the crate's `$`-expansion, so the common-subset cases stay identical.
 //! - `match` / `capture` / `scan` offsets are byte offsets in the `regex`
-//!   crate vs code points in Python `re`; for ASCII inputs they coincide.
+//!   crate vs code points; for ASCII inputs they coincide.
 //!   `match` / `test` are boolean predicates here (this DSL's `match` is
 //!   jq's `test`, not jq's structured `match`).
 //! - `explode` / `implode` use Unicode code points (`char as u32`);
@@ -56,9 +55,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ===========================================================================
-// Regex flag handling (port of `_jq_regex_flags`)
-// ===========================================================================
+// Regex flag handling
 
 /// Translate jq-style flag letters (`i` / `x` / `s` / `m`) to the leading
 /// inline flag group the `regex` crate understands, validating each letter
@@ -82,7 +79,7 @@ fn jq_regex_flags(flags: &str, name: &str) -> Result<String, QueryError> {
     Ok(out)
 }
 
-/// Python `repr` of a single character (used in the flag error text).
+/// Repr-style rendering of a single character (used in the flag error text).
 fn py_char_repr(ch: char) -> String {
     if ch == '\'' {
         "\"'\"".to_string()
@@ -102,7 +99,7 @@ fn compile_with_flags(pattern: &str, flags: &str, name: &str) -> Result<Regex, Q
     }
 }
 
-/// Read the optional trailing `flags` argument (Python: `flags != ""` test).
+/// Read the optional trailing `flags` argument (the `flags != ""` test).
 fn optional_flags(args: &[Value], idx: usize, name: &str) -> Result<String, QueryError> {
     match args.get(idx) {
         None => Ok(String::new()),
@@ -111,9 +108,7 @@ fn optional_flags(args: &[Value], idx: usize, name: &str) -> Result<String, Quer
     }
 }
 
-// ===========================================================================
 // Regex builtins
-// ===========================================================================
 
 fn bi_match(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "match", 1)?;
@@ -148,9 +143,9 @@ fn bi_gsub(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(regex_sub(&rx, &s, &r, None)))
 }
 
-/// Port of Python `re.sub` with a replacement template. `count = Some(1)`
+/// Regex substitution with a replacement template. `count = Some(1)`
 /// replaces only the first match (`sub`); `None` replaces all (`gsub`).
-/// Replacement templates use Python's `re` backref syntax (`\1`,
+/// Replacement templates use `re` backref syntax (`\1`,
 /// `\g<name>`, `\g<1>`); they are expanded by hand so the common subset
 /// stays byte-identical despite the `regex` crate's native `$`-expansion.
 fn regex_sub(rx: &Regex, text: &str, template: &str, count: Option<usize>) -> String {
@@ -171,7 +166,7 @@ fn regex_sub(rx: &Regex, text: &str, template: &str, count: Option<usize>) -> St
     out
 }
 
-/// Expand a Python-`re`-style replacement template against one match.
+/// Expand a `\g<1>`-style replacement template against one match.
 fn expand_template(template: &str, caps: &regex::Captures) -> String {
     let mut out = String::new();
     let chars: Vec<char> = template.chars().collect();
@@ -191,7 +186,7 @@ fn expand_template(template: &str, caps: &regex::Captures) -> String {
         }
         let next = chars[i + 1];
         if next.is_ascii_digit() {
-            // `\1` .. `\99` — numbered group (Python reads up to two digits).
+            // `\1` .. `\99` — numbered group (reads up to two digits).
             let mut j = i + 1;
             let mut num = String::new();
             while j < chars.len() && num.len() < 2 && chars[j].is_ascii_digit() {
@@ -236,7 +231,7 @@ fn expand_template(template: &str, caps: &regex::Captures) -> String {
             out.push('\r');
             i += 2;
         } else {
-            // Unknown escape: Python keeps the backslash and the character.
+            // Unknown escape: keep the backslash and the character.
             out.push('\\');
             out.push(next);
             i += 2;
@@ -276,7 +271,7 @@ fn bi_capture(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "capture", 1)?;
     let p = as_str(&args[1], "capture", 2)?;
     let f = optional_flags(args, 2, "capture")?;
-    // jq accepts `(?<name>...)`; rewrite to the Python `(?P<name>...)`
+    // jq accepts `(?<name>...)`; rewrite to `(?P<name>...)`
     // spelling (also accepted by the `regex` crate).
     let p_python = rewrite_named_groups(&p);
     let rx = compile_with_flags(&p_python, &f, "capture")?;
@@ -297,7 +292,7 @@ fn bi_capture(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// Rewrite jq-style `(?<name>` to Python/`regex`-crate `(?P<name>`.
+/// Rewrite jq-style `(?<name>` to the `regex`-crate `(?P<name>`.
 fn rewrite_named_groups(pattern: &str) -> String {
     static REWRITE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     let re = REWRITE.get_or_init(|| {
@@ -318,9 +313,7 @@ fn bi_splits(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(parts))
 }
 
-// ===========================================================================
 // Non-regex string builtins
-// ===========================================================================
 
 fn bi_index(args: &[Value]) -> Result<Value, QueryError> {
     let eq = |item: &Value, target: &Value| -> bool {
@@ -359,7 +352,7 @@ fn bi_index(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// Python `str.find` returns a code-point index (`-1` → `null`).
+/// Returns a code-point index of the first match (`-1` → `null`).
 fn byte_to_char_index(haystack: &str, needle: &str) -> Value {
     match haystack.find(needle) {
         Some(byte) => Value::Int(haystack[..byte].chars().count() as i64),
@@ -462,7 +455,7 @@ fn bi_tsv(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(cells.join("\t")))
 }
 
-/// Port of `_csv_cell_text` — coerce one cell to its scalar string form,
+/// Coerce one cell to its scalar string form,
 /// flattening embedded tabs / newlines / carriage returns to spaces.
 fn csv_cell_text(value: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
     let s = match value {
@@ -489,7 +482,7 @@ fn csv_cell_text(value: &Value, name: &str, arg: usize) -> Result<String, QueryE
     Ok(s.replace(['\t', '\n', '\r'], " "))
 }
 
-/// Port of `_csv_quote` — RFC 4180 quoting.
+/// RFC 4180 quoting of a cell.
 fn csv_quote(cell: &str) -> String {
     if cell.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", cell.replace('"', "\"\""))
@@ -498,7 +491,7 @@ fn csv_quote(cell: &str) -> String {
     }
 }
 
-/// Python `repr` of a string (single-quoted), used in `capture`'s no-match
+/// Repr-style rendering of a string (single-quoted), used in `capture`'s no-match
 /// error. The patterns we interpolate are ASCII without quotes.
 fn py_str_repr(s: &str) -> String {
     if s.contains('\'') && !s.contains('"') {
@@ -533,9 +526,8 @@ mod tests {
 
     #[test]
     fn sub_and_gsub_accept_flags() {
-        // Ported from `tests/test_f5_query.py::test_sub_and_gsub_accept_flags`
-        // (TEST-MIGRATE — regex_str.rs had no unit coverage). `sub` replaces
-        // the first match, `gsub` all; the `"i"` flag is case-insensitive.
+        // `sub` replaces the first match, `gsub` all; the `"i"` flag is
+        // case-insensitive.
         assert_eq!(
             call_str(bi_sub, &[s("ABC"), s("abc"), s("XYZ"), s("i")]),
             "XYZ"

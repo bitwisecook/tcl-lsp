@@ -85,8 +85,7 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
 
 /// Compute the deletion range for a statement being removed, swallowing
 /// the trailing run of whitespace plus one statement separator (`\n` /
-/// `;`) so the surviving text closes up cleanly. Mirrors Python's
-/// `_statement_delete_rewrite_range`.
+/// `;`) so the surviving text closes up cleanly.
 ///
 /// `cmd_span` is the full command span (exclusive end); `next_start` is
 /// the byte offset of the next statement, or `None` at end-of-script (in

@@ -1,6 +1,4 @@
-//! Code-sinking optimiser pass — **O125** (C30i).
-//!
-//! Ported from `core/compiler/optimiser/_code_sinking.py`.
+//! Code-sinking optimiser pass — **O125**.
 //!
 //! Detects `set X V; <decision>` pairs where the following
 //! statement is an `if` / `switch`, the variable `X` is read
@@ -31,6 +29,7 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
+use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::expr_has_command_subst;
 use super::{Optimisation, PassContext};
@@ -53,14 +52,12 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         // A variable that carries state across `when <event>` boundaries
         // (iRules) is observable after this event handler returns, so its
         // definition must not be sunk into a branch that may not run.
-        // Mirrors Python's `var_name in ctx.cross_event_vars` guard.
         if ctx.cross_event_vars.contains(&var) {
             continue;
         }
         // Already-covered guard: a statement an earlier pass already rewrites
         // (e.g. O109 / O126 dead-store elimination, which runs before code
         // sinking) must not also be sunk — the two rewrites would conflict.
-        // Mirrors Python's `already_covered` check over `ctx.optimisations`.
         if ctx.optimisations.iter().any(|o| {
             o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty()
         }) {
@@ -148,8 +145,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
 /// the var live in both arms duplicates the def into each). When the
 /// original source text can be recovered, emits a grouped delete + one
 /// prepend per target; otherwise falls back to a single hint-only
-/// diagnostic. Mirrors Python's `_find_deepest_sink_targets` /
-/// `_emit_sinking_opts`.
+/// diagnostic.
 fn emit_sink(
     ctx: &mut PassContext<'_>,
     original: &Statement,
@@ -169,7 +165,7 @@ fn emit_sink(
     {
         let group = ctx.alloc_group();
         let mut del = Optimisation::new(
-            "O125",
+            DiagCode::O125,
             format!("Sink '{var}' into the branch(es) that use it — delete original"),
             original_span,
             "",
@@ -180,7 +176,7 @@ fn emit_sink(
         for span in target_spans {
             let first_text = extract_source(ctx.source, span).unwrap_or_default();
             let mut ins = Optimisation::new(
-                "O125",
+                DiagCode::O125,
                 format!("Sink '{var}' into branch — prepend in target body"),
                 span,
                 format!("{set_text}; {first_text}"),
@@ -191,7 +187,7 @@ fn emit_sink(
     } else {
         // Fallback: hint-only.
         let mut opt = Optimisation::new(
-            "O125",
+            DiagCode::O125,
             format!("Sink '{var}' into the decision block that uses it"),
             original_span,
             "",
@@ -204,7 +200,7 @@ fn emit_sink(
 /// Collect the sink-target anchor statements for `decision`: for each
 /// branch body that uses `var`, the deepest first-using statement (a
 /// single-use branch whose lone consumer is itself a decision descends
-/// further). Mirrors the per-branch `_find_deepest_sink_targets` fan-out.
+/// further).
 fn decision_sink_targets<'a>(decision: &'a Statement, var: &str) -> Vec<&'a Statement> {
     let mut targets = Vec::new();
     for body in decision_branch_bodies(decision) {
@@ -249,7 +245,7 @@ fn decision_branch_bodies(decision: &Statement) -> Vec<&Script> {
 /// uses `var` (and no earlier statement redefines it), and that statement
 /// is itself a decision the var's condition does not read, descend into
 /// its branches; otherwise anchor at the first using statement of this
-/// body. Mirrors `_find_deepest_sink_targets`.
+/// body.
 fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
     let using: Vec<usize> = body
         .statements
@@ -277,7 +273,7 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
 
 /// Descend into a decision's branches for a deeper sink — but only when
 /// the var's value is not read by any condition (which would make sinking
-/// past it unsound). Mirrors `_try_deeper_sink`.
+/// past it unsound).
 fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str) -> Vec<&'a Statement> {
     if decision_condition_uses_var(stmt, var) {
         return Vec::new();
@@ -558,7 +554,7 @@ mod tests {
     fn sinkable_set_before_if_emits_o125() {
         let opts = run_pass("proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts no } }");
         assert!(
-            opts.iter().any(|o| o.code == "O125"),
+            opts.iter().any(|o| o.code == DiagCode::O125),
             "expected an O125 diagnostic, got {opts:?}",
         );
     }
@@ -570,13 +566,13 @@ mod tests {
         let opts = run_pass("proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts $x } }");
         let inserts = opts
             .iter()
-            .filter(|o| o.code == "O125" && o.replacement.contains("set x 1"))
+            .filter(|o| o.code == DiagCode::O125 && o.replacement.contains("set x 1"))
             .count();
         assert_eq!(inserts, 2, "expected a sink into each branch, got {opts:?}");
         // Exactly one delete of the original.
         let deletes = opts
             .iter()
-            .filter(|o| o.code == "O125" && o.replacement.is_empty() && !o.hint_only)
+            .filter(|o| o.code == DiagCode::O125 && o.replacement.is_empty() && !o.hint_only)
             .count();
         assert_eq!(deletes, 1);
     }
@@ -591,7 +587,7 @@ mod tests {
         // The deepest insert target is the inner `puts $x`; the sunk text
         // must be prepended there (its slice contains the inner puts).
         let deep = opts.iter().any(|o| {
-            o.code == "O125"
+            o.code == DiagCode::O125
                 && o.replacement.starts_with("set x 1;")
                 && o.replacement.contains("puts $x")
         });
@@ -610,14 +606,14 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         // Simulate an earlier O109 dead-store rewrite covering `set x 1`.
         ctx.report(Optimisation::new(
-            "O109",
+            DiagCode::O109,
             "dead store",
             tcl_lexer::Span::new(0, 7),
             "",
         ));
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O125),
             "already-covered statement must not be sunk, got {:?}",
             ctx.optimisations,
         );
@@ -634,7 +630,7 @@ mod tests {
         ctx.cross_event_vars.insert("x".to_owned());
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O125),
             "cross-event var must not be sunk, got {:?}",
             ctx.optimisations,
         );
@@ -647,7 +643,7 @@ mod tests {
         // reconstruct the text. Expect two O125 entries sharing
         // one group.
         let opts = run_pass("set x 1\nif {$cond} { puts $x } else { puts no }");
-        let o125: Vec<_> = opts.iter().filter(|o| o.code == "O125").collect();
+        let o125: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O125).collect();
         if !o125.is_empty() {
             let groups: std::collections::HashSet<_> =
                 o125.iter().filter_map(|o| o.group).collect();
@@ -665,7 +661,7 @@ mod tests {
         let opts =
             run_pass("proc ::f {flag} { set x [foo]; if {$flag} { puts $x } else { puts no } }");
         assert!(
-            opts.iter().all(|o| o.code != "O125"),
+            opts.iter().all(|o| o.code != DiagCode::O125),
             "cmd-subst assignment must not emit O125, got {opts:?}",
         );
     }
@@ -674,7 +670,7 @@ mod tests {
     fn later_use_suppresses_sink() {
         let opts = run_pass("proc ::f {flag} { set x 1; if {$flag} { puts $x }; return $x }");
         assert!(
-            opts.iter().all(|o| o.code != "O125"),
+            opts.iter().all(|o| o.code != DiagCode::O125),
             "later use must suppress O125, got {opts:?}",
         );
     }
@@ -684,7 +680,7 @@ mod tests {
         // The condition reads `$x`, so sinking is unsound.
         let opts = run_pass("proc ::f {} { set x 1; if {$x > 0} { puts hi } else { puts no } }");
         assert!(
-            opts.iter().all(|o| o.code != "O125"),
+            opts.iter().all(|o| o.code != DiagCode::O125),
             "condition use must suppress O125, got {opts:?}",
         );
     }

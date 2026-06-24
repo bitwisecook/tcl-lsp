@@ -1,16 +1,14 @@
 //! The `query` verb — jq-flavoured DSL over BIG-IP configs (read-only).
 //!
-//! Port of the read-only emit path of `tooling/f5/verbs/query.py`
-//! (`_run_query` + `_emit_values` + `_empty_match_exit_code`). Loads each
-//! input to `(uri, source)` via the UCS/stdin-aware loader, runs the pure
-//! `tcl_bigip_query::run_query` runner, and renders the per-file values with
-//! `tcl_bigip_query::output::render`.
+//! Loads each input to `(uri, source)` via the UCS/stdin-aware loader, runs
+//! the pure `tcl_bigip_query::run_query` runner, and renders the per-file
+//! values with `tcl_bigip_query::output::render`.
 //!
 //! Field-value mutations (`=` / `|=` / `+=` / `-=`) are supported: the
 //! default is a unified-diff preview, `--write` prints the rewritten config,
 //! and `--in-place` overwrites the input. Identity-field writes (`.name = …`)
 //! and the `rename*` builtins (`rename` / `rename_partition` / `rename_folder`
-//! / `rename_prefix`) are supported too — they route through the ported
+//! / `rename_prefix`) are supported too — they route through the
 //! `rewrite::rename_object` token-rewrite engine.
 //!
 //! Side-inputs are supported: `--input-json` / `--input-jsonl` /
@@ -25,11 +23,11 @@
 //! `(kind, full-path)` are refused.
 //!
 //! Help actions are all implemented: `--help-dsl` / `--help-examples` /
-//! `--help-renderers` / `--help-inputs` are byte-for-byte ports, while
-//! `--help-builtins [NAME]` / `--help-manual` are idiomatic Rust surfaces
-//! generated from the builtin registry metadata (the Rust `BuiltinSpec` omits
-//! the Python per-function prose). Live network probes (`dns` / `ping` /
-//! `http` / `tls` / x509 + `cert_load`) land gated behind `--enable-probes`.
+//! `--help-renderers` / `--help-inputs` print static catalogues, while
+//! `--help-builtins [NAME]` / `--help-manual` are generated from the builtin
+//! registry metadata (`BuiltinSpec` carries no per-function prose). Live
+//! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) are
+//! gated behind `--enable-probes`.
 //! `ucs_cert` has its UCS reader wired here (read the PEM out of the archive
 //! via `read_ucs_member`, then `x509_parse`); reaching it through the DSL also
 //! needs the `sys file-ssl-cert` object projection, which the query engine does
@@ -76,9 +74,8 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Resolve a `config_uri` to a local path, accepting `file://` and bare paths
-/// (mirrors the Python reader's `urlsplit` scheme check). Returns `None` for a
-/// non-file scheme.
+/// Resolve a `config_uri` to a local path, accepting `file://` and bare paths.
+/// Returns `None` for a non-file scheme.
 fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
     if let Some(rest) = config_uri.strip_prefix("file://") {
         // Strip an optional `//netloc`; the path starts at the first `/`.
@@ -93,8 +90,7 @@ fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
 
 /// Build the `ucs_cert` reader the query engine injects: map a cert object's
 /// `config_uri` + filestore `cache-path` to an `x509_parse`-shaped value,
-/// reading the PEM out of the (possibly encrypted) UCS. Mirrors the Python
-/// CLI's `_make_ucs_cert_reader`.
+/// reading the PEM out of the (possibly encrypted) UCS.
 fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
     let opts = crate::cli::PassphraseArgs::default().to_options();
     std::rc::Rc::new(
@@ -120,8 +116,7 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
     )
 }
 
-/// Whether *path*'s extension is `.ucs` (case-insensitive) — mirrors
-/// `Path(path).suffix.lower() == ".ucs"`.
+/// Whether *path*'s extension is `.ucs` (case-insensitive).
 fn has_ucs_suffix(path: &str) -> bool {
     Path::new(path)
         .extension()
@@ -129,11 +124,11 @@ fn has_ucs_suffix(path: &str) -> bool {
 }
 
 /// The mutually-exclusive output-mode flags, resolved to an `output::render`
-/// mode by [`OutputModeFlags::resolve`]. Mirrors the `--scf` / `--raw` /
-/// `--paths-only` / `--json` / `--table` / `--table-lineart` group.
+/// mode by [`OutputModeFlags::resolve`]. Corresponds to the `--scf` / `--raw`
+/// / `--paths-only` / `--json` / `--table` / `--table-lineart` group.
 //
-// Each field mirrors a distinct user-facing CLI flag (one of a mutually
-// exclusive group), so a bool-per-flag is the faithful shape — not a state
+// Each field maps to a distinct user-facing CLI flag (one of a mutually
+// exclusive group), so a bool-per-flag is the natural shape — not a state
 // machine.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
@@ -169,8 +164,7 @@ impl OutputModeFlags {
 }
 
 /// Parse `--name NAME=PATH` bindings into a `name -> path` map, validating the
-/// identifier and that the path was supplied as a positional input. Mirrors
-/// `query._parse_name_bindings`.
+/// identifier and that the path was supplied as a positional input.
 fn parse_name_bindings(
     raw: &[String],
     paths: &[String],
@@ -202,7 +196,7 @@ fn parse_name_bindings(
 }
 
 /// Parse `--partition PATH=PARTITION` (or bare `--partition PARTITION`)
-/// entries — port of `query._parse_partition_bindings`.
+/// entries.
 ///
 /// Returns ordered `(path, partition)` bindings where an empty `path` is the
 /// bare form (applies to every loaded source). Validates that each `PATH=`
@@ -252,12 +246,11 @@ fn parse_partition_bindings(
 /// csv_headers_or_None))`. Port of `_parse_input_bindings`' return shape.
 type InputBinding = (String, (String, Option<Vec<String>>));
 
-/// Parse a `--input-<kind> NAME=PATH[:hdr,…]` flag group — port of
-/// `query._parse_input_bindings`.
+/// Parse a `--input-<kind> NAME=PATH[:hdr,…]` flag group.
 ///
 /// Returns the bindings (preserving order). `allow_csv_headers` enables
-/// the trailing `:hdr1,hdr2,…` CSV form. Mirrors Python's exact identifier
-/// rules, duplicate detection, and error wording.
+/// the trailing `:hdr1,hdr2,…` CSV form. Enforces strict identifier rules,
+/// duplicate detection, and fixed error wording.
 fn parse_input_bindings(
     raw: &[String],
     flag: &str,
@@ -303,7 +296,7 @@ fn split_csv_path_headers(
     if !value.contains(':') {
         return Ok((value.to_owned(), None));
     }
-    // Python `value.rpartition(":")`.
+    // Split on the last colon: path before, header list after.
     let (path_part, headers_part) = value.rsplit_once(':').expect("colon present");
     if headers_part.is_empty() {
         return Err(format!(
@@ -333,9 +326,9 @@ fn split_csv_path_headers(
     Ok((path_part.to_owned(), Some(split_headers)))
 }
 
-/// Parse repeated `--input KIND NAME=PATH` argument pairs — port of
-/// `query._parse_custom_input_bindings`. Returns `(kind, name, path)`
-/// entries. KIND is validated against the registry by the caller.
+/// Parse repeated `--input KIND NAME=PATH` argument pairs. Returns
+/// `(kind, name, path)` entries. KIND is validated against the registry by
+/// the caller.
 fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, String)>, String> {
     let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut entries: Vec<(String, String, String)> = Vec::new();
@@ -390,8 +383,8 @@ struct ParsedInputArgs {
     custom: Vec<(String, String, String)>,
 }
 
-/// Validate every side-input flag group, in Python's order (json, jsonl,
-/// csv, f5log, generic). Returns the first parse error's message.
+/// Validate every side-input flag group, in order (json, jsonl, csv, f5log,
+/// generic). Returns the first parse error's message.
 fn parse_input_args(args: &InputArgs) -> Result<ParsedInputArgs, String> {
     Ok(ParsedInputArgs {
         json: parse_input_bindings(args.input_json, "--input-json", false)?,
@@ -402,13 +395,12 @@ fn parse_input_args(args: &InputArgs) -> Result<ParsedInputArgs, String> {
     })
 }
 
-/// Read each side-input file and build the `$NAME`-bound [`SideInput`]s —
-/// port of `_run_query`'s `_load_side_input` loop.
+/// Read each side-input file and build the `$NAME`-bound [`SideInput`]s.
 ///
 /// Each binding reads its file, collides-checks the URI against positional
 /// inputs and prior side inputs, and refuses to re-bind a `$NAME` already
 /// claimed by an earlier `--input*` flag. Returns `(message, exit_code)` on
-/// the first failure. Order matches Python: json, jsonl, csv, f5log, generic.
+/// the first failure. Order: json, jsonl, csv, f5log, generic.
 fn load_side_inputs(
     parsed: &ParsedInputArgs,
     path_for_uri: &[(String, String)],
@@ -526,8 +518,7 @@ fn load_one_side_input(
     Ok(())
 }
 
-/// Render the `--help-inputs` catalogue — port of the Python
-/// `_HelpInputFormatsAction`.
+/// Render the `--help-inputs` catalogue.
 #[must_use]
 pub fn help_inputs_text() -> String {
     use std::fmt::Write as _;
@@ -551,11 +542,10 @@ pub fn help_inputs_text() -> String {
     out
 }
 
-/// Parse repeated `--render-opt KEY=VALUE` into a flat map — port of
-/// `query._parse_render_opts`.
+/// Parse repeated `--render-opt KEY=VALUE` into a flat map.
 ///
-/// Duplicate keys take the last value. Returns the exact Python error string
-/// when an entry is malformed.
+/// Duplicate keys take the last value. Returns a fixed error string when an
+/// entry is malformed.
 ///
 /// # Errors
 ///
@@ -574,8 +564,8 @@ pub fn parse_render_opts(raw: &[String]) -> Result<BTreeMap<String, String>, Str
     Ok(opts)
 }
 
-/// Flatten top-level `Stream`s — port of `output._flat`, needed to build the
-/// multi-file JSON envelope's inner value arrays.
+/// Flatten top-level `Stream`s, needed to build the multi-file JSON
+/// envelope's inner value arrays.
 fn flat(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
@@ -592,8 +582,8 @@ fn flat(values: &[Value]) -> Vec<Value> {
 /// loaded config as one logical namespace; `write` / `in_place` pick the
 /// mutation emit path; `strict` selects the empty-match exit code.
 //
-// Each field mirrors a distinct user-facing CLI flag, so a bool-per-flag is
-// the faithful shape here.
+// Each field maps to a distinct user-facing CLI flag, so a bool-per-flag is
+// the natural shape here.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct QueryFlags {
@@ -603,7 +593,7 @@ pub struct QueryFlags {
     pub strict: bool,
 }
 
-/// The live-probe flags, mirroring `--enable-probes` / `--ca-bundle`. Threaded
+/// The live-probe flags (`--enable-probes` / `--ca-bundle`). Threaded
 /// into the runner's [`EvalContext`] so the network builtins can gate on the
 /// `--enable-probes` opt-in and the TLS-aware probes can pick up a CA bundle.
 pub struct ProbeArgs {
@@ -611,9 +601,8 @@ pub struct ProbeArgs {
     pub ca_bundle: Option<String>,
 }
 
-/// The raw side-input flag groups, mirroring the `--input-*` / `--input`
-/// argparse args. Parsed + validated inside [`run_query_verb`] so the error
-/// wording / order matches `_run_query` exactly.
+/// The raw side-input flag groups (`--input-*` / `--input`). Parsed +
+/// validated inside [`run_query_verb`] so the error wording / order is fixed.
 pub struct InputArgs<'a> {
     pub input_json: &'a [String],
     pub input_jsonl: &'a [String],
@@ -624,8 +613,7 @@ pub struct InputArgs<'a> {
 
 /// `f5 query` (read-only).
 //
-// Mirrors `_run_query`'s argparse fan-out; the argument count and length track
-// the Python entry point one-for-one.
+// The argument count and length track the verb's flag fan-out one-for-one.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn run_query_verb(
     expression: Option<&str>,
@@ -639,7 +627,7 @@ pub fn run_query_verb(
     format: &FormatArgs,
     probes: &ProbeArgs,
 ) -> anyhow::Result<u8> {
-    // Mirror `_run_query`'s up-front validation order and messages.
+    // Validate up-front, in a fixed order with fixed messages.
     let Some(expression) = expression else {
         eprintln!("error: no query expression supplied (positional or --from-file)");
         return Ok(2);
@@ -651,7 +639,7 @@ pub fn run_query_verb(
 
     // `--format tmsh` re-renders the parsed config as a `tmsh modify` script —
     // never a safe replacement for the on-disk SCF source. Reject the
-    // `--in-place` + tmsh combination up front (mirrors `_run_query`).
+    // `--in-place` + tmsh combination up front.
     if flags.in_place && (format.format == "tmsh" || format.format == "tmsh-delta") {
         eprintln!(
             "error: --in-place is incompatible with --format {} \
@@ -663,7 +651,7 @@ pub fn run_query_verb(
         return Ok(2);
     }
 
-    // `--in-place` requires a real path, not stdin (mirrors `_run_query`).
+    // `--in-place` requires a real path, not stdin.
     if flags.in_place && inputs.iter().any(|p| p.as_os_str() == "-") {
         eprintln!("error: --in-place requires a path, not stdin");
         return Ok(2);
@@ -690,9 +678,9 @@ pub fn run_query_verb(
         }
     };
 
-    // Parse every side-input flag group up front (mirrors `_run_query`'s
-    // order: json, jsonl, csv, f5log, then the generic --input). Each
-    // surfaces a parse error before any file IO.
+    // Parse every side-input flag group up front (order: json, jsonl, csv,
+    // f5log, then the generic --input). Each surfaces a parse error before
+    // any file IO.
     let parsed_inputs = match parse_input_args(input_args) {
         Ok(p) => p,
         Err(e) => {
@@ -702,14 +690,13 @@ pub fn run_query_verb(
     };
 
     // Load each input to `(uri, source)` via the UCS/stdin-aware reader, in
-    // source order. Reject duplicate URIs (mirrors `_run_query`).
+    // source order. Reject duplicate URIs.
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut sources: Vec<(String, String)> = Vec::with_capacity(path_strs.len());
     let mut path_for_uri: Vec<(String, String)> = Vec::new();
     for path_str in &path_strs {
         // `--in-place` rewriting a UCS archive would mean repacking the
-        // gzipped tar and losing other artefacts — refuse (mirrors
-        // `_run_query`).
+        // gzipped tar and losing other artefacts — refuse.
         if flags.in_place && path_str != "-" && has_ucs_suffix(path_str) {
             eprintln!(
                 "error: --in-place not supported for UCS archives ({path_str}); \
@@ -790,8 +777,7 @@ pub fn run_query_verb(
         resolved_partitions.insert(uri, partition.clone());
     }
 
-    // Load every structured side-input into `$NAME`-bound `SideInput`s
-    // (port of `_run_query`'s `_load_side_input` loop).
+    // Load every structured side-input into `$NAME`-bound `SideInput`s.
     let side_inputs = match load_side_inputs(&parsed_inputs, &path_for_uri, &opts) {
         Ok(s) => s,
         Err((msg, code)) => {
@@ -801,9 +787,8 @@ pub fn run_query_verb(
     };
 
     // Side inputs participate in the multi-file source count (banner / JSON
-    // envelope) but never iterate as the primary `.` input — mirroring the
-    // Python runner, where they live in `sources` yet are skipped by the
-    // per-file loop's `_is_json_source` check.
+    // envelope) but never iterate as the primary `.` input: they live in
+    // `sources` yet are skipped by the per-file loop's source check.
     let n_sources = sources.len() + side_inputs.len();
 
     let query_opts = QueryOptions {
@@ -812,9 +797,9 @@ pub fn run_query_verb(
         side_inputs,
         enable_probes: probes.enable_probes,
         ca_bundle: probes.ca_bundle.clone(),
-        // `ucs_cert` re-opens a cert from inside a UCS (decrypt + un-tar in the
-        // `tooling` UCS layer); inject a reader using the same passphrase
-        // resolution the input loader uses, mirroring the Python CLI wiring.
+        // `ucs_cert` re-opens a cert from inside a UCS (decrypt + un-tar);
+        // inject a reader using the same passphrase resolution the input
+        // loader uses.
         ucs_cert_reader: Some(make_ucs_cert_reader()),
         merge: flags.merge,
     };
@@ -834,7 +819,7 @@ pub fn run_query_verb(
     emit_values(&result, n_sources, mode, render_opts, flags.strict)
 }
 
-/// Emit the result of a mutating query — port of `query._emit_mutation`.
+/// Emit the result of a mutating query.
 ///
 /// Default: a unified-diff preview per changed file. `--write`: the rewritten
 /// config to stdout. `--in-place`: overwrite each input. A no-op (no file
@@ -849,8 +834,8 @@ fn emit_mutation(
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     for (uri, applied) in &result.edits_per_file {
-        // Surface every rename report on stderr — port of `_emit_mutation`'s
-        // `renamed {old!r} -> {new!r} ({n} occurrence(s))` loop.
+        // Surface every rename report on stderr as
+        // `renamed {old!r} -> {new!r} ({n} occurrence(s))`.
         for rep in &applied.rename_reports {
             eprintln!(
                 "renamed {} -> {} ({} occurrence(s))",
@@ -860,7 +845,7 @@ fn emit_mutation(
             );
         }
         // A "mutating" query that produced no actual textual change exits 1
-        // (no-op), mirroring `f5 rename`.
+        // (no-op).
         if applied.new_source == applied.original {
             continue;
         }
@@ -912,7 +897,7 @@ fn emit_mutation(
     Ok(0)
 }
 
-/// Render the per-file values — port of `_emit_values` (read path).
+/// Render the per-file values (read path).
 fn emit_values(
     result: &tcl_bigip_query::QueryResult,
     n_sources: usize,
@@ -964,7 +949,7 @@ fn emit_values(
     Ok(empty_match_exit_code(any_matched, strict))
 }
 
-/// Decide the read-only exit code — port of `_empty_match_exit_code`.
+/// Decide the read-only exit code.
 ///
 /// jq-style: `0` whether or not the query matched; `--strict` opts into
 /// `exit 1 when nothing matched`.
@@ -972,9 +957,8 @@ fn empty_match_exit_code(any_matched: bool, strict: bool) -> u8 {
     u8::from(!any_matched && strict)
 }
 
-/// Render the `--help-renderers` catalogue — port of the Python
-/// `_HelpRenderersAction`: each registered renderer's name, summary,
-/// `accepts`, and details, then the usage footer.
+/// Render the `--help-renderers` catalogue: each registered renderer's name,
+/// summary, `accepts`, and details, then the usage footer.
 #[must_use]
 pub fn help_renderers_text() -> String {
     use std::fmt::Write as _;
@@ -1009,7 +993,7 @@ mod ucs_cert_tests {
     // The committed UCS holds a metadata-free `sys file ssl-cert` stanza plus
     // the real PEM in the filestore; `ucs_cert` must recover the cert's identity
     // from the PEM, not the stanza. (End-to-end reachability via the query DSL
-    // additionally needs the unported `sys file-ssl-cert` projection.)
+    // additionally needs the unimplemented `sys file-ssl-cert` projection.)
     const CACHE_PATH: &str = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1";
     const EXPECTED_FP: &str = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD";
 

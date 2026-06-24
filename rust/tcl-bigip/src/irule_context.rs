@@ -1,4 +1,4 @@
-//! iRule context engine — a faithful port of `ai/shared/irule_context.py`.
+//! iRule context engine.
 //!
 //! For one `ltm rule`, [`build_irule_context`] walks the rule body and resolves
 //! every BIG-IP object it references (pools, data groups, persistence, SNAT
@@ -25,15 +25,15 @@ use crate::model::{
 use crate::parser::driver::{BigipConfig, Placed};
 use crate::range::Range;
 
-// ── Minimal insertion-ordered JSON (with `null`) ─────────────────────
+// Minimal insertion-ordered JSON (with `null`)
 //
-// Mirrors `json.dumps(value, indent=2, ensure_ascii=True)` without
-// `sort_keys` (object keys keep insertion order). A sibling of
+// Matches a 2-space-indented, ASCII-escaped JSON encoding that keeps
+// object keys in insertion order (not sorted). A sibling of
 // `convert::Json`, extended with a `Null` variant for the `None` fields the
 // context dict carries.
 
 /// A minimal insertion-ordered JSON value. Object keys preserve insertion
-/// order; serialised with `json.dumps(indent=2)`-parity.
+/// order; serialised with 2-space indentation.
 enum Json {
     /// JSON `null`.
     Null,
@@ -90,7 +90,7 @@ impl Json {
         }
     }
 
-    /// Serialise as `json.dumps(value, indent=2)` would (no trailing newline).
+    /// Serialise as 2-space-indented JSON (no trailing newline).
     fn dumps_indent2(&self) -> String {
         let mut out = String::new();
         self.write(&mut out, 0);
@@ -105,8 +105,7 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
-/// Render an optional non-empty string as a JSON string, else `null`
-/// (Python `value or None`).
+/// Render an optional non-empty string as a JSON string, else `null`.
 fn str_or_null(s: &str) -> Json {
     if s.is_empty() {
         Json::Null
@@ -115,10 +114,10 @@ fn str_or_null(s: &str) -> Json {
     }
 }
 
-// ── The bundle ───────────────────────────────────────────────────────
+// The bundle
 
-/// A resolved iRule plus every BIG-IP object it references (port of the
-/// `IruleContextBundle` dataclass). Each per-kind list keeps the
+/// A resolved iRule plus every BIG-IP object it references. Each per-kind
+/// list keeps the
 /// reference-walk insertion order; `unresolved` keeps first-seen kind order;
 /// `source_slices` keeps insertion order.
 pub struct IruleContextBundle {
@@ -146,8 +145,8 @@ pub struct IruleContextBundle {
     pub source_slices: Vec<(String, String)>,
 }
 
-/// An order-preserving, insert-if-absent map (Python dict + `setdefault`):
-/// the first insertion fixes the position, later inserts of the same key are
+/// An order-preserving, insert-if-absent map: the first insertion fixes the
+/// position, later inserts of the same key are
 /// no-ops (object values are deterministic per full-path key, so this matches
 /// both `d[key] = obj` and `d.setdefault(key, obj)`).
 struct OrderedMap<T> {
@@ -174,10 +173,10 @@ impl<T> OrderedMap<T> {
     }
 }
 
-// ── Reference-kind classification (port of `_classify_kind`) ─────────
+// Reference-kind classification
 
-/// Map an object reference's kinds to a coarse bucket, or `None` to skip
-/// (port of `_classify_kind`). Shared with the `f5 irule trace` verb.
+/// Map an object reference's kinds to a coarse bucket, or `None` to skip.
+/// Shared with the `f5 irule trace` verb.
 #[must_use]
 pub fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
     if kinds.contains(&"ltm_pool") {
@@ -210,7 +209,7 @@ pub fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
     None
 }
 
-// ── Per-kind views over the merged config ────────────────────────────
+// Per-kind views over the merged config
 
 /// The per-kind object lists the resolver reasons about, in config source
 /// order (so the `resolve_name` suffix-match fallback is deterministic).
@@ -260,8 +259,8 @@ impl<'a> ConfigView<'a> {
     }
 }
 
-/// Resolve a possibly-short `name` to an index into `entries` (port of
-/// `BigipConfig.resolve_name`): exact, then `default_partition`-qualified,
+/// Resolve a possibly-short `name` to an index into `entries`: exact, then
+/// `default_partition`-qualified,
 /// then `/Common/`, then a suffix match against any partition.
 fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) -> Option<usize> {
     if let Some(i) = entries.iter().position(|e| e.0 == name) {
@@ -292,11 +291,10 @@ fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) ->
     entries.iter().position(|e| e.0.ends_with(&suffix))
 }
 
-// ── Source slicing (port of `_slice_for` / `_origin_for_object`) ─────
+// Source slicing
 
-/// Return the source text that contains an object (port of
-/// `_origin_for_object`): `sources[config_origin]` when present, else the sole
-/// source when there is exactly one, else `None`.
+/// Return the source text that contains an object: `sources[config_origin]`
+/// when present, else the sole source when there is exactly one, else `None`.
 #[must_use]
 pub fn origin_source<'a>(
     sources: &'a [(String, String)],
@@ -314,9 +312,9 @@ pub fn origin_source<'a>(
 }
 
 /// Resolve an object reference of `kind` named `name` against `config`,
-/// returning the resolved full-path (port of `dialects/f5/bigip/lint`'s
-/// `_resolve_reference`). Shares the `resolve_name`-over-model resolver with
-/// [`build_irule_context`]; consumed by the `f5 irule trace` verb.
+/// returning the resolved full-path. Shares the `resolve_name`-over-model
+/// resolver with [`build_irule_context`]; consumed by the `f5 irule trace`
+/// verb.
 #[must_use]
 pub fn resolve_reference(config: &BigipConfig, kind: &str, name: &str) -> Option<String> {
     let view = ConfigView::build(config);
@@ -340,8 +338,8 @@ pub fn resolve_reference(config: &BigipConfig, kind: &str, name: &str) -> Option
     }
 }
 
-/// Slice the original config text for an object's `range` (port of
-/// `_slice_for`): the line-span `[start.line, end.line]`, right-stripped with
+/// Slice the original config text for an object's `range`: the line-span
+/// `[start.line, end.line]`, right-stripped with
 /// a single trailing newline. Returns `None` when out of bounds.
 fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
     let source = source?;
@@ -369,10 +367,9 @@ fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
     Some(format!("{}\n", chunk.trim_end()))
 }
 
-// ── build_irule_context ──────────────────────────────────────────────
+// build_irule_context
 
-/// Walk `rule` and return every BIG-IP object it references (port of
-/// `build_irule_context`).
+/// Walk `rule` and return every BIG-IP object it references.
 ///
 /// `merged` is the config (or merged union of configs) references resolve
 /// against. `transitive` expands one level deeper (pool members → nodes, pool
@@ -561,7 +558,7 @@ pub fn build_irule_context(
     }
 }
 
-/// Iterate a pool's typed members (mirrors `crate::lint`'s `member_iter`).
+/// Iterate a pool's typed members.
 fn member_iter(pool: &BigipPool) -> impl Iterator<Item = &crate::model::BigipPoolMember> {
     pool.members.items.iter().filter_map(|item| {
         if let crate::value::ListItemValue::PoolMember(m) = &item.value {
@@ -572,7 +569,7 @@ fn member_iter(pool: &BigipPool) -> impl Iterator<Item = &crate::model::BigipPoo
     })
 }
 
-// ── JSON rendering (port of `context_bundle_to_dict`) ────────────────
+// JSON rendering
 
 fn summarise_pool(pool: &BigipPool) -> Json {
     let members: Vec<Json> = member_iter(pool)
@@ -681,7 +678,7 @@ fn rule_dict(r: &BigipRule) -> Json {
     ])
 }
 
-/// Sorted-unique copy of `names` (Python `sorted(set(names))`).
+/// Sorted-unique copy of `names`.
 fn sorted_unique(names: &[String]) -> Vec<String> {
     let mut v: Vec<String> = names
         .iter()
@@ -765,14 +762,13 @@ fn bundle_to_json(bundle: &IruleContextBundle) -> Json {
     ])
 }
 
-/// Serialise a single bundle as `json.dumps(context_bundle_to_dict(bundle),
-/// indent=2)` (no trailing newline).
+/// Serialise a single bundle as 2-space-indented JSON (no trailing newline).
 #[must_use]
 pub fn context_bundle_to_json(bundle: &IruleContextBundle) -> String {
     bundle_to_json(bundle).dumps_indent2()
 }
 
-/// Serialise many bundles as `json.dumps({"bundles": [...]}, indent=2)` (no
+/// Serialise many bundles as a 2-space-indented `{"bundles": [...]}` object (no
 /// trailing newline) — the stdout/single-file multi-bundle form.
 #[must_use]
 pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {
@@ -783,7 +779,7 @@ pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {
     .dumps_indent2()
 }
 
-// ── Text rendering (port of `context_bundle_to_text`) ────────────────
+// Text rendering
 
 fn render_pool_text(pool: &BigipPool) -> String {
     let mut lines = vec![format!("ltm pool {} {{", pool.full_path)];
@@ -884,8 +880,7 @@ fn render_node_text(n: &BigipNode) -> String {
     format!("ltm node {} {{ address {addr} }}\n", n.full_path)
 }
 
-/// Prefer a real source slice; fall back to the synthetic stanza (port of
-/// `_render_object_text`).
+/// Prefer a real source slice; fall back to the synthetic stanza.
 fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: String) -> String {
     bundle
         .source_slices
@@ -894,8 +889,7 @@ fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: St
         .map_or(fallback, |(_, slice)| slice.clone())
 }
 
-/// Render `bundle` as a single Tcl-flavoured text block (port of
-/// `context_bundle_to_text`).
+/// Render `bundle` as a single Tcl-flavoured text block.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
@@ -914,7 +908,7 @@ pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
         parts.push("}".to_owned());
     }
 
-    // (kind label, entries) in the fixed Python order.
+    // (kind label, entries) in the fixed order.
     let mut sections: Vec<(&str, Vec<(String, String)>)> = Vec::new();
     sections.push((
         "pool",

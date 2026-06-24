@@ -29,7 +29,7 @@ use tcl_vm::{CompileError, CompileService, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
-/// pipeline (lower → CFG → bytecode). Mirrors the `eval` / `run_test` examples.
+/// pipeline (lower → CFG → bytecode). Matches the `eval` / `run_test` examples.
 struct Svc(CommandRegistry);
 
 impl CompileService for Svc {

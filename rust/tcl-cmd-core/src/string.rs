@@ -5,10 +5,12 @@
 //! in [`tcl_syntax::value`]), so a byte-oriented runtime conforms via its
 //! `ValueOps` impl and these bodies stay correct everywhere.
 //!
-//! This is the Phase-1 proving subset (`length`/`index`/`range`/`reverse`/
-//! `repeat`/`toupper`/`tolower`); the remaining subcommands fill in during
-//! rollout. [`dispatch`] returns `None` for a not-yet-ported subcommand so a
-//! runtime can fall back to its legacy implementation during migration.
+//! [`dispatch`] covers the portable subcommands shared across both
+//! runtimes (`length`/`index`/`range`/`map`/`match`/`replace`/`insert`/
+//! `first`/`last`/`trim*`/`wordstart`/`wordend`/`to{upper,lower,title}`/
+//! `reverse`/`repeat`/`cat`). It returns `None` for any subcommand a given
+//! runtime still implements itself, so a host can fall back to its own
+//! body for the few not routed here.
 
 use tcl_syntax::value::ValueOps;
 
@@ -394,7 +396,7 @@ fn trim_dispatch<O: ValueOps>(
 /// arguments after the subcommand.
 ///
 /// Returns `Some(result)` when the subcommand is handled here, or `None` when it
-/// is not yet ported — letting a migrating runtime fall back to its legacy
+/// is not handled here — letting the calling runtime fall back to its own
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
 /// bad index, …).
 pub fn dispatch_canon<O: ValueOps>(
@@ -481,8 +483,7 @@ pub fn dispatch_canon<O: ValueOps>(
             .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], true))),
         "wordend" => arity(2, "string wordend string index")
             .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], false))),
-        // Not yet ported into the core — caller falls back to its legacy path
-        // (`is`, …).
+        // Not handled here — caller falls back to its own path (`is`, …).
         _ => None,
     }
 }
@@ -587,8 +588,7 @@ mod tests {
 
     #[test]
     fn word_start_finds_word_boundaries() {
-        // Tcl `string wordstart` semantics — cmd-core string.rs had no unit
-        // coverage (TEST-MIGRATE). "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
+        // Tcl `string wordstart` semantics. "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
         let c = chars("abc def");
         assert_eq!(word_start(&c, 1), 0); // inside "abc"
         assert_eq!(word_start(&c, 5), 4); // inside "def"

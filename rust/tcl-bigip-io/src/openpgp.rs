@@ -1,7 +1,6 @@
 //! Minimal, dependency-free `OpenPGP` *symmetric* (passphrase) decryptor.
 //!
-//! A faithful Rust port of `tooling/f5/f5_remote/_openpgp.py` — the pure-Python
-//! fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
+//! The pure-Rust fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
 //! out to `gpg`. BIG-IP encrypts UCS files with `GnuPG` using a passphrase and a
 //! 128-bit AES symmetric cipher (F5 KB K5437), producing an ordinary `OpenPGP`
 //! message:
@@ -21,8 +20,8 @@
 //! * ZIP / ZLIB inner compression (raw / zlib-wrapped DEFLATE via `flate2`).
 //! * Old- and new-format packet headers including partial body lengths.
 //!
-//! Out of scope (returns [`OpenPgpError`], pointing at gpg, exactly like the
-//! Python): public-key encryption, non-AES ciphers, AEAD / SEIPD v2, BZIP2
+//! Out of scope (returns [`OpenPgpError`], pointing at gpg): public-key
+//! encryption, non-AES ciphers, AEAD / SEIPD v2, BZIP2
 //! inner compression, and the obsolete MDC-less SED packet (tag 9).
 
 use std::io::Read;
@@ -35,8 +34,8 @@ use crate::aes_cfb::{Aes, cfb_decrypt};
 const BLOCK: usize = 16;
 
 /// The message could not be parsed or uses an unsupported feature, or
-/// decryption failed (almost always a wrong passphrase). Mirrors the Python
-/// `OpenPGPError` / `OpenPGPDecryptError` pair; the message text matches.
+/// decryption failed (almost always a wrong passphrase). A single type
+/// carries the human-facing text for every failure mode.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct OpenPgpError(pub String);
@@ -57,12 +56,10 @@ fn cipher_keylen(cipher_id: u8) -> Option<usize> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Packet framing
-// ---------------------------------------------------------------------------
 
-/// Read `n` big-endian bytes at `off`, erroring on truncation (the Python
-/// raises `IndexError`/`struct.error`, normalised to `OpenPgpError`).
+/// Read `n` big-endian bytes at `off`, erroring on truncation (a read past
+/// the end of `data` yields `OpenPgpError`).
 fn be(data: &[u8], off: usize, n: usize) -> Result<u32, OpenPgpError> {
     if off + n > data.len() {
         return Err(OpenPgpError::new("malformed or truncated OpenPGP message"));
@@ -110,7 +107,7 @@ fn read_old_length(data: &[u8], ctb: u8, off: usize) -> Result<(usize, usize), O
     }
 }
 
-/// Saturating slice, mirroring Python's lenient `data[off:off+len]`.
+/// Saturating slice (lenient out-of-range indexing).
 fn slice_sat(data: &[u8], off: usize, len: usize) -> &[u8] {
     let start = off.min(data.len());
     let end = off.saturating_add(len).min(data.len());
@@ -156,9 +153,7 @@ fn parse_packets(data: &[u8]) -> Result<Vec<(u8, Vec<u8>)>, OpenPgpError> {
     Ok(packets)
 }
 
-// ---------------------------------------------------------------------------
 // String-to-key
-// ---------------------------------------------------------------------------
 
 struct S2k {
     hash_id: u8,
@@ -279,9 +274,7 @@ fn make_cipher(cipher_id: u8, key: &[u8]) -> Result<Aes, OpenPgpError> {
     Aes::new(key).map_err(OpenPgpError::new)
 }
 
-// ---------------------------------------------------------------------------
 // Packet handlers
-// ---------------------------------------------------------------------------
 
 /// Symmetric-Key Encrypted Session Key packet → `(cipher_id, session_key)`.
 fn decode_skesk(body: &[u8], passphrase: &[u8]) -> Result<(u8, Vec<u8>), OpenPgpError> {
@@ -390,9 +383,7 @@ fn extract_literal(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     ))
 }
 
-// ---------------------------------------------------------------------------
 // ASCII armor (binary UCS files are not armored, but be liberal in input)
-// ---------------------------------------------------------------------------
 
 fn maybe_dearmor(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     let lead = &data[..data.len().min(64)];
@@ -465,14 +456,12 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /// Decrypt a passphrase-encrypted `OpenPGP` message; return the plaintext.
 ///
 /// Returns [`OpenPgpError`] for a wrong passphrase, malformed input, or an
-/// unsupported feature — the message text mirrors the Python decryptor.
+/// unsupported feature.
 pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     let packets = parse_packets(&maybe_dearmor(data)?)?;
 

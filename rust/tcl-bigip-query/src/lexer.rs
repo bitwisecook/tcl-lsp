@@ -1,12 +1,11 @@
 //! Tokeniser for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/lexer.py`. The grammar is small
-//! enough that a hand-rolled scanner is shorter than the regex it would
-//! replace. Tokens carry their offset so parse errors can underline the
-//! offending character.
+//! The grammar is small enough that a hand-rolled scanner is shorter than the
+//! regex it would replace. Tokens carry their offset so parse errors can
+//! underline the offending character.
 //!
 //! Offsets are *code-point* indices (the source is scanned as a
-//! `Vec<char>`), matching Python's `source[i]` indexing exactly so a
+//! `Vec<char>`), matching `source[i]` indexing exactly so a
 //! non-ASCII string literal does not skew the reported positions.
 
 use crate::ast::LitValue;
@@ -14,7 +13,7 @@ use crate::errors::QueryError;
 
 /// The lexical category of a token.
 ///
-/// Variant names match the Python `TokenKind` enum members one-for-one so
+/// Variant names match `TokenKind` enum members one-for-one so
 /// the differential fixtures line up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
@@ -64,7 +63,7 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    /// The Python `TokenKind` member name, used by the differential test.
+    /// The `TokenKind` member name, used by the differential test.
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
@@ -440,9 +439,40 @@ pub fn tokenise(source: &str) -> Result<Vec<Token>, QueryError> {
                     while j < n && chars[j].is_ascii_digit() {
                         j += 1;
                     }
-                    LitValue::Float(slice(i, j).parse::<f64>().expect("valid float literal"))
+                    let text = slice(i, j);
+                    // A run of digits with a single dot is always a valid
+                    // `f64` lexeme; out-of-range magnitudes saturate to
+                    // ±inf rather than failing, so `parse` cannot error here.
+                    // Guard it anyway so a future grammar change can never
+                    // turn a malformed number into a panic.
+                    match text.parse::<f64>() {
+                        Ok(f) => LitValue::Float(f),
+                        Err(_) => {
+                            return Err(QueryError::Lex {
+                                message: format!("invalid number literal {}", py_repr_str(&text)),
+                                offset: start,
+                            });
+                        }
+                    }
                 } else {
-                    LitValue::Int(slice(i, j).parse::<i64>().expect("valid integer literal"))
+                    let text = slice(i, j);
+                    // The integer literal is untrusted user input: a digit run
+                    // longer than `i64::MAX` (`99999999999999999999`) overflows
+                    // the parse. Report a clean lex error instead of panicking
+                    // — this DSL has no big-int model, so the value is simply
+                    // out of range.
+                    match text.parse::<i64>() {
+                        Ok(int) => LitValue::Int(int),
+                        Err(_) => {
+                            return Err(QueryError::Lex {
+                                message: format!(
+                                    "integer literal {} is out of range for a 64-bit integer",
+                                    py_repr_str(&text)
+                                ),
+                                offset: start,
+                            });
+                        }
+                    }
                 };
             out.push(Token {
                 kind: TokenKind::Number,
@@ -500,10 +530,10 @@ pub fn tokenise(source: &str) -> Result<Vec<Token>, QueryError> {
     Ok(out)
 }
 
-/// Render *s* the way Python's `repr()` would for a `str` — the spelling
+/// Render *s* the way `repr()` would for a `str` — the spelling
 /// the DSL's error messages embed via `{value!r}`. Single-quoted by
 /// default, switching to double quotes only when the string contains a
-/// single quote but no double quote (matching `CPython`'s quote choice), with
+/// single quote but no double quote (the single-quote choice), with
 /// backslash / newline / tab / carriage-return escaping.
 ///
 /// Shared by the lexer (`unexpected character {ch!r}`) and the parser

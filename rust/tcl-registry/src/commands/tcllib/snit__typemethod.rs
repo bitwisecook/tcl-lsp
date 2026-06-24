@@ -10,7 +10,7 @@ pub fn spec() -> CommandSpec {
         name: "snit::typemethod",
         dialects: None,
         arity: Arity::exact(4),
-        // SYNC2: snit typemethod bodies run in a dispatch context.
+        // Snit typemethod bodies run in a dispatch context.
         arg_roles: &[(2, ArgRole::ParamList), (3, ArgRole::Body)],
         body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {

@@ -1,5 +1,5 @@
 //! `Folder` + `ObjectPath` value types — F5 admin folders and full
-//! object paths. Rust port of `_folder.py`.
+//! object paths.
 
 use super::error::ValueError;
 use super::partition::{Partition, is_partition_valid_char};
@@ -11,8 +11,7 @@ fn is_folder_segment_valid_char(c: char) -> bool {
     is_partition_valid_char(c)
 }
 
-/// Split on `/`, dropping empty segments — mirrors Python
-/// `text.strip("/").split("/")` filtered for truthiness.
+/// Split on `/`, dropping empty segments.
 fn split_path_segments(text: &str) -> Vec<&str> {
     text.split('/').filter(|p| !p.is_empty()).collect()
 }

@@ -1,7 +1,7 @@
 //! PCAP flow extraction and session pairing for `f5 explain-flow`.
 //!
-//! Faithful port of the `dialects/f5/bigip/flow/` package: walk a capture into
-//! per-5-tuple [`Flow`]s ([`packets::extract_flows`]), then pair them into
+//! Walks a capture into
+//! per-5-tuple [`Flow`]s ([`packets::extract_flows`]), then pairs them into
 //! bidirectional [`Connection`]s and front/back [`Session`]s
 //! ([`sessions::pair_sessions`]). The per-session *explanation* (which virtual
 //! server matched, the iRule event chain, the policy trace) is built by the

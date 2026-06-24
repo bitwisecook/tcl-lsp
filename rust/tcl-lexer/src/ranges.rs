@@ -1,33 +1,30 @@
 //! Authoritative span/range accessors for delimited word tokens.
 //!
-//! Ports the source-aware closer accessors from the Python
-//! `shared/ranges.py` (`word_closer_offset` / `word_end_position`,
-//! landed on `main` by #533 / `SYNC-JUN06`).  They derive a delimited
+//! The source-aware closer accessors `word_closer_offset` /
+//! `word_end_position` derive a delimited
 //! word's closing `}` / `]` / `"` from the lexer's content geometry —
 //! **not** by re-deriving `tok.end.offset + 1`, which overshoots an
-//! empty `{}` / `[]` / `""` (issue #527: a trailing empty `{}` swallows
+//! empty `{}` / `[]` / `""` (a trailing empty `{}` swallows
 //! the enclosing body's `}`).
 //!
 //! These are the lossless, source-aware primitives the concrete syntax
-//! tree (`CST-PORT`) and any caller that needs to *slice source* (a
+//! tree and any caller that needs to *slice source* (a
 //! refactor edit extracting a word's raw text) build on.  Command/word
 //! *ranges* owned by the segmenter use the inner-end convention and
 //! widen only when they need the closer — see
 //! [`crate::SourceMap::range_positions`] and the segmenter's
 //! `command_span`.
 //!
-//! The Python `Token` carries inline `start` / `end` `SourcePosition`s
-//! and a `text` field; the Rust [`Token`] carries only a [`Span`], with
-//! text and positions resolved on demand through a [`SourceMap`].  These
-//! accessors therefore take `&SourceMap` where the Python signatures
-//! took a bare `source: str`.
+//! The [`Token`] carries only a [`Span`], with text and positions
+//! resolved on demand through a [`SourceMap`].  These accessors
+//! therefore take `&SourceMap` to recover a word's source geometry.
 //!
 //! [`Token`]: crate::Token
 //! [`Span`]: crate::Span
 //! [`SourceMap`]: crate::SourceMap
 
 use crate::source_map::SourceMap;
-use crate::tokens::{SourcePosition, Token};
+use crate::tokens::{ByteCol, SourcePosition, Token};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
 const fn closer_for(opener: u8) -> Option<u8> {
@@ -41,16 +38,20 @@ const fn closer_for(opener: u8) -> Option<u8> {
 
 /// Position of the closing delimiter one byte past *end*.
 ///
-/// Ports `shared/ranges.py::_closer_position`.  *`last_inner`* is the byte
+/// *`last_inner`* is the byte
 /// at `end.offset` (the last byte inside the word).  When it is a
 /// newline the closer sits at column 0 of the next line, so the
 /// line/column advance accordingly — keeping them consistent with
 /// `offset` for line/column-based consumers.
 fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePosition {
     if matches!(last_inner, Some(b'\n' | b'\r')) {
-        SourcePosition::new(end.line + 1, 0, end.offset + 1)
+        SourcePosition::new(end.line + 1, ByteCol::new(0), end.offset + 1)
     } else {
-        SourcePosition::new(end.line, end.character + 1, end.offset + 1)
+        SourcePosition::new(
+            end.line,
+            ByteCol::new(end.character.get() + 1),
+            end.offset + 1,
+        )
     }
 }
 
@@ -72,15 +73,13 @@ fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePositio
 /// Returns `None` when *tok* does not begin with an opening delimiter, or
 /// when the word is unterminated (the computed position is not the
 /// matching closer).  *tok* and *sm* must share a coordinate frame.
-///
-/// Ports `shared/ranges.py::word_closer_offset` (#533 / `SYNC-JUN06`).
 #[must_use]
 pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
     let bytes = sm.source().as_bytes();
     let start = tok.span.start();
     let opener = *bytes.get(start as usize)?;
     let closer = closer_for(opener)?;
-    // `end.offset` is the Python `tok.end.offset` (inclusive end): the
+    // `end.offset` is `tok.end.offset` (inclusive end): the
     // last inner byte for a non-empty word, or the closer itself for an
     // empty `{}` / `[]` / `""`.
     let (_first, end) = sm.range_positions(tok.span);
@@ -107,8 +106,6 @@ pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
 /// any non-delimited or unterminated token the inclusive end is returned
 /// unchanged.  Unlike the segmenter's `command_span` widening this also
 /// covers quoted `"..."` words.
-///
-/// Ports `shared/ranges.py::word_end_position` (#533 / `SYNC-JUN06`).
 #[must_use]
 pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
     let (_first, end) = sm.range_positions(tok.span);
@@ -297,7 +294,7 @@ mod tests {
         let sm = SourceMap::new(src);
         let tok = first_word(src);
         let pos = word_end_position(&sm, tok);
-        assert_eq!(pos, SourcePosition::new(0, 4, 4));
+        assert_eq!(pos, SourcePosition::new(0, ByteCol::new(4), 4));
     }
 
     #[test]
@@ -321,7 +318,7 @@ mod tests {
         let tok = first_word(src);
         assert_eq!(tok.kind, TokenType::Str);
         let pos = word_end_position(&sm, tok);
-        assert_eq!(pos, SourcePosition::new(1, 0, 3));
+        assert_eq!(pos, SourcePosition::new(1, ByteCol::new(0), 3));
         assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
     }
 

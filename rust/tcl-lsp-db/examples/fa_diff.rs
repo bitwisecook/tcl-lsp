@@ -26,12 +26,7 @@ fn main() {
     let full = file_analysis(&db, file, cfg);
 
     let key = |d: &tcl_compiler::analyser::Diagnostic| {
-        (
-            d.span.start(),
-            d.span.end(),
-            d.code.clone(),
-            d.message.clone(),
-        )
+        (d.span.start(), d.span.end(), d.code, d.message.clone())
     };
     let is: BTreeSet<_> = inc.diagnostics.iter().map(key).collect();
     let fs: BTreeSet<_> = full.diagnostics.iter().map(key).collect();

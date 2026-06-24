@@ -1,6 +1,4 @@
-//! Shared file-input helpers for f5 verbs — the Rust port of
-//! `tooling/f5/verbs/_paths.py` (`read_path` / `load_paths`) plus the
-//! passphrase-resolution glue from `ucs.py`.
+//! Shared file-input helpers for f5 verbs.
 //!
 //! `.ucs` archives — plain *or* encrypted (`OpenPGP`), and gzipped / `OpenPGP`
 //! streams from stdin — are transparently extracted to SCF, so every verb that
@@ -18,7 +16,7 @@ use crate::ucs::{
 };
 
 /// An error resolving a path input. Rendered as `error: {msg}` (exit 2) by the
-/// binary, mirroring the Python `(OSError, ValueError, FileNotFoundError)`
+/// binary, mirroring `(OSError, ValueError, FileNotFoundError)`
 /// handling.
 #[derive(Debug, thiserror::Error)]
 pub enum PathError {
@@ -40,7 +38,7 @@ impl From<UcsError> for PathError {
 }
 
 /// How to resolve a UCS decryption passphrase (the `add_passphrase_args` /
-/// `provider_from_args` shape from `_paths.py`).
+/// `provider_from_args` shape
 #[derive(Debug, Clone)]
 pub struct PassphraseOptions {
     /// An explicit passphrase (highest priority).
@@ -54,7 +52,7 @@ pub struct PassphraseOptions {
     /// `explicit` nor the env var resolved a value, this is invoked as the last
     /// resort (a binary wires a secure TTY prompt here). `Err`/empty falls
     /// through to the standard "set the env var" error — e.g. when there is no
-    /// controlling terminal — matching the Python provider's TTY fallback.
+    /// controlling terminal — matching the provider's TTY fallback.
     pub prompt: Option<fn() -> Result<String, String>>,
 }
 
@@ -127,8 +125,8 @@ fn looks_like_ucs(raw: &[u8], is_ucs_ext: bool, is_stdin: bool) -> bool {
 ///
 /// `.ucs` archives (plain or OpenPGP-encrypted) — and gzip / `OpenPGP` streams
 /// from stdin — are transparently extracted to SCF via [`ucs_archive_to_scf`].
-/// Other inputs are decoded UTF-8 with lossy replacement (Python `errors=
-/// "replace"`); `strict` makes an undecodable byte an error instead.
+/// Other inputs are decoded UTF-8 with lossy replacement (invalid bytes →
+/// U+FFFD); `strict` makes an undecodable byte an error instead.
 pub fn read_path(
     path_str: &str,
     strict: bool,
@@ -189,8 +187,8 @@ pub struct LoadedConfig {
     pub config: BigipConfig,
 }
 
-/// Resolve a list of path inputs into ordered [`LoadedConfig`]s (port of
-/// `load_paths`). Each path is read via [`read_path`] and parsed with the
+/// Resolve a list of path inputs into ordered [`LoadedConfig`]s. Each path is
+/// read via [`read_path`] and parsed with the
 /// `Common` default partition.
 pub fn load_paths(
     paths: &[String],
@@ -209,8 +207,8 @@ pub fn load_paths(
     Ok(out)
 }
 
-/// Build a `file://` URI from an absolute path, percent-encoding like Python's
-/// `Path.as_uri()` (`urllib.quote` with `safe="/"`).
+/// Build a `file://` URI from an absolute path, percent-encoding the path bytes
+/// and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
 fn file_uri(abs: &Path) -> String {
     use std::fmt::Write as _;
     let s = abs.to_string_lossy();

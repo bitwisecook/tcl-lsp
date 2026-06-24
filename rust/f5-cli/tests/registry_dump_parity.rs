@@ -1,13 +1,13 @@
 //! Differential parity tests for the `f5 registry-dump` verb.
 //!
-//! Runs the built `f5-query` binary and asserts stdout matches a golden
-//! captured from `python -m tooling.f5.main registry-dump …`. Self-contained:
-//! no Python at test time.
+//! Runs the built `f5-query` binary and asserts stdout matches the captured
+//! golden output for `registry-dump …`. Self-contained: no external tool runs
+//! at test time.
 //!
 //! The byte-parity sections (`profiles`, `objects`, `events`) are asserted
-//! against a golden. The `commands` / `all` sections are deferred in the Rust
-//! port (they embed the per-command traits/scalars dicts and hover prose
-//! catalogue), so they are asserted to fail cleanly with exit code 2.
+//! against a golden. The `commands` / `all` sections are not implemented (they
+//! embed the per-command traits/scalars dicts and hover prose catalogue), so
+//! they are asserted to fail cleanly with exit code 2.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -60,8 +60,7 @@ fn events_section_matches_golden() {
 
 #[test]
 fn profiles_section_to_file_matches_golden() {
-    // `--output FILE` writes the same canonical JSON plus a trailing newline,
-    // exactly like the Python verb's `fh.write(text + "\n")`.
+    // `--output FILE` writes the same canonical JSON plus a trailing newline.
     let expected =
         std::fs::read(golden_dir().join("registry_dump_profiles.golden")).expect("read golden");
     let tmp = std::env::temp_dir().join(format!("registry_dump_{}.json", std::process::id()));
@@ -99,8 +98,8 @@ fn deferred_sections_fail_cleanly() {
 
 #[test]
 fn default_section_is_all_and_deferred() {
-    // The default `--section all` contains the deferred commands snapshot, so
-    // the bare verb is deferred too.
+    // The default `--section all` includes the unimplemented commands
+    // snapshot, so the bare verb also exits 2.
     let output = run_f5(&["registry-dump"]);
     assert_eq!(output.status.code(), Some(2));
 }

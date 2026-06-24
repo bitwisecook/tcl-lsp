@@ -1,7 +1,6 @@
 //! Rich per-instruction explorer view for the WASM codegen output.
 //!
-//! Port of `compiler/codegen/wasm/_ir.py::WasmModule.to_explorer_json` (and its
-//! `_function_to_explorer_json` helper), built over the Rust
+//! Built over the
 //! [`WasmModule`](tcl_compiler::codegen::wasm::WasmModule) the eval-fallback
 //! emitter produces. It resolves, per instruction:
 //!
@@ -32,7 +31,7 @@ const BLOCK_VOID: u8 = 0x40;
 
 /// Build the structured explorer entries for `module`: a synthetic `(module)`
 /// header carrying imports + data segments, followed by one entry per function
-/// with its resolved instruction stream. Mirrors `WasmModule.to_explorer_json`.
+/// with its resolved instruction stream.
 #[must_use]
 pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) -> Vec<Value> {
     let num_imports = module.imports.len();
@@ -79,7 +78,7 @@ pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) 
 }
 
 /// A label dict for a WASM function index (imports occupy `0..num_imports`,
-/// defined functions follow). Mirrors the Python `_func_label` closure.
+/// defined functions follow). closure.
 fn func_label(module: &WasmModule, idx: usize) -> Value {
     let num_imports = module.imports.len();
     if idx < num_imports {
@@ -121,8 +120,7 @@ struct Frame {
     label: Option<String>,
 }
 
-/// Build the structured explorer view for a single function. Mirrors
-/// `_function_to_explorer_json`.
+/// Build the structured explorer view for a single function.
 fn function_to_explorer_json(
     module: &WasmModule,
     func: &WasmFunction,
@@ -287,8 +285,7 @@ struct Decoded {
 }
 
 /// Decode an instruction's operands into explorer display text and resolved
-/// call/branch targets. Mirrors the operand-decoding arm of the Python
-/// `_function_to_explorer_json`.
+/// call/branch targets.
 fn decode_instruction(
     op: WasmOp,
     operands: &[u8],
@@ -395,7 +392,7 @@ impl Frame {
 }
 
 /// Post-pass: copy `endIdx`/`elseIdx` onto each open instruction and the
-/// matching `openIdx` onto its `else`/`end`. Mirrors the Python cross-link pass.
+/// matching `openIdx` onto its `else`/`end`.
 fn attach_pairing(instructions: &mut [Value], open_info: &std::collections::HashMap<usize, Frame>) {
     // Reverse lookups: end-index → open-index, else-index → open-index.
     let mut end_to_open: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
@@ -469,7 +466,7 @@ fn valtype_byte_name(byte: u8) -> String {
 }
 
 /// Decode an unsigned LEB128 from the front of `data` (operand bytes are
-/// already a single encoded value). Mirrors the Python `_decode_leb128_unsigned`.
+/// already a single encoded value).
 fn decode_leb128_unsigned(data: &[u8]) -> u64 {
     let mut result: u64 = 0;
     let mut shift = 0;
@@ -492,8 +489,7 @@ fn decode_index(operands: &[u8]) -> Option<usize> {
     usize::try_from(decode_leb128_unsigned(operands)).ok()
 }
 
-/// Decode a signed LEB128 from the front of `data`. Mirrors
-/// `_decode_leb128_signed`.
+/// Decode a signed LEB128 from the front of `data`.
 fn decode_leb128_signed(data: &[u8]) -> i64 {
     let mut result: i64 = 0;
     let mut shift = 0u32;

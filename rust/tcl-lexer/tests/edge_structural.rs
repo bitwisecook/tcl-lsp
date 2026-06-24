@@ -4,7 +4,7 @@ use tcl_lexer::{
     script_is_complete,
 };
 
-// ── BracketIndex ──────────────────────────────────────────────────
+// BracketIndex
 
 #[test]
 fn bracket_empty_source() {
@@ -103,7 +103,7 @@ fn bracket_unterminated_brace_swallows_tail() {
     assert!(idx.close_bracket_balances(1));
 }
 
-// ── BraceIndex ────────────────────────────────────────────────────
+// BraceIndex
 
 #[test]
 fn brace_empty() {
@@ -149,7 +149,7 @@ fn brace_backslash_does_not_close() {
     assert_eq!(idx.unterminated_count(), 0);
 }
 
-// ── ExprParenIndex ────────────────────────────────────────────────
+// ExprParenIndex
 
 #[test]
 fn expr_empty() {
@@ -190,7 +190,7 @@ fn expr_close_paren_balances() {
     assert!(idx.close_paren_balances(6));
 }
 
-// ── script_is_complete ────────────────────────────────────────────
+// script_is_complete
 
 #[test]
 fn complete_simple() {
@@ -234,7 +234,7 @@ fn complete_cmd_sub_with_brace_word() {
     assert!(script_is_complete("[set x {b}{]"));
 }
 
-// ── command_boundaries / reparse_window ───────────────────────────
+// command_boundaries / reparse_window
 
 #[test]
 fn boundaries_simple() {

@@ -12,9 +12,9 @@ for worked examples of each concept.
 flowchart LR
     SRC["Source text"] --> LEX["1. Lexer<br/>Token stream"]
     LEX --> SEG["2. Segmenter<br/>SegmentedCommand"]
-    SEG --> IR["3. IR Lowering<br/>IRModule"]
-    IR --> CFG["4. CFG<br/>CFGModule"]
-    CFG --> SSA["5. SSA<br/>SSAFunction"]
+    SEG --> IR["3. IR Lowering<br/>Module"]
+    IR --> CFG["4. CFG<br/>CfgModule"]
+    CFG --> SSA["5. SSA<br/>SsaFunction"]
     SSA --> ANA["6. Core Analyses<br/>FunctionAnalysis"]
     ANA --> SP["7. Specialised Passes"]
     SP --> CG["8. Codegen<br/>FunctionAsm"]
@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
 
 ---
 
@@ -42,8 +42,7 @@ tokens with exact source ranges, handling Tcl's substitution rules
 (word expansion, braces, brackets, quotes, backslash escapes). The
 lexer is also responsible for preserving the whitespace and range
 information every later pass relies on to point diagnostics at the
-right character. Implemented in
-[`lexer.py`](../compiler/parsing/lexer.py).
+right character. Implemented by `Lexer` in `tcl_lexer::lexer`.
 
 ```mermaid
 flowchart LR
@@ -67,8 +66,7 @@ KCS tag: `lexing`.
 
 Abstract Syntax Tree — a tree representation of parsed source code
 structure.  In this compiler, expression bodies (`expr {…}`) are parsed
-into `ExprNode` AST trees
-([`expr_ast.py:174`](../compiler/expr_ast.py)).
+into `ExprNode` AST trees (`tcl_compiler::expr_ast`).
 
 ```mermaid
 graph TD
@@ -82,6 +80,24 @@ graph TD
 > (`*` binds tighter than `+`).
 
 See also: [Expression parsing](design/compiler/expression-parsing.md).
+KCS tag: `lexing`.
+
+### dialect
+
+The Tcl language-variant selector that picks which syntax and command
+set apply: `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, the `f5-irules`
+flavour, and related profiles. It is threaded from the workspace's
+language id all the way through the pipeline. On the lexer side,
+`LexerConfig::for_dialect` (`tcl_lexer::lexer`) turns a dialect name
+into the right flags — for example `tcl8.4` disables `{*}` word
+expansion and `f5-irules` enables the iRules brace separator, while an
+unknown name falls back to the Tcl-8.5+ defaults so a typo never
+silently changes parsing. On the registry side, each command's
+availability is gated by a `DialectSet` bitflags value
+(`tcl_registry::dialects`); a `None` set on a `CommandSpec` means the
+command is available in every dialect.
+
+See also: [Command registry](design/compiler/command-registry.md).
 KCS tag: `lexing`.
 
 ---
@@ -105,15 +121,14 @@ flowchart LR
 
 The lossless, position-independent syntax tree the segmenter builds, and the
 representation the formatter, minifier, AOT lowering, and per-command tooling
-are migrating onto. It follows the Roslyn / rust-analyzer **red-green** split:
+read from. It follows the Roslyn / rust-analyzer **red-green** split:
 the *green* tree stores only *widths* and children (so identical subtrees are
 shareable and an edit shifts a subtree for free), and a *red* overlay resolves
 absolute positions lazily, reproducing the exact `Token` offsets the lexer
 emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
 adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
-it byte-identically. Implemented in
-[`compiler/parsing/syntax/`](../compiler/parsing/syntax/).
+it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
 
 > Distinct from the [green token tree](design/compiler/green-token-tree.md), a
 > context-aware tokenisation *memo* (its node type is `TokenRegion`) whose tokens
@@ -130,11 +145,11 @@ KCS tag: `lexing`.
 
 The pass that turns the tokenised command stream into typed IR
 statements. Every command known to the registry maps to one or more
-`IRStatement` nodes via an `arg_roles` table that says which tokens
+`Statement` nodes via an `arg_roles` table that says which tokens
 are expressions, bodies, variable names, or literal arguments. The
 lowering dispatch is what lets the analyser treat `if`, `while`,
 `proc`, and user-defined commands uniformly downstream. Implemented
-in [`lowering.py`](../compiler/lowering.py).
+in `tcl_compiler::lowering`.
 
 ```mermaid
 flowchart LR
@@ -156,8 +171,8 @@ KCS tag: `lowering`.
 
 Intermediate Representation — a structured, typed representation of Tcl
 commands between parsing and code generation.  Defined in
-[`ir.py`](../compiler/ir.py); the union type `IRStatement`
-(`ir.py:265`) covers all statement kinds.
+`tcl_compiler::ir`; the union type `Statement` covers all statement
+kinds.
 
 ```mermaid
 classDiagram
@@ -216,8 +231,7 @@ KCS tag: `lowering`.
 
 The central metadata type for a Tcl command — describes its argument
 layout, purity, side effects, taint properties, event validity, and
-dialect membership.  See
-[`models.py:462`](../compiler/registry/models.py).
+dialect membership.  See `CommandSpec` in `tcl_registry::spec`.
 
 ```mermaid
 flowchart TD
@@ -238,8 +252,8 @@ and [Command registry event model](design/contracts/command-registry-event-model
 
 An ensemble operation selected by the first argument (e.g.
 `string length`, `HTTP::header value`).  Each has its own arity, purity,
-return type, and taint transform hooks.  See
-[`models.py:319`](../compiler/registry/models.py).
+return type, and taint transform hooks.  See `SubCommand` in
+`tcl_registry::spec`.
 
 See also: [Command registry](design/compiler/command-registry.md).
 
@@ -247,7 +261,7 @@ See also: [Command registry](design/compiler/command-registry.md).
 
 An invocation form of a command — getter (reads state) or setter (writes
 state), each with its own arity and side-effect classification.  See
-[`models.py:249`](../compiler/registry/models.py).
+`FormSpec` in `tcl_registry::hover`.
 
 See also: [Command registry](design/compiler/command-registry.md).
 
@@ -258,8 +272,7 @@ See also: [Command registry](design/compiler/command-registry.md).
 ### Basic block
 
 A straight-line sequence of IR statements with no branches except at the
-end.  Represented by
-[`CFGBlock`](../compiler/cfg.py) (`cfg.py:374`).
+end.  Represented by `Block` in `tcl_compiler::cfg`.
 
 See also: [CFG construction](design/compiler/cfg-construction.md).
 KCS tag: `cfg`.
@@ -267,8 +280,8 @@ KCS tag: `cfg`.
 ### CFG
 
 Control Flow Graph — a directed graph of basic blocks connected by jumps
-and branches.  Built by
-[`build_cfg()`](../compiler/cfg.py) (`cfg.py:1058`).
+and branches.  Built by `build_cfg()` in `tcl_compiler::cfg_builder`
+(producing a `CfgModule`).
 
 ```mermaid
 flowchart TD
@@ -313,8 +326,8 @@ KCS tag: `cfg`.
 
 Static Single Assignment — a form where every variable is defined exactly
 once.  Multiple definitions of the same source variable get unique
-*version numbers* (e.g. `x₁`, `x₂`).  Built by
-[`build_ssa()`](../compiler/ssa.py) (`ssa.py:359`).
+*version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` in
+`tcl_compiler::ssa` (producing a `SsaFunction`).
 
 ```mermaid
 flowchart TD
@@ -337,8 +350,8 @@ KCS tag: `ssa`.
 ### SSA value key
 
 A `(variable_name, version)` tuple that uniquely identifies one
-definition of a variable.  Type alias
-[`SSAValueKey`](../compiler/ssa.py) (`ssa.py:50`).
+definition of a variable.  Type alias `SsaValueKey` in
+`tcl_compiler::def_use`.
 
 See also: [SSA construction](design/compiler/ssa-construction.md).
 KCS tag: `ssa`.
@@ -347,8 +360,7 @@ KCS tag: `ssa`.
 
 An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means
 "use `x₁` if control arrived from predecessor 1, or `x₃` if from
-predecessor 2."  Represented by
-[`SSAPhi`](../compiler/ssa.py) (`ssa.py:168`).
+predecessor 2."  Represented by `Phi` in `tcl_compiler::ssa`.
 
 ```mermaid
 flowchart TD
@@ -380,8 +392,7 @@ KCS tag: `ssa`.
 
 Block A *dominates* block B if every path from the entry to B passes
 through A.  The *immediate dominator* (`idom`) is the closest dominator.
-Stored in
-[`SSAFunction.idom`](../compiler/ssa.py) (`ssa.py:210`).
+Stored in `SsaFunction.idom` (`tcl_compiler::ssa`).
 
 ```mermaid
 flowchart TD
@@ -403,7 +414,7 @@ KCS tag: `ssa`.
 
 The set of blocks where a variable's dominance "ends" — these are where
 phi nodes must be inserted.  Stored in
-[`SSAFunction.dominance_frontier`](../compiler/ssa.py) (`ssa.py:210`).
+`SsaFunction.dominance_frontier` (`tcl_compiler::ssa`).
 
 ```mermaid
 flowchart TD
@@ -429,8 +440,7 @@ KCS tag: `ssa`.
 
 Sparse Conditional Constant Propagation — a combined constant propagation
 and unreachable-code analysis that runs over the SSA graph.  Implemented
-in [`analyse_function()`](../compiler/core_analyses.py)
-(`core_analyses.py:1210`).
+by `sccp()` in `tcl_compiler::sccp`.
 
 See also: [SCCP and core analyses](design/compiler/sccp-core-analyses.md).
 KCS tag: `sccp`.
@@ -439,9 +449,8 @@ KCS tag: `sccp`.
 
 A mathematical structure used in dataflow analysis where values flow from
 *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is
-[`LatticeValue`](../compiler/core_analyses.py)
-(`core_analyses.py:111`); the type lattice is
-[`TypeLattice`](../compiler/types.py) (`types.py:53`).
+`LatticeValue` (`tcl_compiler::analyses`); the type lattice is
+`TypeLattice` (`tcl_compiler::types`).
 
 ```mermaid
 flowchart BT
@@ -482,8 +491,7 @@ KCS tag: `sccp`.
 
 A dataflow analysis that determines which SSA values are "live" (may
 still be read) at each program point.  Results are in
-[`FunctionAnalysis.live_in / live_out`](../compiler/core_analyses.py)
-(`core_analyses.py:176`).
+`FunctionAnalysis.live_in / live_out` (`tcl_compiler::analyses`).
 
 ```mermaid
 flowchart LR
@@ -505,7 +513,7 @@ KCS tag: `liveness`.
 
 Tcl's internal type coercion: when a value's string representation is
 reinterpreted as a different type (e.g. `"42"` read as an integer).
-Tracked by `TypeLattice.SHIMMERED` (`types.py:53`).
+Recorded by the `Shimmered` kind of `TypeLattice` (`tcl_compiler::types`).
 
 ```mermaid
 flowchart LR
@@ -529,8 +537,7 @@ Flow-sensitive inference of a Tcl value's type over the SSA graph.
 The type lattice has `UNKNOWN`, `KNOWN(TclType)`, `SHIMMERED(from → to)`,
 and `OVERDEFINED` states; join points use lattice meet and record a
 shimmer when two different known types meet.  Implemented in
-[`types.py`](../compiler/types.py) (`types.py:53`) and driven from
-[`core_analyses.py`](../compiler/core_analyses.py).
+`tcl_compiler::types` and driven from `tcl_compiler::analyses`.
 
 See also: [SCCP and core analyses](design/compiler/sccp-core-analyses.md)
 and [Constant folding and type inference](design/compiler/constant-folding-type-inference.md).
@@ -541,7 +548,7 @@ KCS tag: `type-infer`.
 Per-SSA-value map of where each value is defined and where it is read.
 The compiler builds one entry per SSA version and uses it to drive
 liveness, dead-store elimination, inlining, and the data-flow graph.
-Implemented in [`def_use.py`](../compiler/def_use.py).
+Implemented in `tcl_compiler::def_use`.
 
 ```mermaid
 flowchart LR
@@ -564,7 +571,7 @@ A directed graph of SSA values and the commands that produce and
 consume them, derived from def-use chains. Downstream consumers query
 it to answer "where does this value come from?" and "what depends on
 this value?" without re-walking the IR.  Implemented in
-[`dataflow_graph.py`](../compiler/dataflow_graph.py).
+`tcl_compiler::dataflow_graph`.
 
 See also: [Data-flow graph](design/compiler/dataflow-graph.md).
 KCS tag: `dataflow`.
@@ -575,8 +582,7 @@ An extension of SSA that versions memory operations (array writes,
 upvar aliases, namespace globals) the same way scalar SSA versions
 values. Each memory write creates a new memory version; each memory
 read points at the version it sees. Alias sets record which writes may
-affect which reads. Implemented in
-[`memory_ssa.py`](../compiler/memory_ssa.py).
+affect which reads. Implemented in `tcl_compiler::memory_ssa`.
 
 ```mermaid
 flowchart LR
@@ -602,8 +608,7 @@ Structured classification of what a command does beyond returning a
 value: reads variables, writes variables, mutates memory, performs
 I/O, raises exceptions, or has unknown effects. Used to decide whether
 a call is a barrier for constant propagation, code sinking, and dead-
-store elimination. Implemented in
-[`side_effects.py`](../compiler/side_effects.py).
+store elimination. Implemented in `tcl_compiler::side_effects`.
 
 See also: [Side-effects system](design/compiler/side-effects-system.md).
 KCS tag: `side-effects`.
@@ -614,7 +619,7 @@ A per-argument classification that says whether a command substitution
 in argument position is evaluated for its value, for its side-effects,
 or both. The optimiser uses this to decide whether a `[cmd]` can be
 folded, hoisted, or sunk. Implemented in
-[`execution_intent.py`](../compiler/execution_intent.py).
+`tcl_compiler::execution_intent`.
 
 See also: [Execution intent model](design/compiler/execution-intent-model.md).
 KCS tag: `exec-intent`.
@@ -625,7 +630,7 @@ A may/must lattice over the possible string contents of an SSA value
 at each program point. It answers questions like "does this string
 always start with `/`?", "can this ever contain a newline?", and "is
 this provably one of a small finite set of values?". Implemented in
-[`rendered_properties.py`](../compiler/rendered_properties.py).
+`tcl_compiler::rendered_properties`.
 
 See also: [Rendered value properties](design/compiler/rendered-value-properties.md).
 KCS tag: `rendered-props`.
@@ -643,7 +648,7 @@ colours it propagates, and any constant return value it can prove.
 Downstream passes (ICIP, taint, optimiser) query summaries to decide
 whether a call site can be folded, inlined, or sunk without re-
 walking the callee's body. Implemented in
-[`interprocedural.py`](../compiler/interprocedural.py).
+`tcl_compiler::interprocedural`.
 
 ```mermaid
 flowchart LR
@@ -666,9 +671,8 @@ KCS tag: `ipa`.
 
 Interprocedural Constant/Inline Propagation — evaluates procedure calls
 with known constant arguments at compile time and replaces the call with
-the result.  Reported as `O103`.  See
-[`optimise_static_proc_calls()`](../compiler/optimiser/_propagation.py)
-(`_propagation.py:271`).
+the result.  Reported as `O103`.  See `optimise_static_proc_calls()` in
+`tcl_compiler::optimiser::propagation`.
 
 ```mermaid
 flowchart LR
@@ -688,7 +692,7 @@ Loop-Invariant Code Motion — hoists computations that produce the
 same value on every iteration out of the loop body. Reported as
 `O106`. The safety check uses GVN numbers and memory-SSA to confirm
 that the hoisted expression's inputs do not change inside the loop.
-See [`gvn.py:776`](../compiler/gvn.py).
+See `tcl_compiler::gvn`.
 
 ```mermaid
 flowchart LR
@@ -709,19 +713,19 @@ KCS tag: `licm`.
 
 ### Tail-call optimisation
 
-A family of rewrites that turn a proc's recursive tail call into a
+A family of transformations that turn a proc's recursive tail call into a
 `tailcall` bytecode (`O121`), or fully iterative code when every call
 is a tail call (`O122`). The pass uses CFG dominance to verify that
 the call is reached on every exit path and that no work happens after
 it. `O123` is an accumulator-introduction hint for procs that are
 almost but not quite tail-recursive. Implemented in
-[`_tail_call.py`](../compiler/optimiser/_tail_call.py).
+`tcl_compiler::optimiser::tail_call`.
 
 ```mermaid
 flowchart TD
     REC["proc fact {n acc}<br/>  if {$n == 0} {return $acc}<br/>  return [fact [expr {$n-1}] [expr {$n*$acc}]]"]
     REC -->|"O121: tailcall"| TC["replace return-call<br/>with tailcall"]
-    REC -->|"O122: while loop"| WL["rewrite as iterative while"]
+    REC -->|"O122: while loop"| WL["recast as iterative while"]
 
     style REC fill:#e1f5fe
     style TC fill:#e8f5e9
@@ -739,7 +743,7 @@ computation. Covers constant propagation (`O100`), integer expression
 folding (`O101`), constant command-substitution folding (`O102`),
 redundant-nested-`[expr]` removal (`O115`), list folding (`O116`,
 `O118`), and string-compare simplification (`O117`). Implemented in
-[`_propagation.py`](../compiler/optimiser/_propagation.py).
+`tcl_compiler::optimiser::propagation`.
 
 ```mermaid
 flowchart LR
@@ -755,12 +759,11 @@ KCS tag: `const-fold`.
 
 ### Strength reduction
 
-A family of peephole rewrites that replace an expensive operation
+A family of peephole transformations that replace an expensive operation
 with a cheaper one that computes the same value: `$x ** 2` becomes
 `$x * $x`, `$x % 8` becomes `$x & 7`, and so on. The pass fires as
 part of expression simplification and is reported under `O113`.
-Implemented in
-[`_propagation.py`](../compiler/optimiser/_propagation.py).
+Implemented in `tcl_compiler::optimiser::propagation`.
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `strength-reduce`.
@@ -769,7 +772,7 @@ KCS tag: `strength-reduce`.
 
 Global Value Numbering — an optimisation that detects redundant
 computations by assigning a canonical identity to each expression.  See
-[`gvn.py:76`](../compiler/gvn.py).
+`tcl_compiler::gvn`.
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `gvn`.
@@ -778,8 +781,7 @@ KCS tag: `gvn`.
 
 Common Subexpression Elimination — detects when the same pure computation
 is evaluated more than once and suggests extracting it to a variable.
-Part of the GVN pass, reported as `O105`.  See
-[`gvn.py`](../compiler/gvn.py).
+Part of the GVN pass, reported as `O105`.  See `tcl_compiler::gvn`.
 
 ```mermaid
 flowchart TD
@@ -796,9 +798,8 @@ KCS tag: `cse`.
 ### DCE
 
 Dead Code Elimination — removes code whose result is never used.  `O107`
-(basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109`
-(dead store elimination).  See
-[`_elimination.py`](../compiler/optimiser/_elimination.py).
+(basic DCE), `O108` (aggressive DCE following statement liveness), `O109`
+(dead store elimination).  See `tcl_compiler::optimiser::elimination`.
 
 ```mermaid
 flowchart TD
@@ -817,7 +818,7 @@ KCS tag: `dce`.
 Instruction Combine — canonicalises and simplifies expressions by
 applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).
 Reported as `O110`.  See
-[`_expr_simplify.py`](../compiler/optimiser/_expr_simplify.py).
+`tcl_compiler::optimiser::helpers::expr_simplify`.
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `instcombine`.
@@ -826,8 +827,7 @@ KCS tag: `instcombine`.
 
 Loop Constant Propagation / Code Sinking — moves invariant assignments
 out of the hot path into the specific branch that uses them.  Reported
-as `O125`.  See
-[`_code_sinking.py`](../compiler/optimiser/_code_sinking.py).
+as `O125`.  See `tcl_compiler::optimiser::code_sinking`.
 
 ```mermaid
 flowchart TD
@@ -848,7 +848,7 @@ event or from another reachable proc. The pass walks the call graph
 from every event entry point, marks every reachable proc as live,
 and turns anything unreached into a `# ` commented-out block so the
 reader can see what the pass did. Reported as `O124`. Implemented in
-[`_unused_procs.py`](../compiler/optimiser/_unused_procs.py).
+`tcl_compiler::optimiser::unused_procs`.
 
 ```mermaid
 flowchart LR
@@ -872,8 +872,8 @@ in a procedure by the var-escape analysis. A `LOCAL` variable is kept in
 a WASM local slot (fast); a `FRAME` variable is spilled to the runtime
 frame so the interpreter, an `upvar` alias, or a dynamic `set $name`
 can observe it by name. The top of the lattice is `FRAME`; joins use
-the "any FRAME wins" rule. Defined in
-[`EscapeTag`](../compiler/var_escape/_types.py).
+the "any FRAME wins" rule. Defined by `EscapeTag` in
+`tcl_compiler::var_escape::types`.
 
 See also: [Var-escape analysis](design/compiler/var-escape-analysis.md).
 KCS tag: `var-escape`.
@@ -881,11 +881,10 @@ KCS tag: `var-escape`.
 ### Frame-only var
 
 Short-hand for a Tcl variable whose escape tag is `FRAME`. The WASM
-codegen bypasses the WASM local slot for frame-only vars: reads go
-through `tcl_local_get`, writes through `tcl_local_set`, and existence
-checks through `tcl_info_exists`. See
-[`_is_frame_only_var`](../compiler/codegen/wasm/__init__.py) in
-the emitter.
+codegen bypasses the WASM local slot for frame-only vars: reads,
+writes, and existence checks go through the runtime frame by name
+rather than through a fast local slot. The escape decision comes from
+`tcl_compiler::var_escape`; the emitter is `tcl_compiler::codegen::wasm`.
 
 ### Var-escape analysis
 
@@ -894,14 +893,12 @@ variables must live in the runtime frame. Handles `upvar`, `global`,
 `variable`, dynamic `set $name` / `incr $name`, literal and dynamic
 `eval`, `uplevel`, and the frame-inspecting `info` subcommands. Runs a
 worklist fixpoint over `direct_callees` to fold callee `upvar` source
-sets back into callers. Implemented in
-[`compiler/var_escape/`](../compiler/var_escape/).
+sets back into callers. Implemented in `tcl_compiler::var_escape`.
 
 ### Taint analysis
 
-Tracks whether values originate from untrusted sources (user input).
-Uses [`TaintLattice`](../compiler/taint/_lattice.py)
-(`taint/_lattice.py:44`).
+Determines whether values originate from untrusted sources (user input).
+Uses `TaintLattice` in `tcl_compiler::taint`.
 
 ```mermaid
 flowchart LR
@@ -923,9 +920,7 @@ KCS tag: `taint`.
 A `Flag` enum describing safety properties of tainted data (e.g.
 `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `|`
 and join by intersection (`&`) — only properties shared by all incoming
-paths survive.  Defined in
-[`TaintColour`](../compiler/registry/taint_hints.py)
-(`taint_hints.py:17`).
+paths survive.  Defined by `TaintColour` in `tcl_registry::taint`.
 
 ```mermaid
 flowchart TD
@@ -949,8 +944,8 @@ KCS tag: `taint`.
 ### Taint source
 
 A command whose return value introduces tainted data (e.g. `HTTP::host`,
-`HTTP::uri`).  Declared via `TaintHint.source` on the command's registry
-spec (`taint_hints.py:60`).
+`HTTP::uri`).  Declared via the `taint_source` colour on the command's
+`CommandSpec` (`tcl_registry::spec`).
 
 See also: [Taint analysis](design/compiler/taint-analysis.md).
 KCS tag: `taint`.
@@ -958,9 +953,8 @@ KCS tag: `taint`.
 ### Taint sink
 
 A dangerous argument position where tainted data can cause harm (XSS,
-header injection, SSRF).  Classified by
-[`_classify_sink()`](../compiler/taint/_sinks.py)
-(`taint/_sinks.py:99`).
+header injection, SSRF).  Classified by `classify_sink()` in
+`tcl_compiler::taint`.
 
 See also: [Taint analysis](design/compiler/taint-analysis.md).
 KCS tag: `taint`.
@@ -975,8 +969,7 @@ The last pass of the compiler. Walks the optimised CFG/SSA function
 and emits Tcl bytecode plus a local variable table, a jump table,
 and a peephole-optimised instruction stream. Codegen is the point at
 which an IR program becomes something the Tcl VM (or `tclsh`) can
-run byte-for-byte. Implemented under
-[`codegen/`](../compiler/codegen/).
+run byte-for-byte. Implemented under `tcl_compiler::codegen`.
 
 ```mermaid
 flowchart LR
@@ -995,9 +988,7 @@ KCS tag: `codegen`.
 ### LVT
 
 Local Variable Table — maps variable names to integer slot indices for
-fast access inside procedures.  See
-[`LocalVarTable`](../compiler/codegen/bytecode/_types.py)
-(`codegen/bytecode/_types.py:63`).
+fast access inside procedures.  See `LocalVarTable` in `tcl_bytecode`.
 
 ```mermaid
 flowchart LR
@@ -1017,4 +1008,35 @@ flowchart LR
 > order.
 
 See also: [Codegen internals](design/compiler/codegen-internals.md).
+KCS tag: `codegen`.
+
+### ValueOps
+
+The value-representation abstraction the runtimes share. It is the trait
+(`ValueOps` in `tcl_syntax::value`) through which the shared command
+bodies in `tcl-cmd-core` create and inspect Tcl values — `new_str`,
+`new_int`, `new_list`, `as_str`, `as_int`, and so on — without knowing
+how any one runtime stores them. Each runtime supplies its own
+`Value` handle and keeps construction, shimmer caching, interning, and
+result-object building to itself; the trait monomorphises per
+implementor, so the shared command logic costs zero dynamic dispatch.
+This is the seam that lets the bytecode VM and the host-native runtime
+execute one set of command bodies over different value representations.
+
+KCS tag: `codegen`.
+
+### salsa
+
+The incremental query and database framework that powers the LSP's
+on-keystroke recomputation. A single memoised query graph (in
+`tcl-lsp-db`) replaces hand-maintained caches: inputs such as
+`SourceFile` and `AnalyserConfig` feed `#[salsa::tracked]` queries that
+wrap the pure, deterministic functions in `tcl_compiler` and
+`tcl_lsp_core`. salsa owns memoisation and dependency-precise
+invalidation, so when one input changes only the queries that actually
+depended on it re-run — there is no manual cache eviction. Results are
+shared by `Arc` rather than deep-cloned, and the database is cloneable
+so a worker thread can answer queries against a snapshot while the main
+thread sets new inputs.
+
 KCS tag: `codegen`.

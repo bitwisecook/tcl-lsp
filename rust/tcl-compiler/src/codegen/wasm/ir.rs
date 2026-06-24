@@ -1,10 +1,5 @@
 //! WASM IR: value types, opcodes, per-function / per-module containers, and
-//! the binary (`to_bytes`) + WAT (`to_wat`) serialisers. Port of the
-//! data-structure and formatting half of `compiler/codegen/wasm/_ir.py`.
-//!
-//! The explorer-JSON projection (`to_explorer_json`) is built in the
-//! view-wiring phase, alongside the emitter that produces real modules to
-//! serialise.
+//! the binary (`to_bytes`) + WAT (`to_wat`) serialisers.
 //!
 //! Byte counts and indices are bounded by the source size, so the
 //! usize/u64 conversions never truncate in practice — mirror the allow set
@@ -396,7 +391,7 @@ impl WasmModule {
     /// valid. Constructing a [`WasmImport`] by hand and pushing it onto
     /// [`Self::imports`] risks pointing at a type that `to_bytes` never
     /// emits, since the serialiser only interns *defined-function*
-    /// signatures. Mirrors the Python emitter's `api.py` import setup.
+    /// signatures.
     pub fn add_import(
         &mut self,
         module: &str,
@@ -436,7 +431,7 @@ impl WasmModule {
         out
     }
 
-    /// Serialise to a valid WASM binary. Mirrors `WasmModule.to_bytes`.
+    /// Serialise to a valid WASM binary.
     #[must_use]
     pub fn to_bytes(&mut self) -> Vec<u8> {
         // Register every defined function's signature first.
@@ -595,7 +590,7 @@ impl WasmModule {
         out
     }
 
-    /// Render a human-readable WAT representation. Mirrors `WasmModule.to_wat`.
+    /// Render a human-readable WAT representation.
     #[must_use]
     pub fn to_wat(&mut self) -> String {
         let sigs: Vec<(Vec<ValType>, Vec<ValType>)> = self

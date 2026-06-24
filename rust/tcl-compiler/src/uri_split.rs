@@ -18,22 +18,21 @@
 //!
 //! The pass also generalises to **any** `*::uri` command that has
 //! sibling `*::path` and/or `*::query` commands in the registry.
-//!
-//! Ported from `core/compiler/taint/_uri_split.py` (C45).
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
-use crate::ssa::{Phi, SsaFunction, SsaStatement, ValueKey, Version};
+use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
@@ -59,9 +58,7 @@ fn is_string_cmd(cmd: &str) -> bool {
     matches!(cmd, "string" | "::string")
 }
 
-// ---------------------------------------------------------------------------
 // URI family discovery
-// ---------------------------------------------------------------------------
 
 /// Map `uri_cmd → (path_cmd?, query_cmd?)` derived from the registry.
 pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
@@ -125,13 +122,11 @@ struct TraceCtx<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     families: &'a UriFamilies,
-    def_sites: &'a HashMap<ValueKey, (String, usize)>,
+    def_sites: &'a HashMap<ValueKey, (BlockId, usize)>,
     phi_index: &'a HashMap<ValueKey, Phi>,
 }
 
-// ---------------------------------------------------------------------------
 // Tcl quoting helper
-// ---------------------------------------------------------------------------
 
 /// Strip surrounding Tcl quoting (double-quotes or braces) from a word.
 ///
@@ -150,15 +145,14 @@ fn strip_tcl_quotes(arg: &str) -> &str {
     stripped
 }
 
-// ---------------------------------------------------------------------------
 // Literal / SCCP resolution
-// ---------------------------------------------------------------------------
 
 /// Return the resolved literal string, or `None` if unknown.
 fn resolve_literal<S: std::hash::BuildHasher>(
     arg: &str,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<Symbol, Version>,
+    ssa: &SsaFunction,
 ) -> Option<String> {
     let cleaned = strip_tcl_quotes(arg);
     if !cleaned.contains('$') && !cleaned.contains('[') {
@@ -172,8 +166,9 @@ fn resolve_literal<S: std::hash::BuildHasher>(
     if var_name.is_empty() {
         return None;
     }
-    let ver = *uses.get(var_name).unwrap_or(&0);
-    let lv = sccp.get(&(var_name.to_owned(), ver))?;
+    let sym = ssa.var_symbol(var_name)?;
+    let ver = *uses.get(&sym).unwrap_or(&0);
+    let lv = sccp.get(&(sym, ver))?;
     if let LatticeValue::Const(ConstValue::String(s)) = lv {
         Some(s.clone())
     } else {
@@ -181,9 +176,7 @@ fn resolve_literal<S: std::hash::BuildHasher>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pattern classification
-// ---------------------------------------------------------------------------
 
 /// Return `true` when `operand` is unambiguously a path pattern.
 ///
@@ -255,17 +248,15 @@ fn classify_regex_pattern(pattern: &str) -> Option<&'static str> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // Backward SSA tracing
-// ---------------------------------------------------------------------------
 
-/// Map `(var_name, version) → (block_name, statement_index)`.
-fn build_def_site_map(ssa: &SsaFunction) -> HashMap<ValueKey, (String, usize)> {
-    let mut result: HashMap<ValueKey, (String, usize)> = HashMap::new();
+/// Map `(var_name, version) → (block_id, statement_index)`.
+fn build_def_site_map(ssa: &SsaFunction) -> HashMap<ValueKey, (BlockId, usize)> {
+    let mut result: HashMap<ValueKey, (BlockId, usize)> = HashMap::new();
     for (bn, ssa_block) in &ssa.blocks {
         for (idx, s) in ssa_block.statements.iter().enumerate() {
-            for (var, ver) in &s.defs {
-                result.insert((var.clone(), *ver), (bn.clone(), idx));
+            for (&var, &ver) in &s.defs {
+                result.insert((var, ver), (*bn, idx));
             }
         }
     }
@@ -277,7 +268,7 @@ fn build_phi_index(ssa: &SsaFunction) -> HashMap<ValueKey, Phi> {
     let mut index: HashMap<ValueKey, Phi> = HashMap::new();
     for ssa_block in ssa.blocks.values() {
         for phi in &ssa_block.phis {
-            index.insert((phi.name.clone(), phi.version), phi.clone());
+            index.insert((phi.name, phi.version), phi.clone());
         }
     }
     index
@@ -297,8 +288,9 @@ fn trace_to_uri_family(
         return None;
     }
 
-    let key: ValueKey = (var_name.to_owned(), version);
-    let Some((bn, idx)) = ctx.def_sites.get(&key).cloned() else {
+    let sym = ctx.ssa.var_symbol(var_name)?;
+    let key: ValueKey = (sym, version);
+    let Some((block_id, idx)) = ctx.def_sites.get(&key).copied() else {
         // Check phi nodes via index (O(1) lookup).
         let phi = ctx.phi_index.get(&key)?;
         // All incoming edges must agree on the same origin.
@@ -317,8 +309,8 @@ fn trace_to_uri_family(
         return origin;
     };
 
-    let block = ctx.cfg.blocks.get(&bn)?;
-    let ssa_block = ctx.ssa.blocks.get(&bn)?;
+    let block = ctx.cfg.blocks.get(&block_id)?;
+    let ssa_block = ctx.ssa.blocks.get(&block_id)?;
     if idx >= block.statements.len() {
         return None;
     }
@@ -349,7 +341,12 @@ fn trace_to_uri_family(
             if is_pure_var_ref(value) {
                 let src_name = normalise_var_name(value);
                 if !src_name.is_empty() {
-                    let src_ver = *ssa_stmt.uses.get(src_name).unwrap_or(&0);
+                    let src_ver = ctx
+                        .ssa
+                        .var_symbol(src_name)
+                        .and_then(|s| ssa_stmt.uses.get(&s))
+                        .copied()
+                        .unwrap_or(0);
                     if src_ver > 0 {
                         return trace_to_uri_family(src_name, src_ver, ctx, depth + 1);
                     }
@@ -372,7 +369,12 @@ fn arg_traces_to_uri_family(
         if var_name.is_empty() {
             return None;
         }
-        let ver = *ssa_stmt.uses.get(var_name).unwrap_or(&0);
+        let ver = ctx
+            .ssa
+            .var_symbol(var_name)
+            .and_then(|s| ssa_stmt.uses.get(&s))
+            .copied()
+            .unwrap_or(0);
         if ver == 0 {
             return None;
         }
@@ -389,9 +391,7 @@ fn arg_traces_to_uri_family(
     None
 }
 
-// ---------------------------------------------------------------------------
 // Message builders
-// ---------------------------------------------------------------------------
 
 fn split_message(families: &UriFamilies, uri_cmd: &str, sep: &str) -> String {
     let (path_cmd, query_cmd) = uri_siblings(families, uri_cmd);
@@ -502,9 +502,7 @@ fn expr_hit_message(
     comparison_message(families, uri_cmd, op_name, component)
 }
 
-// ---------------------------------------------------------------------------
 // Expression-level detection
-// ---------------------------------------------------------------------------
 
 /// Default classification for operators that pick `"path"` first
 /// (literal `/`-prefix or `.ext`) and otherwise `"query"`.
@@ -568,7 +566,7 @@ fn expr_literal_text(node: &ExprNode) -> Option<String> {
 /// Return the `*::uri` command name if `node` traces back to one.
 fn expr_traces_to_uri(
     node: &ExprNode,
-    ssa_versions: &HashMap<String, Version>,
+    ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<String> {
     match node {
@@ -581,7 +579,12 @@ fn expr_traces_to_uri(
             }
         }
         ExprNode::Var { name, .. } => {
-            let ver = *ssa_versions.get(name).unwrap_or(&0);
+            let ver = ctx
+                .ssa
+                .var_symbol(name)
+                .and_then(|s| ssa_versions.get(&s))
+                .copied()
+                .unwrap_or(0);
             if ver == 0 {
                 return None;
             }
@@ -598,7 +601,7 @@ fn check_expr_binary(
     op: BinOp,
     left: &ExprNode,
     right: &ExprNode,
-    ssa_versions: &HashMap<String, Version>,
+    ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<ExprHit> {
     if !is_comparison_op(op) {
@@ -630,14 +633,19 @@ fn check_expr_binary(
 /// branches.
 fn input_arg_uri(
     input_arg: &str,
-    ssa_versions: &HashMap<String, Version>,
+    ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<String> {
     let var_name = normalise_var_name(input_arg);
     if !is_pure_var_ref(input_arg) || var_name.is_empty() {
         return None;
     }
-    let ver = *ssa_versions.get(var_name).unwrap_or(&0);
+    let ver = ctx
+        .ssa
+        .var_symbol(var_name)
+        .and_then(|s| ssa_versions.get(&s))
+        .copied()
+        .unwrap_or(0);
     if ver == 0 {
         return None;
     }
@@ -646,7 +654,7 @@ fn input_arg_uri(
 
 fn check_expr_command(
     text: &str,
-    ssa_versions: &HashMap<String, Version>,
+    ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<ExprHit> {
     let (cmd_name, cmd_args) = parse_command_substitution(text)?;
@@ -691,7 +699,7 @@ fn check_expr_command(
 
 fn walk_expr(
     node: &ExprNode,
-    ssa_versions: &HashMap<String, Version>,
+    ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
     out: &mut Vec<ExprHit>,
 ) {
@@ -742,22 +750,21 @@ fn walk_expr(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Statement-level detection: split / string match / string first
-// ---------------------------------------------------------------------------
 
 /// Return `(input_arg, separator)` from a `split` call, or `None`.
 fn extract_split_info<S: std::hash::BuildHasher>(
     stmt: &Statement,
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
+    ssa: &SsaFunction,
 ) -> Option<(String, Option<String>)> {
     match stmt {
         Statement::Call { command, args, .. } if is_split_cmd(command) => {
             if args.len() < 2 {
                 return None;
             }
-            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses);
+            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ssa);
             Some((args[0].trim().to_owned(), sep))
         }
         Statement::AssignValue { value, .. } => {
@@ -769,7 +776,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
             if args.len() < 2 {
                 return None;
             }
-            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses);
+            let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ssa);
             Some((strip_tcl_quotes(&args[0]).to_owned(), sep))
         }
         _ => None,
@@ -782,12 +789,14 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     stmt: &Statement,
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
+    ssa: &SsaFunction,
 ) -> Option<(&'static str, Option<String>, String)> {
     fn from_args<S: std::hash::BuildHasher>(
         cmd: &str,
         args: &[String],
-        uses: &HashMap<String, Version>,
+        uses: &HashMap<Symbol, Version>,
         sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
+        ssa: &SsaFunction,
     ) -> Option<(&'static str, Option<String>, String)> {
         if !is_string_cmd(cmd) || args.is_empty() {
             return None;
@@ -802,7 +811,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
             if remaining.len() < 2 {
                 return None;
             }
-            let pattern = resolve_literal(&remaining[0], sccp_values, uses);
+            let pattern = resolve_literal(&remaining[0], sccp_values, uses, ssa);
             return Some((
                 "string match",
                 pattern,
@@ -814,7 +823,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
             if args.len() < 3 {
                 return None;
             }
-            let needle = resolve_literal(&args[1], sccp_values, uses);
+            let needle = resolve_literal(&args[1], sccp_values, uses, ssa);
             return Some((
                 "string first",
                 needle,
@@ -826,20 +835,18 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
 
     match stmt {
         Statement::Call { command, args, .. } => {
-            from_args(command, args, &ssa_stmt.uses, sccp_values)
+            from_args(command, args, &ssa_stmt.uses, sccp_values, ssa)
         }
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
             let (cmd, args) = parse_command_substitution(value)?;
-            from_args(&cmd, &args, &ssa_stmt.uses, sccp_values)
+            from_args(&cmd, &args, &ssa_stmt.uses, sccp_values, ssa)
         }
         _ => None,
     }
 }
 
-// ---------------------------------------------------------------------------
 // Main entry point
-// ---------------------------------------------------------------------------
 
 /// Statement-level dispatch: emits warnings for `split` /
 /// `string match` / `string first` / expression-eval calls and for
@@ -854,7 +861,7 @@ fn check_statement<S: std::hash::BuildHasher>(
     let stmt_span = stmt.span();
 
     // 1. split detection.
-    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values)
+    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values, ctx.ssa)
         && sep.chars().any(|c| QUERY_CHARS.contains(&c))
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
@@ -862,7 +869,7 @@ fn check_statement<S: std::hash::BuildHasher>(
             span: stmt_span,
             variable: String::new(),
             sink_command: "split".to_owned(),
-            code: "IRULE3103".to_owned(),
+            code: DiagCode::Irule3103,
             message: split_message(ctx.families, &uri_cmd, &sep),
             replacement: None,
         });
@@ -871,7 +878,7 @@ fn check_statement<S: std::hash::BuildHasher>(
 
     // 2. string match / string first.
     if let Some((sub_cmd, Some(pattern), input_arg)) =
-        extract_string_match_info(stmt, ssa_stmt, sccp_values)
+        extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx.ssa)
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
         if sub_cmd == "string match" {
@@ -880,7 +887,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                     span: stmt_span,
                     variable: String::new(),
                     sink_command: "string match".to_owned(),
-                    code: "IRULE3103".to_owned(),
+                    code: DiagCode::Irule3103,
                     message: comparison_message(ctx.families, &uri_cmd, "string match", component),
                     replacement: None,
                 });
@@ -890,7 +897,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: "string first".to_owned(),
-                code: "IRULE3103".to_owned(),
+                code: DiagCode::Irule3103,
                 message: string_first_message(ctx.families, &uri_cmd, &pattern),
                 replacement: None,
             });
@@ -906,7 +913,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: op_name.clone(),
-                code: "IRULE3103".to_owned(),
+                code: DiagCode::Irule3103,
                 message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
                 replacement: None,
             });
@@ -937,7 +944,7 @@ fn check_branch_terminator(
             span: *span,
             variable: String::new(),
             sink_command: op_name.clone(),
-            code: "IRULE3103".to_owned(),
+            code: DiagCode::Irule3103,
             message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
             replacement: None,
         });
@@ -951,17 +958,17 @@ fn check_branch_terminator(
 /// `"f5-irules"` / `"irules"`. Also no-ops when the registry has no
 /// `*::uri` family (i.e. no `HTTP::path` / `HTTP::query` siblings).
 #[must_use]
-pub fn find_uri_split_suggestions<S, T>(
+#[allow(clippy::implicit_hasher)]
+pub fn find_uri_split_suggestions<S>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    executable_blocks: &HashSet<String, T>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning>
 where
     S: std::hash::BuildHasher,
-    T: std::hash::BuildHasher,
 {
     if !is_irules_dialect(dialect) {
         return Vec::new();
@@ -982,11 +989,11 @@ where
     };
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
-    for bn in executable_blocks {
-        let Some(block) = cfg.blocks.get(bn) else {
+    for block_id in executable_blocks {
+        let Some(block) = cfg.blocks.get(block_id) else {
             continue;
         };
-        let Some(ssa_block) = ssa.blocks.get(bn) else {
+        let Some(ssa_block) = ssa.blocks.get(block_id) else {
             continue;
         };
 
@@ -1018,9 +1025,7 @@ where
     deduped
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -1055,7 +1060,7 @@ mod tests {
         out
     }
 
-    // --- registry-derived URI families ----------------------------------
+    // registry-derived URI families
 
     #[test]
     fn uri_families_includes_http() {
@@ -1073,7 +1078,7 @@ mod tests {
         assert!(uri_families(&r).is_empty());
     }
 
-    // --- split detection ------------------------------------------------
+    // split detection
 
     #[test]
     fn split_uri_on_question_mark_fires() {
@@ -1082,13 +1087,13 @@ mod tests {
 set parts [split $uri "?"]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("HTTP::query"));
     }
 
     /// Regression for the AssignValue-side namespace-qualified-split
-    /// gap that Codex flagged on PR #366: `[::split …]` inside a `set`
+    /// gap: `[::split …]` inside a `set`
     /// must fire IRULE3103 the same way `[split …]` does. The Call
     /// branch already accepted both forms; the `AssignValue` branch
     /// wrongly required the bare name.
@@ -1099,7 +1104,7 @@ set parts [split $uri "?"]"#,
 set parts [::split $uri "?"]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
     }
 
     /// Sibling regression: `[::string match …]` inside a `set` must
@@ -1111,7 +1116,7 @@ set parts [::split $uri "?"]"#,
 set m [::string match "/api/*" $uri]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
         assert!(ws[0].message.contains("HTTP::path"));
     }
 
@@ -1209,7 +1214,7 @@ set parts [split $uri "?"]"#,
         assert!(ws.is_empty());
     }
 
-    // --- expression-operator detection ----------------------------------
+    // expression-operator detection
 
     #[test]
     fn starts_with_path_pattern_fires_inline() {
@@ -1279,7 +1284,7 @@ if { $p starts_with "/api" } { log local0. x }"#,
         assert!(ws.is_empty(), "got {ws:?}");
     }
 
-    // --- string match / string first ------------------------------------
+    // string match / string first
 
     #[test]
     fn string_match_path_pattern_fires() {
@@ -1352,7 +1357,7 @@ if { [string first "?" $uri] >= 0 } { log local0. x }"#,
         assert_eq!(ws.len(), 1, "got {ws:?}");
     }
 
-    // --- glob / regex classifier edge cases -----------------------------
+    // glob / regex classifier edge cases
 
     #[test]
     fn glob_question_mark_is_wildcard_not_query() {
@@ -1364,7 +1369,7 @@ set m [string match "/api/??" $uri]"#,
         assert!(ws[0].message.contains("HTTP::path"));
     }
 
-    // --- pattern classifier unit tests ----------------------------------
+    // pattern classifier unit tests
 
     #[test]
     fn classify_glob_pattern_recognises_path() {
@@ -1408,7 +1413,7 @@ set m [string match "/api/??" $uri]"#,
         assert!(!is_query_like("/foo"));
     }
 
-    // --- deduplication --------------------------------------------------
+    // deduplication
 
     #[test]
     fn duplicate_hits_in_compound_condition_are_deduped() {

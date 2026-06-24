@@ -1,4 +1,4 @@
-//! `auto_import` command (name-parity reconcile, GAP-d).
+//! `auto_import` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

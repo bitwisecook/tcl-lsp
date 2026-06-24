@@ -1,6 +1,6 @@
 [package]
 name = "tcl-irules"
-description = "Faithful Rust port of the F5 iRules BIG-IP object-reference extractor (dialects/f5/bigip/irules_refs.py + irules_object_refs.py)"
+description = "The F5 iRules BIG-IP object-reference extractor"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

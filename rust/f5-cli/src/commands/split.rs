@@ -1,7 +1,5 @@
 //! The `split` verb — slice an SCF into per-partition files under a directory
-//! (the inverse of `merge`). Port of `_run_split` (`tooling/f5/verbs/split.py`)
-//! and the `emit_split_by_partition` / `partition_of` / `_slice_for_block`
-//! helpers (`dialects/f5/bigip/emit.py`).
+//! (the inverse of `merge`).
 //!
 //! For `--format scf` the per-partition text is written verbatim (the SCF passes
 //! through `render_config`). `--format tmsh` re-renders each partition via the
@@ -32,8 +30,7 @@ pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Re
     let registry = BigipRegistry::build();
     let index = ObjectTypeIndex::build(&registry);
 
-    // Group stanzas by partition, preserving first-seen order (the Python
-    // OrderedDict shape).
+    // Group stanzas by partition, preserving first-seen order.
     let mut order: Vec<String> = Vec::new();
     let mut by_partition: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -86,8 +83,7 @@ pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Re
     Ok(0)
 }
 
-/// Return the `/Common/` etc. partition prefix of an identifier, or `""`
-/// (mirrors `partition_of`).
+/// Return the `/Common/` etc. partition prefix of an identifier, or `""`.
 fn partition_of(identifier: &str) -> String {
     if identifier.is_empty() || !identifier.starts_with('/') {
         return String::new();
@@ -100,8 +96,8 @@ fn partition_of(identifier: &str) -> String {
     }
 }
 
-/// Full text of a stanza including its header line (mirrors `_slice_for_block`):
-/// walk back from the opening `{` to the start of its line.
+/// Full text of a stanza including its header line: walk back from the opening
+/// `{` to the start of its line.
 fn slice_for_block(source: &str, start_offset: usize, end_offset: usize) -> &str {
     let bytes = source.as_bytes();
     let mut header_start = start_offset;

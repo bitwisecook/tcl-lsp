@@ -10,15 +10,10 @@
 //! The pure-Rust lexer produces `Token` values carrying only a
 //! [`Span`]; the binding crate is responsible for resolving each
 //! span to owned `text` / `start` / `end` fields so Python callers
-//! see the same dataclass shape they always have.
+//! see the full token shape.
 //!
-//! L3 exposes a single function, `lexer_tokenise(source)`, used by
-//! the differential test harness in
-//! `tests/test_rust_lexer_differential.py` to compare Rust and
-//! Python token streams on known-simple inputs. A richer `PyO3`
-//! interface (iterator object, sub-lexing, borrowing the same
-//! [`SourceMap`] across multiple lex invocations) arrives when the
-//! first real consumer shows up.
+//! Exposes `lexer_tokenise(source)`, which tokenises known-simple
+//! inputs and returns the resulting token stream.
 //!
 //! [`Span`]: tcl_lexer::Span
 //! [`SourceMap`]: tcl_lexer::SourceMap
@@ -30,8 +25,8 @@ use tcl_lexer::{LexError, Lexer, LexerConfig, SourceMap, Token};
 
 use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 
-/// `(SourcePosition, message)` tuple matching Python's
-/// `TclLexer.warnings` element shape.
+/// `(SourcePosition, message)` tuple — one recoverable-syntax
+/// warning element.
 type PyLexWarning = (PySourcePosition, String);
 
 /// Tokenise `source` via the Rust lexer using the default config
@@ -46,24 +41,24 @@ type PyLexWarning = (PySourcePosition, String);
 /// syntax error.
 #[pyfunction]
 #[pyo3(text_signature = "(source, /)")]
-pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
-    let (tokens, _warnings) = lexer_tokenise_with_config(source, true, false, false, 0, 0, 0)?;
+pub fn lexer_tokenise(py: Python<'_>, source: &str) -> PyResult<Vec<PyToken>> {
+    let (tokens, _warnings) = lexer_tokenise_with_config(py, source, true, false, false, 0, 0, 0)?;
     Ok(tokens)
 }
 
 /// Tokenise `source` via the Rust lexer with explicit config.
 ///
-/// This is the full-config entry point used by the Python shim
-/// when dialect flags or sub-lexing offsets are in play. Returns
-/// `(tokens, warnings)` where `warnings` is a list of
-/// `(SourcePosition, message)` tuples matching the Python
-/// reference's `TclLexer.warnings` shape, so the fast-path can
-/// merge them back without losing recoverable-syntax
-/// diagnostics (extra chars after close-brace / close-quote,
-/// unterminated strings, etc.).
+/// This is the full-config entry point used when dialect flags or
+/// sub-lexing offsets are in play. Returns `(tokens, warnings)`
+/// where `warnings` is a list of `(SourcePosition, message)`
+/// tuples, so the fast-path can merge them back without losing
+/// recoverable-syntax diagnostics (extra chars after close-brace /
+/// close-quote, unterminated strings, etc.).
 #[pyfunction]
 #[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, strict_quoting=false, base_offset=0, base_line=0, base_col=0))]
+#[allow(clippy::too_many_arguments)]
 pub fn lexer_tokenise_with_config(
+    py: Python<'_>,
     source: &str,
     expand_syntax: bool,
     irules_brace_separator: bool,
@@ -80,23 +75,29 @@ pub fn lexer_tokenise_with_config(
         base_line,
         base_col,
     };
-    let source_map = SourceMap::new(source).with_base(base_offset, base_line, base_col);
-    let lexer = Lexer::with_source_map(source_map, config);
-    let sm = lexer.source_map().clone();
-    let (tokens, warnings) = lexer
-        .tokenise_all_with_warnings()
-        .map_err(|err| to_py_err(&err))?;
-    let py_tokens: Vec<PyToken> = tokens.into_iter().map(|tok| lift(tok, &sm)).collect();
-    let py_warnings: Vec<PyLexWarning> = warnings
-        .into_iter()
-        .map(|w| {
-            (
-                PySourcePosition::from_core(sm.position_at(w.offset)),
-                w.message,
-            )
-        })
-        .collect();
-    Ok((py_tokens, py_warnings))
+    let source = source.to_owned();
+    // Lexing and the span→position lift are pure Rust over owned data
+    // (`PyToken` / `PySourcePosition` carry no Python handles), so the
+    // whole compute runs with the GIL released; only error mapping
+    // happens back under the GIL.
+    let result = py.detach(move || {
+        let source_map = SourceMap::new(&source).with_base(base_offset, base_line, base_col);
+        let lexer = Lexer::with_source_map(source_map, config);
+        let sm = lexer.source_map().clone();
+        let (tokens, warnings) = lexer.tokenise_all_with_warnings()?;
+        let py_tokens: Vec<PyToken> = tokens.into_iter().map(|tok| lift(tok, &sm)).collect();
+        let py_warnings: Vec<PyLexWarning> = warnings
+            .into_iter()
+            .map(|w| {
+                (
+                    PySourcePosition::from_core(sm.position_at(w.offset)),
+                    w.message,
+                )
+            })
+            .collect();
+        Ok::<_, LexError>((py_tokens, py_warnings))
+    });
+    result.map_err(|err| to_py_err(&err))
 }
 
 /// Lift a pure-Rust `Token` into a Python-visible `PyToken`,
@@ -105,11 +106,11 @@ pub fn lexer_tokenise_with_config(
 ///
 /// Note that the Rust `Token.span` covers the full extent of the
 /// token including any leading `$` / `${` wrappers, so that
-/// `range_positions(span)` produces the same start/end the Python
-/// lexer does. The text field, however, uses `source_map.token_text`
-/// which strips those wrappers — matching Python's quirky-but-
-/// long-standing convention that `tok.text` is the "human-readable"
-/// content (e.g. `"foo"` for `$foo`, `"name"` for `${name}`).
+/// `range_positions(span)` produces a start/end spanning the whole
+/// token. The text field, however, uses `source_map.token_text`
+/// which strips those wrappers — by convention `tok.text` is the
+/// "human-readable" content (e.g. `"foo"` for `$foo`, `"name"` for
+/// `${name}`).
 fn lift(tok: Token, source_map: &SourceMap<'_>) -> PyToken {
     let (start_pos, end_pos) = source_map.range_positions(tok.span);
     PyToken::new_from_core(

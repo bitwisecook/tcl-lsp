@@ -1,27 +1,25 @@
 //! Stable, reversible IP-address redaction map plus secret stripping.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/redact_map.py` (the IP-remap
-//! engine: [`RedactionMap`], [`CidrAssignment`], [`Allocator`],
+//! The IP-remap engine ([`RedactionMap`], [`CidrAssignment`], [`Allocator`],
 //! [`collect_addresses`], [`build_map`], [`map_address`] / [`unmap_address`],
-//! [`apply_map`]) and the `redact_secrets` half of
-//! `dialects/f5/bigip/rewrite.py` ([`redact_secrets`], [`RedactReport`]).
+//! [`apply_map`]) plus secret stripping ([`redact_secrets`], [`RedactReport`]).
 //!
-//! The map-file text format and the address->address mapping are reproduced
-//! exactly so a redact -> unredact round-trip is byte-identical to the Python
-//! CLI.
+//! The map-file text format and the address->address mapping make a
+//! redact -> unredact round-trip exactly reversible (byte-identical).
 //!
 //! # Shuffle / `--shuffle`
 //!
 //! The default (direct) mode preserves host bits. The `shuffle` mode permutes
 //! host bits within each source CIDR via a Fisher-Yates shuffle seeded from
-//! CPython's `random.Random(seed_int)`. CPython's MT19937 PRNG and its
-//! `_randbelow_with_getrandbits` / `shuffle` are reproduced here exactly (see
-//! [`mt19937`]) so `--shuffle` output is byte-identical too.
+//! a Mersenne-Twister (MT19937) PRNG seeded from the integer. The MT19937 PRNG
+//! and its `_randbelow_with_getrandbits` / `shuffle` are implemented here
+//! exactly (see [`mt19937`]) so `--shuffle` output is byte-identical.
 
 // IP / network maths is inherently full of width-exact casts between
-// u8/u32/u128 (octets, prefix lengths, address ints) and the MT19937 port
-// mirrors CPython's 32-bit word arithmetic. The casts are deliberate and
-// width-checked by construction, so the cast lints are noise here.
+// u8/u32/u128 (octets, prefix lengths, address ints) and the MT19937
+// implementation uses 32-bit word arithmetic. The casts are
+// deliberate and width-checked by construction, so the cast lints are noise
+// here.
 #![allow(
     clippy::cast_lossless,
     clippy::cast_possible_truncation,
@@ -36,14 +34,16 @@ use ipnet::{Ipv4Net, Ipv6Net};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-// ── Defaults ────────────────────────────────────────────────────────
+use crate::error::BigipError;
+
+// Defaults
 
 /// Default RFC1918 IPv4 target pool, walked in order.
 pub const DEFAULT_TARGET_CIDRS_V4: [&str; 3] = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
 /// Default IPv6 target pool.
 pub const DEFAULT_TARGET_CIDRS_V6: [&str; 1] = ["fd00::/8"];
 
-// ── Regexes (ported byte-for-byte from redact_map.py) ───────────────
+// Regexes
 
 const RGXG_V4: &str = concat!(
     r"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])",
@@ -62,11 +62,11 @@ const RGXG_V6: &str = concat!(
     r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})"
 );
 
-/// IPv4 literal regex with Python's lookaround boundary guards emulated.
+/// IPv4 literal regex with the lookaround boundary guards emulated.
 ///
 /// The `regex` crate has no lookaround, so we capture the literal in group 1
 /// and manually verify the preceding/following byte is not `[\w.]` (for v4) or
-/// `[A-Za-z0-9:]` (for v6), mirroring `(?<![\w.])…(?![\w.])`.
+/// `[A-Za-z0-9:]` (for v6), emulating `(?<![\w.])…(?![\w.])`.
 fn ipv4_re() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| Regex::new(RGXG_V4).expect("valid v4 regex"))
@@ -77,8 +77,8 @@ fn ipv6_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(RGXG_V6).expect("valid v6 regex"))
 }
 
-/// `\w` in Python's default (unicode) mode for ASCII is `[A-Za-z0-9_]`; the
-/// inputs here are ASCII config text so an ASCII-only check matches CPython.
+/// `\w` for ASCII text is `[A-Za-z0-9_]`; the inputs here are ASCII config
+/// text so an ASCII-only word-character check is exact.
 fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -117,7 +117,7 @@ struct LitMatch {
 }
 
 /// Find every IPv4 literal honouring the lookaround boundary guards, scanning
-/// left-to-right and never overlapping (mirrors `re.finditer`).
+/// left-to-right and never overlapping.
 fn find_v4(text: &str) -> Vec<LitMatch> {
     find_bounded(text, ipv4_re(), v4_boundary_ok)
 }
@@ -134,7 +134,7 @@ fn find_bounded(
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut search_from = 0usize;
-    // Emulate Python's lookaround: the regex engine, when a lookbehind/ahead
+    // Emulate the lookaround: the regex engine, when a lookbehind/ahead
     // fails, tries to match starting one position later. So on a boundary
     // failure we must retry the regex from `m.start()+1`, not `m.end()`.
     while search_from <= bytes.len() {
@@ -155,9 +155,9 @@ fn find_bounded(
     out
 }
 
-// ── Address helpers ─────────────────────────────────────────────────
+// Address helpers
 
-/// An IP address, mirroring the discriminated handling in `ipaddress`.
+/// An IP address (v4 or v6).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Addr {
     V4(Ipv4Addr),
@@ -183,8 +183,8 @@ impl Addr {
             Addr::V6(a) => u128::from(*a),
         }
     }
-    /// `str(addr)` per Python's `ipaddress` (RFC 5952 compression for v6;
-    /// Rust std uses the same compression rules).
+    /// Canonical address string (RFC 5952 compression for v6; Rust std uses
+    /// the same compression rules).
     fn to_string_py(&self) -> String {
         match self {
             Addr::V4(a) => a.to_string(),
@@ -194,10 +194,10 @@ impl Addr {
 }
 
 fn parse_v4(token: &str) -> Option<Ipv4Addr> {
-    // Python's IPv4Address rejects leading zeros / non-canonical octets.
-    // `Ipv4Addr::from_str` is equally strict on octet count and range, but
-    // Rust *accepts* nothing extra here that Python rejects for the tokens the
-    // RGXG regex emits (no leading zeros possible beyond a single "0").
+    // Leading zeros / non-canonical octets are rejected.
+    // `Ipv4Addr::from_str` is strict on octet count and range, and accepts
+    // nothing extra for the tokens the RGXG regex emits (no leading zeros
+    // possible beyond a single "0").
     token.parse::<Ipv4Addr>().ok()
 }
 
@@ -205,7 +205,7 @@ fn parse_v6(token: &str) -> Option<Ipv6Addr> {
     token.parse::<Ipv6Addr>().ok()
 }
 
-// ── is_private / is_skip predicates (faithful to ipaddress) ─────────
+// is_private / is_skip predicates
 
 const V4_PRIVATE_NETS: [&str; 14] = [
     "0.0.0.0/8",
@@ -261,7 +261,7 @@ fn v6_in(nets: &[&str], a: Ipv6Addr) -> bool {
     })
 }
 
-/// `ipv4_mapped` per Python: an `::ffff:a.b.c.d` address yields the embedded v4.
+/// `ipv4_mapped`: an `::ffff:a.b.c.d` address yields the embedded v4.
 fn ipv4_mapped(a: Ipv6Addr) -> Option<Ipv4Addr> {
     let ip = u128::from(a);
     if (ip >> 32) != 0xFFFF {
@@ -351,9 +351,9 @@ fn should_skip(addr: Addr, remap_private: bool) -> bool {
     false
 }
 
-// ── Network helpers ─────────────────────────────────────────────────
+// Network helpers
 
-/// `ip_network(f"{addr}/{prefix}", strict=False)` — host bits zeroed.
+/// The network enclosing `addr` at `prefix`, host bits zeroed.
 fn enclosing_cidr(addr: Addr, prefix: u32) -> Net {
     match addr {
         Addr::V4(a) => {
@@ -367,7 +367,7 @@ fn enclosing_cidr(addr: Addr, prefix: u32) -> Net {
     }
 }
 
-/// A network, mirroring `IPv4Network | IPv6Network`.
+/// A network (IPv4 or IPv6).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Net {
     V4(Ipv4Net),
@@ -400,7 +400,7 @@ impl Net {
             _ => false,
         }
     }
-    /// `str(network)` per Python: `network_address/prefixlen`.
+    /// Format as `network_address/prefixlen`.
     fn to_string_py(&self) -> String {
         match self {
             Net::V4(n) => format!("{}/{}", n.network(), n.prefix_len()),
@@ -420,7 +420,7 @@ impl Net {
     }
 }
 
-/// `ip_network(s, strict=False)` — accepts both `addr` and `addr/prefix`.
+/// Parse a network (host bits zeroed) — accepts both `addr` and `addr/prefix`.
 fn parse_net(s: &str) -> Option<Net> {
     if s.contains(':') {
         if let Some((addr, pfx)) = split_net(s, 128) {
@@ -453,7 +453,7 @@ fn direct_host(host_bits: u128, _source: Net, target: Net) -> Addr {
     }
 }
 
-// ── CidrAssignment / RedactionMap ───────────────────────────────────
+// CidrAssignment / RedactionMap
 
 /// One source CIDR mapped to one target CIDR of equal prefix length.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -506,8 +506,8 @@ impl Default for RedactionMap {
 }
 
 impl RedactionMap {
-    /// Serialise to the sidecar map-file TOML (byte-identical to Python's
-    /// `RedactionMap.to_toml`).
+    /// Serialise to the sidecar map-file TOML. Deterministic and stable: a
+    /// fixed key/section order so re-serialising the same map is byte-identical.
     #[must_use]
     pub fn to_toml(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
@@ -546,7 +546,7 @@ impl RedactionMap {
         }
         if !self.forward.is_empty() {
             lines.push("[ips]".to_owned());
-            // Python: sorted(self.forward.items()) — lexicographic by key.
+            // Emit the IP entries sorted lexicographically by key.
             let mut items: Vec<(&String, &String)> = self.forward.iter().collect();
             items.sort_by(|a, b| a.0.cmp(b.0));
             for (real, fake) in items {
@@ -554,35 +554,36 @@ impl RedactionMap {
             }
         }
         let mut out = lines.join("\n");
-        // Python: "\n".join(lines).rstrip() + "\n"
+        // Join with newlines, strip trailing whitespace, then end with one "\n".
         let trimmed = out.trim_end();
         out.truncate(trimmed.len());
         out.push('\n');
         out
     }
 
-    /// Parse a sidecar map-file TOML (mirrors `RedactionMap.from_toml`).
+    /// Parse a sidecar map-file TOML.
     ///
     /// # Errors
-    /// Returns an error string on an unknown schema or malformed structure.
-    pub fn from_toml(text: &str) -> Result<RedactionMap, String> {
+    /// Returns [`BigipError::Redact`] on an unknown schema or malformed
+    /// structure.
+    pub fn from_toml(text: &str) -> Result<RedactionMap, BigipError> {
         let parsed = toml_lite::parse(text)?;
         let schema = parsed.top.get("schema").map(String::as_str);
         if schema != Some("f5-redact-map/v1") {
-            return Err(format!(
+            return Err(BigipError::redact(format!(
                 "unknown map schema: {}",
                 schema.map_or_else(|| "None".to_owned(), |s| format!("'{s}'"))
-            ));
+            )));
         }
         let mut cidr_assignments = Vec::new();
         for item in &parsed.cidr {
             let source = item
                 .get("source")
-                .ok_or("missing source in [[cidr]]")?
+                .ok_or_else(|| BigipError::redact("missing source in [[cidr]]"))?
                 .clone();
             let target = item
                 .get("target")
-                .ok_or("missing target in [[cidr]]")?
+                .ok_or_else(|| BigipError::redact("missing target in [[cidr]]"))?
                 .clone();
             let shuffle_key = item.get("shuffle_key").cloned();
             cidr_assignments.push(CidrAssignment {
@@ -628,7 +629,7 @@ impl RedactionMap {
     }
 }
 
-// ── Allocator ───────────────────────────────────────────────────────
+// Allocator
 
 /// Error raised when no non-overlapping target CIDR can be allocated.
 #[derive(Debug)]
@@ -824,7 +825,7 @@ impl Allocator {
     }
 }
 
-// ── Permutation (shuffle mode) ──────────────────────────────────────
+// Permutation (shuffle mode)
 
 fn derive_key(seed: &str, source_cidr: &str) -> Vec<u8> {
     let mut h = Sha256::new();
@@ -834,8 +835,8 @@ fn derive_key(seed: &str, source_cidr: &str) -> Vec<u8> {
 
 const SHUFFLE_MAX_WIDTH: u32 = 20;
 
-/// Return `(forward, inverse)` permutations for `host_width` bits, matching
-/// `_build_permutation` (CPython `random.Random(seed_int).shuffle`).
+/// Return `(forward, inverse)` permutations for `host_width` bits, using
+/// the MT19937 `random`-style PRNG's integer-seeded `shuffle`.
 fn build_permutation(host_width: u32, key: &[u8]) -> (Vec<u32>, Vec<u32>) {
     let size = 1usize << host_width;
     let digest = {
@@ -881,7 +882,7 @@ fn shuffle_host(addr: Addr, source: Net, target: Net, key: &[u8], invert: bool) 
     direct_host(u128::from(table[host_bits]), source, target)
 }
 
-// ── Map operations ──────────────────────────────────────────────────
+// Map operations
 
 fn normalise_token(token: &str) -> Option<Addr> {
     if let Some(a) = parse_v4(token) {
@@ -891,8 +892,7 @@ fn normalise_token(token: &str) -> Option<Addr> {
     }
 }
 
-/// Find every IPv4 / IPv6 literal in `text` in first-appearance order
-/// (mirrors `collect_addresses`).
+/// Find every IPv4 / IPv6 literal in `text` in first-appearance order.
 fn collect_addresses(text: &str, remap_private: bool) -> (Vec<Ipv4Addr>, Vec<Ipv6Addr>) {
     let mut seen_v4: Vec<Ipv4Addr> = Vec::new();
     let mut seen_v4_set: std::collections::HashSet<Ipv4Addr> = std::collections::HashSet::new();
@@ -979,10 +979,10 @@ pub struct BuildMapOptions<'a> {
 /// Build (or extend) a [`RedactionMap`] covering every public IP in the text.
 ///
 /// # Errors
-/// Returns [`TargetCollisionError`] when a target CIDR cannot be allocated, or
-/// an error string on an unknown mode / malformed CIDR.
+/// Returns [`BigipError::Redact`] when a target CIDR cannot be allocated, or on
+/// an unknown mode / malformed CIDR.
 #[allow(clippy::too_many_lines)]
-pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
+pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
     let BuildMapOptions {
         text,
         target_pool_v4,
@@ -997,7 +997,7 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
     } = opts;
 
     if mode != "direct" && mode != "shuffle" {
-        return Err(format!("unknown mode '{mode}'"));
+        return Err(BigipError::redact(format!("unknown mode '{mode}'")));
     }
 
     let (mut rm, pool_v4, pool_v6) = if let Some(ex) = existing {
@@ -1026,15 +1026,15 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
     // Replay prior assignments through the allocator.
     let mut cidr_for: HashMap<Net, Net> = HashMap::new();
     for a in &rm.cidr_assignments {
-        let src = parse_net(&a.source).ok_or("bad source CIDR")?;
-        let tgt = parse_net(&a.target).ok_or("bad target CIDR")?;
+        let src = parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?;
+        let tgt = parse_net(&a.target).ok_or_else(|| BigipError::redact("bad target CIDR"))?;
         cidr_for.insert(src, tgt);
         allocator.consume(tgt);
     }
 
     let explicit: Vec<Net> = explicit_source_cidrs
         .iter()
-        .map(|c| parse_net(c).ok_or_else(|| format!("bad source CIDR: {c}")))
+        .map(|c| parse_net(c).ok_or_else(|| BigipError::redact(format!("bad source CIDR: {c}"))))
         .collect::<Result<_, _>>()?;
 
     let source_cidr_for = |addr: Addr| -> Net {
@@ -1068,7 +1068,8 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
         allocator.forbid(source_cidr_for(addr));
     }
     for a in &rm.cidr_assignments {
-        allocator.forbid(parse_net(&a.source).ok_or("bad source CIDR")?);
+        allocator
+            .forbid(parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?);
     }
     for net in &explicit {
         allocator.forbid(*net);
@@ -1079,7 +1080,7 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
         if let std::collections::hash_map::Entry::Vacant(slot) = cidr_for.entry(source_net) {
             let target_net = allocator
                 .allocate(source_net.prefixlen(), addr.version())
-                .map_err(|e| e.0)?;
+                .map_err(|e| BigipError::redact(e.0))?;
             let shuffle_key = if mode == "shuffle" {
                 Some(hex_encode(&derive_key(&seed, &source_net.to_string_py())))
             } else {
@@ -1243,8 +1244,7 @@ pub fn unmap_address(rm: &mut RedactionMap, fake: &str) -> String {
 /// Substitute every IPv4 / IPv6 literal in `text` via `rm`. Returns
 /// `(text, count)` where `count` is the number of literals that changed.
 ///
-/// Mirrors `apply_map`: the v4 regex is applied first, then the v6 regex over
-/// the result.
+/// The v4 regex is applied first, then the v6 regex over the result.
 #[must_use]
 pub fn apply_map(rm: &mut RedactionMap, text: &str, reverse: bool) -> (String, usize) {
     let mut count = 0usize;
@@ -1273,8 +1273,8 @@ pub fn apply_map(rm: &mut RedactionMap, text: &str, reverse: bool) -> (String, u
     (after_v6, count)
 }
 
-/// Apply a replacement closure over every bounded literal match (mirrors
-/// `re.sub`: non-overlapping, left-to-right).
+/// Apply a replacement closure over every bounded literal match
+/// (non-overlapping, left-to-right).
 fn substitute(
     text: &str,
     finder: fn(&str) -> Vec<LitMatch>,
@@ -1292,7 +1292,7 @@ fn substitute(
     out
 }
 
-// ── Secret stripping (rewrite.py redact half) ───────────────────────
+// Secret stripping (the redact half)
 
 const SECRET_KEYS: [&str; 9] = [
     "passphrase",
@@ -1404,12 +1404,12 @@ pub struct RedactOptions {
     pub remap_private: bool,
 }
 
-/// Redact secrets in `source`; optionally remap public IPs (mirrors
-/// `redact_secrets`).
+/// Redact secrets in `source`; optionally remap public IPs.
 ///
 /// # Errors
-/// Propagates [`build_map`] errors (target collision / bad CIDR / unknown mode).
-pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport, String> {
+/// Propagates [`build_map`] errors as [`BigipError::Redact`] (target collision /
+/// bad CIDR / unknown mode).
+pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport, BigipError> {
     let (out, secrets) = redact_property_values(source);
     let (out, pem) = redact_pem_blocks(&out);
     if opts.remap_ips {
@@ -1458,11 +1458,12 @@ pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport,
     }
 }
 
-// ── CPython random.Random (MT19937) port ────────────────────────────
+// MT19937 random generator
 
-/// A from-scratch port of CPython's `random.Random` sufficient for
-/// `shuffle` byte-parity: `init_by_array` integer seeding, `getrandbits`,
-/// `_randbelow_with_getrandbits`, and the reverse Fisher-Yates `shuffle`.
+/// A from-scratch implementation of an MT19937-based `random`-style PRNG
+/// sufficient for `shuffle` byte-parity: `init_by_array` integer seeding,
+/// `getrandbits`, `_randbelow_with_getrandbits`, and the reverse Fisher-Yates
+/// `shuffle`.
 mod mt19937 {
     const N: usize = 624;
     const M: usize = 397;
@@ -1470,7 +1471,7 @@ mod mt19937 {
     const UPPER_MASK: u32 = 0x8000_0000;
     const LOWER_MASK: u32 = 0x7fff_ffff;
 
-    /// Mersenne-Twister state + the helpers CPython layers on top.
+    /// Mersenne-Twister state + the helpers layered on top.
     pub struct Random {
         mt: [u32; N],
         mti: usize,
@@ -1525,11 +1526,11 @@ mod mt19937 {
             r
         }
 
-        /// CPython `random_seed` for an integer seed: take the absolute value,
+        /// Integer-seed initialisation: take the absolute value,
         /// split into 32-bit little-endian words, then `init_by_array`.
         #[must_use]
         pub fn from_int(seed: u128) -> Random {
-            // CPython operates on abs(n); our seeds are always non-negative.
+            // The algorithm operates on abs(n); our seeds are always non-negative.
             let mut key: Vec<u32> = Vec::new();
             let mut n = seed;
             if n == 0 {
@@ -1566,7 +1567,7 @@ mod mt19937 {
             y
         }
 
-        /// CPython `getrandbits(k)` for `k <= 32` (host widths here are
+        /// `getrandbits(k)` for `k <= 32` (host widths here are
         /// `<= SHUFFLE_MAX_WIDTH == 20`).
         fn getrandbits(&mut self, k: u32) -> u32 {
             debug_assert!(k <= 32);
@@ -1576,7 +1577,7 @@ mod mt19937 {
             self.genrand_uint32() >> (32 - k)
         }
 
-        /// CPython `_randbelow_with_getrandbits(n)`.
+        /// Rejection-sampling `randbelow(n)` via `getrandbits`.
         fn randbelow(&mut self, n: u32) -> u32 {
             if n == 0 {
                 return 0;
@@ -1589,7 +1590,7 @@ mod mt19937 {
             r
         }
 
-        /// CPython `Random.shuffle` (reverse Fisher-Yates).
+        /// Fisher-Yates shuffle (reverse iteration).
         pub fn shuffle(&mut self, x: &mut [u32]) {
             let len = x.len();
             if len <= 1 {
@@ -1603,12 +1604,13 @@ mod mt19937 {
     }
 }
 
-// ── Minimal TOML reader for the map file ────────────────────────────
+// Minimal TOML reader for the map file
 
 /// A tiny TOML reader tailored to the redact map-file shape (top-level
 /// string keys + string arrays, repeated `[[cidr]]` tables, and an `[ips]`
 /// table of quoted-key string values). Not a general TOML parser.
 mod toml_lite {
+    use crate::error::BigipError;
     use std::collections::BTreeMap;
 
     pub struct Parsed {
@@ -1626,7 +1628,7 @@ mod toml_lite {
         Ips,
     }
 
-    pub fn parse(text: &str) -> Result<Parsed, String> {
+    pub fn parse(text: &str) -> Result<Parsed, BigipError> {
         let mut top = BTreeMap::new();
         let mut target_pool_v4 = None;
         let mut target_pool_v6 = None;
@@ -1654,7 +1656,7 @@ mod toml_lite {
                 continue;
             }
             let Some((key_raw, val_raw)) = line.split_once('=') else {
-                return Err(format!("malformed line: {line}"));
+                return Err(BigipError::redact(format!("malformed line: {line}")));
             };
             let key = key_raw.trim();
             let val = val_raw.trim();
@@ -1673,7 +1675,7 @@ mod toml_lite {
                     table.insert(key.to_owned(), unquote(val).unwrap_or_default());
                 }
                 Section::Ips => {
-                    let k = unquote(key).ok_or("ips key not quoted")?;
+                    let k = unquote(key).ok_or_else(|| BigipError::redact("ips key not quoted"))?;
                     let v = unquote(val).unwrap_or_default();
                     ips.push((k, v));
                 }
@@ -1699,25 +1701,28 @@ mod toml_lite {
         }
     }
 
-    fn parse_array(s: &str) -> Result<Vec<String>, String> {
+    fn parse_array(s: &str) -> Result<Vec<String>, BigipError> {
         let s = s.trim();
         let inner = s
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
-            .ok_or_else(|| format!("malformed array: {s}"))?;
+            .ok_or_else(|| BigipError::redact(format!("malformed array: {s}")))?;
         let mut out = Vec::new();
         for part in inner.split(',') {
             let p = part.trim();
             if p.is_empty() {
                 continue;
             }
-            out.push(unquote(p).ok_or_else(|| format!("array element not quoted: {p}"))?);
+            out.push(
+                unquote(p)
+                    .ok_or_else(|| BigipError::redact(format!("array element not quoted: {p}")))?,
+            );
         }
         Ok(out)
     }
 }
 
-// ── Tests ───────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod tests {
@@ -1725,7 +1730,7 @@ mod tests {
 
     #[test]
     fn mt19937_shuffle_matches_cpython() {
-        // random.Random(N).shuffle(list(range(16)))
+        // MT19937 seeded with N, Fisher-Yates shuffling the indices 0..16.
         let cases: [(u128, [u32; 16]); 4] = [
             (0, [10, 14, 5, 1, 9, 2, 3, 11, 13, 7, 8, 4, 0, 6, 15, 12]),
             (1, [2, 10, 0, 14, 6, 5, 3, 8, 7, 11, 15, 1, 12, 13, 9, 4]),

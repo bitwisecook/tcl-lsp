@@ -1,7 +1,6 @@
 //! Source-transformation verbs: `format`, `minify`, `unminify-error`.
 //!
-//! Ports of the handlers in `tooling/tcl/verbs/transform.py`, driving the
-//! formatter / minifier engines in `tcl-lsp-core`.
+//! Drive the formatter / minifier engines in `tcl-lsp-core`.
 
 use std::path::Path;
 
@@ -23,8 +22,7 @@ use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 
 use crate::cli::{ColourArgs, InputArgs};
 
-/// Default tab-expansion width used on stdout (mirrors the CLI default; the
-/// config-file `[output] tabs` override lands with the INI-config port).
+/// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
 
 /// `tcl format` — pretty-print each input with canonical style rules.
@@ -76,7 +74,7 @@ pub fn run_format(
 
 /// `tcl opt` — run the optimiser and emit rewritten Tcl.
 ///
-/// Follows the Python CLI's profile semantics: `full` (the default) is a single
+/// Profile semantics: `full` (the default) is a single
 /// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
 pub fn run_opt(
     input: &InputArgs,
@@ -112,7 +110,7 @@ pub fn run_opt(
         }
     }
 
-    // Python `profile_spec`: only `aggressive` is multi-pass (max 5 iters);
+    // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5 iters);
     // every other profile (including `full`) is a single pass. Both honour the
     // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
     let max_iterations = if matches!(profile, OptimisationProfile::Aggressive) {
@@ -125,7 +123,7 @@ pub fn run_opt(
     for _ in 0..max_iterations {
         let kept: Vec<_> = optimise_with_dialect(&current, registry, dialect)
             .into_iter()
-            .filter(|o| !disabled.contains(&o.code))
+            .filter(|o| !disabled.contains(o.code.as_str()))
             .collect();
         if kept.is_empty() {
             break;
@@ -141,7 +139,7 @@ pub fn run_opt(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let mut rendered = optimised;
-    // On stdout the Python CLI appends a comment block summarising the rewrites.
+    // On stdout a comment block summarising the rewrites is appended.
     if target.is_stdout() && !optimisations.is_empty() {
         let mut lines = vec![
             "\n\n# -------------".to_owned(),

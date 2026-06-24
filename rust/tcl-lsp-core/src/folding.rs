@@ -1,35 +1,31 @@
-//! Folding range provider — Rust port of `lsp/features/folding.py`.
+//! Folding range provider.
 //!
 //! Emits LSP folding ranges for proc bodies, namespace bodies, comment
 //! blocks, and control-structure bodies (`if`, `while`, `for`,
-//! `foreach`, `switch`, …).  Mirrors the Python algorithm: a scope
+//! `foreach`, `switch`, …).  The algorithm is a scope
 //! walk over the analyser's [`AnalysisResult`], a comment-line
 //! collector, and a registry-driven body-argument walker that
-//! recurses through nested braced bodies, followed by the
-//! `_normalise_overlaps` post-pass that trims partially overlapping
+//! recurses through nested braced bodies, followed by an overlap
+//! normalisation post-pass that trims partially overlapping
 //! siblings so VS Code's folding tree-builder doesn't drop them.
 //!
 //! The result is a fully line-resolved `Vec<FoldingRange>`.  The
-//! `PyO3` binding (`super::folding_binding`) emits these as plain
-//! dicts; the Python dispatcher in `lsp/features/folding.py`
-//! materialises `lsprotocol.types.FoldingRange` values and re-runs
-//! its own `_normalise_overlaps` over them — running the
-//! idempotent normalisation pass twice is harmless and keeps the
-//! Python `_normalise_overlaps` test surface in
-//! `tests/test_folding.py` working unchanged while the Rust LSP
-//! server (`tcl-lsp-server`) gets the normalised output it needs
-//! directly from this function.
+//! normalisation pass is idempotent, so running it again over this
+//! output is harmless.  The Rust LSP server (`tcl-lsp-server`) gets
+//! the normalised output it needs directly from this function.
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
+
+use rustc_hash::FxHashSet;
 
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-/// LSP folding-range kind.  Mirrors `lsprotocol.types.FoldingRangeKind`.
+/// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FoldKind {
     /// Generic foldable region (proc/namespace/control body).
@@ -66,10 +62,6 @@ pub struct FoldingRange {
 ///
 /// Runs the Rust analyser internally for scope folds, then walks
 /// the segmented token stream for body-argument and comment folds.
-/// Mirrors `lsp/features/folding.py::get_folding_ranges` with the
-/// `analysis` argument present (the Python optimisation that skipped
-/// scope folds when `analysis is None` is unnecessary in Rust — the
-/// analyser itself is fast enough).
 ///
 /// `registry` is the [`CommandRegistry`] consulted for body-arg
 /// roles. The caller owns the registry — typically the LSP server's
@@ -82,10 +74,7 @@ pub struct FoldingRange {
 /// [`normalise_overlaps`] so the returned vector is always disjoint or
 /// properly nested — VS Code's folding tree-builder rejects
 /// partially overlapping siblings, and the Rust LSP server consumes
-/// this output directly without a Python-side cleanup pass.  The
-/// pass is idempotent, so the Python dispatcher's own
-/// `_normalise_overlaps` over `PyO3`-binding output stays harmless
-/// for the legacy path.
+/// this output directly.  The pass is idempotent.
 #[must_use]
 pub fn folding_ranges(
     source: &str,
@@ -100,7 +89,7 @@ pub fn folding_ranges(
     let analysis = analyser.analyse(source, dialect);
 
     let line_index = LineIndex::new(source);
-    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let mut ranges: Vec<FoldingRange> = Vec::new();
 
     collect_scope_folds(
@@ -130,8 +119,7 @@ pub fn folding_ranges(
 
 /// Return a fold end line that leaves the closing ``}`` visible.
 ///
-/// Mirrors `_adjust_body_end_line` in `lsp/features/folding.py`:
-/// when a braced body's last content byte sits on the same line as
+/// When a braced body's last content byte sits on the same line as
 /// its closing ``}``, trim the fold end up by one so sibling folds
 /// remain disjoint (the `} else {` regression — VS Code's folding
 /// tree-builder rejects partially overlapping siblings).  Bodies
@@ -153,7 +141,7 @@ fn adjust_body_end_line(source: &str, end_offset: usize, end_line: u32) -> u32 {
 }
 
 fn push_unique(
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
     start_line: u32,
     end_line: u32,
@@ -251,7 +239,7 @@ fn emit_body_span_fold(
     span: tcl_lexer::Span,
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     if span.is_empty() {
@@ -267,12 +255,12 @@ fn emit_body_span_fold(
 }
 
 /// Walk the analyser scope tree and emit folds for proc bodies and
-/// namespace bodies.  Mirrors `_collect_scope_folds`.
+/// namespace bodies.
 fn collect_scope_folds(
     scope: &Scope,
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     for proc_def in scope.procs.values() {
@@ -289,12 +277,12 @@ fn collect_scope_folds(
 }
 
 /// Walk lines and emit folds for runs of consecutive ``#`` comment
-/// lines.  Mirrors `_collect_comment_folds`: an internal block (one
-/// followed by a non-comment line) needs at least three lines; a
-/// trailing block at end-of-file needs at least two.
+/// lines.  An internal block (one followed by a non-comment line)
+/// needs at least three lines; a trailing block at end-of-file needs
+/// at least two.
 fn collect_comment_folds(
     source: &str,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let lines: Vec<&str> = source.split('\n').collect();
@@ -340,7 +328,7 @@ fn collect_comment_folds(
 }
 
 /// Collect folds for commands spread across multiple physical lines
-/// via `\<newline>` continuations (SYNC-MAY31-8, mirroring Python #494).
+/// via `\<newline>` continuations.
 ///
 /// Each backslash-newline at a word boundary lexes to a `Sep` token
 /// that starts at the backslash (ordinary whitespace Seps start with a
@@ -352,7 +340,7 @@ fn collect_comment_folds(
 fn collect_continuation_folds(
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
@@ -387,7 +375,7 @@ fn collect_continuation_folds(
 }
 
 /// Recursively segment commands and emit folds for every multi-line
-/// `BODY`-roled argument.  Mirrors `_collect_body_folds`.
+/// `BODY`-roled argument.
 ///
 /// `inside_oo_body` tracks whether we are recursing through the
 /// body of an outer OO definition command (`oo::class create` /
@@ -407,14 +395,13 @@ struct FoldCtx<'a> {
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
     original_source: &'a str,
-    seen: &'a mut HashSet<(u32, u32)>,
+    seen: &'a mut FxHashSet<(u32, u32)>,
     ranges: &'a mut Vec<FoldingRange>,
-    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`
-    /// (`SYNC-MAY19-dialect-contextvar`, strip 5).
+    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`.
     config: tcl_lexer::LexerConfig,
 }
 
-/// Recursion depth is capped at 20 to mirror the Python guard.
+/// Recursion depth is capped at 20.
 fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
@@ -522,8 +509,7 @@ fn collect_body_folds(
 /// Trim partially overlapping sibling folds so the returned ranges
 /// are pairwise disjoint or properly nested.
 ///
-/// Mirrors `_normalise_overlaps` in `lsp/features/folding.py`. VS
-/// Code's folding tree-builder silently drops or misplaces ranges
+/// VS Code's folding tree-builder silently drops or misplaces ranges
 /// that share a boundary line without one containing the other; the
 /// individual collectors already try to avoid this via
 /// [`adjust_body_end_line`], but a belt-and-suspenders post-pass
@@ -627,7 +613,7 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
     // De-duplicate: trimming may have collapsed distinct inputs onto
     // the same (start, end, kind) triple.
-    let mut seen: HashSet<(u32, u32, FoldKind)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, FoldKind)> = FxHashSet::default();
     let mut result: Vec<FoldingRange> = Vec::with_capacity(working.len());
     for slot in working {
         let Some(r) = slot else { continue };
@@ -640,6 +626,8 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     /// Build a fresh registry for a test.
@@ -681,12 +669,11 @@ mod tests {
 
     #[test]
     fn single_line_proc_has_no_fold() {
-        // Mirrors `test_single_line_no_fold` in tests/test_folding.py.
         let ranges = folding_ranges_default("proc foo {} { return 1 }\n", "tcl8.6");
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
-    // -- SYNC-MAY31-8: backslash line-continuation folding --------
+    // backslash line-continuation folding
 
     #[test]
     fn backslash_continuation_folds_first_to_last_line() {
@@ -732,7 +719,6 @@ mod tests {
 
     #[test]
     fn proc_body_folds_to_close_brace_minus_one() {
-        // Mirrors `test_proc_body`.
         let source = "proc greet {name} {\n    puts \"Hello\"\n    puts \"$name\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
@@ -745,7 +731,6 @@ mod tests {
 
     #[test]
     fn namespace_body_emits_fold_at_line_zero() {
-        // Mirrors `test_namespace_body`.
         let source = "namespace eval myns {\n    proc helper {} { return }\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         let starts: HashSet<u32> = ranges
@@ -761,7 +746,6 @@ mod tests {
 
     #[test]
     fn comment_block_of_three_lines_folds() {
-        // Mirrors `test_comment_block`.
         let source = "# This is a comment block\n# that spans multiple lines\n# explaining something important\nproc foo {} { return }\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         let comments = fold_lines(&ranges, FoldKind::Comment);
@@ -770,14 +754,12 @@ mod tests {
 
     #[test]
     fn single_comment_line_does_not_fold() {
-        // Mirrors `test_single_comment_no_fold`.
         let ranges = folding_ranges_default("# Just one comment\n", "tcl8.6");
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
 
     #[test]
     fn if_body_emits_at_least_one_region_fold() {
-        // Mirrors `test_if_body`.
         let source = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
@@ -785,7 +767,6 @@ mod tests {
 
     #[test]
     fn while_body_emits_at_least_one_region_fold() {
-        // Mirrors `test_while_body`.
         let source = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
@@ -793,8 +774,7 @@ mod tests {
 
     #[test]
     fn if_else_bodies_are_disjoint() {
-        // Mirrors `test_if_else_bodies_are_disjoint` — `} else {` must
-        // not put body1 and body2 on the same line.
+        // `} else {` must not put body1 and body2 on the same line.
         let source = concat!(
             "if {1} {\n",
             "    puts \"yes\"\n",
@@ -825,9 +805,8 @@ mod tests {
 
     #[test]
     fn incomplete_body_still_folds() {
-        // Mirrors `test_incomplete_body_still_folds`: an unterminated
-        // proc body should still be foldable so the fold doesn't
-        // flicker off mid-edit.
+        // An unterminated proc body should still be foldable so the
+        // fold doesn't flicker off mid-edit.
         let source = "proc foo {} {\n    puts hi\n    puts there\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
@@ -843,7 +822,6 @@ mod tests {
 
     #[test]
     fn elseif_chain_yields_four_disjoint_folds() {
-        // Mirrors `test_elseif_chain_disjoint`.
         let source = concat!(
             "if {1} {\n",
             "    puts a\n",
@@ -874,8 +852,7 @@ mod tests {
 
     #[test]
     fn nested_if_else_keeps_siblings_disjoint() {
-        // Mirrors `test_nested_if_else_no_overlapping_siblings`: every
-        // pair of folds is either properly nested or disjoint.
+        // Every pair of folds is either properly nested or disjoint.
         let source = concat!(
             "proc demo {x} {\n",
             "    if {$x} {\n",
@@ -913,9 +890,8 @@ mod tests {
     #[test]
     fn tcloo_method_body_inside_define_emits_a_fold() {
         // Regression: ``method``/``constructor``/``destructor`` inside
-        // ``oo::define`` are context-sensitive and not in the registry.
-        // Python's ``_oo_definition_body_indices`` carried that special
-        // case; the Rust port must mirror it.
+        // ``oo::define`` are context-sensitive and not in the registry,
+        // so a special case handles them.
         let source = concat!(
             "oo::class create Foo {\n",
             "    method greet {name} {\n",
@@ -1059,8 +1035,7 @@ mod tests {
     /// `method` must NOT be treated as an OO method definition.
     /// The body walker only consults [`inner_oo_body_indices`] when
     /// `inside_oo_body == true` — at top level it falls through to
-    /// the registry, which has no `method` entry. Regression for
-    /// the architecture review on PR #231.
+    /// the registry, which has no `method` entry.
     #[test]
     fn top_level_method_is_not_an_oo_definition() {
         let source = concat!(
@@ -1089,8 +1064,6 @@ mod tests {
 
     #[test]
     fn normalise_overlaps_shared_boundary_trims_earlier() {
-        // Mirrors `test_normalise_overlaps_shared_boundary_trims_earlier`
-        // in tests/test_folding.py.
         let input = vec![
             FoldingRange {
                 start_line: 0,
@@ -1116,8 +1089,7 @@ mod tests {
 
     #[test]
     fn normalise_overlaps_dedups_after_trimming() {
-        // Mirrors `test_normalise_overlaps_dedups_after_trimming`:
-        // parent [0, 10] with child [3, 8] and a sibling [3, 12]
+        // Parent [0, 10] with child [3, 8] and a sibling [3, 12]
         // that trims to [3, 10]; another collector emitting [3, 10]
         // natively must not survive as a duplicate.
         let input = vec![
@@ -1152,11 +1124,7 @@ mod tests {
 
     #[test]
     fn normalise_overlaps_is_idempotent() {
-        // Running normalisation twice should produce the same set —
-        // important because the Python dispatcher in
-        // `lsp/features/folding.py` re-runs `_normalise_overlaps`
-        // over the binding output, and the Rust LSP server bypasses
-        // that path entirely.
+        // Running normalisation twice should produce the same set.
         let input = vec![
             FoldingRange {
                 start_line: 0,
@@ -1187,7 +1155,6 @@ mod tests {
 
     #[test]
     fn proc_fold_end_leaves_outer_close_brace_visible() {
-        // Mirrors `test_if_else_proc_body_close_brace_visible`.
         let source = concat!(
             "proc demo {} {\n",
             "    if {1} {\n",

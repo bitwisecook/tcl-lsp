@@ -11,8 +11,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// options (`-start` consumes a value; `--` terminates), arg 0 is the
 /// pattern, arg 1 the string, and args 2+ are capture variables.  Resolve
 /// `VarWrite` for every trailing capture var dynamically (the leading-option
-/// shift means a static slot list cannot place them).  Mirrors
-/// `dialects/tcl/regexp_.py::_regexp_arg_role_resolver`.
+/// shift means a static slot list cannot place them).
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut i = 0;
     while i < args.len() {
@@ -139,8 +138,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "1 if the pattern matches, 0 otherwise.",
         }),
-        // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
-        // pattern validation. Mirrors `tcl/regexp_.py`.
+        // `exp` is an ARE pattern — drives regex sub-tokens and
+        // pattern validation.
         pattern_type: Some(PatternType::Regex),
         forms: FORMS,
         arg_role_resolver: Some(regexp_arg_roles),

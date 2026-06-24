@@ -1,13 +1,10 @@
 //! Shared Tcl value-shape helpers used across compiler passes.
-//!
-//! Ported from `core/compiler/value_shapes.py`.
 
 /// Scan one Tcl variable reference starting at `text[at]`, returning the
 /// byte index just past its end, or `None` when `text[at..]` does not
 /// start with a valid reference.
 ///
-/// Handles the three forms from the Tcl 9.0 `Tcl_ParseVar` spec, mirroring
-/// `value_shapes._scan_pure_var_ref`:
+/// Handles the three forms from the Tcl 9.0 `Tcl_ParseVar` spec:
 ///
 /// - `$name` — bare name in `[A-Za-z0-9_:]`; `::` runs stay part of the
 ///   name (namespace-qualified).
@@ -74,8 +71,7 @@ pub fn is_pure_var_ref(text: &str) -> bool {
 /// resolved at runtime as array element `a(1)`), so the value is a
 /// *variable reference*, never a constant — analyses must treat it as
 /// conservatively unknown (overdefined), the same as `${ns::y}`. A plain
-/// braced scalar `${foo}` (no parens) is *not* matched. Mirrors
-/// `value_shapes.is_braced_whole_name_array_ref`.
+/// braced scalar `${foo}` (no parens) is *not* matched.
 #[must_use]
 pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
     let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) else {
@@ -87,9 +83,8 @@ pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
 /// Extract command name and args from `[cmd arg1 arg2 …]`.
 ///
 /// Returns `None` when `text` is not bracket-wrapped, or when the
-/// inside is empty. Arguments are whitespace-split — simple case
-/// matching the Python helper; callers that need full Tcl list
-/// quoting handle it upstream.
+/// inside is empty. Arguments are whitespace-split — a simple case;
+/// callers that need full Tcl list quoting handle it upstream.
 #[must_use]
 pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
     let stripped = text.trim();

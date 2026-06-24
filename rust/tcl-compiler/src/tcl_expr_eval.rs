@@ -17,9 +17,9 @@
 //!   exponents.
 //! - Comparisons always return `Int(0)` or `Int(1)`; `eq`/`ne`/`lt`… compare the
 //!   operands' raw text (so `5.00 eq 5.0` → 0).
-//! - `round()` ties away from zero (not Python/Rust banker's rounding).
+//! - `round()` ties away from zero (not banker's round-half-to-even rounding).
 //!
-//! Originally ported from `core/compiler/tcl_expr_eval.py` (C22); the iRules
+//! The iRules
 //! word operators (`contains`/`starts_with`/`matches_glob`/`matches_regex`/
 //! `equals`/`in`/`ni`) fold via [`tcl_syntax::expr::ExprOps::binary_other`].
 
@@ -82,14 +82,11 @@ pub type Env = HashMap<String, EnvValue>;
 /// Maximum exponent for integer `**` — guards against pathological
 /// inputs like `2 ** 999_999_999`.
 ///
-/// Mirrors C Tcl's `INST_EXPON` limit (`exponent < 2^28`).  Set to
-/// `(1 << 28) - 1` by upstream commit ``342d4c7a`` (PR #331);
-/// previously a tighter `10_000` cap that diverged from C Tcl.
+/// Matches C Tcl's `INST_EXPON` limit (`exponent < 2^28`), so the value
+/// is `(1 << 28) - 1`.
 const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /// Evaluate an expression AST against `env`. Returns `None` when the
 /// expression depends on runtime state or triggers a domain error.
@@ -152,14 +149,12 @@ fn eval_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<Tc
     result.to_number()
 }
 
-// ---------------------------------------------------------------------------
 // FoldOps — the const-folder's value ops for the shared expr walk
-// ---------------------------------------------------------------------------
 
 /// A const-fold value. `Str` keeps the operand's **raw text** and is parsed
 /// lazily per context (numeric ops via [`parse_literal`]; string ops use it
-/// verbatim) — exactly the old `eval`-vs-`eval_as_string` split, so the raw-text
-/// string-compare behaviour (`5.00 eq 5.0` → 0, #519) is preserved.
+/// verbatim) — exactly the `eval`-vs-`eval_as_string` split, so the raw-text
+/// string-compare behaviour (`5.00 eq 5.0` → 0) is preserved.
 #[derive(Clone)]
 enum FoldValue {
     Int(i64),
@@ -398,17 +393,11 @@ pub fn format_tcl_value(v: TclValue) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Core dispatch
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Math function calls
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Literals and variables
-// ---------------------------------------------------------------------------
 
 /// Parse a numeric/boolean literal. Supports `0x`/`0o`/`0b` prefixes,
 /// Tcl-style leading-zero decimals (e.g. `0005`), floats, and the
@@ -455,9 +444,7 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Binary operators
-// ---------------------------------------------------------------------------
 
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     match op {
@@ -666,13 +653,9 @@ fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
     Some(TclValue::Int(acc))
 }
 
-// ---------------------------------------------------------------------------
 // Unary operators
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// iRules string ops (C22i1/i2)
-// ---------------------------------------------------------------------------
+// iRules string ops
 
 /// Split a simple Tcl list string into elements.
 ///
@@ -750,9 +733,7 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
     Some(TclValue::Int(i64::from(res)))
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -874,7 +855,7 @@ mod tests {
 
     #[test]
     fn arithmetic_int_floor_division_negative() {
-        // Tcl / Python: floor toward -inf.
+        // Tcl: floor toward -inf.
         assert_eq!(eval_str("-7 / 2"), Some(TclValue::Int(-4)));
         assert_eq!(eval_str("7 / -2"), Some(TclValue::Int(-4)));
         // Modulo sign follows divisor.
@@ -924,9 +905,9 @@ mod tests {
 
     #[test]
     fn string_comparisons_fold_string_operands() {
-        // SYNC-JUN02b-5 (#519): `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
-        // operands AS strings, so string-only operands now fold
-        // (previously `eval` parsed them numerically, returning None).
+        // `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
+        // operands AS strings, so string-only operands fold
+        // (an earlier numeric parse returned None for them).
         assert_eq!(eval_str("\"x\" eq \"y\""), Some(TclValue::Int(0)));
         assert_eq!(eval_str("\"x\" ne \"y\""), Some(TclValue::Int(1)));
         assert_eq!(eval_str("\"x\" eq \"x\""), Some(TclValue::Int(1)));
@@ -1016,7 +997,7 @@ mod tests {
         assert_eq!(eval_str("10 ** 100"), None);
     }
 
-    // -- C22i3: matches_regex is never constant-folded --
+    // -- matches_regex is never constant-folded --
 
     #[test]
     fn irules_matches_regex_is_not_folded() {
@@ -1037,7 +1018,7 @@ mod tests {
         }
     }
 
-    // -- C22i1: simple iRules string ops --
+    // -- simple iRules string ops --
 
     #[test]
     fn irules_contains() {
@@ -1091,7 +1072,7 @@ mod tests {
         );
     }
 
-    // -- C22i2: matches_glob + in/ni --
+    // -- matches_glob + in/ni --
 
     #[test]
     fn irules_matches_glob_star() {
@@ -1288,7 +1269,7 @@ mod tests {
     fn math_isqrt_integer_only() {
         assert_eq!(eval_str("isqrt(16)"), Some(TclValue::Int(4)));
         assert_eq!(eval_str("isqrt(17)"), Some(TclValue::Int(4)));
-        // Float arg → None (mirrors Python behaviour).
+        // Float arg → None.
         assert_eq!(eval_str("isqrt(4.0)"), None);
     }
 

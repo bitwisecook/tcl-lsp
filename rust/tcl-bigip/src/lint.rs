@@ -1,13 +1,12 @@
-//! Lint engine for `f5 validate` (alias `lint`) — a faithful port of
-//! `dialects/f5/bigip/lint/__init__.py`.
+//! Lint engine for `f5 validate` (alias `lint`).
 //!
 //! This is a *sibling* of the query engine: it walks the parsed
 //! [`BigipConfig`] model directly (it does **not** use the query DSL) and
-//! reuses the already-ported `tcl-bigip` model, [`crate::stats::is_root_kind`],
+//! reuses the `tcl-bigip` model, [`crate::stats::is_root_kind`],
 //! `tcl-irules` (the iRule object-reference walker), and `tcl-registry` (the
 //! known-event set). Eight built-in rules run in a fixed registration order;
 //! [`run_lint`] yields findings in that order (the per-severity / rule-id /
-//! full-path sort lives in the text formatter, mirroring Python).
+//! full-path sort lives in the text formatter).
 
 use std::collections::HashSet;
 
@@ -19,12 +18,12 @@ use tcl_registry::events::EventRegistry;
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 
-/// The lint rule categories, in fixed order (mirrors Python `CATEGORIES`).
+/// The lint rule categories, in fixed order.
 pub const CATEGORIES: [&str; 2] = ["config", "irule"];
-/// The finding severities, in fixed order (mirrors Python `SEVERITIES`).
+/// The finding severities, in fixed order.
 pub const SEVERITIES: [&str; 3] = ["error", "warning", "info"];
 
-/// One lint finding (mirrors the frozen Python `Finding` dataclass).
+/// One lint finding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
     /// Rule id (e.g. `"orphan-monitor"`, `"irule-missing-pool"`).
@@ -39,15 +38,15 @@ pub struct Finding {
     pub message: String,
 }
 
-// ── Per-kind views over the model ────────────────────────────────────
+// Per-kind views over the model
 //
-// Python keeps a dict-per-kind (`cfg.pools`, `cfg.monitors`, …); the Rust
-// model stores everything in `config.objects` tagged with its `table_name`.
-// `KindMap` reproduces Python's dict semantics: iteration in first-seen
-// order, last-wins on a full_path collision (`dict.update`).
+// Config holds one map per object kind, but the Rust model stores everything
+// in `config.objects` tagged with its `table_name`. `KindMap` provides those
+// per-kind map semantics: iteration in first-seen order, last-wins on a
+// full_path collision.
 
-/// An order-preserving, last-wins map keyed by `full_path` — Python's
-/// dict-per-kind view, materialised over the typed model objects.
+/// An order-preserving, last-wins map keyed by `full_path` — the per-kind
+/// view, materialised over the typed model objects.
 pub(crate) struct KindMap<'a, T> {
     /// `(full_path, value)` in first-seen order.
     entries: Vec<(&'a str, &'a T)>,
@@ -65,8 +64,9 @@ impl<T> Default for KindMap<'_, T> {
 }
 
 impl<'a, T> KindMap<'a, T> {
-    /// Insert / update like `dict.__setitem__`: a new key appends (keeping
-    /// first-seen position), an existing key updates the value in place.
+    /// Insert / update with map-assignment semantics: a new key appends
+    /// (keeping first-seen position), an existing key updates the value in
+    /// place.
     fn insert(&mut self, key: &'a str, value: &'a T) {
         if let Some(&i) = self.index.get(key) {
             self.entries[i].1 = value;
@@ -84,7 +84,7 @@ impl<'a, T> KindMap<'a, T> {
         self.index.contains_key(key)
     }
 
-    /// Look up the value for `key`, mirroring `dict.get`.
+    /// Look up the value for `key`.
     pub(crate) fn get(&self, key: &str) -> Option<&'a T> {
         self.index.get(key).map(|&i| self.entries[i].1)
     }
@@ -95,8 +95,7 @@ impl<'a, T> KindMap<'a, T> {
 }
 
 /// The per-kind model views the rules reason about, grouped from
-/// `config.objects` by `ModelObject` variant (mirrors the dict-per-kind
-/// collections on the Python `BigipConfig`).
+/// `config.objects` by `ModelObject` variant.
 pub(crate) struct ModelView<'a> {
     pub(crate) default_partition: &'a str,
     pub(crate) pools: KindMap<'a, crate::model::BigipPool>,
@@ -154,8 +153,8 @@ impl<'a> ModelView<'a> {
     }
 }
 
-/// Resolve a possibly-short `name` to a full-path key in `table` (port of
-/// `BigipConfig.resolve_name`): exact, then partition-qualified against
+/// Resolve a possibly-short `name` to a full-path key in `table`: exact, then
+/// partition-qualified against
 /// `default_partition`, then `/Common/`, then a suffix match.
 pub(crate) fn resolve_name<T>(
     name: &str,
@@ -188,15 +187,15 @@ pub(crate) fn resolve_name<T>(
         .map(|(k, _)| k.to_owned())
 }
 
-// ── Config merge ─────────────────────────────────────────────────────
+// Config merge
 
 /// Build a single merged [`BigipConfig`] that unions every input, later
-/// configs winning on key collision (port of `_merge_configs`). Only the
+/// configs winning on key collision. Only the
 /// fields the lint rules read — `objects` and `generic_objects` — are
-/// merged; `default_partition` follows the first input (Python builds a
-/// fresh `BigipConfig()` whose partition defaults to `Common`, but
-/// `resolve_name` only consults it for non-`/`-prefixed names, which the
-/// merged-input path never produces differently across files).
+/// merged; `default_partition` follows the first input. A fresh config would
+/// default its partition to `Common`, but `resolve_name` only consults it for
+/// non-`/`-prefixed names, which the merged-input path never produces
+/// differently across files.
 #[must_use]
 pub fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
     let mut merged = BigipConfig::default();
@@ -230,10 +229,10 @@ pub fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
     merged
 }
 
-// ── Python repr (for `{name!r}` / `{event!r}` messages) ──────────────
+// repr formatting (for `{name!r}` / `{event!r}` messages)
 
-/// Python `repr()` of a string, as used by `{value!r}` (mirrors the
-/// single-quote-preferred quoting; object paths never contain quotes).
+/// The `repr()`-style rendering of a string, as used by `{value!r}`:
+/// single-quote-preferred quoting; object paths never contain quotes.
 fn py_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {
         '"'
@@ -243,7 +242,7 @@ fn py_repr(s: &str) -> String {
     format!("{quote}{s}{quote}")
 }
 
-// ── The eight built-in rules ─────────────────────────────────────────
+// The eight built-in rules
 
 /// `orphan-monitor` (warning/config): a monitor referenced by no pool or
 /// pool-member; `/Common/<factory monitor>` downgrades to `info`.
@@ -290,7 +289,7 @@ fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// Iterate the typed pool members of a pool (Python `pool.members`).
+/// Iterate the typed pool members of a pool.
 fn member_iter(
     pool: &crate::model::BigipPool,
 ) -> impl Iterator<Item = &crate::model::BigipPoolMember> {
@@ -303,7 +302,7 @@ fn member_iter(
     })
 }
 
-/// Whether a pool has any members (Python `bool(pool.members)`).
+/// Whether a pool has any members.
 fn pool_has_members(pool: &crate::model::BigipPool) -> bool {
     !pool.members.is_empty()
 }
@@ -366,8 +365,7 @@ fn rule_pool_without_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// The deprecated iRule commands, in registration order (mirrors
-/// `_DEPRECATED_IRULE_COMMANDS` — a dict, so insertion order is iterated).
+/// The deprecated iRule commands, in registration order.
 const DEPRECATED_IRULE_COMMANDS: &[(&str, &str)] = &[
     (
         "X509::extensions",
@@ -427,7 +425,7 @@ fn rule_irule_unknown_event(
     out: &mut Vec<Finding>,
 ) {
     for (path, rule) in view.rules.iter() {
-        // Python iterates `set(_WHEN_RE.findall(...))`; dedup first-seen so a
+        // Collect `_WHEN_RE` matches into a set; dedup first-seen so a
         // repeated event fires at most one finding per rule.
         let mut seen: HashSet<&str> = HashSet::new();
         for cap in when_re.captures_iter(&rule.source) {
@@ -448,8 +446,8 @@ fn rule_irule_unknown_event(
     }
 }
 
-/// Whether `cfg` carries surrounding-context objects (port of
-/// `_has_config_context`): any non-rule typed object, or any generic object
+/// Whether `cfg` carries surrounding-context objects: any non-rule typed
+/// object, or any generic object
 /// keyed by something other than `ltm::rule::*`.
 fn has_config_context(view: &ModelView<'_>) -> bool {
     if !view.pools.is_empty()
@@ -469,8 +467,7 @@ fn has_config_context(view: &ModelView<'_>) -> bool {
         .any(|(key, _)| !key.starts_with("ltm::rule::"))
 }
 
-/// Map an iRule reference's candidate kinds to a coarse bucket (port of
-/// `_classify_reference_kind`).
+/// Map an iRule reference's candidate kinds to a coarse bucket.
 fn classify_reference_kind(kinds: &[&str]) -> Option<&'static str> {
     if kinds.contains(&"ltm_pool") {
         return Some("pool");
@@ -502,8 +499,7 @@ fn classify_reference_kind(kinds: &[&str]) -> Option<&'static str> {
     None
 }
 
-/// Resolve a classified reference against `view` (port of
-/// `_resolve_reference`).
+/// Resolve a classified reference against `view`.
 fn resolve_reference(view: &ModelView<'_>, kind: &str, name: &str) -> Option<String> {
     let part = view.default_partition;
     match kind {
@@ -568,11 +564,11 @@ fn rule_irule_missing_object(
     }
 }
 
-// ── run_lint ─────────────────────────────────────────────────────────
+// run_lint
 
 /// Run every registered rule against the union of `configs` and return the
-/// findings in registration order (port of `run_lint`). `sources` is unused
-/// by the built-in rules but kept for signature parity. `category` limits to
+/// findings in registration order. `sources` is unused
+/// by the built-in rules but kept for API compatibility. `category` limits to
 /// one rule category; `severity` filters the emitted findings.
 #[must_use]
 pub fn run_lint(
@@ -581,7 +577,7 @@ pub fn run_lint(
     category: Option<&str>,
     severity: Option<&str>,
 ) -> Vec<Finding> {
-    // Mirror `_merge_configs(...) if len(configs) > 1 else next(iter(...))`.
+    // Merge when more than one config; otherwise use the single config.
     let owned;
     let view = if configs.len() > 1 {
         owned = merge_configs(configs);
@@ -600,8 +596,8 @@ pub fn run_lint(
 
     let mut findings: Vec<Finding> = Vec::new();
 
-    // The config-category rules, then the irule-category rules, in the exact
-    // Python registration order.
+    // The config-category rules, then the irule-category rules, in the fixed
+    // registration order.
     let run_config = matches!(category, None | Some("config"));
     let run_irule = matches!(category, None | Some("irule"));
 

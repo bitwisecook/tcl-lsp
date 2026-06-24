@@ -62,6 +62,7 @@ mod interp;
 mod join_;
 mod lappend_;
 mod lassign;
+mod ledit;
 mod lindex;
 mod linsert;
 mod list_;
@@ -162,10 +163,9 @@ use crate::spec::CommandSpec;
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = tcl_specs_a_through_l();
     specs.extend(tcl_specs_m_through_z());
-    // GAP-d: the `tcl::mathop` operator ensemble (every spelling),
-    // restoring name parity with the Python source of truth.
+    // The `tcl::mathop` operator ensemble (every spelling).
     specs.extend(mathop_generated::specs());
-    // GAP-d: simple named commands the Rust port omitted.
+    // Simple named commands not yet implemented.
     specs.extend([
         auto_execok::spec(),
         auto_import::spec(),
@@ -243,6 +243,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         join_::spec(),
         lappend_::spec(),
         lassign::spec(),
+        ledit::spec(),
         lindex::spec(),
         linsert::spec(),
         list_::spec(),

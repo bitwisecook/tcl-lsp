@@ -1,7 +1,7 @@
 //! `PyO3` bindings for the command registry.
 //!
-//! Exposes registry queries to Python so the transition period can
-//! use the Rust registry from Python consumer code.
+//! Exposes registry queries to Python so Python consumer code can
+//! use the Rust registry.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -33,8 +33,8 @@ pub(crate) fn default_registry() -> &'static CommandRegistry {
 /// Tcl + stdlib + tcllib specs. Each dialect gets its own cached
 /// instance so dialect-specific overrides (e.g. iRules's
 /// command-shape constraints) don't bleed across requests for
-/// unrelated dialects. Mirrors the original per-call behaviour
-/// of `CommandRegistry::build_default(); load_dialect(d)` without
+/// unrelated dialects. Equivalent to
+/// `CommandRegistry::build_default(); load_dialect(d)` without
 /// the per-call build cost.
 ///
 /// Unparseable dialect strings collapse to the empty-string key

@@ -1,10 +1,7 @@
-//! `PyO3` bindings for the optimiser passes (C32).
+//! `PyO3` bindings for the optimiser passes.
 //!
 //! Exposes `optimiser_find_optimisations(source, dialect)` to
-//! Python. The Python `core.compiler.optimiser._manager`
-//! `find_optimisations` entry point delegates here when the
-//! Rust wheel is importable, falling back to the Python pass
-//! pipeline otherwise (same pattern as L11's lexer flip).
+//! Python.
 //!
 //! Optimisation records are returned as tuples rather than a
 //! full `pyclass` so the Python side can construct its own
@@ -25,7 +22,7 @@ type OptimisationRow = (String, String, u32, u32, String, Option<u32>, bool);
 
 fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
     (
-        o.code,
+        o.code.to_string(),
         o.message,
         o.span.start(),
         o.span.end(),
@@ -35,7 +32,7 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
     )
 }
 
-/// Run every landed optimisation pass against `source` and
+/// Run every optimisation pass against `source` and
 /// return the overlap-free list of suggestions as a tuple per
 /// diagnostic:
 ///
@@ -43,7 +40,7 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
 ///   group_or_none, hint_only)`
 ///
 /// `start_offset` / `end_offset` are absolute byte offsets into
-/// `source` (the offsets the Python `SourcePosition.offset`
+/// `source` (the offsets `SourcePosition.offset`
 /// field maps from). The Python caller converts those to
 /// `Range` values via its own line index.
 ///
@@ -51,39 +48,52 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
 /// plain Tcl.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn optimiser_find_optimisations(source: &str, dialect: Option<&str>) -> Vec<OptimisationRow> {
+pub fn optimiser_find_optimisations(
+    py: Python<'_>,
+    source: &str,
+    dialect: Option<&str>,
+) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
-    optimiser::optimise_with_dialect(source, registry, dialect)
-        .into_iter()
-        .map(lift_optimisation)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        optimiser::optimise_with_dialect(&source, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift_optimisation)
+            .collect()
+    })
 }
 
-/// Run every landed optimisation pass against `source` and
+/// Run every optimisation pass against `source` and
 /// return the **unfiltered** list (no overlap resolution). Same
 /// tuple shape as [`optimiser_find_optimisations`]. Exposed for
 /// tests + tooling that want to inspect the raw per-pass output.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn optimiser_find_optimisations_raw(
+    py: Python<'_>,
     source: &str,
     dialect: Option<&str>,
 ) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
-    // optimise_raw already constructs a CompilationUnit internally;
-    // no need to build one here.
-    optimiser::optimise_raw(source, registry, dialect)
-        .into_iter()
-        .map(lift_optimisation)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        // optimise_raw already constructs a CompilationUnit internally;
+        // no need to build one here.
+        optimiser::optimise_raw(&source, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift_optimisation)
+            .collect()
+    })
 }
 
 /// Return the display priority for a given optimisation code.
-/// Mirrors the Python `_OPT_PRIORITY` table.
 #[pyfunction]
 #[pyo3(signature = (code, /))]
 pub fn optimiser_opt_priority(code: &str) -> u8 {
-    optimiser::opt_priority(code)
+    code.parse::<tcl_compiler::compiler_checks::DiagCode>()
+        .map_or(0, optimiser::opt_priority)
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

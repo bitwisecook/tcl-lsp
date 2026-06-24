@@ -1,9 +1,7 @@
-//! Gather every Tcl-local name mentioned by an SSA function (C33e2).
+//! Gather every Tcl-local name mentioned by an SSA function.
 //!
-//! Mirrors `_collect_known_names_from_cfg` from
-//! `core/compiler/var_escape/_cfg_propagation.py`. Seeds
-//! [`super::state::CfgState::known_names`] before the per-block
-//! walk runs.
+//! Seeds [`super::state::CfgState::known_names`] before the
+//! per-block walk runs.
 
 use std::collections::HashSet;
 
@@ -20,14 +18,14 @@ pub fn collect_known_names_from_cfg<I: IntoIterator<Item = String>>(
     let mut names: HashSet<String> = params.into_iter().collect();
     for block in ssa.blocks.values() {
         for phi in &block.phis {
-            names.insert(phi.name.clone());
+            names.insert(ssa.var_name(phi.name).to_owned());
         }
         for stmt in &block.statements {
-            for n in stmt.defs.keys() {
-                names.insert(n.clone());
+            for &sym in stmt.defs.keys() {
+                names.insert(ssa.var_name(sym).to_owned());
             }
-            for n in stmt.uses.keys() {
-                names.insert(n.clone());
+            for &sym in stmt.uses.keys() {
+                names.insert(ssa.var_name(sym).to_owned());
             }
         }
     }

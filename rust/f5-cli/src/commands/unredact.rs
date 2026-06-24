@@ -1,14 +1,13 @@
 //! The `unredact` (`unmap`) verb — reverse a redaction using its map file.
 //!
-//! Port of `tooling/f5/verbs/unredact.py` (`_run_unredact`). Reads the TOML map
-//! produced by `f5 redact` and rewrites every IPv4 / IPv6 literal back to its
-//! original value via [`tcl_bigip::redact::apply_map`].
+//! Reads the TOML map produced by `f5 redact` and rewrites every IPv4 / IPv6
+//! literal back to its original value via [`tcl_bigip::redact::apply_map`].
 //!
-//! `--format scf` (default) emits the recovered text verbatim, reaching
-//! byte-for-byte parity. `tmsh` / `tmsh-delta` re-render the recovered config
-//! via the BIG-IP tmsh emit engine (`tcl_bigip::tmsh_emit`); like the Python
-//! verb, no pre-edit original is threaded, so `tmsh-delta` treats every object
-//! as freshly created (and a non-config input falls back to raw text).
+//! `--format scf` (default) emits the recovered text verbatim. `tmsh` /
+//! `tmsh-delta` re-render the recovered config via the BIG-IP tmsh emit engine
+//! (`tcl_bigip::tmsh_emit`); no pre-edit original is threaded, so `tmsh-delta`
+//! treats every object as freshly created (and a non-config input falls back to
+//! raw text).
 
 use std::path::Path;
 
@@ -55,8 +54,8 @@ pub fn run_unredact(
 
     let (out, count) = apply_map(&mut rm, &source, true);
 
-    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. Like the
-    // Python verb, no pre-edit original is threaded (delta treats all as new).
+    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. No pre-edit
+    // original is threaded (delta treats all as new).
     let out = crate::commands::emit::render_config(
         &out,
         &format.format,

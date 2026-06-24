@@ -94,8 +94,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "The substituted string (Tcl 8.5+), or the count of replacements when *varName* is given.",
         }),
-        // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
-        // pattern validation. Mirrors `tcl/regsub_.py`.
+        // `exp` is an ARE pattern — drives regex sub-tokens and
+        // pattern validation.
         pattern_type: Some(PatternType::Regex),
         forms: FORMS,
         ..CommandSpec::DEFAULT

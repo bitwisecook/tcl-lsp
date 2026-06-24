@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
-use tcl_compiler::compiler_checks::Diagnostic as CompilerCheck;
+use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
 use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
@@ -31,9 +31,7 @@ use tcl_compiler::taint::TaintLattice;
 // function the interprocedural fixpoint converges) — aliased to avoid clashing
 // with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
 // `TaintSummaryKey`).  Used to memoise the summary fixpoint per procedure.
-use tcl_compiler::taint_interproc::{
-    InterprocTaintResult, ProcTaintSummary as ReturnTaintSummary,
-};
+use tcl_compiler::taint_interproc::{InterprocTaintResult, ProcTaintSummary as ReturnTaintSummary};
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
@@ -194,8 +192,8 @@ pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> 
 }
 
 /// The set of files in a workspace/project — the salsa-native replacement for the
-/// off-graph [`tcl_lsp_core::workspace_index::WorkspaceIndex`] file set
-/// (SRV-INCREMENTAL Task 6).  Lifting the project onto the salsa graph is what
+/// off-graph [`tcl_lsp_core::workspace_index::WorkspaceIndex`] file set.
+/// Lifting the project onto the salsa graph is what
 /// lets cross-file queries (below) get *precise reverse-dependency invalidation*
 /// for free: editing one file recomputes only the cross-file facts that actually
 /// read it.  Setting `files` (open/close) recomputes the project aggregates;
@@ -210,21 +208,15 @@ pub struct Project {
 /// The project-wide set of declared `proc` qualified names — the cross-file
 /// command-resolution domain (e.g. W123 unresolved-command suppression against
 /// the workspace's procs).  The salsa-native replacement for `WorkspaceIndex`'s
-/// proc-name set (SRV-INCREMENTAL Task 6, step 1: *lift the project signature
-/// table into salsa*).
+/// proc-name set: it lifts the project signature table into salsa.
 ///
 /// Depends **only** on each file's [`file_decls`] — the signature firewall — so a
 /// **body edit in any file leaves it unchanged** → it backdates → **zero
 /// cross-file work**; only a signature/decl change (a proc added / removed /
-/// renamed) recomputes it. This is the E4/E8 input discipline extended across
+/// renamed) recomputes it. This is the input discipline extended across
 /// files: a keystroke that does not alter a signature wakes nobody project-wide.
 /// Proven by `project_proc_names_firewall` (a body edit re-runs zero
 /// `project_proc_names`; a decl change re-runs exactly one).
-///
-/// *Not yet wired into diagnostics:* cross-file W123 / arity that consume this
-/// must land behind the multi-file `incremental == fresh` fuzzer (the
-/// heuristic-edge correctness gate that does not exist yet) — see the cross-file
-/// design section. This query is the firewall-correct foundation they build on.
 #[salsa::tracked]
 pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTreeSet<String>> {
     let mut names: BTreeSet<String> = BTreeSet::new();
@@ -261,8 +253,8 @@ fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usiz
 }
 
 /// The project's cross-file command-resolution domain, keyed by **tail** name,
-/// each carrying the `(min, max)` arities of any **procs** with that tail
-/// (SRV-INCREMENTAL Task 6).  A bare command `foo` is resolved cross-file if some
+/// each carrying the `(min, max)` arities of any **procs** with that tail.
+/// A bare command `foo` is resolved cross-file if some
 /// project declaration has tail `foo` — procs, classes (the class command),
 /// `interp alias`es, and ensembles, matching the analyser's *local* suppression
 /// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
@@ -339,19 +331,19 @@ fn cross_file_arity_diagnostic(
     let max = candidates.iter().map(|&(_, hi)| hi).max()?;
     let (code, message) = if argc < min {
         (
-            "E002",
+            DiagCode::E002,
             format!("Too few arguments for '{name}': expected at least {min}, got {argc}"),
         )
     } else if max != usize::MAX && argc > max {
         (
-            "E003",
+            DiagCode::E003,
             format!("Too many arguments for '{name}': expected at most {max}, got {argc}"),
         )
     } else {
         return None;
     };
     Some(Diagnostic {
-        code: code.to_string(),
+        code,
         span,
         message,
         severity: Severity::Error,
@@ -359,7 +351,7 @@ fn cross_file_arity_diagnostic(
     })
 }
 
-/// Resolve a file's diagnostics against the project (Task 6): a W123 (unknown
+/// Resolve a file's diagnostics against the project: a W123 (unknown
 /// command) whose command tail is a workspace proc is **suppressed** (resolved
 /// cross-file); if that call's arg count is known and fits **none** of the
 /// proc's arities, a cross-file arity error (`E002`/`E003`, the analyser's own
@@ -393,7 +385,7 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     let mut out: Vec<tcl_compiler::analyser::types::Diagnostic> = diags
         .iter()
         .filter(|d| {
-            d.code != "W123"
+            d.code != DiagCode::W123
                 || !w123_command(&d.message).is_some_and(|name| arities.contains_key(name))
         })
         .cloned()
@@ -411,7 +403,7 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             && !candidates.is_empty()
             && let Some(Some(argc)) = argc_by_span.get(&(span.start(), span.end()))
             && let Some(diag) = cross_file_arity_diagnostic(name, *span, *argc, candidates)
-            && !is_disabled(&diag.code)
+            && !is_disabled(diag.code.as_str())
         {
             out.push(diag);
         }
@@ -419,8 +411,8 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     out
 }
 
-/// Analyser diagnostics for `file` resolved against the project (SRV-INCREMENTAL
-/// Task 6): cross-file-resolvable W123 (unknown command) suppressed, plus a
+/// Analyser diagnostics for `file` resolved against the project:
+/// cross-file-resolvable W123 (unknown command) suppressed, plus a
 /// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
 /// arg count.
 ///
@@ -643,7 +635,7 @@ pub fn memoised_compilation_unit(
 /// with this second build — whose per-procedure lattice/cascade demands hit the
 /// **same** [`function_lattice`] / [`taint_cascade`] memos the shared build
 /// already populated, making the duplicate build mostly cache hits (~29 ms warm
-/// vs ~57 ms cold, measured on `linalg.tcl`; SRV-INCREMENTAL 2b).
+/// vs ~57 ms cold, measured on `linalg.tcl`).
 fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
     source: &str,
@@ -841,7 +833,7 @@ pub fn taint_cascade<'db>(
 
 /// Interned identity of one procedure's *interprocedural summary-fixpoint*
 /// dependencies — the [`proc_summary_cascade`] key alongside its [`FnLatticeKey`]
-/// baseline (SRV-INCREMENTAL 2b).  `infer_proc_summary(P)` is a pure function of
+/// baseline.  `infer_proc_summary(P)` is a pure function of
 /// `P`'s offset-0 body (the `FnLatticeKey`) and, from the *current* summaries it
 /// reads: the resolution domain (`known_procs`), the interprocedural
 /// [`ProcSummary`] projection of `P`'s reachable set (`interproc_reachable` —
@@ -936,10 +928,10 @@ fn summary_deps_key<'db>(
     )
 }
 
-/// Memoised per-procedure interprocedural summary inference (SRV-INCREMENTAL 2b
-/// — the `infer_proc_summary` half of the summary fixpoint, layered on
+/// Memoised per-procedure interprocedural summary inference — the
+/// `infer_proc_summary` half of the summary fixpoint, layered on
 /// [`function_lattice`]'s offset-0 baseline the way [`taint_cascade`] layers the
-/// per-proc taint re-run).
+/// per-proc taint re-run.
 ///
 /// Reconstructs the minimal context [`SummaryDepsKey`] encodes — every procedure
 /// name (so call resolution matches the whole summary), the interproc projection
@@ -1009,8 +1001,8 @@ pub fn proc_summary_cascade<'db>(
 
 /// Memoised per-procedure **non-taint** compiler checks (SCCP constant branches,
 /// GVN redundancies, shimmer / thunking / byte-array) for one procedure's
-/// offset-0 baseline — the `function_lattice` analogue for the checks pass
-/// (SRV-INCREMENTAL 2a).  Returns spans at **offset 0** (it computes on the
+/// offset-0 baseline — the `function_lattice` analogue for the checks pass.
+/// Returns spans at **offset 0** (it computes on the
 /// offset-0 [`function_lattice`] unit, *before* `rebase_function_unit`); the
 /// caller adds the procedure's `body_offset`.  A body edit re-runs only the
 /// edited procedure's checks; every other proc is a cache hit.
@@ -1028,7 +1020,7 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
 }
 
 /// The checks-path memoised solve for one document: the interprocedural taint
-/// result (2b) **and** the rebased per-procedure non-taint checks (2a), both
+/// result **and** the rebased per-procedure non-taint checks, both
 /// gathered from a single re-derived [`build_unit_with_keys`] so the duplicate
 /// build is paid once for both halves.  `PartialEq` for salsa early-cutoff.
 #[derive(Clone, PartialEq)]
@@ -1040,7 +1032,7 @@ pub struct CheckSolve {
     pub fn_checks: Vec<CompilerCheck>,
 }
 
-/// The checks-path memoised solve for one document (SRV-INCREMENTAL 2a + 2b).
+/// The checks-path memoised solve for one document.
 ///
 /// Runs on the **checks path only** (demanded by [`compiler_check_diagnostics`],
 /// never the analyser walk / `semantic_tokens`), so it cannot regress
@@ -1049,11 +1041,11 @@ pub struct CheckSolve {
 /// salsa returns must be `'static`; the duplicate build is mostly
 /// `function_lattice` cache hits, ~28 ms warm), then from that one build produces
 /// both:
-/// * **2b** — the interprocedural taint solve via
+/// * the interprocedural taint solve via
 ///   [`tcl_compiler::taint_interproc::solve_interprocedural_taints_with`] with an
 ///   `infer` deferring to [`proc_summary_cascade`] (collapses the ~120 ms pass-1
 ///   floor);
-/// * **2a** — the per-procedure non-taint checks via [`function_checks`] (an
+/// * the per-procedure non-taint checks via [`function_checks`] (an
 ///   unchanged proc's checks are a cache hit), each rebased here by the
 ///   procedure's `body_offset` (`ir_module.procedures[qname].span.start()` — the
 ///   same delta `rebase_function_unit` applies in the whole-module build, since
@@ -1070,8 +1062,14 @@ pub fn proc_taint_solve<'db>(
     let dialect = file.dialect(db).clone();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
-    let (cu, lattice_keys) =
-        build_unit_with_keys(db, file.text(db), &registry, false, cfg.to_config(db), dialect_opt);
+    let (cu, lattice_keys) = build_unit_with_keys(
+        db,
+        file.text(db),
+        &registry,
+        false,
+        cfg.to_config(db),
+        dialect_opt,
+    );
     let interproc = cu.interproc.as_ref();
 
     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
@@ -1087,12 +1085,19 @@ pub fn proc_taint_solve<'db>(
             // Fallback (a proc without a memoised lattice — e.g. an unanalysable
             // body): run the real inference directly, exactly as the bare solve.
             None => tcl_compiler::taint_interproc::infer_proc_summary(
-                qname, params, fu, &registry, interproc, dialect_opt, known, summaries,
+                qname,
+                params,
+                fu,
+                &registry,
+                interproc,
+                dialect_opt,
+                known,
+                summaries,
             ),
         },
     );
 
-    // 2a: per-procedure non-taint checks.  The memoised [`function_checks`] returns
+    // Per-procedure non-taint checks.  The memoised [`function_checks`] returns
     // **offset-0** spans (it runs on the offset-0 `function_lattice` unit), so we
     // add the procedure's `body_offset` here — the same rebase the whole-module
     // build's `rebase_function_unit` applies.  A proc without a lattice key (e.g.
@@ -1128,9 +1133,11 @@ pub fn proc_taint_solve<'db>(
                 // The built unit's fallback fus (complexity-guarded / top level)
                 // carry **absolute** spans already (`base_offset == 0`), so the
                 // per-function checks need no rebase.
-                for d in
-                    tcl_compiler::compiler_checks::function_nontaint_checks(fu, &registry, dialect_opt)
-                {
+                for d in tcl_compiler::compiler_checks::function_nontaint_checks(
+                    fu,
+                    &registry,
+                    dialect_opt,
+                ) {
                     fn_checks.push(d);
                 }
             }
@@ -1298,8 +1305,8 @@ pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<Compi
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
     let cu = compilation_unit(db, file, cfg_key);
-    // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]
-    // (SRV-INCREMENTAL 2a + 2b): the interprocedural taint solve (`solve.taints`)
+    // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
+    // the interprocedural taint solve (`solve.taints`)
     // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
     // so an unchanged procedure contributes neither a re-solve nor a re-check.
     // The remaining taint-family + iRules module checks (which read the solved
@@ -1344,14 +1351,15 @@ pub fn compiler_check_diagnostics_uncached(
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
-/// tracked [`file_analysis`].
+/// tracked [`file_analysis_incremental`] so the outline shares the per-item
+/// memoised analysis with the push-diagnostics path in the same edit.
 #[salsa::tracked]
 pub fn document_symbols(
-    db: &dyn salsa::Database,
+    db: &dyn TclDb,
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Vec<DocumentSymbol> {
-    let analysis = file_analysis(db, file, config);
+    let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::document_symbols::document_symbols_from_analysis(file.text(db), &analysis)
 }
 
@@ -1745,8 +1753,8 @@ mod tests {
         );
     }
 
-    /// The interprocedural summary fixpoint memo (`proc_summary_cascade`,
-    /// SRV-INCREMENTAL 2b) must skip an unrelated procedure's `infer_proc_summary`
+    /// The interprocedural summary fixpoint memo (`proc_summary_cascade`)
+    /// must skip an unrelated procedure's `infer_proc_summary`
     /// across edits: a body edit to one proc re-keys only that proc's summary
     /// (its `FnLatticeKey` changed), while procedures it does not feed are cache
     /// hits — this is what collapses the worklist's whole-unit pass-1 floor to the
@@ -1803,7 +1811,7 @@ mod tests {
         );
     }
 
-    /// SRV-INCREMENTAL Task 6, step 1: the project proc-name set lifted into salsa
+    /// The project proc-name set lifted into salsa
     /// over `file_decls` must extend the signature firewall *across files* — a
     /// body edit in any file recomputes **zero** `project_proc_names` (its
     /// `file_decls` backdates), while a decl change (a new proc) recomputes it
@@ -1831,8 +1839,16 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let a = SourceFile::new(&db, "proc a {} { set x 1 }\n".to_owned(), "tcl8.6".to_owned());
-        let b = SourceFile::new(&db, "proc b {} { set y 2 }\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(
+            &db,
+            "proc a {} { set x 1 }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let b = SourceFile::new(
+            &db,
+            "proc b {} { set y 2 }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
         let project = Project::new(&db, vec![a, b]);
 
         assert_eq!(
@@ -1844,7 +1860,8 @@ mod tests {
 
         // BODY edit to `a` — `file_decls(a)` is byte-identical, so it backdates and
         // the project set does NOT recompute (the firewall, extended across files).
-        a.set_text(&mut db).to("proc a {} { set x 999 }\n".to_owned());
+        a.set_text(&mut db)
+            .to("proc a {} { set x 999 }\n".to_owned());
         let _ = project_proc_names(&db, project);
         assert_eq!(
             runs(&log),
@@ -1865,7 +1882,7 @@ mod tests {
         assert_eq!(names.len(), 3, "the new proc joins the project set");
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file arity firewall): `project_command_arities`
+    /// Cross-file arity firewall: `project_command_arities`
     /// depends only on each file's `item_sigs`, so a body edit anywhere must
     /// recompute **zero** — while a *signature* edit (changing a proc's parameter
     /// list) must recompute it exactly once and flow the new arity through.  This is
@@ -1945,11 +1962,18 @@ mod tests {
     ) -> Vec<(String, u32, u32, String)> {
         diags
             .iter()
-            .map(|d| (d.code.clone(), d.span.start(), d.span.end(), d.message.clone()))
+            .map(|d| {
+                (
+                    d.code.to_string(),
+                    d.span.start(),
+                    d.span.end(),
+                    d.message.clone(),
+                )
+            })
             .collect()
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file W123): a command unresolved locally but
+    /// Cross-file W123: a command unresolved locally but
     /// defined as a `proc` in another project file must have its W123 suppressed
     /// when (and only when) that file is in the `Project`.
     #[test]
@@ -1965,7 +1989,7 @@ mod tests {
         let has_helper_w123 = |diags: &[tcl_compiler::analyser::types::Diagnostic]| {
             diags
                 .iter()
-                .any(|d| d.code == "W123" && d.message.contains("helper"))
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("helper"))
         };
         // A alone: `helper` is unresolved → W123 present.
         let proj_a = Project::new(&db, vec![a]);
@@ -1981,7 +2005,7 @@ mod tests {
         );
     }
 
-    /// SRV-INCREMENTAL Task 6 gate: the multi-file `incremental == fresh`
+    /// The multi-file `incremental == fresh`
     /// differential.  Drive a 2-file project through edits to the *defining* file
     /// (`b`) — adding/removing the procs the calling file (`a`) invokes — and
     /// assert the calling file's cross-file diagnostics always match a fresh
@@ -2033,7 +2057,7 @@ mod tests {
         }
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file differential, both files edited): the
+    /// Cross-file differential, both files edited: the
     /// stronger sibling of the B-only fuzzer above — drive a 2-file project through
     /// independent edits to **both** the calling file (`a`) and the defining file
     /// (`b`), asserting `a`'s cross-file diagnostics always match a fresh
@@ -2048,7 +2072,7 @@ mod tests {
         // (so the cross-file arity error path is exercised, not just W123).
         let a_variants = [
             "alpha 1\nbeta 2\n",
-            "alpha 1 2 3\nbeta\n",       // wrong arg counts → arity error once resolved
+            "alpha 1 2 3\nbeta\n", // wrong arg counts → arity error once resolved
             "alpha\nset x 1\ngamma 9\n", // gamma may be unresolved → W123
             "beta 1 2\nalpha 7\n",
             "",
@@ -2103,7 +2127,7 @@ mod tests {
         }
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file arity): a call to a workspace-defined
+    /// Cross-file arity: a call to a workspace-defined
     /// proc with the wrong argument count emits the analyser's arity error
     /// (`E003` too many here) — *not* the unrelated `W124` IP-literal warning — and
     /// the W123 it would have drawn is suppressed; a correct count emits neither.
@@ -2120,30 +2144,41 @@ mod tests {
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
                 .iter()
-                .any(|d| d.code == code && d.message.contains("helper"))
+                .any(|d| d.code.as_str() == code && d.message.contains("helper"))
         };
 
         // 3 args to a 2-param proc → E003 (too many), and the W123 is suppressed.
         let a3 = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
         let p3 = Project::new(&db, vec![a3, b]);
         let d3 = project_diagnostics(&db, a3, cfg, p3);
-        assert!(has(&d3, "E003"), "3 args to a 2-param cross-file proc must emit E003");
-        assert!(!has(&d3, "W124"), "must not reuse W124 (the IP-literal warning)");
-        assert!(!has(&d3, "W123"), "W123 must be suppressed once resolved cross-file");
+        assert!(
+            has(&d3, "E003"),
+            "3 args to a 2-param cross-file proc must emit E003"
+        );
+        assert!(
+            !has(&d3, "W124"),
+            "must not reuse W124 (the IP-literal warning)"
+        );
+        assert!(
+            !has(&d3, "W123"),
+            "W123 must be suppressed once resolved cross-file"
+        );
 
         // Correct arity (2 args) → no arity error and no W123.
         let a2 = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
         let p2 = Project::new(&db, vec![a2, b]);
         let d2 = project_diagnostics(&db, a2, cfg, p2);
-        assert!(!has(&d2, "E002") && !has(&d2, "E003"), "correct arity → no arity error");
+        assert!(
+            !has(&d2, "E002") && !has(&d2, "E003"),
+            "correct arity → no arity error"
+        );
         assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
     }
 
-    /// SRV-INCREMENTAL Task 6 (mixed proc / non-proc tail): when a class (or alias
+    /// Mixed proc / non-proc tail: when a class (or alias
     /// / ensemble) and a proc share a tail name, a call may dispatch to the
     /// arity-less class command, so no arity error may fire even when the arg count
-    /// fits no proc arity — while the call still resolves (no W123).  Regression for
-    /// Codex review on #692.
+    /// fits no proc arity — while the call still resolves (no W123).
     #[test]
     fn cross_file_arity_suppressed_for_mixed_proc_nonproc_tail() {
         let db = TclDatabase::default();
@@ -2160,7 +2195,9 @@ mod tests {
         // (mixed), so it can never draw an arity error.
         let proj_names = Project::new(&db, vec![b]);
         assert_eq!(
-            project_command_arities(&db, proj_names).get("Widget").cloned(),
+            project_command_arities(&db, proj_names)
+                .get("Widget")
+                .cloned(),
             Some(Vec::new()),
             "a mixed proc/non-proc tail must carry an empty arity list"
         );
@@ -2170,20 +2207,22 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a mixed proc/non-proc tail must never draw an arity error"
         );
         assert!(
-            !d.iter().any(|x| x.code == "W123" && x.message.contains("Widget")),
+            !d.iter()
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("Widget")),
             "the call still resolves cross-file (no W123)"
         );
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file arity honours `disabled_diagnostics`):
+    /// Cross-file arity honours `disabled_diagnostics`:
     /// the synthesized arity error is produced *after* the analyser's own code
     /// filter (and the LSP lift doesn't re-filter), so it must replicate it —
     /// disabling `E003` (while keeping W123) must drop the cross-file arity error,
-    /// yet the call still resolves (no W123).  Regression for Codex review #692.
+    /// yet the call still resolves (no W123).
     #[test]
     fn cross_file_arity_honors_disabled_code() {
         let db = TclDatabase::default();
@@ -2198,7 +2237,7 @@ mod tests {
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
                 .iter()
-                .any(|d| d.code == code && d.message.contains("helper"))
+                .any(|d| d.code.as_str() == code && d.message.contains("helper"))
         };
 
         // E003 enabled (default): wrong arity surfaces as E003, W123 suppressed.
@@ -2221,12 +2260,12 @@ mod tests {
         );
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file arity independent of the W123 toggle):
+    /// Cross-file arity independent of the W123 toggle:
     /// disabling W123 (unknown-command) must NOT also silence cross-file arity —
     /// the analyser drops the W123 markers the arity pass keys off, so
     /// `project_diagnostics` drives off a W123-forced analysis.  A wrong-arg
     /// cross-file call must still report `E003` (matching local arity), with no
-    /// W123 leaking through.  Regression for Codex review #692.
+    /// W123 leaking through.
     #[test]
     fn cross_file_arity_survives_w123_disabled() {
         let db = TclDatabase::default();
@@ -2236,7 +2275,7 @@ mod tests {
             "tcl8.6".to_owned(),
         );
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
-            diags.iter().any(|d| d.code == code)
+            diags.iter().any(|d| d.code.as_str() == code)
         };
         // W123 disabled, E003 left enabled.
         let cfg = AnalyserConfig::new(&db, vec!["W123".to_owned()], NonAsciiMode::Default);
@@ -2250,17 +2289,26 @@ mod tests {
             "cross-file arity must survive W123 being disabled, got: {:?}",
             d_bad.iter().map(|d| &d.code).collect::<Vec<_>>()
         );
-        assert!(!has(&d_bad, "W123"), "W123 stays suppressed (it is disabled)");
+        assert!(
+            !has(&d_bad, "W123"),
+            "W123 stays suppressed (it is disabled)"
+        );
 
         // Correct arity → no arity error and no W123 (resolved, W123 disabled).
         let ok = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
         let pok = Project::new(&db, vec![ok, b]);
         let d_ok = project_diagnostics(&db, ok, cfg, pok);
-        assert!(!has(&d_ok, "E002") && !has(&d_ok, "E003"), "correct arity → no arity error");
-        assert!(!has(&d_ok, "W123"), "no W123 (disabled, and resolved anyway)");
+        assert!(
+            !has(&d_ok, "E002") && !has(&d_ok, "E003"),
+            "correct arity → no arity error"
+        );
+        assert!(
+            !has(&d_ok, "W123"),
+            "no W123 (disabled, and resolved anyway)"
+        );
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file classes): a command resolving to a
+    /// Cross-file classes: a command resolving to a
     /// class (the class command) defined in another project file is resolved —
     /// W123 suppressed — and, being a non-proc, never draws an arity error.
     #[test]
@@ -2278,16 +2326,18 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "W123" && x.message.contains("Widget")),
+            !d.iter()
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("Widget")),
             "cross-file class command must resolve (no W123)"
         );
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a class command has no proc arity → no arity error"
         );
     }
 
-    /// SRV-INCREMENTAL Task 6 (cross-file arity edge cases): exercise the
+    /// Cross-file arity edge cases: exercise the
     /// `proc_arity` `(min, max)` computation across required-only, optional
     /// defaults, a trailing `args` (unbounded), and the no-parameter proc — the
     /// subtle part where an off-by-one would mis-fire the arity error.  Checks the
@@ -2309,30 +2359,50 @@ mod tests {
             let proj = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, proj)
                 .iter()
-                .find(|d| d.code == "E002" || d.code == "E003")
-                .map(|d| d.code.clone())
+                .find(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
+                .map(|d| d.code.to_string())
         };
         let e002 = || Some("E002".to_owned());
         let e003 = || Some("E003".to_owned());
         // two {a b} → arity (2, 2).
-        assert_eq!(arity_code("two 1\n"), e002(), "1 arg to a 2-param proc → too few");
+        assert_eq!(
+            arity_code("two 1\n"),
+            e002(),
+            "1 arg to a 2-param proc → too few"
+        );
         assert_eq!(arity_code("two 1 2\n"), None, "2 args → ok");
         assert_eq!(arity_code("two 1 2 3\n"), e003(), "3 args → too many");
         // opt {a {b 1}} → arity (1, 2).
         assert_eq!(arity_code("opt\n"), e002(), "0 args to (1,2) → too few");
         assert_eq!(arity_code("opt 1\n"), None, "1 arg to (1,2) → ok");
         assert_eq!(arity_code("opt 1 2\n"), None, "2 args to (1,2) → ok");
-        assert_eq!(arity_code("opt 1 2 3\n"), e003(), "3 args to (1,2) → too many");
+        assert_eq!(
+            arity_code("opt 1 2 3\n"),
+            e003(),
+            "3 args to (1,2) → too many"
+        );
         // variadic {a args} → arity (1, unbounded).
-        assert_eq!(arity_code("variadic\n"), e002(), "0 args to (1,∞) → too few");
+        assert_eq!(
+            arity_code("variadic\n"),
+            e002(),
+            "0 args to (1,∞) → too few"
+        );
         assert_eq!(arity_code("variadic 1\n"), None, "1 arg → ok");
-        assert_eq!(arity_code("variadic 1 2 3 4 5\n"), None, "many → ok (trailing args)");
+        assert_eq!(
+            arity_code("variadic 1 2 3 4 5\n"),
+            None,
+            "many → ok (trailing args)"
+        );
         // none {} → arity (0, 0).
         assert_eq!(arity_code("none\n"), None, "0 args to a no-param proc → ok");
-        assert_eq!(arity_code("none 1\n"), e003(), "1 arg to a 0-param proc → too many");
+        assert_eq!(
+            arity_code("none 1\n"),
+            e003(),
+            "1 arg to a 0-param proc → too many"
+        );
     }
 
-    /// SRV-INCREMENTAL Task 6 (conservative arity): a `{*}`-expanded call has an
+    /// Conservative arity: a `{*}`-expanded call has an
     /// unknown runtime arg count (`argc == None`), so it must never draw an arity
     /// error even though its literal word count looks wrong — while still resolving
     /// (no W123).
@@ -2350,19 +2420,21 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a {{*}}-expanded call must not draw an arity error (argc unknown)"
         );
         assert!(
-            !d.iter().any(|x| x.code == "W123" && x.message.contains("two")),
+            !d.iter()
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("two")),
             "the call still resolves cross-file (no W123)"
         );
     }
 
-    /// SRV-INCREMENTAL Task 6 (nested cross-file arity): a wrong-arg call to a
+    /// Nested cross-file arity: a wrong-arg call to a
     /// workspace proc *inside a command substitution* (`set x [helper a b c]`)
     /// must still draw the cross-file arity error — the nested call's argument
-    /// count is statically known.  Regression for Codex review #692.
+    /// count is statically known.
     #[test]
     fn cross_file_arity_in_command_substitution() {
         let db = TclDatabase::default();
@@ -2373,16 +2445,22 @@ mod tests {
             "tcl8.6".to_owned(),
         );
         // `helper` called with 3 args inside a `[…]` substitution → too many.
-        let a = SourceFile::new(&db, "set x [helper a b c]\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(
+            &db,
+            "set x [helper a b c]\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            d.iter().any(|x| x.code == "E003" && x.message.contains("helper")),
+            d.iter()
+                .any(|x| x.code == DiagCode::E003 && x.message.contains("helper")),
             "nested cross-file call must draw E003, got: {:?}",
             d.iter().map(|x| (&x.code, &x.message)).collect::<Vec<_>>()
         );
         assert!(
-            !d.iter().any(|x| x.code == "W123" && x.message.contains("helper")),
+            !d.iter()
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("helper")),
             "the nested call still resolves cross-file (no W123)"
         );
     }
@@ -2479,13 +2557,12 @@ mod tests {
         );
     }
 
-    /// Direct measurement of per-edit *check* breadth (SRV-INCREMENTAL Task 2):
+    /// Direct measurement of per-edit *check* breadth:
     /// a one-procedure body edit rebuilds exactly ONE `function_lattice` (the
     /// per-proc memo works), but `compiler_check_diagnostics` re-executes wholesale
     /// — `run_all_checks` is not a per-proc salsa query (it emits no `WillExecute`
-    /// event of its own), so it re-checks every procedure on every edit.  This is
-    /// the gap the per-proc `run_all_checks` memo (Task 2) closes; the assertions
-    /// pin the current breadth so that work has a baseline to move.
+    /// event of its own), so it re-checks every procedure on every edit.  The
+    /// assertions pin the current breadth.
     #[test]
     fn check_diagnostics_rerun_whole_file_on_body_edit() {
         use salsa::Setter as _;
