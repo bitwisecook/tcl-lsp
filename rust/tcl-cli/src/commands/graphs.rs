@@ -992,7 +992,9 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         for st in &block.statements {
             let off = st.statement.span().start();
             for (name, &ver) in &st.defs {
-                def_offset.entry((name.as_str(), ver)).or_insert(off);
+                def_offset
+                    .entry((fu.ssa.var_name(*name), ver))
+                    .or_insert(off);
             }
         }
     }
@@ -1001,7 +1003,7 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         .taints
         .iter()
         .filter(|((_, version), lattice)| *version != 0 && lattice.is_tainted())
-        .map(|((name, version), _)| (name.as_str(), *version))
+        .map(|((name, version), _)| (fu.ssa.var_name(*name), *version))
         .collect();
     // (def offset, version, name) keeps the order deterministic and
     // source-ordered; values defined outside this unit (no def site) sort

@@ -362,8 +362,9 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
         .snapshots()
         .iter()
         .filter_map(|snap| {
-            let mut keys: Vec<&(String, u32)> = snap.unit.rendered_props.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.rendered_props.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
@@ -373,7 +374,7 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
                     if may.is_empty() && must.is_empty() {
                         return None;
                     }
-                    Some(json!({ "variable": key.0, "version": key.1, "may": may, "must": must }))
+                    Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "may": may, "must": must }))
                 })
                 .collect();
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
@@ -593,10 +594,10 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
         .snapshots()
         .iter()
         .map(|snap| {
-            let intervals =
-                compute_intervals(&snap.unit.cfg, &snap.unit.ssa, &snap.unit.sccp.values);
-            let mut keys: Vec<&(String, u32)> = intervals.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let intervals = compute_intervals(&snap.unit.cfg, ssa, &snap.unit.sccp.values);
+            let mut keys: Vec<_> = intervals.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
@@ -604,7 +605,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
                     if iv.is_top() || (iv.lo.is_none() && iv.hi.is_none()) {
                         return None;
                     }
-                    Some(json!({ "variable": key.0, "version": key.1, "lo": iv.lo, "hi": iv.hi }))
+                    Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "lo": iv.lo, "hi": iv.hi }))
                 })
                 .collect();
             json!({ "name": snap.name, "entries": entries })
@@ -622,15 +623,16 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
         .snapshots()
         .iter()
         .filter_map(|snap| {
-            let mut keys: Vec<&(String, u32)> = snap.unit.taints.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.taints.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
                     let tl = &snap.unit.taints[*key];
                     tl.colours
                         .contains(tcl_compiler::taint::TaintColour::TAINTED)
-                        .then(|| json!({ "variable": key.0, "version": key.1, "taint": format_taint(tl) }))
+                        .then(|| json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) }))
                 })
                 .collect();
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
@@ -642,28 +644,33 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
 /// Per-SSA-value `{version, lattice?, type?}` detail used by the post-SSA
 /// CFG view's `uses`/`defs` maps.
 fn ssa_value_detail(
-    refs: &std::collections::HashMap<String, tcl_compiler::ssa::Version>,
+    refs: &std::collections::HashMap<tcl_compiler::ssa::Symbol, tcl_compiler::ssa::Version>,
     sccp: &tcl_compiler::sccp::SccpResult,
     types: &std::collections::HashMap<
         tcl_compiler::ssa::ValueKey,
         tcl_compiler::types::TypeLattice,
     >,
+    ssa: &tcl_compiler::ssa::SsaFunction,
 ) -> Value {
-    let mut keys: Vec<(&String, &u32)> = refs.iter().collect();
-    keys.sort();
+    let mut keys: Vec<(&tcl_compiler::ssa::Symbol, &u32)> = refs.iter().collect();
+    keys.sort_by(|a, b| {
+        ssa.var_name(*a.0)
+            .cmp(ssa.var_name(*b.0))
+            .then(a.1.cmp(b.1))
+    });
     let mut out = Map::new();
-    for (name, &ver) in keys {
+    for (&sym, &ver) in keys {
         let mut d = Map::new();
         d.insert("version".to_owned(), json!(ver));
-        if let Some(lat) = sccp.values.get(&(name.clone(), ver)) {
+        if let Some(lat) = sccp.values.get(&(sym, ver)) {
             d.insert("lattice".to_owned(), json!(format_lattice(lat)));
         }
-        if let Some(tl) = types.get(&(name.clone(), ver))
+        if let Some(tl) = types.get(&(sym, ver))
             && tl.kind != tcl_compiler::types::TypeKind::Unknown
         {
             d.insert("type".to_owned(), json!(format_type(tl)));
         }
-        out.insert(name.clone(), Value::Object(d));
+        out.insert(ssa.var_name(sym).to_owned(), Value::Object(d));
     }
     Value::Object(out)
 }
@@ -711,18 +718,19 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                                         .iter()
                                         .map(|(pred, &ver)| (cfg.block_name(*pred), ver))
                                         .collect();
-                                    inc.sort();
+                                    inc.sort_unstable();
+                                    let phi_name = ssa.var_name(phi.name);
                                     let incoming: Map<String, Value> = inc
                                         .into_iter()
                                         .map(|(pred, ver)| {
-                                            (pred.to_owned(), json!(format!("{}#{ver}", phi.name)))
+                                            (pred.to_owned(), json!(format!("{phi_name}#{ver}")))
                                         })
                                         .collect();
                                     let phi_type = types
-                                        .get(&(phi.name.clone(), phi.version))
+                                        .get(&(phi.name, phi.version))
                                         .map_or(Value::Null, |tl| json!(format_type(tl)));
                                     json!({
-                                        "name": phi.name,
+                                        "name": phi_name,
                                         "version": phi.version,
                                         "incoming": incoming,
                                         "type": phi_type,
@@ -742,8 +750,8 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                                     || (json!({}), json!({})),
                                     |ss| {
                                         (
-                                            ssa_value_detail(&ss.uses, sccp, types),
-                                            ssa_value_detail(&ss.defs, sccp, types),
+                                            ssa_value_detail(&ss.uses, sccp, types, ssa),
+                                            ssa_value_detail(&ss.defs, sccp, types, ssa),
                                         )
                                     },
                                 );
@@ -815,8 +823,9 @@ fn post_ssa_analysis(
     unreachable.sort_unstable();
 
     // `inferredTypes`: known/shimmered SSA-value types keyed by `name#ver`.
-    let mut tkeys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
-    tkeys.sort();
+    let ssa = &snap.unit.ssa;
+    let mut tkeys: Vec<_> = snap.unit.types.keys().collect();
+    tkeys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
     let mut inferred = Map::new();
     for key in tkeys {
         let tl = &snap.unit.types[key];
@@ -824,7 +833,10 @@ fn post_ssa_analysis(
             tl.kind,
             tcl_compiler::types::TypeKind::Known | tcl_compiler::types::TypeKind::Shimmered
         ) {
-            inferred.insert(format!("{}#{}", key.0, key.1), json!(format_type(tl)));
+            inferred.insert(
+                format!("{}#{}", ssa.var_name(key.0), key.1),
+                json!(format_type(tl)),
+            );
         }
     }
 
@@ -1127,12 +1139,13 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                 "type": format_type(rt),
                 "kind": type_kind_name(rt.kind),
             }));
-            let mut keys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.types.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             for key in keys {
                 let tl = &snap.unit.types[key];
                 entries.push(json!({
-                    "variable": key.0,
+                    "variable": ssa.var_name(key.0),
                     "version": key.1,
                     "type": format_type(tl),
                     "kind": type_kind_name(tl.kind),
