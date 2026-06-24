@@ -1,0 +1,12 @@
+# Drop packets whose 16-bit field at offset 36 equals 22 (an SSH-port-style
+# filter), accept everything else. Packets too short to hold the field are
+# dropped. NOTE: load16 is native-endian in v1 (a byte-swap helper is a
+# follow-on), so the field is compared in host order.
+when SOCKET_FILTER priority 50 {
+    setbuf pkt ctx
+    pktlen len pkt
+    if {$len < 38} { drop }
+    load16 dport pkt 36
+    if {$dport == 22} { drop }
+    accept
+}

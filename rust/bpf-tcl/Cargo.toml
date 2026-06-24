@@ -1,0 +1,22 @@
+[package]
+name = "bpf-tcl"
+description = "BPF-Tcl compiler CLI and userspace eBPF run harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "bpf-tcl"
+path = "src/main.rs"
+
+[dependencies]
+bpf-tcl-ir = { path = "../bpf-tcl-ir" }
+bpf-tcl-codegen = { path = "../bpf-tcl-codegen" }
+tcl-lexer = { path = "../tcl-lexer" }
+rbpf = "0.4.1"
+
+[lints]
+workspace = true
