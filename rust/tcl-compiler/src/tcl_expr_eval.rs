@@ -777,6 +777,49 @@ mod tests {
     }
 
     #[test]
+    fn const_fold_integers_match_tclsh() {
+        // The const-folder drives O101 expr-folding, so a divergence from C Tcl
+        // is a miscompile. Each (expr, value) pair is verified against
+        // tclsh8.6/9.0 via `expr {<expr>}`:
+        //   0x1a=26 0b101=5 0o17=15 7/2=3 7%3=1 2**10=1024 3*4+5=17
+        //   (3+4)*2=14 10-3-2=5 5>3=1 5==5=1 5!=5=0 abs(-7)=7 max(3,9)=9
+        //   min(3,9)=3 (1<<4)=16 (255&15)=15 (5|2)=7 (6^3)=5
+        for (expr, want) in [
+            ("0x1a", 26),
+            ("0b101", 5),
+            ("0o17", 15),
+            ("7/2", 3),
+            ("7%3", 1),
+            ("2**10", 1024),
+            ("3*4+5", 17),
+            ("(3+4)*2", 14),
+            ("10-3-2", 5),
+            ("5>3", 1),
+            ("5==5", 1),
+            ("5!=5", 0),
+            ("abs(-7)", 7),
+            ("max(3,9)", 9),
+            ("min(3,9)", 3),
+            ("1<<4", 16),
+            ("255&15", 15),
+            ("5|2", 7),
+            ("6^3", 5),
+        ] {
+            assert_eq!(eval_str(expr), Some(TclValue::Int(want)), "expr {{{expr}}}");
+        }
+    }
+
+    #[test]
+    fn const_fold_integer_division_floors_toward_negative_infinity() {
+        // tclsh: integer `/` and `%` floor toward -inf (not truncate):
+        //   -7/2 = -4 (not -3); -7%2 = 1; 7/-2 = -4; 7%-2 = -1.
+        assert_eq!(eval_str("-7/2"), Some(TclValue::Int(-4)));
+        assert_eq!(eval_str("-7%2"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("7/-2"), Some(TclValue::Int(-4)));
+        assert_eq!(eval_str("7%-2"), Some(TclValue::Int(-1)));
+    }
+
+    #[test]
     fn polymorphic_equality_uses_strict_numbers() {
         // `==` / `!=` compare numerically only when *both* operands are valid
         // Tcl numbers; otherwise as strings. Boolean words are NOT numbers for
