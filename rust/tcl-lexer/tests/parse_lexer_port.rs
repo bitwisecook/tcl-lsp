@@ -479,3 +479,93 @@ fn braced_var_holds_special_chars() {
     assert_eq!(first("${[}"), (TokenType::Var, "[".to_string()));
     assert_eq!(first("${]}"), (TokenType::Var, "]".to_string()));
 }
+
+// -- Port of test_parser_edge_cases.py: $ edge cases (C-Tcl tokenisation) --
+
+#[test]
+fn bare_dollar_is_literal() {
+    // `$` at EOF / before a non-name char is a literal `$` (STR).
+    assert_eq!(first("$"), (TokenType::Str, "$".to_string()));
+    assert_eq!(first("$ x"), (TokenType::Str, "$".to_string()));
+    assert_eq!(first("$;"), (TokenType::Str, "$".to_string()));
+    // Single colon is not a namespace separator → bare `$`.
+    assert_eq!(first("$:"), (TokenType::Str, "$".to_string()));
+}
+
+#[test]
+fn double_and_triple_dollar() {
+    // tclsh: `"$$foo"` with foo=BAR → "$BAR" (first $ literal, second reads foo).
+    let dd = lex("$$foo");
+    assert_eq!(dd[0], (TokenType::Str, "$".to_string()));
+    assert_eq!(dd[1], (TokenType::Var, "foo".to_string()));
+    // `$$$x` → $, $, then VAR x.
+    let td = lex("$$$x");
+    assert_eq!(td[0], (TokenType::Str, "$".to_string()));
+    assert_eq!(td[1], (TokenType::Str, "$".to_string()));
+    assert_eq!(td[2], (TokenType::Var, "x".to_string()));
+}
+
+#[test]
+fn dollar_before_command_sub() {
+    // `$[set x 1]` → literal `$` then a command substitution.
+    let t = lex("$[set x 1]");
+    assert_eq!(t[0], (TokenType::Str, "$".to_string()));
+    assert_eq!(t[1], (TokenType::Cmd, "set x 1".to_string()));
+}
+
+#[test]
+fn dollar_paren_is_scalar_ref() {
+    // tclsh: `set {(foo)} HELLO; set $(foo)` substitutes the scalar variable
+    // named `(foo)` — NOT an array reference.
+    assert_eq!(first("$(foo)"), (TokenType::Var, "(foo)".to_string()));
+}
+
+#[test]
+fn dollar_namespace_refs() {
+    // `$::foo` global, `$::` (the namespace separator) is itself a valid name.
+    assert_eq!(first("$::foo"), (TokenType::Var, "::foo".to_string()));
+    assert_eq!(first("$::"), (TokenType::Var, "::".to_string()));
+}
+
+// -- Port: special names via brace/escape quoting --
+
+#[test]
+fn braced_special_names_are_literal_str() {
+    // `set {$a} 1` — the braced word is the literal name `$a` (no substitution;
+    // tclsh: `set {$a} 5; set {$a}` → 5).
+    let t = lex("set {$a} 1");
+    assert_eq!(t[0].1, "set");
+    assert_eq!(t[1], (TokenType::Str, "$a".to_string()));
+    assert_eq!(lex("set {[cmd]} 1")[1], (TokenType::Str, "[cmd]".to_string()));
+    assert_eq!(lex("set {\"} 1")[1], (TokenType::Str, "\"".to_string()));
+    // Spaces inside braces are kept; inner `{}` is a matched pair.
+    assert_eq!(lex("proc {weird name} {} {}")[1], (TokenType::Str, "weird name".to_string()));
+    assert_eq!(lex("proc {$[]{}} {} {}")[1], (TokenType::Str, "$[]{}".to_string()));
+}
+
+#[test]
+fn escaped_special_names_are_esc() {
+    assert_eq!(lex("proc \\$ {} {puts dollar}")[1], (TokenType::Esc, "\\$".to_string()));
+    assert_eq!(lex("proc \\[ {} {puts bracket}")[1], (TokenType::Esc, "\\[".to_string()));
+}
+
+// -- Port: empty / minimal structures --
+
+#[test]
+fn empty_structures() {
+    // Empty quoted string → one ESC word with empty text.
+    assert_eq!(lex("\"\""), [(TokenType::Esc, String::new())]);
+    // Empty braces → STR "".
+    assert_eq!(lex("{}"), [(TokenType::Str, String::new())]);
+    // Empty command sub → CMD "".
+    assert_eq!(lex("[]"), [(TokenType::Cmd, String::new())]);
+    // Whitespace-only command sub is still a CMD.
+    assert_eq!(lex("[  ]")[0].0, TokenType::Cmd);
+}
+
+#[test]
+fn single_char_bare_words() {
+    for ch in ["a", "z", "0", "9", "_", "x"] {
+        assert_eq!(lex(ch), [(TokenType::Esc, ch.to_string())], "{ch}");
+    }
+}
