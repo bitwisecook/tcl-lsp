@@ -424,3 +424,58 @@ fn t15_5_incomplete_delimiters_do_not_crash() {
         let _ = lex(src);
     }
 }
+
+// -- Port of test_parser_edge_cases.py: escaped special characters --
+// Each escaped special is literal text (one ESC word), matching C Tcl.
+
+#[test]
+fn escaped_dollar_is_literal() {
+    // tclsh: `"\$a"` → "$a" (not a variable).
+    let t = lex("\\$a");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0].0, TokenType::Esc);
+    assert_eq!(t[0].1, "\\$a");
+    // Bare `\$`.
+    assert_eq!(lex("\\$"), [(TokenType::Esc, "\\$".to_string())]);
+}
+
+#[test]
+fn escaped_brackets_braces_quotes_are_literal() {
+    assert_eq!(lex("\\[cmd\\]"), [(TokenType::Esc, "\\[cmd\\]".to_string())]);
+    assert_eq!(lex("\\{body\\}"), [(TokenType::Esc, "\\{body\\}".to_string())]);
+    assert_eq!(lex("\\\"hello\\\""), [(TokenType::Esc, "\\\"hello\\\"".to_string())]);
+}
+
+#[test]
+fn escaped_semicolon_does_not_end_command() {
+    // tclsh: `cnt a\;b` → 1 (one word, the `;` is escaped).
+    let t = lex("a\\;b");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0], (TokenType::Esc, "a\\;b".to_string()));
+}
+
+#[test]
+fn escaped_hash_is_not_a_comment() {
+    let t = lex("\\#notacomment");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0].0, TokenType::Esc);
+    assert!(comments("\\#notacomment").is_empty());
+}
+
+#[test]
+fn escaped_space_joins_words() {
+    // tclsh: `cnt hello\ world` → 1 (a single word with an escaped space).
+    let t = lex("hello\\ world");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0], (TokenType::Esc, "hello\\ world".to_string()));
+}
+
+// -- Port: ${name} can hold any character as a variable name --
+
+#[test]
+fn braced_var_holds_special_chars() {
+    // tclsh: `set {"} V; set ${"}` reads the variable literally named `"`.
+    assert_eq!(first("${\"}"), (TokenType::Var, "\"".to_string()));
+    assert_eq!(first("${[}"), (TokenType::Var, "[".to_string()));
+    assert_eq!(first("${]}"), (TokenType::Var, "]".to_string()));
+}
