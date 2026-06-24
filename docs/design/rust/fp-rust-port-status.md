@@ -37,6 +37,25 @@ mirroring the user-facing `tcl diag` / `get_diagnostics` surface.
   literal, that evidence now overrides the heuristic object-dispatch
   suppressions (in-method, proc-param / multi-dispatch) so the real
   invalid-command-name hazard fires W307. (commit `6102bec8`)
+- **FP-OBJ-05 (snit-instance W308).** A snit-typed receiver no longer fires
+  W308 — snit method resolution routes through delegation / hull / options /
+  built-ins, which the analyser does not model, so validation is unsound. Skip
+  W308 when the receiver class's `metaclass` is a snit type. (commit `6001367f`)
+- **FP-OBJ-07 (`[cmd]::method` ensemble).** A command word `[cmd]::method`
+  composes a command-sub head with a literal `::method` tail (static method
+  evidence), so it no longer fires W307; a bare `[cmd] arg` with no tail still
+  fires. (commit `a7474fb2`)
+
+**4 of 12 fixed.** Remaining worklist below.
+
+The OBJ-10 fix is 80% done (a working `is_callback_array_slot` suppression gated
+on `sccp_not_command`), but its paired SCCP-const TP variants
+(`set state(doneCallback) notacommand; $state(...) a` must *fire*) need the
+slot's concrete value to reach `sccp_not_command`. The direct `set arr(key) v`
+form is *not* an `AssignConst` (the scalar `set_literal_body` lowering excludes
+`(`-bearing names) nor a plain `Call "set"` — its IR shape needs identifying
+before a harvester can capture it. Reverted pending that, to avoid
+over-suppressing the TP variants.
 
 ## Remaining bug worklist (11)
 
