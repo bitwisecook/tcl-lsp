@@ -2337,6 +2337,37 @@ mod tests {
     }
 
     #[test]
+    fn fp_nab_03_recursive_arithmetic_proc_is_pure() {
+        // FP-NAB-03 (Rust-structure counterpart of the Python interproc test):
+        // a self-recursive arithmetic proc must come out `pure == true` from the
+        // interprocedural fix-point. The fix-point is the *greatest* one
+        // (purity initialised optimistically, then refuted), so a call back into
+        // the proc being analysed does not conservatively mark it impure.
+        let ia = build(
+            "proc ::fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\n",
+        );
+        let fact = ia.procedures.get("::fact").expect("::fact summary");
+        assert!(
+            fact.pure,
+            "recursive arithmetic proc must be pure (greatest fix-point); got pure={}",
+            fact.pure,
+        );
+    }
+
+    #[test]
+    fn fp_nab_03_impure_proc_still_detected() {
+        // Control: a proc doing I/O (`puts`) must be impure — proves the test
+        // above isn't trivially asserting every proc pure.
+        let ia = build("proc ::logit {msg} {\n    puts $msg\n    return ok\n}\n");
+        let logit = ia.procedures.get("::logit").expect("::logit summary");
+        assert!(
+            !logit.pure,
+            "a proc that calls puts must be impure; got pure={}",
+            logit.pure,
+        );
+    }
+
+    #[test]
     fn unknown_call_sets_has_unknown_calls() {
         let ia = build("proc ::caller {} { nosuchcmd }");
         let s = ia.procedures.get("::caller").unwrap();
