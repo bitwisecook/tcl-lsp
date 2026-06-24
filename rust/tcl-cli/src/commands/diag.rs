@@ -134,7 +134,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
         let pos = line_index.position_at_utf16(d.span.start(), source);
         rows.push(Row {
             line: pos.line + 1,
-            column: pos.character + 1,
+            column: pos.character.get() + 1,
             severity: d.severity,
             code: d.code.clone(),
             message: d.message.clone(),
@@ -154,7 +154,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
         let pos = line_index.position_at_utf16(d.span.start(), source);
         rows.push(Row {
             line: pos.line + 1,
-            column: pos.character + 1,
+            column: pos.character.get() + 1,
             severity: d.severity,
             code: d.code,
             message: d.message,

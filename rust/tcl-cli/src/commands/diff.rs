@@ -77,10 +77,16 @@ fn range_json(span: tcl_lexer::Span, line_index: &LineIndex, source: &str) -> Js
     let end = line_index.position_at_utf16(span.end(), source);
     let mut m = BTreeMap::new();
     m.insert("startLine".to_owned(), Json::Int(i64::from(start.line)));
-    m.insert("startCol".to_owned(), Json::Int(i64::from(start.character)));
+    m.insert(
+        "startCol".to_owned(),
+        Json::Int(i64::from(start.character.get())),
+    );
     m.insert("startOffset".to_owned(), Json::Int(i64::from(span.start())));
     m.insert("endLine".to_owned(), Json::Int(i64::from(end.line)));
-    m.insert("endCol".to_owned(), Json::Int(i64::from(end.character)));
+    m.insert(
+        "endCol".to_owned(),
+        Json::Int(i64::from(end.character.get())),
+    );
     m.insert("endOffset".to_owned(), Json::Int(i64::from(span.end())));
     Json::Object(m)
 }

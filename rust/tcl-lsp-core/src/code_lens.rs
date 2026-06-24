@@ -95,9 +95,9 @@ pub fn code_lenses(
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,
-                start_character: start.character,
+                start_character: start.character.get(),
                 end_line: end.line,
-                end_character: end.character,
+                end_character: end.character.get(),
             },
             command_title: title,
             // Empty command — the lens is informational only.
@@ -128,9 +128,9 @@ pub fn code_lenses(
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,
-                start_character: start.character,
+                start_character: start.character.get(),
                 end_line: end.line,
-                end_character: end.character,
+                end_character: end.character.get(),
             },
             command_title: title,
             command: String::new(),
@@ -178,9 +178,9 @@ fn emit_class_member_lenses(
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,
-                start_character: start.character,
+                start_character: start.character.get(),
                 end_line: end.line,
-                end_character: end.character,
+                end_character: end.character.get(),
             },
             command_title: title,
             command: String::new(),

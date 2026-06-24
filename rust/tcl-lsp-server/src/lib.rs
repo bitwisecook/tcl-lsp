@@ -1643,11 +1643,11 @@ impl Backend {
                 range: Range {
                     start: Position {
                         line: start.line,
-                        character: start.character,
+                        character: start.character.get(),
                     },
                     end: Position {
                         line: end.line,
-                        character: end.character,
+                        character: end.character.get(),
                     },
                 },
             });
@@ -1791,11 +1791,11 @@ impl Backend {
                 range: Range {
                     start: Position {
                         line: start.line,
-                        character: start.character,
+                        character: start.character.get(),
                     },
                     end: Position {
                         line: end.line,
-                        character: end.character,
+                        character: end.character.get(),
                     },
                 },
                 new_text: intent.new_text,
@@ -1941,11 +1941,11 @@ impl Backend {
             let name_range = Range {
                 start: Position {
                     line: start.line,
-                    character: start.character,
+                    character: start.character.get(),
                 },
                 end: Position {
                     line: end.line,
-                    character: end.character,
+                    character: end.character.get(),
                 },
             };
             out.push(CallHierarchyOutgoingCall {
@@ -2088,9 +2088,9 @@ impl Backend {
                         "code": o.code,
                         "message": o.message,
                         "startLine": start.line,
-                        "startCharacter": start.character,
+                        "startCharacter": start.character.get(),
                         "endLine": end.line,
-                        "endCharacter": end.character,
+                        "endCharacter": end.character.get(),
                         "replacement": o.replacement,
                         "group": o.group,
                         "hintOnly": o.hint_only,
@@ -5568,7 +5568,7 @@ fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
     if line as usize >= index.line_count() {
         return None;
     }
-    Some(index.offset_at_utf16(line, col, source) as usize)
+    Some(index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(col), source) as usize)
 }
 
 /// Whether the cursor at `pos` sits on a command head (the first
@@ -5828,8 +5828,16 @@ fn apply_content_change_indexed(
         *index = tcl_lexer::LineIndex::new(new_text);
         return new_text.to_owned();
     };
-    let a = index.offset_at_utf16(range.start.line, range.start.character, text) as usize;
-    let b = index.offset_at_utf16(range.end.line, range.end.character, text) as usize;
+    let a = index.offset_at_utf16(
+        range.start.line,
+        tcl_lexer::Utf16Col::new(range.start.character),
+        text,
+    ) as usize;
+    let b = index.offset_at_utf16(
+        range.end.line,
+        tcl_lexer::Utf16Col::new(range.end.character),
+        text,
+    ) as usize;
     let len = text.len();
     let start = a.min(b).min(len);
     let end = a.max(b).min(len);
@@ -5852,11 +5860,11 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
     Range {
         start: Position {
             line: start.line,
-            character: start.character,
+            character: start.character.get(),
         },
         end: Position {
             line: end.line,
-            character: end.character,
+            character: end.character.get(),
         },
     }
 }

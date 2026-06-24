@@ -140,7 +140,7 @@ fn command_context_with_args(
     line: u32,
     character: u32,
 ) -> Option<(String, Vec<String>, u32)> {
-    use tcl_lexer::{Lexer, LineIndex, TokenType};
+    use tcl_lexer::{Lexer, LineIndex, TokenType, Utf16Col};
 
     let cursor_offset = {
         let line_index = LineIndex::new(source);
@@ -154,7 +154,7 @@ fn command_context_with_args(
         // to `line_start` directly is a byte+UTF-16 mismatch that selects the
         // wrong active parameter on any line with non-ASCII text before the
         // cursor — the same encoding hazard the rest of the crate fixed.
-        line_index.offset_at_utf16(line, character, source)
+        line_index.offset_at_utf16(line, Utf16Col::new(character), source)
     };
 
     // Lex the document up to the cursor's byte offset.  We

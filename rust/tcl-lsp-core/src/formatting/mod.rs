@@ -74,7 +74,7 @@ pub fn formatting_with(
             start_line: 0,
             start_character: 0,
             end_line: end_pos.line,
-            end_character: end_pos.character,
+            end_character: end_pos.character.get(),
         },
         new_text: formatted,
     }]
@@ -174,7 +174,7 @@ pub fn range_formatting(
             start_line,
             start_character: 0,
             end_line: end_pos.line,
-            end_character: end_pos.character,
+            end_character: end_pos.character.get(),
         }
     };
     vec![TextEdit {
