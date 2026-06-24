@@ -612,19 +612,11 @@ impl Analyser {
             }
 
             // **W307 path.**  Variable not a known Object.
-            // ``in_method`` short-circuits W307 because OO
-            // methods routinely use ``$obj method`` patterns.
-            // The analyser doesn't track method context
-            // yet (pending a Method scope kind),
-            // so this filter currently always falls through.
-            if site.in_method {
-                continue;
-            }
-            // Prefer the value at the dispatch's exact SSA use-version;
-            // fall back to the merged constset when no precise version
-            // is found. This drops the merged-set false positive on a
-            // variable reassigned from a non-command to a known command
-            // before the dispatch (`set c x; set c puts; $c ...`).
+            // Resolve the dispatch's value first: prefer the exact SSA
+            // use-version, falling back to the merged constset.  This drops the
+            // merged-set false positive on a variable reassigned from a
+            // non-command to a known command before the dispatch
+            // (`set c x; set c puts; $c ...`).
             let precise = w307_precise_cmd_values(
                 &func_ranges,
                 &fu_by_qname,
@@ -634,10 +626,20 @@ impl Analyser {
             let effective = precise
                 .as_ref()
                 .or_else(|| all_constsets.get(&site.var_name));
-            if let Some(values) = effective
-                && !values.is_empty()
-                && values.iter().all(|v| is_known_command(v))
-            {
+            // SCCP concrete evidence the value IS a known command — suppress.
+            if effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| is_known_command(x))) {
+                continue;
+            }
+            // SCCP concrete evidence the value is NOT a command: every feasible
+            // value is a literal and none is a known command.  When SCCP proves
+            // this, the heuristic object-dispatch suppressions below (in-method,
+            // proc-param / multi-dispatch) must not silence the real "invalid
+            // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
+            let sccp_not_command =
+                effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| !is_known_command(x)));
+            // ``in_method`` short-circuits W307 because OO methods routinely use
+            // ``$obj method`` patterns — unless SCCP proves a non-command value.
+            if site.in_method && !sccp_not_command {
                 continue;
             }
             // Proc-parameter / multi-dispatch object-dispatch suppression: a
@@ -655,7 +657,7 @@ impl Analyser {
             let tainted = tainted_by_scope
                 .get(encl_qname)
                 .is_some_and(|s| s.contains(&site.var_name));
-            if dispatcher_suppressed && !tainted {
+            if dispatcher_suppressed && !tainted && !sccp_not_command {
                 continue;
             }
             // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where
