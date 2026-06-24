@@ -378,7 +378,6 @@ fn fp_obj_09_single_dispatch_unknown_still_fires() {
     );
 }
 
-#[ignore = "FP-OBJ-09: Rust suppresses W307 where Python emits; emitted=[]; SCCP CONST evidence does not yet override the multi-dispatch heuristic in Rust analyser"]
 #[test]
 fn fp_obj_09_const_string_multi_dispatch_fires_w307() {
     // TP / SCCP-evidence guard: `set cmd notacommand` makes `$cmd` a CONST string.
@@ -741,7 +740,9 @@ fn fp_w307_oo_class_bare_name_factory_propagates() {
     );
 }
 
-#[ignore = "FP-OBJ-D4-F5: Rust suppresses W307 where Python emits; emitted=[]; in_method blanket suppression still active in Rust analyser (D4-F5 closure not yet ported)"]
+#[ignore = "FP-OBJ-D4-F5: in_method now yields to SCCP-non-command evidence, but \
+the `set cmd nope` const value is not captured in an oo::class method-body scope, \
+so sccp_not_command is false there. Needs const-set tracking into method bodies."]
 #[test]
 fn fp_w307_oo_class_method_local_literal_fires() {
     // TP: a bare local set to a literal non-command inside an oo::class method body must
