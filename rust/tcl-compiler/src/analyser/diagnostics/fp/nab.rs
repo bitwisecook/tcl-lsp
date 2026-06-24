@@ -3,8 +3,11 @@
 //! Pairs to `tests/test_fp_nab.py` and the §NAB entries in `docs/design/compiler/FP.md`.
 //!
 //! Two Python NAB entries test internal APIs rather than diagnostics and are
-//! covered as Rust-structure tests elsewhere (not here): FP-NAB-03 (interproc
-//! `pure` summary) and FP-NAB-12 (`is_pure_var_ref` value-shape parser).
+//! covered as Rust-structure tests elsewhere (not here):
+//! FP-NAB-03 (interproc `pure` summary) lives in
+//! `interprocedural.rs::tests::fp_nab_03_*`; FP-NAB-12 (`is_pure_var_ref`
+//! value-shape parser) lives in
+//! `value_shapes.rs::tests::fp_nab_12_escaped_paren_array_index_companions`.
 
 use crate::analyser::Analyser;
 use crate::compilation_unit::CompilationUnit;
