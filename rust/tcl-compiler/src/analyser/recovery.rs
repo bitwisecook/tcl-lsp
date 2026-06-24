@@ -45,6 +45,7 @@
 
 #![allow(clippy::doc_markdown, clippy::implicit_hasher)]
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use super::state::Analyser;
@@ -307,7 +308,7 @@ impl Analyser {
             // intended location.
             let insert_span = tcl_lexer::Span::new(diag_span.end(), diag_span.end());
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "E101".to_string(),
+                code: DiagCode::E101,
                 span: diag_span,
                 message: "Missing '{' after switch — body cases follow without braces".to_string(),
                 severity: super::types::Severity::Error,
@@ -421,7 +422,7 @@ impl Analyser {
 
         if !self.disabled_diagnostics.contains("E103") {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "E103".to_string(),
+                code: DiagCode::E103,
                 span: stolen_span,
                 message: "Missing '}' — a nested body consumed this closing brace".to_string(),
                 severity: super::types::Severity::Error,
@@ -466,7 +467,7 @@ impl Analyser {
             }
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "E200".to_string(),
+            code: DiagCode::E200,
             span: cmd.span,
             message: suffix.to_string(),
             severity: super::types::Severity::Error,
@@ -762,7 +763,7 @@ mod tests {
             .result
             .diagnostics
             .iter()
-            .find(|d| d.code == "E101")
+            .find(|d| d.code == DiagCode::E101)
             .expect("E101 emitted");
         assert!(e101.message.contains("Missing '{'"));
     }
@@ -777,7 +778,12 @@ mod tests {
         let mut switch_cmd = commands[0].clone();
         let consumed = a.recover_missing_open_brace(&mut switch_cmd, &commands, 0);
         assert_eq!(consumed, 0);
-        assert!(!a.result.diagnostics.iter().any(|d| d.code == "E101"));
+        assert!(
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::E101)
+        );
     }
 
     #[test]
@@ -822,7 +828,7 @@ mod tests {
             .result
             .diagnostics
             .iter()
-            .find(|d| d.code == "E103")
+            .find(|d| d.code == DiagCode::E103)
             .expect("E103 emitted");
         assert!(e103.message.contains("Missing '}'"));
     }
@@ -891,7 +897,7 @@ mod tests {
                 .result
                 .diagnostics
                 .iter()
-                .find(|d| d.code == "E200")
+                .find(|d| d.code == DiagCode::E200)
                 .unwrap();
             assert_eq!(d.message, want, "{delim:?}");
         }
@@ -906,6 +912,11 @@ mod tests {
         let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
         let cmd = &commands[0];
         a.emit_partial_command_diagnostic(cmd);
-        assert!(a.result.diagnostics.iter().any(|d| d.code == "E200"));
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::E200)
+        );
     }
 }

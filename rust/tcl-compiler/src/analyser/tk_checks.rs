@@ -30,6 +30,7 @@
 //! - **TK1002** (WARNING): widget path references a non-existent parent.
 //! - **TK1003** (HINT): unknown option for a widget command.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::Token;
 
 use super::state::Analyser;
@@ -172,7 +173,7 @@ impl Analyser {
             let parent = parent_widget_path(path);
             if !parent.is_empty() && parent != "." && !self.tk_created_widgets.contains(parent) {
                 self.tk_pending_diags.push(Diagnostic {
-                    code: "TK1002".to_string(),
+                    code: DiagCode::Tk1002,
                     span: cmd_tok.span,
                     message: format!(
                         "Widget path '{path}' references non-existent parent '{parent}'."
@@ -223,7 +224,7 @@ impl Analyser {
         }
         for arg in unknown {
             self.tk_pending_diags.push(Diagnostic {
-                code: "TK1003".to_string(),
+                code: DiagCode::Tk1003,
                 span: cmd_tok.span,
                 message: format!("Unknown option '{arg}' for {cmd_name}."),
                 severity: Severity::Hint,
@@ -260,7 +261,7 @@ impl Analyser {
             if usage.managers.contains("pack") && usage.managers.contains("grid") {
                 for (_manager, span) in usage.sites {
                     self.result.diagnostics.push(Diagnostic {
-                        code: "TK1001".to_string(),
+                        code: DiagCode::Tk1001,
                         span,
                         message: format!(
                             "Geometry manager conflict: cannot mix 'pack' and 'grid' \
@@ -278,14 +279,15 @@ impl Analyser {
 #[cfg(test)]
 mod tests {
     use super::super::state::Analyser;
+    use tcl_core_types::DiagCode;
 
     fn codes(source: &str, dialect: &str) -> Vec<(String, String)> {
         let mut a = Analyser::new();
         let res = a.analyse(source, dialect);
         res.diagnostics
             .iter()
-            .filter(|d| d.code.starts_with("TK"))
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .filter(|d| d.code.as_str().starts_with("TK"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -364,13 +366,13 @@ mod tests {
             let mut v: Vec<(String, u32)> = r
                 .diagnostics
                 .iter()
-                .map(|d| (d.code.clone(), d.span.start()))
+                .map(|d| (d.code.to_string(), d.span.start()))
                 .collect();
             v.sort();
             v
         };
         assert_eq!(codes_of(&full), codes_of(&per_item));
         // And the conflict really is reported (proc-body geometry flushed).
-        assert!(full.diagnostics.iter().any(|d| d.code == "TK1001"));
+        assert!(full.diagnostics.iter().any(|d| d.code == DiagCode::Tk1001));
     }
 }

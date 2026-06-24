@@ -15,6 +15,7 @@
 //! avoid false positives.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::when_event_name;
@@ -101,7 +102,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             ir_proc.name,
         );
 
-        ctx.report(Optimisation::new("O124", message, span, replacement));
+        ctx.report(Optimisation::new(
+            DiagCode::O124,
+            message,
+            span,
+            replacement,
+        ));
     }
 }
 
@@ -338,7 +344,7 @@ mod tests {
         let opts = run_pass(source, Some("f5-irules"), ip);
         assert_eq!(opts.len(), 1);
         let opt = &opts[0];
-        assert_eq!(opt.code, "O124");
+        assert_eq!(opt.code, DiagCode::O124);
         assert!(opt.message.contains("dead"));
         assert!(opt.replacement.contains("[O124] Unused proc"));
         assert!(opt.replacement.contains("# proc ::dead"));

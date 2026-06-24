@@ -47,14 +47,7 @@ fn diags_before(r: &AnalysisResult, ins: u32) -> Vec<&Diagnostic> {
         .iter()
         .filter(|d| d.span.end() <= ins)
         .collect();
-    v.sort_by_key(|d| {
-        (
-            d.span.start(),
-            d.span.end(),
-            d.code.clone(),
-            d.message.clone(),
-        )
-    });
+    v.sort_by_key(|d| (d.span.start(), d.span.end(), d.code, d.message.clone()));
     v
 }
 
@@ -149,11 +142,11 @@ fn main() {
         if leak.is_none() && diags_before(&r0, ins) != diags_before(&r1, ins) {
             let c0: std::collections::BTreeSet<_> = diags_before(&r0, ins)
                 .iter()
-                .map(|d| (d.code.clone(), d.span.start()))
+                .map(|d| (d.code, d.span.start()))
                 .collect();
             let c1: std::collections::BTreeSet<_> = diags_before(&r1, ins)
                 .iter()
-                .map(|d| (d.code.clone(), d.span.start()))
+                .map(|d| (d.code, d.span.start()))
                 .collect();
             leak = Some(format!(
                 "diag +{:?} -{:?}",
@@ -234,12 +227,12 @@ fn e2_offset_invariance(files: &[PathBuf], dialect: &str) {
         let d0: std::collections::BTreeSet<_> = r0
             .diagnostics
             .iter()
-            .map(|d| (d.code.clone(), d.span.start()))
+            .map(|d| (d.code, d.span.start()))
             .collect();
         let d1: std::collections::BTreeSet<_> = r1
             .diagnostics
             .iter()
-            .map(|d| (d.code.clone(), d.span.start().saturating_sub(K)))
+            .map(|d| (d.code, d.span.start().saturating_sub(K)))
             .collect();
         if procs0 == procs1 && d0 == d1 {
             ok += 1;

@@ -25,6 +25,7 @@
 //! `run_function` entry point.
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -159,7 +160,7 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
         && !val.is_truthy()
     {
         ctx.report(Optimisation::new(
-            "O112",
+            DiagCode::O112,
             "Eliminate dead while loop (condition is always false)",
             full_rewrite_span(ctx.source, *span),
             "",
@@ -186,7 +187,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
-                "O112",
+                DiagCode::O112,
                 "Eliminate dead for loop (condition is always false)",
                 full_rewrite_span(ctx.source, *span),
                 "",
@@ -194,7 +195,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
         } else {
             let replacement = extract_body_text(ctx.source, *init_span, *span);
             ctx.report(Optimisation::new(
-                "O112",
+                DiagCode::O112,
                 "Eliminate dead for loop (condition is always false); keep init",
                 full_rewrite_span(ctx.source, *span),
                 replacement,
@@ -258,7 +259,7 @@ fn try_eliminate_if(
         if val.is_truthy() {
             let replacement = extract_body_text(ctx.source, clause.body_span, stmt_span);
             ctx.report(Optimisation::new(
-                "O112",
+                DiagCode::O112,
                 "Eliminate constant if (condition is always true)",
                 full_rewrite_span(ctx.source, stmt_span),
                 replacement,
@@ -271,14 +272,14 @@ fn try_eliminate_if(
         let _ = body;
         let replacement = extract_body_text(ctx.source, span, stmt_span);
         ctx.report(Optimisation::new(
-            "O112",
+            DiagCode::O112,
             "Eliminate constant if (all conditions false); keep else",
             full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
     } else {
         ctx.report(Optimisation::new(
-            "O112",
+            DiagCode::O112,
             "Eliminate dead if (all conditions are always false)",
             full_rewrite_span(ctx.source, stmt_span),
             "",
@@ -336,7 +337,7 @@ fn try_eliminate_switch(
         if let (Some(_body), Some(span)) = (chosen_body, chosen_span) {
             let replacement = extract_body_text(ctx.source, span, stmt_span);
             ctx.report(Optimisation::new(
-                "O112",
+                DiagCode::O112,
                 format!(
                     "Eliminate switch (subject '{subject}' always matches pattern '{}')",
                     arm.pattern,
@@ -351,14 +352,14 @@ fn try_eliminate_switch(
     if let (Some(_body), Some(span)) = (info.default_body, info.default_span) {
         let replacement = extract_body_text(ctx.source, span, stmt_span);
         ctx.report(Optimisation::new(
-            "O112",
+            DiagCode::O112,
             format!("Eliminate switch (subject '{subject}' matches no pattern); keep default"),
             full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
     } else {
         ctx.report(Optimisation::new(
-            "O112",
+            DiagCode::O112,
             format!("Eliminate dead switch (subject '{subject}' matches no pattern)"),
             full_rewrite_span(ctx.source, stmt_span),
             "",
@@ -467,7 +468,7 @@ mod tests {
         // in this test so no O101.
         assert!(
             opts.iter()
-                .any(|o| o.code == "O112" && o.message.starts_with("Eliminate constant if")),
+                .any(|o| o.code == DiagCode::O112 && o.message.starts_with("Eliminate constant if")),
             "expected an if-elimination O112, got {opts:?}",
         );
     }
@@ -477,7 +478,7 @@ mod tests {
         let opts = run_pass("if {0} { puts hi } else { puts bye }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O112")
+            .find(|o| o.code == DiagCode::O112)
             .expect("expected an O112");
         assert!(opt.message.contains("all conditions false"));
     }
@@ -487,7 +488,7 @@ mod tests {
         let opts = run_pass("if {0} { puts hi }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O112")
+            .find(|o| o.code == DiagCode::O112)
             .expect("expected an O112");
         assert!(opt.message.contains("all conditions are always false"));
         assert_eq!(opt.replacement, "");
@@ -498,7 +499,7 @@ mod tests {
         let opts = run_pass("while {0} { puts never }");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O112" && o.message.contains("dead while loop")),
+                .any(|o| o.code == DiagCode::O112 && o.message.contains("dead while loop")),
             "expected a dead-while O112, got {opts:?}",
         );
     }
@@ -508,7 +509,7 @@ mod tests {
         let opts = run_pass("for {set i 0} {0} {incr i} { puts $i }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O112")
+            .find(|o| o.code == DiagCode::O112)
             .expect("expected an O112");
         assert!(opt.message.contains("keep init"));
         assert!(opt.replacement.contains("set i 0"));
@@ -519,7 +520,7 @@ mod tests {
         let opts = run_pass("for {} {0} {} { puts $i }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O112")
+            .find(|o| o.code == DiagCode::O112)
             .expect("expected an O112");
         assert!(opt.message.contains("dead for loop"));
         assert!(!opt.message.contains("keep init"));
@@ -530,7 +531,7 @@ mod tests {
     fn switch_literal_subject_matches_arm() {
         let opts = run_pass("switch foo { foo { puts one } bar { puts two } }");
         assert!(
-            opts.iter().any(|o| o.code == "O112"
+            opts.iter().any(|o| o.code == DiagCode::O112
                 && o.message
                     .contains("subject 'foo' always matches pattern 'foo'")),
             "expected a switch-match O112, got {opts:?}",
@@ -543,7 +544,7 @@ mod tests {
             run_pass("switch baz { foo { puts one } bar { puts two } default { puts none } }");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O112" && o.message.contains("keep default")),
+                .any(|o| o.code == DiagCode::O112 && o.message.contains("keep default")),
             "expected a switch-no-match-with-default O112, got {opts:?}",
         );
     }
@@ -552,7 +553,7 @@ mod tests {
     fn switch_no_match_no_default_emits_empty() {
         let opts = run_pass("switch baz { foo { puts one } bar { puts two } }");
         assert!(
-            opts.iter().any(|o| o.code == "O112"
+            opts.iter().any(|o| o.code == DiagCode::O112
                 && o.message.contains("matches no pattern")
                 && o.replacement.is_empty()),
             "expected a dead-switch O112, got {opts:?}",
@@ -565,7 +566,7 @@ mod tests {
         // when the subject is literal.
         let opts = run_pass("switch -regexp foo { ^foo$ { puts ok } }");
         assert!(
-            opts.iter().all(|o| o.code != "O112"),
+            opts.iter().all(|o| o.code != DiagCode::O112),
             "regexp switch must be skipped, got {opts:?}",
         );
     }
@@ -575,7 +576,7 @@ mod tests {
         let opts = run_pass("if {1} { if {0} { puts never } else { puts here } }");
         // Outer if is constant-true → one O112. Inner if is
         // constant-false with else → another O112.
-        let count = opts.iter().filter(|o| o.code == "O112").count();
+        let count = opts.iter().filter(|o| o.code == DiagCode::O112).count();
         assert!(
             count >= 2,
             "expected both outer + inner eliminations, got {opts:?}",
@@ -595,6 +596,6 @@ mod tests {
         // `$x` has no lattice binding → eval returns None → no
         // O112 from the if. Branch-folding isn't run here.
         let opts = run_pass("if {$x} { ok } else { bad }");
-        assert!(opts.iter().all(|o| o.code != "O112"));
+        assert!(opts.iter().all(|o| o.code != DiagCode::O112));
     }
 }

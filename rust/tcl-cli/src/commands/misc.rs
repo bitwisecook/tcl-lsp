@@ -70,11 +70,11 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
         .map(|d| {
             let pos = line_index.position_at_utf16(d.span.start(), &source);
             LegacyIssue {
-                code: d.code.clone(),
+                code: d.code.to_string(),
                 line: pos.line + 1,
                 column: pos.character.get() + 1,
                 message: d.message.clone(),
-                conversion: conversion_for(&d.code).to_owned(),
+                conversion: conversion_for(d.code.as_str()).to_owned(),
             }
         })
         .collect();

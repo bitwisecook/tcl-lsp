@@ -40,6 +40,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
+use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
@@ -186,7 +187,7 @@ fn try_rewrite_assign_expr(
                 ]);
             if !needs_quoting {
                 ctx.report(Optimisation::new(
-                    "O101",
+                    DiagCode::O101,
                     "Fold constant expression",
                     full_rewrite_span(ctx.source, span),
                     format!("set {name} {folded}"),
@@ -209,7 +210,7 @@ fn try_rewrite_assign_expr(
     let (simplified, inst_changed) = instcombine_expr_typed(&rendered_expr, false, numeric);
     if inst_changed {
         ctx.report(Optimisation::new(
-            "O110",
+            DiagCode::O110,
             "Simplify expression (instcombine)",
             full_rewrite_span(ctx.source, span),
             collapse_assign_expr_wrapper(name, &simplified),
@@ -219,7 +220,7 @@ fn try_rewrite_assign_expr(
     let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered_expr, numeric);
     if sred_changed {
         ctx.report(Optimisation::new(
-            "O113",
+            DiagCode::O113,
             "Strength-reduce expression",
             full_rewrite_span(ctx.source, span),
             collapse_assign_expr_wrapper(name, &reduced),
@@ -255,7 +256,7 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
         && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
     {
         ctx.report(Optimisation::new(
-            "O115",
+            DiagCode::O115,
             "Remove redundant nested expr",
             span,
             format!("expr {{{unwrapped}}}"),
@@ -283,7 +284,7 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
             return;
         }
         ctx.report(Optimisation::new(
-            "O101",
+            DiagCode::O101,
             "Fold constant expression",
             span,
             folded,
@@ -314,7 +315,7 @@ mod tests {
         let opts = run_pass("expr {1 + 2}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O101" && o.replacement == "3"),
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "3"),
             "expected O101 fold, got {opts:?}",
         );
     }
@@ -326,7 +327,7 @@ mod tests {
         let opts = run_pass("expr {[expr {$x + 1}]}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O115" && o.replacement.contains("$x + 1")),
+                .any(|o| o.code == DiagCode::O115 && o.replacement.contains("$x + 1")),
             "expected O115 unwrap, got {opts:?}",
         );
     }
@@ -335,7 +336,8 @@ mod tests {
     fn variable_expression_produces_nothing() {
         let opts = run_pass("expr {$x + 1}");
         assert!(
-            opts.iter().all(|o| o.code != "O101" && o.code != "O115"),
+            opts.iter()
+                .all(|o| o.code != DiagCode::O101 && o.code != DiagCode::O115),
             "unexpected rewrite: {opts:?}",
         );
     }
@@ -346,7 +348,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::ExprSimplify]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O101"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O101),
             "expected O101 via run_passes, got {:?}",
             ctx.optimisations,
         );

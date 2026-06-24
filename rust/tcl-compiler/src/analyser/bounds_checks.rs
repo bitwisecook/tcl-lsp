@@ -12,6 +12,7 @@
 //! constant true/false literal) yields no diagnostic, avoiding false
 //! positives.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr};
 
 use crate::segmenter::{SegmentedCommand, segment_commands};
@@ -55,7 +56,7 @@ pub(crate) fn loop_termination_diagnostics(
     match condition_constant(cond_text) {
         Some(false) => {
             return vec![Diagnostic {
-                code: "W240".to_string(),
+                code: DiagCode::W240,
                 span: cond_tok.span,
                 message: format!("{cmd_name} condition is constant false; body never executes."),
                 severity: Severity::Warning,
@@ -64,7 +65,7 @@ pub(crate) fn loop_termination_diagnostics(
         }
         Some(true) if !body_may_exit(body_text) => {
             return vec![Diagnostic {
-                code: "W241".to_string(),
+                code: DiagCode::W241,
                 span: cond_tok.span,
                 message: format!(
                     "{cmd_name} is provably infinite: condition is constant true and body has no \
@@ -83,7 +84,7 @@ pub(crate) fn loop_termination_diagnostics(
         && let Some(reason) = for_is_provably_infinite(init_text, cond_text, step_text, body_text)
     {
         return vec![Diagnostic {
-            code: "W241".to_string(),
+            code: DiagCode::W241,
             span: cond_tok.span,
             message: format!("for loop is provably infinite: {reason}"),
             severity: Severity::Warning,
@@ -100,7 +101,7 @@ pub(crate) fn loop_termination_diagnostics(
         && !loop_modifies_var(&var, step_text, body_text)
     {
         return vec![Diagnostic {
-            code: "W242".to_string(),
+            code: DiagCode::W242,
             span: cond_tok.span,
             message: format!(
                 "{cmd_name} termination cannot be proven: variable '{var}' in the \
@@ -510,7 +511,7 @@ pub(crate) fn list_index_diagnostics(
         "lreplace touches no element (first > last after clamping)".to_string()
     };
     vec![Diagnostic {
-        code: "W230".to_string(),
+        code: DiagCode::W230,
         span: tcl_lexer::Span::new(first_tok.span.start(), last_tok.span.end()),
         message: format!(
             "{verb}: first='{first_text}' resolves to {first_val}, last='{last_text}' resolves \
@@ -539,7 +540,7 @@ fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec
             continue;
         }
         out.push(Diagnostic {
-            code: "W230".to_string(),
+            code: DiagCode::W230,
             span: idx_tok.span,
             message: format!(
                 "Index '{}' {}; lindex silently returns empty string.",
@@ -593,7 +594,7 @@ pub(crate) fn lset_index_diagnostics(
             && n < 0
         {
             out.push(Diagnostic {
-                code: "W231".to_string(),
+                code: DiagCode::W231,
                 span: idx_tok.span,
                 message: format!(
                     "lset index '{stripped}' is negative; \
@@ -612,7 +613,7 @@ pub(crate) fn lset_index_diagnostics(
             };
             if resolved < 0 || resolved > length {
                 out.push(Diagnostic {
-                    code: "W231".to_string(),
+                    code: DiagCode::W231,
                     span: idx_tok.span,
                     message: format!(
                         "lset index '{stripped}' {}; \
@@ -897,7 +898,7 @@ fn string_single_index(
         && n < 0
     {
         return vec![Diagnostic {
-            code: "W232".to_string(),
+            code: DiagCode::W232,
             span: idx_tok.span,
             message: format!(
                 "string {sub}: index '{stripped}' is negative; result is empty or a no-op."
@@ -914,7 +915,7 @@ fn string_single_index(
         && !(0..len).contains(&resolved)
     {
         return vec![Diagnostic {
-            code: "W232".to_string(),
+            code: DiagCode::W232,
             span: idx_tok.span,
             message: format!(
                 "string index: '{stripped}' {}; returns empty string.",
@@ -959,7 +960,7 @@ fn string_pair_index(
         && l < 0
     {
         return vec![Diagnostic {
-            code: "W232".to_string(),
+            code: DiagCode::W232,
             span,
             message: format!(
                 "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
@@ -982,7 +983,7 @@ fn string_pair_index(
         return Vec::new();
     }
     vec![Diagnostic {
-        code: "W232".to_string(),
+        code: DiagCode::W232,
         span,
         message: format!(
             "string {sub}: {verb}: first='{first_text}' resolves to {first_val}, \
@@ -1121,6 +1122,7 @@ fn body_may_exit(body: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+    use tcl_core_types::DiagCode;
 
     fn codes(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
@@ -1128,7 +1130,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W240" | "W241"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -1244,7 +1246,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W232"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -1341,7 +1343,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == code)
+            .filter(|d| d.code.as_str() == code)
             .map(|d| d.message.clone())
             .collect()
     }
@@ -1409,7 +1411,11 @@ mod tests {
     fn w242_severity_is_hint() {
         let mut a = Analyser::new();
         let r = a.analyse("while {$x < 10} {puts hi}\n", "tcl8.6");
-        let w242 = r.diagnostics.iter().find(|d| d.code == "W242").unwrap();
+        let w242 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W242)
+            .unwrap();
         assert_eq!(w242.severity, super::Severity::Hint);
     }
 
@@ -1418,7 +1424,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == "W231")
+            .filter(|d| d.code == DiagCode::W231)
             .count()
     }
 
@@ -1447,7 +1453,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .any(|d| d.code == code)
+            .any(|d| d.code.as_str() == code)
     }
 
     #[test]
@@ -1472,7 +1478,7 @@ mod tests {
             .analyse("set x [lindex {a b c} 9]\n", "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == "W230")
+            .filter(|d| d.code == DiagCode::W230)
             .count();
         assert_eq!(n, 1);
     }

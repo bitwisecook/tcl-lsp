@@ -14,6 +14,7 @@
 //! `PassContext` scratch state) stay on
 //! [`super::run_passes`] directly.
 
+use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::CompilationUnit;
@@ -152,8 +153,8 @@ pub fn optimise_unit(
 /// global" case — `set a 3; puts [expr {$a + 1}]` keeps `set a 3`), and inside
 /// a proc the ordinary dead-store pass removes it. Counting the fold here
 /// would wrongly couple-remove the top-level def.
-fn is_propagation_code(code: &str) -> bool {
-    matches!(code, "O100" | "O102")
+fn is_propagation_code(code: DiagCode) -> bool {
+    matches!(code, DiagCode::O100 | DiagCode::O102)
 }
 
 /// How many `$var` / `${var}` references `opt` consumed — present in its
@@ -458,7 +459,7 @@ fn couple_const_dead_stores_in_function(
             .iter()
             .filter(|o| {
                 !o.hint_only
-                    && is_propagation_code(&o.code)
+                    && is_propagation_code(o.code)
                     && (o.span.start() as usize) >= fs
                     && (o.span.start() as usize) <= fe
             })
@@ -471,7 +472,7 @@ fn couple_const_dead_stores_in_function(
         // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
         let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
         removals.push(Optimisation::new(
-            "O109",
+            DiagCode::O109,
             "Eliminate dead store",
             del_span,
             "",
@@ -884,7 +885,8 @@ mod tests {
         // contain O112 in this shape.
         let opts = optimise("if {1} { set x 1 } else { set y 2 }", &registry());
         assert!(
-            opts.iter().any(|o| o.code == "O112" || o.code == "O101"),
+            opts.iter()
+                .any(|o| o.code == DiagCode::O112 || o.code == DiagCode::O101),
             "expected at least one branch-related rewrite, got {opts:?}",
         );
     }
@@ -901,7 +903,7 @@ mod tests {
         assert!(
             never
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement == "{0}"),
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "{0}"),
             "never-defined `info exists` should fold to {{0}}, got {never:?}",
         );
         let param = optimise(
@@ -911,7 +913,7 @@ mod tests {
         assert!(
             param
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement == "{1}"),
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "{1}"),
             "parameter `info exists` should fold to {{1}}, got {param:?}",
         );
     }
@@ -965,13 +967,13 @@ mod tests {
         let src = "proc ::dead {} { return 1 }\nwhen HTTP_REQUEST { set x 0 }\n";
         let opts = optimise_with_dialect(src, &registry(), Some("f5-irules"));
         assert!(
-            opts.iter().any(|o| o.code == "O124"),
+            opts.iter().any(|o| o.code == DiagCode::O124),
             "expected O124 in irules dialect, got {opts:?}",
         );
         // And should NOT fire for plain tcl.
         let tcl_opts = optimise_with_dialect(src, &registry(), Some("tcl"));
         assert!(
-            tcl_opts.iter().all(|o| o.code != "O124"),
+            tcl_opts.iter().all(|o| o.code != DiagCode::O124),
             "O124 should be gated on irules dialect, got {tcl_opts:?}",
         );
     }

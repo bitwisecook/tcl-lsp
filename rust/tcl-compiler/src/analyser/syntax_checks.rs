@@ -16,6 +16,7 @@
 //! `classify_quoted_contexts`.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::CommandRegistry;
@@ -129,7 +130,7 @@ fn detect_e201(
     }
     // Fallback: highlight just the opening `[`, no fix.
     Diagnostic {
-        code: "E201".to_string(),
+        code: DiagCode::E201,
         span: Span::new(bracket_off, bracket_off),
         message: "missing close-bracket".to_string(),
         severity: Severity::Error,
@@ -149,7 +150,7 @@ fn e201_with_insert(
     // Diagnostic end: the last content byte before the insertion.
     let diag_end = content_start + u32::try_from(insert_idx.saturating_sub(1)).unwrap_or(0);
     Diagnostic {
-        code: "E201".to_string(),
+        code: DiagCode::E201,
         span: Span::new(bracket_off, diag_end.max(bracket_off)),
         message: "missing close-bracket".to_string(),
         severity: Severity::Error,
@@ -410,7 +411,7 @@ fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
                     // Virtual `"` right after the opening `"`.
                     let insert_off = quote_off + 1;
                     return Diagnostic {
-                        code: "E202".to_string(),
+                        code: DiagCode::E202,
                         span: diag_span,
                         message: "missing \"".to_string(),
                         severity: Severity::Error,
@@ -427,7 +428,7 @@ fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
         }
     }
     Diagnostic {
-        code: "E202".to_string(),
+        code: DiagCode::E202,
         span: diag_span,
         message: "missing \"".to_string(),
         severity: Severity::Error,
@@ -459,7 +460,7 @@ fn detect_e203(
         let expr_role = unterminated_arg_is_expr(tok, cmd, reg);
         if let Some(fix) = e203_brace_fix(tok, source, content_start, reg, expr_role) {
             return Diagnostic {
-                code: "E203".to_string(),
+                code: DiagCode::E203,
                 span: diag_span,
                 message: "missing close-brace".to_string(),
                 severity: Severity::Error,
@@ -468,7 +469,7 @@ fn detect_e203(
         }
     }
     Diagnostic {
-        code: "E203".to_string(),
+        code: DiagCode::E203,
         span: diag_span,
         message: "missing close-brace".to_string(),
         severity: Severity::Error,
@@ -705,7 +706,7 @@ fn make_e100(
     };
 
     Diagnostic {
-        code: "E100".to_string(),
+        code: DiagCode::E100,
         span: Span::new(diag_start.min(bracket_off), bracket_off),
         message: "Unmatched ']' \u{2014} missing opening '['?".to_string(),
         severity: Severity::Error,
@@ -770,7 +771,7 @@ fn find_bracket_insertion_point(
 fn make_e102(tok: &Token, source: &str) -> Diagnostic {
     let fixes = stray_brace_fix(tok, source).into_iter().collect();
     Diagnostic {
-        code: "E102".to_string(),
+        code: DiagCode::E102,
         span: tok.span,
         message: "Unmatched '}' \u{2014} missing opening '{'?".to_string(),
         severity: Severity::Error,
@@ -819,13 +820,14 @@ fn stray_brace_fix(tok: &Token, source: &str) -> Option<CodeFix> {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+    use tcl_core_types::DiagCode;
 
     fn codes(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -856,7 +858,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E201")
+            .filter(|d| d.code == DiagCode::E201)
             .map(|d| (d.message.clone(), d.fixes.len()))
             .collect()
     }
@@ -867,7 +869,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E201")
+            .filter(|d| d.code == DiagCode::E201)
             .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
             .collect()
     }
@@ -935,7 +937,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "E204" | "E205" | "E206"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -1024,7 +1026,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == code)
+            .filter(|d| d.code.as_str() == code)
             .map(|d| (d.message.clone(), d.fixes.len()))
             .collect()
     }
@@ -1034,8 +1036,8 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code.starts_with(prefix))
-            .map(|d| d.code.clone())
+            .filter(|d| d.code.as_str().starts_with(prefix))
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -1119,7 +1121,11 @@ mod tests {
         let src = "set x {\n    aaa\n    bbb\nputs done\n";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl8.6");
-        let e203 = r.diagnostics.iter().find(|d| d.code == "E203").unwrap();
+        let e203 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E203)
+            .unwrap();
         let fix = &e203.fixes[0];
         // The `}` is inserted at the newline after `    bbb`.
         let off = fix.span.start() as usize;
@@ -1132,7 +1138,7 @@ mod tests {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E203")
+            .filter(|d| d.code == DiagCode::E203)
             .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
             .collect()
     }
@@ -1181,14 +1187,18 @@ mod tests {
         // it fires at the `puts foo]` line inside the proc body.
         let mut a = Analyser::new();
         let r = a.analyse("proc p {} {\n  puts foo]\n}\n", "tcl8.6");
-        let e100: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E100").collect();
+        let e100: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E100)
+            .collect();
         assert_eq!(
             e100.len(),
             1,
             "expected one E100 in the body, got {:?}",
             r.diagnostics
                 .iter()
-                .map(|d| (d.code.clone(), d.span))
+                .map(|d| (d.code.to_string(), d.span))
                 .collect::<Vec<_>>(),
         );
     }
@@ -1222,6 +1232,12 @@ mod tests {
             "proc p {} {\n  if {1} {\n    set x 1\n  }\n  puts foo]\n}\n",
             "tcl8.6",
         );
-        assert_eq!(r.diagnostics.iter().filter(|d| d.code == "E100").count(), 1,);
+        assert_eq!(
+            r.diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::E100)
+                .count(),
+            1,
+        );
     }
 }

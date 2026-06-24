@@ -15,6 +15,7 @@
 use super::helpers::{has_substitution, is_braced_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use tcl_core_types::DiagCode;
 
 impl Analyser {
     /// **W302.** Emit "catch without result variable" hint when a
@@ -61,7 +62,7 @@ impl Analyser {
         }
         let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W302".to_string(),
+            code: DiagCode::W302,
             span,
             message: "catch without a result variable silently swallows errors. \
 Consider capturing the result: catch {\u{2026}} result"
@@ -163,7 +164,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // lines or carries backslash escapes (list re-quoting could differ).
         let fixes = self.eval_list_fix(first);
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W101".to_string(),
+            code: DiagCode::W101,
             span: first.span,
             message: "eval with substituted arguments risks code injection. \
 Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
@@ -345,7 +346,7 @@ word as one argument; no re-parsing)"
         };
         if matches!(tok.kind, tcl_lexer::TokenType::Var) {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W300".to_string(),
+                code: DiagCode::W300,
                 span: tok.span,
                 message: "source with a variable path executes arbitrary Tcl code. \
 Ensure the path is not influenced by untrusted input."
@@ -380,7 +381,7 @@ Ensure the path is not influenced by untrusted input."
             };
             if inner == "subst" || inner.starts_with("subst ") || inner.starts_with("subst\t") {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W309".to_string(),
+                    code: DiagCode::W309,
                     span: tok.span,
                     message: format!(
                         "{cmd_name} with [subst] creates double substitution: \
@@ -420,7 +421,7 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
             // Multiple args = concat behaviour = danger.
             if self.args_have_substitution(arg_tokens, arg_single) {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W301".to_string(),
+                    code: DiagCode::W301,
                     span: remaining_toks[0].span,
                     message: "uplevel with multiple arguments concatenates them into \
 a script (like eval). Use a single braced body or {*}$cmdList to avoid injection."
@@ -448,7 +449,7 @@ a script (like eval). Use a single braced body or {*}$cmdList to avoid injection
             }
             if self.args_have_substitution(arg_tokens, arg_single) {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W301".to_string(),
+                    code: DiagCode::W301,
                     span: tok.span,
                     message: "uplevel with an unbraced script argument may cause \
 double substitution. Use braces: uplevel 1 {...}"
@@ -505,7 +506,7 @@ double substitution. Use braces: uplevel 1 {...}"
         if sub == "eval" && script_args.len() > 1 {
             if self.args_have_substitution(arg_tokens, arg_single) {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W312".to_string(),
+                    code: DiagCode::W312,
                     span: script_toks[0].span,
                     message: format!(
                         "interp {sub} with multiple arguments concatenates \
@@ -524,7 +525,7 @@ them into a script (like eval). Use a single braced body to avoid injection."
         }
         if self.args_have_substitution(arg_tokens, arg_single) {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W312".to_string(),
+                code: DiagCode::W312,
                 span: tok.span,
                 message: format!(
                     "interp {sub} with an unbraced script argument may \
@@ -590,7 +591,7 @@ scope, or use [format] / [string map] for safe templating.",
             mitigations.join(" ")
         );
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W102".to_string(),
+            code: DiagCode::W102,
             span: tok.span,
             message,
             severity: Severity::Warning,
@@ -633,7 +634,7 @@ Ensure the command is not influenced by untrusted input."
                 )
             };
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W103".to_string(),
+                code: DiagCode::W103,
                 span: tok.span,
                 message,
                 severity,
@@ -641,7 +642,7 @@ Ensure the command is not influenced by untrusted input."
             });
         } else if matches!(tok.kind, tcl_lexer::TokenType::Var) {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W103".to_string(),
+                code: DiagCode::W103,
                 span: tok.span,
                 message: "open with a variable argument: if the value starts with \
 \"|\", it will execute a command pipeline. Validate input or use explicit \
@@ -677,7 +678,7 @@ I/O commands."
         for (pattern, tok) in patterns {
             if has_redos_shape(&pattern) {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W303".to_string(),
+                    code: DiagCode::W303,
                     span: tok.span,
                     message: "Regular expression may be vulnerable to catastrophic \
 backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential \
@@ -742,7 +743,7 @@ matching time on crafted input."
             ". Use braces '{...}' to prevent substitution."
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W306".to_string(),
+            code: DiagCode::W306,
             span: tok.span,
             message: format!(
                 "Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"
@@ -810,7 +811,7 @@ matching time on crafted input."
         }
         for (message, span) in hits {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W127".to_string(),
+                code: DiagCode::W127,
                 span,
                 message,
                 severity: Severity::Warning,
@@ -860,7 +861,7 @@ matching time on crafted input."
             };
             if is_literal_credential_value(value, val_tok) {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W310".to_string(),
+                    code: DiagCode::W310,
                     span: val_tok.span,
                     message: format!(
                         "Hardcoded credential in {text} argument. Store secrets in \
@@ -896,7 +897,7 @@ environment variables or a vault, not in source code."
                     && is_literal_credential_value(value, val_tok)
                 {
                     self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "W310".to_string(),
+                        code: DiagCode::W310,
                         span: val_tok.span,
                         message: format!(
                             "Hardcoded credential in {header_name} header value. \

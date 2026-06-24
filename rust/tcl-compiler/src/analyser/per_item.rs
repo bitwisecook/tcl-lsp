@@ -282,12 +282,7 @@ impl Analyser {
         // classic case.  Re-analyse fully so the result is byte-identical to a
         // from-scratch `analyse`.  Well-formed edits (the common case) carry no
         // E-codes and stay on the fast path.
-        if self
-            .result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.starts_with('E'))
-        {
+        if self.result.diagnostics.iter().any(|d| d.code.is_error()) {
             return self.fresh_full_analyse(source, dialect);
         }
 

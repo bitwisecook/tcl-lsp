@@ -175,7 +175,7 @@ impl Diagnostic {
         Py::new(
             py,
             Diagnostic {
-                code: d.code.clone(),
+                code: d.code.to_string(),
                 message: d.message.clone(),
                 severity: d.severity.as_str().to_owned(),
                 start,

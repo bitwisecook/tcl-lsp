@@ -18,6 +18,7 @@
 //!   converting to an accumulator recurrence.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
@@ -107,7 +108,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         // → accumulator candidate (hint-only).
         if non_tail_self_call_in_expression(&proc.body, &self_names) {
             let mut opt = Optimisation::new(
-                "O123",
+                DiagCode::O123,
                 format!(
                     "Proc '{}' is a candidate for accumulator-style rewriting",
                     proc.name
@@ -232,7 +233,7 @@ fn emit_loop_conversion(
     );
 
     ctx.report(Optimisation::new(
-        "O122",
+        DiagCode::O122,
         format!("Convert tail-recursive '{short_name}' to iterative loop"),
         full_rewrite_span(ctx.source, proc.span),
         replacement,
@@ -516,7 +517,7 @@ fn collect_tail_sites(
             let rewrite_span = full_rewrite_span(ctx.source, *span);
             if emit_o121 {
                 ctx.report(Optimisation::new(
-                    "O121",
+                    DiagCode::O121,
                     format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                     rewrite_span,
                     format!("tailcall {command}"),
@@ -551,7 +552,7 @@ fn collect_tail_sites(
                         format!("tailcall {call_head} {call_args}")
                     };
                     ctx.report(Optimisation::new(
-                        "O121",
+                        DiagCode::O121,
                         format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                         rewrite_span,
                         replacement,
@@ -656,7 +657,7 @@ mod tests {
             run_pass("proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
             "expected O121, got {opts:?}",
         );
     }
@@ -672,7 +673,7 @@ mod tests {
         for dialect in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps"] {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
-                opts.iter().all(|o| o.code != "O121"),
+                opts.iter().all(|o| o.code != DiagCode::O121),
                 "O121 must not fire on {dialect}, got {opts:?}",
             );
         }
@@ -691,7 +692,7 @@ mod tests {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
                 opts.iter()
-                    .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                    .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
                 "O121 expected on {dialect}, got {opts:?}",
             );
         }
@@ -705,7 +706,7 @@ mod tests {
         let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
-            opts.iter().any(|o| o.code == "O122"),
+            opts.iter().any(|o| o.code == DiagCode::O122),
             "O122 expected on tcl8.4 single-param body, got {opts:?}",
         );
     }
@@ -718,7 +719,7 @@ mod tests {
         let src = "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
-            opts.iter().all(|o| o.code != "O122"),
+            opts.iter().all(|o| o.code != DiagCode::O122),
             "O122 must not fire on tcl8.4 multi-param body, got {opts:?}",
         );
     }
@@ -732,7 +733,7 @@ mod tests {
         let opts = run_pass_with_dialect(src, "tcl8.6");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O122")
+            .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire on multi-param tail recursion");
         assert!(
             opt.replacement.contains("lassign [list "),
@@ -760,7 +761,7 @@ mod tests {
         // The self-call is NOT the last statement — puts follows.
         let opts = run_pass("proc ::f {n} {\n    f $n\n    puts \"done\"\n}");
         assert!(
-            opts.iter().all(|o| o.code != "O121"),
+            opts.iter().all(|o| o.code != DiagCode::O121),
             "non-tail call should not fire, got {opts:?}",
         );
     }
@@ -773,7 +774,7 @@ mod tests {
              }",
         );
         assert!(
-            opts.iter().any(|o| o.code == "O121"),
+            opts.iter().any(|o| o.code == DiagCode::O121),
             "expected O121 inside else branch, got {opts:?}",
         );
     }
@@ -785,7 +786,7 @@ mod tests {
         );
         assert!(
             opts.iter()
-                .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
             "expected O121 for return [self …] variant, got {opts:?}",
         );
     }
@@ -812,7 +813,7 @@ mod tests {
             run_pass("proc ::fact {n} { if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] } }");
         let opt = opts
             .iter()
-            .find(|o| o.code == "O122")
+            .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire");
         assert!(!opt.hint_only, "O122 should now be a real rewrite");
         assert!(
@@ -836,7 +837,7 @@ mod tests {
         );
         let opt = opts
             .iter()
-            .find(|o| o.code == "O122")
+            .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire");
         assert!(
             opt.replacement.contains("lassign"),
@@ -850,7 +851,7 @@ mod tests {
         // Tail-call passes wrong number of args → fold refused.
         let opts = run_pass("proc ::f {a b} { if {$a <= 0} { return 0 } else { f 1 } }");
         assert!(
-            opts.iter().all(|o| o.code != "O122"),
+            opts.iter().all(|o| o.code != DiagCode::O122),
             "arity mismatch should suppress O122, got {opts:?}",
         );
     }
@@ -864,7 +865,7 @@ mod tests {
             "proc ::fact {n} { if {$n <= 1} { return 1 } else { return [expr {$n * [fact [expr {$n - 1}]]}] } }",
         );
         assert!(
-            opts.iter().any(|o| o.code == "O123" && o.hint_only),
+            opts.iter().any(|o| o.code == DiagCode::O123 && o.hint_only),
             "expected O123 accumulator hint, got {opts:?}",
         );
     }
@@ -877,7 +878,7 @@ mod tests {
             "proc ::fib {n} { if {$n < 2} { return $n } else { return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}] } }",
         );
         assert!(
-            opts.iter().all(|o| o.code != "O123"),
+            opts.iter().all(|o| o.code != DiagCode::O123),
             "tree recursion must not emit O123, got {opts:?}",
         );
     }
@@ -890,7 +891,7 @@ mod tests {
             "proc ::g {n} { if {$n <= 0} { return 0 } else { return [expr {-[g [expr {$n - 1}]]}] } }",
         );
         assert!(
-            opts.iter().all(|o| o.code != "O123"),
+            opts.iter().all(|o| o.code != DiagCode::O123),
             "non-associative wrapper must not emit O123, got {opts:?}",
         );
     }
@@ -901,7 +902,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::TailCall]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O121"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O121),
             "expected O121 via run_passes, got {:?}",
             ctx.optimisations,
         );

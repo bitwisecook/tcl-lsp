@@ -51,7 +51,10 @@ fn proc_after_unterminated_bracket_has_correct_positions() {
     assert!(body.contains("puts hi"), "body: {body:?}");
 
     // Recovery diagnostic must exist.
-    let has_e = r.diagnostics.iter().any(|d| d.code.starts_with("E20"));
+    let has_e = r
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_str().starts_with("E20"));
     assert!(has_e, "expected recovery diagnostic");
 }
 

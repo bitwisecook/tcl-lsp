@@ -128,7 +128,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
 
     let result = Analyser::new().analyse(source, dialect);
     for d in &result.diagnostics {
-        if disabled.contains(&d.code.to_ascii_uppercase()) {
+        if disabled.contains(d.code.as_str()) {
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
@@ -136,7 +136,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
             line: pos.line + 1,
             column: pos.character.get() + 1,
             severity: d.severity,
-            code: d.code.clone(),
+            code: d.code.to_string(),
             message: d.message.clone(),
         });
     }
@@ -148,7 +148,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
     let cu = CompilationUnit::build_for(source, registry, false);
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     for d in run_all_checks(&cu, registry, dialect_opt) {
-        if d.code.starts_with('O') || disabled.contains(&d.code.to_ascii_uppercase()) {
+        if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
@@ -156,7 +156,7 @@ fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<
             line: pos.line + 1,
             column: pos.character.get() + 1,
             severity: d.severity,
-            code: d.code,
+            code: d.code.to_string(),
             message: d.message,
         });
     }

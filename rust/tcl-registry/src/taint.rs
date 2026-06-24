@@ -12,6 +12,7 @@ use crate::registry::CommandRegistry;
 use crate::traits::Traits;
 use crate::types::TclType;
 use bitflags::bitflags;
+use tcl_core_types::DiagCode;
 
 bitflags! {
     /// Properties carried by a tainted value — the taint *colour* lattice.
@@ -85,7 +86,7 @@ pub struct SetterConstraint {
     /// Literal prefix the argument must start with (e.g. `"/"`).
     pub required_prefix: &'static str,
     /// Diagnostic code emitted on violation (e.g. `"IRULE3101"`).
-    pub code: &'static str,
+    pub code: DiagCode,
     /// Human-readable explanation for the diagnostic.
     pub message: &'static str,
 }
@@ -645,7 +646,7 @@ mod tests {
         let uri = setter_constraints(&registry, "HTTP::uri");
         assert_eq!(uri.len(), 1);
         assert_eq!(uri[0].required_prefix, "/");
-        assert_eq!(uri[0].code, "IRULE3101");
+        assert_eq!(uri[0].code.as_str(), "IRULE3101");
         assert_eq!(setter_constraints(&registry, "HTTP::path").len(), 1);
     }
 }

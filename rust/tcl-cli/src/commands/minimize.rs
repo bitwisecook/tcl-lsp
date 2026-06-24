@@ -82,7 +82,7 @@ fn fires(source: &str, code: &str, dialect: &str) -> bool {
         .analyse(source, dialect)
         .diagnostics
         .iter()
-        .any(|d| d.code == code)
+        .any(|d| d.code.as_str() == code)
 }
 
 /// Zeller delta-debugging: minimise `units` keeping `test` true. Returns the

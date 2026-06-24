@@ -26,6 +26,7 @@
 //! See `docs/design/rust/s110-byte-array-corruption-port.md`.
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
@@ -245,7 +246,7 @@ fn byte_warning(
         to_type: TclType::String,
         command,
         in_loop: false,
-        code: "S110".to_owned(),
+        code: DiagCode::S110,
         message,
         related,
     }
@@ -723,7 +724,7 @@ mod tests {
                    TCP::payload replace 0 100 $q\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for payload round-trip, got: {w:?}"
         );
     }
@@ -737,7 +738,7 @@ mod tests {
                    binary scan $q a* q\n  TCP::payload replace 0 100 $q\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().all(|w| w.code != "S110"),
+            w.iter().all(|w| w.code != DiagCode::S110),
             "binary scan fix must silence S110, got: {w:?}"
         );
     }
@@ -759,7 +760,7 @@ mod tests {
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set u [string toupper $b]\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for case fold on binary, got: {w:?}"
         );
     }
@@ -771,7 +772,7 @@ mod tests {
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set e [encoding convertto utf-8 $b]\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for convertto double-encode, got: {w:?}"
         );
     }
@@ -808,7 +809,7 @@ mod tests {
                    set r $q\n  TCP::payload replace 0 100 $r\n}";
         let w = warnings(src, &reg);
         assert!(
-            w.iter().any(|w| w.code == "S110"),
+            w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 through copy chain, got: {w:?}"
         );
     }

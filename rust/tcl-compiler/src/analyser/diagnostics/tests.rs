@@ -1,5 +1,6 @@
 use super::*;
 use crate::analyser::types::Diagnostic;
+use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 fn w114_codes(src: &str) -> usize {
@@ -7,7 +8,7 @@ fn w114_codes(src: &str) -> usize {
     a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W114")
+        .filter(|d| d.code == DiagCode::W114)
         .count()
 }
 
@@ -16,7 +17,7 @@ fn code_sevs(src: &str, code: &str) -> Vec<String> {
     a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
-        .filter(|d| d.code == code)
+        .filter(|d| d.code.as_str() == code)
         .map(|d| format!("{:?}", d.severity))
         .collect()
 }
@@ -26,7 +27,7 @@ fn has_code(src: &str, dialect: &str, code: &str) -> bool {
     a.analyse(src, dialect)
         .diagnostics
         .iter()
-        .any(|d| d.code == code)
+        .any(|d| d.code.as_str() == code)
 }
 
 #[test]
@@ -132,7 +133,7 @@ fn w108(src: &str, dialect: &str) -> Vec<(u32, usize)> {
     a.analyse(src, dialect)
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W108")
+        .filter(|d| d.code == DiagCode::W108)
         .map(|d| {
             let ch = d
                 .message
@@ -179,7 +180,7 @@ fn w108_mode(src: &str, dialect: &str, mode: crate::analyser::NonAsciiMode) -> V
         .analyse(src, dialect)
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W108")
+        .filter(|d| d.code == DiagCode::W108)
         .map(|d| {
             d.message
                 .chars()
@@ -279,7 +280,7 @@ fn w100_sev(src: &str) -> Vec<String> {
     a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W100")
+        .filter(|d| d.code == DiagCode::W100)
         .map(|d| format!("{:?}", d.severity))
         .collect()
 }
@@ -317,7 +318,7 @@ fn w212_count(src: &str) -> usize {
     a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W212")
+        .filter(|d| d.code == DiagCode::W212)
         .count()
 }
 
@@ -435,9 +436,9 @@ fn body_references_param_namespace_qualified() {
     assert!(!body_references_param("set y $ns::var", "ns"));
 }
 
-fn diag(code: &str, span: Span, msg: &str) -> Diagnostic {
+fn diag(code: DiagCode, span: Span, msg: &str) -> Diagnostic {
     Diagnostic {
-        code: code.to_string(),
+        code,
         span,
         message: msg.to_string(),
         severity: Severity::Warning,
@@ -454,7 +455,7 @@ fn w004_fires_on_regsub_command_in_tcl86() {
     let w004: Vec<&Diagnostic> = result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W004")
+        .filter(|d| d.code == DiagCode::W004)
         .collect();
     assert!(
         !w004.is_empty(),
@@ -483,7 +484,7 @@ fn e003_not_emitted_for_leading_switches() {
         let e003: Vec<&Diagnostic> = result
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E003")
+            .filter(|d| d.code == DiagCode::E003)
             .collect();
         assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
     }
@@ -495,7 +496,7 @@ fn e003_fires_on_genuine_over_arity() {
     let mut a = Analyser::new();
     let result = a.analyse("regsub a b c d e", "tcl8.6");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "E003"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "expected E003, got {:?}",
         result.diagnostics
     );
@@ -508,7 +509,7 @@ fn e003_switch_options_are_dialect_filtered() {
     let mut a = Analyser::new();
     let r9 = a.analyse("regsub -command a b c d", "tcl9.0");
     assert!(
-        !r9.diagnostics.iter().any(|d| d.code == "E003"),
+        !r9.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "unexpected E003 under tcl9.0: {:?}",
         r9.diagnostics
     );
@@ -517,7 +518,7 @@ fn e003_switch_options_are_dialect_filtered() {
     let mut a2 = Analyser::new();
     let r8 = a2.analyse("regsub -command a b c d", "tcl8.6");
     assert!(
-        r8.diagnostics.iter().any(|d| d.code == "E003"),
+        r8.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "expected E003 under tcl8.6, got {:?}",
         r8.diagnostics
     );
@@ -532,14 +533,17 @@ fn e003_suppressed_by_expanded_word() {
     let mut a = Analyser::new();
     let expanded = a.analyse("regsub a b c d {*}$rest", "tcl8.6");
     assert!(
-        !expanded.diagnostics.iter().any(|d| d.code == "E003"),
+        !expanded
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E003),
         "expansion should suppress E003: {:?}",
         expanded.diagnostics
     );
     let mut b = Analyser::new();
     let literal = b.analyse("regsub a b c d e", "tcl8.6");
     assert!(
-        literal.diagnostics.iter().any(|d| d.code == "E003"),
+        literal.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "control: five literal words should fire E003: {:?}",
         literal.diagnostics
     );
@@ -564,7 +568,7 @@ fn e003_arity_is_dialect_aware_via_expand_syntax() {
         a.analyse("regsub a b c d {*}$rest", dialect)
             .diagnostics
             .iter()
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     };
     let on_84 = codes("tcl8.4");
@@ -590,7 +594,7 @@ fn e003_fires_on_subcommand_over_arity() {
     let e003: Vec<&Diagnostic> = result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "E003")
+        .filter(|d| d.code == DiagCode::E003)
         .collect();
     assert!(
         !e003.is_empty(),
@@ -611,7 +615,7 @@ fn e003_fires_on_file_link_over_arity() {
     let mut a = Analyser::new();
     let result = a.analyse("file link $a $b $c", "tcl8.6");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "E003"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "expected E003 for `file link $a $b $c`, got {:?}",
         result.diagnostics
     );
@@ -632,7 +636,7 @@ fn e003_silent_for_subcommand_leading_options() {
         let e003: Vec<&Diagnostic> = result
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E003")
+            .filter(|d| d.code == DiagCode::E003)
             .collect();
         assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
     }
@@ -647,7 +651,7 @@ fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
         let mut a = Analyser::new();
         let result = a.analyse(snippet, "tcl8.6");
         assert!(
-            !result.diagnostics.iter().any(|d| d.code == "E003"),
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
             "unexpected E003 for {snippet:?}: {:?}",
             result.diagnostics
         );
@@ -664,7 +668,7 @@ fn e001_fires_for_bare_subcommand_command() {
         let e001: Vec<&Diagnostic> = result
             .diagnostics
             .iter()
-            .filter(|d| d.code == "E001")
+            .filter(|d| d.code == DiagCode::E001)
             .collect();
         assert_eq!(
             e001.len(),
@@ -683,7 +687,7 @@ fn e001_fires_for_bare_subcommand_command() {
 fn e001_quiet_when_subcommand_present() {
     let mut a = Analyser::new();
     let result = a.analyse("string length abc", "tcl8.6");
-    assert!(!result.diagnostics.iter().any(|d| d.code == "E001"));
+    assert!(!result.diagnostics.iter().any(|d| d.code == DiagCode::E001));
 }
 
 #[test]
@@ -693,7 +697,7 @@ fn e001_suppressed_by_shadowing_user_proc() {
     let mut a = Analyser::new();
     let result = a.analyse("proc string {} { return x }\nstring", "tcl8.6");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == "E001"),
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::E001),
         "shadowing proc should suppress E001: {result:?}"
     );
 }
@@ -706,7 +710,7 @@ fn e002_fires_on_too_few_args() {
     let e002: Vec<&Diagnostic> = result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "E002")
+        .filter(|d| d.code == DiagCode::E002)
         .collect();
     assert!(
         !e002.is_empty(),
@@ -727,7 +731,11 @@ fn e003_shadow_is_namespace_scoped() {
                    namespace eval ::ns { close x y z }\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
-    let e003: Vec<&Diagnostic> = r.diagnostics.iter().filter(|d| d.code == "E003").collect();
+    let e003: Vec<&Diagnostic> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
     assert_eq!(
         e003.len(),
         1,
@@ -757,7 +765,11 @@ fn e003_top_level_call_before_shadowing_proc_fires() {
     let src = "close x y z\nproc close {a b c d} {}\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
-    let e003: Vec<&Diagnostic> = r.diagnostics.iter().filter(|d| d.code == "E003").collect();
+    let e003: Vec<&Diagnostic> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
     assert_eq!(
         e003.len(),
         1,
@@ -777,7 +789,7 @@ fn e003_top_level_call_after_shadowing_proc_suppressed() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "E003"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "no E003 expected — the call follows its shadowing proc, got {:?}",
         r.diagnostics
     );
@@ -793,7 +805,7 @@ fn e003_proc_body_call_not_order_gated() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "E003"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "no E003 expected — proc-body calls are not order-gated, got {:?}",
         r.diagnostics
     );
@@ -819,7 +831,7 @@ fn analyser_recurses_into_irules_nesting_script_bodies() {
         assert!(
             r.diagnostics
                 .iter()
-                .any(|d| d.code == "E002" && d.message.contains("'set'")),
+                .any(|d| d.code == DiagCode::E002 && d.message.contains("'set'")),
             "expected E002 from the nested `set` (body must be analysed) in {src:?}, got {:?}",
             r.diagnostics
         );
@@ -834,7 +846,7 @@ fn w004_fires_on_lsearch_stride_in_tcl85() {
     let mut a = Analyser::new();
     let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.5");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W004"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "expected W004 on tcl8.5 lsearch -stride, got {:?}",
         result.diagnostics
     );
@@ -845,7 +857,7 @@ fn w004_silent_on_lsearch_stride_in_tcl86() {
     let mut a = Analyser::new();
     let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.6");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == "W004"),
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "W004 must not fire on tcl8.6 lsearch -stride, got {:?}",
         result.diagnostics
     );
@@ -859,7 +871,7 @@ fn w004_fires_on_clock_scan_validate_in_tcl86() {
     let mut a = Analyser::new();
     let result = a.analyse("clock scan {today} -validate 1", "tcl8.6");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W004"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "expected W004 on tcl8.6 clock scan -validate, got {:?}",
         result.diagnostics
     );
@@ -871,7 +883,7 @@ fn w004_fires_on_fconfigure_nodelay_in_tcl86() {
     let mut a = Analyser::new();
     let result = a.analyse("fconfigure $chan -nodelay 1", "tcl8.6");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W004"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "expected W004 on tcl8.6 fconfigure -nodelay, got {:?}",
         result.diagnostics
     );
@@ -884,7 +896,7 @@ fn w004_fires_on_chan_configure_inputmode_in_tcl86() {
     let mut a = Analyser::new();
     let result = a.analyse("chan configure $chan -inputmode raw", "tcl8.6");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W004"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "expected W004 on tcl8.6 chan configure -inputmode, got {:?}",
         result.diagnostics
     );
@@ -896,7 +908,7 @@ fn w004_silent_on_regsub_command_in_tcl9() {
     let mut a = Analyser::new();
     let result = a.analyse("regsub -command {[A-Z]+} foo {bar} out", "tcl9.0");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == "W004"),
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
         "W004 should not fire on tcl9.0, got {:?}",
         result.diagnostics
     );
@@ -911,7 +923,7 @@ fn w003_fires_on_string_compare_in_tcl84() {
     let w003: Vec<&Diagnostic> = result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W003")
+        .filter(|d| d.code == DiagCode::W003)
         .collect();
     assert!(
         !w003.is_empty(),
@@ -926,7 +938,7 @@ fn w003_silent_on_string_compare_in_tcl9() {
     let mut a = Analyser::new();
     let result = a.analyse("if {$x lt $y} { puts hi }", "tcl9.0");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == "W003"),
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "W003 should not fire on tcl9.0, got {:?}",
         result.diagnostics
     );
@@ -938,7 +950,7 @@ fn w003_fires_on_in_operator_in_tcl84() {
     let mut a = Analyser::new();
     let result = a.analyse("if {$x in {a b c}} { puts hi }", "tcl8.4");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W003"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "expected W003 on tcl8.4 'in' operator, got {:?}",
         result.diagnostics
     );
@@ -954,7 +966,7 @@ fn w003_fires_on_tab_separated_operator() {
     let mut a = Analyser::new();
     let result = a.analyse("if {$x\tlt\t$y} { puts hi }", "tcl8.4");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W003"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "W003 must fire on tab-separated 'lt', got {:?}",
         result.diagnostics
     );
@@ -966,7 +978,7 @@ fn w003_fires_on_newline_separated_operator() {
     let mut a = Analyser::new();
     let result = a.analyse("if {$x\nin\n{a b c}} { puts hi }", "tcl8.4");
     assert!(
-        result.diagnostics.iter().any(|d| d.code == "W003"),
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "W003 must fire on newline-separated 'in', got {:?}",
         result.diagnostics
     );
@@ -992,7 +1004,7 @@ fn w003_silent_on_in_operator_in_tcl85() {
     let mut a = Analyser::new();
     let result = a.analyse("if {$x in {a b c}} { puts hi }", "tcl8.5");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == "W003"),
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "W003 should not fire on tcl8.5, got {:?}",
         result.diagnostics
     );
@@ -1005,7 +1017,7 @@ fn emit_variable_usage_diagnostics_is_a_noop() {
     let mut a = Analyser::new();
     a.result
         .diagnostics
-        .push(diag("W113", Span::new(0, 3), "x"));
+        .push(diag(DiagCode::W113, Span::new(0, 3), "x"));
     a.emit_variable_usage_diagnostics();
     assert_eq!(a.result.diagnostics.len(), 1);
 }
@@ -1222,7 +1234,10 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
     assert!(
-        a.result.diagnostics.iter().any(|d| d.code == "W220"),
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W220),
         "W220 expected for a dead set-once store; got {:?}",
         a.result.diagnostics,
     );
@@ -1230,7 +1245,10 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     let mut b = Analyser::new();
     b.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nreturn $x }");
     assert!(
-        !b.result.diagnostics.iter().any(|d| d.code == "W220"),
+        !b.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W220),
         "W220 must not fire when the assignment is read; got {:?}",
         b.result.diagnostics,
     );
@@ -1255,7 +1273,7 @@ fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
         let mut a = Analyser::new();
         let res = a.analyse(src, "tcl");
         assert!(
-            !res.diagnostics.iter().any(|d| d.code == "W220"),
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::W220),
             "W220 must not fire for a substitution-hidden read; got {:?} for {src:?}",
             res.diagnostics,
         );
@@ -1265,7 +1283,7 @@ fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
     let mut a = Analyser::new();
     let res = a.analyse("proc f {} { set x 1\nset x 2\nputs $x }", "tcl");
     assert!(
-        res.diagnostics.iter().any(|d| d.code == "W220"),
+        res.diagnostics.iter().any(|d| d.code == DiagCode::W220),
         "W220 must still fire for a genuine overwrite; got {:?}",
         res.diagnostics,
     );
@@ -1282,7 +1300,7 @@ fn emit_cfg_ssa_diagnostics_w220_dead_store_overwritten() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         !w220s.is_empty(),
@@ -1304,7 +1322,7 @@ fn w220_array_element_overwrite_not_dead() {
     let mut a = Analyser::new();
     let r = a.analyse("proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }", "tcl8.6");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W220"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W220),
         "no W220 expected — a(k) is read by `puts $a(k)`; got {:?}",
         r.diagnostics,
     );
@@ -1320,7 +1338,7 @@ fn w220_scalar_overwrite_still_fires_via_analyse() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code == "W220" && d.message.contains("'x'")),
+            .any(|d| d.code == DiagCode::W220 && d.message.contains("'x'")),
         "scalar dead store must still fire; got {:?}",
         r.diagnostics,
     );
@@ -1339,7 +1357,7 @@ fn w220_braced_literal_arg_is_not_a_read() {
         "tcl8.6",
     );
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W220"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W220),
         "braced literal must not suppress the a(k) dead store; got {:?}",
         r.diagnostics,
     );
@@ -1356,7 +1374,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1376,7 +1394,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1397,7 +1415,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1425,7 +1443,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220" && d.message.contains("'x'"))
+        .filter(|d| d.code == DiagCode::W220 && d.message.contains("'x'"))
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1447,7 +1465,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.iter().all(|d| !d.message.contains("'a'")),
@@ -1469,7 +1487,7 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1489,7 +1507,7 @@ fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         !w220s.is_empty(),
@@ -1520,7 +1538,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.iter().all(|d| !d.message.contains("'v'")),
@@ -1547,7 +1565,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.iter().any(|d| d.message.contains("'local'")),
@@ -1569,7 +1587,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W220")
+        .filter(|d| d.code == DiagCode::W220)
         .collect();
     assert!(
         w220s.is_empty(),
@@ -1588,7 +1606,7 @@ fn emit_cfg_ssa_diagnostics_w214_unused_param() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W214")
+        .filter(|d| d.code == DiagCode::W214)
         .collect();
     assert_eq!(
         w214s.len(),
@@ -1614,7 +1632,7 @@ fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W211")
+        .filter(|d| d.code == DiagCode::W211)
         .collect();
     assert!(
         !w211s.is_empty(),
@@ -1639,7 +1657,7 @@ fn w211_not_emitted_for_command_output_vars() {
         let mut a = Analyser::new();
         let res = a.analyse(src, "tcl");
         assert!(
-            !res.diagnostics.iter().any(|d| d.code == "W211"),
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::W211),
             "W211 must not fire for command-output vars; got {:?} for {src:?}",
             res.diagnostics,
         );
@@ -1655,11 +1673,15 @@ fn w211_fires_once_per_variable_set_twice() {
     let w211: Vec<_> = res
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W211")
+        .filter(|d| d.code == DiagCode::W211)
         .collect();
     assert_eq!(w211.len(), 1, "expected one W211 for x; got {w211:?}");
     assert!(
-        res.diagnostics.iter().filter(|d| d.code == "W220").count() == 2,
+        res.diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W220)
+            .count()
+            == 2,
         "both dead stores still fire W220; got {:?}",
         res.diagnostics,
     );
@@ -1699,7 +1721,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W211" && d.message.contains("'msg'"))
+        .filter(|d| d.code == DiagCode::W211 && d.message.contains("'msg'"))
         .collect();
     assert!(
         w211s.is_empty(),
@@ -1720,7 +1742,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W211" && d.message.contains("'config'"))
+        .filter(|d| d.code == DiagCode::W211 && d.message.contains("'config'"))
         .collect();
     assert!(
         w211s.is_empty(),
@@ -1740,7 +1762,7 @@ fn emit_cfg_ssa_diagnostics_h300_repeated_assignment() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "H300")
+        .filter(|d| d.code == DiagCode::H300)
         .collect();
     assert!(
         !h300s.is_empty(),
@@ -1758,7 +1780,10 @@ fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { set _x 1\nset _x 1 }");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "H300"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::H300),
         "H300 must not fire on underscore-prefixed vars",
     );
 }
@@ -1769,7 +1794,10 @@ fn emit_cfg_ssa_diagnostics_h300_skips_distinct_values() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nset x 2 }");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "H300"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::H300),
         "H300 must not fire when literal values differ",
     );
 }
@@ -1784,7 +1812,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W210" && d.message.contains("'undef'"))
+        .filter(|d| d.code == DiagCode::W210 && d.message.contains("'undef'"))
         .collect();
     assert!(
         !w210s.is_empty(),
@@ -1809,7 +1837,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
         !a.result
             .diagnostics
             .iter()
-            .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'y'")),
         "exhaustive opaque switch must define y (no W210); got {:?}",
         a.result.diagnostics,
     );
@@ -1824,7 +1852,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
         b.result
             .diagnostics
             .iter()
-            .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'y'")),
         "non-exhaustive opaque switch leaves y maybe-undef (W210 expected); got {:?}",
         b.result.diagnostics,
     );
@@ -1839,7 +1867,7 @@ fn w210_fires_for(src: &str, var: &str) -> bool {
     a.result
         .diagnostics
         .iter()
-        .any(|d| d.code == "W210" && d.message.contains(&needle))
+        .any(|d| d.code == DiagCode::W210 && d.message.contains(&needle))
 }
 
 #[test]
@@ -2168,7 +2196,10 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics(src);
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W210),
             "W210 must not fire for auto-creating RMW; got {:?} for {src:?}",
             a.result.diagnostics,
         );
@@ -2178,7 +2209,10 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { unset gone }");
     assert!(
-        a.result.diagnostics.iter().any(|d| d.code == "W213"),
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
         "W213 must still fire for unset of a possibly-undef var; got {:?}",
         a.result.diagnostics,
     );
@@ -2194,7 +2228,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_real_param() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W210" && d.message.contains("'x'"))
+        .filter(|d| d.code == DiagCode::W210 && d.message.contains("'x'"))
         .collect();
     assert!(
         w210s.is_empty(),
@@ -2215,7 +2249,7 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
         .result
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W213")
+        .filter(|d| d.code == DiagCode::W213)
         .collect();
     assert!(
         !w213s.is_empty(),
@@ -2239,7 +2273,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
         a.result
             .diagnostics
             .iter()
-            .any(|d| d.code == "W210" && d.message.contains("'a'")),
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'a'")),
         "W210 expected for read after unset; got {:?}",
         a.result.diagnostics,
     );
@@ -2261,7 +2295,7 @@ fn try_handler_edge_merges_pretry_when_body_falls_through() {
         a.result
             .diagnostics
             .iter()
-            .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'y'")),
         "W210 expected for handler read of maybe-undef y; got {:?}",
         a.result.diagnostics,
     );
@@ -2277,7 +2311,10 @@ fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
         "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
     );
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
         "W210 must not fire when x is set before the sole throw; got {:?}",
         a.result.diagnostics,
     );
@@ -2290,7 +2327,10 @@ fn emit_cfg_ssa_diagnostics_w213_skipped_with_nocomplain() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { unset -nocomplain xs }");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W213"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
         "W213 must not fire when ``-nocomplain`` is present; got {:?}",
         a.result.diagnostics,
     );
@@ -2304,7 +2344,10 @@ fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("puts $undef");
     assert!(
-        a.result.diagnostics.iter().any(|d| d.code == "W210"),
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
         "W210 must fire at top-level when no proc writes the var; got {:?}",
         a.result.diagnostics,
     );
@@ -2318,7 +2361,10 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc init {} { set ::counter 0 }\nputs $counter");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
         "W210 must be suppressed for globals written by procs; got {:?}",
         a.result.diagnostics,
     );
@@ -2332,7 +2378,10 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc init {} { global counter; set counter 0 }\nputs $counter");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
         "W210 must be suppressed via global-alias case; got {:?}",
         a.result.diagnostics,
     );
@@ -2346,7 +2395,7 @@ fn codes_for(src: &str) -> Vec<String> {
     a.result
         .diagnostics
         .iter()
-        .map(|d| d.code.clone())
+        .map(|d| d.code.to_string())
         .collect()
 }
 
@@ -2468,12 +2517,12 @@ fn analyse_w307_suppressed_for_known_class_constructor_chain() {
         "tcl",
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W307"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must not fire for [KnownClass new] method chain; got {:?}",
         r.diagnostics,
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W308"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W308),
         "W308 must not fire when method is declared on the class; got {:?}",
         r.diagnostics,
     );
@@ -2492,7 +2541,7 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code == "W308" && d.message.contains("fly")),
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
         "W308 expected for unknown method on known class; got {:?}",
         r.diagnostics,
     );
@@ -2506,7 +2555,7 @@ fn w30x_codes(src: &str) -> Vec<String> {
     let mut codes: Vec<String> = r
         .diagnostics
         .iter()
-        .map(|d| d.code.clone())
+        .map(|d| d.code.to_string())
         .filter(|c| c.starts_with("W30"))
         .collect();
     codes.sort();
@@ -2637,7 +2686,7 @@ fn irule2001_carries_matchclass_replacement_fix() {
     let d = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "IRULE2001")
+        .find(|d| d.code == DiagCode::Irule2001)
         .expect("IRULE2001");
     assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
     let fix = &d.fixes[0];
@@ -2662,7 +2711,7 @@ fn irule2001_three_arg_matchclass_fix_preserves_operator_and_class() {
     let d = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "IRULE2001")
+        .find(|d| d.code == DiagCode::Irule2001)
         .expect("IRULE2001");
     assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
     assert_eq!(
@@ -2680,7 +2729,7 @@ fn irule2001_ambiguous_arity_matchclass_warns_without_fix() {
     let d = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "IRULE2001")
+        .find(|d| d.code == DiagCode::Irule2001)
         .expect("IRULE2001");
     assert!(d.fixes.is_empty(), "expected no fix, got {:?}", d.fixes);
 }
@@ -2694,7 +2743,7 @@ fn analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W307"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 expected for [unknown] method pattern; got {:?}",
         r.diagnostics,
     );
@@ -2707,7 +2756,7 @@ fn analyse_w307_suppressed_for_my_self_dispatch() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W307"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must not fire for OO self-dispatch; got {:?}",
         r.diagnostics,
     );
@@ -2726,7 +2775,7 @@ foo$suffix
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W123"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
         r.diagnostics,
     );
@@ -2744,7 +2793,7 @@ foo$suffix
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W123"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 expected when partial interpolation resolves to an unknown command",
     );
 }
@@ -2758,7 +2807,7 @@ fn analyse_w123_emits_did_you_mean_suggestion() {
     let w123 = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "W123")
+        .find(|d| d.code == DiagCode::W123)
         .expect("W123 emitted");
     assert!(
         w123.message.contains("did you mean 'puts'"),
@@ -2784,7 +2833,7 @@ my_cmd $x foo
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W123"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 must not fire for stub-declared commands; got {:?}",
         r.diagnostics,
     );
@@ -2807,7 +2856,7 @@ foo
     // Empty unknown means W123 still fires — but the
     // dispatch_targets membership doesn't apply (set is
     // empty).  Just sanity-check the test runs.
-    assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
+    assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
 }
 
 #[test]
@@ -2817,7 +2866,7 @@ fn analyse_w123_no_suggestion_when_far_from_any_known_command() {
     let w123 = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "W123")
+        .find(|d| d.code == DiagCode::W123)
         .expect("W123 emitted");
     assert!(
         !w123.message.contains("did you mean"),
@@ -2839,7 +2888,7 @@ fn analyse_irule4005_racy_static_emitted_for_per_request_writes() {
         "f5-irules",
     );
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::Irule4005),
         "IRULE4005 expected for racy static cross-event flow; got {:?}",
         r.diagnostics,
     );
@@ -2857,7 +2906,7 @@ fn analyse_irule4005_no_emit_for_rule_init_writes() {
         "f5-irules",
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::Irule4005),
         "IRULE4005 must not fire for RULE_INIT writes; got {:?}",
         r.diagnostics,
     );
@@ -2869,7 +2918,11 @@ fn analyse_w124_ipv4_octet_overflow() {
     // not a valid IP.  W124 fires at the assignment.
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set ip 192.168.1.999 }", "tcl");
-    let w124s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W124").collect();
+    let w124s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W124)
+        .collect();
     assert!(
         !w124s.is_empty(),
         "W124 expected for IPv4 octet > 255; got {:?}",
@@ -2886,7 +2939,7 @@ fn analyse_no_w124_for_valid_ipv4() {
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set ip 192.168.1.1 }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W124"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W124),
         "W124 must not fire on valid IPv4; got {:?}",
         r.diagnostics,
     );
@@ -2899,7 +2952,11 @@ fn analyse_w124_ipv4_leading_zero_warning() {
     // Severity is Warning.
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set ip 192.168.01.1 }", "tcl");
-    let w124s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W124").collect();
+    let w124s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W124)
+        .collect();
     assert!(
         !w124s.is_empty(),
         "W124 expected for IPv4 leading-zero octet; got {:?}",
@@ -2917,7 +2974,7 @@ fn analyse_no_w124_for_oid_chain() {
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set oid 1.3.6.1.4.1.4203.1.11.3 }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W124"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W124),
         "W124 must not fire on an OID dotted chain; got {:?}",
         r.diagnostics,
     );
@@ -2930,7 +2987,7 @@ fn analyse_w124_real_ipv4_shaped_still_fires() {
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set ip 10.0.0.300 }", "tcl");
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W124"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W124),
         "W124 must fire on a genuine over-255 IPv4 quad; got {:?}",
         r.diagnostics,
     );
@@ -2943,7 +3000,7 @@ fn w302_fire_and_forget_bare_close_silent() {
     let mut a = Analyser::new();
     let r = a.analyse("proc f {} { catch {close $fh} }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W302"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
         "W302 must be suppressed on `catch {{close ...}}`; got {:?}",
         r.diagnostics,
     );
@@ -2954,7 +3011,7 @@ fn w302_fire_and_forget_ensemble_chan_close_silent() {
     let mut a = Analyser::new();
     let r = a.analyse("proc f {} { catch {chan close $fh} }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W302"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
         "W302 must be suppressed on `catch {{chan close ...}}`; got {:?}",
         r.diagnostics,
     );
@@ -2969,7 +3026,7 @@ fn w304_braced_switch_form_silent() {
         "tcl",
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W304"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W304),
         "W304 must not fire on a two-arg braced switch; got {:?}",
         r.diagnostics,
     );
@@ -2985,7 +3042,7 @@ fn w304_split_switch_form_still_fires() {
         "tcl",
     );
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W304"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W304),
         "W304 must still fire on the split switch form; got {:?}",
         r.diagnostics,
     );
@@ -2997,7 +3054,7 @@ fn w210_codes(src: &str) -> Vec<String> {
     a.analyse(src, "tcl")
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W210")
+        .filter(|d| d.code == DiagCode::W210)
         .map(|d| d.message.clone())
         .collect()
 }
@@ -3007,7 +3064,7 @@ fn w233_codes(src: &str) -> usize {
     a.analyse(src, "tcl")
         .diagnostics
         .iter()
-        .filter(|d| d.code == "W233")
+        .filter(|d| d.code == DiagCode::W233)
         .count()
 }
 
@@ -3092,7 +3149,7 @@ fn when_body_not_analysed_under_plain_tcl() {
     assert!(
         !r.diagnostics
             .iter()
-            .any(|d| d.code == "W123" && d.message.contains("boguscmd")),
+            .any(|d| d.code == DiagCode::W123 && d.message.contains("boguscmd")),
         "disabled `when` body command must not draw W123; got {:?}",
         r.diagnostics
     );
@@ -3110,7 +3167,7 @@ fn when_body_analysed_under_irules() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code == "W210" && d.message.contains("undefvar")),
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("undefvar")),
         "iRules `when` body must be analysed (W210 on $undefvar); got {:?}",
         r.diagnostics
     );
@@ -3286,7 +3343,7 @@ fn w214_empty_body_stub_silent() {
     let mut a = Analyser::new();
     let r = a.analyse("proc stub {a b} {}", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W214"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W214),
         "W214 must be suppressed on an empty-body stub; got {:?}",
         r.diagnostics,
     );
@@ -3298,7 +3355,7 @@ fn w214_quoted_keyword_marker_silent() {
     let mut a = Analyser::new();
     let r = a.analyse("proc xyz {\"as\" v} { return $v }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W214"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W214),
         "W214 must not fire on a quoted-keyword param; got {:?}",
         r.diagnostics,
     );
@@ -3319,7 +3376,7 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
     assert!(
         !r.diagnostics
             .iter()
-            .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            .any(|d| d.code == DiagCode::W214 && d.message.contains("'token'")),
         "dispatch-protocol family must suppress W214 on protocol params; got {:?}",
         r.diagnostics,
     );
@@ -3339,7 +3396,7 @@ fn w214_no_dispatcher_still_fires_on_peer_family() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            .any(|d| d.code == DiagCode::W214 && d.message.contains("'token'")),
         "without a dispatcher, an unused protocol-shaped param still fires; got {:?}",
         r.diagnostics,
     );
@@ -3353,7 +3410,7 @@ fn w214_genuine_unused_param_still_fires() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code == "W214" && d.message.contains("'b'")),
+            .any(|d| d.code == DiagCode::W214 && d.message.contains("'b'")),
         "W214 must still fire on a genuine unused param; got {:?}",
         r.diagnostics,
     );
@@ -3368,7 +3425,7 @@ fn w302_constructive_subcommand_still_fires() {
         "tcl",
     );
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W302"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
         "W302 must still fire on a constructive `chan configure`; got {:?}",
         r.diagnostics,
     );
@@ -3381,7 +3438,11 @@ fn analyse_i230_constant_if_branch() {
     // I230 should fire.
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { if {1} { puts hi } }", "tcl");
-    let i230s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "I230").collect();
+    let i230s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .collect();
     assert!(
         !i230s.is_empty(),
         "I230 expected for constant ``if 1``; got {:?}",
@@ -3397,7 +3458,7 @@ fn analyse_no_i230_for_dynamic_condition() {
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {x} { if {$x > 0} { puts hi } }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "I230"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::I230),
         "I230 must not fire on dynamic condition; got {:?}",
         r.diagnostics,
     );
@@ -3409,7 +3470,11 @@ fn analyse_w123_unknown_command() {
     // built-in / proc / class / alias.  W123 fires.
     let mut a = Analyser::new();
     let r = a.analyse("no_such_cmd hello", "tcl");
-    let w123s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W123").collect();
+    let w123s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .collect();
     assert!(
         !w123s.is_empty(),
         "W123 expected for unknown command; got {:?}",
@@ -3425,7 +3490,7 @@ fn analyse_no_w123_for_builtin_command() {
     let mut a = Analyser::new();
     let r = a.analyse("puts hello", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W123"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 must not fire on built-in command; got {:?}",
         r.diagnostics,
     );
@@ -3437,7 +3502,11 @@ fn analyse_no_w123_for_user_proc() {
     // the analyser walk; the call site must NOT trip W123.
     let mut a = Analyser::new();
     let r = a.analyse("proc greet {} { puts hi }\ngreet", "tcl");
-    let w123s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W123").collect();
+    let w123s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .collect();
     assert!(
         w123s.is_empty(),
         "W123 must not fire on user-defined proc call; got {:?}",
@@ -3452,7 +3521,7 @@ fn analyse_no_w123_for_qualified_command_name() {
     let mut a = Analyser::new();
     let r = a.analyse("ns::cmd hello", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W123"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 must not fire on qualified command name; got {:?}",
         r.diagnostics,
     );
@@ -3487,7 +3556,10 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W123"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123),
         "W123 must be fully suppressed when package_requires is non-empty; got {:?}",
         a.result.diagnostics,
     );
@@ -3500,7 +3572,7 @@ fn analyse_w123_filtered_by_disabled_diagnostics() {
     let mut a = Analyser::new();
     let r = a.analyse("# tcl-lsp: disable=W123\nno_such_cmd hello", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W123"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 must be silenced by file-suppression directive; got {:?}",
         r.diagnostics,
     );
@@ -3515,7 +3587,11 @@ fn analyse_w307_var_as_command() {
     // populated by the analyser's walk dispatch, not the emitter pipeline.
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { $cmd arg1 }", "tcl");
-    let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+    let w307s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W307)
+        .collect();
     assert!(
         !w307s.is_empty(),
         "W307 expected for ``$cmd arg1``; got {:?}",
@@ -3534,7 +3610,7 @@ fn analyse_w307_suppressed_for_proc_param_dispatch() {
     let mut a = Analyser::new();
     let r = a.analyse("proc p {self} { $self configure -x 1 }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W307"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must be suppressed for a dispatch on proc parameter; got {:?}",
         r.diagnostics,
     );
@@ -3547,7 +3623,7 @@ fn analyse_w307_suppressed_for_multi_dispatch_local() {
     let mut a = Analyser::new();
     let r = a.analyse("proc p {} { $tree visit\n$tree leaves }", "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W307"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must be suppressed for a local dispatched ≥2 times; got {:?}",
         r.diagnostics,
     );
@@ -3561,7 +3637,7 @@ fn analyse_w307_fires_for_tainted_dispatch_despite_multi_use() {
     let mut a = Analyser::new();
     let r = a.analyse("proc p {} { set c [gets stdin]\n$c one\n$c two }", "tcl");
     assert!(
-        r.diagnostics.iter().any(|d| d.code == "W307"),
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must fire for a tainted dispatched command name; got {:?}",
         r.diagnostics,
     );
@@ -3574,7 +3650,11 @@ fn analyse_no_w307_for_static_known_command() {
     // W307 must be suppressed.
     let mut a = Analyser::new();
     let r = a.analyse("proc foo {} { set cmd puts\n$cmd hello }", "tcl");
-    let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+    let w307s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W307)
+        .collect();
     assert!(
         w307s.is_empty(),
         "W307 must be suppressed when var holds known command name; got {:?}",
@@ -3594,7 +3674,11 @@ fn analyse_w307_suppressed_per_ssa_version_after_reassignment() {
         "proc foo {} { set cmd notacommand\nset cmd puts\n$cmd hello }",
         "tcl",
     );
-    let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+    let w307s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W307)
+        .collect();
     assert!(
         w307s.is_empty(),
         "W307 must read the precise reaching version (\"puts\"); got {:?}",
@@ -3612,7 +3696,11 @@ fn analyse_w307_still_fires_when_precise_version_not_a_command() {
         "proc foo {} { set cmd puts\nset cmd notacommand\n$cmd hello }",
         "tcl",
     );
-    let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+    let w307s: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W307)
+        .collect();
     assert!(
         !w307s.is_empty(),
         "W307 should fire when the reaching version isn't a command; got {:?}",
@@ -3658,7 +3746,10 @@ fn emit_cfg_ssa_diagnostics_w214_skips_args_param() {
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {x args} { puts $x }");
     assert!(
-        !a.result.diagnostics.iter().any(|d| d.code == "W214"),
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W214),
         "W214 should not fire on ``args``; got {:?}",
         a.result.diagnostics,
     );
@@ -3671,10 +3762,10 @@ fn dedupe_drops_exact_duplicates() {
     a.source = "set x 1".to_string();
     a.result
         .diagnostics
-        .push(diag("W210", Span::new(4, 5), "x not set"));
+        .push(diag(DiagCode::W210, Span::new(4, 5), "x not set"));
     a.result
         .diagnostics
-        .push(diag("W210", Span::new(4, 5), "x not set"));
+        .push(diag(DiagCode::W210, Span::new(4, 5), "x not set"));
     a.dedupe_diagnostics();
     assert_eq!(a.result.diagnostics.len(), 1);
 }
@@ -3685,10 +3776,10 @@ fn dedupe_keeps_distinct_diagnostics_at_different_spans() {
     a.source = "set x 1\nset y 2".to_string();
     a.result
         .diagnostics
-        .push(diag("W210", Span::new(4, 5), "x"));
+        .push(diag(DiagCode::W210, Span::new(4, 5), "x"));
     a.result
         .diagnostics
-        .push(diag("W210", Span::new(12, 13), "y"));
+        .push(diag(DiagCode::W210, Span::new(12, 13), "y"));
     a.dedupe_diagnostics();
     assert_eq!(a.result.diagnostics.len(), 2);
 }
@@ -3703,13 +3794,23 @@ fn dedupe_drops_e002_on_e101_line() {
     let switch_span = Span::new(0, 6);
     a.result
         .diagnostics
-        .push(diag("E101", switch_span, "missing open brace"));
+        .push(diag(DiagCode::E101, switch_span, "missing open brace"));
     a.result
         .diagnostics
-        .push(diag("E002", switch_span, "too few args"));
+        .push(diag(DiagCode::E002, switch_span, "too few args"));
     a.dedupe_diagnostics();
-    assert!(a.result.diagnostics.iter().any(|d| d.code == "E101"));
-    assert!(!a.result.diagnostics.iter().any(|d| d.code == "E002"));
+    assert!(
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E101)
+    );
+    assert!(
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E002)
+    );
 }
 
 #[test]
@@ -3721,13 +3822,23 @@ fn dedupe_drops_w122_on_w124_line() {
     let ip_span = Span::new(15, 18);
     a.result
         .diagnostics
-        .push(diag("W124", ip_span, "invalid IP"));
+        .push(diag(DiagCode::W124, ip_span, "invalid IP"));
     a.result
         .diagnostics
-        .push(diag("W122", ip_span, "regex IP check"));
+        .push(diag(DiagCode::W122, ip_span, "regex IP check"));
     a.dedupe_diagnostics();
-    assert!(a.result.diagnostics.iter().any(|d| d.code == "W124"));
-    assert!(!a.result.diagnostics.iter().any(|d| d.code == "W122"));
+    assert!(
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W124)
+    );
+    assert!(
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W122)
+    );
 }
 
 #[test]
@@ -3738,12 +3849,17 @@ fn dedupe_keeps_e002_on_unrelated_line() {
     a.source = "switch $x {\nset y 1".to_string();
     a.result
         .diagnostics
-        .push(diag("E101", Span::new(0, 6), "missing brace"));
+        .push(diag(DiagCode::E101, Span::new(0, 6), "missing brace"));
     a.result
         .diagnostics
-        .push(diag("E002", Span::new(12, 15), "too few args"));
+        .push(diag(DiagCode::E002, Span::new(12, 15), "too few args"));
     a.dedupe_diagnostics();
-    assert!(a.result.diagnostics.iter().any(|d| d.code == "E002"));
+    assert!(
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E002)
+    );
 }
 
 #[test]
@@ -3752,13 +3868,23 @@ fn apply_disabled_diagnostics_removes_listed_codes() {
         Analyser::with_disabled_diagnostics(["W113"].iter().map(|s| (*s).to_string()).collect());
     a.result
         .diagnostics
-        .push(diag("W113", Span::new(0, 3), "shadows"));
+        .push(diag(DiagCode::W113, Span::new(0, 3), "shadows"));
     a.result
         .diagnostics
-        .push(diag("W210", Span::new(0, 3), "unset"));
+        .push(diag(DiagCode::W210, Span::new(0, 3), "unset"));
     a.apply_disabled_diagnostics();
-    assert!(!a.result.diagnostics.iter().any(|d| d.code == "W113"));
-    assert!(a.result.diagnostics.iter().any(|d| d.code == "W210"));
+    assert!(
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W113)
+    );
+    assert!(
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210)
+    );
 }
 
 #[test]
@@ -3766,7 +3892,7 @@ fn apply_disabled_diagnostics_no_op_when_empty() {
     let mut a = Analyser::new();
     a.result
         .diagnostics
-        .push(diag("W113", Span::new(0, 3), "x"));
+        .push(diag(DiagCode::W113, Span::new(0, 3), "x"));
     a.apply_disabled_diagnostics();
     assert_eq!(a.result.diagnostics.len(), 1);
 }
@@ -3779,7 +3905,11 @@ fn w120_fires_for_package_gated_command_without_require() {
     // Using it without a `package require` emits W120.
     let mut a = Analyser::new();
     let r = a.analyse("tcl::idna decode example.com\n", "tcl9.0");
-    let w120: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W120").collect();
+    let w120: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W120)
+        .collect();
     assert_eq!(w120.len(), 1, "expected one W120; got {:?}", r.diagnostics);
     assert!(w120[0].message.contains("package require tcl::idna"));
     // Carries a fix that inserts the require at the top.
@@ -3800,7 +3930,7 @@ fn w120_suppressed_when_package_required() {
         "tcl9.0",
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W120"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
         "W120 must not fire when the package is required; got {:?}",
         r.diagnostics,
     );
@@ -3816,7 +3946,7 @@ fn w120_fix_inserts_after_existing_require() {
     let w120 = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "W120")
+        .find(|d| d.code == DiagCode::W120)
         .expect("W120 expected");
     let fix = &w120.fixes[0];
     // Insertion offset is past the first line's newline
@@ -3830,7 +3960,11 @@ fn w120_emitted_once_per_command_name() {
     let src = "tcl::idna decode a\ntcl::idna encode b\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl9.0");
-    let w120: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W120").collect();
+    let w120: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W120)
+        .collect();
     assert_eq!(w120.len(), 1, "expected one W120 per name; got {w120:?}");
 }
 
@@ -3839,7 +3973,7 @@ fn w120_disabled_via_directive() {
     let mut a = Analyser::new();
     let r = a.analyse("# tcl-lsp: disable=W120\ntcl::idna decode x\n", "tcl9.0");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == "W120"),
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
         "{:?}",
         r.diagnostics
     );
@@ -3854,7 +3988,7 @@ fn sec_codes(src: &str, code: &str) -> usize {
     a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
-        .filter(|d| d.code == code)
+        .filter(|d| d.code.as_str() == code)
         .count()
 }
 
@@ -3871,7 +4005,11 @@ fn w300_source_with_variable_path() {
 fn w309_eval_uplevel_with_subst() {
     let mut a = Analyser::new();
     let r = a.analyse("eval [subst $template]\n", "tcl8.6");
-    let w309: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W309").collect();
+    let w309: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W309)
+        .collect();
     assert_eq!(w309.len(), 1);
     assert_eq!(w309[0].severity, Severity::Error);
     assert!(w309[0].message.starts_with("eval with [subst]"));
@@ -3915,7 +4053,11 @@ fn w312_interp_eval_injection() {
 fn w312_message_names_subcommand() {
     let mut a = Analyser::new();
     let r = a.analyse("interp eval $child $script\n", "tcl8.6");
-    let w312 = r.diagnostics.iter().find(|d| d.code == "W312").unwrap();
+    let w312 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W312)
+        .unwrap();
     assert!(
         w312.message.contains("interp eval $child {...}"),
         "{w312:?}"
@@ -3927,7 +4069,11 @@ fn w102_subst_variable_argument() {
     // Bare `$var` template fires; the message lists both kinds.
     let mut a = Analyser::new();
     let r = a.analyse("subst $x\n", "tcl8.6");
-    let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+    let w102 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W102)
+        .unwrap();
     assert!(
         w102.message.contains("any [cmd] and $var in the string"),
         "{w102:?}"
@@ -3946,7 +4092,11 @@ fn w102_subst_variable_argument() {
 fn w102_message_narrows_with_flags() {
     let mut a = Analyser::new();
     let r = a.analyse("subst -nocommands $x\n", "tcl8.6");
-    let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+    let w102 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W102)
+        .unwrap();
     // Only `$var` remains active; only `-novariables` is suggested.
     assert!(w102.message.contains("any $var in the string"), "{w102:?}");
     assert!(!w102.message.contains("[cmd]"), "{w102:?}");
@@ -3958,7 +4108,11 @@ fn w103_open_pipeline() {
     // `|`-pipeline with substitution → WARNING (injection).
     let mut a = Analyser::new();
     let r = a.analyse("open \"|$cmd\"\n", "tcl8.6");
-    let w103 = r.diagnostics.iter().find(|d| d.code == "W103").unwrap();
+    let w103 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W103)
+        .unwrap();
     assert_eq!(w103.severity, Severity::Warning);
     assert!(w103.message.contains("command injection"), "{w103:?}");
     // Literal `|`-pipeline → HINT.
@@ -3992,7 +4146,11 @@ fn w303_redos_nested_quantifiers() {
 fn w303_message_and_severity() {
     let mut a = Analyser::new();
     let r = a.analyse("regexp {(a+)+} $s\n", "tcl8.6");
-    let w303 = r.diagnostics.iter().find(|d| d.code == "W303").unwrap();
+    let w303 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W303)
+        .unwrap();
     assert_eq!(w303.severity, Severity::Warning);
     assert!(w303.message.contains("catastrophic"), "{w303:?}");
 }
@@ -4021,7 +4179,7 @@ fn irule2002_flags_deprecated_irules_command() {
     let d = r
         .diagnostics
         .iter()
-        .find(|d| d.code == "IRULE2002")
+        .find(|d| d.code == DiagCode::Irule2002)
         .expect("IRULE2002");
     assert_eq!(d.severity, Severity::Warning);
     assert!(
@@ -4042,7 +4200,11 @@ fn irule2002_silent_in_plain_tcl_dialect() {
 fn w310_message_names_option() {
     let mut a = Analyser::new();
     let r = a.analyse("mycmd -password literalsecret\n", "tcl8.6");
-    let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+    let w310 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W310)
+        .unwrap();
     assert!(
         w310.message
             .starts_with("Hardcoded credential in -password argument."),
@@ -4059,7 +4221,11 @@ fn w310_registry_credential_option() {
         "http::geturl $url -headers {Authorization \"Bearer abc123def456\"}\n",
         "tcl8.6",
     );
-    let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+    let w310 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W310)
+        .unwrap();
     assert!(
         w310.message
             .starts_with("Hardcoded credential in -headers argument."),
@@ -4076,7 +4242,11 @@ fn w310_subcommand_sensitive_header() {
         "HTTP::header insert authorization \"Bearer secrettoken123\"\n",
         "f5-irules",
     );
-    let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+    let w310 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W310)
+        .unwrap();
     assert!(
         w310.message
             .starts_with("Hardcoded credential in authorization header value."),
@@ -4090,13 +4260,13 @@ fn w310_subcommand_sensitive_header() {
         )
         .diagnostics
         .iter()
-        .any(|d| d.code == "W310")
+        .any(|d| d.code == DiagCode::W310)
     );
     assert!(
         !a.analyse("HTTP::header insert authorization $tok\n", "f5-irules")
             .diagnostics
             .iter()
-            .any(|d| d.code == "W310")
+            .any(|d| d.code == DiagCode::W310)
     );
 }
 
@@ -4107,7 +4277,7 @@ fn w306_literal_expected_in_regexp_pattern() {
         a.analyse(src, "tcl8.6")
             .diagnostics
             .iter()
-            .any(|d| d.code == "W306")
+            .any(|d| d.code == DiagCode::W306)
     }
     // Quoted `"$var"` / `"[cmd]"` patterns fire (Tcl substitutes them
     // before the regex engine sees the value).
@@ -4137,7 +4307,7 @@ fn w304_does_not_cross_proc_param_shadow() {
     assert!(
         !r.diagnostics
             .iter()
-            .any(|d| d.code == "W304" && d.message.contains("-force")),
+            .any(|d| d.code == DiagCode::W304 && d.message.contains("-force")),
         "{:?}",
         r.diagnostics
     );
@@ -4150,7 +4320,7 @@ fn w304_does_not_cross_proc_param_shadow() {
     assert!(
         r2.diagnostics
             .iter()
-            .any(|d| d.code == "W304" && d.message.contains("-force")),
+            .any(|d| d.code == DiagCode::W304 && d.message.contains("-force")),
         "{:?}",
         r2.diagnostics
     );

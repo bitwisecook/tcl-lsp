@@ -15,6 +15,7 @@
 //! into the expression AST looking for such mismatches.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::TclType;
@@ -316,7 +317,11 @@ fn check_numeric_operand(
         if !seen.insert((span, base.to_owned())) {
             return;
         }
-        let code = if in_loop { "S101" } else { "S100" };
+        let code = if in_loop {
+            DiagCode::S101
+        } else {
+            DiagCode::S100
+        };
         out.push(ShimmerWarning {
             span,
             variable: base.to_owned(),
@@ -324,7 +329,7 @@ fn check_numeric_operand(
             to_type: TclType::Numeric,
             command: format!("expr:{op:?}"),
             in_loop,
-            code: code.to_owned(),
+            code,
             message: format!(
                 "{code}: variable '{var}' has {from} intrep used in arithmetic \
                  expression (op {op:?})",
@@ -380,7 +385,11 @@ fn check_string_operand(
         if !seen.insert((span, base.to_owned())) {
             return;
         }
-        let code = if in_loop { "S101" } else { "S100" };
+        let code = if in_loop {
+            DiagCode::S101
+        } else {
+            DiagCode::S100
+        };
         out.push(ShimmerWarning {
             span,
             variable: base.to_owned(),
@@ -388,7 +397,7 @@ fn check_string_operand(
             to_type: TclType::String,
             command: format!("expr:{op:?}"),
             in_loop,
-            code: code.to_owned(),
+            code,
             message: format!(
                 "{code}: numeric variable '{base}' used in string comparison (op {op:?}); \
                  consider using == or != instead"
@@ -535,7 +544,11 @@ mod tests {
         let s = w.iter().find(|sw| sw.variable == "x");
         assert!(s.is_some(), "expected expr shimmer for x in loop: {w:?}");
         let s = s.unwrap();
-        assert_eq!(s.code, "S101", "in-loop arithmetic shimmer must be S101");
+        assert_eq!(
+            s.code,
+            DiagCode::S101,
+            "in-loop arithmetic shimmer must be S101"
+        );
         assert!(s.in_loop);
     }
 

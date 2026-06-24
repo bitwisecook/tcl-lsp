@@ -30,7 +30,7 @@ type GvnTuple = (String, u32, u32, u32, u32, String, String);
 
 fn lift(r: RedundantComputation) -> GvnTuple {
     (
-        r.code,
+        r.code.to_string(),
         r.span.start(),
         r.span.end(),
         r.first_span.start(),

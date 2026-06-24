@@ -123,7 +123,7 @@ pub fn run_opt(
     for _ in 0..max_iterations {
         let kept: Vec<_> = optimise_with_dialect(&current, registry, dialect)
             .into_iter()
-            .filter(|o| !disabled.contains(&o.code))
+            .filter(|o| !disabled.contains(o.code.as_str()))
             .collect();
         if kept.is_empty() {
             break;

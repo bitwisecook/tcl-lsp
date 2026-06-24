@@ -20,6 +20,7 @@
 //! post-order from the entry, unreachable blocks appended).
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_registry::CommandRegistry;
 
@@ -377,7 +378,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
                 continue;
             }
             ctx.report(Optimisation::new(
-                "O107",
+                DiagCode::O107,
                 "Eliminate unreachable dead code",
                 full_rewrite_span(ctx.source, span),
                 "",
@@ -420,7 +421,7 @@ pub struct DeadStore {
 /// [`emit_dead_stores_and_unused`] to sort + emit in span order.
 struct DseEntry {
     span: tcl_lexer::Span,
-    code: &'static str,
+    code: DiagCode,
     msg: &'static str,
     key: (String, u32),
     block: String,
@@ -546,12 +547,12 @@ fn emit_dead_stores_and_unused(
             .iter()
             .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && !c.is_dead());
 
-        let (code, msg): (&'static str, &'static str) = if any_other_live {
+        let (code, msg): (DiagCode, &'static str) = if any_other_live {
             // Dead store — overwritten before read (another
             // version has live consumers). This fires regardless
             // of textual mentions: a later version handles the
             // reads.
-            ("O109", "Eliminate dead store")
+            (DiagCode::O109, "Eliminate dead store")
         } else if !is_top_level {
             // Unused variable — apply the textual-scan keep-live
             // check. The def-use builder does not track reads
@@ -563,7 +564,7 @@ fn emit_dead_stores_and_unused(
             if textually_referenced.contains(var) {
                 continue;
             }
-            ("O126", "Remove unused variable assignment")
+            (DiagCode::O126, "Remove unused variable assignment")
         } else {
             // Top-level never emits O126.
             continue;
@@ -586,7 +587,7 @@ fn emit_dead_stores_and_unused(
         // Record O109 dead stores (not O126 unused vars) so tools can show
         // them from where Rust determines them. `run` collects these into
         // `ctx.dead_stores`.
-        if e.code == "O109" {
+        if e.code == DiagCode::O109 {
             ctx.dead_stores.push(DeadStore {
                 function: fu.name.clone(),
                 block: e.block.clone(),
@@ -781,7 +782,7 @@ fn emit_adce_reports(
     new_reports.sort_by_key(|s| s.start());
     for span in new_reports {
         ctx.report(Optimisation::new(
-            "O108",
+            DiagCode::O108,
             "Eliminate transitively dead code",
             full_rewrite_span(ctx.source, span),
             "",
@@ -1167,7 +1168,7 @@ mod tests {
         // Expect at least one O107 — the else body's `set y 2`.
         assert!(
             opts.iter()
-                .any(|o| o.code == "O107" && o.message == "Eliminate unreachable dead code"),
+                .any(|o| o.code == DiagCode::O107 && o.message == "Eliminate unreachable dead code"),
             "expected at least one O107, got {opts:?}",
         );
     }
@@ -1177,7 +1178,7 @@ mod tests {
         // The body of `while {0} { ... }` is unreachable.
         let opts = run_pass("while {0} { set x 1 }");
         assert!(
-            opts.iter().any(|o| o.code == "O107"),
+            opts.iter().any(|o| o.code == DiagCode::O107),
             "expected an O107 for dead while body, got {opts:?}",
         );
     }
@@ -1185,7 +1186,7 @@ mod tests {
     #[test]
     fn unreachable_statements_emitted_with_empty_replacement() {
         let opts = run_pass("if {0} { set x 1 }");
-        let target = opts.iter().find(|o| o.code == "O107");
+        let target = opts.iter().find(|o| o.code == DiagCode::O107);
         if let Some(o) = target {
             assert_eq!(o.replacement, "");
             assert!(!o.span.is_empty());
@@ -1201,7 +1202,7 @@ mod tests {
         let count_dead = |src: &str| -> usize {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .iter()
-                .filter(|o| o.code == "O109" || o.code == "O126")
+                .filter(|o| o.code == DiagCode::O109 || o.code == DiagCode::O126)
                 .count()
         };
         // `noup` is a plain proc → `tag` is NOT call-by-name → the
@@ -1226,7 +1227,7 @@ mod tests {
         // value of x when read by puts.
         let opts = run_pass("set x 1\nset x 2\nputs $x");
         assert!(
-            opts.iter().any(|o| o.code == "O109"),
+            opts.iter().any(|o| o.code == DiagCode::O109),
             "expected O109 for overwritten store, got {opts:?}",
         );
     }
@@ -1240,7 +1241,7 @@ mod tests {
         let src = "proc ::setit {} { set ::counter 42 }\n::setit\nputs $::counter";
         let opts = crate::optimiser::optimise(src, &registry());
         let removes_counter = opts.iter().any(|o| {
-            (o.code == "O109" || o.code == "O126")
+            (o.code == DiagCode::O109 || o.code == DiagCode::O126)
                 && src
                     .get(o.span.start() as usize..o.span.end() as usize)
                     .is_some_and(|t| t.contains("::counter"))
@@ -1263,7 +1264,7 @@ mod tests {
             &registry(),
         );
         assert!(
-            opts.iter().all(|o| o.code != "O109"),
+            opts.iter().all(|o| o.code != DiagCode::O109),
             "no O109 expected — a(k) is read by `puts $a(k)`; got {opts:?}",
         );
     }
@@ -1275,7 +1276,7 @@ mod tests {
         // suppresses only element writes that a read actually observes.
         let opts = crate::optimiser::optimise("set a(k) 1\nset a(j) 2\nputs $a(j)", &registry());
         assert!(
-            opts.iter().any(|o| o.code == "O109"),
+            opts.iter().any(|o| o.code == DiagCode::O109),
             "O109 expected — a(k) is overwritten and never read; got {opts:?}",
         );
     }
@@ -1284,7 +1285,7 @@ mod tests {
     fn unused_variable_fires_o126_in_proc_body() {
         let opts = run_pass("proc ::f {} { set y 42; return 1 }");
         assert!(
-            opts.iter().any(|o| o.code == "O126"),
+            opts.iter().any(|o| o.code == DiagCode::O126),
             "expected O126 for unused var in proc, got {opts:?}",
         );
     }
@@ -1296,7 +1297,7 @@ mod tests {
         // info exists) could read it.
         let opts = run_pass("set y 42");
         assert!(
-            opts.iter().all(|o| o.code != "O126"),
+            opts.iter().all(|o| o.code != DiagCode::O126),
             "top-level unused var should not emit O126, got {opts:?}",
         );
     }
@@ -1305,7 +1306,8 @@ mod tests {
     fn scope_alias_globals_never_flagged() {
         let opts = run_pass("proc ::f {} { global g; set g 42 }");
         assert!(
-            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            opts.iter()
+                .all(|o| o.code != DiagCode::O109 && o.code != DiagCode::O126),
             "writes through global should not be flagged, got {opts:?}",
         );
     }
@@ -1317,7 +1319,7 @@ mod tests {
         // to `set b $a` and `set a 1` since their only consumer
         // is the already-dead chain.
         let opts = run_pass("proc ::f {} { set a 1; set b $a; set c $b; return 7 }");
-        let o108 = opts.iter().filter(|o| o.code == "O108").count();
+        let o108 = opts.iter().filter(|o| o.code == DiagCode::O108).count();
         assert!(
             o108 >= 1,
             "expected at least one O108 in transitive dead chain, got {opts:?}",
@@ -1348,7 +1350,8 @@ mod tests {
     fn used_variable_not_flagged() {
         let opts = run_pass("proc ::f {} { set x 1; return $x }");
         assert!(
-            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            opts.iter()
+                .all(|o| o.code != DiagCode::O109 && o.code != DiagCode::O126),
             "used var should not be flagged, got {opts:?}",
         );
     }
@@ -1363,7 +1366,9 @@ mod tests {
         // should fire on the ``set x 1`` line.
         let bad: Vec<_> = opts
             .iter()
-            .filter(|o| (o.code == "O109" || o.code == "O126") && o.message.contains('x'))
+            .filter(|o| {
+                (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
+            })
             .collect();
         assert!(
             bad.is_empty(),
@@ -1377,7 +1382,9 @@ mod tests {
         let opts = run_pass("proc ::f {} { set x 1; set y [::set x]; return $y }");
         let bad: Vec<_> = opts
             .iter()
-            .filter(|o| (o.code == "O109" || o.code == "O126") && o.message.contains('x'))
+            .filter(|o| {
+                (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
+            })
             .collect();
         assert!(
             bad.is_empty(),
@@ -1397,7 +1404,7 @@ mod tests {
             &registry(),
         );
         assert!(
-            opts.iter().all(|o| o.code != "O126"),
+            opts.iter().all(|o| o.code != DiagCode::O126),
             "impure cmd-sub RHS must be preserved, got {opts:?}",
         );
     }
@@ -1411,7 +1418,7 @@ mod tests {
             &registry(),
         );
         assert!(
-            opts.iter().any(|o| o.code == "O126"),
+            opts.iter().any(|o| o.code == DiagCode::O126),
             "pure-proc RHS should fold to O126, got {opts:?}",
         );
     }
@@ -1422,7 +1429,7 @@ mod tests {
         // no RHS side effect and stays foldable.
         let opts = run_pass("proc ::f {} { set y 42; return 1 }");
         assert!(
-            opts.iter().any(|o| o.code == "O126"),
+            opts.iter().any(|o| o.code == DiagCode::O126),
             "literal RHS should still fold, got {opts:?}",
         );
     }
@@ -1441,7 +1448,7 @@ mod tests {
                    }";
         let opts = crate::optimiser::optimise(src, &registry());
         assert!(
-            opts.iter().any(|o| o.code == "O126"),
+            opts.iter().any(|o| o.code == DiagCode::O126),
             "pure `my` self-dispatch RHS should fold, got {opts:?}",
         );
     }
@@ -1456,7 +1463,7 @@ mod tests {
                    }";
         let opts = crate::optimiser::optimise(src, &registry());
         assert!(
-            opts.iter().all(|o| o.code != "O126"),
+            opts.iter().all(|o| o.code != DiagCode::O126),
             "impure `my` self-dispatch RHS must be preserved, got {opts:?}",
         );
     }
@@ -1472,7 +1479,8 @@ mod tests {
                    }";
         let opts = crate::optimiser::optimise(src, &registry());
         assert!(
-            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            opts.iter()
+                .all(|o| o.code != DiagCode::O109 && o.code != DiagCode::O126),
             "instance-var write must be preserved, got {opts:?}",
         );
     }
@@ -1486,7 +1494,7 @@ mod tests {
         // may not fire depending on how SCCP models this exact
         // shape, but running the pass must be side-effect free
         // otherwise.
-        let only_o107 = ctx.optimisations.iter().all(|o| o.code == "O107");
+        let only_o107 = ctx.optimisations.iter().all(|o| o.code == DiagCode::O107);
         assert!(only_o107, "unexpected codes: {:?}", ctx.optimisations);
     }
 }

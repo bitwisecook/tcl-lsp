@@ -20,6 +20,7 @@
 //! currently fires end-to-end.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 
@@ -40,7 +41,7 @@ pub struct PathConcatWarning {
     /// Name of the variable receiving the concatenated path.
     pub variable: String,
     /// Always `"W201"`.
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Optional `[file join …]` replacement text when the RHS
@@ -273,7 +274,7 @@ pub fn find_path_concat_warnings(
             out.push(PathConcatWarning {
                 span: value_span,
                 variable: name.clone(),
-                code: "W201".to_owned(),
+                code: DiagCode::W201,
                 message: "Possible manual path concatenation. Use [file join] for portable path \
                           construction."
                     .to_owned(),
@@ -390,7 +391,8 @@ mod tests {
     fn flags_manual_path_with_var_interp() {
         let ws = warnings_for("set x 42\nset p \"/tmp/$x\"");
         assert!(
-            ws.iter().any(|w| w.variable == "p" && w.code == "W201"),
+            ws.iter()
+                .any(|w| w.variable == "p" && w.code == DiagCode::W201),
             "expected W201 on /tmp/$x concatenation: {ws:?}",
         );
     }
@@ -445,7 +447,7 @@ mod tests {
         ] {
             let ws = warnings_for(src);
             assert!(
-                ws.iter().all(|w| w.code != "W201"),
+                ws.iter().all(|w| w.code != DiagCode::W201),
                 "literal-space prose should not flag W201: {src:?} -> {ws:?}",
             );
         }
@@ -462,7 +464,7 @@ mod tests {
         ] {
             let ws = warnings_for(src);
             assert!(
-                ws.iter().any(|w| w.code == "W201"),
+                ws.iter().any(|w| w.code == DiagCode::W201),
                 "genuine path concat must fire W201: {src:?} -> {ws:?}",
             );
         }

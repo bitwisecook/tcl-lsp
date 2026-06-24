@@ -95,6 +95,7 @@ diagnostic_codes! {
     E204 => "E204",
     E205 => "E205",
     E206 => "E206",
+    H300 => "H300",
     I230 => "I230",
     I231 => "I231",
     Irule1001 => "IRULE1001",
@@ -173,6 +174,9 @@ diagnostic_codes! {
     T104 => "T104",
     T105 => "T105",
     T106 => "T106",
+    Tk1001 => "TK1001",
+    Tk1002 => "TK1002",
+    Tk1003 => "TK1003",
     W001 => "W001",
     W002 => "W002",
     W003 => "W003",
@@ -254,6 +258,11 @@ impl DiagCode {
         {
             return DiagFamily::IRule;
         }
+        // `TK###` Tk-toolkit lints share the `T` prefix with taint codes but are
+        // plain warnings, so classify them before the single-byte match below.
+        if s.len() >= 2 && s[0] == b'T' && s[1] == b'K' {
+            return DiagFamily::Warning;
+        }
         match s[0] {
             b'E' => DiagFamily::Error,
             b'I' => DiagFamily::Info,
@@ -271,6 +280,13 @@ impl DiagCode {
     #[must_use]
     pub const fn is_optimisation(self) -> bool {
         matches!(self.family(), DiagFamily::Optimisation)
+    }
+
+    /// True for hard-error codes (`E###`) — replaces the scattered
+    /// `code.starts_with('E')` "did any error fire?" gates.
+    #[must_use]
+    pub const fn is_error(self) -> bool {
+        matches!(self.family(), DiagFamily::Error)
     }
 }
 

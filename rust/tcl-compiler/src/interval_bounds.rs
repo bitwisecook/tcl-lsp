@@ -16,6 +16,7 @@
 //! range — never on "might be out of range".
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
@@ -86,7 +87,7 @@ pub struct BoundsFinding {
     /// Source span to anchor the diagnostic on.
     pub span: Span,
     /// `"W230"` (lindex) / `"W231"` (lset) / `"W232"` (string index).
-    pub code: String,
+    pub code: DiagCode,
     /// `"lindex"` / `"lset"` / `"string index"` (display).
     pub command: String,
     /// The `$var` index name (display only).
@@ -544,15 +545,15 @@ pub fn find_interval_bounds(
             return;
         };
         let code = if cand.is_lset {
-            "W231"
+            DiagCode::W231
         } else if cand.command == STRING_INDEX {
-            "W232"
+            DiagCode::W232
         } else {
-            "W230"
+            DiagCode::W230
         };
         findings.push(BoundsFinding {
             span,
-            code: code.to_owned(),
+            code,
             command: cand.command.to_owned(),
             index_var: ivar,
             index_interval: iv,
@@ -867,7 +868,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W231" | "W232"))
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 

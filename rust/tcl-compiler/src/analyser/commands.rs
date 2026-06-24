@@ -6,6 +6,7 @@
 //! adding a new handler or interleaving an additional concern
 //! remains a one-liner.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -483,7 +484,7 @@ impl Analyser {
                 .is_none_or(|r| r.get(cmd_name).is_none())
         {
             self.result.diagnostics.push(Diagnostic {
-                code: "W125".to_string(),
+                code: DiagCode::W125,
                 span: cmd_tok.span,
                 message: format!(
                     "\"{cmd_name}\" used as standalone command — should be part of \
@@ -505,7 +506,7 @@ impl Analyser {
                 format!(" {}", args.join(" "))
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE5005".to_string(),
+                code: DiagCode::Irule5005,
                 span: cmd_tok.span,
                 message: format!(
                     "iRules procs must be invoked with 'call': call {cmd_name}{suffix}"
@@ -1912,7 +1913,7 @@ mod tests {
         let res = a.analyse(source, dialect);
         res.diagnostics
             .iter()
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -2003,7 +2004,7 @@ mod tests {
         let d = res
             .diagnostics
             .iter()
-            .find(|d| d.code == "IRULE5005")
+            .find(|d| d.code == DiagCode::Irule5005)
             .expect("IRULE5005 expected");
         assert!(d.message.contains("call helper x y"));
         assert_eq!(d.fixes.len(), 1);

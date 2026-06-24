@@ -1581,7 +1581,7 @@ mod tests {
         let r = a.analyse(src, "tcl8.6");
         for code in ["W210", "W211", "W214", "W307", "W308"] {
             assert!(
-                !r.diagnostics.iter().any(|d| d.code == code),
+                !r.diagnostics.iter().any(|d| d.code.as_str() == code),
                 "{code} must not fire in a snit method body: {:?}",
                 r.diagnostics
             );

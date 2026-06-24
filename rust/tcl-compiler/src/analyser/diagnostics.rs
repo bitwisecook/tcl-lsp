@@ -49,6 +49,7 @@
 //!   versions.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use rustc_hash::FxHashSet;
 use tcl_lexer::SourceMap;
@@ -453,12 +454,12 @@ impl Analyser {
             }
         }
 
-        let mut seen: FxHashSet<(String, u32, u32, String, Severity)> = FxHashSet::default();
+        let mut seen: FxHashSet<(DiagCode, u32, u32, String, Severity)> = FxHashSet::default();
         let drained = std::mem::take(&mut self.result.diagnostics);
         let mut deduped = Vec::with_capacity(drained.len());
         for d in drained {
             let key = (
-                d.code.clone(),
+                d.code,
                 d.span.start(),
                 d.span.end(),
                 d.message.clone(),
@@ -468,10 +469,10 @@ impl Analyser {
                 continue;
             }
             let line = sm.range_positions(d.span).0.line;
-            if d.code == "E002" && e101_lines.contains(&line) {
+            if d.code == DiagCode::E002 && e101_lines.contains(&line) {
                 continue;
             }
-            if d.code == "W122" && w124_lines.contains(&line) {
+            if d.code == DiagCode::W122 && w124_lines.contains(&line) {
                 continue;
             }
             seen.insert(key);
@@ -524,7 +525,7 @@ impl Analyser {
         let disabled = self.disabled_diagnostics.clone();
         self.result
             .diagnostics
-            .retain(|d| !disabled.contains(&d.code));
+            .retain(|d| !disabled.contains(d.code.as_str()));
     }
 }
 

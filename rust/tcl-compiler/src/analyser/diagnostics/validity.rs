@@ -11,6 +11,7 @@
 //! and flush them after the walk.
 
 use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_core_types::DiagCode;
 
 use super::helpers::is_ident_continue;
 use crate::analyser::state::Analyser;
@@ -90,7 +91,7 @@ impl Analyser {
             return;
         }
         let diag = super::types::Diagnostic {
-            code: "W002".to_string(),
+            code: DiagCode::W002,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is disabled in the active dialect profile"),
             severity: Severity::Warning,
@@ -192,7 +193,7 @@ impl Analyser {
             None => cmd_tok.span,
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W001".to_string(),
+            code: DiagCode::W001,
             span,
             message,
             severity: Severity::Warning,
@@ -275,7 +276,7 @@ impl Analyser {
                         ns,
                         enforce_order,
                         super::types::Diagnostic {
-                            code: "E001".to_string(),
+                            code: DiagCode::E001,
                             span: cmd_tok.span,
                             message: format!("'{cmd_name}' requires a subcommand"),
                             severity: Severity::Error,
@@ -418,7 +419,7 @@ impl Analyser {
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
-                    code: "E002".to_string(),
+                    code: DiagCode::E002,
                     span: full_span,
                     message: format!(
                         "Too few arguments for '{display_name}': expected at least {min}, got {got}"
@@ -433,7 +434,7 @@ impl Analyser {
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
-                    code: "E003".to_string(),
+                    code: DiagCode::E003,
                     span: full_span,
                     message: format!(
                         "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
@@ -611,7 +612,7 @@ impl Analyser {
         };
         let push_malformed = |this: &mut Self| {
             this.result.diagnostics.push(super::types::Diagnostic {
-                code: "E004".to_string(),
+                code: DiagCode::E004,
                 span: full_span,
                 message: "Malformed 'if' command".to_string(),
                 severity: Severity::Error,
@@ -620,7 +621,7 @@ impl Analyser {
         };
         let push_extra_words = |this: &mut Self| {
             this.result.diagnostics.push(super::types::Diagnostic {
-                code: "E004".to_string(),
+                code: DiagCode::E004,
                 span: full_span,
                 message: "Extra words after \"else\" clause in \"if\" command".to_string(),
                 severity: Severity::Error,
@@ -825,7 +826,7 @@ impl Analyser {
         let (severity, message, origin) =
             self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W304".to_string(),
+            code: DiagCode::W304,
             span: diag_span,
             message,
             severity,
@@ -848,7 +849,7 @@ impl Analyser {
         for (tok, command_label, fixes, diag_span) in pending {
             let (severity, message, origin) = self.classify_w304(tok, true, false, &command_label);
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W304".to_string(),
+                code: DiagCode::W304,
                 span: diag_span,
                 message,
                 severity,
@@ -891,7 +892,7 @@ impl Analyser {
                 .collect();
             for (name, span) in hits {
                 self.result.diagnostics.push(Diagnostic {
-                    code: "W116".to_string(),
+                    code: DiagCode::W116,
                     span,
                     message: format!("Stub command '{name}' shadows built-in command."),
                     severity: Severity::Warning,
@@ -921,7 +922,7 @@ impl Analyser {
                     "operator"
                 };
                 self.result.diagnostics.push(Diagnostic {
-                    code: "W117".to_string(),
+                    code: DiagCode::W117,
                     span,
                     message: format!(
                         "Stub expression {kind_label} '{name}' shadows built-in {kind_label}."
@@ -953,7 +954,7 @@ impl Analyser {
             return;
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "IRULE2002".to_string(),
+            code: DiagCode::Irule2002,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
             severity: Severity::Warning,
@@ -1019,7 +1020,7 @@ impl Analyser {
             })
             .unwrap_or_default();
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "IRULE2001".to_string(),
+            code: DiagCode::Irule2001,
             span: cmd_tok.span,
             message: "'matchclass' is deprecated since BIG-IP v10. \
 Use 'class match <item> <operator> <class>' instead."
@@ -1068,7 +1069,7 @@ static literal '{resolved_text}'. Keep '--' to guard against future \
 option-injection regressions if the variable changes."
                     );
                     let origin = super::types::Diagnostic {
-                        code: "W304".to_string(),
+                        code: DiagCode::W304,
                         span: resolved_span,
                         message: format!(
                             "'{var_text}' is currently assigned static \
@@ -1235,7 +1236,7 @@ before this value so it is treated as data, not an option."
                 // active dialect (D).`
                 let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W004".to_string(),
+                    code: DiagCode::W004,
                     span,
                     message: format!(
                         "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
@@ -1292,7 +1293,7 @@ in the active dialect ({}).",
         walk_dialect_invalid_ops(&parsed, pre_85, pre_90, &mut found);
         for op_name in found {
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W003".to_string(),
+                code: DiagCode::W003,
                 span: diag_span,
                 message: format!(
                     "Expression operator '{op_name}' is not available in dialect '{}'.",
