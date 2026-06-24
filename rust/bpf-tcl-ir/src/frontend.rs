@@ -14,6 +14,7 @@ use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
 
+use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::{KNOWN_EVENTS, event_to_prog_type};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
@@ -40,6 +41,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     let profile = collect_profile(&module.top_level, &registry)?;
     // Reusable parameterised handlers a `use` site can splice in.
     let templates = collect_templates(&module.top_level, &registry)?;
+    // The capability policy that sandboxes each handler's operations.
+    let policy = collect_policy(&module.top_level)?;
 
     let mut programs = Vec::new();
     let mut saw_when = false;
@@ -62,6 +65,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 &registry,
                 profile.as_ref(),
                 &templates,
+                &policy,
             )?);
         }
     }
@@ -77,6 +81,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 Some(p) => expand_fields(&unrolled, p)?,
                 None => unrolled,
             };
+            check_policy(&expanded, &policy)?;
             let cfg = build_cfg_function("main", &expanded, false);
             let program = lower_function(&cfg, ProgType::SocketFilter)?;
             programs.push(BpfProgramDecl {
@@ -106,6 +111,7 @@ fn lower_when_decl(
     registry: &CommandRegistry,
     profile: Option<&BpfProfileSpec>,
     templates: &[TemplateDef],
+    policy: &CapabilityPolicy,
 ) -> Result<BpfProgramDecl, BpfError> {
     if args.len() < 2 {
         return Err(BpfError::new(
@@ -153,6 +159,7 @@ fn lower_when_decl(
         Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
         None => unrolled,
     };
+    check_policy(&expanded, policy).map_err(|e| e.offset(source_base))?;
     let cfg = build_cfg_function(&format!("::bpf::{event}"), &expanded, false);
     let program = lower_function(&cfg, prog_type).map_err(|e| e.offset(source_base))?;
 
@@ -164,8 +171,8 @@ fn lower_when_decl(
     })
 }
 
-/// Remove top-level `profile`/`field`/`template` declarations (metadata or
-/// macro definitions, not executable code).
+/// Remove top-level `profile`/`field`/`template`/`allow`/`deny` declarations
+/// (metadata, macro definitions, or policy — not executable code).
 fn strip_decls(script: &Script) -> Script {
     let kept = script
         .statements
@@ -182,7 +189,7 @@ fn is_decl(stmt: &Statement) -> bool {
         Statement::Call { command, canonical_command, .. }
             if matches!(
                 canonical_command.as_deref().unwrap_or(command.as_str()),
-                "profile" | "field" | "template"
+                "profile" | "field" | "template" | "allow" | "deny"
             )
     )
 }

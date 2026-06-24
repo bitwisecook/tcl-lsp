@@ -8,6 +8,7 @@
 //! [`ir::BpfProgram`] is the shared waist consumed by the codegen backends.
 #![forbid(unsafe_code)]
 
+pub mod capability;
 pub mod diag;
 pub mod event;
 pub mod frontend;
@@ -18,6 +19,7 @@ pub mod template;
 pub mod ty;
 pub mod unroll;
 
+pub use capability::CapabilityPolicy;
 pub use diag::{BpfDiag, BpfError};
 pub use frontend::compile_module;
 pub use ir::{BpfModule, BpfProgram, BpfProgramDecl, ProgType};
