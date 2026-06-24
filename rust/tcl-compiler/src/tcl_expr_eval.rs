@@ -810,6 +810,28 @@ mod tests {
     }
 
     #[test]
+    fn const_fold_floats_and_logicals_match_tclsh() {
+        // tclsh-verified floats: 1.5+2.5=4.0, 10.0/4=2.5, 3.0*2=6.0.
+        assert_eq!(eval_str("1.5+2.5"), Some(TclValue::Float(4.0)));
+        assert_eq!(eval_str("10.0/4"), Some(TclValue::Float(2.5)));
+        assert_eq!(eval_str("3.0*2"), Some(TclValue::Float(6.0)));
+        // tclsh-verified comparisons / logicals → 0/1 integers:
+        //   2.5>1.5=1, "abc" eq "abc"=1, "abc" eq "abd"=0, "a" ne "b"=1,
+        //   1&&0=0, 1||0=1, !0=1.
+        for (expr, want) in [
+            ("2.5>1.5", 1),
+            (r#""abc" eq "abc""#, 1),
+            (r#""abc" eq "abd""#, 0),
+            (r#""a" ne "b""#, 1),
+            ("1 && 0", 0),
+            ("1 || 0", 1),
+            ("!0", 1),
+        ] {
+            assert_eq!(eval_str(expr), Some(TclValue::Int(want)), "expr {{{expr}}}");
+        }
+    }
+
+    #[test]
     fn const_fold_integer_division_floors_toward_negative_infinity() {
         // tclsh: integer `/` and `%` floor toward -inf (not truncate):
         //   -7/2 = -4 (not -3); -7%2 = 1; 7/-2 = -4; 7%-2 = -1.
