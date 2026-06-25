@@ -1879,26 +1879,21 @@ mod interpolation_colour_invalidation {
         // Python: `[list [read $fd]]` is tainted (LIST_CANONICAL), the
         // interpolation `"pre $x suf"` strips that colour, and the now-generic
         // tainted `$y` fires T100 at eval.
-        let _source = "set x [list [read $fd]]\nset y \"pre $x suf\"\neval $y";
-        // BUG (root cause #5 — nested command-substitution source not
-        // propagated): Rust does NOT taint `[list [read $fd]]` (a `read` source
-        // nested *inside* another command substitution as an argument), so no
-        // taint ever reaches `$x`/`$y` and T100 wrongly MISSES — an
-        // *under-warning* (missed injection), unlike the over-warning bugs #1/#3/#4.
-        // Baseline `set x [read $fd]` (un-nested) IS tainted. Minimal repro:
-        // `set x [list [read $fd]]\neval $x` → expected T100, Rust emits none.
-        // assert!(!of_code(_source, D, "T100").is_empty());
+        let source = "set x [list [read $fd]]\nset y \"pre $x suf\"\neval $y";
+        // FIXED: parse_command_substitution now splits args respecting `[...]`
+        // nesting, so the `read` source nested inside `[list [read $fd]]` is
+        // recovered, `$x`/`$y` are tainted, and T100 fires at `eval $y`.
+        assert!(!of_code(source, D, "T100").is_empty());
     }
 
     #[test]
     fn path_normalised_stripped() {
         // Python: `[file normalize [read $fd]]` is tainted; interpolation
         // strips PATH_NORMALISED and T100 fires at eval.
-        let _source = "set x [file normalize [read $fd]]\nset y \"pre $x\"\neval $y";
-        // BUG (root cause #5 — nested command-substitution source not
-        // propagated, see `list_canonical_stripped`): Rust does not taint
-        // `[file normalize [read $fd]]`, so T100 wrongly MISSES (under-warning).
-        // assert!(!of_code(_source, D, "T100").is_empty());
+        let source = "set x [file normalize [read $fd]]\nset y \"pre $x\"\neval $y";
+        // FIXED: the `read` source nested inside `[file normalize [read $fd]]`
+        // is now recovered (nesting-aware arg split), so T100 fires at eval.
+        assert!(!of_code(source, D, "T100").is_empty());
     }
 
     #[test]
