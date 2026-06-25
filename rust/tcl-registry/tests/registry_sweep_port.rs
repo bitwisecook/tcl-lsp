@@ -850,12 +850,10 @@ fn family_string_dict_list_ops() {
 /// "bad option \"-stride\"". So in *real* Tcl, `lsearch -stride` is **9.0-only**
 /// (distinct from `lsort -stride`, which is genuinely 8.6+ / TIP 351).
 ///
-/// The registry, however, models `lsearch -stride` as Tcl **8.6+**
-/// (`commands/tcl/lsearch_.rs` gates it to `TCL86_PLUS` with a comment claiming
-/// "added in 8.6 (TIP 351)"). That over-approximates the real 8.6 switch set:
-/// `switch_names(TCL86)` returns `-stride`, which tclsh8.6.14 does not accept.
-/// See the final report — this is a registry/C-Tcl disagreement about a core
-/// command's switches.
+/// FIXED: the registry previously modelled `lsearch -stride` as Tcl **8.6+**
+/// (`commands/tcl/lsearch_.rs` gated it to `TCL86_PLUS` with a comment wrongly
+/// copied from `lsort`'s TIP 351 `-stride`). It is now gated to `TCL90`, so
+/// `switch_names(TCL86)` no longer reports it — matching tclsh8.6.14.
 #[test]
 fn lsearch_stride_version_gating() {
     let reg = CommandRegistry::build_default();
@@ -871,14 +869,11 @@ fn lsearch_stride_version_gating() {
         in_90.contains(&"-stride"),
         "9.0 lsearch should accept -stride: {in_90:?}"
     );
-    // BUG: registry reports `lsearch -stride` as available in tcl8.6, but real
-    // tclsh8.6.14 hard-rejects it (added in 9.0, not 8.6). Asserting the C-Tcl
-    // truth here would fail against the current registry data, so the strict
-    // 8.6-absence check is commented out and reported instead.
-    // assert!(
-    //     !in_86.contains(&"-stride"),
-    //     "8.6 lsearch must not accept -stride (real tclsh8.6.14 rejects it): {in_86:?}"
-    // );
+    // 8.6 must NOT — real tclsh8.6.14 hard-rejects `lsearch -stride`.
+    assert!(
+        !in_86.contains(&"-stride"),
+        "8.6 lsearch must not accept -stride (real tclsh8.6.14 rejects it): {in_86:?}"
+    );
 }
 
 /// I/O family: `socket` / `open` / `close` / `puts` / `gets`.

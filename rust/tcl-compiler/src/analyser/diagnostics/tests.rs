@@ -853,12 +853,15 @@ fn w004_fires_on_lsearch_stride_in_tcl85() {
 }
 
 #[test]
-fn w004_silent_on_lsearch_stride_in_tcl86() {
+fn w004_fires_on_lsearch_stride_in_tcl86() {
+    // `lsearch -stride` is Tcl 9.0-only — tclsh8.6.14 rejects it with
+    // `bad option "-stride"` (the 8.6 / TIP 351 `-stride` belongs to `lsort`),
+    // so W004 fires on tcl8.6 just as it does on tcl8.5 above.
     let mut a = Analyser::new();
     let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.6");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
-        "W004 must not fire on tcl8.6 lsearch -stride, got {:?}",
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004 on tcl8.6 lsearch -stride (9.0-only), got {:?}",
         result.diagnostics
     );
 }
