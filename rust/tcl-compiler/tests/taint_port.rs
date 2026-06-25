@@ -1804,28 +1804,25 @@ mod interprocedural_colours {
     fn helper_returning_uri_encode_suppresses_irule3003() {
         // Python: a proc that returns `[URI::encode $x]` returns a CRLF_FREE
         // value, so the caller's `log local0. $safe` is IRULE3003-suppressed.
-        let _source =
+        let source =
             "proc encode_it {x} { return [URI::encode $x] }\nset raw [HTTP::query]\nset safe [encode_it $raw]\nlog local0. $safe\n";
-        // BUG (root cause #4 — interprocedural return *colour* not transferred):
-        // the Rust interproc return summary carries taint across the proc
-        // boundary, but the CRLF_FREE colour stamped by `URI::encode` inside
-        // the helper does not survive into the caller's `$safe`, so IRULE3003
-        // wrongly FIRES. (The inline form
-        // `crlf_free::uri_encode_adds_crlf_free` — same encode at top level —
-        // is correctly suppressed.)
-        // assert!(of_code(_source, IR, "IRULE3003").is_empty());
+        // FIXED (lattice-join identity): the return summary joins the helper's
+        // CRLF_FREE scenario onto a clean base; with clean now the join identity
+        // the colour survives into the caller's `$safe`, so IRULE3003 stays
+        // suppressed.
+        assert!(of_code(source, IR, "IRULE3003").is_empty());
     }
 
     #[test]
     fn helper_returning_html_encode_suppresses_irule3001() {
         // Python: a proc returning `[HTML::encode $x]` returns HTML_ESCAPED →
         // caller's HTTP::respond is IRULE3001-suppressed.
-        let _source =
+        let source =
             "proc html_safe {x} { return [HTML::encode $x] }\nset raw [HTTP::query]\nset safe [html_safe $raw]\nHTTP::respond 200 content $safe\n";
-        // BUG (root cause #4 — interproc return colour not transferred, see
-        // `helper_returning_uri_encode_suppresses_irule3003`): the HTML_ESCAPED
-        // colour does not cross the helper boundary, so IRULE3001 wrongly fires.
-        // assert!(of_code(_source, IR, "IRULE3001").is_empty());
+        // FIXED (lattice-join identity): the HTML_ESCAPED return scenario now
+        // survives the summary join into the caller, so IRULE3001 stays
+        // suppressed.
+        assert!(of_code(source, IR, "IRULE3001").is_empty());
     }
 
     #[test]
@@ -1856,14 +1853,12 @@ mod interprocedural_colours {
     fn helper_with_ip_addr_param_augmented() {
         // Python: passing an IP_ADDRESS (CRLF_FREE) value into a helper that
         // logs it keeps the colour at the parameter, so IRULE3003 is suppressed.
-        let _source =
+        let source =
             "proc log_addr {addr} { log local0. $addr }\nset a [IP::client_addr]\nlog_addr $a\n";
-        // BUG (root cause #4 — interproc parameter *colour* not transferred):
-        // the entry-taint seeding marks the `addr` parameter tainted but loses
-        // the IP_ADDRESS/CRLF_FREE augmentation, so the in-helper
-        // `log local0. $addr` wrongly FIRES IRULE3003. (The same `log` at top
-        // level — `crlf_free::ip_client_addr_augments_crlf_free` — is suppressed.)
-        // assert!(of_code(_source, IR, "IRULE3003").is_empty());
+        // Passing an IP_ADDRESS (CRLF_FREE) value into a helper that logs it
+        // must keep the colour at the parameter, so the in-helper
+        // `log local0. $addr` is IRULE3003-suppressed.
+        assert!(of_code(source, IR, "IRULE3003").is_empty());
     }
 }
 
