@@ -314,6 +314,49 @@ pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
     out
 }
 
+/// One parsed top-level stanza: its `(module, object_type, identifier)`
+/// header decomposition and the [`LineRange`] of the whole `… { … }`
+/// block.  `identifier` is empty for nameless global singletons.
+pub(crate) struct Stanza {
+    /// tmsh module word (`"ltm"`, `"auth"`, …).
+    pub module: String,
+    /// tmsh object-type (`"pool"`, `"partition"`, `"profile http"`, …).
+    pub object_type: String,
+    /// Object identifier / full path (`"/Common/web_pool"`, `"Tenant_A"`),
+    /// or empty for a nameless singleton.
+    pub identifier: String,
+    /// Source range of the entire stanza.
+    pub range: LineRange,
+}
+
+/// Parse every top-level stanza of a BIG-IP config into [`Stanza`]s, in
+/// source order.  Shares the same `extract_blocks` / `parse_header`
+/// machinery the outline ([`document_symbols`]) uses, so the
+/// code-action provider sees exactly the same object decomposition the
+/// outline does.  A non-BIG-IP / empty document yields an empty list.
+pub(crate) fn parse_stanzas(source: &str) -> Vec<Stanza> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+    let registry = BigipRegistry::build();
+    let otypes = object_types_by_module(&registry);
+    let line_index = LineIndex::new(source);
+    let mut out = Vec::new();
+    for block in extract_blocks(source) {
+        let Some((module, object_type, identifier)) = parse_header(&block.header, &otypes) else {
+            continue;
+        };
+        let range = offsets_to_range(source, &line_index, block.start_offset, block.end_offset);
+        out.push(Stanza {
+            module,
+            object_type,
+            identifier,
+            range,
+        });
+    }
+    out
+}
+
 /// Convert a half-open byte span `[start, end)` to a [`LineRange`].
 fn offsets_to_range(source: &str, line_index: &LineIndex, start: usize, end: usize) -> LineRange {
     let start_pos = line_index.position_at_utf16(u32::try_from(start).unwrap_or(u32::MAX), source);

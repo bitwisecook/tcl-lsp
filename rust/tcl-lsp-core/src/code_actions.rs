@@ -83,6 +83,12 @@ pub struct ActionCommand {
     pub command: String,
     /// Integer arguments (line / start / end for the rename command).
     pub args: Vec<u32>,
+    /// String arguments — used by the BIG-IP actions whose command takes
+    /// textual arguments rather than integer positions: the document `uri`
+    /// (plus a bare partition name for `tclLsp.renamePartition`, or `uri`
+    /// alone for `editor.action.rename`).  Empty for the integer-position
+    /// commands.
+    pub string_args: Vec<String>,
 }
 
 /// One code-action entry.
@@ -241,6 +247,88 @@ pub fn code_actions(
     actions.extend(expr_rewrite_actions(source, range, &line_index));
     actions.extend(docstring_actions(source, range, analysis, &line_index));
     actions.extend(extract_inline_actions(source, range, analysis, &line_index));
+
+    actions
+}
+
+/// BIG-IP-specific code actions for the cursor at `range`'s start.
+///
+/// Ports the Python `server.features._bigip_code_actions.get_bigip_code_actions`
+/// provider.  A BIG-IP `.conf` is a tree of `module object-type identifier
+/// { … }` stanzas (NOT Tcl), so this drives the [`crate::bigip`] stanza
+/// parser rather than the Tcl analyser, walks for the stanza whose range
+/// covers the cursor line, and emits:
+///
+/// * **`Rename <full-path>…`** ([`ActionKind::RefactorRewrite`]) for the
+///   covering object — a [`ActionCommand`] pointing at the editor's
+///   standard `editor.action.rename` flow (its `string_args` carry the
+///   document `uri`), so the existing rename UI collects the new name; no
+///   pre-baked edit.
+/// * **`Rename partition '<name>'…`** when the covering stanza is an
+///   `auth partition` — a `tclLsp.renamePartition` command whose
+///   `string_args` are `[uri, <bare-partition-name>]`, so the cascade
+///   flows through the query engine on accept.  Renames of `/Common` are
+///   suppressed (the query engine refuses them — the F5
+///   partition-visibility model).
+///
+/// Returns an empty vector when the cursor is not inside a parseable
+/// stanza or the document is not BIG-IP.  `range`'s start *line* selects
+/// the object (matching the Python provider, which keys on
+/// `range.start.line`).
+#[must_use]
+pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeAction> {
+    let cursor_line = range.start_line;
+    let stanzas = crate::bigip::parse_stanzas(source);
+
+    // The object whose stanza covers the cursor line — first match in
+    // source order, mirroring Python's `_object_at_cursor` walk.  A
+    // nameless singleton (empty identifier) has no path to rename, so it
+    // is not a rename target.
+    let Some(stanza) = stanzas.iter().find(|s| {
+        !s.identifier.is_empty()
+            && s.range.start_line <= cursor_line
+            && cursor_line <= s.range.end_line
+    }) else {
+        return Vec::new();
+    };
+    let obj_path = stanza.identifier.as_str();
+
+    let mut actions = Vec::new();
+
+    // Rename-this-object — routes through the editor's standard rename
+    // UI (`editor.action.rename`); no pre-baked workspace edit, so the
+    // user supplies the real name.
+    actions.push(CodeAction {
+        title: format!("Rename {obj_path}\u{2026}"),
+        edits: Vec::new(),
+        kind: ActionKind::RefactorRewrite,
+        command: Some(ActionCommand {
+            command: "editor.action.rename".to_string(),
+            args: Vec::new(),
+            string_args: vec![uri.to_string()],
+        }),
+        data_group_definition: None,
+    });
+
+    // Partition rename — only on an `auth partition` stanza, and never
+    // for `/Common` (the query engine refuses that rename).  The bare
+    // partition name is the identifier with any leading slash stripped.
+    if stanza.module == "auth" && stanza.object_type == "partition" {
+        let partition_short = obj_path.trim_start_matches('/');
+        if partition_short != "Common" {
+            actions.push(CodeAction {
+                title: format!("Rename partition '{partition_short}'\u{2026}"),
+                edits: Vec::new(),
+                kind: ActionKind::RefactorRewrite,
+                command: Some(ActionCommand {
+                    command: "tclLsp.renamePartition".to_string(),
+                    args: Vec::new(),
+                    string_args: vec![uri.to_string(), partition_short.to_string()],
+                }),
+                data_group_definition: None,
+            });
+        }
+    }
 
     actions
 }
@@ -1103,6 +1191,7 @@ fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
                 name_start,
                 name_start + u32::try_from(name.len()).unwrap_or(0),
             ],
+            string_args: Vec::new(),
         }),
         data_group_definition: None,
     }]
