@@ -1111,22 +1111,20 @@ mod obj_depth {
 mod bug_dict_update_value_var {
     use super::*;
 
-    // BUG: `dict update d k v { ... $v ... }` with key `k` present in the
-    // literal `{k 5}` falsely fires W210 on `$v`. tclsh proves `v` is bound to
-    // `5` inside the body (info exists v → 1 on 8.6 and 9.0). The key-aware
-    // harvester records the KEY `k`, not the bound value-var `v`, so the
-    // suppression never reaches the read. `dict with` on the same literal is
-    // correctly silent.
-    //
-    // #[test]
-    // fn dict_update_known_key_value_var_should_be_silent() {
-    //     let src = "proc f {} { set d {k 5}; dict update d k v { puts $v } }\n";
-    //     assert!(
-    //         !fires(src, D, "W210"),
-    //         "dict update key-present value-var read must NOT fire W210; emitted {:?}",
-    //         codes(src, D)
-    //     );
-    // }
+    // FIXED: `dict update d k v { ... $v ... }` with key `k` present in the
+    // literal `{k 5}` no longer false-fires W210 on `$v`. tclsh proves `v` is
+    // bound to `5` inside the body (info exists v → 1 on 8.6 and 9.0). The
+    // harvester now maps `dict update`'s key→value-var pairs (for present keys)
+    // into the suppression set, so the read of the bound value-var is silent.
+    #[test]
+    fn dict_update_known_key_value_var_should_be_silent() {
+        let src = "proc f {} { set d {k 5}; dict update d k v { puts $v } }\n";
+        assert!(
+            !fires(src, D, "W210"),
+            "dict update key-present value-var read must NOT fire W210; emitted {:?}",
+            codes(src, D)
+        );
+    }
 
     #[test]
     fn dict_update_empty_dict_value_var_correctly_fires_w210() {

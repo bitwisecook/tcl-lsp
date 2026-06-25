@@ -527,12 +527,34 @@ fn harvest_dict_with_suppression(
             }
             match literal {
                 Some(v) => {
-                    for (i, key) in crate::tcl_expr_eval::split_tcl_list(&v)
-                        .into_iter()
-                        .enumerate()
-                    {
-                        if i % 2 == 0 {
-                            s.dict_with_known_keys.insert(key);
+                    let elems = crate::tcl_expr_eval::split_tcl_list(&v);
+                    if args.first().map(String::as_str) == Some("update") {
+                        // `dict update d k1 v1 k2 v2 … BODY` binds each value-var
+                        // vN to the value of key kN *inside the body* — but only
+                        // when kN is present in the dict (tclsh: an absent key
+                        // leaves vN unset). So a read of vN is suppressed exactly
+                        // when kN is a known-present key. args[2..len-1] are the
+                        // key/value pairs; the final arg is the BODY.
+                        let present: HashSet<&str> =
+                            elems.iter().step_by(2).map(String::as_str).collect();
+                        let end = args.len().saturating_sub(1);
+                        let mut i = 2;
+                        while i + 1 < end {
+                            if present.contains(args[i].as_str()) {
+                                let valvar =
+                                    crate::naming::normalise_var_name(&args[i + 1]).to_string();
+                                if !valvar.is_empty() {
+                                    s.dict_with_known_keys.insert(valvar);
+                                }
+                            }
+                            i += 2;
+                        }
+                    } else {
+                        // `dict with`: the body binds each present key as a local.
+                        for (i, key) in elems.into_iter().enumerate() {
+                            if i % 2 == 0 {
+                                s.dict_with_known_keys.insert(key);
+                            }
                         }
                     }
                 }
