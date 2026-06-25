@@ -1131,15 +1131,23 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     else {
         return Vec::new();
     };
-    // Body text (strip the outer braces).
+    // Body text (strip the outer braces). `body_span` may exclude the proc's
+    // closing `}` (lexer inner-end convention), so strip a trailing `}` only
+    // when it is the unbalanced *outer* brace — a greedy `trim_end_matches('}')`
+    // would otherwise eat an inner sub-expression brace (`expr {$n * 2}`) and
+    // produce an unparseable inline edit (`expr {5 * 2`).
     let bspan = proc_def.body_span;
-    let body_raw = source
+    let raw = source
         .get(bspan.start() as usize..bspan.end() as usize)
         .unwrap_or("")
-        .trim()
-        .trim_start_matches('{')
-        .trim_end_matches('}')
         .trim();
+    let inner = raw.strip_prefix('{').map(str::trim_start).unwrap_or(raw);
+    let body_raw = if inner.matches('}').count() > inner.matches('{').count() {
+        let t = inner.trim_end();
+        t.strip_suffix('}').unwrap_or(t).trim()
+    } else {
+        inner.trim()
+    };
     // Decline control-flow / multi-command bodies.
     if body_raw.is_empty()
         || body_raw.contains('\n')
