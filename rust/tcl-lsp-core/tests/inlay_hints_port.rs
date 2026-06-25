@@ -9,7 +9,7 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::definition::LspRange;
-use tcl_lsp_core::inlay_hints::{inlay_hints, InlayHint, InlayHintKind};
+use tcl_lsp_core::inlay_hints::{InlayHint, InlayHintKind, inlay_hints};
 use tcl_registry::registry_for_dialect;
 
 const FULL: LspRange = LspRange {
@@ -23,7 +23,15 @@ fn hints_range(source: &str, range: LspRange) -> Vec<InlayHint> {
     let registry = registry_for_dialect("tcl8.6");
     let mut analyser = Analyser::new();
     let analysis = analyser.analyse(source, "tcl8.6");
-    inlay_hints(source, "tcl8.6", range, Some(&analysis), Some(registry), true, true)
+    inlay_hints(
+        source,
+        "tcl8.6",
+        range,
+        Some(&analysis),
+        Some(registry),
+        true,
+        true,
+    )
 }
 
 fn hints(source: &str) -> Vec<InlayHint> {
@@ -39,7 +47,9 @@ fn integer_type_hint() {
             && x.position_character == 5
             && x.kind == InlayHintKind::Type),
         "expected `: int` at col 5; got {:?}",
-        h.iter().map(|x| (&x.label, x.position_character)).collect::<Vec<_>>()
+        h.iter()
+            .map(|x| (&x.label, x.position_character))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -58,9 +68,15 @@ fn empty_file_has_no_hints() {
 fn hint_kinds_are_type_or_parameter() {
     let h = hints("set x 42\n");
     for x in &h {
-        assert!(matches!(x.kind, InlayHintKind::Type | InlayHintKind::Parameter));
+        assert!(matches!(
+            x.kind,
+            InlayHintKind::Type | InlayHintKind::Parameter
+        ));
     }
-    assert!(h.iter().any(|x| x.kind == InlayHintKind::Type && x.label.contains("int")));
+    assert!(
+        h.iter()
+            .any(|x| x.kind == InlayHintKind::Type && x.label.contains("int"))
+    );
 }
 
 #[test]
@@ -129,6 +145,10 @@ fn foreach_multi_var_hints_are_not_clumped() {
         let mut uniq = type_cols.clone();
         uniq.sort_unstable();
         uniq.dedup();
-        assert_eq!(uniq.len(), type_cols.len(), "multi-var hints clumped: {type_cols:?}");
+        assert_eq!(
+            uniq.len(),
+            type_cols.len(),
+            "multi-var hints clumped: {type_cols:?}"
+        );
     }
 }

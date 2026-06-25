@@ -45,7 +45,10 @@ fn decode(source: &str, dialect: &str) -> Vec<Tok> {
 }
 
 fn types(source: &str, dialect: &str) -> Vec<String> {
-    decode(source, dialect).into_iter().map(|t| t.ttype).collect()
+    decode(source, dialect)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect()
 }
 
 #[test]
@@ -92,7 +95,8 @@ fn comment_with_namespace_qualifiers_stays_one_comment() {
 
 #[test]
 fn multiline_comment_header_all_comments() {
-    let source = "# Flow:\n#   1. CLIENT_ACCEPTED -> TCP::collect\n#   2. CLIENT_DATA -> TCP::payload\n";
+    let source =
+        "# Flow:\n#   1. CLIENT_ACCEPTED -> TCP::collect\n#   2. CLIENT_DATA -> TCP::payload\n";
     let t = decode(source, "f5-irules");
     assert!(
         t.iter().all(|x| x.ttype == "comment"),

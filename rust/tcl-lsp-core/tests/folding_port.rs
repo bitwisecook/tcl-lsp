@@ -8,7 +8,7 @@
 //! while are real commands whose braced bodies span the folded lines (verified
 //! via tclsh: each snippet below is a complete, runnable Tcl script).
 
-use tcl_lsp_core::folding::{folding_ranges, FoldKind, FoldingRange};
+use tcl_lsp_core::folding::{FoldKind, FoldingRange, folding_ranges};
 use tcl_registry::registry_for_dialect;
 
 fn folds(source: &str) -> Vec<FoldingRange> {
@@ -17,11 +17,17 @@ fn folds(source: &str) -> Vec<FoldingRange> {
 }
 
 fn regions(source: &str) -> Vec<FoldingRange> {
-    folds(source).into_iter().filter(|r| r.kind == FoldKind::Region).collect()
+    folds(source)
+        .into_iter()
+        .filter(|r| r.kind == FoldKind::Region)
+        .collect()
 }
 
 fn comments(source: &str) -> Vec<FoldingRange> {
-    folds(source).into_iter().filter(|r| r.kind == FoldKind::Comment).collect()
+    folds(source)
+        .into_iter()
+        .filter(|r| r.kind == FoldKind::Comment)
+        .collect()
 }
 
 #[test]
@@ -37,7 +43,8 @@ fn proc_body_folds_from_line_zero() {
 #[test]
 fn namespace_body_folds() {
     let src = "namespace eval myns {\n    proc helper {} { return }\n}\n";
-    let starts: std::collections::HashSet<u32> = regions(src).iter().map(|r| r.start_line).collect();
+    let starts: std::collections::HashSet<u32> =
+        regions(src).iter().map(|r| r.start_line).collect();
     assert!(starts.contains(&0), "namespace body fold starts at line 0");
 }
 
@@ -53,9 +60,17 @@ fn comment_block_folds_as_comment() {
 #[test]
 fn if_and_while_bodies_fold_zero_to_two() {
     let if_src = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n}\n";
-    assert!(regions(if_src).iter().any(|r| r.start_line == 0 && r.end_line == 2));
+    assert!(
+        regions(if_src)
+            .iter()
+            .any(|r| r.start_line == 0 && r.end_line == 2)
+    );
     let while_src = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
-    assert!(regions(while_src).iter().any(|r| r.start_line == 0 && r.end_line == 2));
+    assert!(
+        regions(while_src)
+            .iter()
+            .any(|r| r.start_line == 0 && r.end_line == 2)
+    );
 }
 
 #[test]
@@ -79,7 +94,10 @@ fn if_else_bodies_are_disjoint() {
         .collect();
     r.sort_by_key(|x| (x.start_line, x.end_line));
     assert_eq!(r.len(), 2, "two sibling branch folds");
-    assert!(r[0].end_line < r[1].start_line, "branch folds must not share a line");
+    assert!(
+        r[0].end_line < r[1].start_line,
+        "branch folds must not share a line"
+    );
 }
 
 #[test]
@@ -89,7 +107,10 @@ fn elseif_chain_yields_four_disjoint_folds() {
     r.sort_by_key(|x| (x.start_line, x.end_line));
     assert_eq!(r.len(), 4, "one fold per branch: {r:?}");
     for w in r.windows(2) {
-        assert!(w[0].end_line < w[1].start_line, "sibling folds share a line: {r:?}");
+        assert!(
+            w[0].end_line < w[1].start_line,
+            "sibling folds share a line: {r:?}"
+        );
     }
 }
 
