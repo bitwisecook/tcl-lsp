@@ -133,6 +133,9 @@ impl Conversion {
             verb,
             width_star,
             precision_star,
+            // Positional `%n$` selectors don't affect this value-free
+            // diagnostic renderer (it has no argument list to index).
+            arg_index: _,
         } = parse_spec(fmt, i)?;
         // Arg-driven `*` width / `.*` precision stay unmodelled in this
         // (value-free) diagnostic renderer.

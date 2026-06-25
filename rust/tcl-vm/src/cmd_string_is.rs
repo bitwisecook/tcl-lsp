@@ -37,7 +37,12 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             fail_var = Some(v.clone());
             i += 2;
         } else {
-            break;
+            // The loop only visits non-final arguments (the last is the string),
+            // so an unrecognised token here is in option position: a bad option,
+            // not a wrong count (`string is alpha a b` → `bad option "a"`).
+            return err(format!(
+                "bad option \"{opt}\": must be -strict or -failindex"
+            ));
         }
     }
     if rest.len() - i > 1 {
