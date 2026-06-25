@@ -530,11 +530,14 @@ ensure_rust() {
     if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
         need_rust=1
     fi
-    if ! rustup target list --installed 2>/dev/null | grep -q '^wasm32-wasip2$'; then
+    local installed_targets
+    installed_targets="$(rustup target list --installed 2>/dev/null || true)"
+    if ! printf '%s\n' "$installed_targets" | grep -q '^wasm32-wasip2$' \
+        || ! printf '%s\n' "$installed_targets" | grep -q '^wasm32-unknown-unknown$'; then
         need_wasm=1
     fi
     if [ "$need_rust" -eq 0 ] && [ "$need_wasm" -eq 0 ]; then
-        info "rustup + cargo + wasm32-wasip2 target already present"
+        info "rustup + cargo + wasm32-wasip2/unknown targets already present"
         return 0
     fi
 
@@ -543,7 +546,7 @@ ensure_rust() {
             note_missing "rustup + rust stable (would install via https://sh.rustup.rs)"
         fi
         if [ "$need_wasm" -eq 1 ]; then
-            note_missing "wasm32-wasip2 target (would add via 'rustup target add wasm32-wasip2')"
+            note_missing "wasm32-wasip2 + wasm32-unknown-unknown targets (would add via 'rustup target add')"
         fi
         return 0
     fi
@@ -595,6 +598,14 @@ ensure_rust() {
     if [ "$need_wasm" -eq 1 ] || ! rustup target list --installed | grep -q '^wasm32-wasip2$'; then
         info "Adding wasm32-wasip2 target"
         rustup target add wasm32-wasip2
+    fi
+    # The tcl-compiler `wasm_real_link` test compiles + links a generated guest
+    # for wasm32-unknown-unknown; without this target it errors with
+    # ``can't find crate for `std` `` and is silently skipped under
+    # `cargo llvm-cov --ignore-run-fail`, losing the codegen/wasm coverage.
+    if ! rustup target list --installed | grep -q '^wasm32-unknown-unknown$'; then
+        info "Adding wasm32-unknown-unknown target"
+        rustup target add wasm32-unknown-unknown
     fi
 }
 
