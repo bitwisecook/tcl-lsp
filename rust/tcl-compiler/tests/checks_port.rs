@@ -2180,15 +2180,15 @@ mod catch_body_defs_rust_bug {
 }
 
 // ===========================================================================
-// W210 — `unset` of a global does NOT suppress a later read (Rust divergence).
+// W210 — `unset` of a global does NOT suppress a later read (FIXED).
 //
 // tclsh ground truth: `proc clear {} {unset ::x}` then top-level `puts $x`
 // errors `can't read "x"` — `unset` destroys, it does not initialise — so a
-// real W210 is warranted. The Rust global-write tracker treats the proc's
-// `unset ::x` / `global x; unset x` as touching the global and SUPPRESSES the
-// top-level W210 (a missed warning). Pinned to the Rust verdict; reported.
+// real W210 is warranted. `globals_written_by_procs` now excludes `unset`
+// (it removes a variable, never assigns one, unlike `set`/`global`-then-`set`),
+// so the warranted top-level W210 fires instead of being suppressed.
 // ===========================================================================
-mod unset_global_suppression_rust_divergence {
+mod unset_global_does_not_suppress_w210 {
     use super::*;
 
     fn w210_named(src: &str, var: &str) -> usize {
@@ -2199,12 +2199,13 @@ mod unset_global_suppression_rust_divergence {
     }
 
     #[test]
-    fn unset_global_suppresses_w210_rust_behaviour() {
-        // DIVERGENCE / missed-warning vs tclsh `can't read "x"`.
-        assert_eq!(w210_named("proc clear {} {unset ::x}\nputs $x\n", "'x'"), 0);
+    fn unset_only_global_still_fires_w210() {
+        // tclsh: top-level `puts $x` errors `can't read "x": no such variable`
+        // (proc isn't called; `unset` never initialises). W210 is warranted.
+        assert_eq!(w210_named("proc clear {} {unset ::x}\nputs $x\n", "'x'"), 1);
         assert_eq!(
             w210_named("proc clear {} {global x; unset x}\nputs $x\n", "'x'"),
-            0
+            1
         );
     }
 }

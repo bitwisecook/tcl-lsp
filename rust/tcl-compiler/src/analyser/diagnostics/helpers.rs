@@ -715,7 +715,15 @@ pub(super) fn globals_written_by_procs(
                             }
                             continue;
                         }
-                        if matches!(command.as_str(), "variable" | "upvar") {
+                        // `unset` destroys a variable, it never assigns one, so
+                        // it must not count as a write that could make a later
+                        // top-level read safe. tclsh: a proc whose only touch of
+                        // `::x` is `unset ::x` leaves a top-level `$x` genuinely
+                        // read-before-set ("can't read \"x\": no such variable").
+                        // (`variable`/`upvar` only *declare*/alias; `unset`
+                        // removes.) A proc that also `set`s the global still
+                        // contributes via that assignment statement.
+                        if matches!(command.as_str(), "variable" | "upvar" | "unset") {
                             continue;
                         }
                         defs.iter().collect()
