@@ -634,48 +634,10 @@ fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
     spaces
 }
 
-/// Find spaces inside double-quoted strings where `\<newline>` is
-/// safe.
-fn find_quoted_string_spaces(text: &str, start: usize) -> Vec<usize> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut spaces = Vec::new();
-    let (mut dbr, mut db) = (0i32, 0i32);
-    let mut in_quotes = false;
-    let mut i = start;
-    while i < n {
-        let ch = bytes[i];
-        if ch == b'\\' && i + 1 < n {
-            i += 2;
-            continue;
-        }
-        if in_quotes {
-            match ch {
-                b'"' => in_quotes = false,
-                b'[' => dbr += 1,
-                b']' => dbr = (dbr - 1).max(0),
-                b' ' if dbr == 0 => spaces.push(i),
-                _ => {}
-            }
-        } else {
-            match ch {
-                b'{' => db += 1,
-                b'}' => db = (db - 1).max(0),
-                b'"' if db == 0 => {
-                    in_quotes = true;
-                    dbr = 0;
-                }
-                b'[' => dbr += 1,
-                b']' => dbr = (dbr - 1).max(0),
-                _ => {}
-            }
-        }
-        i += 1;
-    }
-    spaces
-}
-
-/// Greedy line splitting at the given space positions.
+/// Greedy line splitting at the given space positions. Callers pass only
+/// positions that are safe word separators (outside double-quoted strings); a
+/// space *inside* a `"…"` is string data, not a separator, and breaking there
+/// would alter the string's value, so such positions are never offered here.
 fn greedy_split(
     line: &str,
     spaces: &[usize],
@@ -763,18 +725,16 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
         }
     }
 
+    // No safe split found among word separators outside quotes. We deliberately
+    // do NOT fall back to breaking at a space *inside* a double-quoted string:
+    // that space is string data, and inserting `\<newline>` + continuation
+    // indent there changes the string's value (Tcl collapses the
+    // `\<newline><leading-ws>` to a single space, but the original space is kept,
+    // so the literal silently gains a space). A line that can only be split
+    // inside a string literal is left over-length instead — layout is best
+    // effort, but the program's data must never change.
     if segments.as_ref().is_none_or(|s| s.len() < 2) {
-        let quoted = find_quoted_string_spaces(line, indent_len);
-        if !quoted.is_empty() {
-            let mut all: std::collections::BTreeSet<usize> =
-                all_spaces.iter().map(|&(p, _)| p).collect();
-            all.extend(quoted);
-            let positions: Vec<usize> = all.into_iter().collect();
-            segments = greedy_split(line, &positions, max_len, cont_indent);
-        }
-        if segments.as_ref().is_none_or(|s| s.len() < 2) {
-            return None;
-        }
+        return None;
     }
 
     let segments = segments?;
