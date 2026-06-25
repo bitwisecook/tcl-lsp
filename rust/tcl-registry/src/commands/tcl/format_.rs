@@ -133,13 +133,16 @@ impl Conversion {
             verb,
             width_star,
             precision_star,
-            // Positional `%n$` selectors don't affect this value-free
-            // diagnostic renderer (it has no argument list to index).
-            arg_index: _,
+            arg_index,
         } = parse_spec(fmt, i)?;
-        // Arg-driven `*` width / `.*` precision stay unmodelled in this
-        // (value-free) diagnostic renderer.
-        if width_star || precision_star {
+        // Decline to fold the unmodelled specifier forms: arg-driven `*` width /
+        // `.*` precision, and positional `%n$` selectors. `fold_format` consumes
+        // the value list left-to-right, so a positional spec would fold to the
+        // wrong argument (`format {%2$d} 10 20` is Tcl `20`, but sequentially
+        // `10`) — and a *mixed* positional/sequential format is a Tcl error.
+        // Bailing keeps the constant folder from rewriting either to a wrong
+        // value; the runtime `format` handles them.
+        if width_star || precision_star || arg_index.is_some() {
             return None;
         }
         Some(Self {
@@ -587,6 +590,18 @@ mod tests {
         assert_eq!(f(&["%d", "hi"]), None);
         // Too few args bails.
         assert_eq!(f(&["%s %s", "only"]), None);
+    }
+
+    #[test]
+    fn format_does_not_fold_positional_specifiers() {
+        // The folder consumes args left-to-right, so a positional `%n$` selector
+        // must bail rather than fold to the wrong argument — `format {%2$d}
+        // 10 20` is `20` in tclsh, never the sequential `10`. A *mixed*
+        // positional/sequential format is a tclsh error, so it must not fold
+        // either. (Verified against tclsh 9.0.)
+        assert_eq!(f(&["%2$d", "10", "20"]), None);
+        assert_eq!(f(&["%1$s", "x"]), None);
+        assert_eq!(f(&["%2$d %d", "10", "20"]), None); // mixed → tclsh errors
     }
 
     #[test]

@@ -516,6 +516,7 @@ mod defs_from_ir_script_arms {
                 options_var: Some("opts".into()),
                 body: Script::from_statements(vec![assign("hb")]),
                 body_span: Span::new(30, 40),
+                fallthrough: false,
             }],
             finally_body: Some(Script::from_statements(vec![assign("fb")])),
             finally_span: Some(Span::new(50, 58)),
