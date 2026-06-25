@@ -1609,6 +1609,28 @@ fn scan_source_for_calls(
                 scan_source_for_calls(body_text, caller, known, registry, dialect, facts, params);
             }
         }
+        // Recurse into EXPR-role args. `expr {…}` (and the registry's other
+        // expression operands) re-parse and evaluate their argument, so a
+        // `[cmd]` substitution inside it is a real call edge even when the
+        // operand is brace-quoted — Tcl's `{…}` suppresses substitution at the
+        // word level, but the expression engine re-evaluates it. Strip one
+        // layer of braces (the common `expr {…}` form) and rescan the inner
+        // text for command substitutions; an unbraced operand (`[q]`, `$x`)
+        // falls through to the same scan unchanged. Without this, a recursive
+        // call buried in `return [expr {[fib …]}]` is missed, leaving the call
+        // graph incomplete (which under-converged the interproc taint fixpoint
+        // and panicked the diagnostic worker on the debug guard).
+        let expr_indices =
+            registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Expr);
+        for idx in expr_indices {
+            if let Some(arg) = texts.get(idx) {
+                let inner = arg
+                    .strip_prefix('{')
+                    .and_then(|s| s.strip_suffix('}'))
+                    .unwrap_or(arg);
+                scan_value_substitutions(inner, caller, known, registry, dialect, facts, params);
+            }
+        }
     }
 }
 
