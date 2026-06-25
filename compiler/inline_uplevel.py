@@ -545,6 +545,7 @@ def _rewrite_stmt(
                         options_var=handler.options_var,
                         body=h_body,
                         body_range=handler.body_range,
+                        fallthrough=handler.fallthrough,
                     )
                 )
             else:

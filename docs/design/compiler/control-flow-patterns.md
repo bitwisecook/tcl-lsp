@@ -93,10 +93,19 @@ local variables.  LVT-indexed access is faster than name-based `loadStk`.
 **IR**: `IRSwitch` with `IRSwitchArm` patterns.
 **CFG**: Cascade of `CFGBranch` blocks, one per arm, merging at `switch_end`.
 
+A pattern body of `-` is a fallthrough: the arm shares the next non-`-` arm's
+body. The lowerer marks it `IRSwitchArm.fallthrough=True` with a `None` body.
+
 ### `catch` / `try`
 
 **IR**: `IRCatch` / `IRTry` with `IRTryHandler`.
 **CFG**: Body block + handler blocks, merging after.
+
+An `on`/`trap` handler body of `-` is a fallthrough — the same mechanism
+`switch` uses — sharing the next non-`-` handler's body. The lowerer marks it
+`IRTryHandler.fallthrough=True` with an empty `IRScript` body, so the `-` is
+not mistaken for a zero-argument command call (issue #703). `switch` and `try`
+are the only two Tcl commands with this `-` fallthrough form.
 
 ### Key bytecode conventions matching tclsh
 
