@@ -8495,6 +8495,39 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn resolved_analysis_settings_falls_back_to_global_defaults() {
+        // With no folder config registered, every knob resolves from the
+        // backend's global state, and the optimiser per-code overrides are
+        // folded into the profile's disabled set.
+        let backend = test_backend();
+        backend
+            .disabled_diagnostics
+            .lock()
+            .await
+            .insert("W211".to_owned());
+        *backend.non_ascii_mode.lock().await = NonAsciiMode::Strict;
+        *backend.optimiser_enabled.lock().await = false;
+        backend
+            .optimiser_code_overrides
+            .lock()
+            .await
+            .insert("O100".to_owned(), false);
+        let uri = Uri::from_str("file:///settings.tcl").unwrap();
+        let (disabled, non_ascii, opt_enabled, opt_disabled) =
+            backend.resolved_analysis_settings(&uri).await;
+        assert!(
+            disabled.contains("W211"),
+            "global disabled set should apply"
+        );
+        assert_eq!(non_ascii, NonAsciiMode::Strict);
+        assert!(!opt_enabled, "global optimiser switch should apply");
+        assert!(
+            opt_disabled.contains("O100"),
+            "a force-disable per-code override should land in opt_disabled",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn pull_diagnostics_include_compiler_and_optimiser_codes() {
         // Regression: the pull handler (`textDocument/diagnostic`) must return
         // the same full set as the push path — analyser + compiler/optimiser +
