@@ -3,10 +3,37 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use tcl_runtime_api::Completion;
+use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// Coerce `v` to a double for the number-flavoured math functions
+/// (`abs`/`int`/`round`/`entier`/`isqrt`/`max`/`min`). Their non-numeric error
+/// in Tcl 9 is the generic `expected number but got "…"` — not the
+/// floating-point-specific wording `as_double` produces.
+fn num_arg(v: &Value) -> Result<f64, String> {
+    v.as_double()
+        .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
+}
+
+/// Coerce `v` to a double for the classification predicates (`isnan` /
+/// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
+/// NaN/Inf is their purpose — even though a bare `NaN` is a domain error as an
+/// ordinary operand.
+fn num_or_nan(v: &Value) -> Result<f64, String> {
+    if let Ok(d) = v.as_double() {
+        return Ok(d);
+    }
+    if matches!(
+        number::parse_whole(v.to_str().trim()),
+        Some(Number::Nan { .. })
+    ) {
+        return Ok(f64::NAN);
+    }
+    Err(format!("expected number but got \"{}\"", v.to_str()))
+}
 
 /// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
 /// math function's argument is out of range — `sqrt(-1)`, `acos(2)`, `fmod(x,0)`,
@@ -89,9 +116,9 @@ fn pred_fn(args: &[Value], name: &str, f: impl Fn(f64) -> bool) -> Completion<Va
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match num_or_nan(x) {
         Ok(d) => ok(Value::bool(f(d))),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -105,9 +132,9 @@ fn pred_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> bool) -> Complet
         };
         return err(format!("{which} for math function \"{name}\""));
     };
-    match (lhs.as_double(), rhs.as_double()) {
+    match (num_or_nan(lhs), num_or_nan(rhs)) {
         (Ok(x), Ok(y)) => ok(Value::bool(f(x, y))),
-        (Err(e), _) | (_, Err(e)) => err(e.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
@@ -133,9 +160,9 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n.wrapping_abs()));
     }
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::double(f.abs())),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -144,9 +171,9 @@ fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -184,9 +211,9 @@ fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.round() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -286,9 +313,9 @@ fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -303,9 +330,9 @@ fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let n = if let Ok(n) = x.as_int() {
         n
     } else {
-        match x.as_double() {
+        match num_arg(x) {
             Ok(f) => f.trunc() as i64,
-            Err(e) => return err(e.message),
+            Err(m) => return err(m),
         }
     };
     if n < 0 {
@@ -346,34 +373,29 @@ fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `max`/`min` over their (numeric) arguments. Integer result when all args are
 /// integers, else double.
 fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
-    if args.is_empty() {
+    let Some((first, rest)) = args.split_first() else {
         return err(format!("not enough arguments for math function \"{name}\""));
-    }
-    let mut all_int = true;
-    let mut nums = Vec::with_capacity(args.len());
-    for a in args {
-        match a.as_double() {
-            Ok(d) => {
-                if a.as_int().is_err() {
-                    all_int = false;
-                }
-                nums.push(d);
-            }
-            Err(e) => return err(e.message),
+    };
+    // Compare numerically but return the *winning argument* unchanged, so the
+    // result keeps the winner's own type: `max(1.5, 2)` → `2` (an integer),
+    // not `2.0`. A non-numeric argument reports the integer-flavoured
+    // "expected number but got …".
+    let mut best = first;
+    let mut best_d = match num_arg(first) {
+        Ok(d) => d,
+        Err(m) => return err(m),
+    };
+    for a in rest {
+        let d = match num_arg(a) {
+            Ok(d) => d,
+            Err(m) => return err(m),
+        };
+        if (want_max && d > best_d) || (!want_max && d < best_d) {
+            best = a;
+            best_d = d;
         }
     }
-    let best = nums.iter().copied().fold(nums[0], |acc, d| {
-        if (want_max && d > acc) || (!want_max && d < acc) {
-            d
-        } else {
-            acc
-        }
-    });
-    if all_int {
-        ok(Value::int(best as i64))
-    } else {
-        ok(Value::double(best))
-    }
+    ok(best.clone())
 }
 
 fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
