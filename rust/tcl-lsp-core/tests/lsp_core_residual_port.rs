@@ -696,31 +696,21 @@ fn minify_expr_comparison_inversion_in_value_context_is_safe() {
 }
 
 // ---------------------------------------------------------------------------
-// BUG: minify's double-negation rewrite (`!!x` → `x`) is NOT semantics-
-// preserving in an `expr` VALUE context — it drops the boolean coercion.
-//
-// `minify_tcl("set x 5\nset y [expr {!!$x}]\nputs $y\n", "tcl8.6", reg())`
-//   produces:  "set x 5;set y [expr {$x}];puts $y"
+// FIXED: minify's double-negation rewrite (`!!x` → `x`) was NOT semantics-
+// preserving in an `expr` VALUE context — it dropped the 0/1 boolean coercion.
 //
 // tclsh 8.6 + 9.0 (via scripts/dev/tclsh_check.sh):
-//   ORIGINAL  `set x 5;set y [expr {!!$x}];puts $y`  ->  1
-//   MINIFIED  `set x 5;set y [expr {$x}];puts $y`    ->  5
+//   `set x 5;set y [expr {!!$x}];puts $y`  ->  1   (!! forces a 0/1 boolean)
+//   `set x 5;set y [expr {$x}];puts $y`    ->  5   (bare $x is the raw value)
 //
-// `!!$x` forces a 0/1 boolean; bare `$x` is the raw value `5`. The rewrite is
-// only valid where the result is consumed as a condition (`if`/`while`), which
-// the in-module test `expr_double_negation` happens to use (`if {!!$x}`). In a
-// value position it changes the program's result. `shrink_not` applies the
-// `!!x -> x` fold (minify.rs ~line 2762) with no context guard.
-//
-// This test is intentionally disabled (it would fail) and the finding is
-// reported in the final summary. All OTHER tests in this file pass.
-//
-// #[test]
-// fn minify_double_negation_in_value_context_must_preserve_value() {
-//     // Would FAIL: minify yields `set x 5;set y [expr {$x}];puts $y`
-//     // (prints 5) from input that prints 1.
-//     assert_eq!(
-//         minc("set x 5\nset y [expr {!!$x}]\nputs $y\n"),
-//         "set x 5;set y [expr {!!$x}];puts $y", // value-context: must NOT fold
-//     );
-// }
+// The fold was only valid where the result is consumed as a condition
+// (`if`/`while`), but the minifier processes Expr-role args without that
+// context (and `!!x` is unsound even as a subexpression of a boolean expr).
+// `shrink_not` no longer applies the `!!x -> x` fold, so `!!$x` is preserved.
+#[test]
+fn minify_double_negation_in_value_context_must_preserve_value() {
+    assert_eq!(
+        minc("set x 5\nset y [expr {!!$x}]\nputs $y\n"),
+        "set x 5;set y [expr {!!$x}];puts $y",
+    );
+}
