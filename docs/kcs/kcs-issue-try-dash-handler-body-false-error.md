@@ -60,9 +60,14 @@ analyser already handled `switch` correctly — `try` was the gap.
 
 ## Decision rules / contracts
 
-1. A `try` handler body that is the literal `-` (single-token word, including
-   the braced `{-}` / quoted `"-"` forms, which evaluate to the same string) is
-   a **fallthrough**, not a script. The lowerer sets
+1. A `try` handler body whose **string value** is `-` (a single-token word) is
+   a **fallthrough**, not a script. Tcl recognises the marker by value, so the
+   bare `-`, braced `{-}`, quoted `"-"`, and backslash-escaped (`\-`, `\x2d`, …)
+   forms all qualify. Braces suppress backslash substitution, so a *braced*
+   word's value is its raw content (`{\-}` is the literal two-char string `\-`,
+   **not** a fallthrough); bare and quoted words are backslash-substituted
+   first. A braced single-token word's representative token is a `Str` (the
+   `{`-stripping wrapper kind); bare / quoted words are `Esc`. The lowerer sets
    [`TryHandler.fallthrough`](../../rust/tcl-compiler/src/ir.rs) to `true` and
    gives the handler an empty `Script` body, so no command — and therefore no
    arity check — is synthesised for it.

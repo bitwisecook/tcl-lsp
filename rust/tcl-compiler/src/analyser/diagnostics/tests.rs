@@ -4419,3 +4419,13 @@ fn issue_703_genuine_read_before_set_still_fires_in_shared_body() {
     let src = "proc p {} {\n    try {set v 1} on ok x - on error y {\n        return $undefinedvar\n    }\n}\n";
     assert_eq!(count_code(src, "W210"), 1);
 }
+
+#[test]
+fn issue_703_backslash_escaped_dash_no_false_w210() {
+    // Codex review on #706: a backslash-escaped `\-` handler body evaluates to
+    // `-` and is a fallthrough, so the shared target body must not be flagged
+    // W210 for reading the fallthrough handler's var (same as the bare `-`).
+    let src =
+        "proc p {} {\n    try {set v ok} on ok x \\- on error y {\n        return $x\n    }\n}\n";
+    assert_eq!(count_code(src, "W210"), 0);
+}
