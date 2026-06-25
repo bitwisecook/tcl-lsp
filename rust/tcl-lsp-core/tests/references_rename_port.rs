@@ -458,40 +458,32 @@ fn rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace() {
     );
 }
 
-// BUG: `rename` ignores the cursor's byte offset when disambiguating
-// same-named procs across namespaces, so renaming the SECOND same-named proc
-// hits the FIRST one instead — clobbering an unrelated symbol Tcl keeps
-// distinct. With the cursor on ::b::helper's declaration (line 4), the rename
-// rewrites ::a::helper (lines 1+6) and leaves ::b::helper untouched. This
-// disagrees with Tcl name resolution (tclsh: `::a::helper`->"a",
-// `::b::helper`->"b" are independent) AND with the provider's own
-// `prepare_rename`/`references`, which both correctly anchor on ::b::helper at
-// (4,9). Root cause: `rename_proc` (src/rename.rs ~L444) selects the proc via
-// `all_procs.iter().find(|(_, p)| p.name == word || ...)` — first-by-name,
-// no cursor-containment check — whereas `references::references` (src/
-// references.rs ~L187) first prefers the proc whose `name_span` covers the
-// cursor. Reported; not fixed (no source edits per task policy). Re-enable
-// once `rename_proc` adopts the same cursor-preferring resolution.
-//
-// #[test]
-// fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
-//     let src = "namespace eval ::a {\n    proc helper {} { return a }\n}\nnamespace eval ::b {\n    proc helper {} { return b }\n}\n::a::helper\n::b::helper\n";
-//     let analysis = analyse(src);
-//     // Cursor on ::b's helper declaration (line 4) — should rename ::b::helper.
-//     let edits = rename(src, "tcl", 4, 9, "assist", &analysis, None);
-//     assert_eq!(
-//         edit_lines(&edits),
-//         vec![4, 7],
-//         "cursor on ::b::helper must rename ::b's decl (line 4) + its call (line 7); got {edits:?}",
-//     );
-//     let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
-//     assert!(texts.contains(&"::b::assist"), "expected ::b::assist; got {texts:?}");
-//     // ::a::helper (lines 1+6) must be untouched.
-//     assert!(
-//         edits.iter().all(|e| e.range.start_line != 1 && e.range.start_line != 6),
-//         "::a::helper must be untouched; got {edits:?}",
-//     );
-// }
+// FIXED: `rename` now disambiguates same-named procs across namespaces by the
+// cursor's name span (not first-by-name), so renaming the SECOND same-named
+// proc hits that proc and leaves the first one — an unrelated symbol Tcl keeps
+// distinct — untouched. tclsh: `::a::helper`->"a", `::b::helper`->"b" are
+// independent. `rename_proc` now prefers the proc whose `name_span` covers the
+// cursor (matching `references::references`), falling back to first-by-name
+// only for call-site / unqualified cursors.
+#[test]
+fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
+    let src = "namespace eval ::a {\n    proc helper {} { return a }\n}\nnamespace eval ::b {\n    proc helper {} { return b }\n}\n::a::helper\n::b::helper\n";
+    let analysis = analyse(src);
+    // Cursor on ::b's helper declaration (line 4) — should rename ::b::helper.
+    let edits = rename(src, "tcl", 4, 9, "assist", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![4, 7],
+        "cursor on ::b::helper must rename ::b's decl (line 4) + its call (line 7); got {edits:?}",
+    );
+    let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+    assert!(texts.contains(&"::b::assist"), "expected ::b::assist; got {texts:?}");
+    // ::a::helper (lines 1+6) must be untouched.
+    assert!(
+        edits.iter().all(|e| e.range.start_line != 1 && e.range.start_line != 6),
+        "::a::helper must be untouched; got {edits:?}",
+    );
+}
 
 // ---------------------------------------------------------------------------
 // rename — safety gating (shape + builtin shadow)
