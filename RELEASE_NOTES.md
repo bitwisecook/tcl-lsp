@@ -1,3 +1,36 @@
+# v1.11.4
+
+## New Features
+
+- **Tcl 9.1 dialect support.** A new `tcl9.1` dialect is recognised
+  throughout the language server and the editor integrations — dialect
+  detection, completion, hover, diagnostics, and syntax highlighting all
+  understand it. It inherits the full Tcl 9.0 command, subcommand, and
+  option set (via a one-directional dialect-inheritance relation, so 9.0
+  specs apply automatically without re-tagging), then layers the 9.1
+  additions on top:
+  - new `timer` and `unicode` ensemble commands;
+  - `subst` gains the positive `-backslashes` / `-commands` /
+    `-variables` option forms (which may not be combined with their
+    negated counterparts);
+  - the `lt` / `le` / `gt` / `ge` comparison operators are now offered
+    under 9.1 as well as 9.0.
+
+## Bug Fixes
+
+- **Spurious arity error on `try` `-` fallthrough handlers fixed (#703).**
+  A handler body that is the literal `-` fallthrough marker is now treated
+  as sharing the next non-`-` handler's body (mirroring `switch`) rather
+  than being lowered as a zero-argument call of a `-` command. The shared
+  body is analysed with the whole fallthrough group's handler-bound
+  variables treated as defined, avoiding a read-before-set false positive
+  under either of Tcl's two (byte-compiled vs interpreted) binding rules.
+
+## Improvements
+
+- **Dependency refresh.** All project dependencies updated to their latest
+  compatible releases (consolidating Dependabot PRs #674–#677).
+
 # v1.11.3
 
 ## New Features
