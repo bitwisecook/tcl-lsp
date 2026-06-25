@@ -624,17 +624,22 @@ fn o110_self_comparison_tautologies() {
     // `int_x` wrapper supplies it. tclsh sweep (x≥0): x^x == 0.
     assert!(optimised(&int_x("set v [expr {$x ^ $x}]"), TCL).contains("set v 0"));
 
-    // BUG (reported, NOT asserted): bare `set v [expr {$x - $x}]` on an UNTYPED
-    // $x — Rust folds it to `set v 0` (O110, applied), but tclsh proves the
-    // original RAISES an error when $x is a non-numeric string:
-    //   set x hello; expr {$x - $x}  ⇒  "cannot use non-numeric string ... as
-    //   left operand of \"-\""  (catch ⇒ 1)
-    // whereas the rewritten `set v 0` yields 0 with no error. That is a genuine
-    // miscompile (subtraction is arithmetic-only, unlike `==`/`<`). The Python
-    // file deliberately does NOT fold this (`test_self_sub`: "not folded today").
-    // Minimal repro + tclsh proof recorded; left commented out so the suite is
-    // green and the divergence is surfaced in the report rather than pinned:
-    //   assert!(optimised("set v [expr {$x - $x}]", TCL).contains("set v 0")); // would pin a miscompile
+    // FIXED (was a miscompile): bare `set v [expr {$x - $x}]` on an UNTYPED $x
+    // must NOT fold to `set v 0`. tclsh proves the original RAISES an error when
+    // $x is a non-numeric string:
+    //   set x hello; expr {$x - $x}  ⇒  "can't use non-numeric string as operand
+    //   of \"-\"" (8.6) / "cannot use non-numeric string ... as left operand"
+    //   (9.0)  — catch ⇒ 1
+    // so folding to 0 would silently swallow that error. Subtraction is
+    // arithmetic-only, unlike `==`/`<` (string fallback). The Python file
+    // likewise does NOT fold this (`test_self_sub`: "not folded today").
+    assert!(
+        !optimised("set v [expr {$x - $x}]", TCL).contains("set v 0"),
+        "untyped $x - $x must not fold to 0 (arithmetic op errors on non-numeric)"
+    );
+    // …but with a provably-numeric operand the fold IS sound. tclsh sweep (x≥0):
+    // x-x == 0. The `int_x` wrapper makes $x provably numeric.
+    assert!(optimised(&int_x("set v [expr {$x - $x}]"), TCL).contains("set v 0"));
 }
 
 #[test]
