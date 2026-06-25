@@ -617,26 +617,24 @@ mod unreachable_bounds_suppressed {
 // test_interval_bounds.py — TestListExpansionLength.
 //
 // `[list {*}{...}]` expands at runtime, so its element count is not the arg
-// count.  *** GENUINE RUST BUG — the positive case is commented out. ***
+// count.  FIXED — `list_command_length` now bails on any `{*}` expansion.
 // ===========================================================================
 mod list_expansion_length {
     use super::*;
 
-    // BUG: `set l [list {*}{a b}]` expands to a 2-element list, so `lindex $l 1`
-    // is IN range and must NOT fire W230 — tclsh says
-    //   `set l [list {*}{a b}]; llength $l` → 2 (8.6 + 9.0),
-    // so `lindex $l 1` → "b". Rust's `list_command_length` computes length **1**:
-    // the segmenter strips the `{*}` expansion prefix and reports the single arg
-    // `"a b"`, so the `starts_with("{*}")` bail-out never trips. Rust then fires a
-    // false-positive W230 ("index $i is 1, past the end (1)"). tclsh says Rust is
-    // wrong (length is 2, not 1). Reported in the port message.
-    //
-    // #[test]
-    // fn list_expansion_does_not_false_fire() {
-    //     // l = {a b} (length 2 after expansion); index 1 is valid.
-    //     let src = "proc f {} { set l [list {*}{a b}]\n set i 1\n set x [lindex $l $i] }";
-    //     assert_eq!(count(src, "W230"), 0); // FAILS: Rust returns 1 (length seen as 1)
-    // }
+    // FIXED: `set l [list {*}{a b}]` expands to a 2-element list, so `lindex $l 1`
+    // is IN range and must NOT fire W230 — tclsh:
+    //   `set l [list {*}{a b}]; llength $l` → 2 (8.6 + 9.0), `lindex $l 1` → "b".
+    // Rust's `list_command_length` previously computed length 1 (the segmenter
+    // strips the `{*}` prefix, so the single arg `"a b"` never tripped the
+    // per-arg `starts_with("{*}")` bail-out) and fired a false W230. It now bails
+    // whenever the command text contains `{*}`, treating the length as unknown.
+    #[test]
+    fn list_expansion_does_not_false_fire() {
+        // l = {a b} (length 2 after expansion); index 1 is valid.
+        let src = "proc f {} { set l [list {*}{a b}]\n set i 1\n set x [lindex $l $i] }";
+        assert_eq!(count(src, "W230"), 0);
+    }
 
     #[test]
     fn plain_list_length_still_inferred() {
