@@ -134,6 +134,7 @@ fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Ve
         "variable" => handle_variable(args, state, defs),
         "namespace" => handle_namespace_call(args, state, defs),
         "info" => handle_info(args, state, defs),
+        "catch" => handle_catch(args, state, defs),
         c if is_name_first_command(c) => handle_dynamic_name_first(c, args, state, defs),
         _ => {}
     }
@@ -167,6 +168,30 @@ fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ver
         state.escape(&ref_, defs);
     }
     let sub_module = crate::lowering::lower_to_ir(&body, &registry);
+    escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs);
+}
+
+/// Handle ``catch``: the CFG lowers ``catch {body}`` to an opaque
+/// ``Call`` whose first raw arg is the (brace-stripped) body script, so the
+/// flow-sensitive walker never sees an ``upvar``/``global``/``uplevel`` inside
+/// it. Mirror [`handle_eval`]: a *literal* body is re-scanned and walked so its
+/// scope-crossing escapes — notably the upvar **source name** the
+/// interprocedural pass needs to spill the caller's local — are recorded. A
+/// non-literal body keeps the call-fallback already recorded by the caller.
+fn handle_catch(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+    let Some(body) = args.first() else {
+        return;
+    };
+    if is_dynamic_token(body) {
+        return;
+    }
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let mut scanner =
+        crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
+    for ref_ in scanner.scan_script(body, &registry) {
+        state.escape(&ref_, defs);
+    }
+    let sub_module = crate::lowering::lower_to_ir(body, &registry);
     escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs);
 }
 
