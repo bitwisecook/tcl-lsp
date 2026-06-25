@@ -121,6 +121,7 @@ pub mod segmenter;
 pub mod shimmer;
 pub mod side_effects;
 pub mod signature_scan;
+pub mod slot_allocation;
 pub mod specialise_factories;
 pub mod ssa;
 pub mod static_loops;
