@@ -899,6 +899,33 @@ through the wheel by the pytest file above; the underlying algorithms keep their
 own unit tests in the pure crates (`tcl-lexer`, `tcl-compiler`, `tcl-lsp-core`,
 `tcl-bigip`, `tcl-bigip-query`).
 
+## RT-VM-DIFF — differential `expr` / cmd e2e suites (`tcl-vm/tests/cmd_*_e2e.rs`)
+
+A native-Rust differential surface for the bytecode VM, distinct from the
+pytest-port tracking above: each test compiles a Tcl fragment through
+`tcl-compiler`, runs the bytecode on `tcl-vm`, and pins the observable result
+against **real tclsh 8.6/9.0** (the §0 reference standard). Five suites cover
+the command families that previously had the thinnest unit coverage:
+
+- `cmd_math_expr_e2e.rs` — `expr` operators, `tcl::mathfunc::*`, `tcl::mathop::*`.
+- `cmd_string_e2e.rs` — `string` / `format` / `string is`.
+- `cmd_collections_e2e.rs` — `array` / `dict` / the `list`/`l*` family.
+- `cmd_control_e2e.rs` — `if`/`while`/`for`/`foreach`/`switch`/`try`/`catch`
+  (compiled via `lower_to_ir_for_bytecode`, the production lowering, so literal
+  `try` exercises the runtime-barrier path).
+- `cmd_info_prefix_e2e.rs` — `info` / `namespace` / `tcl::prefix`.
+
+The `bug_*` cases in these suites **documented VM-vs-tclsh divergences on valid
+input** and were deliberately landed red as a worklist. As of **2026-06-25 they
+are all closed** — math (`rand`/`srand`, bare-literal normalisation, NaN-domain,
+`abs` bignum), collections (`array set` element-name error, `dict get`
+validation, `::tcl::dict::map`, `dict map` `break`, `lsort -unique` keep-last),
+control (`try` array-element bind), and `namespace which -variable` all match
+tclsh — so the `bug_*` tests now stand as **regression guards** rather than a
+TODO list. The fix detail is in
+[the history archive](rust-rewrite-history.md) (2026-06-25). New VM commands or
+opcodes should extend these suites, oracle-pinned, before landing.
+
 ## TEST-MIGRATE — incremental pytest → Rust ports (non-destructive)
 
 The TEST-MIGRATE half of **API-PYO3** that can proceed *now* is the
@@ -1159,10 +1186,15 @@ is now ported; no thin-unit-coverage follow-ups remain.
 Not portable yet → correctly **Deferred** (the Rust replacement does not exist
 in any landed crate, so there is nothing to unit-test): `proc_fingerprint`
 (`dependency_fingerprint`), `dataflow_graph` `to_dict`/`to_mermaid`
-serialisers, `detect_dialect_from_source`, `slot_allocation` (register
-coalescing), the `licm` statement-hoisting transform, `extract_tk_layout`,
+serialisers, the `licm` statement-hoisting transform, `extract_tk_layout`,
 `shared.source_map` bidirectional clamping, and the `token_scanning` scalar/
 command scanners. Each re-classifies to Ported when its owning track lands.
+
+**Re-classified Deferred → Ported (2026-06-25):** `detect_dialect_from_source`
+(landed in `tcl-registry::dialects` with the cluster-A port, unit-tested) and
+`slot_allocation` (the liveness-based register-coalescing module landed as a
+standalone `tcl-compiler::slot_allocation` analysis with its own port + tests)
+now exist in landed crates, so they have left the Deferred list above.
 
 ### Conclusion
 
