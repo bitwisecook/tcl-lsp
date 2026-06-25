@@ -401,23 +401,35 @@ fn minify_aggressive_empty_source_has_zero_savings() {
 // puts [build]` -> "xy"; minified `proc a {} {set a "";append acc x;
 // append acc y;return $a};puts [a]` -> "" on both tclsh versions.)
 //
-// The fix belongs in the compaction's reference-collection (it must rewrite
-// the variable-write argument of mutating commands), not in this test, so
-// the single repro below is commented out and reported. All other tests in
-// this file pass.
-//
-// #[test]
-// fn minify_compact_preserves_incr_accumulator() {
-//     let src = "set total 0\nincr total 5\nputs $total\n";
-//     let (out, _map) = minify_tcl_compact(src, "tcl8.6", true, registry());
-//     // Whatever short name `total` gets, the `incr` target MUST be renamed
-//     // to the same name, so the minified script still prints 5 in tclsh.
-//     // Today it emits `set a 0;incr total 5;puts $a` (prints 0) — BUG.
-//     assert!(
-//         !out.contains("incr total ") || out.contains("set total "),
-//         "incr write-target left un-renamed: {out:?}",
-//     );
-// }
+// FIXED: name compaction now excludes any variable that is the bare
+// write-target of a mutating command (incr/append/lappend), since the
+// analyser records those as definitions (not reads) and so VarDef.references
+// misses them. The variable keeps its original name everywhere — correct
+// (semantics-preserving) at the cost of not compacting that one name.
+#[test]
+fn minify_compact_preserves_incr_accumulator() {
+    let src = "set total 0\nincr total 5\nputs $total\n";
+    let (out, _map) = minify_tcl_compact(src, "tcl8.6", true, registry());
+    // The `incr` target and the `set`/`$` sites must agree: either all renamed
+    // to the same short name, or all left as `total`. With the exclude fix
+    // `total` is kept, so the minified script still prints 5 in tclsh.
+    assert!(
+        !out.contains("incr total ") || out.contains("set total "),
+        "incr write-target left un-renamed: {out:?}",
+    );
+}
+
+#[test]
+fn minify_compact_preserves_append_accumulator() {
+    // append cross-check: `acc` is an append target, so it stays `acc`
+    // everywhere; the minified proc still returns "xy" in tclsh.
+    let src = "proc build {} { set acc \"\"\nappend acc x\nappend acc y\nreturn $acc }\n";
+    let (out, _map) = minify_tcl_compact(src, "tcl8.6", true, registry());
+    assert!(
+        !out.contains("append acc ") || out.contains("set acc "),
+        "append write-target left un-renamed: {out:?}",
+    );
+}
 
 // ===========================================================================
 // snippets — context-aware completion templates (structural)
