@@ -10,6 +10,14 @@
 //! - `VarRead` — names a variable the proc reads via ``upvar``
 //! - `Expr` — evaluated as an expression
 //! - `LoopList` — used as the list arg in ``foreach`` / ``lmap``
+//! - `DynamicNameLocal` — the param's *value* names a
+//!   **callee-local** variable (``set $p 1`` / ``scan … $p`` /
+//!   ``lassign … $p`` / ``regsub … $p``, or a registry
+//!   ``VarWrite`` / ``VarRead`` role on a bare ``$param``).  Emitted
+//!   with `VarRead`; refines it so caller-side dead-store / unused
+//!   suppression does **not** treat a literal-name call arg as
+//!   consumed (the callee uses the string to name its *own* local,
+//!   not a caller-frame alias).  Mirrors `proc_arg_traits.py`.
 //!
 //! Two passes are exposed:
 //!
@@ -533,17 +541,40 @@ fn apply_arg_role_traits<'p>(
         let Ok(idx_u8) = u8::try_from(idx) else {
             continue;
         };
-        let trait_to_add = match arg_roles.get(&idx_u8) {
-            Some(ArgRole::Body) => ProcArgTrait::Body,
-            Some(ArgRole::Expr) => ProcArgTrait::Expr,
-            Some(ArgRole::VarWrite) => ProcArgTrait::VarWrite,
-            Some(ArgRole::VarRead) => ProcArgTrait::VarRead,
-            _ => continue,
+        let Some(set) = traits.get_mut(source_param) else {
+            continue;
         };
-        if let Some(set) = traits.get_mut(source_param) {
-            set.insert(trait_to_add);
+        match arg_roles.get(&idx_u8) {
+            Some(ArgRole::Body) => {
+                set.insert(ProcArgTrait::Body);
+            }
+            Some(ArgRole::Expr) => {
+                set.insert(ProcArgTrait::Expr);
+            }
+            // A registry `VarWrite` / `VarRead` role landing on a bare
+            // `$param` substitution means the param's VALUE names a
+            // CALLEE-LOCAL variable (`set $p 1`, `variable $p`,
+            // `incr $p`) — NOT a caller-frame alias.  Record the
+            // callee-local refinement, never `VarWrite` (only an
+            // `upvar`-aliased write-back is a genuine caller write).
+            Some(ArgRole::VarWrite | ArgRole::VarRead) => mark_dynamic_name_local(set),
+            _ => {}
         }
     }
+}
+
+/// Record the callee-local dynamic-name use of a param — its **value**
+/// is used as a variable *name* in the proc's own scope (``set $p 1``,
+/// ``scan $s %d $p``, ``lassign $l $p``, ``regsub … $p``).  Emits
+/// [`ProcArgTrait::DynamicNameLocal`] (the refinement that stops
+/// caller-side dead-store / unused-variable suppression from treating
+/// the call site as consuming the caller's variable) plus
+/// [`ProcArgTrait::VarRead`] (the param's string *is* read).  Never
+/// `VarWrite` — only an ``upvar``-aliased write-back is a genuine
+/// caller-frame write.  Mirrors `proc_arg_traits.py`.
+fn mark_dynamic_name_local(set: &mut HashSet<ProcArgTrait>) {
+    set.insert(ProcArgTrait::DynamicNameLocal);
+    set.insert(ProcArgTrait::VarRead);
 }
 
 /// Code-evaluating commands — ``eval`` / ``subst`` mark every
@@ -716,6 +747,17 @@ fn handle_after<'a>(
     }
 }
 
+/// Mark every ``$param`` from `start` onward as a callee-local
+/// dynamic name.  Used for commands whose trailing args name
+/// CALLEE-LOCAL output variables — ``scan`` (start 2), ``lassign``
+/// (start 1), ``regexp`` match vars.  These writes land in the
+/// callee's own frame; they do **not** consume / alias the caller's
+/// variable unless an explicit ``upvar`` set one up (handled
+/// separately via the upvar-alias path, which emits a genuine
+/// `VarWrite`).  Emitting [`ProcArgTrait::DynamicNameLocal`] (+
+/// `VarRead`) rather than `VarWrite` keeps caller-side dead-store /
+/// unused-variable suppression from silencing the caller's literal
+/// arg — matches `proc_arg_traits.py` (PR #498 / #499 finding 6).
 fn handle_variadic_var_write<'a>(
     args: &[String],
     param_set: &HashSet<&'a str>,
@@ -727,7 +769,7 @@ fn handle_variadic_var_write<'a>(
             && let Some(p) = param_set.get(vn).copied()
             && let Some(set) = traits.get_mut(p)
         {
-            set.insert(ProcArgTrait::VarWrite);
+            mark_dynamic_name_local(set);
         }
     }
 }
@@ -784,7 +826,9 @@ fn handle_regsub_var<'a>(
         && let Some(p) = param_set.get(vn).copied()
         && let Some(set) = traits.get_mut(p)
     {
-        set.insert(ProcArgTrait::VarWrite);
+        // `regsub`'s output var is CALLEE-LOCAL — see
+        // `handle_variadic_var_write` for the full rationale.
+        mark_dynamic_name_local(set);
     }
 }
 
@@ -905,10 +949,21 @@ mod tests {
     }
 
     #[test]
-    fn lassign_records_var_writes() {
+    fn lassign_records_dynamic_name_local() {
+        // `lassign {1 2} $a $b` names CALLEE-LOCAL output vars via the
+        // params' values — DynamicNameLocal (+ VarRead), NOT VarWrite
+        // (which would imply a caller-frame alias).  Matches
+        // `proc_arg_traits.py`.
         let traits = infer(&["a", "b"], "lassign {1 2} $a $b");
-        assert_trait(&traits, "a", ProcArgTrait::VarWrite);
-        assert_trait(&traits, "b", ProcArgTrait::VarWrite);
+        for p in ["a", "b"] {
+            assert_trait(&traits, p, ProcArgTrait::DynamicNameLocal);
+            assert_trait(&traits, p, ProcArgTrait::VarRead);
+            assert!(
+                !traits.get(p).unwrap().contains(&ProcArgTrait::VarWrite),
+                "{p}: callee-local lassign target must not be VarWrite, got {:?}",
+                traits.get(p),
+            );
+        }
     }
 
     #[test]
@@ -925,9 +980,52 @@ mod tests {
     }
 
     #[test]
-    fn regsub_records_var_write() {
+    fn regsub_records_dynamic_name_local() {
+        // `regsub`'s output var is CALLEE-LOCAL — DynamicNameLocal
+        // (+ VarRead), not VarWrite.
         let traits = infer(&["out"], "regsub -all foo $line bar $out");
-        assert_trait(&traits, "out", ProcArgTrait::VarWrite);
+        assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "out", ProcArgTrait::VarRead);
+        assert!(
+            !traits.get("out").unwrap().contains(&ProcArgTrait::VarWrite),
+            "callee-local regsub target must not be VarWrite, got {:?}",
+            traits.get("out"),
+        );
+    }
+
+    #[test]
+    fn set_dynamic_name_records_dynamic_name_local_not_var_write() {
+        // `set $p 1` — the param's VALUE names a callee-local variable
+        // (registry `VarWrite` role on the `$p` substitution).  The
+        // refined trait is DynamicNameLocal (+ VarRead), NOT VarWrite:
+        // a caller passing a literal name (`f x`) does not have its `x`
+        // consumed by this callee.  Pins the PR #498 finding-10 fix.
+        let traits = infer(&["p"], "set $p 1");
+        assert_trait(&traits, "p", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "p", ProcArgTrait::VarRead);
+        assert!(
+            !traits.get("p").unwrap().contains(&ProcArgTrait::VarWrite),
+            "callee-local `set $p` must not be VarWrite, got {:?}",
+            traits.get("p"),
+        );
+    }
+
+    #[test]
+    fn genuine_upvar_write_stays_var_write_not_dynamic_name_local() {
+        // A real caller-frame write-back through an `upvar` alias is a
+        // genuine `VarWrite` — the DynamicNameLocal refinement must NOT
+        // leak onto it (otherwise caller-side suppression of a genuine
+        // call-by-name write would regress).
+        let traits = infer(&["var"], "upvar 1 $var local\nset local 1");
+        assert_trait(&traits, "var", ProcArgTrait::VarWrite);
+        assert!(
+            !traits
+                .get("var")
+                .unwrap()
+                .contains(&ProcArgTrait::DynamicNameLocal),
+            "upvar write-back must not be DynamicNameLocal, got {:?}",
+            traits.get("var"),
+        );
     }
 
     #[test]
@@ -1106,15 +1204,19 @@ mod tests {
 
     #[test]
     fn overlay_shallow_surfaces_stub_declared_var_write_role() {
-        // Stub-declared `VarWrite` on a parameter should
-        // surface `VarWrite` on the matching param.
+        // Stub-declared `VarWrite` on a bare `$param` substitution
+        // surfaces the callee-local DynamicNameLocal refinement.
         let overlay = make_overlay(vec![stub_sig(
             "with_var",
             &[("varName", ArgRole::VarWrite), ("value", ArgRole::Value)],
         )]);
         let registry = CommandRegistry::build_default();
         let traits = infer_param_traits(&["v"], "with_var $v 42", &registry, Some(&overlay));
-        assert_trait(&traits, "v", ProcArgTrait::VarWrite);
+        // A stub `VarWrite` role on a bare `$v` substitution is the same
+        // callee-local dynamic-name shape as `set $v …` — refined to
+        // DynamicNameLocal (+ VarRead), not a caller-frame VarWrite.
+        assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "v", ProcArgTrait::VarRead);
     }
 
     #[test]

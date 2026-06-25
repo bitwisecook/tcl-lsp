@@ -2507,3 +2507,69 @@ mod edge_cases {
         assert!(fires("expr \\\n$x + 1", D, "W100"));
     }
 }
+
+// ===========================================================================
+// Call-by-name suppression precision — the `DynamicNameLocal` refinement.
+//
+// A callee whose parameter's *value* names a CALLEE-LOCAL variable
+// (`set $p 1`, `scan … $p`, `lassign … $p`, `regsub … $p`) does NOT
+// consume the caller's variable when a literal name is passed (`f x`),
+// so the caller's otherwise-unused `set x 1` stays a dead store
+// (W211 / W220).  Only a genuine `upvar`-aliased write-back suppresses
+// it.  These pin parity with Python `proc_arg_traits.py`'s
+// `DYNAMIC_NAME_LOCAL` (PR #498 / #499 findings 10 / 6); the absence of
+// that refinement would re-open the caller-side false negatives the
+// parity audit (gap #6) warned about.
+// ===========================================================================
+mod call_by_name_dynamic_name_local {
+    use super::*;
+
+    /// Each callee uses `$p` as a callee-local dynamic name; the caller's
+    /// `set x 1; f x` leaves `x` unread → the dead store must still fire.
+    #[test]
+    fn callee_local_dynamic_name_does_not_suppress_caller_dead_store() {
+        for (label, src) in [
+            ("set", "proc f {p} { set $p 1 }\nproc g {} { set x 1; f x }"),
+            (
+                "scan",
+                "proc f {p} { scan $s {%d} $p }\nproc g {} { set x 1; f x }",
+            ),
+            (
+                "lassign",
+                "proc f {p} { lassign $l $p }\nproc g {} { set x 1; f x }",
+            ),
+            (
+                "regsub",
+                "proc f {p} { regsub a $s b $p }\nproc g {} { set x 1; f x }",
+            ),
+        ] {
+            assert!(
+                fires(src, D, "W211"),
+                "[{label}] callee-local dynamic name must not suppress caller W211; got {:?}",
+                codes(src, D),
+            );
+            assert!(
+                fires(src, D, "W220"),
+                "[{label}] callee-local dynamic name must not suppress caller W220; got {:?}",
+                codes(src, D),
+            );
+        }
+    }
+
+    /// A genuine caller-frame write-back through `upvar` IS call-by-name —
+    /// the caller's `x` is consumed, so neither W211 nor W220 fires.
+    #[test]
+    fn genuine_upvar_call_by_name_suppresses_caller_dead_store() {
+        let src = "proc f {p} { upvar 1 $p l; set l 5 }\nproc g {} { set x 1; f x }";
+        assert!(
+            !fires(src, D, "W211"),
+            "genuine upvar call-by-name should suppress caller W211; got {:?}",
+            codes(src, D),
+        );
+        assert!(
+            !fires(src, D, "W220"),
+            "genuine upvar call-by-name should suppress caller W220; got {:?}",
+            codes(src, D),
+        );
+    }
+}

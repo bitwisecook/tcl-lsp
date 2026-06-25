@@ -126,6 +126,27 @@ pub enum ProcArgTrait {
     Expr,
     /// Argument is used as the list in a ``foreach`` / ``lmap``.
     LoopList,
+    /// The parameter's **value** is used as a variable *name* in the
+    /// proc's **own** (callee-local) scope — e.g. ``set $p 1``,
+    /// ``scan $s %d $p``, ``lassign $l $p``, ``regsub … $p``, or a
+    /// registry ``VarWrite`` / ``VarRead`` role landing on a bare
+    /// ``$param`` substitution.
+    ///
+    /// Distinct from [`VarWrite`](Self::VarWrite) /
+    /// [`VarRead`](Self::VarRead): those imply the param *aliases* a
+    /// caller-frame variable via ``upvar`` (so passing a literal name
+    /// at the call site consumes the caller's variable).  This trait is
+    /// callee-local only — ``f x`` does **not** consume the caller's
+    /// ``x``; the callee merely uses the string ``x`` to name one of
+    /// its own locals.  It is always emitted alongside `VarRead` (the
+    /// param's string value *is* read), so consumers querying
+    /// `VarRead` alone for "is the param used at all" still see it;
+    /// the refinement only matters for caller-side dead-store /
+    /// unused-variable suppression, which must skip a param that is
+    /// `DynamicNameLocal` without also being a genuine `VarWrite`.
+    /// Mirrors Python `proc_arg_traits.py`'s `DYNAMIC_NAME_LOCAL`
+    /// (PR #498 / #499 deep-review finding 10 / 6).
+    DynamicNameLocal,
 }
 
 impl ProcArgTrait {
@@ -139,6 +160,7 @@ impl ProcArgTrait {
             ProcArgTrait::VarRead => "var_read",
             ProcArgTrait::Expr => "expr",
             ProcArgTrait::LoopList => "loop_list",
+            ProcArgTrait::DynamicNameLocal => "dynamic_name_local",
         }
     }
 }
