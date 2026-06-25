@@ -57,6 +57,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
+- [kcs-issue-try-dash-handler-body-false-error.md](kcs-issue-try-dash-handler-body-false-error.md)
+  — a `try` handler with a `-` fallthrough body is wrongly flagged
+  "too few arguments for '-'" (issue #703).
 - [kcs-issue-vm-set-test-codegen.md](kcs-issue-vm-set-test-codegen.md)
   — VM `set.test` core slice: nested array-set, brace-suppressed array
   keys, array reads in word templates, and `while executing` errorInfo

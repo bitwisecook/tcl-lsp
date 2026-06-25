@@ -783,6 +783,16 @@ impl CfgBuilder {
             self.ensure_goto(tail, &post_body, Some(*body_span));
         }
 
+        // A `-` (fallthrough) handler shares the next non-`-` handler's body.
+        // Tcl binds the *matching* handler's variables when running that shared
+        // body in the byte-compiled form, but the *target* handler's variables
+        // in the interpreted form (the two diverge — see issue #703).
+        // Statically we can't know which handler matched, so the shared body is
+        // analysed with the whole group's variables treated as defined: the
+        // precise over-approximation that avoids a read-before-set false
+        // positive under either binding rule.
+        let mut pending_fallthrough_defs: Vec<String> = Vec::new();
+
         // Each handler reachable from body failure.
         for handler in handlers {
             let handler_block = self.new_block("try_handler");
@@ -801,13 +811,28 @@ impl CfgBuilder {
                 body_terminal.as_deref(),
             );
 
-            let mut var_defs = Vec::new();
+            let mut own_defs = Vec::new();
             if let Some(vn) = &handler.var_name {
-                var_defs.push(vn.clone());
+                own_defs.push(vn.clone());
             }
             if let Some(ov) = &handler.options_var {
-                var_defs.push(ov.clone());
+                own_defs.push(ov.clone());
             }
+            let var_defs = if handler.fallthrough {
+                // Empty body of its own; carry its vars to the shared body.
+                pending_fallthrough_defs.extend(own_defs.iter().cloned());
+                own_defs
+            } else {
+                // Target of any preceding `-` chain: its shared body may run
+                // with any group member's vars bound, so define them all here.
+                let mut defs = std::mem::take(&mut pending_fallthrough_defs);
+                for d in own_defs {
+                    if !defs.contains(&d) {
+                        defs.push(d);
+                    }
+                }
+                defs
+            };
             if !var_defs.is_empty() {
                 self.block_mut(&handler_block)
                     .statements
@@ -1120,6 +1145,7 @@ mod tests {
                 options_var: None,
                 body: Script::new(),
                 body_span: Span::new(30, 35),
+                fallthrough: false,
             }],
             finally_body: None,
             finally_span: None,

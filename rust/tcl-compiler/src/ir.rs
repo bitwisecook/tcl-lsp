@@ -104,6 +104,11 @@ pub struct TryHandler {
     pub body: Script,
     /// Source span of the handler body.
     pub body_span: Span,
+    /// `true` when the handler body is the literal `-` fallthrough
+    /// marker: the handler shares the next non-fallthrough handler's
+    /// body (Tcl `try` semantics, mirroring `switch`). `body` is an
+    /// empty script in that case — the `-` is *not* a command call.
+    pub fallthrough: bool,
 }
 
 /// A `switch` arm: pattern + body.
@@ -1032,6 +1037,7 @@ mod tests {
                 options_var: None,
                 body: Script::new(),
                 body_span: Span::new(30, 40),
+                fallthrough: false,
             }],
             finally_body: Some(Script::new()),
             finally_span: Some(Span::new(50, 58)),
