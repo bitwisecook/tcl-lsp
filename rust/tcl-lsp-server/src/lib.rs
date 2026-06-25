@@ -2406,6 +2406,42 @@ impl Backend {
         let Some(cfg) = values.into_iter().next() else {
             return;
         };
+        self.apply_global_config(&cfg).await;
+        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
+        // per scope, so pull each folder's resolved config and store it for
+        // longest-prefix resolution at read time.  A single-root / no-folder
+        // session skips this — the global pull above is the whole story.
+        let folders = self.workspace_folder_urls().await;
+        if !folders.is_empty() {
+            let items: Vec<ConfigurationItem> = folders
+                .iter()
+                .map(|f| ConfigurationItem {
+                    scope_uri: Some(f.clone()),
+                    section: Some("tclLsp".to_owned()),
+                })
+                .collect();
+            if let Ok(values) = self.client.configuration(items).await {
+                let parsed: Vec<(Uri, FolderConfig)> = folders
+                    .into_iter()
+                    .zip(values)
+                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .collect();
+                self.apply_folder_configs(parsed).await;
+            }
+        }
+    }
+
+    /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
+    /// session's global state: feature toggles, the `xcDiagnostics` section
+    /// flag, the optimiser switch / profile / per-code overrides, the formatter
+    /// line length, the default dialect, the W108 non-ASCII mode, and the
+    /// disabled-diagnostic set — then mirror the analyser knobs onto the salsa
+    /// config input. A non-object `cfg` is a no-op.
+    ///
+    /// Split out of [`Self::pull_and_apply_config`] (which fetches `cfg` from
+    /// the client and then handles per-folder configs) so the apply logic is
+    /// unit-testable without a live editor client.
+    async fn apply_global_config(&self, cfg: &serde_json::Value) {
         if !cfg.is_object() {
             return;
         }
@@ -2469,7 +2505,7 @@ impl Backend {
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
         // so re-wrap before reusing them for the W108 mode + disabled codes.
-        let wrapped = serde_json::json!({ "tclLsp": cfg });
+        let wrapped = serde_json::json!({ "tclLsp": cfg.clone() });
         if let Some(mode) = settings_non_ascii_mode(&wrapped) {
             *self.non_ascii_mode.lock().await = mode;
         }
@@ -2479,28 +2515,6 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
-        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
-        // per scope, so pull each folder's resolved config and store it for
-        // longest-prefix resolution at read time.  A single-root / no-folder
-        // session skips this — the global pull above is the whole story.
-        let folders = self.workspace_folder_urls().await;
-        if !folders.is_empty() {
-            let items: Vec<ConfigurationItem> = folders
-                .iter()
-                .map(|f| ConfigurationItem {
-                    scope_uri: Some(f.clone()),
-                    section: Some("tclLsp".to_owned()),
-                })
-                .collect();
-            if let Ok(values) = self.client.configuration(items).await {
-                let parsed: Vec<(Uri, FolderConfig)> = folders
-                    .into_iter()
-                    .zip(values)
-                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
-                    .collect();
-                self.apply_folder_configs(parsed).await;
-            }
-        }
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
@@ -8492,6 +8506,49 @@ mod tests {
             backend.disabled_diagnostics.lock().await.contains("W211"),
             "W211 should be disabled by the inline settings",
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_applies_every_knob() {
+        let backend = test_backend();
+        let cfg = serde_json::json!({
+            "features": { "hover": false },
+            "xcDiagnostics": { "enabled": true },
+            "optimiser": { "enabled": false, "profile": "full", "O100": false },
+            "formatting": { "lineLength": 120 },
+            "dialect": "tcl9.0",
+            "style": { "nonAscii": "strict" },
+            "diagnostics": { "W211": false },
+        });
+        backend.apply_global_config(&cfg).await;
+        assert!(!backend.feature_toggles.lock().await.is_enabled("hover"));
+        assert!(
+            backend
+                .feature_toggles
+                .lock()
+                .await
+                .is_enabled("xcDiagnostics"),
+            "xcDiagnostics section flag should map onto the toggle",
+        );
+        assert!(!*backend.optimiser_enabled.lock().await);
+        assert_eq!(
+            backend.optimiser_code_overrides.lock().await.get("O100"),
+            Some(&false),
+            "optimiser.O100=false should record a force-disable override",
+        );
+        assert_eq!(*backend.line_length.lock().await, 120);
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
+        assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_ignores_non_object() {
+        // A non-object config (e.g. a `null` from an editor with no settings)
+        // is a no-op — the defaults survive.
+        let backend = test_backend();
+        backend.apply_global_config(&serde_json::Value::Null).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl8.6");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
