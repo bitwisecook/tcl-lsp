@@ -43,10 +43,13 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
         }
         let mut j = i + 1;
         let Some(mut spec) = parse_spec(bytes, &mut j) else {
-            // Unmodelled spec — emit the `%` literally.
-            out.push('%');
-            i += 1;
-            continue;
+            // A `%` that is not `%%` always begins a conversion — Tcl has no
+            // literal lone `%`. An incomplete one (`%`, `%5`, a trailing `%`)
+            // has no verb to consume an argument, which Tcl reports as
+            // "not enough arguments".
+            return Err(CmdError::new(
+                "not enough arguments for all format specifiers",
+            ));
         };
         if spec.verb != b'%' {
             // `*` width / `.*` precision take their value from a preceding
@@ -64,7 +67,16 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
                 // A negative `.*` precision is treated as omitted (C).
                 spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_FIELD));
             }
-            let arg = next_arg(args, &mut ai)?;
+            // A positional `%n$` selector draws from `args[n-1]` (1-based)
+            // without advancing the sequential cursor; the ordinary form takes
+            // the next argument.
+            let arg = match spec.arg_index {
+                Some(n) => n
+                    .checked_sub(1)
+                    .and_then(|idx| args.get(idx))
+                    .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
+                None => next_arg(args, &mut ai)?,
+            };
             out.push_str(&render_spec(ops, &spec, arg)?);
         }
         i = j;
@@ -97,11 +109,15 @@ fn render_spec<O: ValueOps>(ops: &mut O, spec: &Spec, arg: &O::Value) -> Result<
     match verb {
         b'd' | b'i' | b'u' => {
             let n = ops.as_int(arg)?;
-            Ok(pad_number(
-                &int_digits(n, spec),
-                n < 0 && verb != b'u',
-                spec,
-            ))
+            let mut digits = int_digits(n, spec);
+            // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
+            // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
+            // no prefix. The sign and width are applied around it by
+            // `pad_number`, so `%#d -42` → `-0d42`.
+            if spec.flags.contains(FmtFlags::HASH) && matches!(verb, b'd' | b'i') && n != 0 {
+                digits.insert_str(0, "0d");
+            }
+            Ok(pad_number(&digits, n < 0 && verb != b'u', spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
             let n = ops.as_int(arg)?;
@@ -167,8 +183,10 @@ fn based_digits(n: i64, spec: &Spec) -> String {
         ),
         b'o' => (
             format!("{u:o}"),
-            if spec.flags.contains(FmtFlags::HASH) {
-                "0"
+            // Tcl 9 `%#o` → `0o` radix prefix (8.6 used a bare leading `0`),
+            // dropped for zero (`%#o 0` → `0`).
+            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
+                "0o"
             } else {
                 ""
             },

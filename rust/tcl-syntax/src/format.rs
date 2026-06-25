@@ -51,6 +51,11 @@ pub struct Spec {
     pub width_star: bool,
     /// The precision is `.*` — taken from an argument at render time.
     pub precision_star: bool,
+    /// A 1-based positional argument selector (`%n$…`), if present: the
+    /// conversion draws its value from `args[n-1]` instead of the next
+    /// sequential argument (`format {%2$d-%1$d} 10 20` → `20-10`). `None` for
+    /// the ordinary sequential form.
+    pub arg_index: Option<usize>,
 }
 
 /// The outcome of parsing a width / `.precision` field.
@@ -65,6 +70,11 @@ enum Field {
 /// past the `%` and advancing `i` past the verb. Bails on `*` width / precision,
 /// an over-[`MAX_FIELD`] field, or a missing verb.
 pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
+    // Optional positional selector `n$` (1-based), right after the `%` and
+    // before any flags: `%2$d` draws from the 2nd argument. A digit run *not*
+    // followed by `$` is an ordinary width, so only commit when the `$` is
+    // present (otherwise leave `i` untouched for the width parse below).
+    let arg_index = parse_arg_index(fmt, i);
     let mut flags = FmtFlags::empty();
     loop {
         let bit = match fmt.get(*i) {
@@ -129,7 +139,29 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         verb,
         width_star,
         precision_star,
+        arg_index,
     })
+}
+
+/// Parse an optional positional selector `n$` (1-based) at `*i`. Advances `i`
+/// past `n$` and returns `Some(n)` only when a digit run is immediately
+/// followed by `$`; otherwise leaves `i` unchanged (the digits are a width).
+fn parse_arg_index(fmt: &[u8], i: &mut usize) -> Option<usize> {
+    let mut j = *i;
+    let mut n = 0usize;
+    while let Some(&d) = fmt.get(j) {
+        if !d.is_ascii_digit() {
+            break;
+        }
+        n = n.checked_mul(10)?.checked_add(usize::from(d - b'0'))?;
+        j += 1;
+    }
+    if j > *i && fmt.get(j) == Some(&b'$') {
+        *i = j + 1;
+        Some(n)
+    } else {
+        None
+    }
 }
 
 /// Parse a run of decimal digits as a width / precision field, advancing `i`.

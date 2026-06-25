@@ -185,8 +185,11 @@ fn scan_integer(chars: &[char], bounded: bool) -> (bool, i64) {
     let has_digits = digits_end > digits_start;
     if !has_digits || i != n {
         // No number at all ⇒ the failure is at the start; otherwise it is the
-        // first character past the valid digits.
-        return (false, if has_digits { ci(digits_end.min(n)) } else { 0 });
+        // first *non-whitespace* character past the digits. Trailing whitespace
+        // is allowed (`"12 "` is a valid integer), so the failure index is `i`
+        // — advanced past that whitespace — not `digits_end`: `"12 x"` fails at
+        // the `x` (index 3), not the interior space (index 2).
+        return (false, if has_digits { ci(i.min(n)) } else { 0 });
     }
     if bounded {
         let digit_str: String = chars[digits_start..digits_end].iter().collect();
