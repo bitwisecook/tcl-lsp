@@ -173,10 +173,36 @@ fn based_digits(n: i64, spec: &Spec) -> String {
                 ""
             },
         ),
-        _ => (format!("{u:b}"), ""),
+        _ => (
+            format!("{u:b}"),
+            // `%#b` → `0b` prefix (Tcl 8.6 and 9.0 both emit it; format-1.x).
+            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
+                "0b"
+            } else {
+                ""
+            },
+        ),
     };
     body = apply_precision(body, spec);
     format!("{prefix}{body}")
+}
+
+/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`F`/`g`/`G`).
+fn is_float_verb(verb: u8) -> bool {
+    matches!(verb, b'e' | b'E' | b'f' | b'F' | b'g' | b'G')
+}
+
+/// Re-render a Rust exponent (`1.5e4` / `1.5e-4`) in C/Tcl style with an
+/// explicit sign and at least two exponent digits (`1.5e+04` / `1.5e-04`).
+fn c_style_exp(rust_e: &str) -> String {
+    let Some(pos) = rust_e.find(['e', 'E']) else {
+        return rust_e.to_string();
+    };
+    let e_char = &rust_e[pos..=pos];
+    let mantissa = &rust_e[..pos];
+    let exp: i32 = rust_e[pos + 1..].parse().unwrap_or(0);
+    let sign = if exp < 0 { '-' } else { '+' };
+    format!("{mantissa}{e_char}{sign}{:02}", exp.abs())
 }
 
 /// Magnitude digits for a float verb (sign handled by `pad_number`).
@@ -184,19 +210,54 @@ fn float_digits(x: f64, spec: &Spec) -> String {
     let prec = spec.precision.unwrap_or(6);
     let m = x.abs();
     match spec.verb {
-        b'f' => format!("{m:.prec$}"),
-        b'e' => format!("{m:.prec$e}"),
-        b'E' => format!("{m:.prec$E}"),
-        // g/G: approximate with bounded precision, trimming trailing zeros.
+        b'f' | b'F' => format!("{m:.prec$}"),
+        b'e' => c_style_exp(&format!("{m:.prec$e}")),
+        b'E' => c_style_exp(&format!("{m:.prec$E}")),
+        // g/G (C semantics): precision P (0 → 1) is the number of significant
+        // digits. Using the decimal exponent X (from an %e render at P-1
+        // fractional digits), pick %e when X < -4 or X >= P, else %f with
+        // P-1-X fractional digits; then strip trailing zeros / a bare `.`
+        // (unless the `#` alternate form keeps them).
         _ => {
-            let s = format!("{m:.prec$}");
-            if s.contains('.') {
-                s.trim_end_matches('0').trim_end_matches('.').to_string()
+            let p = prec.max(1);
+            let upper = spec.verb == b'G';
+            let probe = format!("{m:.*e}", p - 1);
+            let exp: i32 = probe
+                .find('e')
+                .and_then(|i| probe[i + 1..].parse().ok())
+                .unwrap_or(0);
+            let keep_zeros = spec.flags.contains(FmtFlags::HASH);
+            if exp < -4 || exp >= i32::try_from(p).unwrap_or(i32::MAX) {
+                let body = c_style_exp(&format!("{m:.*e}", p - 1));
+                let out = if keep_zeros { body } else { trim_g_exp(&body) };
+                if upper { out.replace('e', "E") } else { out }
             } else {
-                s
+                let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
+                let body = format!("{m:.*}", fprec);
+                if keep_zeros || !body.contains('.') {
+                    body
+                } else {
+                    body.trim_end_matches('0').trim_end_matches('.').to_string()
+                }
             }
         }
     }
+}
+
+/// Trim trailing mantissa zeros (and a bare `.`) from a C-style `%e` body
+/// without disturbing the exponent: `1.20000e+06` → `1.2e+06`,
+/// `1.00000e+06` → `1e+06`.
+fn trim_g_exp(body: &str) -> String {
+    let Some(epos) = body.find(['e', 'E']) else {
+        return body.to_string();
+    };
+    let (mantissa, exp) = body.split_at(epos);
+    let trimmed = if mantissa.contains('.') {
+        mantissa.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        mantissa
+    };
+    format!("{trimmed}{exp}")
 }
 
 /// Left-pad `mag` with `0` up to `.precision` digits.
@@ -229,7 +290,12 @@ fn pad_number(body: &str, negative: bool, spec: &Spec) -> String {
     let pad = width - len;
     if spec.flags.contains(FmtFlags::MINUS) {
         format!("{sign}{body}{}", " ".repeat(pad))
-    } else if spec.flags.contains(FmtFlags::ZERO) && spec.precision.is_none() {
+    } else if spec.flags.contains(FmtFlags::ZERO)
+        && (spec.precision.is_none() || is_float_verb(spec.verb))
+    {
+        // C ignores the `0` flag with an explicit precision for *integer*
+        // conversions, but a float's precision is its fraction width, so `0`
+        // still pads (`%08.2f 3.14` → `00003.14`).
         format!("{sign}{}{body}", "0".repeat(pad))
     } else {
         format!("{}{sign}{body}", " ".repeat(pad))
