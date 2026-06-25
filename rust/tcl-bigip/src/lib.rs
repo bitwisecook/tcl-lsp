@@ -27,6 +27,7 @@ pub mod pcapng;
 pub mod policy_eval;
 pub mod range;
 pub mod redact;
+pub mod refs;
 pub mod rule_extract;
 pub mod secrets;
 pub mod stats;

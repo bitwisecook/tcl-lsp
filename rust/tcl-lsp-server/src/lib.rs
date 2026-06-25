@@ -3924,6 +3924,34 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // BIG-IP `.conf`/`.scf`: a reference is every identifier-bounded
+        // occurrence of the TMSH path token at the cursor (tcl-bigip::refs),
+        // a textual search the Tcl symbol analyser can't perform on a
+        // non-Tcl config. Same-document only — cross-file references await a
+        // workspace config index.
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let text = doc.text.clone();
+            let bigip_ranges = tokio::task::spawn_blocking(move || {
+                tcl_bigip::refs::references_at(&text, pos.line, pos.character, include_decl)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("bigip references worker panicked: {err}").into(),
+                data: None,
+            })?;
+            if bigip_ranges.is_empty() {
+                return Ok(None);
+            }
+            let locations = bigip_ranges
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_bigip_range(r),
+                })
+                .collect();
+            return Ok(Some(locations));
+        }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -5592,6 +5620,24 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
         end: Position {
             line: r.end_line,
             character: r.end_character,
+        },
+    }
+}
+
+/// Lift a [`tcl_bigip::Range`] (UTF-16 columns, **inclusive** end — the last
+/// covered code unit) to an LSP [`Range`] (exclusive end). BIG-IP object
+/// stanzas and reference spans are single-line tokens, so the exclusive end
+/// column is `end.character + 1` (the same convention
+/// [`lift_config_diagnostic`] uses for validator ranges).
+fn lift_bigip_range(r: tcl_bigip::Range) -> Range {
+    Range {
+        start: Position {
+            line: r.start.line,
+            character: r.start.character,
+        },
+        end: Position {
+            line: r.end.line,
+            character: r.end.character + 1,
         },
     }
 }
@@ -9448,6 +9494,37 @@ mod tests {
         assert_eq!(result.len(), 3, "{result:?}");
         assert!(result.iter().any(|l| l.uri == consumer));
         assert!(result.iter().filter(|l| l.uri == lib).count() == 2);
+    }
+
+    #[tokio::test]
+    async fn references_handler_bigip_conf_finds_path_occurrences() {
+        // A BIG-IP `.conf` document (dialect `f5-bigip`) routes references
+        // through the TMSH-path textual search, not the Tcl analyser.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "ltm pool /Common/p {\n}\nltm virtual /Common/v {\n    pool /Common/p\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                // On `/Common/p` in the virtual's `pool /Common/p` line.
+                position: Position::new(3, 9),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+        };
+        let result = backend.references(params).await.expect("ok").expect("some");
+        // Pool declaration (line 0) + the virtual's `pool /Common/p` (line 3).
+        assert_eq!(result.len(), 2, "{result:?}");
+        assert!(result.iter().all(|l| l.uri == uri));
+        let lines: Vec<u32> = result.iter().map(|l| l.range.start.line).collect();
+        assert!(lines.contains(&0) && lines.contains(&3), "{lines:?}");
     }
 
     #[tokio::test]
