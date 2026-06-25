@@ -965,10 +965,24 @@ fn docstring_actions(
         if !proc_def.doc.is_empty() {
             continue;
         }
-        let mut doc = String::from("# \n");
+        // Mirror Python `generate_stub` (DOXYGEN tag style): a
+        // `# @brief TODO: describe <proc>` header, then one `# @param`
+        // line per parameter — with a `- (default: <value>)` annotation
+        // for defaulted params and a `- Additional arguments` prose line
+        // for the `args` varargs sentinel.  No `@return` line (the stub
+        // never sets a return description).
+        let mut doc = format!("# @brief TODO: describe {}\n", proc_def.name);
         for p in &proc_def.params {
             doc.push_str("# @param ");
             doc.push_str(&p.name);
+            if p.name == "args" {
+                doc.push_str(" - Additional arguments");
+            } else if p.has_default {
+                let default = p.default_value.as_deref().unwrap_or("");
+                doc.push_str(" - (default: ");
+                doc.push_str(default);
+                doc.push(')');
+            }
             doc.push('\n');
         }
         out.push(CodeAction {

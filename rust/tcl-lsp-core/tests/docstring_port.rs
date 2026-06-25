@@ -34,11 +34,13 @@
 //!   * GENERATE — the "generate docstring stub" producer lives in
 //!     `tcl-lsp-core/src/code_actions.rs` as the PRIVATE
 //!     `docstring_actions`, reached through public `code_actions()`.
-//!     It emits a `# @param <name>` block (no `@brief TODO`, no default
-//!     annotations, no plain/decoration styling), so only the
-//!     param-list-skeleton and the skip-documented-proc behaviours of
-//!     `TestGenerateStub*` / `insert_docstring_stubs` map across.  The
-//!     richer stub/style features are recorded as `// GAP:`.
+//!     It emits a DOXYGEN-style block matching Python `generate_stub`: a
+//!     `# @brief TODO: describe <proc>` header, then `# @param <name>`
+//!     lines with `- (default: <value>)` for defaulted params and
+//!     `- Additional arguments` for the `args` varargs sentinel.  The
+//!     param-skeleton, the embellishments, and the skip-documented-proc
+//!     behaviours of `TestGenerateStub*` / `insert_docstring_stubs` map
+//!     across; the PLAIN tag-style and decoration options remain `// GAP:`.
 //!
 //! ## Proof split
 //!
@@ -418,16 +420,30 @@ fn generate_stub_text(source: &str, proc_name: &str) -> Option<String> {
 
 #[test]
 fn generate_stub_basic_emits_param_line() {
-    // TestGenerateStub::test_basic (param-skeleton portion) — a one-param
-    // proc generates a `# @param name` line.
+    // TestGenerateStub::test_basic — a one-param proc generates a
+    // `# @brief TODO: describe greet` header followed by a `# @param name`
+    // line (matching Python `generate_stub`'s DOXYGEN output).
     let src = "proc greet {name} { puts $name }\n";
     let stub = generate_stub_text(src, "greet").expect("a generate-docstring action");
+    assert!(
+        stub.contains("# @brief TODO: describe greet"),
+        "expected @brief header: {stub:?}",
+    );
     assert!(
         stub.contains("# @param name"),
         "expected param stub line: {stub:?}",
     );
+    // The brief header is emitted FIRST, before the param lines.
+    let ib = stub.find("@brief").unwrap();
+    let ip = stub.find("@param name").unwrap();
+    assert!(ib < ip, "brief precedes params: {stub:?}");
     // It is inserted as a leading comment block (starts with `# `).
     assert!(stub.starts_with("# "), "stub is a comment block: {stub:?}");
+    // A plain param (no default) carries no `-` description / annotation.
+    assert!(
+        !stub.contains("# @param name -"),
+        "plain param must not carry a dash-description: {stub:?}",
+    );
 }
 
 #[test]
@@ -460,18 +476,45 @@ fn generate_stub_one_param_line_per_param() {
 
 #[test]
 fn generate_stub_param_named_args_is_included() {
-    // TestGenerateStub::test_args_param — the Python stub gives `args` an
-    // "Additional arguments" description.  The Rust generator has no such
-    // special-case, but it DOES still emit the `args` parameter line
-    // (the skeleton is param-name-driven).  Assert the line is present.
+    // TestGenerateStub::test_args_param — the Python stub gives the `args`
+    // varargs sentinel an "Additional arguments" description.  The Rust
+    // generator now mirrors this: `# @param args - Additional arguments`.
     let src = "proc variadic {args} { puts $args }\n";
     let stub = generate_stub_text(src, "variadic").expect("a generate action");
-    assert!(stub.contains("# @param args"), "args param line: {stub:?}");
-    // GAP: no "Additional arguments" description text (Rust emits the
-    // bare param name only — see GAP block below).
     assert!(
-        !stub.contains("Additional arguments"),
-        "Rust stub carries no per-arg prose: {stub:?}",
+        stub.contains("# @param args - Additional arguments"),
+        "args param carries the prose description: {stub:?}",
+    );
+}
+
+#[test]
+fn generate_stub_defaulted_param_carries_default_annotation() {
+    // TestGenerateStub::test_with_defaults — a parameter with a default
+    // value gets a `- (default: <value>)` annotation on its `@param` line,
+    // matching Python `generate_stub`.
+    let src = "proc greet {name {greeting Hello}} { puts \"$greeting $name\" }\n";
+    let stub = generate_stub_text(src, "greet").expect("a generate action");
+    // The defaulted param shows its default value.
+    assert!(
+        stub.contains("# @param greeting - (default: Hello)"),
+        "defaulted param carries `(default: …)`: {stub:?}",
+    );
+    // The non-defaulted param stays bare (no annotation).
+    assert!(
+        stub.contains("# @param name") && !stub.contains("# @param name -"),
+        "non-defaulted param stays bare: {stub:?}",
+    );
+}
+
+#[test]
+fn generate_stub_emits_no_return_line() {
+    // The Python stub never sets a return description, so `generate_stub`
+    // emits no `# @return` line.  Pin that the Rust generator matches.
+    let src = "proc add {a b} { expr {$a + $b} }\n";
+    let stub = generate_stub_text(src, "add").expect("a generate action");
+    assert!(
+        !stub.contains("@return"),
+        "stub must not emit a @return line: {stub:?}",
     );
 }
 
@@ -562,15 +605,13 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
 //   plain style, no decoration, no indent), so the styled comment-block
 //   renderer is UNREACHABLE through the public API.
 //
-// GAP: TestGenerateStub richer features — `# @brief TODO: describe <proc>`
-//   header, `(default: <value>)` annotations for defaulted params,
-//   "Additional arguments" prose for `args`, PLAIN tag-style
-//   (`# Arguments:` / `#   x`), and the decoration option.  The Rust
-//   `docstring_actions` emits only `# ` + `# @param <name>` lines, so
-//   none of these are reachable.  Docstring GENERATION is therefore only
-//   PARTIALLY reachable: the param-name skeleton and the
-//   documented-proc skip are testable (above); the brief/default/style/
-//   decoration embellishments are not.
+// GAP: TestGenerateStub PLAIN tag-style (`# Arguments:` / `#   x`) and the
+//   decoration option.  The Rust `docstring_actions` emits a fixed
+//   DOXYGEN-style block, so the plain-style and decoration variants are
+//   not reachable.  The DOXYGEN embellishments themselves are now ported
+//   and tested above: `# @brief TODO: describe <proc>` header,
+//   `- (default: <value>)` annotations for defaulted params, and the
+//   `- Additional arguments` prose for the `args` varargs sentinel.
 //
 // GAP: TestDocstringInfoDict (`DocstringInfo.to_dict`) — there is no
 //   public `DocstringInfo` value type in Rust; the parser's intermediate
