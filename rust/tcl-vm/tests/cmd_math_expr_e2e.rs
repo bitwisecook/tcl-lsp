@@ -2,8 +2,10 @@
 //! and `::tcl::mathop::*` operator commands — each compiled as real Tcl via
 //! `tcl-compiler` and run through `tcl-vm`. Expected outputs are taken from real
 //! `tclsh` (8.6 and 9.0); each non-obvious assertion cites a `// tclsh:` comment.
-//! Where the VM diverges from `tclsh` on valid input, the test is marked
-//! `// BUG:` and asserts the tclsh-correct behaviour (left failing).
+//!
+//! The `bug_*` tests document former VM-vs-tclsh divergences on valid input:
+//! each asserts the *correct* tclsh behaviour and now passes, guarding the fix
+//! against regression.
 //!
 //! Targets: `tcl-vm/src/cmd_math.rs`, `expr.rs`, `cmd_mathop.rs`.
 //!

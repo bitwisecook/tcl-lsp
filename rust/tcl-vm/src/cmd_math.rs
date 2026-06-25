@@ -159,8 +159,14 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
+    // Compute the magnitude in `i128` so the most-negative wide doesn't wrap:
+    // `abs(-9223372036854775808)` is `2^63`, which has no `i64` but is the
+    // bignum tclsh returns (rendered as a decimal string by `int_value`).
     if let Ok(n) = x.as_int() {
-        return ok(Value::int(n.wrapping_abs()));
+        return ok(crate::expr::int_value(i128::from(n).abs()));
+    }
+    if let Some(b) = x.as_i128() {
+        return ok(crate::expr::int_value(b.saturating_abs()));
     }
     match num_arg(x) {
         Ok(f) => ok(Value::double(f.abs())),
