@@ -2040,14 +2040,11 @@ mod t100_sink_suppression {
     fn exec_with_shell_atom_suppressed() {
         // f5-dialect: IP::client_addr → IP_ADDRESS augments to SHELL_ATOM, which
         // in Python suppresses T100 for `exec` (a shell atom can't word-split).
-        let _source = "set addr [IP::client_addr]\nexec ping $addr";
-        // BUG (root cause #3 — `taint_sink_safe_colour` unwired): the registry
-        // declares `taint_sink_safe_colour(exec) == SHELL_ATOM` (see
-        // tcl-registry `sink_safe_colours_are_populated`), but
-        // `tcl_compiler::taint` never reads it — `emit_sink_warnings` has no
-        // SHELL_ATOM carve-out for T100 — so `exec`/`uplevel` are not
-        // suppressed by their sink-safe colour and T100 wrongly FIRES here.
-        // assert!(of_code(_source, IR, "T100").is_empty());
+        let source = "set addr [IP::client_addr]\nexec ping $addr";
+        // FIXED: emit_sink_warnings now consults the registry's
+        // taint_sink_safe_colour — exec's SHELL_ATOM (augmented from IP_ADDRESS)
+        // suppresses T100 (an IP atom can't word-split an exec argument).
+        assert!(of_code(source, IR, "T100").is_empty());
     }
 
     #[test]
@@ -2119,12 +2116,10 @@ mod t100_sink_suppression {
     #[test]
     fn exec_with_port_suppressed() {
         // f5-dialect: PORT augments to SHELL_ATOM → Python suppresses exec T100.
-        let _source = "set port [TCP::client_port]\nexec firewall-cmd $port";
-        // BUG (root cause #3 — `taint_sink_safe_colour` unwired, see
-        // `exec_with_shell_atom_suppressed`): Rust ignores the registry's
-        // `taint_sink_safe_colour`, so the SHELL_ATOM PORT value does not
-        // suppress T100 on `exec` and it wrongly fires.
-        // assert!(of_code(_source, IR, "T100").is_empty());
+        let source = "set port [TCP::client_port]\nexec firewall-cmd $port";
+        // FIXED: exec's SHELL_ATOM safe colour (augmented from PORT) now
+        // suppresses T100.
+        assert!(of_code(source, IR, "T100").is_empty());
     }
 }
 

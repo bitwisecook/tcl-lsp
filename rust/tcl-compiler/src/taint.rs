@@ -2153,6 +2153,21 @@ fn emit_sink_warnings(
         if irules_sink_suppressed(code, t) {
             continue;
         }
+        // Registry-declared sink-safe colour (e.g. `exec` ← SHELL_ATOM): a
+        // tainted value carrying the sink's safe colour cannot break out of its
+        // dangerous slot — an IP/port atom can't word-split or inject shell
+        // metacharacters into an `exec` argument. LIST_CANONICAL (eval/uplevel)
+        // is excluded: its safety is position-dependent (the list *head* must be
+        // a literal known command), handled by `list_wrapped_arg_command_is_literal`
+        // below — a blanket check would wrongly clear `eval [list $raw]`, where
+        // the tainted value is the command word.
+        if let Some(safe) = tcl_registry::taint::taint_sink_safe_colour(call.registry, call.command)
+        {
+            let safe = reg_colour(safe);
+            if safe != TaintColour::LIST_CANONICAL && t.colours.contains(safe) {
+                continue;
+            }
+        }
         if code == DiagCode::Irule3002
             && irule3002_name_position_safe(call.command, call.args, name, t)
         {
