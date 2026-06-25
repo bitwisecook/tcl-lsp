@@ -1433,23 +1433,19 @@ mod sanitiser_breadth {
         // directly and treats every `$var` syntactically present in the sink
         // argument as flowing in — even one consumed by an embedded sanitiser.
         //
-        // BUG: `puts [string length $x]` wrongly fires T101 on `$x` (false
-        // positive — output is the integer length, not the tainted content). The
-        // embedded-sanitiser carve-out that the `expr`/T100-operand path has is
-        // missing from the `emit_sink_warnings` (T101/output) path. See the
-        // final-report repro. Asserting the (correct) clean expectation is
-        // disabled so the rest of the suite stays green:
-        //
-        //   assert!(codes("set x [read $fd]\nputs [string length $x]", D).is_empty());
-        //
-        // What the analyser does today (the false positive) — pinned so this test
-        // still exercises the path and flips loudly if the bug is fixed:
-        assert!(has(
+        // FIXED: `emit_sink_warnings` now applies the embedded-sanitiser
+        // carve-out (mirroring the expr/word_taint path), so the sanitiser-
+        // consumed `$x` no longer false-fires T101.
+        assert!(!has(
             "set x [read $fd]\nputs [string length $x]",
             D,
             "T101",
             "x"
         ));
+        // Control: a bare tainted value in the same sink still fires — the
+        // carve-out is targeted (only vars fully consumed by a sanitiser), not
+        // a blanket suppression.
+        assert!(has("set x [read $fd]\nputs $x", D, "T101", "x"));
     }
 }
 
