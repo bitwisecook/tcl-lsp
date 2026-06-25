@@ -73,6 +73,15 @@ impl GraphContext {
             irules_registry,
         }
     }
+
+    /// The iRules-dialect command registry, for callers that walk rule
+    /// bodies with [`extract_irules_object_references`] (e.g. the
+    /// document-links provider) and want to reuse this context's registry
+    /// rather than rebuild one.
+    #[must_use]
+    pub fn irules_registry(&self) -> &tcl_registry::CommandRegistry {
+        &self.irules_registry
+    }
 }
 
 impl Default for GraphContext {
@@ -365,7 +374,7 @@ fn is_candidate_reference(token: &str) -> bool {
 
 /// Normalise a reference token for `kind`: strips delimiters, and for
 /// node/virtual-address kinds drops a trailing `:port` suffix.
-fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
+pub(crate) fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
     let mut reference = token.trim_matches(REF_STRIP).to_owned();
     let is_addr_kind = matches!(
         kind,
@@ -629,7 +638,7 @@ pub fn build_bigip_object_graph(
 
 /// Enumerate `(target_kind, target_path)` references for a migrated property,
 /// or `None` when the property isn't in the pilot table.
-fn pilot_references(
+pub(crate) fn pilot_references(
     module: &str,
     object_type: &str,
     property: &str,

@@ -19,6 +19,7 @@ pub mod grep;
 pub mod irule_context;
 pub mod jsonfmt;
 pub mod lint;
+pub mod links;
 pub mod model;
 pub mod parser;
 pub mod pcap_enrich;
