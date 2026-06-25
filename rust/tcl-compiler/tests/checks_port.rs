@@ -34,8 +34,8 @@
 //!   canonical "always brace your expr" footgun (`expr {$x + 1}` is safe).
 //! - `W210` (the catch-body case): `if {![catch {set x 1}]} {puts $x}` prints
 //!   `1` in tclsh — the catch *body* defines `x`, so the read is safe (see the
-//!   `catch_body_defs_rust_bug` module — a residual Rust false positive,
-//!   documented there + in the report).
+//!   `catch_body_defs_no_false_w210` module — the former false positive is now
+//!   fixed; the recovery scans catch bodies and branch conditions).
 //!
 //! Pure static heuristics with no direct runtime analogue (path-concatenation
 //! style `W201`, string-vs-list `W104`, `ReDoS` `W303`, credential-scan `W310`,
@@ -52,10 +52,12 @@
 //!   (`" ?opt?..."`) that Python suppresses — Rust's heuristic is coarser.
 //! - `W307` fires on `$cmd` iterating a `foreach` over *known* commands that
 //!   Python suppresses (no "known-command-list" provenance on this surface).
-//! - `W210` false-fires when a `catch {set x …}` body defines the variable
-//!   read in the surrounding `if` body (a genuine Rust bug; see report).
-//! - `W210` is *suppressed* when a proc `unset`s a global later read at top
-//!   level, where tclsh would error `can't read` — a missed warning (report).
+//! - `W210` no longer false-fires when a `catch {set x …}` body defines the
+//!   variable read in the surrounding `if` body (fixed: catch-body + branch-
+//!   condition out-var recovery).
+//! - `W210` now fires when a proc `unset`s (and never sets) a global later read
+//!   at top level, where tclsh errors `can't read` (fixed: `unset` excluded
+//!   from the proc global-write set).
 //! - `W308` is the *`TclOO` unknown-method* code in Rust; Python additionally
 //!   reused `W308` for a `subst`-without-`-nocommands` hint that has no Rust
 //!   analogue (those cases are out-of-surface; the `TclOO` `W308` cases are ported).
@@ -2149,26 +2151,29 @@ mod read_before_set_correct {
 }
 
 // ===========================================================================
-// W210 — catch-body false positive (GENUINE RUST BUG, see port report).
+// W210 — catch-body variable definitions suppress the false positive (FIXED).
 //
 // tclsh ground truth (8.6 + 9.0): `if {![catch {set x 1}]} { puts $x }` prints
 // `1` — the catch *body* defines `x`, so the read in the if-body is safe and
-// W210 must NOT fire. The Rust analyser recognises the `[catch {…} err]`
-// *result-message* var (FP-RBS-02) but NOT a body-`set` of an *other* variable
-// read in the surrounding block, so it false-fires W210. Per the brief, the
-// behaviour is pinned to the actual (buggy) Rust verdict here rather than left
-// as a failing test; the bug is reported separately.
+// W210 must NOT fire. The Rust analyser previously recognised the
+// `[catch {…} err]` *result-message* var (FP-RBS-02) but not a body-`set` of
+// an *other* variable read after the catch, so it false-fired W210. The
+// command-substitution out-var recovery now also scans the catch body, and
+// the read-before-set suppression scans branch conditions (not just
+// `set x [expr …]` assignments), so these guard-safe reads are no longer
+// flagged.
 // ===========================================================================
-mod catch_body_defs_rust_bug {
+mod catch_body_defs_no_false_w210 {
     use super::*;
 
     #[test]
-    fn catch_body_set_false_fires_w210_rust_bug() {
-        // BUG: tclsh proves `$x` is set (prints 1); W210 should be 0. Rust = 1.
-        assert_eq!(count("if {![catch {set x 1}]} { puts $x }", D, "W210"), 1);
+    fn catch_body_set_does_not_fire_w210() {
+        // tclsh: the no-error branch ran the body to completion, so `$x` /
+        // `$line` is set; W210 must NOT fire.
+        assert_eq!(count("if {![catch {set x 1}]} { puts $x }", D, "W210"), 0);
         assert_eq!(
             count("if {![catch {gets stdin line}]} { puts $line }", D, "W210"),
-            1
+            0
         );
     }
 
