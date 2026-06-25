@@ -114,16 +114,20 @@ fn bind_handler_vars(
     opts: &Value,
 ) -> Result<(), Completion<Value>> {
     let names = vars.as_list().unwrap_or_default();
+    // `var_set`, not `set_var`: a handler variable written as an array element
+    // (`on error {x(y)}`) must resolve `x(y)` to the element — and fail if the
+    // base `x` is a scalar (`can't set "x(y)": variable isn't array`), which C's
+    // `handlerFailed` turns into the handler outcome, skipping the body.
     if let Some(rv) = names.first() {
         let n = rv.to_str();
         if !n.is_empty()
-            && let Err(e) = vm.set_var(&n, result.clone())
+            && let Err(e) = vm.var_set(&n, result.clone())
         {
             return Err(e);
         }
     }
     if let Some(ov) = names.get(1) {
-        vm.set_var(&ov.to_str(), opts.clone())?;
+        vm.var_set(&ov.to_str(), opts.clone())?;
     }
     Ok(())
 }

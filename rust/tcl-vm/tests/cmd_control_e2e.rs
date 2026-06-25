@@ -24,7 +24,13 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+// Compile the way the real VM runtime does (`tcl-vm-cli`): the bytecode lowering
+// turns constructs the backend can't compile correctly — a literal `try` with
+// handlers, nested complex `foreach`/`lmap` — into runtime-command barriers,
+// where the analysis-oriented `lower_to_ir` would instead emit `beginCatch`
+// exception ranges the VM does not implement. Using the analysis lowering here
+// would test bytecode the VM never actually runs.
+use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -334,22 +340,20 @@ fn throw_command() {
     assert_eq!(msg, "wrong # args: should be \"throw type message\"");
 }
 
-/// BUG (compiler codegen, surfaced via `try`): the LITERAL
-/// `try { body } on error {vars} { handler }` form does NOT route through
-/// `cmd_try`. The compiler emits the bytecode exception-range opcode
-/// (`beginCatch`) for it, which the VM does not implement, so the handler never
-/// runs and the body's error propagates unhandled. (Worse, a literal
-/// `try { ... } finally { ... }` aborts with a hard
-/// "opcode beginCatch4 not implemented in tcl-vm" VM error.)
+/// The LITERAL `try { body } on error {vars} { handler }` form must route
+/// through `cmd_try`. The analysis lowering emits the bytecode exception-range
+/// opcode (`beginCatch`) for it, which the VM does not implement; the *bytecode*
+/// lowering the real VM runtime uses (`lower_to_ir_for_bytecode`, mirrored by
+/// this file's `run`) instead drops it to a runtime-command barrier, so the
+/// handler runs. Previously this file compiled with the analysis lowering, so
+/// the literal form skipped the handler and propagated the body's error — and a
+/// literal `try { … } finally { … }` aborted with a hard
+/// "opcode beginCatch4 not implemented in tcl-vm" VM error.
 ///
 /// tclsh 8.6/9.0:  `try { error oops } on error {m o} { set m }`  ->  result "oops" (rc 0)
-/// tcl-vm (literal): (false, "oops")  — handler skipped, error propagated.
 ///
-/// The dynamic form (`set t try; $t ...`, exercised by every other test here)
-/// is correct, so the defect is the literal-form codegen, not `cmd_try` itself.
-/// This asserts the CORRECT tclsh behaviour and is expected to FAIL until the
-/// compiler lowers literal `try` to the runtime CALL (or the VM implements
-/// `beginCatch`).
+/// The dynamic form (`set t try; $t ...`) was always correct, confirming the
+/// defect was the harness's lowering choice, not `cmd_try` itself.
 #[test]
 fn try_literal_form_on_error_handler() {
     // tclsh: `oops` (the handler runs and returns the body's message)
@@ -1156,7 +1160,8 @@ fn control_runtime_condition_parse_error() {
     );
 }
 
-// Documented VM-vs-tclsh divergences (BUG tests — expected to FAIL).
+// Former VM-vs-tclsh divergences: each now asserts the correct tclsh behaviour
+// and passes, guarding the fix against regression.
 // ===========================================================================
 
 /// BUG (Vm::set_var, surfaced via cmd_try's `bind_handler_vars`): binding a
@@ -1169,10 +1174,9 @@ fn control_runtime_condition_parse_error() {
 /// bind silently succeeds and the handler body runs.
 ///
 /// tclsh 8.6/9.0:  result is the error `can't set "x(y)": variable isn't array`.
-/// tcl-vm:         (true, "ran")  — the bind is ignored and the body runs.
 ///
-/// Asserts the CORRECT tclsh behaviour; expected to FAIL until `Vm::set_var`
-/// (or `bind_handler_vars`) enforces the scalar-vs-array check.
+/// Fixed: `bind_handler_vars` now writes through `Vm::var_set`, which resolves
+/// `x(y)` to the array element and fails on a scalar base (guards regression).
 #[test]
 fn try_handler_var_bind_array_on_scalar_should_fail() {
     let (ok, msg, _) = run("set t try; set x 1; $t { error e } on error {x(y)} { set r ran }");
