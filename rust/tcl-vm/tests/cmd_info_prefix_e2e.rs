@@ -5,7 +5,8 @@
 //! `info tclversion` == 9.0 / `info patchlevel` == 9.0.3, so tclsh9.0 is the
 //! primary oracle; where the two C versions agree the comment says "both".
 //!
-//! Divergences from C Tcl on valid input are marked `// BUG:` and left failing.
+//! Former divergences from C Tcl on valid input (`*_bug` tests) now assert the
+//! correct tclsh behaviour and pass, guarding the fix against regression.
 //! Features the VM genuinely stubs (accepted no-op / "unknown subcommand"
 //! where tclsh does real work) are marked `// UNIMPLEMENTED:` and asserted
 //! against the VM's actual (documented) behaviour, not tclsh's.
@@ -535,14 +536,10 @@ fn namespace_which_command() {
     assert_eq!(run("namespace which set").1, "::set");
 }
 
-/// `namespace which -variable name` — tclsh resolves the variable's FQN. The VM
-/// ignores the `-variable` flag and resolves the *command* table instead, so it
-/// returns "" for a name that is a variable but not a command.
-/// BUG: script `namespace eval foo {variable v 1}; namespace which -variable ::foo::v`
-///   tclsh (both, correct): "::foo::v"
-///   VM (wrong):            ""   (the -variable flag is not honoured)
-/// Asserting the tclsh-correct value; this test is expected to FAIL until the
-/// VM implements variable resolution for `namespace which -variable`.
+/// `namespace which -variable name` — tclsh resolves the variable's FQN, and the
+/// VM now honours the `-variable` flag and resolves the variable table.
+///   script `namespace eval foo {variable v 1}; namespace which -variable ::foo::v`
+///   tclsh (both): "::foo::v" — matched by the VM (guards regression).
 #[test]
 fn namespace_which_variable_bug() {
     let (ok, res, _) = run("namespace eval foo {variable v 1}; namespace which -variable ::foo::v");
