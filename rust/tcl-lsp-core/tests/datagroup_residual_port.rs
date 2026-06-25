@@ -651,59 +651,51 @@ fn or_chain_mixed_vars_declines() {
 }
 
 #[test]
-fn switch_default_mismatched_var_falls_back_to_raw_default_body() {
+fn switch_default_mismatched_var_declines_rather_than_emitting_lossy_edit() {
     // The default IS a `set` but to a *different* variable than the mapping
-    // target → `extract_single_value`'s `var == target_var` guard fails (the
-    // `_ => None` arm), so the code falls back to `strip_quotes(default)` —
-    // which strips only surrounding *double quotes*, NOT braces. The switch
-    // arm body arrives brace-wrapped (`{ set other zzz }`), so the else value
-    // is the raw braced body verbatim.
-    //
-    // NOTE (quality, not a hard bug): the produced else value `{ set other
-    // zzz }` is a brace-wrapped command, not a value, so the generated
-    // `set h { set other zzz }` assigns the literal string `set other zzz`
-    // rather than evaluating it. The original `default { set other zzz }`
-    // *ran* the command. This is a lossy fallback for a non-value default,
-    // but the regular arms are still correctly mapped and the edit is
-    // well-formed Tcl; we pin the observable output rather than assert the
-    // ideal.
+    // target → `extract_single_value`'s `var == target_var` guard fails. Such a
+    // default cannot be represented as the `else` *value* without changing
+    // semantics: `default { set other zzz }` would otherwise become
+    // `set h { set other zzz }`, assigning the literal string `set other zzz`
+    // instead of *running* the command the original default ran. A refactoring
+    // must preserve behaviour, so the extraction declines (returns `None`)
+    // rather than emit a lossy edit; the user keeps the original switch.
     let source = "switch -exact -- $m {\n    GET { set h hg }\n    POST { set h hp }\n    PUT { set h hu }\n    default { set other zzz }\n}";
-    let r = switch_dg(source, "hmap").expect("result");
-    let applied = r.apply(source);
-    assert!(applied.contains("if { [class match $m equals hmap] }"), "{applied}");
-    assert!(applied.contains("set h [class lookup $m hmap]"), "{applied}");
-    assert!(applied.contains("} else {"), "{applied}");
-    assert!(applied.contains("set h { set other zzz }"), "{applied}");
+    assert!(
+        switch_dg(source, "hmap").is_none(),
+        "a switch whose default maps a different variable must not be \
+         refactored to a data group (the default is not a value mapping)"
+    );
 }
 
 #[test]
-fn switch_default_return_form_mismatch_falls_back_to_raw_body() {
-    // Mapping uses `return`, but the default uses `set` → `extract_single_value`
-    // sees a `Set` while `use_return` is true → `_ => None` arm → fallback to
-    // the raw (brace-wrapped) default body in the else `return`.
+fn switch_default_return_form_mismatch_declines() {
+    // Mapping arms use `return`, but the default uses `set x q` → a form
+    // mismatch. The original default runs `set x q` (returning "q" with the
+    // side effect of setting x); that cannot be re-expressed as a single
+    // `return {value}` without losing the side effect or the dynamic result, so
+    // the extraction declines rather than emit `return { set x q }` (which would
+    // return the literal string "set x q").
     let source = "switch -exact -- $m {\n    GET { return hg }\n    POST { return hp }\n    PUT { return hu }\n    default { set x q }\n}";
-    let r = switch_dg(source, "hmap").expect("result");
-    let applied = r.apply(source);
-    assert!(applied.contains("return [class lookup $m hmap]"), "{applied}");
-    assert!(applied.contains("return { set x q }"), "{applied}");
+    assert!(
+        switch_dg(source, "hmap").is_none(),
+        "a return-mapping switch with a `set` default must not be refactored"
+    );
 }
 
 #[test]
-fn switch_default_quoted_value_is_dequoted_via_strip_quotes() {
-    // A default arm body that, after the segmenter unwraps its braces, is a
-    // bare double-quoted word reaches the `strip_quotes` fallback and IS
-    // dequoted (strip_quotes removes the `"`). Mapping arms use `set h …`;
-    // the default's brace-wrapped `"fallthrough"` strips to ` "fallthrough" `
-    // — strip_quotes only fires when the *trimmed* string starts and ends
-    // with `"`, so the surrounding braces (present on the switch body) block
-    // it and the braced form is kept. We assert the well-formed, observable
-    // result and that the regular arms mapped correctly.
+fn switch_default_bare_quoted_word_declines() {
+    // A default arm body that is a bare double-quoted word (`default
+    // { "fallthrough" }`) is not a value mapping: as a switch body it would
+    // *run* `"fallthrough"` as a command (which errors), so it is neither a
+    // `set h …` nor a `return …`. It cannot be represented as the `else` value
+    // without changing semantics, so the extraction declines rather than emit
+    // `set h { "fallthrough" }` (which would assign the literal string).
     let source = "switch -exact -- $m {\n    GET { set h hg }\n    POST { set h hp }\n    PUT { set h hu }\n    default { \"fallthrough\" }\n}";
-    let r = switch_dg(source, "hmap").expect("result");
-    let applied = r.apply(source);
-    assert!(applied.contains("set h [class lookup $m hmap]"), "{applied}");
-    assert!(applied.contains("} else {"), "{applied}");
-    assert!(applied.contains("set h { \"fallthrough\" }"), "{applied}");
+    assert!(
+        switch_dg(source, "hmap").is_none(),
+        "a non-value default (bare quoted word) must not be refactored"
+    );
 }
 
 #[test]
