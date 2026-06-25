@@ -165,16 +165,10 @@ mod taint_join {
         // (untainted is the join *identity*), so PATH_PREFIXED survives.
         let r = join(TAINTED | TaintColour::PATH_PREFIXED, UNTAINTED);
         assert!(r.is_tainted());
-        // BUG (Rust lattice join, root cause #1): Rust `TaintLattice::join`
-        // computes mitigations as `self.colours & other.colours`. When `other`
-        // is clean (empty colours), the intersection wipes PATH_PREFIXED —
-        // i.e. clean acts as an *annihilator* of mitigations instead of the
-        // join *identity* (bottom). Python preserves the colour here. Minimal
-        // repro: `(TAINTED|PATH_PREFIXED).join(empty)` keeps only TAINTED in
-        // Rust, but `taint_join(_PATH, _UNTAINTED) == _PATH` in Python.
-        // This also drives the interpolation false-positives (see
-        // `crlf_free::interpolation_without_crlf_preserves`).
-        // assert!(r.colours.contains(TaintColour::PATH_PREFIXED));
+        // FIXED: clean is now the join identity (not a mitigation annihilator),
+        // so PATH_PREFIXED survives. Python `taint_join(_PATH, _UNTAINTED)`
+        // == `_PATH`.
+        assert!(r.colours.contains(TaintColour::PATH_PREFIXED));
     }
 
     #[test]
@@ -204,11 +198,9 @@ mod taint_join {
     fn fqdn_join_with_untainted() {
         let r = join(TAINTED | TaintColour::FQDN, UNTAINTED);
         assert!(r.is_tainted());
-        // BUG (Rust lattice join, root cause #1 — see
-        // `path_prefixed_join_with_untainted`): joining a coloured tainted
-        // value with clean (the join identity) drops the FQDN colour in Rust;
-        // Python's `taint_join(_FQDN, _UNTAINTED)` returns `_FQDN` unchanged.
-        // assert!(r.colours.contains(TaintColour::FQDN));
+        // FIXED: clean is the join identity, so FQDN survives.
+        // Python `taint_join(_FQDN, _UNTAINTED)` == `_FQDN`.
+        assert!(r.colours.contains(TaintColour::FQDN));
     }
 
     #[test]
@@ -254,11 +246,9 @@ mod lattice_join_new_colours {
     fn crlf_free_with_untainted() {
         let r = join(t(TaintColour::CRLF_FREE), TaintColour::empty());
         assert!(r.is_tainted());
-        // BUG (Rust lattice join, root cause #1 — see
-        // `taint_join::path_prefixed_join_with_untainted`): joining a tainted
-        // CRLF_FREE value with clean drops the colour in Rust; Python's
-        // `taint_join(_CRLF_FREE, _UNTAINTED)` returns `_CRLF_FREE` unchanged.
-        // assert!(r.colours.contains(TaintColour::CRLF_FREE));
+        // FIXED: clean is the join identity, so CRLF_FREE survives.
+        // Python `taint_join(_CRLF_FREE, _UNTAINTED)` == `_CRLF_FREE`.
+        assert!(r.colours.contains(TaintColour::CRLF_FREE));
     }
 
     #[test]
@@ -966,21 +956,18 @@ mod taint_colours {
     fn colour_kept_when_dynamic_leading_piece_is_path_prefixed() {
         // Python: `${uri}/suffix` keeps PATH_PREFIXED (the leading dynamic
         // piece is the path-prefixed uri), so T102 stays suppressed.
-        // BUG (root cause #1, the lattice-join annihilator — see
-        // `taint_join::path_prefixed_join_with_untainted`): Rust `word_taint`
-        // seeds the interpolation with `clean()` and the first join drops
-        // PATH_PREFIXED, so the T102_SAFE colour is gone and T102 wrongly
-        // FIRES on `$z`. (A *pure copy* `set x $uri` keeps the colour — see
-        // `t102_suppression::path_prefixed_copy_suppresses`, which passes —
-        // only the interpolation path is affected.)
-        // assert!(
-        //     of_code(
-        //         "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",
-        //         D,
-        //         "T102",
-        //     )
-        //     .is_empty()
-        // );
+        // FIXED (lattice-join identity): `word_taint` seeds the interpolation
+        // with `clean()` and folds `join` over each piece; with clean now the
+        // join identity (not an annihilator) the first join keeps PATH_PREFIXED,
+        // so the T102_SAFE colour survives and T102 stays suppressed on `$z`.
+        assert!(
+            of_code(
+                "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",
+                D,
+                "T102",
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -1259,38 +1246,35 @@ mod crlf_free {
     fn crlf_free_survives_safe_concat() {
         // Python: CRLF_FREE from an IP addr survives safe prefix/suffix
         // interpolation, so IRULE3003 stays suppressed.
-        // BUG (root cause #1 — the lattice-join annihilator, see
-        // `taint_join::path_prefixed_join_with_untainted`): Rust `word_taint`
-        // seeds the interpolated value with `TaintLattice::clean()` then
-        // joins each `$var`; the first `clean().join(addr)` wipes CRLF_FREE
-        // (clean is treated as a colour annihilator), so IRULE3003 wrongly
-        // FIRES on `$msg`. Direct `log local0. $addr` (no interpolation) is
-        // correctly suppressed (see `ip_client_addr_augments_crlf_free`).
-        // assert!(
-        //     of_code(
-        //         "set addr [IP::client_addr]\nset msg \"src=${addr}:80\"\nlog local0. $msg",
-        //         IR,
-        //         "IRULE3003",
-        //     )
-        //     .is_empty()
-        // );
+        // FIXED (lattice-join identity): `word_taint` seeds the interpolated
+        // value with `clean()` then joins each `$var`; with clean now the join
+        // identity the first `clean().join(addr)` keeps CRLF_FREE, so IRULE3003
+        // stays suppressed on `$msg`.
+        assert!(
+            of_code(
+                "set addr [IP::client_addr]\nset msg \"src=${addr}:80\"\nlog local0. $msg",
+                IR,
+                "IRULE3003",
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn interpolation_without_crlf_preserves() {
         // Python: interpolation with no literal CR/LF preserves CRLF_FREE →
         // IRULE3003 suppressed.
-        // BUG (root cause #1, the lattice-join annihilator): Rust loses
-        // CRLF_FREE through the interpolation `"client:${addr}"` (clean-seed
-        // join), so IRULE3003 wrongly fires. See `crlf_free_survives_safe_concat`.
-        // assert!(
-        //     of_code(
-        //         "set addr [IP::client_addr]\nset x \"client:${addr}\"\nlog local0. $x",
-        //         IR,
-        //         "IRULE3003",
-        //     )
-        //     .is_empty()
-        // );
+        // FIXED (lattice-join identity): CRLF_FREE now survives the
+        // interpolation `"client:${addr}"` (clean is the join identity), so
+        // IRULE3003 stays suppressed.
+        assert!(
+            of_code(
+                "set addr [IP::client_addr]\nset x \"client:${addr}\"\nlog local0. $x",
+                IR,
+                "IRULE3003",
+            )
+            .is_empty()
+        );
     }
 }
 
@@ -1789,18 +1773,17 @@ mod non_dash_prefixed_interpolation {
 
     #[test]
     fn dynamic_leading_piece_inherits_original() {
-        // BUG (root cause #1, the lattice-join annihilator — see
-        // `taint_colours::colour_kept_when_dynamic_leading_piece_is_path_prefixed`):
-        // `${uri}/suffix` should inherit PATH_PREFIXED and suppress T102, but
-        // Rust's clean-seed interpolation join drops the colour and T102 fires.
-        // assert!(
-        //     of_code(
-        //         "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",
-        //         D,
-        //         "T102",
-        //     )
-        //     .is_empty()
-        // );
+        // FIXED (lattice-join identity): `${uri}/suffix` inherits PATH_PREFIXED
+        // and suppresses T102 — clean is the join identity, so the interpolation
+        // no longer drops the colour.
+        assert!(
+            of_code(
+                "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",
+                D,
+                "T102",
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -1944,11 +1927,10 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn crlf_free_preserved_without_literal_crlf() {
-        let _source = "set addr [IP::client_addr]\nset msg \"client:${addr}\"\nlog local0. $msg";
-        // BUG (root cause #1, the lattice-join annihilator — see
-        // `crlf_free::crlf_free_survives_safe_concat`): Rust drops CRLF_FREE
-        // through interpolation, so IRULE3003 wrongly fires.
-        // assert!(of_code(_source, IR, "IRULE3003").is_empty());
+        let source = "set addr [IP::client_addr]\nset msg \"client:${addr}\"\nlog local0. $msg";
+        // FIXED (lattice-join identity): CRLF_FREE survives the interpolation, so
+        // IRULE3003 stays suppressed.
+        assert!(of_code(source, IR, "IRULE3003").is_empty());
     }
 }
 
