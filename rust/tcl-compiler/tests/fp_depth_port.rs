@@ -1083,7 +1083,7 @@ mod obj_depth {
 }
 
 // ===========================================================================
-// BUG ISOLATION — `dict update` key-present value-var false positive.
+// `dict update` key-present value-var suppression (regression: was a W210 FP).
 //
 // `dict update dictVar key var ?key var ...? body` binds each `var` to the
 // dict's value for the matching `key` for the duration of `body`. When the key
@@ -1094,19 +1094,13 @@ mod obj_depth {
 //   set d {};    dict update d k v {}; info exists v   →  0   (genuinely unset)
 //
 // The analyser's key-aware suppression harvester
-// (`helpers.rs::harvest_dict_with_suppression`) records the dict KEYS into
-// `dict_with_known_keys` for both `dict with` AND `dict update`, but for
-// `dict update` the local that actually gets bound is the *value-var* (`v`),
-// NOT the key (`k`). The harvester never maps update's key→value-var pairs, so
-// `$v` is treated as read-before-set even when the key is provably present.
-//
-// Result: a genuine FALSE POSITIVE — W210 fires on a `dict update` value-var
-// read that tclsh proves is always defined. The analogous `dict with` form is
-// correctly silent (see helpers_depth::dict_with_known_key_body_read_suppressed),
-// which isolates the gap to the `dict update` value-var path.
-//
-// Per the BUG policy, the ONE minimal repro is commented out (not #[ignore]'d,
-// not worked around in source). Reported in the final message.
+// (`helpers.rs::harvest_dict_with_suppression`) previously recorded only the
+// dict KEYS for both `dict with` AND `dict update`, but for `dict update` the
+// local that gets bound is the *value-var* (`v`), not the key (`k`). It now maps
+// update's key→value-var pairs (for provably-present keys) into the suppression
+// set, so a read of the bound value-var is no longer flagged read-before-set.
+// The empty-dict case still fires (key absent → value-var genuinely unset), and
+// the `dict with` analogue stays silent — the two controls below pin both ends.
 // ===========================================================================
 mod bug_dict_update_value_var {
     use super::*;
