@@ -46,7 +46,7 @@ fn num_i128(n: Num) -> Option<i128> {
 
 /// Wrap an `i128` arithmetic result as a value: a plain wide when it fits,
 /// otherwise the decimal string (the VM has no wider integer rep).
-fn int_value(r: i128) -> Value {
+pub(crate) fn int_value(r: i128) -> Value {
     i64::try_from(r).map_or_else(|_| Value::string(r.to_string()), Value::int)
 }
 
