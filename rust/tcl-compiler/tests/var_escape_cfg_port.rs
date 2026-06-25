@@ -258,9 +258,9 @@ fn cu_global_in_one_switch_arm_only() {
     assert_eq!(p.tag("ld"), EscapeTag::Local);
 }
 
-// BUG: the CFG/CU path does not descend into a `catch {body}` body, so a
-// scope-crossing `upvar` inside `catch` is invisible to the flow-sensitive
-// walker. The CFG builder lowers `catch {upvar 1 cv v; set v 1}` to a plain
+// FIXED (was a bug): the CFG/CU path did not descend into a `catch {body}`
+// body, so a scope-crossing `upvar` inside `catch` was invisible to the
+// flow-sensitive walker. The CFG builder lowers `catch {upvar 1 cv v; set v 1}` to a plain
 // `Statement::Call { command: "catch", args: [" upvar 1 cv v ... " ] }` — the
 // body collapses to a brace-literal string argument, so `handle_call` only
 // records a (call-)fallback and never sees the inner `upvar`. The IR walk, by
@@ -282,18 +282,17 @@ fn cu_global_in_one_switch_arm_only() {
 //   proc leaf {} { catch { upvar 1 cv y; set y 9 } }
 //   proc host {} { set cv 1; leaf; return $cv }; host   -> 9
 // So treating host's `cv` as a private frame-elided slot would drop a write
-// that real Tcl makes visible — an unsound optimisation. The single CU-path
-// test below is commented out pending a fix to the CFG `catch`-body lowering
-// or the CU walker's `catch` handling; the IR-path catch coverage stays live.
-//
-// #[test]
-// fn cu_upvar_inside_catch_body_escapes() {
-//     let s = escape_cu("proc ::p {} { catch { upvar 1 cv v\n set v 1 } }");
-//     let p = summary(&s, "::p");
-//     assert!(p.is_frame("v"), "upvar alias inside catch is Frame");
-//     assert!(p.upvar_source_names.contains("cv"));
-//     assert!(p.frame_needed);
-// }
+// that real Tcl makes visible. FIXED: the CU walker's `handle_call` now
+// descends into a literal `catch` body (mirroring its `eval` handling), so the
+// inner `upvar` is found and the CU path agrees with the IR path below.
+#[test]
+fn cu_upvar_inside_catch_body_escapes() {
+    let s = escape_cu("proc ::p {} { catch { upvar 1 cv v\n set v 1 } }");
+    let p = summary(&s, "::p");
+    assert!(p.is_frame("v"), "upvar alias inside catch is Frame");
+    assert!(p.upvar_source_names.contains("cv"));
+    assert!(p.frame_needed);
+}
 
 #[test]
 fn ir_upvar_inside_catch_body_escapes() {
