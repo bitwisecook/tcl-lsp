@@ -194,7 +194,7 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
             } else if y >= 128 {
                 0
             } else {
-                return Err(TclError::new("negative shift count"));
+                return Err(TclError::new("negative shift argument"));
             }
         }
         RShift => {
@@ -203,7 +203,7 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
             } else if y >= 128 {
                 if x < 0 { -1 } else { 0 }
             } else {
-                return Err(TclError::new("negative shift count"));
+                return Err(TclError::new("negative shift argument"));
             }
         }
         BitAnd => x & y,
