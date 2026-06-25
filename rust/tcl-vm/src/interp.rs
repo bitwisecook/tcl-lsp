@@ -215,6 +215,10 @@ pub struct Vm {
     /// a command can clone a handle and pass `&dyn Host` *alongside* a `&mut Vm`
     /// borrow (the VM is itself the `ValueOps` a shared helper takes).
     host: Rc<dyn Host>,
+    /// `expr rand()` / `srand()` state — the Park–Miller minimal-standard
+    /// generator's 31-bit seed (`tclExecute.c`). Seeded deterministically so a
+    /// fresh VM is reproducible; `srand(n)` resets it.
+    rand_seed: i64,
 }
 
 /// The command-identity arena backing `Namespaces::find_command` /
@@ -275,10 +279,37 @@ impl Vm {
             script_stack: Vec::new(),
             recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
+            // A fixed non-zero default so an un-`srand`'d `rand()` is still
+            // deterministic; Tcl auto-seeds from the clock, but reproducibility
+            // is more useful for the VM and every test seeds explicitly.
+            rand_seed: 1,
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
         vm
+    }
+
+    /// Reseed the `rand()` generator (`srand(n)`): mask to 31 bits, and nudge a
+    /// 0 / `2^31-1` seed off the generator's two fixed points (Tcl's
+    /// `srand`).
+    pub(crate) fn rand_seed_set(&mut self, value: i64) {
+        let mut s = value & 0x7fff_ffff;
+        if s == 0 || s == 2_147_483_647 {
+            s ^= 123_459_876;
+        }
+        self.rand_seed = s;
+    }
+
+    /// Advance the Park–Miller minimal-standard generator one step and return a
+    /// double in `[0, 1)` (`expr rand()`), using Schrage's overflow-safe form.
+    pub(crate) fn rand_next(&mut self) -> f64 {
+        const IA: i64 = 16807;
+        const IP: i64 = 2_147_483_647;
+        const IQ: i64 = 127_773;
+        const IR: i64 = 2_836;
+        let test = IA * (self.rand_seed % IQ) - IR * (self.rand_seed / IQ);
+        self.rand_seed = if test > 0 { test } else { test + IP };
+        self.rand_seed as f64 / IP as f64
     }
 
     /// Populate the predefined global variables a fresh interpreter exposes:

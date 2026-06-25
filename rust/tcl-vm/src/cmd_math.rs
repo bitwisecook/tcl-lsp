@@ -60,6 +60,8 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::bool", m_bool);
     vm.register("tcl::mathfunc::max", m_max);
     vm.register("tcl::mathfunc::min", m_min);
+    vm.register("tcl::mathfunc::srand", m_srand);
+    vm.register("tcl::mathfunc::rand", m_rand);
     // Trigonometric / transcendental — single `double` argument.
     vm.register("tcl::mathfunc::sin", |_, a| dom_fn(a, "sin", f64::sin));
     vm.register("tcl::mathfunc::cos", |_, a| dom_fn(a, "cos", f64::cos));
@@ -403,6 +405,36 @@ fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 fn m_min(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     min_max(args, "min", false)
+}
+
+/// `srand(seed)` — reseed the `expr rand()` generator and return its first draw.
+/// C (`ExprSrandFunc`) coerces the argument to a wide integer (falling back to
+/// truncating a double), installs it as the seed, then tail-calls `rand()`; so
+/// `srand` is deterministic and itself yields a number in `[0, 1)`.
+fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let x = match one(args, "srand") {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    let seed = if let Ok(n) = x.as_wide() {
+        n
+    } else {
+        match num_arg(x) {
+            Ok(f) => f.trunc() as i64,
+            Err(m) => return err(m),
+        }
+    };
+    vm.rand_seed_set(seed);
+    ok(Value::double(vm.rand_next()))
+}
+
+/// `rand()` — the next draw from the Park–Miller minimal-standard generator, a
+/// `double` in `[0, 1)`. Takes no arguments.
+fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("too many arguments for math function \"rand\"");
+    }
+    ok(Value::double(vm.rand_next()))
 }
 
 #[cfg(test)]
