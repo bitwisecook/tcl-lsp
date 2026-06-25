@@ -440,6 +440,13 @@ fn collect_expr_cmd_sub_writes(
                 out.extend(crate::ir_helpers::condition_command_out_vars(expr));
             }
         }
+        // A branch condition (`if {![catch {set x 1}]} …`) evaluates its command
+        // substitutions before either arm, so any variables they write — the
+        // catch result var *and* the catch body's assignments — are (maybe) set
+        // in the taken arm and must not look read-before-set.
+        if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
+            out.extend(crate::ir_helpers::condition_command_out_vars(condition));
+        }
     }
     out
 }

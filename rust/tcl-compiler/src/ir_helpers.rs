@@ -253,6 +253,13 @@ fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
             if let Some(w) = words.get(3) {
                 push_out_var(w, out);
             }
+            // The SCRIPT body (words[1]) runs in the current scope, so variables
+            // it assigns are (maybe) set once the catch completes — e.g.
+            // `if {![catch {set x 1}]} { puts $x }` (tclsh prints 1, so the read
+            // is safe). Recover the body's writes too.
+            if let Some(body) = words.get(1) {
+                catch_body_out_vars(body, out);
+            }
         }
         // `scan STRING FORMAT ?varName ...?`
         Some("scan") => {
@@ -288,6 +295,34 @@ fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
             }
         }
         _ => {}
+    }
+}
+
+/// Out-vars assigned by the *body* of a `catch {SCRIPT}` — direct
+/// `set`/`append`/`lappend`/`incr` targets plus nested command-substitution
+/// writers (`gets`/`scan`/`regexp`/`catch`). Suppress-only: keeps a read of a
+/// catch-body-assigned variable *after* the catch from looking
+/// read-before-set. Over-collection here is safe (it only avoids false
+/// warnings); a body whose error precedes the assignment is the conservative
+/// stance read-before-set already takes for command substitutions.
+fn catch_body_out_vars(body_word: &str, out: &mut Vec<String>) {
+    // The body is usually a single braced word; strip the braces to recover the
+    // script text. A non-braced body (e.g. a bare command) is scanned as-is.
+    let body = body_word
+        .strip_prefix('{')
+        .and_then(|s| s.strip_suffix('}'))
+        .unwrap_or(body_word);
+    for words in tokenise_to_command_words(body) {
+        match words.first().map(String::as_str) {
+            // Direct assignment commands write their first argument.
+            Some("set" | "append" | "lappend" | "incr") => {
+                if let Some(w) = words.get(1) {
+                    push_out_var(w, out);
+                }
+            }
+            // Nested command-sub writers (`gets`/`scan`/`regexp`/`catch`).
+            _ => cmd_substitution_out_vars(&words, out),
+        }
     }
 }
 
