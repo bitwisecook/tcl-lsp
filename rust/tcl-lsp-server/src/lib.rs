@@ -4667,6 +4667,40 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // BIG-IP `.conf`/`.scf`: links are object references (iRule-body and
+        // migrated TMSH property values) resolving to the target object's
+        // stanza in the same document — a `uri#L<line>` fragment anchor. This
+        // is a different engine from the Tcl `source`/`package require` link
+        // scanner below.
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let text = doc.text.clone();
+            let bigip_links =
+                tokio::task::spawn_blocking(move || tcl_bigip::links::document_links(&text))
+                    .await
+                    .map_err(|err| jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InternalError,
+                        message: format!("bigip document_link worker panicked: {err}").into(),
+                        data: None,
+                    })?;
+            if bigip_links.is_empty() {
+                return Ok(None);
+            }
+            let uri_str = uri.as_str();
+            let lifted = bigip_links
+                .into_iter()
+                .map(|l| DocumentLink {
+                    range: lift_bigip_range(l.range),
+                    // Resolved → a `uri#L<1-based-line>` fragment the editor
+                    // navigates to; unresolved → no target (hover-only).
+                    target: l
+                        .target_line
+                        .and_then(|line| Uri::from_str(&format!("{uri_str}#L{}", line + 1)).ok()),
+                    tooltip: Some(l.tooltip),
+                    data: None,
+                })
+                .collect();
+            return Ok(Some(lifted));
+        }
         // Pass the document's
         // enclosing directory as the workspace root so
         // relative `source <path>` arguments resolve.  When
@@ -9525,6 +9559,36 @@ mod tests {
         assert!(result.iter().all(|l| l.uri == uri));
         let lines: Vec<u32> = result.iter().map(|l| l.range.start.line).collect();
         assert!(lines.contains(&0) && lines.contains(&3), "{lines:?}");
+    }
+
+    #[tokio::test]
+    async fn document_link_handler_bigip_conf_links_irule_pool_ref() {
+        // A BIG-IP `.conf` document routes document links through the object-
+        // reference resolver: the iRule's `pool /Common/web_pool` resolves to
+        // the pool stanza on line 0 (a `#L1` fragment target).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "ltm pool /Common/web_pool { }\nltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/web_pool }\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let result = backend
+            .document_link(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let link = result
+            .iter()
+            .find(|l| l.tooltip.as_deref() == Some("Go to /Common/web_pool"))
+            .expect("pool ref link");
+        let target = link.target.as_ref().expect("resolved target");
+        assert!(target.as_str().contains("#L1"), "target = {target:?}");
     }
 
     #[tokio::test]
