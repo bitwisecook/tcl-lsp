@@ -5007,11 +5007,7 @@ impl LanguageServer for Backend {
                     })
                     .collect();
                 changes.insert(uri.clone(), lifted_edits);
-                let command = a.command.map(|c| tower_lsp_server::ls_types::Command {
-                    title: a.title.clone(),
-                    command: c.command,
-                    arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
-                });
+                let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
                 // Surface the rendered tmsh data-group definition (the
                 // extract-to-datagroup refactor) as the action's `data`
                 // payload.
@@ -5597,6 +5593,40 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             line: r.end_line,
             character: r.end_character,
         },
+    }
+}
+
+/// Convert a core [`ActionCommand`](core_code_actions::ActionCommand) into an
+/// LSP [`Command`](tower_lsp_server::ls_types::Command), forwarding **both**
+/// argument kinds.
+///
+/// A given action command carries exactly one kind:
+/// * integer-position commands (`tclLsp.renameSymbolAtPosition`) use `args`
+///   (`[line, start, end]`), and
+/// * BIG-IP / editor string commands use `string_args` —
+///   `tclLsp.renamePartition` → `[uri, partition]`, `editor.action.rename`
+///   → `[uri]`.
+///
+/// String args are emitted first, then int args. Because each command uses
+/// only one kind, the concatenation yields the exact `arguments` array the
+/// client (and Python's `_bigip_code_actions`) expects, without this
+/// conversion needing to know which kind it is handling. Forwarding
+/// `string_args` here is what stops the BIG-IP rename actions from reaching
+/// the editor argument-less.
+fn action_command_to_lsp(
+    title: String,
+    c: core_code_actions::ActionCommand,
+) -> tower_lsp_server::ls_types::Command {
+    let mut arguments: Vec<serde_json::Value> = c
+        .string_args
+        .into_iter()
+        .map(serde_json::Value::from)
+        .collect();
+    arguments.extend(c.args.into_iter().map(serde_json::Value::from));
+    tower_lsp_server::ls_types::Command {
+        title,
+        command: c.command,
+        arguments: Some(arguments),
     }
 }
 
@@ -7225,6 +7255,66 @@ mod tests {
             !empty
                 .feature_toggles
                 .is_enabled_default_off("xcDiagnostics")
+        );
+    }
+
+    #[test]
+    fn action_command_forwards_string_args_for_bigip_rename_partition() {
+        // The BIG-IP code-action provider emits `tclLsp.renamePartition`
+        // with `string_args = [uri, partition]` (Python:
+        // `arguments=[uri, partition_short]`).  The server conversion must
+        // forward those — dropping `string_args` left the rename action
+        // argument-less and the client could not run it.
+        let cmd = core_code_actions::ActionCommand {
+            command: "tclLsp.renamePartition".to_string(),
+            args: Vec::new(),
+            string_args: vec!["file:///c.conf".to_string(), "MyPartition".to_string()],
+        };
+        let lsp = action_command_to_lsp("Rename partition".to_string(), cmd);
+        assert_eq!(lsp.command, "tclLsp.renamePartition");
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![
+                serde_json::json!("file:///c.conf"),
+                serde_json::json!("MyPartition"),
+            ]),
+        );
+    }
+
+    #[test]
+    fn action_command_forwards_string_args_for_editor_rename() {
+        // `editor.action.rename` carries just `[uri]`.
+        let cmd = core_code_actions::ActionCommand {
+            command: "editor.action.rename".to_string(),
+            args: Vec::new(),
+            string_args: vec!["file:///c.conf".to_string()],
+        };
+        let lsp = action_command_to_lsp("Rename".to_string(), cmd);
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![serde_json::json!("file:///c.conf")]),
+        );
+    }
+
+    #[test]
+    fn action_command_preserves_integer_position_args() {
+        // The post-extract rename (`tclLsp.renameSymbolAtPosition`) carries
+        // integer position args `[line, start, end]` and no string args —
+        // the existing behaviour must be unchanged by the string_args
+        // forwarding (the ints stay JSON numbers, in order).
+        let cmd = core_code_actions::ActionCommand {
+            command: "tclLsp.renameSymbolAtPosition".to_string(),
+            args: vec![0, 4, 11],
+            string_args: Vec::new(),
+        };
+        let lsp = action_command_to_lsp("Rename symbol".to_string(), cmd);
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![
+                serde_json::json!(0),
+                serde_json::json!(4),
+                serde_json::json!(11),
+            ]),
         );
     }
 
