@@ -28,6 +28,11 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
     let mut out = String::new();
     let mut i = 0;
     let mut ai = 0;
+    // Tcl forbids mixing positional (`%n$`) and sequential conversions in one
+    // format string ("cannot mix …"); track which mode the format has committed
+    // to so the second kind errors.
+    let mut saw_positional = false;
+    let mut saw_sequential = false;
     while i < bytes.len() {
         if bytes[i] != b'%' {
             // Copy a whole UTF-8 char, not a single byte.
@@ -52,10 +57,42 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
             ));
         };
         if spec.verb != b'%' {
+            // Commit the format to positional or sequential mode and reject a mix
+            // (`format {%2$d %d} …` is a Tcl error, not arg-2-then-arg-1).
+            match spec.arg_index {
+                Some(_) => {
+                    if saw_sequential {
+                        return Err(CmdError::new(
+                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                        ));
+                    }
+                    saw_positional = true;
+                }
+                None => {
+                    if saw_positional {
+                        return Err(CmdError::new(
+                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                        ));
+                    }
+                    saw_sequential = true;
+                }
+            }
+            // A positional `%n$` spec consumes consecutively starting at `n-1`
+            // (the `*` width, then the `.*` precision, then the value), leaving
+            // the sequential cursor untouched; an ordinary spec consumes from the
+            // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
+            // value from arg 3 (format-... ), matching tclsh.
+            let positional = spec.arg_index.is_some();
+            let mut cur = match spec.arg_index {
+                Some(n) => n
+                    .checked_sub(1)
+                    .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
+                None => ai,
+            };
             // `*` width / `.*` precision take their value from a preceding
             // argument (format-1.1/1.6). A negative `*` width left-justifies.
             if spec.width_star {
-                let w = ops.as_int(next_arg(args, &mut ai)?)?;
+                let w = ops.as_int(take_arg(args, &mut cur, positional)?)?;
                 if w < 0 {
                     spec.flags |= FmtFlags::MINUS;
                 }
@@ -63,34 +100,33 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
                 spec.width = Some(mag.min(MAX_FIELD));
             }
             if spec.precision_star {
-                let p = ops.as_int(next_arg(args, &mut ai)?)?;
+                let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
                 // A negative `.*` precision is treated as omitted (C).
                 spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_FIELD));
             }
-            // A positional `%n$` selector draws from `args[n-1]` (1-based)
-            // without advancing the sequential cursor; the ordinary form takes
-            // the next argument.
-            let arg = match spec.arg_index {
-                Some(n) => n
-                    .checked_sub(1)
-                    .and_then(|idx| args.get(idx))
-                    .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
-                None => next_arg(args, &mut ai)?,
-            };
+            let arg = take_arg(args, &mut cur, positional)?;
             out.push_str(&render_spec(ops, &spec, arg)?);
+            if !positional {
+                ai = cur;
+            }
         }
         i = j;
     }
     Ok(out)
 }
 
-/// The next conversion argument (advancing `ai`), or the "not enough arguments"
-/// error. Shared by the `*`/`.*` width and the value consumption.
-fn next_arg<'a, V>(args: &'a [V], ai: &mut usize) -> Result<&'a V, CmdError> {
-    let arg = args
-        .get(*ai)
-        .ok_or_else(|| CmdError::new("not enough arguments for all format specifiers"))?;
-    *ai += 1;
+/// Take the argument at `*cur` and advance the cursor. Shared by the `*`/`.*`
+/// width and the value consumption, in both the sequential and the positional
+/// (`%n$`) paths — the two differ only in the out-of-range message tclsh uses.
+fn take_arg<'a, V>(args: &'a [V], cur: &mut usize, positional: bool) -> Result<&'a V, CmdError> {
+    let arg = args.get(*cur).ok_or_else(|| {
+        CmdError::new(if positional {
+            "\"%n$\" argument index out of range"
+        } else {
+            "not enough arguments for all format specifiers"
+        })
+    })?;
+    *cur += 1;
     Ok(arg)
 }
 

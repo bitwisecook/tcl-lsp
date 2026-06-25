@@ -86,7 +86,10 @@ fn res_eq(src: &str, want: &str) {
 /// Assert a script errors with exactly `want`.
 fn err_eq(src: &str, want: &str) {
     let (ok, result, _) = run(src);
-    assert!(!ok, "expected an error, got ok with: {result}\n  src: {src}");
+    assert!(
+        !ok,
+        "expected an error, got ok with: {result}\n  src: {src}"
+    );
     assert_eq!(result, want, "for script: {src}");
 }
 
@@ -153,7 +156,10 @@ fn append_command() {
     // tclsh: no-values read of an unset variable errors
     err_eq("append nope", "can't read \"nope\": no such variable");
     // tclsh: arity error
-    err_eq("append", "wrong # args: should be \"append varName ?value ...?\"");
+    err_eq(
+        "append",
+        "wrong # args: should be \"append varName ?value ...?\"",
+    );
     // tclsh: appending to an array base (not an element) is a variable error
     err_eq(
         "array set ar {a 1}; append ar x",
@@ -215,7 +221,10 @@ fn string_compare_equal_errors() {
         "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"",
     );
     // tclsh: -length with a non-integer argument
-    err_eq("string compare -length x a b", "expected integer but got \"x\"");
+    err_eq(
+        "string compare -length x a b",
+        "expected integer but got \"x\"",
+    );
     // tclsh: too few / too many operands -> usage error
     err_eq(
         "string compare a",
@@ -274,7 +283,10 @@ fn string_match_command() {
 #[test]
 fn bug_string_match_bad_option() {
     // tclsh 8.6 + 9.0
-    err_eq("string match -bogus a b", "bad option \"-bogus\": must be -nocase");
+    err_eq(
+        "string match -bogus a b",
+        "bad option \"-bogus\": must be -nocase",
+    );
     err_eq("string match -- a a", "bad option \"--\": must be -nocase");
 }
 
@@ -400,7 +412,10 @@ fn string_trim_family() {
     // tclsh: nothing to trim
     res_eq("string trim hi x", "hi");
     // tclsh: errors (arity)
-    err_eq("string trim", "wrong # args: should be \"string trim string ?chars?\"");
+    err_eq(
+        "string trim",
+        "wrong # args: should be \"string trim string ?chars?\"",
+    );
     err_eq(
         "string trim a b c",
         "wrong # args: should be \"string trim string ?chars?\"",
@@ -435,7 +450,10 @@ fn string_map_command() {
     res_eq("string map {} abc", "abc");
     // tclsh: errors
     err_eq("string map {a} foo", "char map list unbalanced");
-    err_eq("string map {a b} abba oops", "bad option \"a b\": must be -nocase");
+    err_eq(
+        "string map {a b} abba oops",
+        "bad option \"a b\": must be -nocase",
+    );
     err_eq(
         "string map x",
         "wrong # args: should be \"string map ?-nocase? charMap string\"",
@@ -514,7 +532,10 @@ fn string_subcommand_dispatch() {
         msg.starts_with("unknown or ambiguous subcommand \"bogus\": must be "),
         "got: {msg}"
     );
-    assert!(msg.contains("cat, compare, equal, first, index"), "got: {msg}");
+    assert!(
+        msg.contains("cat, compare, equal, first, index"),
+        "got: {msg}"
+    );
     assert!(msg.contains("or wordstart"), "got: {msg}");
     // tclsh: an ambiguous prefix (`to` -> tolower/totitle/toupper) errors too.
     let (ok, msg, _) = run("string to abc");
@@ -524,7 +545,10 @@ fn string_subcommand_dispatch() {
         "got: {msg}"
     );
     // tclsh: no subcommand at all.
-    err_eq("string", "wrong # args: should be \"string subcommand ?arg ...?\"");
+    err_eq(
+        "string",
+        "wrong # args: should be \"string subcommand ?arg ...?\"",
+    );
 }
 
 // ===========================================================================
@@ -621,7 +645,10 @@ fn string_is_strict_and_failindex() {
     res_eq("string is alpha -failindex fi abc5; set fi", "3");
     res_eq("string is double -failindex fi 1.5x; set fi", "3");
     // tclsh: when the string IS a member, the fail var is left untouched.
-    res_eq("set fi PRE; string is alpha -failindex fi abc; set fi", "PRE");
+    res_eq(
+        "set fi PRE; string is alpha -failindex fi abc; set fi",
+        "PRE",
+    );
     // tclsh: -strict combined with -failindex on the empty string -> index 0.
     res_eq("string is alpha -strict -failindex fi {}; set fi", "0");
     // tclsh: option order may be reversed (-failindex then -strict).
@@ -778,13 +805,25 @@ fn format_float_conversions() {
 #[test]
 fn format_errors() {
     // tclsh
-    err_eq("format %d", "not enough arguments for all format specifiers");
+    err_eq(
+        "format %d",
+        "not enough arguments for all format specifiers",
+    );
     err_eq("format %y 1", "bad field specifier \"y\"");
-    err_eq("format", "wrong # args: should be \"format formatString ?arg ...?\"");
+    err_eq(
+        "format",
+        "wrong # args: should be \"format formatString ?arg ...?\"",
+    );
     err_eq("format %d abc", "expected integer but got \"abc\"");
-    err_eq("format %f abc", "expected floating-point number but got \"abc\"");
+    err_eq(
+        "format %f abc",
+        "expected floating-point number but got \"abc\"",
+    );
     // tclsh: a complete specifier (space flag + `d`) with no argument supplied.
-    err_eq("format {% d}", "not enough arguments for all format specifiers");
+    err_eq(
+        "format {% d}",
+        "not enough arguments for all format specifiers",
+    );
     // tclsh: a `bad field specifier` (a space after the width is not a verb).
     err_eq("format {%5 } 1", "bad field specifier \" \"");
 }
@@ -889,6 +928,29 @@ fn bug_format_positional_specifiers() {
     res_eq("format {%2$d-%1$d} 10 20", "20-10");
 }
 
+/// Positional (`%n$`) argument-mode rules, oracle-pinned to tclsh 9.0:
+/// a positional spec draws (and may reuse) a specific argument; with a `*`
+/// width it consumes consecutively from `n` (width from arg `n`, value from
+/// `n+1`); and a format must not *mix* positional and sequential specifiers.
+#[test]
+fn format_positional_mode_star_and_mixing() {
+    // A lone positional spec selects its argument, leaving extras unused.
+    res_eq("format {%2$d} 10 20", "20");
+    // The same argument can be reused without advancing a cursor.
+    res_eq("format {%1$s %1$s} a b", "a a");
+    // `%2$*d`: width from arg 2 (3), value from arg 3 (42) → " 42".
+    res_eq("format {%2$*d} 5 3 42", " 42");
+    // Mixing positional and sequential conversions is an error either order.
+    err_eq(
+        "format {%2$d %d} 10 20",
+        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+    );
+    err_eq(
+        "format {%d %1$d} 5 6",
+        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+    );
+}
+
 /// BUG: a format string that ends with an incomplete specifier (a width but no
 /// conversion verb) is silently echoed instead of erroring. tclsh reports
 /// "not enough arguments for all format specifiers"; the VM returns the literal
@@ -900,7 +962,10 @@ fn bug_format_positional_specifiers() {
 #[test]
 fn bug_format_trailing_incomplete_specifier() {
     // tclsh 8.6 + 9.0
-    err_eq("format %5", "not enough arguments for all format specifiers");
+    err_eq(
+        "format %5",
+        "not enough arguments for all format specifiers",
+    );
 }
 
 // ===========================================================================
@@ -919,8 +984,3 @@ fn string_format_through_puts() {
     assert_eq!(run("puts [format %.2f 1.5]").2, "1.50\n");
     assert_eq!(run("puts [string map {a A} banana]").2, "bAnAnA\n");
 }
-
-
-
-
-

@@ -5006,6 +5006,7 @@ impl LanguageServer for Backend {
             })
             .collect();
         let dialect = doc.dialect.clone();
+        let uri_str = uri.as_str().to_string();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -5015,6 +5016,16 @@ impl LanguageServer for Backend {
                 &doc.text,
                 &context_diags,
             ));
+            // BIG-IP `.conf`/`.scf`: the dialect-specific rename-partition /
+            // rename-object / extract-rule actions (`tcl-lsp-core::bigip_code_actions`).
+            // The generic Tcl code-action path above yields nothing useful on a
+            // non-Tcl config, so extend rather than replace — mirroring the
+            // references / document-links BIG-IP routing.
+            if Backend::is_bigip_dialect(&dialect) {
+                actions.extend(core_code_actions::bigip_code_actions(
+                    &doc.text, range, &uri_str,
+                ));
+            }
             // iRules-only: the `# Profiles:` header source action plus the
             // control-flow quick-fixes (IRULE5002 unguarded drop / IRULE5004
             // DNS::return) the analyser produces through the compiler-checks
@@ -10069,6 +10080,45 @@ mod tests {
             .expect("pool ref link");
         let target = link.target.as_ref().expect("resolved target");
         assert!(target.as_str().contains("#L1"), "target = {target:?}");
+    }
+
+    #[tokio::test]
+    async fn code_action_handler_bigip_conf_offers_partition_rename() {
+        // A BIG-IP `.conf` document routes code actions through the dialect
+        // provider (`tcl-lsp-core::bigip_code_actions`): an `auth partition`
+        // stanza offers the `tclLsp.renamePartition` command, which the generic
+        // Tcl code-action path never would. Guards the provider's wiring into
+        // `Backend::code_action`.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "auth partition Team1 {\n    description test\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            context: tower_lsp_server::ls_types::CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let result = backend
+            .code_action(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let has_rename_partition = result.iter().any(|a| match a {
+            CodeActionOrCommand::CodeAction(ca) => ca
+                .command
+                .as_ref()
+                .is_some_and(|c| c.command == "tclLsp.renamePartition"),
+            CodeActionOrCommand::Command(c) => c.command == "tclLsp.renamePartition",
+        });
+        assert!(
+            has_rename_partition,
+            "expected a renamePartition code action: {result:?}",
+        );
     }
 
     #[tokio::test]
