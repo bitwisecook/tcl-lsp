@@ -2125,6 +2125,81 @@ fn list_wrapped_arg_command_is_literal(
     false
 }
 
+/// Split `arg` into its residual text (everything outside top-level `[...]`
+/// command substitutions) and the list of those top-level `[...]` slices.
+/// Brackets are ASCII, so the byte-range slicing stays on char boundaries.
+fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
+    let mut residual = String::new();
+    let mut subs = Vec::new();
+    let b = arg.as_bytes();
+    let mut i = 0;
+    let mut seg_start = 0;
+    while i < b.len() {
+        if b[i] == b'[' {
+            residual.push_str(&arg[seg_start..i]);
+            let start = i;
+            let mut depth = 0i32;
+            while i < b.len() {
+                match b[i] {
+                    b'[' => depth += 1,
+                    b']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            i += 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            subs.push(&arg[start..i]);
+            seg_start = i;
+        } else {
+            i += 1;
+        }
+    }
+    residual.push_str(&arg[seg_start..]);
+    (residual, subs)
+}
+
+/// True when every appearance of `name` in the sink arguments is consumed by an
+/// embedded sanitiser command substitution, so the value reaching the sink is
+/// clean — e.g. `puts [string length $x]` outputs the integer length, never
+/// `$x`'s content (tclsh-verified). Conservative: a bare `$name` outside any
+/// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
+/// taint reaches the sink). Mirrors the carve-out the `expr`/word_taint path
+/// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
+fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: &str) -> bool {
+    let mut seen = false;
+    for arg in args {
+        if !arg_var_names(arg).contains(name) {
+            continue;
+        }
+        seen = true;
+        let (residual, subs) = split_top_level_cmd_subs(arg);
+        // A bare reference outside any command substitution reaches the sink.
+        if arg_var_names(&residual).contains(name) {
+            return false;
+        }
+        // Each top-level substitution that references `name` must be a sanitiser
+        // (a sanitiser's result is a clean bounded value regardless of nesting).
+        for sub in subs {
+            if !arg_var_names(sub).contains(name) {
+                continue;
+            }
+            let Some((cmd, sub_args)) = parse_command_substitution(sub) else {
+                return false;
+            };
+            let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
+            if !is_sanitiser(registry, &cmd, &refs) {
+                return false;
+            }
+        }
+    }
+    seen
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit_sink_warnings(
     uses: &HashMap<Symbol, u32>,
@@ -2147,6 +2222,14 @@ fn emit_sink_warnings(
             .copied()
             .unwrap_or(TaintLattice::clean());
         if !t.is_tainted() {
+            continue;
+        }
+        // The value reaching the sink is clean when every appearance of `name`
+        // in the sink arguments is consumed by an embedded sanitiser
+        // substitution — `puts [string length $x]` outputs the integer length,
+        // not `$x` (tclsh-verified). The expr-operand path applies this via
+        // word_taint; mirror it here for the direct sink-argument path.
+        if var_consumed_by_sanitiser(call.registry, call.args, name) {
             continue;
         }
         // Per-code mitigation suppression (IRULE3001–3004).
