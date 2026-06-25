@@ -297,7 +297,15 @@ pub fn rename(
         return Vec::new();
     };
 
-    if let Some(edits) = rename_proc(source, &word, def_byte, new_name, analysis, registry, &line_index) {
+    if let Some(edits) = rename_proc(
+        source,
+        &word,
+        def_byte,
+        new_name,
+        analysis,
+        registry,
+        &line_index,
+    ) {
         return edits;
     }
     if let Some(edits) = rename_class(source, &word, new_name, analysis, registry, &line_index) {

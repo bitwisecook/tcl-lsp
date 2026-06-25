@@ -11,7 +11,7 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::definition::LspRange;
-use tcl_lsp_core::selection_range::{selection_range, SelectionRange};
+use tcl_lsp_core::selection_range::{SelectionRange, selection_range};
 
 /// The chain ordered innermost → outermost by following `parent_index`.
 fn chain(source: &str, line: u32, character: u32) -> Vec<LspRange> {
@@ -49,7 +49,8 @@ fn chain(source: &str, line: u32, character: u32) -> Vec<LspRange> {
 }
 
 fn contains(outer: LspRange, inner: LspRange) -> bool {
-    let starts_le = (outer.start_line, outer.start_character) <= (inner.start_line, inner.start_character);
+    let starts_le =
+        (outer.start_line, outer.start_character) <= (inner.start_line, inner.start_character);
     let ends_ge = (outer.end_line, outer.end_character) >= (inner.end_line, inner.end_character);
     starts_le && ends_ge
 }
@@ -77,7 +78,10 @@ fn cursor_inside_namespace_has_deeper_chain() {
     let src = "namespace eval ns {\n    proc helper {} {\n        return 1\n    }\n}\n";
     let c = chain(src, 2, 8); // inside helper body
     // word → line → proc body → namespace body → document.
-    assert!(c.len() >= 3, "namespace nesting should deepen the chain: {c:?}");
+    assert!(
+        c.len() >= 3,
+        "namespace nesting should deepen the chain: {c:?}"
+    );
 }
 
 #[test]
@@ -103,7 +107,12 @@ fn ranges_expand_strictly_outward() {
     let c = chain(src, 1, 6); // inside expr body
     for w in c.windows(2) {
         // w[1] is the parent of w[0] → must contain it.
-        assert!(contains(w[1], w[0]), "parent {:?} must contain child {:?}", w[1], w[0]);
+        assert!(
+            contains(w[1], w[0]),
+            "parent {:?} must contain child {:?}",
+            w[1],
+            w[0]
+        );
     }
 }
 
@@ -113,8 +122,18 @@ fn no_duplicate_adjacent_ranges() {
     let c = chain(src, 0, 4);
     for w in c.windows(2) {
         assert_ne!(
-            (w[0].start_line, w[0].start_character, w[0].end_line, w[0].end_character),
-            (w[1].start_line, w[1].start_character, w[1].end_line, w[1].end_character),
+            (
+                w[0].start_line,
+                w[0].start_character,
+                w[0].end_line,
+                w[0].end_character
+            ),
+            (
+                w[1].start_line,
+                w[1].start_character,
+                w[1].end_line,
+                w[1].end_character
+            ),
             "adjacent chain ranges must differ"
         );
     }

@@ -35,10 +35,10 @@
 //!   * renamed forms still run: `salute`/`salute`, `$y`/`$y`,
 //!     `::myns::hello` + short `hello` -> identical output to the original.
 
-use tcl_compiler::analyser::{AnalysisResult, Analyser};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::references::references;
-use tcl_lsp_core::rename::{is_safe_symbol_name, prepare_rename, rename, TextEdit};
+use tcl_lsp_core::rename::{TextEdit, is_safe_symbol_name, prepare_rename, rename};
 use tcl_registry::CommandRegistry;
 
 /// Build an analysis exactly the way the existing port files do
@@ -135,7 +135,10 @@ fn references_proc_only_at_real_call_sites_not_substrings() {
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(lines.contains(&0), "decl missing: {refs:?}");
-    assert!(lines.contains(&2), "the `greet` call on line 2 missing: {refs:?}");
+    assert!(
+        lines.contains(&2),
+        "the `greet` call on line 2 missing: {refs:?}"
+    );
     assert!(
         !lines.contains(&1),
         "must NOT reference the `greeter` declaration on line 1: {refs:?}",
@@ -214,8 +217,14 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
     let refs = references(src, "tcl", 1, 9, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "declaration missing: {refs:?}");
-    assert!(lines.contains(&3), "qualified `::myns::greet` call missing: {refs:?}");
-    assert!(lines.contains(&5), "short in-namespace `greet` call missing: {refs:?}");
+    assert!(
+        lines.contains(&3),
+        "qualified `::myns::greet` call missing: {refs:?}"
+    );
+    assert!(
+        lines.contains(&5),
+        "short in-namespace `greet` call missing: {refs:?}"
+    );
 }
 
 #[test]
@@ -310,7 +319,10 @@ fn rename_proc_from_call_site_rewrites_declaration_too() {
     // Cursor on the first call (line 1).
     let edits = rename(src, "tcl", 1, 2, "salute", &analysis, None);
     assert_eq!(edit_lines(&edits), vec![0, 1, 2], "{edits:?}");
-    assert!(edits.iter().any(|e| e.range.start_line == 0), "decl rewritten: {edits:?}");
+    assert!(
+        edits.iter().any(|e| e.range.start_line == 0),
+        "decl rewritten: {edits:?}"
+    );
 }
 
 #[test]
@@ -321,7 +333,10 @@ fn rename_proc_rejected_when_new_name_collides_with_existing_proc() {
     let src = "proc greet {} { return a }\nproc hello {} { return b }\ngreet\n";
     let analysis = analyse(src);
     let edits = rename(src, "tcl", 0, 6, "hello", &analysis, None);
-    assert!(edits.is_empty(), "collision with existing proc must be refused: {edits:?}");
+    assert!(
+        edits.is_empty(),
+        "collision with existing proc must be refused: {edits:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -336,9 +351,16 @@ fn rename_var_updates_definition_and_reads_with_dollar_preserved() {
     let analysis = analyse(src);
     // Cursor in the first `$x` read.
     let edits = rename(src, "tcl", 1, 6, "y", &analysis, None);
-    assert_eq!(edit_lines(&edits), vec![0, 1, 2], "decl + both reads: {edits:?}");
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 1, 2],
+        "decl + both reads: {edits:?}"
+    );
     let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
-    assert!(texts.contains(&"y"), "declaration rewrite `y` missing: {texts:?}");
+    assert!(
+        texts.contains(&"y"),
+        "declaration rewrite `y` missing: {texts:?}"
+    );
     assert_eq!(
         texts.iter().filter(|t| **t == "$y").count(),
         2,
@@ -373,7 +395,10 @@ fn rename_local_var_is_scoped_and_leaves_same_named_var_in_other_proc_intact() {
     let analysis = analyse(src);
     // Cursor on the def site `v` in proc a (line 1, col 8).
     let edits = rename(src, "tcl", 1, 8, "w", &analysis, None);
-    assert!(!edits.is_empty(), "expected a scoped rename of proc a's `v`");
+    assert!(
+        !edits.is_empty(),
+        "expected a scoped rename of proc a's `v`"
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.iter().all(|&l| l == 1 || l == 2),
@@ -398,7 +423,10 @@ fn rename_var_rejected_on_same_scope_collision() {
     let analysis = analyse(src);
     // Rename `x` (its read site on line 3) to the already-present `y`.
     let edits = rename(src, "tcl", 3, 10, "y", &analysis, None);
-    assert!(edits.is_empty(), "same-scope collision must be refused: {edits:?}");
+    assert!(
+        edits.is_empty(),
+        "same-scope collision must be refused: {edits:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +481,9 @@ fn rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace() {
     );
     // No edit may land on ::b::helper's decl (line 4) or call (line 7).
     assert!(
-        edits.iter().all(|e| e.range.start_line != 4 && e.range.start_line != 7),
+        edits
+            .iter()
+            .all(|e| e.range.start_line != 4 && e.range.start_line != 7),
         "::b::helper must be untouched; got {edits:?}",
     );
 }
@@ -477,10 +507,15 @@ fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
         "cursor on ::b::helper must rename ::b's decl (line 4) + its call (line 7); got {edits:?}",
     );
     let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
-    assert!(texts.contains(&"::b::assist"), "expected ::b::assist; got {texts:?}");
+    assert!(
+        texts.contains(&"::b::assist"),
+        "expected ::b::assist; got {texts:?}"
+    );
     // ::a::helper (lines 1+6) must be untouched.
     assert!(
-        edits.iter().all(|e| e.range.start_line != 1 && e.range.start_line != 6),
+        edits
+            .iter()
+            .all(|e| e.range.start_line != 1 && e.range.start_line != 6),
         "::a::helper must be untouched; got {edits:?}",
     );
 }
@@ -495,7 +530,14 @@ fn rename_rejects_syntactically_unsafe_new_names() {
     // so the editor never applies a partially-broken rename.
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
-    for bad in ["bad name", "1lead", "with-dash", "has::colon", "with$dollar", ""] {
+    for bad in [
+        "bad name",
+        "1lead",
+        "with-dash",
+        "has::colon",
+        "with$dollar",
+        "",
+    ] {
         assert!(
             rename(src, "tcl", 0, 6, bad, &analysis, None).is_empty(),
             "unsafe new name {bad:?} must yield no edits",
@@ -520,7 +562,10 @@ fn rename_proc_to_builtin_command_name_is_blocked_with_registry() {
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
     let edits = rename(src, "tcl", 0, 6, "puts", &analysis, Some(&registry));
-    assert!(edits.is_empty(), "rename to built-in `puts` must be blocked: {edits:?}");
+    assert!(
+        edits.is_empty(),
+        "rename to built-in `puts` must be blocked: {edits:?}"
+    );
 }
 
 #[test]
@@ -530,7 +575,10 @@ fn rename_proc_to_non_builtin_succeeds_with_registry() {
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
     let edits = rename(src, "tcl", 0, 6, "salut", &analysis, Some(&registry));
-    assert!(!edits.is_empty(), "non-built-in rename should succeed with a registry");
+    assert!(
+        !edits.is_empty(),
+        "non-built-in rename should succeed with a registry"
+    );
     assert!(edits.iter().all(|e| e.new_text == "salut"), "{edits:?}");
 }
 
@@ -542,7 +590,10 @@ fn rename_var_to_builtin_name_is_allowed() {
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
     let edits = rename(src, "tcl", 1, 6, "puts", &analysis, Some(&registry));
-    assert!(!edits.is_empty(), "variable rename to `puts` should succeed");
+    assert!(
+        !edits.is_empty(),
+        "variable rename to `puts` should succeed"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -617,9 +668,15 @@ fn prepare_rename_rejects_whitespace_and_bare_literal() {
     let src = "set x 1\nputs hello\n";
     let analysis = analyse(src);
     // Column 3 on line 0 is the space in `set x`.
-    assert!(prepare_rename(src, 0, 3, &analysis).is_none(), "whitespace is not renameable");
+    assert!(
+        prepare_rename(src, 0, 3, &analysis).is_none(),
+        "whitespace is not renameable"
+    );
     // The literal `hello` argument on line 1.
-    assert!(prepare_rename(src, 1, 6, &analysis).is_none(), "bare literal is not renameable");
+    assert!(
+        prepare_rename(src, 1, 6, &analysis).is_none(),
+        "bare literal is not renameable"
+    );
 }
 
 #[test]
@@ -641,7 +698,15 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
     for ok in ["foo", "Foo", "_under", "a1", "snake_case_42"] {
         assert!(is_safe_symbol_name(ok), "{ok:?} should be accepted");
     }
-    for bad in ["", "1lead", "has space", "has-dash", "has::colon", "with$dollar", "dotted.name"] {
+    for bad in [
+        "",
+        "1lead",
+        "has space",
+        "has-dash",
+        "has::colon",
+        "with$dollar",
+        "dotted.name",
+    ] {
         assert!(!is_safe_symbol_name(bad), "{bad:?} should be rejected");
     }
 }

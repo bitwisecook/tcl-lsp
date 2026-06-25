@@ -36,9 +36,9 @@
 //! loaded iRules dialect and are out of this plain-Tcl port's surface;
 //! they are marked `// f5-dialect` where mentioned.
 
-use tcl_compiler::analyser::{AnalysisResult, Analyser};
-use tcl_lsp_core::completion::{completions, CompletionKind};
-use tcl_lsp_core::hover::{hover, HoverKind};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_lsp_core::completion::{CompletionKind, completions};
+use tcl_lsp_core::hover::{HoverKind, hover};
 use tcl_lsp_core::signature_help::signature_help;
 use tcl_registry::CommandRegistry;
 
@@ -73,8 +73,16 @@ fn hover_on_user_proc_shows_signature_and_params() {
     let h = hover(src, 0, 6, &analysis, None).expect("hover on proc name");
     assert_eq!(h.kind, HoverKind::Markdown);
     assert!(h.value.contains("greet"), "{}", h.value);
-    assert!(h.value.contains("name"), "param `name` missing: {}", h.value);
-    assert!(h.value.contains("body"), "param `body` missing: {}", h.value);
+    assert!(
+        h.value.contains("name"),
+        "param `name` missing: {}",
+        h.value
+    );
+    assert!(
+        h.value.contains("body"),
+        "param `body` missing: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -85,7 +93,11 @@ fn hover_on_paramless_proc_has_empty_param_list() {
     let h = hover(src, 0, 6, &analysis, None).expect("hover on paramless proc");
     assert!(h.value.contains("noop"), "{}", h.value);
     // Rendered as `proc ::noop {} {...}` — the empty brace pair is present.
-    assert!(h.value.contains("{}"), "expected empty param list: {}", h.value);
+    assert!(
+        h.value.contains("{}"),
+        "expected empty param list: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -126,7 +138,11 @@ fn hover_on_namespace_qualified_proc() {
     // Line 1, the `helper` token (col 9 is within `helper`).
     let h = hover(src, 1, 11, &analysis, None).expect("hover on namespaced proc");
     assert!(h.value.contains("helper"), "{}", h.value);
-    assert!(h.value.contains('x') && h.value.contains('y'), "{}", h.value);
+    assert!(
+        h.value.contains('x') && h.value.contains('y'),
+        "{}",
+        h.value
+    );
 }
 
 #[test]
@@ -147,7 +163,11 @@ fn hover_on_builtin_command_shows_summary_and_synopsis() {
         h.value,
     );
     // The synopsis fence carries the real argument shape.
-    assert!(h.value.contains("string"), "synopsis arg missing: {}", h.value);
+    assert!(
+        h.value.contains("string"),
+        "synopsis arg missing: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -208,7 +228,10 @@ fn hover_on_whitespace_yields_nothing() {
     let src = "proc greet {name} { return }\n\n   \n";
     let analysis = analyse(src);
     assert!(hover(src, 1, 0, &analysis, None).is_none(), "blank line");
-    assert!(hover(src, 2, 2, &analysis, None).is_none(), "whitespace run");
+    assert!(
+        hover(src, 2, 2, &analysis, None).is_none(),
+        "whitespace run"
+    );
 }
 
 #[test]
@@ -415,7 +438,10 @@ fn completion_of_command_prefix_lists_matching_builtins() {
     let items = completions(src, 0, 3, &analysis, Some(&reg), None, "tcl8.6");
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"while"), "expected `while`: {labels:?}");
-    assert!(!labels.contains(&"puts"), "`puts` should not match `whi`: {labels:?}");
+    assert!(
+        !labels.contains(&"puts"),
+        "`puts` should not match `whi`: {labels:?}"
+    );
 }
 
 #[test]
@@ -463,8 +489,14 @@ fn completion_inside_proc_includes_its_params_and_locals() {
     // Line 2, cursor right after the `$` (col 12).
     let items = completions(src, 2, 12, &analysis, None, None, "tcl8.6");
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-    assert!(labels.contains(&"$count"), "param `count` missing: {labels:?}");
-    assert!(labels.contains(&"$total"), "local `total` missing: {labels:?}");
+    assert!(
+        labels.contains(&"$count"),
+        "param `count` missing: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"$total"),
+        "local `total` missing: {labels:?}"
+    );
 }
 
 #[test]
@@ -476,7 +508,10 @@ fn completion_lists_user_defined_procs() {
     let items = completions(src, 2, 1, &analysis, None, None, "tcl8.6");
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"greet"), "{labels:?}");
-    assert!(!labels.contains(&"shout"), "`shout` shouldn't match `g`: {labels:?}");
+    assert!(
+        !labels.contains(&"shout"),
+        "`shout` shouldn't match `g`: {labels:?}"
+    );
     let greet = items.iter().find(|i| i.label == "greet").unwrap();
     assert_eq!(greet.kind, CompletionKind::Function);
 }
@@ -520,7 +555,10 @@ fn completion_subcommand_at_word_index_1() {
     let items = completions(src, 0, 8, &analysis, Some(&reg), None, "tcl8.6");
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"length"), "expected `length`: {labels:?}");
-    assert!(!labels.contains(&"puts"), "no `puts` in subcommand context: {labels:?}");
+    assert!(
+        !labels.contains(&"puts"),
+        "no `puts` in subcommand context: {labels:?}"
+    );
 }
 
 #[test]
@@ -536,7 +574,10 @@ fn completion_string_is_lists_real_character_classes() {
     assert!(labels.contains(&"alnum"), "{labels:?}");
     assert!(labels.contains(&"alpha"), "{labels:?}");
     assert!(labels.contains(&"ascii"), "{labels:?}");
-    assert!(!labels.contains(&"digit"), "`digit` filtered by partial `a`: {labels:?}");
+    assert!(
+        !labels.contains(&"digit"),
+        "`digit` filtered by partial `a`: {labels:?}"
+    );
     for it in &items {
         assert_eq!(it.kind, CompletionKind::EnumValue, "{it:?}");
     }
@@ -576,7 +617,10 @@ fn completion_variable_trigger_suppresses_commands() {
     let analysis = analyse(src);
     let reg = registry();
     let items = completions(src, 1, 8, &analysis, Some(&reg), None, "tcl8.6");
-    assert!(!items.is_empty(), "expected variable completions: {items:?}");
+    assert!(
+        !items.is_empty(),
+        "expected variable completions: {items:?}"
+    );
     for it in &items {
         assert_eq!(it.kind, CompletionKind::Variable, "{it:?}");
     }

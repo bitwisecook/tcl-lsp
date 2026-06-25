@@ -33,12 +33,12 @@
 //! BIG-IP config / F5 iRules dialects (e.g. the `Module` symbol kind, the
 //! iRules-only code-action refactors); those are noted, not driven, here.
 
-use tcl_compiler::analyser::{AnalysisResult, Analyser};
-use tcl_lsp_core::code_actions::{code_actions, ActionKind, CodeAction};
-use tcl_lsp_core::code_lens::{code_lenses, CodeLens};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_lsp_core::code_actions::{ActionKind, CodeAction, code_actions};
+use tcl_lsp_core::code_lens::{CodeLens, code_lenses};
 use tcl_lsp_core::definition::LspRange;
-use tcl_lsp_core::document_links::{document_links, document_links_with_home, DocumentLink};
-use tcl_lsp_core::document_symbols::{document_symbols, DocumentSymbol, LineRange, SymbolKind};
+use tcl_lsp_core::document_links::{DocumentLink, document_links, document_links_with_home};
+use tcl_lsp_core::document_symbols::{DocumentSymbol, LineRange, SymbolKind, document_symbols};
 
 // ---------------------------------------------------------------------------
 // Shared harness — mirrors the existing port files
@@ -68,10 +68,9 @@ fn all_pairs(symbols: &[DocumentSymbol]) -> Vec<(String, SymbolKind)> {
 
 /// `true` when `outer` fully contains `inner` (half-open LSP ranges).
 fn line_range_contains(outer: LineRange, inner: LineRange) -> bool {
-    let starts_le = (outer.start_line, outer.start_character)
-        <= (inner.start_line, inner.start_character);
-    let ends_ge =
-        (outer.end_line, outer.end_character) >= (inner.end_line, inner.end_character);
+    let starts_le =
+        (outer.start_line, outer.start_character) <= (inner.start_line, inner.start_character);
+    let ends_ge = (outer.end_line, outer.end_character) >= (inner.end_line, inner.end_character);
     starts_le && ends_ge
 }
 
@@ -120,7 +119,10 @@ fn symbols_single_proc_is_a_function_with_param_detail() {
     assert_eq!(symbols[0].kind, SymbolKind::Function);
     // Detail is editor presentation; structurally it must name both params.
     let detail = symbols[0].detail.as_deref().unwrap_or("");
-    assert!(detail.contains("name"), "param `name` missing from {detail:?}");
+    assert!(
+        detail.contains("name"),
+        "param `name` missing from {detail:?}"
+    );
     assert!(
         detail.contains("greeting"),
         "param `greeting` missing from {detail:?}",
@@ -354,11 +356,26 @@ fn symbols_mixed_document_collects_all_top_level_definitions() {
     );
     let symbols = document_symbols(src, "tcl8.6");
     let pairs = all_pairs(&symbols);
-    assert!(pairs.contains(&("f".to_string(), SymbolKind::Function)), "{pairs:?}");
-    assert!(pairs.contains(&("ns".to_string(), SymbolKind::Namespace)), "{pairs:?}");
-    assert!(pairs.contains(&("g".to_string(), SymbolKind::Function)), "{pairs:?}");
-    assert!(pairs.contains(&("K".to_string(), SymbolKind::Class)), "{pairs:?}");
-    assert!(pairs.contains(&("top".to_string(), SymbolKind::Variable)), "{pairs:?}");
+    assert!(
+        pairs.contains(&("f".to_string(), SymbolKind::Function)),
+        "{pairs:?}"
+    );
+    assert!(
+        pairs.contains(&("ns".to_string(), SymbolKind::Namespace)),
+        "{pairs:?}"
+    );
+    assert!(
+        pairs.contains(&("g".to_string(), SymbolKind::Function)),
+        "{pairs:?}"
+    );
+    assert!(
+        pairs.contains(&("K".to_string(), SymbolKind::Class)),
+        "{pairs:?}"
+    );
+    assert!(
+        pairs.contains(&("top".to_string(), SymbolKind::Variable)),
+        "{pairs:?}"
+    );
 }
 
 // ===========================================================================
@@ -405,7 +422,10 @@ fn lens_one_per_user_proc() {
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
     assert_eq!(lenses.len(), 2, "{lenses:?}");
     // Both anchor on the proc-name token, not the `proc` keyword (col 5).
-    assert!(lenses.iter().all(|l| l.range.start_character == 5), "{lenses:?}");
+    assert!(
+        lenses.iter().all(|l| l.range.start_character == 5),
+        "{lenses:?}"
+    );
 }
 
 #[test]
@@ -473,7 +493,11 @@ fn lens_counts_method_calls_inside_class_body() {
     }
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
     // The `greet` declaration's name span is on line 1.
-    assert_eq!(lens_on_line(&lenses, 1).command_title, "2 references", "{lenses:?}");
+    assert_eq!(
+        lens_on_line(&lenses, 1).command_title,
+        "2 references",
+        "{lenses:?}"
+    );
 }
 
 // ===========================================================================
@@ -578,7 +602,10 @@ fn links_package_require_surfaces_targetless_link_with_tooltip() {
         .iter()
         .find(|l| l.tooltip.as_deref().is_some_and(|t| t.contains("http")))
         .expect("a package-require link for http");
-    assert_eq!(pkg.target, "", "package link has no navigable target: {pkg:?}");
+    assert_eq!(
+        pkg.target, "",
+        "package link has no navigable target: {pkg:?}"
+    );
     assert_eq!(pkg.tooltip.as_deref(), Some("package require http"));
 }
 
@@ -628,7 +655,10 @@ fn actions_none_at_inert_position() {
     let src = "set x 1\n";
     let analysis = analyse(src);
     let actions = code_actions(src, cursor(0, 4), Some(&analysis));
-    assert!(actions.is_empty(), "inert position should offer nothing; got {actions:?}");
+    assert!(
+        actions.is_empty(),
+        "inert position should offer nothing; got {actions:?}"
+    );
 }
 
 #[test]
@@ -644,12 +674,20 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     let analysis = analyse(src);
     // Sanity: the analyser actually flagged W302 here; otherwise this test
     // isn't exercising the path it claims to.
-    let has_w302 = analysis.diagnostics.iter().any(|d| {
-        format!("{:?}", d.code) == "W302"
-    });
-    assert!(has_w302, "expected a W302 diagnostic; diags={:?}", analysis.diagnostics);
+    let has_w302 = analysis
+        .diagnostics
+        .iter()
+        .any(|d| format!("{:?}", d.code) == "W302");
+    assert!(
+        has_w302,
+        "expected a W302 diagnostic; diags={:?}",
+        analysis.diagnostics
+    );
     // Cover the whole `catch` line so the action context overlaps the diag.
-    let line2_len = src.lines().nth(1).map_or(0, |l| u32::try_from(l.len()).unwrap_or(0));
+    let line2_len = src
+        .lines()
+        .nth(1)
+        .map_or(0, |l| u32::try_from(l.len()).unwrap_or(0));
     let actions = code_actions(src, selection(1, 0, line2_len), Some(&analysis));
     let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
     assert!(
@@ -658,18 +696,26 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     );
     // Both capture variants are offered.
     assert!(
-        actions.iter().any(|a| a.title == "Add catch result variable"),
+        actions
+            .iter()
+            .any(|a| a.title == "Add catch result variable"),
         "missing ` result` variant; got {titles:?}",
     );
     assert!(
-        actions.iter().any(|a| a.title == "Add catch result + options variables"),
+        actions
+            .iter()
+            .any(|a| a.title == "Add catch result + options variables"),
         "missing ` result opts` variant; got {titles:?}",
     );
     // The fixes are quick-fixes and their edits are well-formed insertions.
     for a in actions.iter().filter(|a| a.title.contains("catch result")) {
         assert_eq!(a.kind, ActionKind::QuickFix);
         assert!(edits_well_formed(a), "malformed edit: {a:?}");
-        assert_eq!(a.edits.len(), 1, "the capture fix is a single insertion: {a:?}");
+        assert_eq!(
+            a.edits.len(),
+            1,
+            "the capture fix is a single insertion: {a:?}"
+        );
         // Insertion edit: zero-width range (start == end), inserting the suffix.
         let e = &a.edits[0];
         assert_eq!(
@@ -677,7 +723,10 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
             (e.range.end_line, e.range.end_character),
             "capture fix should be a pure insertion: {e:?}",
         );
-        assert!(e.new_text.contains("result"), "suffix should add `result`: {e:?}");
+        assert!(
+            e.new_text.contains("result"),
+            "suffix should add `result`: {e:?}"
+        );
     }
 }
 
@@ -708,7 +757,10 @@ fn actions_extract_proc_on_selection_is_well_formed() {
     // with a call.
     assert_eq!(extract.edits.len(), 2, "{extract:?}");
     let proc_text = &extract.edits[0].new_text;
-    assert!(proc_text.starts_with("proc "), "first edit defines a proc: {proc_text:?}");
+    assert!(
+        proc_text.starts_with("proc "),
+        "first edit defines a proc: {proc_text:?}"
+    );
     assert!(
         proc_text.contains('x'),
         "the referenced var `x` should become a parameter: {proc_text:?}",
@@ -779,8 +831,14 @@ fn actions_generate_docstring_for_undocumented_proc() {
     assert_eq!(doc.kind, ActionKind::Source);
     assert!(edits_well_formed(doc), "{doc:?}");
     let text = &doc.edits[0].new_text;
-    assert!(text.contains("@param name"), "missing @param name: {text:?}");
-    assert!(text.contains("@param greeting"), "missing @param greeting: {text:?}");
+    assert!(
+        text.contains("@param name"),
+        "missing @param name: {text:?}"
+    );
+    assert!(
+        text.contains("@param greeting"),
+        "missing @param greeting: {text:?}"
+    );
 }
 
 #[test]
@@ -798,7 +856,10 @@ fn actions_edits_are_always_well_formed() {
         end_character: 0,
     };
     let actions = code_actions(src, whole, Some(&analysis));
-    assert!(!actions.is_empty(), "expected at least one action over the document");
+    assert!(
+        !actions.is_empty(),
+        "expected at least one action over the document"
+    );
     for a in &actions {
         assert!(edits_well_formed(a), "malformed edit in action {a:?}");
     }
