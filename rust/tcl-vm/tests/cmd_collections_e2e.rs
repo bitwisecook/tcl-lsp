@@ -136,7 +136,7 @@ fn array_unset_pattern_and_whole() {
 ///   script:        set s 5; array set s {a 1}
 ///   tclsh (8.6+9.0): can't set "s(a)": variable isn't array
 ///   VM (wrong):      can't set "s": variable isn't array
-/// This test asserts the correct tclsh behaviour and currently FAILS.
+/// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn array_set_onto_scalar_errors_bug() {
     let (ok, msg, _) = run("set s 5\narray set s {a 1}");
@@ -320,7 +320,7 @@ fn dict_read_errors() {
 ///   script:        dict get {a 1 b}
 ///   tclsh (8.6+9.0): missing value to go with key   (error)
 ///   VM (wrong):      a 1 b                           (ok, returns it verbatim)
-/// This test asserts the correct tclsh behaviour and currently FAILS.
+/// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn dict_get_no_keys_validates_dict_bug() {
     let (ok, msg, _) = run("dict get {a 1 b}");
@@ -420,7 +420,7 @@ fn dict_for() {
 ///   script:        set d {a 1 b 2}; dict map {k v} $d {expr {$v*2}}
 ///   tclsh (8.6+9.0): a 2 b 4
 ///   VM (wrong):      invalid command name "::tcl::dict::map"
-/// This test asserts the correct tclsh behaviour and currently FAILS.
+/// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn dict_map_compiled_path_bug() {
     let (ok, result, _) = run("set d {a 1 b 2}\ndict map {k v} $d {expr {$v*2}}");
@@ -461,7 +461,7 @@ fn dict_map_indirect_path_works() {
 ///   script:        set d {a 1 b 2 c 3}; dict map {k v} $d {if {$v==2} break; set v}
 ///   tclsh (8.6+9.0): "" (empty)
 ///   VM (wrong):      a 1   (the pre-break accumulation)
-/// This test asserts the correct tclsh behaviour and currently FAILS.
+/// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn dict_map_break_returns_empty_bug() {
     let (ok, result, _) =
@@ -736,7 +736,7 @@ fn lsort_modes() {
 ///   tclsh (8.6+9.0): a b      (keeps the later `a`/`b`)
 ///   VM (wrong):      A B      (keeps the earlier `A`/`B`)
 /// Also: `lsort -integer -unique {01 1}` → tclsh `1`, VM `01`.
-/// This test asserts the correct tclsh behaviour and currently FAILS.
+/// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn lsort_unique_retains_last_duplicate_bug() {
     // tclsh8.6/9.0: a b

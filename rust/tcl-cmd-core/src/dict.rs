@@ -117,6 +117,14 @@ pub fn get<O: ValueOps>(
             }
         }
     }
+    // `dict get` parses its dictionary argument even with no keys, so a
+    // malformed (odd-length) value errors (`dict get {a 1 b}` → "missing value
+    // to go with key"). With keys present, each intermediate level was already
+    // parsed in the loop, and `cur` is now a *leaf* value that must not itself
+    // be dict-parsed — so validate only in the no-key case.
+    if keys.is_empty() {
+        ops.dict_pairs(&cur)?;
+    }
     Ok(cur)
 }
 

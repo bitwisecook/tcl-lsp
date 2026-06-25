@@ -1571,7 +1571,9 @@ impl Vm {
 
     /// Ensure `name` is an array (creating an empty one if unset) — `array set
     /// name {}` with an empty value list still materialises the array (C's
-    /// `TclArraySet`). A scalar `name` errors `variable isn't array`.
+    /// `TclArraySet`). A scalar `name` errors `variable isn't array`; this is the
+    /// empty-list path, which C words under the command (`can't array set "n"`),
+    /// unlike the per-element write that names `n(key)`.
     pub(crate) fn ensure_array(&mut self, name: &str) -> Result<(), Completion<Value>> {
         let resolved = self.ns_var_fallback(name);
         let lookup = resolved.as_deref().unwrap_or(name).to_string();
@@ -1580,7 +1582,9 @@ impl Vm {
             match f.locals.get(&nm) {
                 Some(Local::Array(_) | Local::Link { .. }) => {}
                 Some(Local::Scalar(_)) => {
-                    return Err(err(format!("can't set \"{name}\": variable isn't array")));
+                    return Err(err(format!(
+                        "can't array set \"{name}\": variable isn't array"
+                    )));
                 }
                 None => {
                     f.locals.insert(nm, Local::Array(BTreeMap::new()));
