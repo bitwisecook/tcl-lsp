@@ -1405,17 +1405,28 @@ class _Lowerer:
                 var_list = args[i + 2]
                 handler_body_text = args[i + 3]
                 handler_tok = arg_tokens[i + 3] if i + 3 < len(arg_tokens) else None
+                handler_single = i + 3 < len(arg_single) and arg_single[i + 3]
 
                 # Parse varList to extract result var and options var.
                 var_names = _parse_param_names(var_list)
                 result_var = _normalise_var_name(var_names[0]) if var_names else None
                 options_var = _normalise_var_name(var_names[1]) if len(var_names) > 1 else None
 
-                handler_body = self._lower_body_arg(
-                    handler_body_text,
-                    handler_tok,
-                    namespace=namespace,
-                )
+                # A handler body of literal ``-`` is a fallthrough marker:
+                # the clause shares the next non-``-`` handler's body
+                # (like ``switch``).  Treat it as an empty body rather than
+                # lowering ``-`` as a script — otherwise it compiles to a
+                # zero-arg call of the ``-`` command and trips a spurious
+                # arity error (issue #703).
+                is_fallthrough = handler_single and handler_body_text == "-"
+                if is_fallthrough:
+                    handler_body: IRScript = IRScript()
+                else:
+                    handler_body = self._lower_body_arg(
+                        handler_body_text,
+                        handler_tok,
+                        namespace=namespace,
+                    )
                 handler_range = (
                     range_from_token(handler_tok) if handler_tok is not None else cmd.range
                 )
@@ -1428,6 +1439,7 @@ class _Lowerer:
                         options_var=options_var,
                         body=handler_body,
                         body_range=handler_range,
+                        fallthrough=is_fallthrough,
                     )
                 )
                 i += 4
