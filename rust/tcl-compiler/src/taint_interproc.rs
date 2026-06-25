@@ -608,6 +608,16 @@ pub fn converge_summaries_with(
             let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
             if summaries.get(*qname) != Some(&inferred) {
                 summaries.insert((*qname).clone(), inferred);
+                // Re-queue `qname` itself: a self-recursive proc's inference
+                // reads its own summary, so a change can enable another. The
+                // `direct_calls` reverse map does not always round-trip the
+                // self-edge — a recursive call buried in `[expr {[fib …]}]` is
+                // not extracted as a call-graph edge — so relying on `callers`
+                // alone leaves a direct-recursion summary one step short of the
+                // fixpoint (the debug guard below would then trip). Monotone
+                // over a finite lattice ⇒ still terminates; for a non-recursive
+                // proc the extra re-inference is a single no-op.
+                next.insert(qname.as_str());
                 match &callers {
                     Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
                     None => next.extend(proc_names.iter().map(|q| q.as_str())),
@@ -810,6 +820,28 @@ mod tests {
                 .any(|w| w.code == DiagCode::T100 && w.sink_command == "eval"),
             "expected eval injection via return summary: {w:?}"
         );
+    }
+
+    #[test]
+    fn self_recursive_proc_taint_summary_converges() {
+        // Regression: a directly self-recursive proc — `fib` calling itself
+        // inside `[expr {[fib …]}]` — under-converged the interproc taint
+        // fixpoint because the self-call edge is not extracted into
+        // `direct_calls` (it is buried in a braced `expr`), so the worklist
+        // never re-queued `fib` after its own summary changed. The debug-only
+        // convergence guard then panicked, and the LSP diagnostic worker
+        // caught the panic and published nothing — so the recursive-definition
+        // and linked-editing e2e tests timed out waiting for diagnostics.
+        // The worklist now re-queues a proc on its own change, so the fixpoint
+        // settles and the guard holds.
+        let reg = CommandRegistry::build_default();
+        let src = "proc fib {n} {\n    if {$n < 2} { return $n }\n    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]\n}\nputs \"fib(10) = [fib 10]\"\n";
+        let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
+        // Exercises `converge_summaries_with` and its debug fixpoint guard —
+        // this panicked before the fix.
+        let _ = solve_interprocedural_taints(&cu, &reg, None);
+        // The full taint pass over the same source must also complete cleanly.
+        let _ = warnings(src);
     }
 
     #[test]
