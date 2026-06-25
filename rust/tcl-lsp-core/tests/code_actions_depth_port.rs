@@ -451,44 +451,28 @@ fn inline_declines_multi_command_body() {
     );
 }
 
-// BUG: inline_proc_action produces a brace-truncated, unparseable edit when the
-// proc body contains a braced sub-expression (e.g. `expr {$n * 2}`).
+// FIXED: inline_proc_action no longer brace-truncates a body with a braced
+// sub-expression. It previously sliced the body with `proc_def.body_span` —
+// whose `.end()` excludes the proc's closing `}` (lexer inner-end convention) —
+// then `.trim_end_matches('}')` greedily ate the INNER expr brace, so
+// `proc double {n} { expr {$n * 2} }` inlined `double 5` to `expr {5 * 2`
+// (unparseable). It now strips a trailing `}` only when it is the unbalanced
+// outer brace, preserving the inner sub-expression brace.
 //
-// Repro:
-//   src   = "proc double {n} { expr {$n * 2} }\ndouble 5\n"
-//   cursor on the `double 5` call (line 1, col 0)
-//   actual inline edit new_text = "expr {5 * 2"   <-- missing the closing `}`
-//   expected                    = "expr {5 * 2}"
-//
-// Root cause: inline_proc_action slices the body with `proc_def.body_span`,
-// whose `.end()` follows the lexer inner-end convention and EXCLUDES the proc's
-// closing `}` (raw slice = "{ expr {$n * 2} ", with the outer brace absent).
-// It then strips braces with `.trim_start_matches('{').trim_end_matches('}')`,
-// and `trim_end_matches('}')` greedily eats the INNER expr brace, yielding
-// `expr {$n * 2`. After arg substitution the call `double 5` is replaced by
-// `expr {5 * 2`.
-//
-// This changes program meaning vs C-Tcl: a working call becomes a syntactically
-// broken command. Proven on tclsh8.6 + tclsh9.0:
-//   info complete {expr {5 * 2}}  -> 1   (the correct form is complete)
-//   info complete {expr {5 * 2}   -> errors "missing close-brace"
-//   (i.e. the brace-truncated inline result does not parse).
-// Left commented out per the BUG policy (do not #[ignore] silently; do not
-// risky-edit source). Re-enable once the body slice widens over the closer
-// (e.g. via refactor::token_end_offset) instead of under-reading it.
-//
-// #[test]
-// fn inline_braced_expr_body_keeps_closing_brace() {
-//     let src = "proc double {n} { expr {$n * 2} }\ndouble 5\n";
-//     let analysis = analyse(src);
-//     let actions = code_actions(src, cursor(1, 0), Some(&analysis));
-//     let inline = find(&actions, "Inline proc").expect("an inline-proc action");
-//     assert_eq!(
-//         inline.edits[0].new_text, "expr {5 * 2}",
-//         "inlined braced expr must keep its closing brace: {:?}",
-//         inline.edits[0].new_text,
-//     );
-// }
+// Proven on tclsh8.6 + tclsh9.0: info complete {expr {5 * 2}} -> 1 (complete);
+// info complete {expr {5 * 2} -> errors "missing close-brace".
+#[test]
+fn inline_braced_expr_body_keeps_closing_brace() {
+    let src = "proc double {n} { expr {$n * 2} }\ndouble 5\n";
+    let analysis = analyse(src);
+    let actions = code_actions(src, cursor(1, 0), Some(&analysis));
+    let inline = find(&actions, "Inline proc").expect("an inline-proc action");
+    assert_eq!(
+        inline.edits[0].new_text, "expr {5 * 2}",
+        "inlined braced expr must keep its closing brace: {:?}",
+        inline.edits[0].new_text,
+    );
+}
 
 // ===========================================================================
 // refactor-engine: switch -> dict lookup (via the code-actions surface)
