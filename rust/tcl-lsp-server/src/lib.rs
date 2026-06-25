@@ -7417,6 +7417,85 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn minify_document_command_returns_source_and_handles_missing_doc() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///m.tcl").unwrap();
+        register(&backend, &uri, "set x 1\nputs $x\n").await;
+        let out = backend
+            .minify_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "minify result should carry a source string: {out:?}",
+        );
+        // No argument → None; an unregistered URI → None.
+        assert!(
+            backend
+                .minify_document_command(&[])
+                .await
+                .expect("ok")
+                .is_none()
+        );
+        assert!(
+            backend
+                .minify_document_command(&[serde_json::json!("file:///nope.tcl")])
+                .await
+                .expect("ok")
+                .is_none(),
+        );
+    }
+
+    #[tokio::test]
+    async fn optimise_document_command_returns_source_for_registered_doc() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o.tcl").unwrap();
+        register(&backend, &uri, "set x [expr {1 + 2}]\nputs $x\n").await;
+        let out = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "optimise result should carry a source string: {out:?}",
+        );
+        assert!(
+            backend
+                .optimise_document_command(&[])
+                .await
+                .expect("ok")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn unminify_error_command_echoes_original_and_flags_change() {
+        // No argument → None.
+        assert!(Backend::unminify_error_command(&[]).is_none());
+        let out = Backend::unminify_error_command(&[serde_json::json!("oops at a")]).expect("some");
+        assert_eq!(
+            out.get("originalError").and_then(serde_json::Value::as_str),
+            Some("oops at a"),
+        );
+        assert!(
+            out.get("translatedError")
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        );
+        assert!(
+            out.get("changed")
+                .and_then(serde_json::Value::as_bool)
+                .is_some()
+        );
+    }
+
     #[test]
     fn feature_toggles_resolved_map_covers_known_keys() {
         let mut toggles = FeatureToggles::default();
