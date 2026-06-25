@@ -2759,14 +2759,14 @@ fn unwrap_not(node: &ExprNode) -> &ExprNode {
 /// comparison inversion, De Morgan forward), falling back to a
 /// generic operand recurse.
 fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
-    // Double negation: !!x → x.
-    if let ExprNode::Unary {
-        op: UnaryOp::Not,
-        operand: inner,
-    } = operand
-    {
-        return shrink_node(inner);
-    }
+    // NB: `!!x → x` is deliberately NOT folded. It is only sound when the whole
+    // expression is consumed as a boolean (`if {!!$x}` ≡ `if {$x}`); in a value
+    // context or as a subexpression operand it changes the result, since `!!x`
+    // yields the 0/1 boolean coercion while `x` yields x's value (tclsh:
+    // `expr {!!5}` → 1, `expr {5}` → 5). The minifier processes Expr-role
+    // arguments without knowing whether the result is consumed as a boolean, so
+    // the fold is unsafe here. The comparison-inversion and De Morgan rewrites
+    // below DO preserve the 0/1 result and remain.
     if let ExprNode::Binary { op, left, right } = operand {
         // Comparison inversion: !($a == $b) → $a != $b.
         if let Some(inv) = comparison_inversion(*op) {
@@ -3207,8 +3207,11 @@ mod tests {
     }
 
     #[test]
-    fn expr_double_negation() {
-        check("if {!!$x} {puts x}\n", "if {$x} {puts x}");
+    fn expr_double_negation_not_folded() {
+        // `!!x → x` is unsound outside a top-level boolean condition (it drops
+        // the 0/1 coercion), and the minifier can't tell the context apart, so
+        // `!!$x` is left intact rather than risk changing a value-context result.
+        check("if {!!$x} {puts x}\n", "if {!!$x} {puts x}");
     }
 
     #[test]
