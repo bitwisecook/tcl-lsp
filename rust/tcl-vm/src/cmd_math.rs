@@ -98,7 +98,12 @@ fn pred_fn(args: &[Value], name: &str, f: impl Fn(f64) -> bool) -> Completion<Va
 /// A two-`double` predicate (`isunordered`).
 fn pred_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> bool) -> Completion<Value> {
     let [lhs, rhs] = args else {
-        return err(format!("too many/few args to math function \"{name}\""));
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"{name}\""));
     };
     match (lhs.as_double(), rhs.as_double()) {
         (Ok(x), Ok(y)) => ok(Value::bool(f(x, y))),
@@ -110,7 +115,12 @@ fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>
     match args {
         [x] => Ok(x),
         _ => Err(err(format!(
-            "too many/few args to math function \"{name}\""
+            "{} for math function \"{name}\"",
+            if args.is_empty() {
+                "not enough arguments"
+            } else {
+                "too many arguments"
+            }
         ))),
     }
 }
@@ -215,7 +225,12 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
 /// `fmod` — where `fmod(x, 0)` is the domain error).
 fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completion<Value> {
     let [lhs, rhs] = args else {
-        return err(format!("too many/few args to math function \"{name}\""));
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"{name}\""));
     };
     match (lhs.as_double(), rhs.as_double()) {
         (Ok(x), Ok(y)) => {
@@ -241,7 +256,12 @@ fn m_ceil(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [b, e] = args else {
-        return err("too many/few args to math function \"pow\"");
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"pow\""));
     };
     match (b.as_double(), e.as_double()) {
         (Ok(bb), Ok(ee)) => {
@@ -327,7 +347,7 @@ fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// integers, else double.
 fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
     if args.is_empty() {
-        return err(format!("too few args to math function \"{name}\""));
+        return err(format!("not enough arguments for math function \"{name}\""));
     }
     let mut all_int = true;
     let mut nums = Vec::with_capacity(args.len());
