@@ -8319,6 +8319,181 @@ mod tests {
         }
     }
 
+    // ---- Document-lifecycle + diagnostic-core internals -------------------
+    // These exercise the previously-untested lifecycle path: the
+    // `did_open` / `did_change` / `did_close` handlers and the synchronous
+    // diagnostic driver `publish_analyser_diagnostics` → `run_diagnostics_core`
+    // (the biggest untested function), asserting on observable state
+    // (`documents`, `pull_diag_cache`) since the test client's socket is
+    // detached so published notifications are no-ops.
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn publish_analyser_diagnostics_caches_tcl_diagnostics() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///life.tcl").unwrap();
+        // `y` is set but never read → W211.
+        let src = "proc foo {} { set y 1 }\n";
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache
+            .get(&uri)
+            .expect("run_diagnostics_core should populate the pull cache");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "expected W211 in cached diagnostics, got {:?}",
+            entry.diagnostics,
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn publish_analyser_diagnostics_routes_bigip_dialect_to_pull_cache() {
+        // A BIG-IP document takes the `f5_dialect_diagnostics` branch of
+        // `run_diagnostics_core` (model validators, not the Tcl analyser) and
+        // still lands a pull-cache entry.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///life.conf").unwrap();
+        let src = "ltm pool /Common/p {\n    members {\n        /Common/n:80 { }\n    }\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "f5-bigip".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        assert!(
+            backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "BIG-IP dialect should populate the pull cache via the f5 branch",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_open_stores_document() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///open.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 7,
+                    text: "set x 1\n".to_owned(),
+                },
+            })
+            .await;
+        let docs = backend.documents.lock().await;
+        let doc = docs.get(&uri).expect("did_open should store the document");
+        assert_eq!(doc.text, "set x 1\n");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_change_replaces_document_text() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///chg.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "set x 1\n".to_owned(),
+                },
+            })
+            .await;
+        // A full-document replacement (`range: None`).
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![tower_lsp_server::ls_types::TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "set y 2\n".to_owned(),
+                }],
+            })
+            .await;
+        assert_eq!(
+            backend.documents.lock().await.get(&uri).expect("doc").text,
+            "set y 2\n",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_removes_document_and_clears_pull_cache() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///close.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "did_close should remove the open document",
+        );
+        assert!(
+            !backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "did_close should drop the pull-cache entry",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_change_configuration_applies_inline_settings() {
+        let backend = test_backend();
+        let params = DidChangeConfigurationParams {
+            settings: serde_json::json!({
+                "dialect": "tcl9.0",
+                "tclLsp.style.nonAscii": "strict",
+                "tclLsp.diagnostics.W211": false,
+            }),
+        };
+        // `did_change_configuration` ends by pulling config from the client,
+        // which errors fast against the test's detached socket; the timeout is
+        // a backstop so a future transport change can't hang the suite.
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            backend.did_change_configuration(params),
+        )
+        .await
+        .expect("did_change_configuration should not hang");
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
+        assert!(
+            backend.disabled_diagnostics.lock().await.contains("W211"),
+            "W211 should be disabled by the inline settings",
+        );
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn pull_diagnostics_include_compiler_and_optimiser_codes() {
         // Regression: the pull handler (`textDocument/diagnostic`) must return
