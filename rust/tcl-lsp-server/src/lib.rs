@@ -7282,6 +7282,142 @@ mod tests {
     }
 
     #[test]
+    fn list_irule_events_command_returns_sorted_known_events() {
+        let out = Backend::list_irule_events_command();
+        let names: Vec<&str> = out
+            .get("events")
+            .and_then(|v| v.as_array())
+            .expect("events array")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        assert!(names.contains(&"HTTP_REQUEST"), "{names:?}");
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted, "events must be sorted");
+    }
+
+    #[test]
+    fn diagram_data_command_extracts_when_events() {
+        let src = "when HTTP_REQUEST {\n}\nwhen CLIENT_ACCEPTED {\n}\n";
+        let out = Backend::diagram_data_command(&[serde_json::json!(src)]).expect("some");
+        let events: Vec<&str> = out
+            .get("events")
+            .and_then(|v| v.as_array())
+            .unwrap()
+            .iter()
+            .filter_map(|e| e.get("name").and_then(serde_json::Value::as_str))
+            .collect();
+        assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
+        assert!(events.contains(&"CLIENT_ACCEPTED"), "{events:?}");
+        // No string argument → None (not an empty result).
+        assert!(Backend::diagram_data_command(&[]).is_none());
+    }
+
+    #[tokio::test]
+    async fn describe_irule_event_command_reports_known_and_unknown() {
+        let backend = test_backend();
+        let known = backend
+            .describe_irule_event_command(&[serde_json::json!("HTTP_REQUEST")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            known.get("known").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert!(
+            known
+                .get("validCommandCount")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0)
+                > 0,
+            "a known event should report valid commands: {known:?}",
+        );
+        let unknown = backend
+            .describe_irule_event_command(&[serde_json::json!("NOPE_EVENT")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            unknown.get("known").and_then(serde_json::Value::as_bool),
+            Some(false),
+        );
+    }
+
+    #[tokio::test]
+    async fn describe_irule_command_command_resolves_case_insensitively() {
+        let backend = test_backend();
+        let found = backend
+            .describe_irule_command_command(&[serde_json::json!("HTTP::header")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            found.get("found").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        let canonical = found.get("command").and_then(serde_json::Value::as_str);
+        // A differently-cased spelling resolves to the same canonical command.
+        let ci = backend
+            .describe_irule_command_command(&[serde_json::json!("http::HEADER")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            ci.get("found").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            ci.get("command").and_then(serde_json::Value::as_str),
+            canonical
+        );
+        // An unknown command reports `found: false`.
+        let missing = backend
+            .describe_irule_command_command(&[serde_json::json!("NoSuchCmd")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            missing.get("found").and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+    }
+
+    #[tokio::test]
+    async fn list_subcommands_command_returns_sorted_subcommands() {
+        let backend = test_backend();
+        let out = backend
+            .list_subcommands_command(&[serde_json::json!("string")])
+            .await
+            .expect("some");
+        assert_eq!(
+            out.get("command").and_then(serde_json::Value::as_str),
+            Some("string")
+        );
+        let subs: Vec<&str> = out
+            .get("subcommands")
+            .and_then(|v| v.as_array())
+            .unwrap()
+            .iter()
+            .filter_map(|s| s.get("name").and_then(serde_json::Value::as_str))
+            .collect();
+        assert!(subs.contains(&"length"), "string subcommands: {subs:?}");
+        let mut sorted = subs.clone();
+        sorted.sort_unstable();
+        assert_eq!(subs, sorted, "subcommands must be sorted");
+    }
+
+    #[tokio::test]
+    async fn render_config_ini_emits_known_sections() {
+        let backend = test_backend();
+        let ini = backend.render_config_ini().await;
+        for section in ["[features]", "[optimiser]", "[style]"] {
+            assert!(ini.contains(section), "missing {section} in:\n{ini}");
+        }
+    }
+
+    #[test]
     fn feature_toggles_resolved_map_covers_known_keys() {
         let mut toggles = FeatureToggles::default();
         toggles.apply(serde_json::json!({"hover": false}).as_object().unwrap());
