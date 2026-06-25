@@ -566,12 +566,39 @@ impl Lowerer<'_> {
                 let match_arg = args[i + 1].clone();
                 let var_list = &args[i + 2];
                 let handler_tok = arg_tokens.get(i + 3);
+                let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
                 let var_names = parse_param_names(var_list);
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
                 let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
 
-                let handler_body = self.lower_body_from_tok(&args[i + 3], handler_tok, namespace);
+                // A handler body of literal `-` is a fallthrough marker: the
+                // clause shares the next non-`-` handler's body (like `switch`).
+                // Treat it as an empty body rather than lowering `-` as a script
+                // — otherwise it compiles to a zero-arg call of the `-` command
+                // and trips a spurious arity error (issue #703).
+                //
+                // Tcl recognises the marker by the word's *string value*, so the
+                // braced `{-}`, quoted `"-"`, and backslash-escaped (`\-`,
+                // `\x2d`, …) forms — all of which evaluate to `-` — are equally
+                // fallthroughs. Braces suppress backslash substitution, so a
+                // braced word's value is its raw content (`{\-}` is the literal
+                // two-char string `\-`, *not* a fallthrough); bare and quoted
+                // words are backslash-substituted first. A braced single-token
+                // word's representative token is a `Str` (the `{`-stripping
+                // wrapper kind); bare / quoted words are `Esc`.
+                let is_braced = handler_tok.is_some_and(|t| t.kind == TokenType::Str);
+                let body_value = if is_braced {
+                    std::borrow::Cow::Borrowed(args[i + 3].as_str())
+                } else {
+                    tcl_lexer::backslash_subst(&args[i + 3])
+                };
+                let is_fallthrough = handler_single && body_value == "-";
+                let handler_body = if is_fallthrough {
+                    crate::ir::Script::new()
+                } else {
+                    self.lower_body_from_tok(&args[i + 3], handler_tok, namespace)
+                };
 
                 handlers.push(TryHandler {
                     kind: keyword.clone(),
@@ -580,6 +607,7 @@ impl Lowerer<'_> {
                     options_var,
                     body: handler_body,
                     body_span: handler_tok.map_or(seg.span, |t| t.span),
+                    fallthrough: is_fallthrough,
                 });
                 i += 4;
                 continue;
@@ -996,6 +1024,124 @@ mod tests {
         } else {
             panic!("expected Try");
         }
+    }
+
+    #[test]
+    fn try_dash_handler_body_is_fallthrough() {
+        // Issue #703: a `-` handler body is a fallthrough marker (shares the
+        // next non-`-` handler's body, like `switch`), not a zero-arg `-`
+        // command. It must lower to a fallthrough handler with an empty body.
+        let m = lower_to_ir(
+            "try {set x 1} on ok result - trap NONE result {return 0} on error msg {return 1}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        let shape: Vec<(&str, &str, bool)> = handlers
+            .iter()
+            .map(|h| (h.kind.as_str(), h.match_arg.as_str(), h.fallthrough))
+            .collect();
+        assert_eq!(
+            shape,
+            vec![
+                ("on", "ok", true),
+                ("trap", "NONE", false),
+                ("on", "error", false)
+            ],
+        );
+        // The fallthrough handler carries no statements of its own.
+        assert!(handlers[0].body.statements.is_empty());
+        assert!(!handlers[1].body.statements.is_empty());
+    }
+
+    #[test]
+    fn try_braced_dash_handler_body_is_fallthrough() {
+        // Per Tcl's `TclNRTryObjCmd`, a body of `{-}` evaluates to the string
+        // `-` and is equally a fallthrough marker.
+        let m = lower_to_ir("try {set x 1} on ok a {-} trap NONE b {return $b}", &reg());
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(handlers[0].fallthrough);
+        assert!(handlers[0].body.statements.is_empty());
+    }
+
+    #[test]
+    fn try_consecutive_dash_handlers_are_fallthrough() {
+        // Several `-` handlers in a row all share the final body.
+        let m = lower_to_ir(
+            "try {set x 1} on ok a - on return b - trap NONE c {return $c}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        let flags: Vec<bool> = handlers.iter().map(|h| h.fallthrough).collect();
+        assert_eq!(flags, vec![true, true, false]);
+    }
+
+    #[test]
+    fn try_empty_brace_handler_body_is_not_fallthrough() {
+        // A genuinely empty `{}` body is valid and distinct from `-`.
+        let m = lower_to_ir("try {set x 1} on ok a {} on error b {return $b}", &reg());
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(!handlers[0].fallthrough);
+    }
+
+    #[test]
+    fn try_quoted_dash_handler_body_is_fallthrough() {
+        // A quoted `"-"` evaluates to the string `-`, like the bare/braced forms.
+        let m = lower_to_ir(
+            "try {set x 1} on ok a \"-\" trap NONE b {return $b}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(handlers[0].fallthrough);
+        assert!(handlers[0].body.statements.is_empty());
+    }
+
+    #[test]
+    fn try_backslash_escaped_dash_handler_body_is_fallthrough() {
+        // Tcl applies backslash substitution before `try` sees the word, so a
+        // bare `\-` / `\x2d` body evaluates to `-` and is a fallthrough
+        // (Codex review on #706 / port of #704).
+        for src in [
+            "try {set x 1} on ok a \\- trap NONE b {return $b}",
+            "try {set x 1} on ok a \\x2d trap NONE b {return $b}",
+            "try {set x 1} on ok a \"\\-\" trap NONE b {return $b}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+                panic!("expected Try for {src:?}");
+            };
+            assert!(handlers[0].fallthrough, "expected fallthrough for {src:?}");
+            assert!(
+                handlers[0].body.statements.is_empty(),
+                "expected empty body for {src:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn try_braced_escaped_dash_handler_body_is_not_fallthrough() {
+        // Braces suppress backslash substitution: `{\-}` is the literal
+        // two-char string `\-`, which is *not* the `-` fallthrough marker.
+        let m = lower_to_ir(
+            "try {set x 1} on ok a {\\-} trap NONE b {return $b}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(
+            !handlers[0].fallthrough,
+            "braced `{{\\-}}` is a literal string, not a fallthrough",
+        );
     }
 
     #[test]

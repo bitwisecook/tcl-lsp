@@ -315,6 +315,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
                         .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone())),
                     body: rewrite_script(&h.body, rename),
                     body_span: h.body_span,
+                    fallthrough: h.fallthrough,
                 })
                 .collect(),
             finally_body: finally_body.as_ref().map(|b| rewrite_script(b, rename)),

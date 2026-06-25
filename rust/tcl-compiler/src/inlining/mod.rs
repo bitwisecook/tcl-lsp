@@ -963,6 +963,7 @@ fn rewrite_stmt(
                         options_var: h.options_var.clone(),
                         body: hbody,
                         body_span: h.body_span,
+                        fallthrough: h.fallthrough,
                     });
                 } else {
                     new_handlers.push(h.clone());

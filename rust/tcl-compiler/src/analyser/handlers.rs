@@ -812,7 +812,14 @@ impl Analyser {
                 if let Some(vl_tok) = arg_tokens.get(i + 2).copied() {
                     self.define_vars_from_list(&args[i + 2], vl_tok, scope_path);
                 }
-                if let Some(body_tok) = arg_tokens.get(i + 3).copied() {
+                // A handler body of literal `-` is a fallthrough marker (shares
+                // the next handler's body, like `switch`); it is not a script,
+                // so it must not be re-lexed as one — otherwise the solo `-`
+                // reads as a zero-arg `-` command and trips a spurious arity
+                // error (issue #703). Mirrors the `switch` arm handling above.
+                if let Some(body_tok) = arg_tokens.get(i + 3).copied()
+                    && args[i + 3] != "-"
+                {
                     self.analyse_body(&args[i + 3], body_tok, scope_path);
                 }
                 i += 4;
