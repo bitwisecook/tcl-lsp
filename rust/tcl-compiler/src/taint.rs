@@ -221,11 +221,24 @@ impl TaintLattice {
         self.colours.contains(TaintColour::TAINTED)
     }
 
-    /// Intersect mitigating colours (must-have), union taint bits
-    /// (may-have). This implements the standard lattice join for
-    /// taint analysis.
+    /// Intersect mitigating colours (must-have) among the *tainted*
+    /// contributors, union taint bits (may-have). This implements the
+    /// standard lattice join for taint analysis.
+    ///
+    /// A clean (untainted) operand is the join **identity**: it contributes no
+    /// taint, so it must not dilute the other operand's mitigation colours.
+    /// Treating it as an annihilator (intersecting its empty colour set) wrongly
+    /// strips proven-safe colours — e.g. `clean.join(tainted|PATH_PREFIXED)`
+    /// would drop `PATH_PREFIXED` and re-fire T102. Mitigations are "must-have"
+    /// only across operands that actually carry taint.
     #[must_use]
     pub fn join(self, other: Self) -> Self {
+        if !self.is_tainted() {
+            return other;
+        }
+        if !other.is_tainted() {
+            return self;
+        }
         let taint = (self.colours | other.colours) & TaintColour::TAINTED;
         let mitigations = (self.colours & other.colours) & !TaintColour::TAINTED;
         Self {
@@ -2493,17 +2506,39 @@ mod tests {
 
     #[test]
     fn join_propagates_taint_intersects_mitigations() {
+        // Two TAINTED operands: taint unions, mitigations are must-have so only
+        // the colour present on both survives the intersection.
         let a = TaintLattice {
             colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED,
         };
         let b = TaintLattice {
-            colours: TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
+            colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
         };
         let j = a.join(b);
         assert!(j.colours.contains(TaintColour::TAINTED));
         assert!(j.colours.contains(TaintColour::CRLF_FREE));
         assert!(!j.colours.contains(TaintColour::PATH_PREFIXED));
         assert!(!j.colours.contains(TaintColour::NON_DASH_PREFIXED));
+    }
+
+    #[test]
+    fn join_with_untainted_is_identity() {
+        // A clean/untainted operand is the join identity: it contributes no
+        // taint, so it must not dilute the tainted operand's mitigation colours
+        // (matches Python's taint_join). Joining with the annihilating empty
+        // set previously wrongly stripped PATH_PREFIXED.
+        let tainted = TaintLattice {
+            colours: TaintColour::TAINTED | TaintColour::PATH_PREFIXED,
+        };
+        assert_eq!(tainted.join(TaintLattice::clean()).colours, tainted.colours);
+        assert_eq!(TaintLattice::clean().join(tainted).colours, tainted.colours);
+        // An untainted operand that happens to carry colours is still the
+        // identity — its taint contribution is nil, so it cannot remove a
+        // mitigation from the tainted side.
+        let untainted_coloured = TaintLattice {
+            colours: TaintColour::CRLF_FREE,
+        };
+        assert_eq!(tainted.join(untainted_coloured).colours, tainted.colours);
     }
 
     #[test]
