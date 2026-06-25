@@ -38,9 +38,10 @@
 //! is confirmed *sound* against tclsh (more aggressive, or a different but
 //! equivalent O-code), the assertion is adapted to Rust's actual behaviour and
 //! commented at the site. Rust *gaps* (Python optimises, Rust soundly leaves
-//! unchanged) assert the conservative no-op. The single GENUINE MISCOMPILE found
-//! (`$x - $x` → 0 on an untyped operand) is commented out with a `// BUG:` note
-//! and reported, not `#[ignore]`-d — every live test passes.
+//! unchanged) assert the conservative no-op. The genuine miscompile this port
+//! found (`$x - $x` → 0 on an untyped operand) has since been FIXED (O110 now
+//! gates the self-subtraction/xor fold on a provably-numeric operand); the
+//! assertion asserts the corrected behaviour. No `#[ignore]`; every test passes.
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::gvn::{

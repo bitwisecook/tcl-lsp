@@ -67,14 +67,15 @@
 //!     counterpart (a well-behaved loop yields sound, non-bottom intervals) is
 //!     ported instead. Both are listed in the port report.
 //!
-//! ## Bug found (reported, one test commented out per the bug policy)
+//! ## Bug found and FIXED
 //!
 //! `set l [list {*}{a b}]` expands at runtime to a 2-element list, so `lindex $l
 //! 1` is in range (tclsh: `set l [list {*}{a b}]; llength $l` → 2). Rust's
-//! `list_command_length` computes length **1** — the segmenter strips the `{*}`
-//! expansion prefix, leaving the single arg `"a b"`, so the `starts_with("{*}")`
-//! guard never trips — and fires a false-positive W230. The minimal repro is
-//! commented out below with a `// BUG:` note and called out in the port report.
+//! `list_command_length` computed length **1** — the segmenter strips the `{*}`
+//! expansion prefix, leaving the single arg `"a b"`, so the per-arg
+//! `starts_with("{*}")` guard never tripped — firing a false-positive W230. It
+//! now bails whenever the command text contains `{*}` (length unknown); the
+//! repro asserts the corrected behaviour (no W230).
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
