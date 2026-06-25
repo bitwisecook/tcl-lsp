@@ -4325,3 +4325,97 @@ fn w304_does_not_cross_proc_param_shadow() {
         r2.diagnostics
     );
 }
+
+// --- Issue #703: `try` handler `-` fallthrough body ---------------------
+//
+// A `try` `on`/`trap` handler body may be a bare `-` to share the *next*
+// handler's body (the same fallthrough mechanism `switch` uses for pattern
+// bodies). The lowerer used to treat every handler body as a script, so the
+// solo `-` compiled to a zero-argument call of the `-` command and tripped a
+// spurious E002 ("Too few arguments for '-'"). These tests assert both sides:
+// the fallthrough `-` raises no E002, and a genuine zero-arg `-` command is
+// still flagged.
+
+fn count_code(src: &str, code: &str) -> usize {
+    let mut a = crate::analyser::Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.as_str() == code)
+        .count()
+}
+
+// The reporter's snippet (from Tcl's own `tools/findBadExternals.tcl`).
+const ISSUE_703_SOURCE: &str = "\
+proc main {argc argv} {
+    lassign $argv libtcl
+    try {
+        switch $::tcl_platform(platform) {
+            unix - macosx {
+                exec nm --extern-only --defined-only $libtcl
+            }
+            windows {
+                exec dumpbin /exports $libtcl
+            }
+        }
+    } on ok result - trap NONE result {
+        foreach line [split $result \\n] {
+            puts $line
+        }
+        return 0
+    } on error msg {
+        puts stderr $msg
+        return 1
+    }
+}
+";
+
+#[test]
+fn issue_703_fallthrough_dash_has_no_e002() {
+    // The solo `-` on the `on ok result - trap NONE result` line must not be
+    // flagged as a zero-arg `-` command.
+    assert_eq!(count_code(ISSUE_703_SOURCE, "E002"), 0);
+}
+
+#[test]
+fn issue_703_braced_dash_has_no_e002() {
+    let src =
+        "proc p {} {\n    try {set x 1} on ok a {-} trap NONE b {\n        return $b\n    }\n}\n";
+    assert_eq!(count_code(src, "E002"), 0);
+}
+
+#[test]
+fn issue_703_genuine_dash_command_in_handler_still_flagged() {
+    // A real zero-arg `-` *command* inside a handler body is still a genuine
+    // arity error — the fix must not blunt E002 here.
+    let src = "proc p {} {\n    try {set x 1} on error msg {\n        -\n    }\n}\n";
+    assert_eq!(count_code(src, "E002"), 1);
+}
+
+#[test]
+fn issue_703_genuine_dash_command_outside_try_still_flagged() {
+    assert_eq!(count_code("proc f {} {\n    -\n}\n", "E002"), 1);
+}
+
+#[test]
+fn issue_703_no_false_w210_on_fallthrough_group_var() {
+    // When a fallthrough handler's var differs from the target's, the shared
+    // body must not be flagged W210 for reading either var. Real Tcl is itself
+    // inconsistent here — a byte-compiled `try` binds the *matching* handler's
+    // var, the interpreted form the *target*'s — so the shared body is analysed
+    // with the whole group's vars treated as defined.
+    let reads_fallthrough_var =
+        "proc p {} {\n    try {set v ok} on ok x - on error y {\n        return $x\n    }\n}\n";
+    let reads_target_var =
+        "proc p {} {\n    try {set v ok} on ok x - on error y {\n        return $y\n    }\n}\n";
+    assert_eq!(count_code(reads_fallthrough_var, "W210"), 0);
+    assert_eq!(count_code(reads_target_var, "W210"), 0);
+}
+
+#[test]
+fn issue_703_genuine_read_before_set_still_fires_in_shared_body() {
+    // A read of a variable bound by no handler in the group is still a genuine
+    // read-before-set.
+    let src = "proc p {} {\n    try {set v 1} on ok x - on error y {\n        return $undefinedvar\n    }\n}\n";
+    assert_eq!(count_code(src, "W210"), 1);
+}

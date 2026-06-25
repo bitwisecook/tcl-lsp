@@ -566,12 +566,25 @@ impl Lowerer<'_> {
                 let match_arg = args[i + 1].clone();
                 let var_list = &args[i + 2];
                 let handler_tok = arg_tokens.get(i + 3);
+                let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
                 let var_names = parse_param_names(var_list);
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
                 let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
 
-                let handler_body = self.lower_body_from_tok(&args[i + 3], handler_tok, namespace);
+                // A handler body of literal `-` is a fallthrough marker: the
+                // clause shares the next non-`-` handler's body (like `switch`).
+                // Treat it as an empty body rather than lowering `-` as a script
+                // — otherwise it compiles to a zero-arg call of the `-` command
+                // and trips a spurious arity error (issue #703). The braced
+                // `{-}` form evaluates to the same string, so it is also a
+                // fallthrough (braces are stripped in `args`).
+                let is_fallthrough = handler_single && args[i + 3] == "-";
+                let handler_body = if is_fallthrough {
+                    crate::ir::Script::new()
+                } else {
+                    self.lower_body_from_tok(&args[i + 3], handler_tok, namespace)
+                };
 
                 handlers.push(TryHandler {
                     kind: keyword.clone(),
@@ -580,6 +593,7 @@ impl Lowerer<'_> {
                     options_var,
                     body: handler_body,
                     body_span: handler_tok.map_or(seg.span, |t| t.span),
+                    fallthrough: is_fallthrough,
                 });
                 i += 4;
                 continue;
@@ -996,6 +1010,71 @@ mod tests {
         } else {
             panic!("expected Try");
         }
+    }
+
+    #[test]
+    fn try_dash_handler_body_is_fallthrough() {
+        // Issue #703: a `-` handler body is a fallthrough marker (shares the
+        // next non-`-` handler's body, like `switch`), not a zero-arg `-`
+        // command. It must lower to a fallthrough handler with an empty body.
+        let m = lower_to_ir(
+            "try {set x 1} on ok result - trap NONE result {return 0} on error msg {return 1}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        let shape: Vec<(&str, &str, bool)> = handlers
+            .iter()
+            .map(|h| (h.kind.as_str(), h.match_arg.as_str(), h.fallthrough))
+            .collect();
+        assert_eq!(
+            shape,
+            vec![
+                ("on", "ok", true),
+                ("trap", "NONE", false),
+                ("on", "error", false)
+            ],
+        );
+        // The fallthrough handler carries no statements of its own.
+        assert!(handlers[0].body.statements.is_empty());
+        assert!(!handlers[1].body.statements.is_empty());
+    }
+
+    #[test]
+    fn try_braced_dash_handler_body_is_fallthrough() {
+        // Per Tcl's `TclNRTryObjCmd`, a body of `{-}` evaluates to the string
+        // `-` and is equally a fallthrough marker.
+        let m = lower_to_ir("try {set x 1} on ok a {-} trap NONE b {return $b}", &reg());
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(handlers[0].fallthrough);
+        assert!(handlers[0].body.statements.is_empty());
+    }
+
+    #[test]
+    fn try_consecutive_dash_handlers_are_fallthrough() {
+        // Several `-` handlers in a row all share the final body.
+        let m = lower_to_ir(
+            "try {set x 1} on ok a - on return b - trap NONE c {return $c}",
+            &reg(),
+        );
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        let flags: Vec<bool> = handlers.iter().map(|h| h.fallthrough).collect();
+        assert_eq!(flags, vec![true, true, false]);
+    }
+
+    #[test]
+    fn try_empty_brace_handler_body_is_not_fallthrough() {
+        // A genuinely empty `{}` body is valid and distinct from `-`.
+        let m = lower_to_ir("try {set x 1} on ok a {} on error b {return $b}", &reg());
+        let Statement::Try { handlers, .. } = &m.top_level.statements[0] else {
+            panic!("expected Try");
+        };
+        assert!(!handlers[0].fallthrough);
     }
 
     #[test]

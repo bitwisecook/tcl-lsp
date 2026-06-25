@@ -14,6 +14,21 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "try body ?handler...? ?finally script?",
 }];
 
+/// Whether a handler-body word is the literal `-` fallthrough marker
+/// (issue #703). Tcl recognises a body of `-` by string value, so the
+/// braced `{-}` and quoted `"-"` forms — which evaluate to the same
+/// string — are equally fallthroughs. Role-resolver callers may pass
+/// the word either stripped (`-`) or brace/quote-inclusive (`{-}`),
+/// so one layer of matched `{}`/`""` is stripped before comparing.
+fn is_dash_fallthrough(arg: &str) -> bool {
+    let stripped = arg
+        .strip_prefix('{')
+        .and_then(|s| s.strip_suffix('}'))
+        .or_else(|| arg.strip_prefix('"').and_then(|s| s.strip_suffix('"')))
+        .unwrap_or(arg);
+    stripped == "-"
+}
+
 /// Dynamic arg role resolver for `try`/`on`/`trap`/`finally`.
 ///
 /// The structural keyword words (`on`/`trap`/`finally`) carry
@@ -40,7 +55,12 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             i += 2;
         } else if (kw == "on" || kw == "trap") && i + 3 < args.len() {
             push_keyword(&mut roles, i);
-            if let Ok(idx) = u8::try_from(i + 3) {
+            // A handler body of literal `-` is a fallthrough marker (shares the
+            // next handler's body, like `switch`); it is not a script, so it
+            // gets no BODY role.
+            if !is_dash_fallthrough(args[i + 3])
+                && let Ok(idx) = u8::try_from(i + 3)
+            {
                 roles.push((idx, ArgRole::Body));
             }
             i += 4;
@@ -76,5 +96,54 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body_indices(args: &[&str]) -> Vec<u8> {
+        let mut idx: Vec<u8> = try_arg_roles(args)
+            .into_iter()
+            .filter(|(_, role)| *role == ArgRole::Body)
+            .map(|(i, _)| i)
+            .collect();
+        idx.sort_unstable();
+        idx
+    }
+
+    #[test]
+    fn dash_handler_body_gets_no_body_role() {
+        // Issue #703: a `-` fallthrough handler body is not a script, so it
+        // must carry no `ArgRole::Body` (mirrors `switch`). Index layout for
+        // `try <body> on ok result - trap NONE result <body>`:
+        //   0 body, 1 on, 2 ok, 3 result, 4 `-`, 5 trap, 6 NONE, 7 result, 8 body
+        let args = [
+            "{...}", "on", "ok", "result", "-", "trap", "NONE", "result", "{...}",
+        ];
+        let indices = body_indices(&args);
+        assert!(!indices.contains(&4), "`-` body must get no Body role");
+        assert!(indices.contains(&0), "try body keeps Body role");
+        assert!(indices.contains(&8), "real handler body keeps Body role");
+    }
+
+    #[test]
+    fn braced_and_quoted_dash_body_get_no_body_role() {
+        // The braced `{-}` / quoted `"-"` forms evaluate to the same string
+        // and are equally fallthroughs.
+        for dash in ["{-}", "\"-\""] {
+            let args = ["{...}", "on", "ok", "a", dash, "trap", "NONE", "b", "{...}"];
+            assert!(
+                !body_indices(&args).contains(&4),
+                "{dash} body must get no Body role",
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_handler_body_keeps_body_role() {
+        let args = ["{...}", "on", "error", "msg", "{puts $msg}"];
+        assert!(body_indices(&args).contains(&4));
     }
 }
