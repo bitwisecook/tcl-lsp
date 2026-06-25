@@ -1485,11 +1485,16 @@ impl Vm {
 
             // -- numeric/boolean coercion checks (expr result validation) --
             Op::TRY_CVT_TO_NUMERIC => {
-                // Best-effort normalisation (C Tcl `INST_TRY_CVT_TO_NUMERIC`):
-                // numeric values stay numeric, non-numeric values pass through
-                // unchanged — it never errors (e.g. `expr {1 ? "big" : "x"}`).
+                // Canonical normalisation (C Tcl `INST_TRY_CVT_TO_NUMERIC`): a
+                // numeric result's string rep is regenerated from the number
+                // (`expr {1e3}` → `1000.0`, not `1e3`), a non-numeric value
+                // (`expr {1 ? "big" : "x"}`) passes through, and a bare `NaN` is
+                // the domain error.
                 let v = pop(f);
-                f.stack.push(v);
+                match crate::expr::cvt_to_numeric(v) {
+                    Ok(nv) => f.stack.push(nv),
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
             }
             Op::TRY_CVT_TO_BOOLEAN => {
                 let v = pop(f);

@@ -89,8 +89,14 @@ impl CodegenCtx<'_> {
             self.emit(Op::EXPR_STK, vec![]);
             return true;
         }
+        // Push the literal as written and report it as *not* guaranteed-canonical
+        // so a top-level `expr`/`set =` result runs `tryCvtToNumeric`, which
+        // regenerates the number's canonical string (`expr {1e3}` → `1000.0`,
+        // `expr {0xff}` → `255`). As an operand of an arithmetic op the raw form
+        // is fine — the op coerces — so this only adds a conversion where the
+        // literal is itself the whole expression.
         self.push_lit(text);
-        true
+        false
     }
 
     /// Emit a `String` expression — strips surrounding `"..."` or
@@ -368,8 +374,11 @@ mod tests {
             start: 0,
             end: 2,
         };
+        // A plain literal pushes its text but is reported as *not* canonical, so
+        // a top-level `expr` result regenerates the number's string via
+        // `tryCvtToNumeric` (`1e3` → `1000.0`). The push itself is the same.
         let numeric = ctx.emit_expr(&node);
-        assert!(numeric);
+        assert!(!numeric);
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
     }
 
@@ -398,7 +407,9 @@ mod tests {
             end: 4,
         };
         let numeric = ctx.emit_expr(&node);
-        assert!(numeric);
+        // Not reported canonical: a top-level `expr {0xFF}` normalises to `255`
+        // through `tryCvtToNumeric`.
+        assert!(!numeric);
         // Valid hex → just push
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
     }
