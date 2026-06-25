@@ -218,6 +218,14 @@ impl CodegenCtx<'_> {
         if command == "<cond>" {
             return;
         }
+        // `<upvar-invalidate>` is a synthetic marker the CFG builder prepends to
+        // carry caller-side / embedded-substitution `defs` so the optimiser
+        // doesn't propagate a stale value past a mutation. It is not a real
+        // command — emit nothing (it must never reach the VM, which would reject
+        // it as an invalid command name).
+        if command == "<upvar-invalidate>" {
+            return;
+        }
         if command == "<empty_clause>" {
             self.literals.intern("");
             self.emit(Op::NOP, vec![]);
