@@ -50,6 +50,12 @@ from compiler.ir import IRScript, IRTry
 from compiler.lowering import lower_to_ir
 from server.features.diagnostics import get_diagnostics
 
+
+def _codes(source: str, code: str):
+    """Return diagnostics for *source* with the given code."""
+    return [d for d in get_diagnostics(source) if d.code == code]
+
+
 # The reporter's exact snippet (header comments omitted, as in the issue).
 _ISSUE_SOURCE = """\
 proc main {argc argv} {
@@ -181,6 +187,53 @@ proc p {} {
     def test_genuine_dash_command_outside_try_still_flagged(self):
         # Bare ``-`` as a command in a plain proc body stays an arity error.
         assert len(_e002("proc f {} {\n    -\n}\n")) == 1
+
+    def test_no_false_w210_on_fallthrough_group_var(self):
+        # Codex review follow-up: when a fallthrough handler's var name
+        # differs from the target's, the shared body must not be flagged
+        # W210 for reading either var.  Real Tcl is itself inconsistent
+        # here — a byte-compiled (proc) ``try`` binds the *matching*
+        # handler's var, while the interpreted form binds the *target*'s —
+        # so the shared body is analysed with the whole group's vars
+        # treated as defined.
+        reads_fallthrough_var = """\
+proc p {} {
+    try {set v ok} on ok x - on error y {
+        return $x
+    }
+}
+"""
+        reads_target_var = """\
+proc p {} {
+    try {set v ok} on ok x - on error y {
+        return $y
+    }
+}
+"""
+        assert _codes(reads_fallthrough_var, "W210") == []
+        assert _codes(reads_target_var, "W210") == []
+
+    def test_no_false_w210_in_three_handler_group(self):
+        source = """\
+proc p {} {
+    try {error boom} on ok a - on error b - trap NONE c {
+        return $b
+    }
+}
+"""
+        assert _codes(source, "W210") == []
+
+    def test_genuine_read_before_set_still_fires_in_shared_body(self):
+        # A read of a variable that is *not* bound by any handler in the
+        # group is still a genuine read-before-set.
+        source = """\
+proc p {} {
+    try {set v 1} on ok x - on error y {
+        return $undefinedvar
+    }
+}
+"""
+        assert len(_codes(source, "W210")) == 1
 
     def test_empty_handler_body_is_not_fallthrough(self):
         # A genuinely empty ``{}`` body is valid and distinct from ``-``.
