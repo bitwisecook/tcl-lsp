@@ -20,6 +20,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::dict::set", |vm, a| dict_op(vm, "set", a));
     vm.register("::tcl::dict::unset", |vm, a| dict_op(vm, "unset", a));
     vm.register("::tcl::dict::for", |vm, a| dict_op(vm, "for", a));
+    vm.register("::tcl::dict::map", |vm, a| dict_op(vm, "map", a));
     vm.register("::tcl::dict::incr", |vm, a| dict_op(vm, "incr", a));
     vm.register("::tcl::dict::append", |vm, a| dict_op(vm, "append", a));
     vm.register("::tcl::dict::lappend", |vm, a| dict_op(vm, "lappend", a));
@@ -486,7 +487,10 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     upsert(&mut out, &key, c.result);
                 }
                 Code::Continue => {}
-                Code::Break => break,
+                // `break` discards the *whole* accumulated result (C
+                // `DictMapNRCmd` drops it on TCL_BREAK), returning the empty dict
+                // — not the pairs collected before the break.
+                Code::Break => return ok(Value::empty()),
                 _ => return c,
             },
             Err(e) => return err(e.message),

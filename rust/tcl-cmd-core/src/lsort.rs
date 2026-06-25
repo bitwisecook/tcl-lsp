@@ -216,7 +216,21 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
         if increasing { ord } else { ord.reverse() }
     });
     if unique {
-        items.dedup_by(|a, b| sort::key_compare(mode, nocase, &a.1, &b.1).is_eq());
+        // Keep the *last* of each equal run (C's `MergeLists` keeps the right
+        // element), so two inputs that compare equal but render differently
+        // yield the later one — `lsort -nocase -unique {A a}` → `a`,
+        // `lsort -integer -unique {01 1}` → `1`. `Vec::dedup_by` keeps the
+        // first, which is the wrong end.
+        let mut deduped: Vec<(usize, Vec<u8>)> = Vec::with_capacity(items.len());
+        for it in items.drain(..) {
+            if let Some(prev) = deduped.last()
+                && sort::key_compare(mode, nocase, &prev.1, &it.1).is_eq()
+            {
+                deduped.pop();
+            }
+            deduped.push(it);
+        }
+        items = deduped;
     }
     let bases: Vec<usize> = items.iter().map(|(b, _)| *b).collect();
     Ok(Lsort::Done(build_result(
