@@ -296,12 +296,19 @@ jobs:
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
   create-release:
-    if: startsWith(github.ref, 'refs/tags/v')
     # pr-gate + test-py are the Python (1.x) gate.  For pre-release (odd-minor
-    # 2.x) tags they skip, and a skipped `needs` job is non-blocking, so the
-    # release still proceeds — gated instead on rust-tests, which is added here
-    # so a pre-release is never ungated.  Stable tags run pr-gate + test-py and
-    # require them to pass; a failed need blocks this job as before.
+    # 2.x) tags they SKIP; this release must still run, gated instead on
+    # rust-tests.  A plain `if` without a status-check function would make GitHub
+    # auto-skip this job whenever a `needs` job is skipped — so the `if` uses
+    # `!cancelled()` (a status-check function) plus explicit result guards:
+    # rust-tests must pass, and pr-gate/test-py may be success OR skipped but a
+    # genuine FAILURE (e.g. a stable tag failing the Python suite) still blocks.
+    if: >-
+      !cancelled()
+      && startsWith(github.ref, 'refs/tags/v')
+      && needs.rust-tests.result == 'success'
+      && (needs.pr-gate.result == 'success' || needs.pr-gate.result == 'skipped')
+      && (needs.test-py.result == 'success' || needs.test-py.result == 'skipped')
     needs: [channel, pr-gate, test-py, rust-tests]
     runs-on: ubuntu-24.04
     permissions:
@@ -434,7 +441,16 @@ jobs:
 
   # Build: universal VSIX package (bundles every native server binary)
   build-vsix:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # test-ext (the VS Code extension suite) SKIPS for pre-release tags; like
+    # create-release, this job must still run, so the `if` uses `!cancelled()`
+    # plus result guards.  create-release + build-server-matrix must succeed;
+    # test-ext may be success OR skipped, but a real FAILURE (stable tag) blocks.
+    if: >-
+      !cancelled()
+      && startsWith(github.ref, 'refs/tags/v')
+      && needs.create-release.result == 'success'
+      && needs.build-server-matrix.result == 'success'
+      && (needs.test-ext.result == 'success' || needs.test-ext.result == 'skipped')
     needs: [create-release, test-ext, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
