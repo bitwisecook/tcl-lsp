@@ -20,6 +20,35 @@ permissions:
   contents: read
 
 jobs:
+  # Channel detector: does this ref belong to the pre-release (odd-minor 2.x,
+  # "rust") line?  Reuses scripts/release/prerelease.sh — the single source of
+  # truth for the odd/even-minor convention — so the test gate, the GitHub
+  # Release, and the Marketplace publish all agree on the channel from the tag
+  # alone.  A pre-release tag (v2.1.x) is cut from `rust` and gated by the Rust
+  # suite (`rust-tests`), NOT the Python backstops (`pr-gate`/`test-py`/
+  # `test-ext`), which target the 1.x Python product the rust line is
+  # replacing.  For branches, PRs, and stable tags this is `false`, so the full
+  # Python gate runs exactly as before.
+  channel:
+    runs-on: ubuntu-24.04
+    outputs:
+      prerelease: ${{ steps.detect.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+      - name: Detect release channel from the ref
+        id: detect
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            prerelease="$(bash scripts/release/prerelease.sh "$tag")"
+          else
+            prerelease="false"
+          fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "channel: $GITHUB_REF -> prerelease=$prerelease"
+
   # Fast PR gate (target wall-clock < 20s).  Runs on every PR and every push.
   # Covers: lint + typecheck + structural invariants + a tightly scoped pytest
   # subset that exercises the LSP server end-to-end.  Everything else is the
@@ -27,6 +56,12 @@ jobs:
   # hook installed via `make install-hooks`).  See AGENTS.md for the rule
   # that agents must run test-slow before opening a PR.
   pr-gate:
+    # Python-side fast gate (lint / typecheck / docs-index / pytest subset).
+    # Skip it for pre-release (odd-minor 2.x) tags — those are cut from `rust`
+    # and gated by the Rust suite instead.  Still runs for every PR, every main
+    # push, and every stable tag.
+    needs: [channel]
+    if: needs.channel.outputs.prerelease != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -80,7 +115,11 @@ jobs:
   # PRs are gated by pr-gate; this job catches anything pr-gate missed once
   # the change has merged, so a regression is loud but doesn't block PRs.
   test-py:
-    if: github.event_name == 'push'
+    # Skip for pre-release (odd-minor 2.x) tags — the full Python suite targets
+    # the 1.x Python product the rust line is replacing; pre-releases are gated
+    # by rust-tests instead.  Still runs on main pushes and stable tags.
+    needs: [channel]
+    if: github.event_name == 'push' && needs.channel.outputs.prerelease != 'true'
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -130,7 +169,10 @@ jobs:
   # Backstop: VS Code extension tests — runs only on push to main and on tags.
   # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
   test-ext:
-    if: github.event_name == 'push'
+    # Skip for pre-release (odd-minor 2.x) tags (see test-py); pre-releases are
+    # gated by rust-tests.  Still runs on main pushes and stable tags.
+    needs: [channel]
+    if: github.event_name == 'push' && needs.channel.outputs.prerelease != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -255,7 +297,12 @@ jobs:
   # build blocks the others.
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [pr-gate, test-py]
+    # pr-gate + test-py are the Python (1.x) gate.  For pre-release (odd-minor
+    # 2.x) tags they skip, and a skipped `needs` job is non-blocking, so the
+    # release still proceeds — gated instead on rust-tests, which is added here
+    # so a pre-release is never ungated.  Stable tags run pr-gate + test-py and
+    # require them to pass; a failed need blocks this job as before.
+    needs: [channel, pr-gate, test-py, rust-tests]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
