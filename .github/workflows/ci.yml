@@ -57,11 +57,13 @@ jobs:
   # that agents must run test-slow before opening a PR.
   pr-gate:
     # Python-side fast gate (lint / typecheck / docs-index / pytest subset).
-    # Skip it for pre-release (odd-minor 2.x) tags — those are cut from `rust`
-    # and gated by the Rust suite instead.  Still runs for every PR, every main
-    # push, and every stable tag.
+    # For pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
+    # level (below), but the job still runs and reports success.  This is
+    # deliberate: skipping the whole job would transitively skip create-release
+    # and every build/publish job (GitHub's success() propagates a skipped
+    # ancestor through the needs graph).  Those tags are cut from `rust` and
+    # gated by rust-tests instead.  Runs in full for PRs, main pushes, stable.
     needs: [channel]
-    if: needs.channel.outputs.prerelease != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -84,6 +86,9 @@ jobs:
       # `test-zig` is ever added, the optimal action is
       # `bytecodealliance/actions/wasmtime/setup@v1`.
       - name: Run fast CI gate (make ci-fast)
+        # Skipped for pre-release (rust-line) tags; job still succeeds so the
+        # release graph stays unbroken.  See the job comment + channel job.
+        if: needs.channel.outputs.prerelease != 'true'
         run: make ci-fast
 
   # PR gate: the committed `.test-slow.stamp` must match the code under
@@ -115,11 +120,12 @@ jobs:
   # PRs are gated by pr-gate; this job catches anything pr-gate missed once
   # the change has merged, so a regression is loud but doesn't block PRs.
   test-py:
-    # Skip for pre-release (odd-minor 2.x) tags — the full Python suite targets
-    # the 1.x Python product the rust line is replacing; pre-releases are gated
-    # by rust-tests instead.  Still runs on main pushes and stable tags.
+    # The full Python suite targets the 1.x Python product the rust line is
+    # replacing.  For pre-release (odd-minor 2.x) tags the test STEP is skipped
+    # (below) while the job still succeeds, so create-release and the builds are
+    # not transitively skipped; pre-releases are gated by rust-tests instead.
     needs: [channel]
-    if: github.event_name == 'push' && needs.channel.outputs.prerelease != 'true'
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -155,6 +161,9 @@ jobs:
         run: bash scripts/fetch_tcl_regex.sh
 
       - name: Run Python tests
+        # Skipped for pre-release (rust-line) tags; the job still succeeds so the
+        # release graph stays unbroken.  See the job comment + channel job.
+        if: needs.channel.outputs.prerelease != 'true'
         run: >-
           uv run --extra dev pytest tests/ -q
           -m "not slow"
@@ -169,10 +178,11 @@ jobs:
   # Backstop: VS Code extension tests — runs only on push to main and on tags.
   # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
   test-ext:
-    # Skip for pre-release (odd-minor 2.x) tags (see test-py); pre-releases are
-    # gated by rust-tests.  Still runs on main pushes and stable tags.
+    # The VS Code extension suite (see test-py).  For pre-release (odd-minor
+    # 2.x) tags the test STEP is skipped (below) while the job still succeeds,
+    # so the release graph is not transitively skipped; gated by rust-tests.
     needs: [channel]
-    if: github.event_name == 'push' && needs.channel.outputs.prerelease != 'true'
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -237,6 +247,9 @@ jobs:
         run: cd editors/vscode && npx tsc -p ./
 
       - name: Run extension tests
+        # Skipped for pre-release (rust-line) tags; the job still succeeds so the
+        # release graph stays unbroken.  See the job comment + channel job.
+        if: needs.channel.outputs.prerelease != 'true'
         run: make test-ext
 
   # Rust product gate for `main`.  rust-gate.yml / rust-lsp-e2e.yml are the
@@ -296,19 +309,11 @@ jobs:
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
   create-release:
-    # pr-gate + test-py are the Python (1.x) gate.  For pre-release (odd-minor
-    # 2.x) tags they SKIP; this release must still run, gated instead on
-    # rust-tests.  A plain `if` without a status-check function would make GitHub
-    # auto-skip this job whenever a `needs` job is skipped — so the `if` uses
-    # `!cancelled()` (a status-check function) plus explicit result guards:
-    # rust-tests must pass, and pr-gate/test-py may be success OR skipped but a
-    # genuine FAILURE (e.g. a stable tag failing the Python suite) still blocks.
-    if: >-
-      !cancelled()
-      && startsWith(github.ref, 'refs/tags/v')
-      && needs.rust-tests.result == 'success'
-      && (needs.pr-gate.result == 'success' || needs.pr-gate.result == 'skipped')
-      && (needs.test-py.result == 'success' || needs.test-py.result == 'skipped')
+    if: startsWith(github.ref, 'refs/tags/v')
+    # Gated on the Python backstops (pr-gate, test-py) AND rust-tests.  For a
+    # pre-release tag the backstops run as no-ops that still report success (the
+    # heavy steps are step-skipped), so this job runs and is effectively gated on
+    # rust-tests; for a stable tag they run for real and a failure blocks here.
     needs: [channel, pr-gate, test-py, rust-tests]
     runs-on: ubuntu-24.04
     permissions:
@@ -441,16 +446,9 @@ jobs:
 
   # Build: universal VSIX package (bundles every native server binary)
   build-vsix:
-    # test-ext (the VS Code extension suite) SKIPS for pre-release tags; like
-    # create-release, this job must still run, so the `if` uses `!cancelled()`
-    # plus result guards.  create-release + build-server-matrix must succeed;
-    # test-ext may be success OR skipped, but a real FAILURE (stable tag) blocks.
-    if: >-
-      !cancelled()
-      && startsWith(github.ref, 'refs/tags/v')
-      && needs.create-release.result == 'success'
-      && needs.build-server-matrix.result == 'success'
-      && (needs.test-ext.result == 'success' || needs.test-ext.result == 'skipped')
+    if: startsWith(github.ref, 'refs/tags/v')
+    # test-ext runs as a no-op-success for pre-release tags (its test step is
+    # step-skipped), so it never skips this job's needs.
     needs: [create-release, test-ext, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
