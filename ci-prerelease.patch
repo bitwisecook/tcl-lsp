@@ -1,50 +1,51 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index 51455d2e..73b9ff30 100644
+index 51455d2e..94120c8a 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -284,9 +284,21 @@ jobs:
-             echo "Commit curated notes to RELEASE_NOTES.md before pushing the tag." >&2
-             exit 1
-           fi
-+          # Pre-release channel (the VS Code odd/even-minor convention —
-+          # scripts/release/prerelease.sh is the single source of truth):
-+          # an odd-minor 2.x tag (v2.1.x) is published as a GitHub
-+          # *pre-release* so it never becomes "latest" — the 1.x line stays
-+          # the default download for everyone who hasn't opted in. Even-minor
-+          # 2.x (v2.2.0) and 1.x publish as normal stable releases.
-+          prerelease_flag=""
-+          if [ "$(bash scripts/release/prerelease.sh "$tag")" = "true" ]; then
-+            echo "==> $tag is a pre-release (odd minor) — marking the GitHub Release accordingly."
-+            prerelease_flag="--prerelease"
-+          fi
-           gh release create "$tag" \
-             --title "$tag" \
+@@ -267,26 +267,10 @@ jobs:
+       - name: Create GitHub Release
+         env:
+           GH_TOKEN: ${{ github.token }}
+-        run: |
+-          tag="${GITHUB_REF#refs/tags/}"
+-          if gh release view "$tag" > /dev/null 2>&1; then
+-            exit 0
+-          fi
+-          # Require curated release notes.  The previous fallback to
+-          # `gh release create --generate-notes` builds the changelog
+-          # from commit messages and PR titles, both attacker-influenced
+-          # — anyone whose PR merged since the last release can land
+-          # text inside our official release notes.  Failing closed
+-          # forces the maintainer to commit RELEASE_NOTES.md before
+-          # tagging.
+-          if [ ! -f RELEASE_NOTES.md ]; then
+-            echo "ERROR: RELEASE_NOTES.md is missing for tag $tag." >&2
+-            echo "Commit curated notes to RELEASE_NOTES.md before pushing the tag." >&2
+-            exit 1
+-          fi
+-          gh release create "$tag" \
+-            --title "$tag" \
 -            --notes-file RELEASE_NOTES.md
-+            --notes-file RELEASE_NOTES.md \
-+            $prerelease_flag
++        # Body lives in scripts/release/github_release.sh: idempotent create,
++        # requires curated RELEASE_NOTES.md, and marks odd-minor 2.x tags as
++        # GitHub pre-releases (scripts/release/prerelease.sh).
++        run: bash scripts/release/github_release.sh
  
        - name: Stamp + upload installer script to release
          env:
-@@ -1117,9 +1129,21 @@ jobs:
+@@ -1115,11 +1099,10 @@ jobs:
+           allow-no-subscriptions: true
+ 
        - name: Publish to VS Code Marketplace (keyless, local binary)
-         run: |
-           set -euo pipefail
-+          tag="${GITHUB_REF#refs/tags/}"
-           vsix="$(ls dist/*.vsix)"
-+          # Pre-release channel (odd/even-minor convention — same
-+          # scripts/release/prerelease.sh used by the GitHub Release step):
-+          # an odd-minor 2.x tag (v2.1.x) publishes with --pre-release so it
-+          # lands on the Marketplace pre-release channel. Users on the stable
-+          # channel stay on 1.x until they opt into pre-releases; even-minor
-+          # 2.x (v2.2.0) publishes as a normal stable release.
-+          prerelease_flag=""
-+          if [ "$(bash scripts/release/prerelease.sh "$tag")" = "true" ]; then
-+            echo "$tag is a pre-release — publishing with --pre-release."
-+            prerelease_flag="--pre-release"
-+          fi
-           echo "Publishing $vsix via vsce --azure-credential (no PAT)"
+-        run: |
+-          set -euo pipefail
+-          vsix="$(ls dist/*.vsix)"
+-          echo "Publishing $vsix via vsce --azure-credential (no PAT)"
 -          editors/vscode/node_modules/.bin/vsce publish --azure-credential --packagePath "$vsix"
-+          editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --azure-credential --packagePath "$vsix"
++        # Body lives in scripts/release/vsce_publish.sh: runs only the local
++        # vsce binary (no npm fetch while the Azure session is live) and adds
++        # --pre-release for odd-minor 2.x tags (scripts/release/prerelease.sh).
++        run: bash scripts/release/vsce_publish.sh
  
    # Cleanup: delete workflow artifacts for all releases except the 3 most recent
    cleanup-old-artifacts:
