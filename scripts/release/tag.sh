@@ -33,12 +33,26 @@ if git rev-parse "v$V" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Sanity-check the branch — releases are tagged off ``main``. Override by
-# setting ALLOW_NON_MAIN_RELEASE=1 if you need to tag from elsewhere
-# (RC branches, hot-fix branches, etc.).
+# Channel for this version (odd/even-minor convention — see prerelease.sh):
+# pre-release (2.1.x) is cut from ``rust``; stable (1.x, 2.2.0, …) is cut
+# from ``main``.  CI marks the GitHub Release and the VS Code publish
+# accordingly off the very same parity, so the tag alone fully determines
+# the channel.
+prerelease="$(bash "$(dirname "$0")/prerelease.sh" "$V")"
+if [[ "$prerelease" == "true" ]]; then
+    channel="pre-release"
+    expected_branch="rust"
+else
+    channel="stable"
+    expected_branch="main"
+fi
+echo "==> v$V is a $channel release (expected branch: $expected_branch)"
+
+# Sanity-check the branch. Override by setting ALLOW_NON_MAIN_RELEASE=1 if
+# you need to tag from elsewhere (RC branches, hot-fix branches, etc.).
 branch="$(git branch --show-current)"
-if [[ -n "$branch" && "$branch" != "main" && "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]]; then
-    echo "error: refusing to tag from branch '$branch' (expected 'main')."
+if [[ -n "$branch" && "$branch" != "$expected_branch" && "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]]; then
+    echo "error: refusing to tag $channel release v$V from branch '$branch' (expected '$expected_branch')."
     echo "       set ALLOW_NON_MAIN_RELEASE=1 to override."
     exit 1
 fi
