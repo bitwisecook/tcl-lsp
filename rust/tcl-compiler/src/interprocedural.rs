@@ -1609,6 +1609,28 @@ fn scan_source_for_calls(
                 scan_source_for_calls(body_text, caller, known, registry, dialect, facts, params);
             }
         }
+        // Recurse into EXPR-role args. `expr {…}` (and the registry's other
+        // expression operands) re-parse and evaluate their argument, so a
+        // `[cmd]` substitution inside it is a real call edge even when the
+        // operand is brace-quoted — Tcl's `{…}` suppresses substitution at the
+        // word level, but the expression engine re-evaluates it. Strip one
+        // layer of braces (the common `expr {…}` form) and rescan the inner
+        // text for command substitutions; an unbraced operand (`[q]`, `$x`)
+        // falls through to the same scan unchanged. Without this, a recursive
+        // call buried in `return [expr {[fib …]}]` is missed, leaving the call
+        // graph incomplete (which under-converged the interproc taint fixpoint
+        // and panicked the diagnostic worker on the debug guard).
+        let expr_indices =
+            registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Expr);
+        for idx in expr_indices {
+            if let Some(arg) = texts.get(idx) {
+                let inner = arg
+                    .strip_prefix('{')
+                    .and_then(|s| s.strip_suffix('}'))
+                    .unwrap_or(arg);
+                scan_value_substitutions(inner, caller, known, registry, dialect, facts, params);
+            }
+        }
     }
 }
 
@@ -2334,6 +2356,37 @@ mod tests {
         // some dialects. Either way, `pure` should reflect the
         // union accurately — just verify the summary exists.
         let _ = s.pure;
+    }
+
+    #[test]
+    fn fp_nab_03_recursive_arithmetic_proc_is_pure() {
+        // FP-NAB-03 (Rust-structure counterpart of the Python interproc test):
+        // a self-recursive arithmetic proc must come out `pure == true` from the
+        // interprocedural fix-point. The fix-point is the *greatest* one
+        // (purity initialised optimistically, then refuted), so a call back into
+        // the proc being analysed does not conservatively mark it impure.
+        let ia = build(
+            "proc ::fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\n",
+        );
+        let fact = ia.procedures.get("::fact").expect("::fact summary");
+        assert!(
+            fact.pure,
+            "recursive arithmetic proc must be pure (greatest fix-point); got pure={}",
+            fact.pure,
+        );
+    }
+
+    #[test]
+    fn fp_nab_03_impure_proc_still_detected() {
+        // Control: a proc doing I/O (`puts`) must be impure — proves the test
+        // above isn't trivially asserting every proc pure.
+        let ia = build("proc ::logit {msg} {\n    puts $msg\n    return ok\n}\n");
+        let logit = ia.procedures.get("::logit").expect("::logit summary");
+        assert!(
+            !logit.pure,
+            "a proc that calls puts must be impure; got pure={}",
+            logit.pure,
+        );
     }
 
     #[test]

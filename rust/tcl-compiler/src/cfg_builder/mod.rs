@@ -214,10 +214,6 @@ impl CfgBuilder {
     /// into the host Call when possible, or emits a synthetic
     /// `<upvar-invalidate>` Call before a non-Call host.
     fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
-        if self.upvar_procs.is_empty() {
-            return vec![stmt];
-        }
-
         // 1. Direct-call extras: command is a known upvar proc.
         let direct_extras: Vec<String> = match &stmt {
             Statement::Call { command, args, .. } => self
@@ -248,6 +244,16 @@ impl CfgBuilder {
         let mut embedded_extras: Vec<String> = Vec::new();
         for text in texts {
             for d in self.upvar_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            // A var-mutating builtin inside a command substitution
+            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its target
+            // variable as a side effect; record it so copy / constant
+            // propagation (O100) does not propagate a stale value past the
+            // mutation (FP-OPT-06).
+            for d in Self::builtin_write_defs_from_text(text) {
                 if !embedded_extras.contains(&d) {
                     embedded_extras.push(d);
                 }
@@ -335,6 +341,64 @@ impl CfgBuilder {
                 if !defs.contains(&d) {
                     defs.push(d);
                 }
+            }
+        }
+        defs
+    }
+
+    /// Scan *text* for `[command_substitution]` tokens whose head is a builtin
+    /// command that mutates a named variable passed as a literal argument
+    /// (`append` / `lappend` / `incr` / `lset` / `set`, and the `dict`
+    /// sub-mutators). Returns the written variable names, so a copy / constant
+    /// propagation pass treats the substitution as a kill-site for them. Only
+    /// literal targets are returned — a `$`-substituted or computed target name
+    /// is not statically known. Recurses into nested substitutions.
+    fn builtin_write_defs_from_text(text: &str) -> Vec<String> {
+        use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+        if !text.contains('[') {
+            return Vec::new();
+        }
+        let sm = SourceMap::new(text);
+        let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+            return Vec::new();
+        };
+
+        let mut defs: Vec<String> = Vec::new();
+        let mut record = |name: Option<&String>, defs: &mut Vec<String>| {
+            if let Some(n) = name
+                && !n.is_empty()
+                && !n.contains('$')
+                && !n.contains('[')
+                && !defs.iter().any(|d| d == n)
+            {
+                defs.push(n.clone());
+            }
+        };
+        for tok in &tokens {
+            if tok.kind != TokenType::Cmd {
+                continue;
+            }
+            let inner = sm.token_text(*tok);
+            let words = words_from_text(inner);
+            let Some(cmd) = words.first().map(String::as_str) else {
+                continue;
+            };
+            match cmd {
+                "append" | "lappend" | "incr" | "lset" | "set" => record(words.get(1), &mut defs),
+                "dict"
+                    if matches!(
+                        words.get(1).map(String::as_str),
+                        Some("set" | "unset" | "incr" | "lappend" | "append" | "update" | "with")
+                    ) =>
+                {
+                    record(words.get(2), &mut defs);
+                }
+                _ => {}
+            }
+            // Nested substitutions inside this one (`[set y [incr x]]`).
+            for d in Self::builtin_write_defs_from_text(inner) {
+                record(Some(&d), &mut defs);
             }
         }
         defs

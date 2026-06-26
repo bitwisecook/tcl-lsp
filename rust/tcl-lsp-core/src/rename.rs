@@ -297,7 +297,15 @@ pub fn rename(
         return Vec::new();
     };
 
-    if let Some(edits) = rename_proc(source, &word, new_name, analysis, registry, &line_index) {
+    if let Some(edits) = rename_proc(
+        source,
+        &word,
+        def_byte,
+        new_name,
+        analysis,
+        registry,
+        &line_index,
+    ) {
         return edits;
     }
     if let Some(edits) = rename_class(source, &word, new_name, analysis, registry, &line_index) {
@@ -436,14 +444,26 @@ fn rename_var(
 fn rename_proc(
     source: &str,
     word: &str,
+    cursor_off: u32,
     new_name: &str,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let (qname, proc_def) = analysis.all_procs.iter().find(|(qname, p)| {
-        p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-    })?;
+    // Prefer the proc whose declaration name span covers the cursor, so renaming
+    // `::b::helper` from its own decl resolves to *that* proc and not a
+    // same-named proc in another namespace (matches `references::references`).
+    // Fall back to the first proc matching the word for call-site / unqualified
+    // cursors that don't sit on a declaration.
+    let (qname, proc_def) = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+        .or_else(|| {
+            analysis.all_procs.iter().find(|(qname, p)| {
+                p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
+            })
+        })?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {

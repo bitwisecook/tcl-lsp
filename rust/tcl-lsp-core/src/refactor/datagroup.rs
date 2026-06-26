@@ -647,8 +647,13 @@ fn switch_mapping_extraction(
         records,
     };
     let replacement = if let Some(default) = default_body {
-        let default_val = extract_single_value(default, use_return, &target_var)
-            .unwrap_or_else(|| strip_quotes(default).to_owned());
+        // A default that is not a clean value mapping in the same form/target
+        // (it sets a *different* variable, or runs a command) cannot be
+        // represented as the `else` value without changing semantics — e.g.
+        // `default { set other zzz }` would become `set h { set other zzz }`,
+        // assigning the literal string instead of running the command. Decline
+        // the refactor rather than emit a lossy, semantics-changing edit.
+        let default_val = extract_single_value(default, use_return, &target_var)?;
         if use_return {
             format!(
                 "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    return [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"

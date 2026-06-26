@@ -2406,6 +2406,42 @@ impl Backend {
         let Some(cfg) = values.into_iter().next() else {
             return;
         };
+        self.apply_global_config(&cfg).await;
+        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
+        // per scope, so pull each folder's resolved config and store it for
+        // longest-prefix resolution at read time.  A single-root / no-folder
+        // session skips this — the global pull above is the whole story.
+        let folders = self.workspace_folder_urls().await;
+        if !folders.is_empty() {
+            let items: Vec<ConfigurationItem> = folders
+                .iter()
+                .map(|f| ConfigurationItem {
+                    scope_uri: Some(f.clone()),
+                    section: Some("tclLsp".to_owned()),
+                })
+                .collect();
+            if let Ok(values) = self.client.configuration(items).await {
+                let parsed: Vec<(Uri, FolderConfig)> = folders
+                    .into_iter()
+                    .zip(values)
+                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .collect();
+                self.apply_folder_configs(parsed).await;
+            }
+        }
+    }
+
+    /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
+    /// session's global state: feature toggles, the `xcDiagnostics` section
+    /// flag, the optimiser switch / profile / per-code overrides, the formatter
+    /// line length, the default dialect, the W108 non-ASCII mode, and the
+    /// disabled-diagnostic set — then mirror the analyser knobs onto the salsa
+    /// config input. A non-object `cfg` is a no-op.
+    ///
+    /// Split out of [`Self::pull_and_apply_config`] (which fetches `cfg` from
+    /// the client and then handles per-folder configs) so the apply logic is
+    /// unit-testable without a live editor client.
+    async fn apply_global_config(&self, cfg: &serde_json::Value) {
         if !cfg.is_object() {
             return;
         }
@@ -2469,7 +2505,7 @@ impl Backend {
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
         // so re-wrap before reusing them for the W108 mode + disabled codes.
-        let wrapped = serde_json::json!({ "tclLsp": cfg });
+        let wrapped = serde_json::json!({ "tclLsp": cfg.clone() });
         if let Some(mode) = settings_non_ascii_mode(&wrapped) {
             *self.non_ascii_mode.lock().await = mode;
         }
@@ -2479,28 +2515,6 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
-        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
-        // per scope, so pull each folder's resolved config and store it for
-        // longest-prefix resolution at read time.  A single-root / no-folder
-        // session skips this — the global pull above is the whole story.
-        let folders = self.workspace_folder_urls().await;
-        if !folders.is_empty() {
-            let items: Vec<ConfigurationItem> = folders
-                .iter()
-                .map(|f| ConfigurationItem {
-                    scope_uri: Some(f.clone()),
-                    section: Some("tclLsp".to_owned()),
-                })
-                .collect();
-            if let Ok(values) = self.client.configuration(items).await {
-                let parsed: Vec<(Uri, FolderConfig)> = folders
-                    .into_iter()
-                    .zip(values)
-                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
-                    .collect();
-                self.apply_folder_configs(parsed).await;
-            }
-        }
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
@@ -3924,6 +3938,34 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // BIG-IP `.conf`/`.scf`: a reference is every identifier-bounded
+        // occurrence of the TMSH path token at the cursor (tcl-bigip::refs),
+        // a textual search the Tcl symbol analyser can't perform on a
+        // non-Tcl config. Same-document only — cross-file references await a
+        // workspace config index.
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let text = doc.text.clone();
+            let bigip_ranges = tokio::task::spawn_blocking(move || {
+                tcl_bigip::refs::references_at(&text, pos.line, pos.character, include_decl)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("bigip references worker panicked: {err}").into(),
+                data: None,
+            })?;
+            if bigip_ranges.is_empty() {
+                return Ok(None);
+            }
+            let locations = bigip_ranges
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_bigip_range(r),
+                })
+                .collect();
+            return Ok(Some(locations));
+        }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -4639,6 +4681,40 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // BIG-IP `.conf`/`.scf`: links are object references (iRule-body and
+        // migrated TMSH property values) resolving to the target object's
+        // stanza in the same document — a `uri#L<line>` fragment anchor. This
+        // is a different engine from the Tcl `source`/`package require` link
+        // scanner below.
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let text = doc.text.clone();
+            let bigip_links =
+                tokio::task::spawn_blocking(move || tcl_bigip::links::document_links(&text))
+                    .await
+                    .map_err(|err| jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InternalError,
+                        message: format!("bigip document_link worker panicked: {err}").into(),
+                        data: None,
+                    })?;
+            if bigip_links.is_empty() {
+                return Ok(None);
+            }
+            let uri_str = uri.as_str();
+            let lifted = bigip_links
+                .into_iter()
+                .map(|l| DocumentLink {
+                    range: lift_bigip_range(l.range),
+                    // Resolved → a `uri#L<1-based-line>` fragment the editor
+                    // navigates to; unresolved → no target (hover-only).
+                    target: l
+                        .target_line
+                        .and_then(|line| Uri::from_str(&format!("{uri_str}#L{}", line + 1)).ok()),
+                    tooltip: Some(l.tooltip),
+                    data: None,
+                })
+                .collect();
+            return Ok(Some(lifted));
+        }
         // Pass the document's
         // enclosing directory as the workspace root so
         // relative `source <path>` arguments resolve.  When
@@ -4930,6 +5006,7 @@ impl LanguageServer for Backend {
             })
             .collect();
         let dialect = doc.dialect.clone();
+        let uri_str = uri.as_str().to_string();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -4939,6 +5016,16 @@ impl LanguageServer for Backend {
                 &doc.text,
                 &context_diags,
             ));
+            // BIG-IP `.conf`/`.scf`: the dialect-specific rename-partition /
+            // rename-object / extract-rule actions (`tcl-lsp-core::bigip_code_actions`).
+            // The generic Tcl code-action path above yields nothing useful on a
+            // non-Tcl config, so extend rather than replace — mirroring the
+            // references / document-links BIG-IP routing.
+            if Backend::is_bigip_dialect(&dialect) {
+                actions.extend(core_code_actions::bigip_code_actions(
+                    &doc.text, range, &uri_str,
+                ));
+            }
             // iRules-only: the `# Profiles:` header source action plus the
             // control-flow quick-fixes (IRULE5002 unguarded drop / IRULE5004
             // DNS::return) the analyser produces through the compiler-checks
@@ -5007,11 +5094,7 @@ impl LanguageServer for Backend {
                     })
                     .collect();
                 changes.insert(uri.clone(), lifted_edits);
-                let command = a.command.map(|c| tower_lsp_server::ls_types::Command {
-                    title: a.title.clone(),
-                    command: c.command,
-                    arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
-                });
+                let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
                 // Surface the rendered tmsh data-group definition (the
                 // extract-to-datagroup refactor) as the action's `data`
                 // payload.
@@ -5597,6 +5680,58 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             line: r.end_line,
             character: r.end_character,
         },
+    }
+}
+
+/// Lift a [`tcl_bigip::Range`] (UTF-16 columns, **inclusive** end — the last
+/// covered code unit) to an LSP [`Range`] (exclusive end). BIG-IP object
+/// stanzas and reference spans are single-line tokens, so the exclusive end
+/// column is `end.character + 1` (the same convention
+/// [`lift_config_diagnostic`] uses for validator ranges).
+fn lift_bigip_range(r: tcl_bigip::Range) -> Range {
+    Range {
+        start: Position {
+            line: r.start.line,
+            character: r.start.character,
+        },
+        end: Position {
+            line: r.end.line,
+            character: r.end.character + 1,
+        },
+    }
+}
+
+/// Convert a core [`ActionCommand`](core_code_actions::ActionCommand) into an
+/// LSP [`Command`](tower_lsp_server::ls_types::Command), forwarding **both**
+/// argument kinds.
+///
+/// A given action command carries exactly one kind:
+/// * integer-position commands (`tclLsp.renameSymbolAtPosition`) use `args`
+///   (`[line, start, end]`), and
+/// * BIG-IP / editor string commands use `string_args` —
+///   `tclLsp.renamePartition` → `[uri, partition]`, `editor.action.rename`
+///   → `[uri]`.
+///
+/// String args are emitted first, then int args. Because each command uses
+/// only one kind, the concatenation yields the exact `arguments` array the
+/// client (and Python's `_bigip_code_actions`) expects, without this
+/// conversion needing to know which kind it is handling. Forwarding
+/// `string_args` here is what stops the BIG-IP rename actions from reaching
+/// the editor argument-less.
+fn action_command_to_lsp(
+    title: String,
+    c: core_code_actions::ActionCommand,
+) -> tower_lsp_server::ls_types::Command {
+    let mut arguments: Vec<serde_json::Value> = c
+        .string_args
+        .into_iter()
+        .map(serde_json::Value::from)
+        .collect();
+    arguments.extend(c.args.into_iter().map(serde_json::Value::from));
+    tower_lsp_server::ls_types::Command {
+        title,
+        command: c.command,
+        arguments: Some(arguments),
     }
 }
 
@@ -7172,6 +7307,221 @@ mod tests {
     }
 
     #[test]
+    fn list_irule_events_command_returns_sorted_known_events() {
+        let out = Backend::list_irule_events_command();
+        let names: Vec<&str> = out
+            .get("events")
+            .and_then(|v| v.as_array())
+            .expect("events array")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        assert!(names.contains(&"HTTP_REQUEST"), "{names:?}");
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted, "events must be sorted");
+    }
+
+    #[test]
+    fn diagram_data_command_extracts_when_events() {
+        let src = "when HTTP_REQUEST {\n}\nwhen CLIENT_ACCEPTED {\n}\n";
+        let out = Backend::diagram_data_command(&[serde_json::json!(src)]).expect("some");
+        let events: Vec<&str> = out
+            .get("events")
+            .and_then(|v| v.as_array())
+            .unwrap()
+            .iter()
+            .filter_map(|e| e.get("name").and_then(serde_json::Value::as_str))
+            .collect();
+        assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
+        assert!(events.contains(&"CLIENT_ACCEPTED"), "{events:?}");
+        // No string argument → None (not an empty result).
+        assert!(Backend::diagram_data_command(&[]).is_none());
+    }
+
+    #[tokio::test]
+    async fn describe_irule_event_command_reports_known_and_unknown() {
+        let backend = test_backend();
+        let known = backend
+            .describe_irule_event_command(&[serde_json::json!("HTTP_REQUEST")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            known.get("known").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert!(
+            known
+                .get("validCommandCount")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0)
+                > 0,
+            "a known event should report valid commands: {known:?}",
+        );
+        let unknown = backend
+            .describe_irule_event_command(&[serde_json::json!("NOPE_EVENT")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            unknown.get("known").and_then(serde_json::Value::as_bool),
+            Some(false),
+        );
+    }
+
+    #[tokio::test]
+    async fn describe_irule_command_command_resolves_case_insensitively() {
+        let backend = test_backend();
+        let found = backend
+            .describe_irule_command_command(&[serde_json::json!("HTTP::header")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            found.get("found").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        let canonical = found.get("command").and_then(serde_json::Value::as_str);
+        // A differently-cased spelling resolves to the same canonical command.
+        let ci = backend
+            .describe_irule_command_command(&[serde_json::json!("http::HEADER")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            ci.get("found").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            ci.get("command").and_then(serde_json::Value::as_str),
+            canonical
+        );
+        // An unknown command reports `found: false`.
+        let missing = backend
+            .describe_irule_command_command(&[serde_json::json!("NoSuchCmd")])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            missing.get("found").and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+    }
+
+    #[tokio::test]
+    async fn list_subcommands_command_returns_sorted_subcommands() {
+        let backend = test_backend();
+        let out = backend
+            .list_subcommands_command(&[serde_json::json!("string")])
+            .await
+            .expect("some");
+        assert_eq!(
+            out.get("command").and_then(serde_json::Value::as_str),
+            Some("string")
+        );
+        let subs: Vec<&str> = out
+            .get("subcommands")
+            .and_then(|v| v.as_array())
+            .unwrap()
+            .iter()
+            .filter_map(|s| s.get("name").and_then(serde_json::Value::as_str))
+            .collect();
+        assert!(subs.contains(&"length"), "string subcommands: {subs:?}");
+        let mut sorted = subs.clone();
+        sorted.sort_unstable();
+        assert_eq!(subs, sorted, "subcommands must be sorted");
+    }
+
+    #[tokio::test]
+    async fn render_config_ini_emits_known_sections() {
+        let backend = test_backend();
+        let ini = backend.render_config_ini().await;
+        for section in ["[features]", "[optimiser]", "[style]"] {
+            assert!(ini.contains(section), "missing {section} in:\n{ini}");
+        }
+    }
+
+    #[tokio::test]
+    async fn minify_document_command_returns_source_and_handles_missing_doc() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///m.tcl").unwrap();
+        register(&backend, &uri, "set x 1\nputs $x\n").await;
+        let out = backend
+            .minify_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "minify result should carry a source string: {out:?}",
+        );
+        // No argument → None; an unregistered URI → None.
+        assert!(
+            backend
+                .minify_document_command(&[])
+                .await
+                .expect("ok")
+                .is_none()
+        );
+        assert!(
+            backend
+                .minify_document_command(&[serde_json::json!("file:///nope.tcl")])
+                .await
+                .expect("ok")
+                .is_none(),
+        );
+    }
+
+    #[tokio::test]
+    async fn optimise_document_command_returns_source_for_registered_doc() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o.tcl").unwrap();
+        register(&backend, &uri, "set x [expr {1 + 2}]\nputs $x\n").await;
+        let out = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        assert!(
+            out.get("source")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "optimise result should carry a source string: {out:?}",
+        );
+        assert!(
+            backend
+                .optimise_document_command(&[])
+                .await
+                .expect("ok")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn unminify_error_command_echoes_original_and_flags_change() {
+        // No argument → None.
+        assert!(Backend::unminify_error_command(&[]).is_none());
+        let out = Backend::unminify_error_command(&[serde_json::json!("oops at a")]).expect("some");
+        assert_eq!(
+            out.get("originalError").and_then(serde_json::Value::as_str),
+            Some("oops at a"),
+        );
+        assert!(
+            out.get("translatedError")
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        );
+        assert!(
+            out.get("changed")
+                .and_then(serde_json::Value::as_bool)
+                .is_some()
+        );
+    }
+
+    #[test]
     fn feature_toggles_resolved_map_covers_known_keys() {
         let mut toggles = FeatureToggles::default();
         toggles.apply(serde_json::json!({"hover": false}).as_object().unwrap());
@@ -7225,6 +7575,66 @@ mod tests {
             !empty
                 .feature_toggles
                 .is_enabled_default_off("xcDiagnostics")
+        );
+    }
+
+    #[test]
+    fn action_command_forwards_string_args_for_bigip_rename_partition() {
+        // The BIG-IP code-action provider emits `tclLsp.renamePartition`
+        // with `string_args = [uri, partition]` (Python:
+        // `arguments=[uri, partition_short]`).  The server conversion must
+        // forward those — dropping `string_args` left the rename action
+        // argument-less and the client could not run it.
+        let cmd = core_code_actions::ActionCommand {
+            command: "tclLsp.renamePartition".to_string(),
+            args: Vec::new(),
+            string_args: vec!["file:///c.conf".to_string(), "MyPartition".to_string()],
+        };
+        let lsp = action_command_to_lsp("Rename partition".to_string(), cmd);
+        assert_eq!(lsp.command, "tclLsp.renamePartition");
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![
+                serde_json::json!("file:///c.conf"),
+                serde_json::json!("MyPartition"),
+            ]),
+        );
+    }
+
+    #[test]
+    fn action_command_forwards_string_args_for_editor_rename() {
+        // `editor.action.rename` carries just `[uri]`.
+        let cmd = core_code_actions::ActionCommand {
+            command: "editor.action.rename".to_string(),
+            args: Vec::new(),
+            string_args: vec!["file:///c.conf".to_string()],
+        };
+        let lsp = action_command_to_lsp("Rename".to_string(), cmd);
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![serde_json::json!("file:///c.conf")]),
+        );
+    }
+
+    #[test]
+    fn action_command_preserves_integer_position_args() {
+        // The post-extract rename (`tclLsp.renameSymbolAtPosition`) carries
+        // integer position args `[line, start, end]` and no string args —
+        // the existing behaviour must be unchanged by the string_args
+        // forwarding (the ints stay JSON numbers, in order).
+        let cmd = core_code_actions::ActionCommand {
+            command: "tclLsp.renameSymbolAtPosition".to_string(),
+            args: vec![0, 4, 11],
+            string_args: Vec::new(),
+        };
+        let lsp = action_command_to_lsp("Rename symbol".to_string(), cmd);
+        assert_eq!(
+            lsp.arguments,
+            Some(vec![
+                serde_json::json!(0),
+                serde_json::json!(4),
+                serde_json::json!(11),
+            ]),
         );
     }
 
@@ -7932,6 +8342,257 @@ mod tests {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    // ---- Document-lifecycle + diagnostic-core internals -------------------
+    // These exercise the previously-untested lifecycle path: the
+    // `did_open` / `did_change` / `did_close` handlers and the synchronous
+    // diagnostic driver `publish_analyser_diagnostics` → `run_diagnostics_core`
+    // (the biggest untested function), asserting on observable state
+    // (`documents`, `pull_diag_cache`) since the test client's socket is
+    // detached so published notifications are no-ops.
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn publish_analyser_diagnostics_caches_tcl_diagnostics() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///life.tcl").unwrap();
+        // `y` is set but never read → W211.
+        let src = "proc foo {} { set y 1 }\n";
+        register(&backend, &uri, src).await;
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "tcl8.6".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache
+            .get(&uri)
+            .expect("run_diagnostics_core should populate the pull cache");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "expected W211 in cached diagnostics, got {:?}",
+            entry.diagnostics,
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn publish_analyser_diagnostics_routes_bigip_dialect_to_pull_cache() {
+        // A BIG-IP document takes the `f5_dialect_diagnostics` branch of
+        // `run_diagnostics_core` (model validators, not the Tcl analyser) and
+        // still lands a pull-cache entry.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///life.conf").unwrap();
+        let src = "ltm pool /Common/p {\n    members {\n        /Common/n:80 { }\n    }\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                src.to_owned(),
+                "f5-bigip".to_owned(),
+                0,
+                Some(1),
+            )
+            .await;
+        assert!(
+            backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "BIG-IP dialect should populate the pull cache via the f5 branch",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_open_stores_document() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///open.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 7,
+                    text: "set x 1\n".to_owned(),
+                },
+            })
+            .await;
+        let docs = backend.documents.lock().await;
+        let doc = docs.get(&uri).expect("did_open should store the document");
+        assert_eq!(doc.text, "set x 1\n");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_change_replaces_document_text() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///chg.tcl").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "set x 1\n".to_owned(),
+                },
+            })
+            .await;
+        // A full-document replacement (`range: None`).
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![tower_lsp_server::ls_types::TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "set y 2\n".to_owned(),
+                }],
+            })
+            .await;
+        assert_eq!(
+            backend.documents.lock().await.get(&uri).expect("doc").text,
+            "set y 2\n",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_removes_document_and_clears_pull_cache() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///close.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "did_close should remove the open document",
+        );
+        assert!(
+            !backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "did_close should drop the pull-cache entry",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_change_configuration_applies_inline_settings() {
+        let backend = test_backend();
+        let params = DidChangeConfigurationParams {
+            settings: serde_json::json!({
+                "dialect": "tcl9.0",
+                "tclLsp.style.nonAscii": "strict",
+                "tclLsp.diagnostics.W211": false,
+            }),
+        };
+        // `did_change_configuration` ends by pulling config from the client,
+        // which errors fast against the test's detached socket; the timeout is
+        // a backstop so a future transport change can't hang the suite.
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            backend.did_change_configuration(params),
+        )
+        .await
+        .expect("did_change_configuration should not hang");
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
+        assert!(
+            backend.disabled_diagnostics.lock().await.contains("W211"),
+            "W211 should be disabled by the inline settings",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_applies_every_knob() {
+        let backend = test_backend();
+        let cfg = serde_json::json!({
+            "features": { "hover": false },
+            "xcDiagnostics": { "enabled": true },
+            "optimiser": { "enabled": false, "profile": "full", "O100": false },
+            "formatting": { "lineLength": 120 },
+            "dialect": "tcl9.0",
+            "style": { "nonAscii": "strict" },
+            "diagnostics": { "W211": false },
+        });
+        backend.apply_global_config(&cfg).await;
+        assert!(!backend.feature_toggles.lock().await.is_enabled("hover"));
+        assert!(
+            backend
+                .feature_toggles
+                .lock()
+                .await
+                .is_enabled("xcDiagnostics"),
+            "xcDiagnostics section flag should map onto the toggle",
+        );
+        assert!(!*backend.optimiser_enabled.lock().await);
+        assert_eq!(
+            backend.optimiser_code_overrides.lock().await.get("O100"),
+            Some(&false),
+            "optimiser.O100=false should record a force-disable override",
+        );
+        assert_eq!(*backend.line_length.lock().await, 120);
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
+        assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_ignores_non_object() {
+        // A non-object config (e.g. a `null` from an editor with no settings)
+        // is a no-op — the defaults survive.
+        let backend = test_backend();
+        backend.apply_global_config(&serde_json::Value::Null).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl8.6");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn resolved_analysis_settings_falls_back_to_global_defaults() {
+        // With no folder config registered, every knob resolves from the
+        // backend's global state, and the optimiser per-code overrides are
+        // folded into the profile's disabled set.
+        let backend = test_backend();
+        backend
+            .disabled_diagnostics
+            .lock()
+            .await
+            .insert("W211".to_owned());
+        *backend.non_ascii_mode.lock().await = NonAsciiMode::Strict;
+        *backend.optimiser_enabled.lock().await = false;
+        backend
+            .optimiser_code_overrides
+            .lock()
+            .await
+            .insert("O100".to_owned(), false);
+        let uri = Uri::from_str("file:///settings.tcl").unwrap();
+        let (disabled, non_ascii, opt_enabled, opt_disabled) =
+            backend.resolved_analysis_settings(&uri).await;
+        assert!(
+            disabled.contains("W211"),
+            "global disabled set should apply"
+        );
+        assert_eq!(non_ascii, NonAsciiMode::Strict);
+        assert!(!opt_enabled, "global optimiser switch should apply");
+        assert!(
+            opt_disabled.contains("O100"),
+            "a force-disable per-code override should land in opt_disabled",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -9358,6 +10019,106 @@ mod tests {
         assert_eq!(result.len(), 3, "{result:?}");
         assert!(result.iter().any(|l| l.uri == consumer));
         assert!(result.iter().filter(|l| l.uri == lib).count() == 2);
+    }
+
+    #[tokio::test]
+    async fn references_handler_bigip_conf_finds_path_occurrences() {
+        // A BIG-IP `.conf` document (dialect `f5-bigip`) routes references
+        // through the TMSH-path textual search, not the Tcl analyser.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "ltm pool /Common/p {\n}\nltm virtual /Common/v {\n    pool /Common/p\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                // On `/Common/p` in the virtual's `pool /Common/p` line.
+                position: Position::new(3, 9),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+        };
+        let result = backend.references(params).await.expect("ok").expect("some");
+        // Pool declaration (line 0) + the virtual's `pool /Common/p` (line 3).
+        assert_eq!(result.len(), 2, "{result:?}");
+        assert!(result.iter().all(|l| l.uri == uri));
+        let lines: Vec<u32> = result.iter().map(|l| l.range.start.line).collect();
+        assert!(lines.contains(&0) && lines.contains(&3), "{lines:?}");
+    }
+
+    #[tokio::test]
+    async fn document_link_handler_bigip_conf_links_irule_pool_ref() {
+        // A BIG-IP `.conf` document routes document links through the object-
+        // reference resolver: the iRule's `pool /Common/web_pool` resolves to
+        // the pool stanza on line 0 (a `#L1` fragment target).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "ltm pool /Common/web_pool { }\nltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/web_pool }\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let result = backend
+            .document_link(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let link = result
+            .iter()
+            .find(|l| l.tooltip.as_deref() == Some("Go to /Common/web_pool"))
+            .expect("pool ref link");
+        let target = link.target.as_ref().expect("resolved target");
+        assert!(target.as_str().contains("#L1"), "target = {target:?}");
+    }
+
+    #[tokio::test]
+    async fn code_action_handler_bigip_conf_offers_partition_rename() {
+        // A BIG-IP `.conf` document routes code actions through the dialect
+        // provider (`tcl-lsp-core::bigip_code_actions`): an `auth partition`
+        // stanza offers the `tclLsp.renamePartition` command, which the generic
+        // Tcl code-action path never would. Guards the provider's wiring into
+        // `Backend::code_action`.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bigip.conf").unwrap();
+        let src = "auth partition Team1 {\n    description test\n}\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+        );
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            context: tower_lsp_server::ls_types::CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let result = backend
+            .code_action(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let has_rename_partition = result.iter().any(|a| match a {
+            CodeActionOrCommand::CodeAction(ca) => ca
+                .command
+                .as_ref()
+                .is_some_and(|c| c.command == "tclLsp.renamePartition"),
+            CodeActionOrCommand::Command(c) => c.command == "tclLsp.renamePartition",
+        });
+        assert!(
+            has_rename_partition,
+            "expected a renamePartition code action: {result:?}",
+        );
     }
 
     #[tokio::test]

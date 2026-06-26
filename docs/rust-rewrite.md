@@ -893,12 +893,12 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes); `ProcArgTrait::DynamicNameLocal` added so caller-side W211/W214/dead-store false positives stay suppressed (parity-audit gap #6, 2026-06-25) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
-| Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
+| Bytecode VM | `tcl-vm` | 🟡 | the VM-vs-tclsh **differential cmd-test divergences** (the `bug_*` tests in `tcl-vm/tests/cmd_{math_expr,string,collections,control,info_prefix}_e2e.rs`) are **all closed** (2026-06-25) — math/`expr`, `string`/`format`, dict/array/`lsort`, `try`/control, and `namespace which -variable` now match tclsh 8.6/9.0 on valid input. Still open: tcltest-suite parity vs `runtime/rust` (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
 | Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🔴 | per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor (Approach A/B) + cross-file cascade + (optional) rope store → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
@@ -1092,6 +1092,21 @@ archived in the [history](rust-rewrite-history.md). The live open gaps:
   no-args / dynamically-built forms), and the `string is` / `regexp` value
   opcodes `NUMERIC_TYPE` / `STR_CLASS` / `REGEXP`. All verified against tclsh 9.0
   (detail in [history](rust-rewrite-history.md)).
+- **landed (2026-06-25)** the VM-vs-tclsh **differential cmd-test divergences**
+  are all closed — every `bug_*` test in
+  `tcl-vm/tests/cmd_{math_expr,string,collections,control,info_prefix}_e2e.rs`
+  (which compile real Tcl through `tcl-compiler` and pin results against tclsh
+  8.6/9.0) now passes. Math/`expr`: `rand()`/`srand()` (Park–Miller PRNG),
+  bare-literal normalisation + NaN-result domain errors (a real
+  `tryCvtToNumeric`), `abs()` of the most-negative wide promoting to `i128`.
+  Collections: `array set` element-named error, `dict get` no-key validation,
+  `::tcl::dict::map` registration, `dict map` `break` discarding the result,
+  `lsort -unique` keeping the last of an equal run. Control: `try` handler
+  array-element binds via `var_set`, and the differential harness now compiles
+  via `lower_to_ir_for_bytecode` (the production lowering, so literal `try`
+  exercises the runtime-barrier path rather than the unimplemented `beginCatch`).
+  These are a separate surface from tcltest-suite parity below — see
+  [history](rust-rewrite-history.md), 2026-06-25.
 - **open** smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6),
   `incr` (3), `if`/`set` (2), `while` (1): individual bugs to chase after the
   structural items.
@@ -1117,6 +1132,16 @@ token memo, `codeLens/resolve`, inlay type hints) and the two consumer-wiring
 residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and the
 IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
 [history archive](rust-rewrite-history.md).
+
+The **BIG-IP LSP surface** (parity-audit gap #8) is now substantially closed
+(2026-06-25): the dialect-specific find-references (`tcl-bigip::refs`),
+document-links (`tcl-bigip::links`), and code-action providers replaced the
+generic-Tcl fallbacks, the "Generate docstring" action reached parity with the
+Python `generate_stub`, and `tcl-lsp-server`'s `execute_command` /
+document-lifecycle / diagnostic-core internals gained direct coverage. The
+residual is the handful of BIG-IP `execute_command` verbs that delegate to
+`tcl-bigip-query` (e.g. `renamePartition`, `writeRuleBack`) — out of this
+branch's scope.
 
 The rope-backed `DocumentState` that previously sat here is **demoted**: a measured
 experiment put it at ~0.02% of per-edit latency. The document-store /

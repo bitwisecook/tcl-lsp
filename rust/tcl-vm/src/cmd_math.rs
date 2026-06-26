@@ -3,10 +3,37 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use tcl_runtime_api::Completion;
+use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// Coerce `v` to a double for the number-flavoured math functions
+/// (`abs`/`int`/`round`/`entier`/`isqrt`/`max`/`min`). Their non-numeric error
+/// in Tcl 9 is the generic `expected number but got "…"` — not the
+/// floating-point-specific wording `as_double` produces.
+fn num_arg(v: &Value) -> Result<f64, String> {
+    v.as_double()
+        .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
+}
+
+/// Coerce `v` to a double for the classification predicates (`isnan` /
+/// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
+/// NaN/Inf is their purpose — even though a bare `NaN` is a domain error as an
+/// ordinary operand.
+fn num_or_nan(v: &Value) -> Result<f64, String> {
+    if let Ok(d) = v.as_double() {
+        return Ok(d);
+    }
+    if matches!(
+        number::parse_whole(v.to_str().trim()),
+        Some(Number::Nan { .. })
+    ) {
+        return Ok(f64::NAN);
+    }
+    Err(format!("expected number but got \"{}\"", v.to_str()))
+}
 
 /// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
 /// math function's argument is out of range — `sqrt(-1)`, `acos(2)`, `fmod(x,0)`,
@@ -33,6 +60,8 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::bool", m_bool);
     vm.register("tcl::mathfunc::max", m_max);
     vm.register("tcl::mathfunc::min", m_min);
+    vm.register("tcl::mathfunc::srand", m_srand);
+    vm.register("tcl::mathfunc::rand", m_rand);
     // Trigonometric / transcendental — single `double` argument.
     vm.register("tcl::mathfunc::sin", |_, a| dom_fn(a, "sin", f64::sin));
     vm.register("tcl::mathfunc::cos", |_, a| dom_fn(a, "cos", f64::cos));
@@ -89,20 +118,25 @@ fn pred_fn(args: &[Value], name: &str, f: impl Fn(f64) -> bool) -> Completion<Va
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match num_or_nan(x) {
         Ok(d) => ok(Value::bool(f(d))),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
 /// A two-`double` predicate (`isunordered`).
 fn pred_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> bool) -> Completion<Value> {
     let [lhs, rhs] = args else {
-        return err(format!("too many/few args to math function \"{name}\""));
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"{name}\""));
     };
-    match (lhs.as_double(), rhs.as_double()) {
+    match (num_or_nan(lhs), num_or_nan(rhs)) {
         (Ok(x), Ok(y)) => ok(Value::bool(f(x, y))),
-        (Err(e), _) | (_, Err(e)) => err(e.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
@@ -110,7 +144,12 @@ fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>
     match args {
         [x] => Ok(x),
         _ => Err(err(format!(
-            "too many/few args to math function \"{name}\""
+            "{} for math function \"{name}\"",
+            if args.is_empty() {
+                "not enough arguments"
+            } else {
+                "too many arguments"
+            }
         ))),
     }
 }
@@ -120,12 +159,18 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
+    // Compute the magnitude in `i128` so the most-negative wide doesn't wrap:
+    // `abs(-9223372036854775808)` is `2^63`, which has no `i64` but is the
+    // bignum tclsh returns (rendered as a decimal string by `int_value`).
     if let Ok(n) = x.as_int() {
-        return ok(Value::int(n.wrapping_abs()));
+        return ok(crate::expr::int_value(i128::from(n).abs()));
     }
-    match x.as_double() {
+    if let Some(b) = x.as_i128() {
+        return ok(crate::expr::int_value(b.saturating_abs()));
+    }
+    match num_arg(x) {
         Ok(f) => ok(Value::double(f.abs())),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -134,9 +179,9 @@ fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -174,9 +219,9 @@ fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.round() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -215,7 +260,12 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
 /// `fmod` — where `fmod(x, 0)` is the domain error).
 fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completion<Value> {
     let [lhs, rhs] = args else {
-        return err(format!("too many/few args to math function \"{name}\""));
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"{name}\""));
     };
     match (lhs.as_double(), rhs.as_double()) {
         (Ok(x), Ok(y)) => {
@@ -241,7 +291,12 @@ fn m_ceil(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [b, e] = args else {
-        return err("too many/few args to math function \"pow\"");
+        let which = if args.len() < 2 {
+            "not enough arguments"
+        } else {
+            "too many arguments"
+        };
+        return err(format!("{which} for math function \"pow\""));
     };
     match (b.as_double(), e.as_double()) {
         (Ok(bb), Ok(ee)) => {
@@ -266,9 +321,9 @@ fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match x.as_double() {
+    match num_arg(x) {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -283,9 +338,9 @@ fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let n = if let Ok(n) = x.as_int() {
         n
     } else {
-        match x.as_double() {
+        match num_arg(x) {
             Ok(f) => f.trunc() as i64,
-            Err(e) => return err(e.message),
+            Err(m) => return err(m),
         }
     };
     if n < 0 {
@@ -326,34 +381,29 @@ fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `max`/`min` over their (numeric) arguments. Integer result when all args are
 /// integers, else double.
 fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
-    if args.is_empty() {
-        return err(format!("too few args to math function \"{name}\""));
-    }
-    let mut all_int = true;
-    let mut nums = Vec::with_capacity(args.len());
-    for a in args {
-        match a.as_double() {
-            Ok(d) => {
-                if a.as_int().is_err() {
-                    all_int = false;
-                }
-                nums.push(d);
-            }
-            Err(e) => return err(e.message),
+    let Some((first, rest)) = args.split_first() else {
+        return err(format!("not enough arguments for math function \"{name}\""));
+    };
+    // Compare numerically but return the *winning argument* unchanged, so the
+    // result keeps the winner's own type: `max(1.5, 2)` → `2` (an integer),
+    // not `2.0`. A non-numeric argument reports the integer-flavoured
+    // "expected number but got …".
+    let mut best = first;
+    let mut best_d = match num_arg(first) {
+        Ok(d) => d,
+        Err(m) => return err(m),
+    };
+    for a in rest {
+        let d = match num_arg(a) {
+            Ok(d) => d,
+            Err(m) => return err(m),
+        };
+        if (want_max && d > best_d) || (!want_max && d < best_d) {
+            best = a;
+            best_d = d;
         }
     }
-    let best = nums.iter().copied().fold(nums[0], |acc, d| {
-        if (want_max && d > acc) || (!want_max && d < acc) {
-            d
-        } else {
-            acc
-        }
-    });
-    if all_int {
-        ok(Value::int(best as i64))
-    } else {
-        ok(Value::double(best))
-    }
+    ok(best.clone())
 }
 
 fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -361,6 +411,36 @@ fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 fn m_min(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     min_max(args, "min", false)
+}
+
+/// `srand(seed)` — reseed the `expr rand()` generator and return its first draw.
+/// C (`ExprSrandFunc`) coerces the argument to a wide integer (falling back to
+/// truncating a double), installs it as the seed, then tail-calls `rand()`; so
+/// `srand` is deterministic and itself yields a number in `[0, 1)`.
+fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let x = match one(args, "srand") {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    let seed = if let Ok(n) = x.as_wide() {
+        n
+    } else {
+        match num_arg(x) {
+            Ok(f) => f.trunc() as i64,
+            Err(m) => return err(m),
+        }
+    };
+    vm.rand_seed_set(seed);
+    ok(Value::double(vm.rand_next()))
+}
+
+/// `rand()` — the next draw from the Park–Miller minimal-standard generator, a
+/// `double` in `[0, 1)`. Takes no arguments.
+fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("too many arguments for math function \"rand\"");
+    }
+    ok(Value::double(vm.rand_next()))
 }
 
 #[cfg(test)]

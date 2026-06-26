@@ -835,6 +835,7 @@ fn compact_names(
     let mut edits: Vec<Edit> = Vec::new();
 
     let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
+    let rmw_targets = rmw_target_var_names(source, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
     process_scope(
@@ -844,6 +845,7 @@ fn compact_names(
         "::",
         isolated,
         &barrier_scopes,
+        &rmw_targets,
         &mut symbol_map,
         &mut edits,
     );
@@ -1044,6 +1046,7 @@ fn is_unsafe_member(member: &str) -> bool {
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn process_scope(
     source: &str,
     analysis: &AnalysisResult,
@@ -1051,6 +1054,7 @@ fn process_scope(
     scope_label: &str,
     isolated: bool,
     barrier_scopes: &FxHashSet<String>,
+    rmw_targets: &FxHashSet<String>,
     symbol_map: &mut SymbolMap,
     edits: &mut Vec<Edit>,
 ) {
@@ -1077,6 +1081,17 @@ fn process_scope(
         for var_name in var_names {
             let var_def = &scope.variables[var_name];
             if var_name.len() <= 1 || var_name.contains("::") {
+                continue;
+            }
+            // Skip variables that are the bare write-target of a mutating
+            // command (`incr` / `append` / `lappend`): the analyser records
+            // those as definitions, not reads, so `VarDef.references` (reads
+            // only) misses the target argument. Renaming the `set` / `$var`
+            // sites but not the `incr var` site would mutate a different
+            // variable than is read, corrupting the program. Keeping the name
+            // unchanged everywhere is semantics-preserving (at the cost of less
+            // compaction for that one name).
+            if rmw_targets.contains(var_name.as_str()) {
                 continue;
             }
             let claimed: FxHashSet<String> = var_map.values().cloned().collect();
@@ -1131,10 +1146,42 @@ fn process_scope(
             &label,
             isolated,
             barrier_scopes,
+            rmw_targets,
             symbol_map,
             edits,
         );
     }
+}
+
+/// Variable names that are the bare write-target of a mutating command
+/// (`incr` / `append` / `lappend`). The analyser records these as
+/// definitions, not reads, so [`AnalysisResult`]'s `VarDef.references`
+/// (reads only) never includes the target argument. The name compaction
+/// excludes them so it cannot rename the `set` / `$var` sites while leaving
+/// the `incr var` target untouched (which would corrupt the program).
+fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<String> {
+    let cu = CompilationUnit::build_for(source, registry, false);
+    let mut names = FxHashSet::default();
+    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
+    units.extend(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::Incr { name, .. } => {
+                        names.insert(name.clone());
+                    }
+                    Statement::Call { command, defs, .. }
+                        if matches!(command.as_str(), "append" | "lappend") =>
+                    {
+                        names.extend(defs.iter().cloned());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    names
 }
 
 // Aggressive-tier aliasing (command / argument / string-literal)
@@ -2712,14 +2759,14 @@ fn unwrap_not(node: &ExprNode) -> &ExprNode {
 /// comparison inversion, De Morgan forward), falling back to a
 /// generic operand recurse.
 fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
-    // Double negation: !!x → x.
-    if let ExprNode::Unary {
-        op: UnaryOp::Not,
-        operand: inner,
-    } = operand
-    {
-        return shrink_node(inner);
-    }
+    // NB: `!!x → x` is deliberately NOT folded. It is only sound when the whole
+    // expression is consumed as a boolean (`if {!!$x}` ≡ `if {$x}`); in a value
+    // context or as a subexpression operand it changes the result, since `!!x`
+    // yields the 0/1 boolean coercion while `x` yields x's value (tclsh:
+    // `expr {!!5}` → 1, `expr {5}` → 5). The minifier processes Expr-role
+    // arguments without knowing whether the result is consumed as a boolean, so
+    // the fold is unsafe here. The comparison-inversion and De Morgan rewrites
+    // below DO preserve the 0/1 result and remain.
     if let ExprNode::Binary { op, left, right } = operand {
         // Comparison inversion: !($a == $b) → $a != $b.
         if let Some(inv) = comparison_inversion(*op) {
@@ -3160,8 +3207,11 @@ mod tests {
     }
 
     #[test]
-    fn expr_double_negation() {
-        check("if {!!$x} {puts x}\n", "if {$x} {puts x}");
+    fn expr_double_negation_not_folded() {
+        // `!!x → x` is unsound outside a top-level boolean condition (it drops
+        // the 0/1 coercion), and the minifier can't tell the context apart, so
+        // `!!$x` is left intact rather than risk changing a value-context result.
+        check("if {!!$x} {puts x}\n", "if {!!$x} {puts x}");
     }
 
     #[test]

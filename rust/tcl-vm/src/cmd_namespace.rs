@@ -103,13 +103,29 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // args appended as list elements) in namespace `ns`.
         "inscope" => ns_inscope(vm, rest),
         "which" => {
-            // `namespace which ?-command|-variable? name` → the resolved FQN, via
-            // the shared `Namespaces` resolution core (flag handling stays here).
+            // `namespace which ?-command|-variable? name` → the resolved FQN.
+            // Default (and `-command`) resolves a command via the shared
+            // `Namespaces` core; `-variable` (or an unambiguous prefix) resolves
+            // a *variable* and returns its qualified name if it exists, else "".
+            // The name is the last word regardless of the flag.
+            let want_var = rest
+                .first()
+                .map(|v| v.to_str().to_string())
+                .filter(|_| rest.len() >= 2)
+                .is_some_and(|f| f.len() >= 2 && "-variable".starts_with(f.as_str()));
             let name = rest
                 .last()
                 .map(|v| v.to_str().to_string())
                 .unwrap_or_default();
-            ok(tcl_cmd_core::namespace::which_command(vm, &name))
+            if want_var {
+                if vm.exists_var(&name) {
+                    ok(Value::string(display_ns(&vm.qualify_name(&name))))
+                } else {
+                    ok(Value::empty())
+                }
+            } else {
+                ok(tcl_cmd_core::namespace::which_command(vm, &name))
+            }
         }
         "origin" => {
             // `namespace origin command` → the original command's fully-qualified

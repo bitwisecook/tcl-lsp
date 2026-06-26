@@ -114,6 +114,14 @@ pub fn optimise_unit(
     // Rust's group mechanism is not application-gating, so a survival check is
     // the safe coupling primitive.
     couple_propagated_const_dead_stores(cu, registry, dialect, &mut selected);
+    // **Resurrected-reference guard (FP-OPT-08).** A def-elimination (an empty
+    // replacement removing `set b 0`) is computed on the SSA, which may treat a
+    // use as dead — e.g. `if {$b}` whose const-false condition makes the body
+    // unreachable. But a *surviving* textual rewrite (unwrapping `if {$a}` to its
+    // body) can keep that `$b` reference in the emitted output, so the def is not
+    // actually dead. Drop any def-elimination whose target variable still appears
+    // in another surviving optimisation's replacement text.
+    drop_def_elims_resurrected_by_replacements(&cu.source, &mut selected);
     // Re-canonicalise: `couple_propagated_const_dead_stores` appends its O109
     // removals in `cu.procedures` / `cu.methods` HashMap-iteration order, which
     // differs run-to-run and — critically — between the offset-0 per-procedure
@@ -141,6 +149,58 @@ pub fn optimise_unit(
     });
     renumber_groups(&mut selected);
     selected
+}
+
+/// The variable a `set` / `incr` / `append` / `lappend` / `lset` statement
+/// writes, parsed from its source text (`set b 0` → `b`); base name only (an
+/// array element's `(key)` suffix is dropped). `None` for any other shape or a
+/// non-literal (substituted) target name.
+fn elim_target_var(span_text: &str) -> Option<String> {
+    let mut words = span_text.split_whitespace();
+    let cmd = words.next()?;
+    if !matches!(cmd, "set" | "incr" | "append" | "lappend" | "lset") {
+        return None;
+    }
+    let name = words.next()?;
+    let base = name.split_once('(').map_or(name, |(b, _)| b);
+    (!base.is_empty() && !base.contains('$') && !base.contains('['))
+        .then(|| base.to_string())
+}
+
+/// Drop a def-elimination (empty replacement) when its target variable still
+/// appears as `$var` / `${var}` in another *surviving* optimisation's
+/// replacement — the SSA judged the def dead, but a surviving textual rewrite
+/// resurrected a reference to it (FP-OPT-08).
+fn drop_def_elims_resurrected_by_replacements(source: &str, selected: &mut Vec<Optimisation>) {
+    let elims: Vec<(usize, String)> = selected
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| o.replacement.trim().is_empty())
+        .filter_map(|(i, o)| {
+            let s = o.span.start() as usize;
+            let e = (o.span.end() as usize).min(source.len());
+            let var = elim_target_var(source.get(s..e)?)?;
+            Some((i, var))
+        })
+        .collect();
+    if elims.is_empty() {
+        return;
+    }
+    let mut drop: Vec<usize> = elims
+        .iter()
+        .filter(|(i, var)| {
+            selected
+                .iter()
+                .enumerate()
+                .any(|(j, o)| j != *i && count_var_refs(&o.replacement, var) > 0)
+        })
+        .map(|(i, _)| *i)
+        .collect();
+    drop.sort_unstable();
+    drop.dedup();
+    for idx in drop.into_iter().rev() {
+        selected.remove(idx);
+    }
 }
 
 /// Whether `code` is a *direct* constant-propagation rewrite — a `$var`

@@ -52,20 +52,27 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
                     return err("list must have an even number of elements");
                 }
                 let name = n.to_str();
-                // `array set a {}` still materialises an empty array (and a
-                // scalar `a` errors), so ensure it up front — the loop below
-                // never runs for an empty value list.
-                if let Err(e) = vm.ensure_array(&name) {
-                    return e;
-                }
-                let mut i = 0;
-                while i + 1 < items.len() {
-                    if let Err(e) =
-                        vm.set_array_elem(&name, &items[i].to_str(), items[i + 1].clone())
-                    {
+                if items.is_empty() {
+                    // `array set a {}` still materialises an empty array; onto an
+                    // existing scalar it errors. C words *this* case as the
+                    // command (`can't array set "a"`), distinct from the
+                    // per-element `set` message taken on a non-empty list.
+                    if let Err(e) = vm.ensure_array(&name) {
                         return e;
                     }
-                    i += 2;
+                } else {
+                    // Write element by element so a scalar target fails at the
+                    // *element* write — naming `a(key)`, as C's `TclArraySet`
+                    // does — rather than pre-checked under the bare name.
+                    let mut i = 0;
+                    while i + 1 < items.len() {
+                        if let Err(e) =
+                            vm.set_array_elem(&name, &items[i].to_str(), items[i + 1].clone())
+                        {
+                            return e;
+                        }
+                        i += 2;
+                    }
                 }
                 ok(Value::empty())
             }

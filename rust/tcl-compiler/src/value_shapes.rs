@@ -83,16 +83,71 @@ pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
 /// Extract command name and args from `[cmd arg1 arg2 …]`.
 ///
 /// Returns `None` when `text` is not bracket-wrapped, or when the
-/// inside is empty. Arguments are whitespace-split — a simple case;
-/// callers that need full Tcl list quoting handle it upstream.
+/// inside is empty. Arguments are split on whitespace at the *top* nesting
+/// level only: `[...]`, `{...}` and `"..."` groups keep their inner
+/// whitespace, so a nested command substitution like `[list [read $fd]]`
+/// yields the single arg `[read $fd]` rather than the two broken halves
+/// `[read` and `$fd]` (which would hide a taint source nested in an
+/// argument). Callers that need full Tcl list quoting handle it upstream.
 #[must_use]
 pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
     let stripped = text.trim();
     let inner = stripped.strip_prefix('[')?.strip_suffix(']')?.trim();
-    let mut parts = inner.split_ascii_whitespace();
-    let cmd = parts.next()?.to_owned();
-    let args: Vec<String> = parts.map(str::to_owned).collect();
+    let mut parts = split_top_level_words(inner).into_iter();
+    let cmd = parts.next()?;
+    let args: Vec<String> = parts.collect();
     Some((cmd, args))
+}
+
+/// Split a command body into words on top-level whitespace, keeping
+/// `[...]` / `{...}` / `"..."` groups and backslash escapes intact.
+fn split_top_level_words(s: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut brack = 0i32;
+    let mut brace = 0i32;
+    let mut in_quote = false;
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                cur.push(c);
+                if let Some(n) = chars.next() {
+                    cur.push(n);
+                }
+            }
+            '"' if brack <= 0 && brace <= 0 => {
+                in_quote = !in_quote;
+                cur.push(c);
+            }
+            '[' if !in_quote => {
+                brack += 1;
+                cur.push(c);
+            }
+            ']' if !in_quote => {
+                brack -= 1;
+                cur.push(c);
+            }
+            '{' if !in_quote => {
+                brace += 1;
+                cur.push(c);
+            }
+            '}' if !in_quote => {
+                brace -= 1;
+                cur.push(c);
+            }
+            c if c.is_ascii_whitespace() && brack <= 0 && brace <= 0 && !in_quote => {
+                if !cur.is_empty() {
+                    words.push(std::mem::take(&mut cur));
+                }
+            }
+            _ => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        words.push(cur);
+    }
+    words
 }
 
 #[cfg(test)]
@@ -127,6 +182,22 @@ mod tests {
         assert!(is_pure_var_ref("${a(1)}"));
         // Backslash-escaped close paren stays inside the one index.
         assert!(is_pure_var_ref("$a(x\\)y)"));
+    }
+
+    #[test]
+    fn fp_nab_12_escaped_paren_array_index_companions() {
+        // FP-NAB-12 (Rust counterpart of the Python value_shapes test): the
+        // hand-rolled parser consumes a backslash-escaped close paren inside an
+        // array index so the reference does not terminate at the first `)`.
+        assert!(is_pure_var_ref(r"$a(x\)y)"));
+        // Companion controls locking in overall parser correctness.
+        assert!(is_pure_var_ref("$x"));
+        assert!(is_pure_var_ref("${some name}"));
+        assert!(is_pure_var_ref("$ns::x"));
+        assert!(is_pure_var_ref("$arr(plain)"));
+        // Inverse: an *unescaped* `)` terminates the index, leaving trailing
+        // `y` as concatenated literal — NOT one pure var ref.
+        assert!(!is_pure_var_ref("$a(x)y"));
     }
 
     #[test]

@@ -303,6 +303,16 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
     let (nocase, pat, s) = match args {
         [p, s] => (false, p, s),
         [opt, p, s] if is_nocase(&ops.as_str(opt)) => (true, p, s),
+        // Three arguments whose first is not `-nocase` is a bad option, not a
+        // wrong count (C's `StringMatchCmd`): `string match -bogus a b` and
+        // `string match -- a a` both report `bad option "…": must be -nocase`
+        // (string-11.x), since `--` is not an accepted option here.
+        [opt, _, _] => {
+            return Err(CmdError::new(format!(
+                "bad option \"{}\": must be -nocase",
+                ops.as_str(opt)
+            )));
+        }
         _ => {
             return Err(CmdError::wrong_args(
                 "string match ?-nocase? pattern string",

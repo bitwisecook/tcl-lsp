@@ -346,6 +346,12 @@ impl Analyser {
         for fu in cu.procedures.values() {
             collect_object_types(fu, &mut all_object_types);
         }
+        // Method bodies are real analysable units (`cu.methods` carries a full
+        // FunctionUnit per method). Including them lets `$var method` dispatch
+        // inside a method body see object/const evidence from the same body.
+        for fu in cu.methods.values() {
+            collect_object_types(fu, &mut all_object_types);
+        }
         self.harvest_constructor_object_types(cu, &mut all_object_types);
 
         // Build the class hierarchy once for W308 method
@@ -378,8 +384,15 @@ impl Analyser {
         for fu in cu.procedures.values() {
             collect_from(fu, &mut all_constsets);
         }
+        // A literal `set cmd nope` inside an `oo::class` method body must be
+        // captured so SCCP can prove `$cmd` is a non-command — defeating the
+        // blanket `in_method` W307 suppression (FP-OBJ-D4-F5).
+        for fu in cu.methods.values() {
+            collect_from(fu, &mut all_constsets);
+        }
 
         harvest_array_set_constants(cu, &mut all_constsets);
+        harvest_array_element_set_constants(cu, &mut all_constsets);
         harvest_dict_with_constants(cu, &mut all_constsets);
 
         // Build the "known commands" universe — registry +
@@ -589,6 +602,21 @@ impl Analyser {
                     if !found && objdefined_vars.contains(&site.var_name) {
                         found = true;
                     }
+                    // snit instances route method calls through delegation /
+                    // hull / options / built-ins (`$self`, `-option` cget/configure,
+                    // `info`/`destroy`), none of which the analyser models — so
+                    // method validation on a snit-typed receiver is unsound and
+                    // never fires W308 (FP-OBJ-05).
+                    if !found
+                        && class_names.iter().any(|cls| {
+                            self.result
+                                .all_classes
+                                .get(cls)
+                                .is_some_and(|cd| cd.metaclass.contains("snit::"))
+                        })
+                    {
+                        found = true;
+                    }
                     if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
                         let mut classes_sorted: Vec<&str> =
                             class_names.iter().map(String::as_str).collect();
@@ -612,19 +640,11 @@ impl Analyser {
             }
 
             // **W307 path.**  Variable not a known Object.
-            // ``in_method`` short-circuits W307 because OO
-            // methods routinely use ``$obj method`` patterns.
-            // The analyser doesn't track method context
-            // yet (pending a Method scope kind),
-            // so this filter currently always falls through.
-            if site.in_method {
-                continue;
-            }
-            // Prefer the value at the dispatch's exact SSA use-version;
-            // fall back to the merged constset when no precise version
-            // is found. This drops the merged-set false positive on a
-            // variable reassigned from a non-command to a known command
-            // before the dispatch (`set c x; set c puts; $c ...`).
+            // Resolve the dispatch's value first: prefer the exact SSA
+            // use-version, falling back to the merged constset.  This drops the
+            // merged-set false positive on a variable reassigned from a
+            // non-command to a known command before the dispatch
+            // (`set c x; set c puts; $c ...`).
             let precise = w307_precise_cmd_values(
                 &func_ranges,
                 &fu_by_qname,
@@ -634,10 +654,20 @@ impl Analyser {
             let effective = precise
                 .as_ref()
                 .or_else(|| all_constsets.get(&site.var_name));
-            if let Some(values) = effective
-                && !values.is_empty()
-                && values.iter().all(|v| is_known_command(v))
-            {
+            // SCCP concrete evidence the value IS a known command — suppress.
+            if effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| is_known_command(x))) {
+                continue;
+            }
+            // SCCP concrete evidence the value is NOT a command: every feasible
+            // value is a literal and none is a known command.  When SCCP proves
+            // this, the heuristic object-dispatch suppressions below (in-method,
+            // proc-param / multi-dispatch) must not silence the real "invalid
+            // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
+            let sccp_not_command =
+                effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| !is_known_command(x)));
+            // ``in_method`` short-circuits W307 because OO methods routinely use
+            // ``$obj method`` patterns — unless SCCP proves a non-command value.
+            if site.in_method && !sccp_not_command {
                 continue;
             }
             // Proc-parameter / multi-dispatch object-dispatch suppression: a
@@ -655,7 +685,7 @@ impl Analyser {
             let tainted = tainted_by_scope
                 .get(encl_qname)
                 .is_some_and(|s| s.contains(&site.var_name));
-            if dispatcher_suppressed && !tainted {
+            if dispatcher_suppressed && !tainted && !sccp_not_command {
                 continue;
             }
             // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where
@@ -685,6 +715,16 @@ impl Analyser {
             if is_snit_member(&site.var_name, site.cmd_span.start()) {
                 continue;
             }
+            // Callback-registration array slot: `$state(-command)` /
+            // `$state(doneCallback)` dispatches a command the user registered
+            // into a switch-style option / callback slot. Unless SCCP has
+            // concrete evidence the slot holds a non-command (handled above via
+            // `sccp_not_command`, e.g. `array set state {-command notACommand}`
+            // or `set state(-command) notACommand`), treat it as a designed
+            // callback dispatch (FP-OBJ-10).
+            if !sccp_not_command && is_callback_array_slot(&site.var_name) {
+                continue;
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W307,
                 span: site.cmd_span,
@@ -705,6 +745,27 @@ impl Analyser {
         // hierarchy and emit W308 instead of W307.
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
+            // `[cmd]::method` namespaced-ensemble dispatch (FP-OBJ-07): a
+            // command-substitution head composed with a literal `::method` tail.
+            // The literal tail is static method-name evidence — the dispatch is
+            // well-formed (only the namespace prefix is computed at runtime), so
+            // W307 must not fire. A bare `[cmd] arg` dispatch with no `::method`
+            // tail has no such evidence and still fires.
+            {
+                let s = site.cmd_span.start() as usize;
+                let e = (site.cmd_span.end() as usize).min(self.source.len());
+                let word = &self.source[s..e];
+                if word.starts_with('[')
+                    && let Some(p) = word.find("]::")
+                {
+                    let tail = &word[p + 3..];
+                    if !tail.is_empty()
+                        && tail.chars().all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+                    {
+                        continue;
+                    }
+                }
+            }
             // No blanket `in_method` suppression: an in-method `[cmd] method`
             // dispatch must earn its silence from a positive signal (a known
             // OBJECT return type, or `my`/`self` self-dispatch resolving to a
@@ -1046,6 +1107,75 @@ fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(Str
 /// set.  Without this, the dash-prefixed / callback-suffixed array-key
 /// heuristic fires even when SCCP-equivalent literal evidence proves the value
 /// is (or isn't) a command.
+/// True when `var_name` is an array element `base(key)` whose key denotes a
+/// switch-style callback / option registration slot: a dash-prefixed option
+/// key (`-command`) or a callback-shaped suffix word
+/// (`cmd`/`command`/`callback`/`handler`/`hook`/`proc`). Dispatching such a
+/// slot is a designed callback invocation, not a stray non-literal command
+/// (FP-OBJ-10); the caller still fires W307 when SCCP proves the slot holds a
+/// concrete non-command value.
+fn is_callback_array_slot(var_name: &str) -> bool {
+    let Some((_base, rest)) = var_name.split_once('(') else {
+        return false;
+    };
+    let Some(key) = rest.strip_suffix(')') else {
+        return false;
+    };
+    if key.starts_with('-') {
+        return true;
+    }
+    let k = key.to_ascii_lowercase();
+    ["cmd", "command", "callback", "handler", "hook", "proc"]
+        .iter()
+        .any(|suffix| k.ends_with(suffix))
+}
+
+/// Harvest direct single-element array assignments — `set arr(key) <literal>`,
+/// which lowers to an `AssignValue { name: "arr(key)", value }` (the scalar
+/// `set_literal_body` path excludes `(`-bearing names) — into the constset map
+/// keyed by `arr(key)`. The SSA const collector keys on scalar SSA variables
+/// and does not track array elements, and `harvest_array_set_constants` only
+/// covers the `array set` list form; this covers the single-element form so the
+/// W307 callback-array suppression can see the slot's concrete value
+/// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
+/// `Call "set"` shapes defensively.
+fn harvest_array_element_set_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
+    let is_array_elem = |name: &str| name.contains('(') && name.ends_with(')');
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::AssignValue { name, value, .. }
+                        if is_array_elem(name) && is_literal(value) =>
+                    {
+                        out.entry(name.clone()).or_default().insert(value.clone());
+                    }
+                    Statement::AssignConst { name, value, .. } if is_array_elem(name) => {
+                        out.entry(name.clone()).or_default().insert(value.clone());
+                    }
+                    Statement::Call { command, args, .. }
+                        if command == "set"
+                            && args.len() == 2
+                            && is_array_elem(&args[0])
+                            && is_literal(&args[1]) =>
+                    {
+                        out.entry(args[0].clone())
+                            .or_default()
+                            .insert(args[1].clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,

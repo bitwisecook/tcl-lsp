@@ -7,8 +7,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Option table for `lsearch`.  Most flags exist since Tcl 8.4;
-/// `-stride` was added in 8.6 (TIP 351) and is dialect-gated so
-/// W004 fires on `lsearch -stride` in pre-8.6 dialects.
+/// `-stride` was added to `lsearch` in Tcl 9.0 (NOT 8.6 — the 8.6 / TIP 351
+/// `-stride` is `lsort`'s; tclsh8.6 rejects `lsearch -stride`), and is
+/// dialect-gated so W004 fires on `lsearch -stride` in pre-9.0 dialects.
 static OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-all",
@@ -129,13 +130,14 @@ static OPTIONS: &[OptionSpec] = &[
         detail: "Start the search at the given index.",
         dialects: None,
     },
-    // `lsearch -stride` is Tcl 8.6+ (TIP 351).
+    // `lsearch -stride` is Tcl 9.0-only (tclsh8.6 rejects it with "bad option
+    // -stride"; the 8.6 / TIP 351 `-stride` belongs to `lsort`).
     OptionSpec {
         name: "-stride",
         takes_value: true,
         value_hint: "strideLength",
         detail: "Treat the list as a sequence of fixed-size records.",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        dialects: Some(DialectSet::TCL90),
     },
     OptionSpec {
         name: "-subindices",

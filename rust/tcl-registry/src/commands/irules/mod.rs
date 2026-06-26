@@ -2056,3 +2056,6 @@ pub const IRULES_SPECS: &[CommandSpec] = &[
     xml__soap::spec(),
     xml__subscribe::spec(),
 ];
+
+#[cfg(test)]
+mod spec_runtime_test;

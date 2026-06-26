@@ -203,7 +203,10 @@ gaps, ranked by impact:
    (`compiler/proc_arg_traits.py:140…`) to refine `VAR_READ` and suppress
    caller-side **W211 / W214 / dead-store false positives** on `set $p` / `scan` /
    `lassign` / `regsub`. Its absence re-opens the PR #498/#499 false positives —
-   a single missing property that degrades several diagnostics.
+   a single missing property that degrades several diagnostics. **✅ Closed
+   2026-06-25:** the `DynamicNameLocal` variant landed in `analyser/types.rs`
+   with `param_traits.rs` emitting it from the `VarWrite`/`VarRead` /
+   variadic-var-write / `regsub` arms, restoring the suppression.
 3. **Type hierarchy returns nothing** (`tcl-lsp-server/src/lib.rs:3878`). The core
    provider `type_hierarchy.rs` is ready, but the handler is a no-op — **blocked by
    tower-lsp 0.20** not exposing the methods. No supertype/subtype navigation for
@@ -214,6 +217,11 @@ gaps, ranked by impact:
    `execute_command` verbs (`extractRule`, `listRules`, `extractLinkedObjects`,
    `bigipCleanup`, `renamePartition`, `writeRuleBack`) plus a few tooling verbs
    have no Rust arm (`lib.rs:4664`). Degrades F5-config editing/navigation.
+   **🟢 Mostly closed 2026-06-25:** the three provider fallbacks are replaced —
+   `tcl-bigip::refs` (find-references), `tcl-bigip::links` (document-links), and
+   a BIG-IP code-action provider — and "Generate docstring" reached parity with
+   the Python `generate_stub`; the `execute_command` verbs that delegate to
+   `tcl-bigip-query` (`renamePartition`/`writeRuleBack`/…) remain the residual.
 5. **`tcl-wasm` codegen is eval-fallback and lacks `--link`.** Folded into `tcl
    compwasm`; the emitter is the Phase-1 eval-fallback (~1 KB of IR vs Python's
    ~13-module WASM package) and there is no Binaryen `wasm-merge` bundling for a
@@ -322,14 +330,14 @@ positives and a handful of recall gaps.
 | 3 | O109 / O126 delete `::`-global writes | optimiser miscompile (Rust-only) | deletes cross-proc global writes → program breaks | small (`::` guard in `emit_dead_stores_and_unused`) |
 | 4 | O129 trust gate unwired | optimiser miscompile (Rust-only) | folds renamed/shadowed builtins | 1 line (populate `command_mutations` in `optimise_unit`) |
 | 5 | Proc inliner + var_escape unwired | dead capability | two ported subsystems produce nothing; weaker analysis | medium (wire a `PassId::Inline`) |
-| 6 | `ProcArgTrait::DynamicNameLocal` missing | analyser precision | W211/W214/dead-store false positives (PR #498/#499) | small (add variant + uses) |
+| 6 | `ProcArgTrait::DynamicNameLocal` missing — ✅ **landed 2026-06-25** (variant + `param_traits` uses; suppresses the caller-side false positives) | analyser precision | W211/W214/dead-store false positives (PR #498/#499) | small (add variant + uses) |
 | 6b | Taint/flow/path **severity tiers** hardcoded | diagnostic UX (Rust-only) | ~18 codes: whole taint family shows **red ERROR** vs Python's Warning/Info; IRULE1007/1008 under-escalated | small (per-code map in `compiler_checks.rs`, like `from_shimmer`) |
 | 7 | Type hierarchy no-op | LSP feature | no supertype/subtype nav (tower-lsp 0.20 blocked) | external (upgrade tower-lsp) |
-| 8 | BIG-IP code-actions / refs / links + ~6 execute-command verbs | LSP feature | degraded F5-config editing | medium |
+| 8 | BIG-IP code-actions / refs / links + ~6 execute-command verbs — 🟢 **refs/links/code-actions landed 2026-06-25** (`tcl-bigip::{refs,links}` + code-action provider; "Generate docstring" parity); residual = the verbs that delegate to `tcl-bigip-query` (`renamePartition`/`writeRuleBack`/…) | LSP feature | degraded F5-config editing | medium |
 | 9 | `tcl-wasm` eval-fallback + no `--link` | codegen | no real/standalone WASM (RT-WASM 🟡) | large (ongoing track) |
 | 10 | Lowering: dynamic `uplevel $body`→`Call`; `namespace eval` body discarded | lowering precision/soundness | narrow analysis regressions | small–medium |
 | 11 | O103 fall-off-end fold | **shared** miscompile (both backends) | folds conditionally-returning proc to a constant | small (require all-exits-return) |
-| 12 | Stale tracking docs (registry audit, optimiser-parity, pipeline-parity) | process | misstate the position in both directions | regenerate/retire |
+| 12 | Stale tracking docs (registry audit, optimiser-parity, pipeline-parity) — 🟢 **refreshed 2026-06-25** (`rust-rewrite.md`, `rust-rewrite-history.md`, `rust-rewrite-test-audit.md`, and this audit's gaps #6/#8 annotated) | process | misstate the position in both directions | regenerate/retire |
 
 **Recommendations, in priority order:**
 
