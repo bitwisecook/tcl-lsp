@@ -647,10 +647,12 @@ jobs:
       - uses: ./.github/actions/setup-build
 
       # The explorer-gui-cdn profile is the only one that compiles Rust → WASM
-      # (`make zipapp-explorer-gui-cdn` → `make explorer-wasm` → wasm-pack).
-      # setup-build provides only Python/uv, so this profile additionally needs
-      # a Rust toolchain with the wasm32 target and the wasm-pack binary.  Gated
-      # to the profile so the other (pure-Python) zipapps don't pay for it.
+      # (`make zipapp-explorer-gui-cdn` → `make explorer-wasm`).  setup-build
+      # provides only Python/uv, so this profile additionally needs a Rust
+      # toolchain with the wasm32 target, the wasm-pack binary, and binaryen's
+      # `wasm-opt` (the Makefile runs a standalone `wasm-opt -O3` after
+      # wasm-pack).  All gated to the profile so the pure-Python zipapps don't
+      # pay for it; mirrors `ensure_binaryen` in scripts/dev/ensure-test-deps.sh.
       - name: Set up Rust toolchain (explorer-gui-cdn builds Rust → WASM)
         if: matrix.profile == 'explorer-gui-cdn'
         uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
@@ -660,6 +662,9 @@ jobs:
       - name: Install wasm-pack (explorer-gui-cdn)
         if: matrix.profile == 'explorer-gui-cdn'
         run: cargo install wasm-pack --locked
+      - name: Install binaryen / wasm-opt (explorer-gui-cdn)
+        if: matrix.profile == 'explorer-gui-cdn'
+        run: sudo apt-get update && sudo apt-get install -y binaryen
 
       - name: Build ${{ matrix.profile }} zipapp
         run: make zipapp-${{ matrix.profile }}
