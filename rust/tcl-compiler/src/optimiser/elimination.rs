@@ -307,7 +307,31 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         None,
     );
 
-    for fu in cu.procedures.values() {
+    // iRules cross-event state: a variable set in one `when EVENT {…}` handler
+    // (lowered to a `::when::*` proc) and read in another flows across events on
+    // the same connection. Deleting such a store as "unused" is a miscompile
+    // (e.g. `set uri [HTTP::uri]` in HTTP_REQUEST read by `$uri` in
+    // HTTP_RESPONSE). Mirror the analyser/diagnostics path: thread the
+    // ConnectionScope's `cross_event_defs | cross_event_imports` into
+    // `cross_event_vars` for `::when::*` procs so O109/O126 skip them.
+    let when_cross_event: std::collections::HashSet<String> = cu
+        .connection_scope
+        .as_ref()
+        .map(|s| {
+            s.cross_event_defs
+                .iter()
+                .chain(s.cross_event_imports.iter())
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let saved_proc_cross = std::mem::take(&mut ctx.cross_event_vars);
+    for (qname, fu) in &cu.procedures {
+        ctx.cross_event_vars = if qname.starts_with("::when::") {
+            when_cross_event.clone()
+        } else {
+            std::collections::HashSet::new()
+        };
         emit_unreachable(ctx, fu);
         let baseline = emit_dead_stores_and_unused(
             ctx,
@@ -320,6 +344,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         );
         emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
     }
+    ctx.cross_event_vars = saved_proc_cross;
 
     // Optimise TclOO method bodies as functions too,
     // passing the owning class qname so the O126 `my <method>` purity
@@ -1014,6 +1039,15 @@ pub(crate) fn collect_rmw_hidden_reads(
         let d = deep.scan_word(word, registry);
         let s = shallow.scan_word(word, registry);
         out.extend(d.difference(&s).cloned());
+        // Reads buried inside a `[expr {…}]` (or any `[…]`) command substitution
+        // whose `{…}` braces suppress `$`-substitution to the generic scanner,
+        // but which the inner command re-evaluates as an expression — e.g.
+        // `incr i [expr {$w}]` reads `w` (FP-DS-02). Collect every `$var` that
+        // appears inside a command substitution. Over-approximating reads is
+        // safe for the dead-store / unused suppression: it only ever silences a
+        // warning, matching the analyser's correctness-first (err-toward-silence)
+        // bias.
+        out.extend(dollar_reads_in_cmd_subs(word));
     };
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
@@ -1024,9 +1058,67 @@ pub(crate) fn collect_rmw_hidden_reads(
                     }
                 }
                 Statement::AssignValue { value, .. } => scan(value),
+                // `incr i [expr {$w}]`: the amount word is not a Call/AssignValue
+                // arg, so scan it explicitly for the same buried-read reason.
+                Statement::Incr {
+                    amount: Some(amount),
+                    ..
+                } => scan(amount),
                 _ => {}
             }
         }
+    }
+    out
+}
+
+/// Collect every `$name` / `${name}` / `$arr(idx)` variable reference that
+/// appears inside a `[…]` command substitution within `word`. Reads inside an
+/// `[expr {…}]` are invisible to the brace-aware generic scanner (the `{…}`
+/// suppresses `$`-substitution), yet `expr` (and `if`/`while`/…) re-evaluate
+/// that text as an expression where the `$var` is a genuine read. Returns the
+/// bare variable names (no `$`).
+fn dollar_reads_in_cmd_subs(word: &str) -> Vec<String> {
+    let bytes = word.as_bytes();
+    let mut out: Vec<String> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'[' => depth += 1,
+            b']' => depth = (depth - 1).max(0),
+            b'$' if depth > 0 => {
+                let mut j = i + 1;
+                if j < bytes.len() && bytes[j] == b'{' {
+                    // ${name with anything}
+                    j += 1;
+                    let start = j;
+                    while j < bytes.len() && bytes[j] != b'}' {
+                        j += 1;
+                    }
+                    if j > start {
+                        out.push(word[start..j].to_string());
+                    }
+                    i = j.saturating_add(1);
+                    continue;
+                }
+                // $name / $ns::name / $arr(idx)
+                let start = j;
+                while j < bytes.len()
+                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+                {
+                    j += 1;
+                }
+                if j > start {
+                    // Bare scalar / namespaced name (the array-base name is the
+                    // tracked dead-store key; the `(idx)` suffix is dropped).
+                    out.push(word[start..j].to_string());
+                }
+                i = j;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
     }
     out
 }
@@ -1116,6 +1208,52 @@ pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
         }
     }
     aliases
+}
+
+/// Module-wide set of namespace-qualified (`::`) globals that carry a variable
+/// **write trace** anywhere in the compilation unit.
+///
+/// A traced global is observable across scopes — a write trace fires its
+/// callback on every `set`, so a `set ::w 1` in one proc is neither a dead
+/// store (W220) nor unused (W211) even when the `trace add variable ::w …`
+/// lives in a *different* proc or at the top level. The per-function
+/// [`scan_scope_aliases`] only sees a function's own traces; this closes the
+/// cross-scope gap (FP-DS-04). Restricted to `::`-qualified names because those
+/// are the only ones that denote the same variable across scopes.
+pub(crate) fn scan_module_traced_globals(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> HashSet<String> {
+    fn scan_cfg(cfg: &CfgFunction, out: &mut HashSet<String>) {
+        for block in cfg.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call { command, args, .. } = stmt
+                    && command == "trace"
+                {
+                    // `trace add variable NAME …` (8.5+) or `trace variable NAME …` (8.4).
+                    let target = if args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+                        Some(&args[2])
+                    } else if args.len() >= 2 && args[0] == "variable" {
+                        Some(&args[1])
+                    } else {
+                        None
+                    };
+                    if let Some(t) = target
+                        && t.contains("::")
+                        && !t.starts_with('$')
+                        && !t.contains('[')
+                    {
+                        out.insert(t.clone());
+                    }
+                }
+            }
+        }
+    }
+    let mut out: HashSet<String> = HashSet::new();
+    scan_cfg(&cu.top_level.cfg, &mut out);
+    for fu in cu.procedures.values() {
+        scan_cfg(&fu.cfg, &mut out);
+    }
+    out
 }
 
 #[cfg(test)]

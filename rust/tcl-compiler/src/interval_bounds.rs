@@ -140,16 +140,20 @@ fn literal_list_length(text: &str) -> Option<i64> {
 /// its element count, else `None`.
 fn list_command_length(value: &str) -> Option<i64> {
     let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
+    // `{*}` argument expansion makes the element count unknown at this layer:
+    // the segmenter strips the `{*}` prefix, so `[list {*}{a b}]` looks like a
+    // single arg `"a b"` but expands to N elements (tclsh: `llength` == 2, not
+    // 1). Bail rather than under-count and fire a false out-of-range warning.
+    if inner.contains("{*}") {
+        return None;
+    }
     let cmds = segment_commands(inner);
     let cmd = cmds.first()?;
     if cmds.len() != 1 || cmd.name() != "list" {
         return None;
     }
     let args = cmd.args();
-    if args
-        .iter()
-        .any(|a| a.contains('$') || a.contains('[') || a.starts_with("{*}"))
-    {
+    if args.iter().any(|a| a.contains('$') || a.contains('[')) {
         return None;
     }
     i64::try_from(args.len()).ok()

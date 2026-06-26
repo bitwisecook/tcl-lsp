@@ -221,11 +221,24 @@ impl TaintLattice {
         self.colours.contains(TaintColour::TAINTED)
     }
 
-    /// Intersect mitigating colours (must-have), union taint bits
-    /// (may-have). This implements the standard lattice join for
-    /// taint analysis.
+    /// Intersect mitigating colours (must-have) among the *tainted*
+    /// contributors, union taint bits (may-have). This implements the
+    /// standard lattice join for taint analysis.
+    ///
+    /// A clean (untainted) operand is the join **identity**: it contributes no
+    /// taint, so it must not dilute the other operand's mitigation colours.
+    /// Treating it as an annihilator (intersecting its empty colour set) wrongly
+    /// strips proven-safe colours — e.g. `clean.join(tainted|PATH_PREFIXED)`
+    /// would drop `PATH_PREFIXED` and re-fire T102. Mitigations are "must-have"
+    /// only across operands that actually carry taint.
     #[must_use]
     pub fn join(self, other: Self) -> Self {
+        if !self.is_tainted() {
+            return other;
+        }
+        if !other.is_tainted() {
+            return self;
+        }
         let taint = (self.colours | other.colours) & TaintColour::TAINTED;
         let mitigations = (self.colours & other.colours) & !TaintColour::TAINTED;
         Self {
@@ -2112,6 +2125,81 @@ fn list_wrapped_arg_command_is_literal(
     false
 }
 
+/// Split `arg` into its residual text (everything outside top-level `[...]`
+/// command substitutions) and the list of those top-level `[...]` slices.
+/// Brackets are ASCII, so the byte-range slicing stays on char boundaries.
+fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
+    let mut residual = String::new();
+    let mut subs = Vec::new();
+    let b = arg.as_bytes();
+    let mut i = 0;
+    let mut seg_start = 0;
+    while i < b.len() {
+        if b[i] == b'[' {
+            residual.push_str(&arg[seg_start..i]);
+            let start = i;
+            let mut depth = 0i32;
+            while i < b.len() {
+                match b[i] {
+                    b'[' => depth += 1,
+                    b']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            i += 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            subs.push(&arg[start..i]);
+            seg_start = i;
+        } else {
+            i += 1;
+        }
+    }
+    residual.push_str(&arg[seg_start..]);
+    (residual, subs)
+}
+
+/// True when every appearance of `name` in the sink arguments is consumed by an
+/// embedded sanitiser command substitution, so the value reaching the sink is
+/// clean — e.g. `puts [string length $x]` outputs the integer length, never
+/// `$x`'s content (tclsh-verified). Conservative: a bare `$name` outside any
+/// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
+/// taint reaches the sink). Mirrors the carve-out the `expr`/word_taint path
+/// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
+fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: &str) -> bool {
+    let mut seen = false;
+    for arg in args {
+        if !arg_var_names(arg).contains(name) {
+            continue;
+        }
+        seen = true;
+        let (residual, subs) = split_top_level_cmd_subs(arg);
+        // A bare reference outside any command substitution reaches the sink.
+        if arg_var_names(&residual).contains(name) {
+            return false;
+        }
+        // Each top-level substitution that references `name` must be a sanitiser
+        // (a sanitiser's result is a clean bounded value regardless of nesting).
+        for sub in subs {
+            if !arg_var_names(sub).contains(name) {
+                continue;
+            }
+            let Some((cmd, sub_args)) = parse_command_substitution(sub) else {
+                return false;
+            };
+            let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
+            if !is_sanitiser(registry, &cmd, &refs) {
+                return false;
+            }
+        }
+    }
+    seen
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit_sink_warnings(
     uses: &HashMap<Symbol, u32>,
@@ -2136,9 +2224,32 @@ fn emit_sink_warnings(
         if !t.is_tainted() {
             continue;
         }
+        // The value reaching the sink is clean when every appearance of `name`
+        // in the sink arguments is consumed by an embedded sanitiser
+        // substitution — `puts [string length $x]` outputs the integer length,
+        // not `$x` (tclsh-verified). The expr-operand path applies this via
+        // word_taint; mirror it here for the direct sink-argument path.
+        if var_consumed_by_sanitiser(call.registry, call.args, name) {
+            continue;
+        }
         // Per-code mitigation suppression (IRULE3001–3004).
         if irules_sink_suppressed(code, t) {
             continue;
+        }
+        // Registry-declared sink-safe colour (e.g. `exec` ← SHELL_ATOM): a
+        // tainted value carrying the sink's safe colour cannot break out of its
+        // dangerous slot — an IP/port atom can't word-split or inject shell
+        // metacharacters into an `exec` argument. LIST_CANONICAL (eval/uplevel)
+        // is excluded: its safety is position-dependent (the list *head* must be
+        // a literal known command), handled by `list_wrapped_arg_command_is_literal`
+        // below — a blanket check would wrongly clear `eval [list $raw]`, where
+        // the tainted value is the command word.
+        if let Some(safe) = tcl_registry::taint::taint_sink_safe_colour(call.registry, call.command)
+        {
+            let safe = reg_colour(safe);
+            if safe != TaintColour::LIST_CANONICAL && t.colours.contains(safe) {
+                continue;
+            }
         }
         if code == DiagCode::Irule3002
             && irule3002_name_position_safe(call.command, call.args, name, t)
@@ -2493,17 +2604,39 @@ mod tests {
 
     #[test]
     fn join_propagates_taint_intersects_mitigations() {
+        // Two TAINTED operands: taint unions, mitigations are must-have so only
+        // the colour present on both survives the intersection.
         let a = TaintLattice {
             colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::PATH_PREFIXED,
         };
         let b = TaintLattice {
-            colours: TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
+            colours: TaintColour::TAINTED | TaintColour::CRLF_FREE | TaintColour::NON_DASH_PREFIXED,
         };
         let j = a.join(b);
         assert!(j.colours.contains(TaintColour::TAINTED));
         assert!(j.colours.contains(TaintColour::CRLF_FREE));
         assert!(!j.colours.contains(TaintColour::PATH_PREFIXED));
         assert!(!j.colours.contains(TaintColour::NON_DASH_PREFIXED));
+    }
+
+    #[test]
+    fn join_with_untainted_is_identity() {
+        // A clean/untainted operand is the join identity: it contributes no
+        // taint, so it must not dilute the tainted operand's mitigation colours
+        // (matches Python's taint_join). Joining with the annihilating empty
+        // set previously wrongly stripped PATH_PREFIXED.
+        let tainted = TaintLattice {
+            colours: TaintColour::TAINTED | TaintColour::PATH_PREFIXED,
+        };
+        assert_eq!(tainted.join(TaintLattice::clean()).colours, tainted.colours);
+        assert_eq!(TaintLattice::clean().join(tainted).colours, tainted.colours);
+        // An untainted operand that happens to carry colours is still the
+        // identity — its taint contribution is nil, so it cannot remove a
+        // mitigation from the tainted side.
+        let untainted_coloured = TaintLattice {
+            colours: TaintColour::CRLF_FREE,
+        };
+        assert_eq!(tainted.join(untainted_coloured).colours, tainted.colours);
     }
 
     #[test]

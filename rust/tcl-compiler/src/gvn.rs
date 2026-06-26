@@ -1208,10 +1208,14 @@ pub fn find_loop_invariants(
         let defined = loop_defined_variables(ssa, loop_blocks);
         let latches = &header_to_latches[header];
         for bn in loop_blocks {
-            if bn == header {
-                // Skip header-only scans (contains the loop test).
-                continue;
-            }
+            // The loop guard is always carried by a block's `Branch`/`Goto`
+            // *terminator*, never by a `Statement`, so scanning a block's
+            // statements never hoists the test condition. The header must be
+            // scanned too: in a bottom-test loop (`for`/`while` lowered with
+            // the test in the latch) the header block holds real body
+            // statements, and skipping it would miss every invariant there
+            // (FP-OPT-03). The latch-dominance gate below still enforces
+            // "runs every iteration".
             // Latch-dominance "runs every iteration" gate: an invariant in
             // a block that does not dominate every back-edge tail runs only
             // on some iterations (it sits behind a branch inside the loop),

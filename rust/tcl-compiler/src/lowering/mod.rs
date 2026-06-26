@@ -1378,16 +1378,17 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         use tcl_lexer::TokenType;
 
-        // Static-body `uplevel` inlining (`Statement::UpFrame`) requires
-        // frame-shift bytecode the VM does not yet implement — a spliced body
-        // would run against the wrong activation, and a bare `UpFrame` reaches
-        // codegen as a no-op. Until then, fall back to a runtime
-        // `Barrier`, which dispatches to the `uplevel` builtin (correct frame
-        // semantics). Set this to `false` to re-enable static lowering.
-        const STATIC_UPLEVEL_LOWERING: bool = false;
-        if !STATIC_UPLEVEL_LOWERING {
-            return None;
-        }
+        // Static-body `uplevel` lowers to `Statement::UpFrame` so the analysers
+        // (interproc purity, code-sinking, var-escape, the inline_uplevel pass)
+        // see a structured frame-shift with a lowered body instead of an opaque
+        // runtime barrier. Runtime correctness is preserved at codegen: a
+        // surviving `UpFrame` re-emits the original `uplevel <level> {body}`
+        // invoke from its preserved command tokens (see
+        // `codegen::statements`), producing byte-identical bytecode to the old
+        // barrier path and dispatching through the `uplevel` builtin's correct
+        // frame semantics. The whole-callee inline_uplevel splice (which would
+        // need frame-shift opcodes to run a *bare* UpFrame against the right
+        // activation) is an opt-in optimiser pass, not wired into codegen.
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
         let (frame_shift, body_tok_idx) = match args.len() {
@@ -2480,7 +2481,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn uplevel_static_body_no_level() {
         let m = lower_to_ir("uplevel {set x 1}", &reg());
         assert_eq!(m.top_level.statements.len(), 1);
@@ -2496,7 +2496,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn uplevel_static_body_with_level_one() {
         let m = lower_to_ir("uplevel 1 {set x 1}", &reg());
         match &m.top_level.statements[0] {
@@ -2506,7 +2505,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn uplevel_static_body_with_hash_zero() {
         let m = lower_to_ir("uplevel #0 {set x 1}", &reg());
         match &m.top_level.statements[0] {
@@ -2539,7 +2537,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn const_prop_uplevel_resolves_set_var_body() {
         // ``set body {set x 1}; uplevel 1 $body`` inside a
         // proc — the const-map records ``body`` and the uplevel
@@ -3030,7 +3027,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn const_prop_inherited_into_catch_body() {
         // Child scope (catch body) inherits parent's const-map.
         let m = lower_to_ir(
@@ -3183,7 +3179,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn registry_dispatch_uplevel_static_body_lowers_to_upframe() {
         // `uplevel 1 {body}` with a literal body should lower
         // to a UpFrame via the registry-driven path.

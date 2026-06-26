@@ -227,3 +227,299 @@ fn strip_brackets(text: &str) -> &str {
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expr::parser::parse_expr;
+
+    /// A minimal two-rung value: integers compare numerically, everything else
+    /// string-compares — enough to drive every branch of the shared walker.
+    #[derive(Debug, Clone, PartialEq)]
+    enum V {
+        Num(i64),
+        Str(String),
+    }
+    impl V {
+        fn as_string(&self) -> String {
+            match self {
+                V::Num(n) => n.to_string(),
+                V::Str(s) => s.clone(),
+            }
+        }
+    }
+
+    /// Records which seam methods fired so the tests can assert dispatch, not
+    /// just the final value.
+    #[derive(Default)]
+    struct Ops {
+        commands: Vec<String>,
+        calls: Vec<String>,
+    }
+
+    impl ExprOps for Ops {
+        type Value = V;
+        type Error = String;
+
+        fn literal(&mut self, text: &str) -> Result<V, String> {
+            text.parse::<i64>()
+                .map(V::Num)
+                .or_else(|_| Ok(V::Str(text.to_string())))
+        }
+        fn string(&mut self, inner: &str) -> Result<V, String> {
+            Ok(V::Str(inner.to_string()))
+        }
+        fn var(&mut self, name: &str) -> Result<V, String> {
+            // `x` → 10, `arr(idx)` echoes its reference text, else 0.
+            Ok(match name {
+                "x" => V::Num(10),
+                "y" => V::Num(0),
+                other => V::Str(other.to_string()),
+            })
+        }
+        fn command(&mut self, script: &str) -> Result<V, String> {
+            self.commands.push(script.to_string());
+            Ok(V::Num(7))
+        }
+        fn call(&mut self, function: &str, args: Vec<V>) -> Result<V, String> {
+            self.calls.push(format!("{function}/{}", args.len()));
+            // `max` of two numbers; otherwise echo the arg count.
+            if function == "max" && args.len() == 2 {
+                if let (V::Num(a), V::Num(b)) = (&args[0], &args[1]) {
+                    return Ok(V::Num((*a).max(*b)));
+                }
+            }
+            Ok(V::Num(args.len() as i64))
+        }
+        fn arith(&mut self, op: BinOp, left: V, right: V) -> Result<V, String> {
+            let (V::Num(a), V::Num(b)) = (&left, &right) else {
+                return Err(self.unsupported("non-numeric arith"));
+            };
+            let (a, b) = (*a, *b);
+            Ok(V::Num(match op {
+                BinOp::Add => a + b,
+                BinOp::Sub => a - b,
+                BinOp::Mul => a * b,
+                BinOp::Div => a / b,
+                BinOp::Mod => a % b,
+                BinOp::Pow => a.pow(b as u32),
+                BinOp::BitAnd => a & b,
+                BinOp::BitOr => a | b,
+                BinOp::BitXor => a ^ b,
+                BinOp::LShift => a << b,
+                BinOp::RShift => a >> b,
+                other => return Err(self.unsupported("bad arith op")),
+            }))
+        }
+        fn unary(&mut self, op: UnaryOp, value: V) -> Result<V, String> {
+            let V::Num(n) = value else {
+                return Err(self.unsupported("non-numeric unary"));
+            };
+            Ok(match op {
+                UnaryOp::Neg => V::Num(-n),
+                UnaryOp::Pos => V::Num(n),
+                UnaryOp::BitNot => V::Num(!n),
+                UnaryOp::Not | UnaryOp::WordNot => V::Num(i64::from(n == 0)),
+            })
+        }
+        fn compare_numeric(&mut self, left: &V, right: &V) -> Option<Ordering> {
+            match (left, right) {
+                (V::Num(a), V::Num(b)) => Some(a.cmp(b)),
+                _ => None,
+            }
+        }
+        fn compare_string(&mut self, left: &V, right: &V) -> Ordering {
+            left.as_string().cmp(&right.as_string())
+        }
+        fn in_list(&mut self, needle: &V, list: &V) -> Result<bool, String> {
+            let n = needle.as_string();
+            Ok(list.as_string().split_whitespace().any(|e| e == n))
+        }
+        fn to_bool(&mut self, value: &V) -> Result<bool, String> {
+            Ok(match value {
+                V::Num(n) => *n != 0,
+                V::Str(s) => s == "1" || s == "true",
+            })
+        }
+        fn bool_value(&mut self, b: bool) -> V {
+            V::Num(i64::from(b))
+        }
+        fn unsupported(&mut self, what: &str) -> String {
+            format!("unsupported: {what}")
+        }
+        // NB: `binary_other` intentionally left as the trait default so the
+        // default (`Err(unsupported)`) body is exercised.
+    }
+
+    fn eval_str(src: &str) -> Result<V, String> {
+        let node = parse_expr(src, None);
+        let mut ops = Ops::default();
+        eval(&node, &mut ops)
+    }
+
+    // The `Ops` mock's numeric/comparison/membership results below were
+    // cross-checked against `tclsh8.6` and `tclsh9.0` so the walker's dispatch
+    // is exercised against C-Tcl-accurate expectations:
+    //   expr {9/2}==4  {2**3}==8  {5^1}==4  {16>>2}==4  {6&3}==2  {4|1}==5
+    //   {1<<3}==8  {9%2}==1  {-5}==-5  {~0}==-1  {!0}==1  {"abc"<"abd"}==1
+    //   {2 in {1 2 3}}==1  {5 ni {1 2 3}}==1  {1?20:30}==20  {0?20:30}==30
+    //   {max(3,9)}==9. NB `lt`/`le`/`gt`/`ge` are 9.0-only operators (error in
+    //   8.6); the Rust parser models them under the default/latest dialect.
+
+    #[test]
+    fn literal_string_var_command() {
+        assert_eq!(eval_str("42").unwrap(), V::Num(42));
+        assert_eq!(eval_str("{hello}").unwrap(), V::Str("hello".into()));
+        assert_eq!(eval_str("\"hi\"").unwrap(), V::Str("hi".into()));
+        assert_eq!(eval_str("$x").unwrap(), V::Num(10));
+        // Command substitution routes through `command` (brackets stripped).
+        let node = parse_expr("[foo bar]", None);
+        let mut ops = Ops::default();
+        assert_eq!(eval(&node, &mut ops).unwrap(), V::Num(7));
+        assert_eq!(ops.commands, vec!["foo bar".to_string()]);
+    }
+
+    #[test]
+    fn unary_ops() {
+        assert_eq!(eval_str("-5").unwrap(), V::Num(-5));
+        assert_eq!(eval_str("+5").unwrap(), V::Num(5));
+        assert_eq!(eval_str("~0").unwrap(), V::Num(-1));
+        assert_eq!(eval_str("!0").unwrap(), V::Num(1));
+        assert_eq!(eval_str("!1").unwrap(), V::Num(0));
+    }
+
+    #[test]
+    fn ternary_both_branches() {
+        assert_eq!(eval_str("1 ? 20 : 30").unwrap(), V::Num(20));
+        assert_eq!(eval_str("0 ? 20 : 30").unwrap(), V::Num(30));
+    }
+
+    #[test]
+    fn call_dispatch() {
+        assert_eq!(eval_str("max(3, 9)").unwrap(), V::Num(9));
+        let node = parse_expr("max(1, 2)", None);
+        let mut ops = Ops::default();
+        eval(&node, &mut ops).unwrap();
+        assert_eq!(ops.calls, vec!["max/2".to_string()]);
+    }
+
+    #[test]
+    fn arithmetic_ops() {
+        for (src, want) in [
+            ("1 + 2", 3),
+            ("5 - 3", 2),
+            ("4 * 3", 12),
+            ("9 / 2", 4),
+            ("9 % 2", 1),
+            ("2 ** 3", 8),
+            ("6 & 3", 2),
+            ("4 | 1", 5),
+            ("5 ^ 1", 4),
+            ("1 << 3", 8),
+            ("16 >> 2", 4),
+        ] {
+            assert_eq!(eval_str(src).unwrap(), V::Num(want), "{src}");
+        }
+    }
+
+    #[test]
+    fn numeric_comparisons() {
+        assert_eq!(eval_str("1 == 1").unwrap(), V::Num(1));
+        assert_eq!(eval_str("1 != 2").unwrap(), V::Num(1));
+        assert_eq!(eval_str("1 < 2").unwrap(), V::Num(1));
+        assert_eq!(eval_str("2 <= 2").unwrap(), V::Num(1));
+        assert_eq!(eval_str("3 > 2").unwrap(), V::Num(1));
+        assert_eq!(eval_str("2 >= 3").unwrap(), V::Num(0));
+    }
+
+    #[test]
+    fn string_fallback_comparisons() {
+        // Both operands non-numeric → `num_or_str` falls back to compare_string.
+        assert_eq!(eval_str("\"abc\" == \"abc\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"abc\" < \"abd\"").unwrap(), V::Num(1));
+        // `eq`/`ne`/`lt`… always string-compare.
+        assert_eq!(eval_str("\"a\" eq \"a\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"a\" ne \"b\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"a\" lt \"b\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"a\" le \"a\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"b\" gt \"a\"").unwrap(), V::Num(1));
+        assert_eq!(eval_str("\"b\" ge \"b\"").unwrap(), V::Num(1));
+    }
+
+    #[test]
+    fn membership_ops() {
+        assert_eq!(eval_str("2 in {1 2 3}").unwrap(), V::Num(1));
+        assert_eq!(eval_str("5 in {1 2 3}").unwrap(), V::Num(0));
+        assert_eq!(eval_str("5 ni {1 2 3}").unwrap(), V::Num(1));
+        assert_eq!(eval_str("2 ni {1 2 3}").unwrap(), V::Num(0));
+    }
+
+    #[test]
+    fn short_circuit_logical() {
+        // `&&`: when left is false the right is NOT evaluated (records nothing).
+        let node = parse_expr("0 && [boom]", None);
+        let mut ops = Ops::default();
+        assert_eq!(eval(&node, &mut ops).unwrap(), V::Num(0));
+        assert!(ops.commands.is_empty(), "right side must be skipped");
+        // `&&` true path evaluates the right operand.
+        assert_eq!(eval_str("1 && 1").unwrap(), V::Num(1));
+        assert_eq!(eval_str("1 && 0").unwrap(), V::Num(0));
+        // `||`: when left is true the right is NOT evaluated.
+        let node = parse_expr("1 || [boom]", None);
+        let mut ops = Ops::default();
+        assert_eq!(eval(&node, &mut ops).unwrap(), V::Num(1));
+        assert!(ops.commands.is_empty(), "right side must be skipped");
+        // `||` false path evaluates the right operand.
+        assert_eq!(eval_str("0 || 1").unwrap(), V::Num(1));
+        assert_eq!(eval_str("0 || 0").unwrap(), V::Num(0));
+    }
+
+    #[test]
+    fn dialect_operator_routes_to_binary_other_default() {
+        // A dialect operator (`Contains`) the shared core doesn't handle hits the
+        // trait-default `binary_other`, which returns `unsupported`.
+        let node = ExprNode::Binary {
+            op: BinOp::Contains,
+            left: Box::new(parse_expr("1", None)),
+            right: Box::new(parse_expr("2", None)),
+        };
+        let mut ops = Ops::default();
+        let err = eval(&node, &mut ops).unwrap_err();
+        assert_eq!(err, "unsupported: operator");
+    }
+
+    #[test]
+    fn raw_node_is_unsupported() {
+        let node = ExprNode::Raw {
+            text: "@#%".to_string(),
+        };
+        let mut ops = Ops::default();
+        let err = eval(&node, &mut ops).unwrap_err();
+        assert_eq!(err, "unsupported: syntax error in expression");
+    }
+
+    #[test]
+    fn error_propagates_from_operand_seams() {
+        // A non-numeric arithmetic operand surfaces the consumer's error
+        // (the `?` propagation through eval_binary's arith arm).
+        assert!(eval_str("\"abc\" + 1").is_err());
+        // Non-numeric unary operand likewise propagates.
+        assert!(eval_str("-\"abc\"").is_err());
+        // Error from a nested operand short-circuits the whole walk.
+        assert!(eval_str("(\"x\" + 1) * 2").is_err());
+    }
+
+    #[test]
+    fn strip_delims_variants() {
+        assert_eq!(strip_delims("{abc}"), "abc");
+        assert_eq!(strip_delims("\"abc\""), "abc");
+        assert_eq!(strip_delims("abc"), "abc");
+        assert_eq!(strip_delims("x"), "x"); // too short to strip
+    }
+
+    #[test]
+    fn strip_brackets_variants() {
+        assert_eq!(strip_brackets("[cmd]"), "cmd");
+        assert_eq!(strip_brackets("cmd"), "cmd");
+    }
+}

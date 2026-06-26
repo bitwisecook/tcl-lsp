@@ -152,6 +152,59 @@ pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -
 /// - Names used at SSA version 0 (i.e. read before any local
 ///   def — candidate cross-event imports).
 /// - Names explicitly ``unset`` in this event.
+/// Record every `info exists <name>` literal-variable read found in `text`
+/// (the base name, namespace-global `::`-prefixed excluded — those aren't
+/// connection-scoped). Catches the pattern wherever it appears: a bare
+/// statement, a `[info exists …]` command substitution, or a branch condition.
+pub(crate) fn scan_info_exists(text: &str, out: &mut HashSet<String>) {
+    const NEEDLE: &str = "info exists";
+    let mut search = text;
+    while let Some(pos) = search.find(NEEDLE) {
+        let after = search[pos + NEEDLE.len()..].trim_start();
+        // The variable name runs until the first non-name byte (whitespace,
+        // `(` array index, `]`/`}` closer, etc.). Keep the base (pre-`(`) name.
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+            .collect();
+        let base = name.split('(').next().unwrap_or(&name);
+        if !base.is_empty() && !base.starts_with("::") {
+            out.insert(base.to_string());
+        }
+        search = &search[pos + NEEDLE.len()..];
+    }
+}
+
+/// Walk an expression for embedded command substitutions / raw text and scan
+/// each for `info exists` reads (branch conditions hold the `[info exists …]`
+/// as a `Command` node).
+fn scan_expr_info_exists(node: &crate::expr_ast::ExprNode, out: &mut HashSet<String>) {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Command { text, .. } | ExprNode::Raw { text } => scan_info_exists(text, out),
+        ExprNode::Binary { left, right, .. } => {
+            scan_expr_info_exists(left, out);
+            scan_expr_info_exists(right, out);
+        }
+        ExprNode::Unary { operand, .. } => scan_expr_info_exists(operand, out),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            scan_expr_info_exists(condition, out);
+            scan_expr_info_exists(true_branch, out);
+            scan_expr_info_exists(false_branch, out);
+        }
+        ExprNode::Call { args, .. } => {
+            for a in args {
+                scan_expr_info_exists(a, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
     let mut defs: HashSet<String> = HashSet::new();
     let mut uses_v0: HashSet<String> = HashSet::new();
@@ -192,6 +245,32 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
                     }
                 }
             }
+        }
+    }
+
+    // `info exists VAR` reads VAR by *literal name*, not a `$`-substitution, so
+    // the SSA never records it as a use — yet it observes cross-event state
+    // (e.g. `if {[info exists ans_cleared]}` in DNS_RESPONSE reads a flag set in
+    // DNS_REQUEST). Scan statement words AND branch conditions for the pattern
+    // so the cross-event sweep keeps the producing store alive (else O126
+    // deletes `set ans_cleared 1` and SCCP folds `info exists` to 0 — a
+    // miscompile). Conservative: any `info exists <name>` counts as a use.
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
+                    for a in args {
+                        scan_info_exists(a.as_str(), &mut uses_v0);
+                    }
+                }
+                Statement::AssignValue { value, .. } => {
+                    scan_info_exists(value.as_str(), &mut uses_v0);
+                }
+                _ => {}
+            }
+        }
+        if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
+            scan_expr_info_exists(condition, &mut uses_v0);
         }
     }
 

@@ -1,0 +1,384 @@
+//! SH family — shimmer (S100/S101/S102) FP/TP catalogue.
+//! Pairs to `tests/test_fp_sh.py` and the §SH entries in FP.md.
+
+use super::{codes, fires, D};
+
+// ---------------------------------------------------------------------------
+// FP-SH-01 — OVERDEFINED values do not trigger shimmer
+// ---------------------------------------------------------------------------
+
+/// FP-SH-01: OVERDEFINED value (cmd return) in arithmetic must NOT fire any
+/// shimmer code — the type is unknown so any verdict would be unsound.
+#[test]
+fn fp_sh_01_overdefined_silent() {
+    let src = "\
+# x has unknown type (cmd return) -> OVERDEFINED -> no shimmer warning.
+set x [unknownCmd]
+set y [expr {$x + 1}]
+return $y
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-01: OVERDEFINED value should not produce a shimmer warning; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-01 TP control: a *known* STRING value in arithmetic must still fire
+/// S100 — proves the OVERDEFINED suppression isn't blanket-silencing all shimmer.
+#[test]
+fn fp_sh_01_string_arith_still_fires() {
+    let src = "set s hello\nset y [expr {$s + 1}]";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-01 TP: known STRING in arithmetic must still fire S100; got {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-02 — scope-alias declarations typed OVERDEFINED (not STRING)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-02: `variable v` is a scope-alias — its intrep is externally
+/// determined so it cannot be confidently typed STRING.  S100 here would be
+/// the bug fixed by commit adfc6d84.
+#[test]
+fn fp_sh_02_variable_alias_no_shimmer() {
+    let src = "\
+proc f {} {
+    # `variable v` declares an alias — type is unknown (OVERDEFINED),
+    # NOT STRING, so `expr {$v + 1}` must NOT fire S100.
+    variable v
+    return [expr {$v + 1}]
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-02: scope-alias declared with `variable` must be typed OVERDEFINED, not STRING; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-02: the same principle applies to `global` and `upvar` aliases.
+#[test]
+fn fp_sh_02_global_alias_no_shimmer() {
+    let src_global = "proc f {} { global g\n return [expr {$g + 1}] }";
+    let got_g = codes(src_global, D);
+    assert!(
+        !got_g.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-02: `global` alias must be OVERDEFINED too; got {:?}",
+        got_g
+    );
+
+    let src_upvar = "proc f {} { upvar 1 src dst\n return [expr {$dst + 1}] }";
+    let got_u = codes(src_upvar, D);
+    assert!(
+        !got_u.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-02: `upvar` alias must be OVERDEFINED too; got {:?}",
+        got_u
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-03 — phi joins are hash-seed-independent (determinism property)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-03: a phi-merged value where both incoming branches are INT must
+/// come out INT — no S101 from an unsound STRING join.
+#[test]
+fn fp_sh_03_phi_join_deterministic() {
+    let src = "\
+proc f {n} {
+    # x is joined at the loop header from two INT branches; the join
+    # must come out INT every run (no flake) -> no S101.
+    set x 0
+    for {set i 0} {$i < $n} {incr i} {
+        if {$i > 5} { set x 1 } else { set x 2 }
+    }
+    return [expr {$x + 1}]
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-03: INT-INT phi join must come out INT; no shimmer here; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-03 TP control: a loop that reassigns `x` to a STRING on one arm
+/// and an INT on the other must still fire shimmer.
+#[test]
+fn fp_sh_03_genuine_phi_string_int_still_fires() {
+    let src = concat!(
+        "proc f {n} {\n",
+        "    set x 0\n",
+        "    for {set i 0} {$i < $n} {incr i} {\n",
+        "        if {$i > 5} { set x \"hello\" } else { set x 2 }\n",
+        "    }\n",
+        "    return [expr {$x + 1}]\n",
+        "}\n"
+    );
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-03 TP: genuine per-iteration loop shimmer must still fire; got {:?}",
+        got
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-04: hex literal `0x80` is recognised as INT by Tcl_GetIntFromObj;
+/// the analyser must also recognise it as INT so incr on a hex-init variable
+/// doesn't fire spurious S100/S101.
+#[test]
+fn fp_sh_04_hex_literal_increment_no_shimmer() {
+    let src = "\
+proc f {} {
+    # 0x80 is a Tcl hex integer literal -- typed INT, not STRING.
+    # incr on $n must NOT fire S100/S101.
+    set n 0x80
+    for {set i 0} {$i < 10} {incr i} {
+        incr n
+    }
+    return $n
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-04: hex literal 0x80 must be typed INT; incr loop here is clean; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-04: binary literal `0b1010` is also a Tcl integer literal.
+#[test]
+fn fp_sh_04_binary_literal_increment_no_shimmer() {
+    let src = "proc f {} { set n 0b1010; incr n; return $n }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-04: binary literal 0b1010 must be typed INT; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-04 TP control: an actual string in incr must still fire shimmer.
+#[test]
+fn fp_sh_04_genuine_string_increment_still_fires() {
+    let src = "proc f {} { set n hello; incr n; return $n }";
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-04 TP: STRING in incr must still fire; got {:?}",
+        got
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-05 — destructure foreach (`foreach VARS LIST break`) excluded from
+// loop body types
+// ---------------------------------------------------------------------------
+
+/// FP-SH-05: `foreach VARS LIST break` is the pre-`lassign` destructure
+/// idiom — the binding runs once, not per iteration.  S102 on $sv must NOT
+/// fire.
+#[test]
+fn fp_sh_05_destructure_foreach_no_s102() {
+    let src = "\
+proc f {state} {
+    # foreach + break is the pre-8.5 lassign equivalent: a
+    # single-iteration foreach that destructures a list.  The var
+    # bindings are one-time, not per-iteration body types -- they
+    # must NOT pollute a sibling real loop's S102 oscillation check.
+    foreach {a b c sv} $state break
+    foreach inst {1 2 3} {
+        set sv [list 1 2 3]
+    }
+    return $sv
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-05: destructure-foreach must not pollute S102; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-05 TP control: a real multi-iteration foreach whose body genuinely
+/// oscillates types must still fire S102.
+#[test]
+fn fp_sh_05_real_iter_foreach_still_fires() {
+    let src = concat!(
+        "proc f {items} {\n",
+        "    foreach x $items {\n",
+        "        if {$x > 0} { set v \"string\" } else { set v [list 1 2] }\n",
+        "        puts $v\n",
+        "    }\n",
+        "}\n"
+    );
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S101" || c == "S102"),
+        "FP-SH-05 TP: real per-iter oscillation must still fire; got {:?}",
+        got
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-06 — per-loop body_types (sibling loops do not pollute each other)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-06: sibling loops in the same proc must not pollute each other's
+/// S102 body_types map.
+#[test]
+fn fp_sh_06_sibling_loops_no_s102() {
+    let src = "\
+proc f {items} {
+    # Loop A and loop B are SIBLINGS -- they don't nest.  Each loop
+    # alone is monomorphic in $x (loop A: STRING only; loop B: LIST
+    # only).  Neither loop oscillates, so S102 must not fire on either.
+    foreach a $items {
+        set x \"value\"
+    }
+    foreach b $items {
+        set x [list 1 2]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-06: sibling-loop S102 should not fire; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-06 TP control: when a SINGLE loop's body genuinely oscillates $x's
+/// type per iteration, S102 must still fire.
+#[test]
+fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
+    let src = concat!(
+        "proc f {items} {\n",
+        "    foreach a $items {\n",
+        "        if {$a > 0} { set x \"value\" } else { set x [list 1 2] }\n",
+        "        puts $x\n",
+        "    }\n",
+        "}\n"
+    );
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S101" || c == "S102"),
+        "FP-SH-06 TP: real intra-loop oscillation must still fire; got {:?}",
+        got
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-07 — `_find_expr_shimmers` covers standalone expr/if/while/for
+// expr contexts (D5-SH-EXPR)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-07 TP: `if {$s + 1}` — expr in if-cond promotes $s from STRING to
+/// INT.  Pre-fix `_find_expr_shimmers` only walked IRAssignExpr, missing the
+/// CFGBranch.condition expr.
+#[test]
+fn fp_sh_07_if_condition_shimmer_fires() {
+    let src = r#"proc f {} { set s [string trim "5"]; if {$s + 1} { puts yes } }"#;
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-07 TP: if-condition shimmer must fire; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-07 TP: `while {$s + 1}` — expr in while-cond promotes $s.
+#[test]
+fn fp_sh_07_while_condition_shimmer_fires() {
+    let src = r#"proc f {} { set s [string trim "5"]; while {$s + 1} { break } }"#;
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S101" || c == "S100"),
+        "FP-SH-07 TP: while-condition shimmer must fire; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-07 TP: standalone `expr {$s + 1}` (result dropped) is a real
+/// lex-promotion site.
+#[test]
+fn fp_sh_07_standalone_expr_shimmer_fires() {
+    let src = r#"proc f {} { set s [string trim "5"]; expr {$s + 1} }"#;
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-07 TP: standalone-expr shimmer must fire; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-07 TN: `if {1 + 1}` — both operands are numeric literals, no var
+/// is involved, no shimmer.
+#[test]
+fn fp_sh_07_pure_numeric_if_no_shimmer() {
+    let src = "proc f {} { if {1 + 1} { puts yes } }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-07: pure-numeric if must not fire shimmer; got {:?}",
+        got
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both
+// operands are provably non-numeric (D5-SH-EQ)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-08: `expr {$s == "hello"}` with `s = "hello"` — both operands are
+/// non-numeric text.  tclsh takes the STRING compare path (no coercion
+/// attempt), so no shimmer occurs.
+#[test]
+fn fp_sh_08_eq_both_non_numeric_no_shimmer() {
+    let src = r#"proc f {} { set s [string trim hello]; set y [expr {$s == "world"}]; puts $y }"#;
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-08: both-non-numeric == must not fire shimmer; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-08 TP control: `expr {$s == "5"}` with `s` STRING-typed — the
+/// other operand parses as numeric, so tclsh attempts the numeric path and
+/// coerces $s.  Genuine shimmer.
+#[test]
+fn fp_sh_08_eq_with_numeric_literal_still_fires() {
+    let src = r#"proc f {} { set s [string trim hello]; set y [expr {$s == "5"}]; puts $y }"#;
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-08 TP: ==/numeric-literal mix must still fire shimmer; got {:?}",
+        got
+    );
+}
+
+/// FP-SH-08 TP control: `expr {$s + 0}` always takes numeric path regardless
+/// of operand types.  ADD is in the unconditional `_NUMERIC_OPS`.
+#[test]
+fn fp_sh_08_add_still_fires() {
+    let src = r#"proc f {} { set s [string trim "5"]; set y [expr {$s + 0}]; puts $y }"#;
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-08 TP: $s + 0 must still fire shimmer; got {:?}",
+        got
+    );
+}

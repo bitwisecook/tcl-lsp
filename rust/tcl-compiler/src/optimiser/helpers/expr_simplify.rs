@@ -838,7 +838,7 @@ fn reduce_binary(
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
     // Self-comparison tautologies for pure variable references.
-    if let Some(result) = reduce_self_comparison(op, left, right) {
+    if let Some(result) = reduce_self_comparison(op, left, right, numeric) {
         return Some(result);
     }
 
@@ -858,7 +858,12 @@ fn reduce_binary(
 /// Only fires for pure variable references because commands or literal
 /// expressions could have side effects (`[f] == [f]` might not be 1 if
 /// `f` mutates state).
-fn reduce_self_comparison(op: BinOp, left: &ExprNode, right: &ExprNode) -> Option<ExprNode> {
+fn reduce_self_comparison(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) = (left, right) else {
         return None;
     };
@@ -866,8 +871,15 @@ fn reduce_self_comparison(op: BinOp, left: &ExprNode, right: &ExprNode) -> Optio
         return None;
     }
     let k = match op {
+        // Comparison operators have a string fallback in `expr` (`$x == $x`,
+        // `$x < $x`, `$x eq $x` never raise), so they fold for any defined $x.
         BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => 1,
-        BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe | BinOp::BitXor | BinOp::Sub => 0,
+        BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe => 0,
+        // Subtraction and bitwise-xor are arithmetic-only: `$x - $x` / `$x ^ $x`
+        // raise a numeric-coercion error when $x is a non-numeric string
+        // (tclsh: `set x hello; expr {$x - $x}` errors). Folding to 0 would
+        // silently swallow that error, so only fold a provably-numeric operand.
+        BinOp::Sub | BinOp::BitXor if node_provably_numeric(left, numeric) => 0,
         _ => return None,
     };
     Some(make_int_literal(k))

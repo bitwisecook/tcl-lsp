@@ -11822,3 +11822,200 @@ The Python scripts stay in place (rollout rule: fallback for one cycle). The
 scaffold is the landing point for the rest of the `build/` / `check/` /
 `release/` Python scripts; the shell scripts under `scripts/` are already
 Python-free and need no port.
+
+### Differential VM cmd-test divergences closed + LSP BIG-IP providers + compiler refinements (landed 2026-06-25, branch `claude/adoring-feynman-tdaagn`)
+
+A 154-commit session over `origin/rust` — 8 `feat`, ~44 `fix`, 88 `test`, plus
+docs/build — landing the last well-bounded residue from the
+[python→rust parity audit](design/rust/python-rust-parity-audit-2026-06-22.md):
+every VM-vs-`tclsh` cmd-test divergence is now closed, the BIG-IP-LSP feature
+gaps (audit gap #8) are filled, the missing analyser trait (gap #6) and two
+inert subsystems (gap #5) are addressed, and the FP-precision net + a broad
+residual-coverage sweep are ported to native Rust tests. None of this was
+previously reflected in the tracking docs.
+
+**Differential VM cmd-test divergences — all closed.** Five new differential
+e2e suites land under `rust/tcl-vm/tests/` —
+`cmd_{math_expr,string,collections,control,info_prefix}_e2e.rs` — that compile
+real Tcl through `tcl-compiler` (the `info`/`prefix`/`control` harnesses lower
+via `lower_to_ir_for_bytecode`, the same path the real `tcl-vm-cli` runtime
+uses, so the literal `try`/`finally` forms exercise production codegen rather
+than the analysis lowering's unimplemented `beginCatch` ranges), run the
+bytecode on `tcl-vm`, and pin every assertion against `tclsh` 8.6/9.0 as the
+oracle. The suites were seeded (commits 932f8566, d92baaca) by lifting the
+runtime's lowest-covered command files (e.g. `cmd_try` 2%→99%, `cmd_string_is`
+0%→97%, `cmd_prefix` 3%→99%, `cmd_info`/`cmd_switch`/`cmd_namespace` to 100%),
+deliberately landing the `bug_*` cases red to track each VM divergence on valid
+input. They are now all driven to green:
+
+- **expr / math.** `expr rand()`/`srand()` implemented via the Park–Miller
+  minimal-standard PRNG `tclExecute.c` uses (31-bit seed on the `Vm`, Schrage
+  recurrence; `srand(1)` → `7.826369259425611e-6`, matching `tclsh`) (5c4b2384).
+  Bare-literal `expr` results are normalised by making `tryCvtToNumeric`
+  canonical — a numeric literal that is the *whole* expression now renders in
+  canonical form (`expr {1e3}` → `1000.0`, `0xff` → `255`) where C runs
+  `INST_TRY_CVT_TO_NUMERIC`, while an arithmetic *operand* still pushes raw —
+  and a double op producing NaN from non-NaN operands (`0.0/0.0`, `Inf-Inf`) is
+  raised as the C domain error `TclExprFloatError` rather than a silent `NaN`
+  (d0f5c8c5). `abs(-9223372036854775808)` (= 2^63, no `i64`) computes the
+  magnitude in `i128` and renders the bignum instead of `wrapping_abs` returning
+  the still-negative input (30a22ec8). Earlier (0a2c4e2e, e0aa2fb3):
+  `isnan(NaN)`/`isunordered` accept a literal NaN; `max`/`min` return the
+  winning argument with its type preserved (`max(1.5,2)` → `2`); integer-flavoured
+  `expected number but got "abc"` wording; direction-distinguished math-function
+  arity errors; `negative shift argument` wording.
+- **string / format.** `format` positional `%n$` selectors, Tcl-9 alternate-form
+  prefixes (`%#d`→`0d42`, `%#o`→`0o10`), `%#b`→`0b101`, the `%0` flag retained on
+  floats, C-style `%e` exponents (explicit sign, ≥2 digits) and the `%g`
+  exponential switch, incomplete-specifier errors, and `string match`/`string is`
+  bad-option wording + `string is integer -failindex` landing past trailing
+  whitespace (664ab2d8, 1dff470a).
+- **collections.** Five dict/array/lsort fixes (1db1558f): `array set` onto a
+  scalar reports the *element* name as C's `TclArraySet` does; `dict get` with no
+  keys validates its dictionary argument (odd-length → "missing value to go with
+  key"); the rewritten ensemble member `::tcl::dict::map` is registered (compiled
+  `dict map` now works); `dict map` with `break` discards the whole accumulated
+  result (C `DictMapNRCmd`); and `lsort -unique` keeps the *last* of an equal run
+  (C `MergeLists`), not `Vec::dedup`'s first.
+- **control / namespace.** A `try` handler's result/options variable is bound
+  through `Vm::var_set`, so an array-element handler var (`on error {x(y)}`)
+  resolves the element and fails on a scalar base as C's `handlerFailed` makes the
+  outcome, rather than silently binding a literal `x(y)` scalar (eede70bb).
+  `namespace which -variable` parses its flag and resolves the variable FQN
+  (`::foo::v`) instead of always hitting the command table (d92baaca). The
+  `cmd_math_expr`/`cmd_info_prefix` headers were refreshed once the `bug_*` cases
+  passed and became guards (30a22ec8, f636f1ac).
+
+**LSP parity-gap providers (audit gap #8).** The BIG-IP-LSP feature gaps — code
+actions, references, links, and ~6 execute-command verbs — are filled. A
+find-references provider (`tcl-bigip::refs::references_at`, f5ef939c) ports
+`server/features/_bigip_refs.py`: a BIG-IP reference is every
+identifier-bounded occurrence of the TMSH path token (`/Partition/Name`) under
+the cursor — a token-bounded textual search, not the Tcl symbol analyser, which
+can't resolve a non-Tcl config — with `include_declaration=false` dropping
+occurrences inside the named object's stanza via the `tcl-bigip` object model.
+A document-links provider (`tcl-bigip::links::document_links`, d3b70ebd) makes
+every object reference in a `.conf`/`.scf` a clickable `uri#L<line>` link via
+two engines: iRule bodies through `tcl_irules::extract_irules_object_references`
+(a link is always emitted, with a "(no definition found)" tooltip when
+unresolved) and migrated TMSH properties through the registry pilot value-spec
+dispatch (`graph::pilot_references`, byte-accurate to the path token). A
+code-action provider (`get_bigip_code_actions`, a43db906) replaces the
+generic-Tcl fallback, decomposing a `.conf` into top-level
+`(module, object-type, identifier)` stanzas with `bigip::parse_stanzas`
+(reusing the document-symbols outline machinery) and emitting stanza-scoped
+rename-partition / rename-object / extract-rule actions. The "Generate
+docstring" action was brought to parity with Python's DOXYGEN-style
+`generate_stub` — `@brief TODO`, `@param <name> - (default: …)`, the `args`
+varargs prose (5e3ede24). A latent blocker was fixed: the code-action →
+LSP-`Command` conversion forwarded only the integer `args` and silently dropped
+`string_args`, so `tclLsp.renamePartition` reached the editor argument-less;
+`action_command_to_lsp` now forwards both kinds (75a1ab14). Alongside, the
+`tcl-lsp-server` crate's previously-untested surface was hardened: a pure
+`apply_global_config` was extracted from the live-client-gated
+`pull_and_apply_config` to make config application unit-testable (8c22ce10), and
+new tests cover the global-fallback settings resolver (c254ebf3), the
+document-lifecycle path + `run_diagnostics_core` for both Tcl and BIG-IP
+documents (b94243f1), and the `execute_command` verb handlers —
+`minify`/`optimise`/`unminifyError` (daae27cd) and
+`listIruleEvents`/`diagramData`/`describeIrule*`/`listSubcommands`/`exportConfig`
+(0591a000).
+
+**Compiler / analyser refinements (audit gaps #6 and #5).** Gap #6 is closed:
+the `ProcArgTrait::DynamicNameLocal` variant is added and emitted for the
+callee-local dynamic-name patterns — `set $p 1`, `scan`/`lassign`/`regsub …
+$p`, and any registry `VarWrite`/`VarRead` role landing on a bare `$param` — so
+the ported `param_traits.rs` produces the same trait surface as Python's
+`proc_arg_traits.py`; these name a variable in the proc's *own* frame and are
+now `DynamicNameLocal` + `VarRead` rather than the over-broad `VarWrite`, with
+only a genuine `upvar` write-back staying `VarWrite` (verified against the
+Python analyser end-to-end) (0421b45f). For gap #5, the liveness-based
+`slot_allocation` module — Phase-5 slot coalescing
+(`live_out_by_name`/`build_interference`/`coalesce_slots`) — was ported as a
+standalone `tcl_compiler::slot_allocation` analysis, the one cluster-A item with
+no Rust equivalent, deliberately *not* wired into codegen (no bytecode change /
+no differential risk) (83e548b6); and static-body `uplevel <level> {body}` now
+lowers to `Statement::UpFrame` (un-ignoring 9 tests), reconstructing the
+original invoke for any `UpFrame` surviving to codegen so it is byte-identical
+to the prior barrier path while the analysers see a structured frame-shift
+(308f2085). Two soundness/robustness fixes: the call graph now scans `expr {…}`
+substitutions for call edges, so a self-recursive proc whose recursive calls
+are buried in `return [expr {[fib …]}]` resolves its self-edge — previously the
+interproc taint fixpoint under-converged and panicked the LSP diagnostic worker,
+timing out definition/linked-editing; the summary worklist also re-queues a
+proc on its own change so direct self-recursion converges regardless (now
+544/544 e2e pass) (acd37bae). The codegen `<upvar-invalidate>` synthetic marker
+(prepended by the CFG builder to carry mutated `defs` for O100 correctness) is
+now skipped in `emit_call_stmt` like `<cond>`, so a multi-command substitution
+with a var-mutating builtin (`set x [set y 1; concat a b c]`) no longer reaches
+the VM as the literal command `<upvar-invalidate>` (a02ab3d5). Three refactor /
+reference / formatting correctness fixes: intra-class member-reference scans now
+require a `my` head and match argv[1] — TclOO intra-class dispatch is
+`my <method>`, so `my bark` sites were missed and a bare `bark` head (which
+errors `invalid command name`) was falsely reported (fd797125); the formatter
+never splits a long line inside a double-quoted string, since collapsing
+`\<newline><ws>` to a space silently changed the string's data — a line that can
+only be split inside a literal is left over-length (1b153d44); and
+`switch→datagroup` extraction declines on a non-value `default` arm instead of
+falling back to `strip_quotes`, which had emitted semantics-changing edits like
+`default { set other zzz }` → `set h { set other zzz }` (12839c6a).
+
+**FP-precision net + residual-coverage test ports.** The bulk of the branch
+(the `test` commits) ports the false-positive precision suite and a broad swathe
+of residual coverage to native Rust, grounded throughout against `tclsh`. The
+FP catalogue (`docs/design/compiler/FP.md`) — 360 paired Python tests but only
+~13% genuine Rust assertions, whole families at ~zero — is ported one
+`fp/<family>.rs` per family with a completeness meta-test (7dfbd779 plan, then
+the DS/SH/RBS/OBJ/RCH/INJ/BND/STY/TNT/NAB/OPT family ports), and its 12-bug
+worklist worked down to **11 genuine defects fixed + 1 confirmed
+non-reproducing** (see `docs/design/rust/fp-rust-port-status.md`). The fixed
+defects span the analyser, optimiser, GVN, and taint solver: dead-store now
+sees reads inside `[expr {…}]` cmd-subs (FP-DS-02); W211/W220 are suppressed for
+cross-scope traced `::`-globals (FP-DS-04); W307/W308 are correctly gated for
+snit-typed receivers, `[cmd]::method` ensemble dispatch, SCCP non-command
+evidence, callback-array slots, and method-body consts/object-types now gathered
+from `cu.methods` (FP-OBJ-05/07/09/10/D4-F5); the optimiser models builtin
+var-writes inside cmd-subs as defs (FP-OPT-06), drops def-elimination when a var
+is resurrected by a surviving rewrite (FP-OPT-08), and LICM scans loop-header
+*body* statements for bottom-test loops (FP-OPT-03). The taint solver got three
+soundness-preserving precision fixes that were re-firing T100/T102/IRULE3003
+families: `clean` is made the join *identity* rather than a mitigation
+annihilator (interpolated words like `"client:${addr}"` no longer lose
+CRLF_FREE/PATH_PREFIXED) (90b4d679); the registry `taint_sink_safe_colour` is
+consulted so `exec ping $addr` with a SHELL_ATOM argument is suppressed while
+position-dependent `eval [list …]` cases still fire (8d28b342); and a
+sink-argument variable consumed by an embedded sanitiser is cleared (abc3cea6).
+Two iRules cross-event optimiser *miscompiles* (`tclsh`-proven), surfaced by
+porting `test_optimiser.py`, were fixed: O126 was deleting a store read in a
+later event (`set uri [HTTP::uri]` in HTTP_REQUEST dropped though HTTP_RESPONSE
+reads `$uri`) and O101 const-folded `[info exists ans_cleared]` taking the wrong
+branch across events; both now thread the `ConnectionScope` cross-event vars and
+`scan_info_exists` over statement words and branch conditions (9548b666). The
+full `tcl-compiler` lib suite reports 3270 passed / 0 failed / 9 ignored (the 9
+being the pre-existing static-uplevel "pending VM frame-shift opcodes" lowering
+tests, unrelated to the FP port).
+
+**BIG-IP / registry / syntax ports.** The conf-wrapped iRules extraction surface
+is ported as `tcl-bigip::rule_extract` —
+`is_conf_wrapped_irules`/`find_embedded_rules`/`find_rule_at_offset`/`replace_rule_body`
++ the `EmbeddedRule` struct, with the Python offset semantics and a
+brace-balanced quote/escape-skip scanner (acd5ccfb). Cluster-A suites that had
+no Rust test were ported — signature-scan, text-utils (Levenshtein
+`edit_distance`/`suggest_similar`), complexity-guard, docstring — alongside the
+one genuinely-missing feature, `detect_dialect_from_source` /
+`detect_dialect_directive` in `tcl-registry::dialects` (shebang, `# tcl-dialect:`
+directive, `package require Tcl <x.y>` sniffing) (65b5b3ea). BIG-IP iRules
+object-refs and the linked-object graph got coverage against the already-public
+data layers (7d818f4f). A registry dialect bug was fixed: `lsearch -stride` is
+Tcl-9.0-only (TIP 351's `-stride` is `lsort`'s), so it was re-gated from
+`TCL86_PLUS` to `TCL90`, restoring the warranted W004 on 8.6 (`tclsh`-proven on
+8.6 + 9.0) (e44dc51e). The residual sweep also ports large suites across
+`tcl-compiler` (analyser/taint/optimiser/codegen/CFG/var-escape/inlining/intervals),
+`tcl-lsp-core` (hover/completion/references/rename/code-actions/semantic-tokens/
+document-symbols and the navigation providers), `tcl-syntax` (expr-parser,
+backslash decoding, the Expr/ValueOps seams), `tcl-registry` (command/dialect
+sweeps + the runtime spec-construction snapshot), and `tcl-lexer`
+(`test_tcl_parse`/`test_parser_edge_cases` groups), plus a small UTF-16
+position-correctness e2e (`tests/lsp_e2e/test_unicode_positions_e2e.py`) and a
+`scripts/dev/tclsh_check.sh` helper that pins test expectations to C-Tcl ground
+truth.

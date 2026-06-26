@@ -40,4 +40,57 @@ mod tests {
         // no backslash ⇒ borrowed, byte-identical.
         assert!(matches!(decode_bytes(b"plain"), Cow::Borrowed(_)));
     }
+
+    #[test]
+    fn decode_control_escapes_match_tclsh() {
+        // Codepoints verified against tclsh8.6/9.0 (`scan "\X" %c`):
+        // \a=7 \b=8 \f=12 \n=10 \r=13 \t=9 \v=11 \\=92.
+        assert_eq!(&*decode("\\a"), "\u{07}");
+        assert_eq!(&*decode("\\b"), "\u{08}");
+        assert_eq!(&*decode("\\f"), "\u{0c}");
+        assert_eq!(&*decode("\\n"), "\n");
+        assert_eq!(&*decode("\\r"), "\r");
+        assert_eq!(&*decode("\\t"), "\t");
+        assert_eq!(&*decode("\\v"), "\u{0b}");
+        assert_eq!(&*decode("\\\\"), "\\");
+    }
+
+    #[test]
+    fn decode_numeric_escapes_match_tclsh() {
+        // tclsh: \x41=A (exactly 2 hex), \101=A (octal), A=A (1-4 hex).
+        assert_eq!(&*decode("\\x41"), "A");
+        assert_eq!(&*decode("\\101"), "A");
+        assert_eq!(&*decode("\\u0041"), "A");
+        // \x consumes exactly two hex digits, so `\x4142` → "A42" (tclsh: the
+        // string-length is 3, not 1).
+        assert_eq!(&*decode("\\x4142"), "A42");
+        // \xff → U+00FF (Tcl 9 / UTF-8 internal rep), not a raw 0xFF byte.
+        assert_eq!(&*decode("\\xff"), "\u{FF}");
+        // \u with fewer than 4 hex digits still decodes (\u41 → A).
+        assert_eq!(&*decode("\\u41"), "A");
+    }
+
+    #[test]
+    fn decode_unknown_escape_drops_backslash() {
+        // tclsh: an unknown escape keeps the character (`\q` → `q`).
+        assert_eq!(&*decode("\\q"), "q");
+        // Escaped quote/brace are literal.
+        assert_eq!(&*decode("\\\""), "\"");
+        assert_eq!(&*decode("\\{"), "{");
+    }
+
+    #[test]
+    fn decode_no_backslash_borrows() {
+        // Nothing to decode ⇒ a borrowed slice (no allocation).
+        assert!(matches!(decode("plain text"), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn decode_bytes_passes_through_non_utf8() {
+        // A non-UTF-8 byte slice cannot be a well-formed internal rep, but the
+        // defensive branch borrows it unchanged rather than panicking.
+        let raw = [0xff, 0xfe, b'a'];
+        assert!(matches!(decode_bytes(&raw), Cow::Borrowed(_)));
+        assert_eq!(&*decode_bytes(&raw), &raw);
+    }
 }

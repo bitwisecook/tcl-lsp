@@ -28,6 +28,11 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
     let mut out = String::new();
     let mut i = 0;
     let mut ai = 0;
+    // Tcl forbids mixing positional (`%n$`) and sequential conversions in one
+    // format string ("cannot mix …"); track which mode the format has committed
+    // to so the second kind errors.
+    let mut saw_positional = false;
+    let mut saw_sequential = false;
     while i < bytes.len() {
         if bytes[i] != b'%' {
             // Copy a whole UTF-8 char, not a single byte.
@@ -43,16 +48,51 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
         }
         let mut j = i + 1;
         let Some(mut spec) = parse_spec(bytes, &mut j) else {
-            // Unmodelled spec — emit the `%` literally.
-            out.push('%');
-            i += 1;
-            continue;
+            // A `%` that is not `%%` always begins a conversion — Tcl has no
+            // literal lone `%`. An incomplete one (`%`, `%5`, a trailing `%`)
+            // has no verb to consume an argument, which Tcl reports as
+            // "not enough arguments".
+            return Err(CmdError::new(
+                "not enough arguments for all format specifiers",
+            ));
         };
         if spec.verb != b'%' {
+            // Commit the format to positional or sequential mode and reject a mix
+            // (`format {%2$d %d} …` is a Tcl error, not arg-2-then-arg-1).
+            match spec.arg_index {
+                Some(_) => {
+                    if saw_sequential {
+                        return Err(CmdError::new(
+                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                        ));
+                    }
+                    saw_positional = true;
+                }
+                None => {
+                    if saw_positional {
+                        return Err(CmdError::new(
+                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                        ));
+                    }
+                    saw_sequential = true;
+                }
+            }
+            // A positional `%n$` spec consumes consecutively starting at `n-1`
+            // (the `*` width, then the `.*` precision, then the value), leaving
+            // the sequential cursor untouched; an ordinary spec consumes from the
+            // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
+            // value from arg 3 (format-... ), matching tclsh.
+            let positional = spec.arg_index.is_some();
+            let mut cur = match spec.arg_index {
+                Some(n) => n
+                    .checked_sub(1)
+                    .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
+                None => ai,
+            };
             // `*` width / `.*` precision take their value from a preceding
             // argument (format-1.1/1.6). A negative `*` width left-justifies.
             if spec.width_star {
-                let w = ops.as_int(next_arg(args, &mut ai)?)?;
+                let w = ops.as_int(take_arg(args, &mut cur, positional)?)?;
                 if w < 0 {
                     spec.flags |= FmtFlags::MINUS;
                 }
@@ -60,25 +100,33 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
                 spec.width = Some(mag.min(MAX_FIELD));
             }
             if spec.precision_star {
-                let p = ops.as_int(next_arg(args, &mut ai)?)?;
+                let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
                 // A negative `.*` precision is treated as omitted (C).
                 spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_FIELD));
             }
-            let arg = next_arg(args, &mut ai)?;
+            let arg = take_arg(args, &mut cur, positional)?;
             out.push_str(&render_spec(ops, &spec, arg)?);
+            if !positional {
+                ai = cur;
+            }
         }
         i = j;
     }
     Ok(out)
 }
 
-/// The next conversion argument (advancing `ai`), or the "not enough arguments"
-/// error. Shared by the `*`/`.*` width and the value consumption.
-fn next_arg<'a, V>(args: &'a [V], ai: &mut usize) -> Result<&'a V, CmdError> {
-    let arg = args
-        .get(*ai)
-        .ok_or_else(|| CmdError::new("not enough arguments for all format specifiers"))?;
-    *ai += 1;
+/// Take the argument at `*cur` and advance the cursor. Shared by the `*`/`.*`
+/// width and the value consumption, in both the sequential and the positional
+/// (`%n$`) paths — the two differ only in the out-of-range message tclsh uses.
+fn take_arg<'a, V>(args: &'a [V], cur: &mut usize, positional: bool) -> Result<&'a V, CmdError> {
+    let arg = args.get(*cur).ok_or_else(|| {
+        CmdError::new(if positional {
+            "\"%n$\" argument index out of range"
+        } else {
+            "not enough arguments for all format specifiers"
+        })
+    })?;
+    *cur += 1;
     Ok(arg)
 }
 
@@ -97,11 +145,15 @@ fn render_spec<O: ValueOps>(ops: &mut O, spec: &Spec, arg: &O::Value) -> Result<
     match verb {
         b'd' | b'i' | b'u' => {
             let n = ops.as_int(arg)?;
-            Ok(pad_number(
-                &int_digits(n, spec),
-                n < 0 && verb != b'u',
-                spec,
-            ))
+            let mut digits = int_digits(n, spec);
+            // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
+            // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
+            // no prefix. The sign and width are applied around it by
+            // `pad_number`, so `%#d -42` → `-0d42`.
+            if spec.flags.contains(FmtFlags::HASH) && matches!(verb, b'd' | b'i') && n != 0 {
+                digits.insert_str(0, "0d");
+            }
+            Ok(pad_number(&digits, n < 0 && verb != b'u', spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
             let n = ops.as_int(arg)?;
@@ -167,16 +219,44 @@ fn based_digits(n: i64, spec: &Spec) -> String {
         ),
         b'o' => (
             format!("{u:o}"),
-            if spec.flags.contains(FmtFlags::HASH) {
-                "0"
+            // Tcl 9 `%#o` → `0o` radix prefix (8.6 used a bare leading `0`),
+            // dropped for zero (`%#o 0` → `0`).
+            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
+                "0o"
             } else {
                 ""
             },
         ),
-        _ => (format!("{u:b}"), ""),
+        _ => (
+            format!("{u:b}"),
+            // `%#b` → `0b` prefix (Tcl 8.6 and 9.0 both emit it; format-1.x).
+            if spec.flags.contains(FmtFlags::HASH) && u != 0 {
+                "0b"
+            } else {
+                ""
+            },
+        ),
     };
     body = apply_precision(body, spec);
     format!("{prefix}{body}")
+}
+
+/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`F`/`g`/`G`).
+fn is_float_verb(verb: u8) -> bool {
+    matches!(verb, b'e' | b'E' | b'f' | b'F' | b'g' | b'G')
+}
+
+/// Re-render a Rust exponent (`1.5e4` / `1.5e-4`) in C/Tcl style with an
+/// explicit sign and at least two exponent digits (`1.5e+04` / `1.5e-04`).
+fn c_style_exp(rust_e: &str) -> String {
+    let Some(pos) = rust_e.find(['e', 'E']) else {
+        return rust_e.to_string();
+    };
+    let e_char = &rust_e[pos..=pos];
+    let mantissa = &rust_e[..pos];
+    let exp: i32 = rust_e[pos + 1..].parse().unwrap_or(0);
+    let sign = if exp < 0 { '-' } else { '+' };
+    format!("{mantissa}{e_char}{sign}{:02}", exp.abs())
 }
 
 /// Magnitude digits for a float verb (sign handled by `pad_number`).
@@ -184,19 +264,54 @@ fn float_digits(x: f64, spec: &Spec) -> String {
     let prec = spec.precision.unwrap_or(6);
     let m = x.abs();
     match spec.verb {
-        b'f' => format!("{m:.prec$}"),
-        b'e' => format!("{m:.prec$e}"),
-        b'E' => format!("{m:.prec$E}"),
-        // g/G: approximate with bounded precision, trimming trailing zeros.
+        b'f' | b'F' => format!("{m:.prec$}"),
+        b'e' => c_style_exp(&format!("{m:.prec$e}")),
+        b'E' => c_style_exp(&format!("{m:.prec$E}")),
+        // g/G (C semantics): precision P (0 → 1) is the number of significant
+        // digits. Using the decimal exponent X (from an %e render at P-1
+        // fractional digits), pick %e when X < -4 or X >= P, else %f with
+        // P-1-X fractional digits; then strip trailing zeros / a bare `.`
+        // (unless the `#` alternate form keeps them).
         _ => {
-            let s = format!("{m:.prec$}");
-            if s.contains('.') {
-                s.trim_end_matches('0').trim_end_matches('.').to_string()
+            let p = prec.max(1);
+            let upper = spec.verb == b'G';
+            let probe = format!("{m:.*e}", p - 1);
+            let exp: i32 = probe
+                .find('e')
+                .and_then(|i| probe[i + 1..].parse().ok())
+                .unwrap_or(0);
+            let keep_zeros = spec.flags.contains(FmtFlags::HASH);
+            if exp < -4 || exp >= i32::try_from(p).unwrap_or(i32::MAX) {
+                let body = c_style_exp(&format!("{m:.*e}", p - 1));
+                let out = if keep_zeros { body } else { trim_g_exp(&body) };
+                if upper { out.replace('e', "E") } else { out }
             } else {
-                s
+                let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
+                let body = format!("{m:.*}", fprec);
+                if keep_zeros || !body.contains('.') {
+                    body
+                } else {
+                    body.trim_end_matches('0').trim_end_matches('.').to_string()
+                }
             }
         }
     }
+}
+
+/// Trim trailing mantissa zeros (and a bare `.`) from a C-style `%e` body
+/// without disturbing the exponent: `1.20000e+06` → `1.2e+06`,
+/// `1.00000e+06` → `1e+06`.
+fn trim_g_exp(body: &str) -> String {
+    let Some(epos) = body.find(['e', 'E']) else {
+        return body.to_string();
+    };
+    let (mantissa, exp) = body.split_at(epos);
+    let trimmed = if mantissa.contains('.') {
+        mantissa.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        mantissa
+    };
+    format!("{trimmed}{exp}")
 }
 
 /// Left-pad `mag` with `0` up to `.precision` digits.
@@ -229,7 +344,12 @@ fn pad_number(body: &str, negative: bool, spec: &Spec) -> String {
     let pad = width - len;
     if spec.flags.contains(FmtFlags::MINUS) {
         format!("{sign}{body}{}", " ".repeat(pad))
-    } else if spec.flags.contains(FmtFlags::ZERO) && spec.precision.is_none() {
+    } else if spec.flags.contains(FmtFlags::ZERO)
+        && (spec.precision.is_none() || is_float_verb(spec.verb))
+    {
+        // C ignores the `0` flag with an explicit precision for *integer*
+        // conversions, but a float's precision is its fraction width, so `0`
+        // still pads (`%08.2f 3.14` → `00003.14`).
         format!("{sign}{}{body}", "0".repeat(pad))
     } else {
         format!("{}{sign}{body}", " ".repeat(pad))

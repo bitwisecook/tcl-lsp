@@ -676,6 +676,35 @@ impl CompilationUnit {
                 Some(crate::connection_scope::build_connection_scope(&when_procs))
             }
         };
+        // Cross-event existence post-pass: `existence_constant_branches` ran per
+        // function (before the connection scope existed) and folded
+        // `[info exists VAR]` → false for any VAR not defined *in that event*.
+        // That is unsound for an iRules cross-event variable (set in another
+        // `when` handler), so drop those folds from `::when::*` procs now that
+        // the connection scope is known — otherwise O101 rewrites
+        // `if {[info exists ans_cleared]}` to `if {0}` even though a sibling
+        // event set it (a miscompile).
+        if let Some(cs) = &connection_scope {
+            let cross: std::collections::HashSet<&str> = cs
+                .cross_event_defs
+                .iter()
+                .chain(cs.cross_event_imports.iter())
+                .map(String::as_str)
+                .collect();
+            if !cross.is_empty() {
+                for (qn, fu) in procedures.iter_mut() {
+                    if !qn.starts_with("::when::") {
+                        continue;
+                    }
+                    fu.sccp.constant_branches.retain(|cb| {
+                        let mut vars = std::collections::HashSet::new();
+                        crate::connection_scope::scan_info_exists(&cb.condition, &mut vars);
+                        // Keep the fold only if it does not query a cross-event var.
+                        !vars.iter().any(|v| cross.contains(v.as_str()))
+                    });
+                }
+            }
+        }
         Self {
             source: source.to_owned(),
             ir_module,

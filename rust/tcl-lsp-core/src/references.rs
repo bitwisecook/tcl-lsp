@@ -308,16 +308,30 @@ pub(crate) fn method_references_for_class(
             tcl_lexer::LexerConfig::for_dialect(dialect),
         );
         for cmd in &commands {
+            // Intra-class method dispatch is `my <method>`: the method name is
+            // argv[1], not the command head. A bare head equal to the method
+            // name is NOT a call — a TclOO method is not a command in the
+            // body's namespace, so `<method> …` without `my`/an object errors
+            // with "invalid command name". (External `$obj method` sites are
+            // appended separately below.)
             let Some(head) = cmd.argv.first() else {
                 continue;
             };
             let h_start = head.span.start() as usize;
             let h_end = head.span.end() as usize;
-            if h_start >= source.len() || h_end > source.len() {
+            if h_start >= source.len() || h_end > source.len() || &source[h_start..h_end] != "my" {
                 continue;
             }
-            if &source[h_start..h_end] == method && head.span != decl_span {
-                call_spans.push(head.span);
+            let Some(name_tok) = cmd.argv.get(1) else {
+                continue;
+            };
+            let n_start = name_tok.span.start() as usize;
+            let n_end = name_tok.span.end() as usize;
+            if n_start >= source.len() || n_end > source.len() {
+                continue;
+            }
+            if &source[n_start..n_end] == method && name_tok.span != decl_span {
+                call_spans.push(name_tok.span);
             }
         }
     }
@@ -391,24 +405,42 @@ fn find_class_member_references(
                 tcl_lexer::LexerConfig::for_dialect(dialect),
             );
             for cmd in &commands {
+                // Intra-class dispatch of a method/classmethod is `my <member>`
+                // — the member name is argv[1], not the command head. A bare
+                // head equal to the member name is NOT a call (a TclOO method is
+                // not a command in the body's namespace; `<member> …` without
+                // `my`/an object errors with "invalid command name"), and a
+                // property is read as `$prop`, never as a command head either —
+                // so matching the head produced both false positives (bare
+                // heads) and false negatives (`my <member>` missed).
                 let Some(head) = cmd.argv.first() else {
                     continue;
                 };
                 let h_start = head.span.start() as usize;
                 let h_end = head.span.end() as usize;
-                if h_start >= source.len() || h_end > source.len() {
+                if h_start >= source.len() || h_end > source.len() || &source[h_start..h_end] != "my"
+                {
                     continue;
                 }
-                if &source[h_start..h_end] != word {
+                let Some(name_tok) = cmd.argv.get(1) else {
+                    continue;
+                };
+                let n_start = name_tok.span.start() as usize;
+                let n_end = name_tok.span.end() as usize;
+                if n_start >= source.len() || n_end > source.len() {
                     continue;
                 }
-                // Skip the declaration site itself (cannot
-                // happen — declaration sits outside method
-                // bodies — but defensive).
-                if head.span.start() == decl_span.start() && head.span.end() == decl_span.end() {
+                if &source[n_start..n_end] != word {
                     continue;
                 }
-                call_spans.push(head.span);
+                // Skip the declaration site itself (cannot happen — the
+                // declaration sits outside method bodies — but defensive).
+                if name_tok.span.start() == decl_span.start()
+                    && name_tok.span.end() == decl_span.end()
+                {
+                    continue;
+                }
+                call_spans.push(name_tok.span);
             }
         }
         // Append external `$obj method` call sites for
@@ -1061,7 +1093,10 @@ mod tests {
 
     #[test]
     fn references_for_method_includes_decl_and_call_sites() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        // Intra-class dispatch uses `my <method>` (the dispatch form tclsh
+        // accepts; a bare `greet` head errors with "invalid command name", so it
+        // is not a reference).
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 11).
         let refs = references(src, "tcl", 1, 11, &analysis, true);
@@ -1070,7 +1105,7 @@ mod tests {
 
     #[test]
     fn references_for_method_excludes_decl_when_requested() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         let refs = references(src, "tcl", 1, 11, &analysis, false);
         // Only the two call sites — the declaration is
@@ -1080,7 +1115,7 @@ mod tests {
 
     #[test]
     fn document_highlights_for_method_marks_decl_and_calls_text() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         let h = document_highlights(src, "tcl", 1, 11, &analysis);
         // Methods carry no Write/Read distinction — declaration + both call

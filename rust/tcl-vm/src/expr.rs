@@ -46,7 +46,7 @@ fn num_i128(n: Num) -> Option<i128> {
 
 /// Wrap an `i128` arithmetic result as a value: a plain wide when it fits,
 /// otherwise the decimal string (the VM has no wider integer rep).
-fn int_value(r: i128) -> Value {
+pub(crate) fn int_value(r: i128) -> Value {
     i64::try_from(r).map_or_else(|_| Value::string(r.to_string()), Value::int)
 }
 
@@ -64,6 +64,33 @@ fn to_num(v: &Value) -> Result<Num, TclError> {
             v.to_str()
         ))),
     }
+}
+
+/// Regenerate the canonical numeric string rep of an `expr` result
+/// (C `INST_TRY_CVT_TO_NUMERIC`): a numeric value is rebuilt from its parsed
+/// form so its string matches the *number* rather than how it was written
+/// (`1e3` → `1000.0`, `0xff` → `255`, `0001` → `1`, `5.` → `5.0`); a bare `NaN`
+/// is a domain error (a NaN is not a usable result, only `isnan`'s input); and
+/// anything non-numeric (`expr {1 ? "big" : "x"}`) passes through unchanged.
+pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
+    if let Ok(n) = v.as_int() {
+        return Ok(Value::int(n));
+    }
+    if let Some(b) = v.as_i128() {
+        return Ok(int_value(b));
+    }
+    if let Ok(d) = v.as_double() {
+        return Ok(Value::double(d));
+    }
+    // `as_double` rejects a bare `NaN`; as a whole-expression result it is a
+    // domain error, not a value that survives.
+    if matches!(
+        number::parse_whole(v.to_str().trim()),
+        Some(Number::Nan { .. })
+    ) {
+        return Err(TclError::new("domain error: argument not in valid range"));
+    }
+    Ok(v)
 }
 
 /// Like [`to_num`] but reports the C Tcl 9 operand-specific message
@@ -194,7 +221,7 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
             } else if y >= 128 {
                 0
             } else {
-                return Err(TclError::new("negative shift count"));
+                return Err(TclError::new("negative shift argument"));
             }
         }
         RShift => {
@@ -203,7 +230,7 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
             } else if y >= 128 {
                 if x < 0 { -1 } else { 0 }
             } else {
-                return Err(TclError::new("negative shift count"));
+                return Err(TclError::new("negative shift argument"));
             }
         }
         BitAnd => x & y,
@@ -228,6 +255,15 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
             ));
         }
     };
+    // A double op that produces NaN from non-NaN operands (`0.0/0.0`,
+    // `Inf - Inf`, `Inf/Inf`) is a domain error in C (`tclExecute.c` checks the
+    // result via `TclExprFloatError`), not a silent `NaN`. A NaN operand can't
+    // reach here — `to_num_operand` rejects it with its own message — so an
+    // operand check is belt-and-braces. (The `ARITH DOMAIN` errorCode is not
+    // threaded, as noted for the operand errors above.)
+    if r.is_nan() && !x.is_nan() && !y.is_nan() {
+        return Err(TclError::new("domain error: argument not in valid range"));
+    }
     Ok(Value::double(r))
 }
 
