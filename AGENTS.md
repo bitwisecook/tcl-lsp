@@ -216,6 +216,23 @@ marketplace token.  Concretely:
 Adding `secrets.VSCE_PAT`, `secrets.JETBRAINS_TOKEN`, or any other
 long-lived marketplace token to a workflow violates the contract.
 
+**Stable vs pre-release channels (odd/even-minor).**  Two lines run in
+parallel and the tag alone decides which:
+
+- **Stable / default** — `v1.x` and even-minor `v2.x` (`v2.2.0`), cut from
+  `main`.  Normal GitHub Release (`latest`) and normal Marketplace channel.
+- **Pre-release / "for the brave"** — odd-minor `v2.x` (`v2.1.0`,
+  `v2.1.1`, …), cut from `rust`.  Published as a GitHub `--prerelease`
+  (never `latest`) and to the Marketplace `--pre-release` channel, so 1.x
+  stays the default install until a user opts into pre-releases.
+
+The 2.x rewrite ships its alphas on `2.1.x` and promotes to the stable
+`2.2.0` when ready.  `scripts/release/prerelease.sh X.Y.Z` is the single
+source of truth (prints `true`/`false`); CI (`create-release`,
+`publish-vsix-marketplace`), the Makefile (`VSCE_PRERELEASE_FLAG`), and
+`tag.sh` all read it, so nothing per-version needs editing — just
+`make release-tag V=2.1.0` from `rust`.
+
 ## WASM command parity
 
 The per-command spec packs (`dialects/tcl/`, registered through

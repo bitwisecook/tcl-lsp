@@ -100,6 +100,14 @@ GIT_HASH         := $(shell git rev-parse --short HEAD 2>/dev/null || echo unkno
 VERSION          := $(shell echo "$(GIT_DESCRIBE)" | sed 's/^v//')
 SEMVER_VERSION   := $(shell sh -c 'v="$(VERSION)"; if echo "$$v" | grep -Eq "^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z.-]+)*$$"; then echo "$$v"; else echo "0.0.0-dev"; fi')
 FULL_VERSION     := $(VERSION)
+# Pre-release channel switch — the VS Code odd/even-minor convention.
+# `scripts/release/prerelease.sh` is the single source of truth: a 2.x
+# release with an ODD minor (2.1.x) is a pre-release; 1.x and even-minor
+# 2.x (2.2.0) are stable.  `VSCE_PRERELEASE_FLAG` expands to
+# `--pre-release` for the pre-release line and to nothing for stable, so
+# the same `vsce package` / `vsce publish` recipes serve both channels.
+IS_PRERELEASE       := $(shell bash $(ROOT)scripts/release/prerelease.sh "$(VERSION)" 2>/dev/null || echo false)
+VSCE_PRERELEASE_FLAG := $(if $(filter true,$(IS_PRERELEASE)),--pre-release,)
 # Hatch-vcs version — what ``uv build --wheel`` will embed in the wheel
 # filename and metadata. Identical to SEMVER_VERSION on a tagged commit
 # (e.g. ``1.10.5``) but PEP 440-formatted on dev commits (e.g.
@@ -253,12 +261,15 @@ publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS
 	@# DefaultAzureCredential through `--azure-credential` — no PAT at rest.
 	@# Set VSCE_PAT to force the legacy stored-PAT path (discouraged; Azure
 	@# DevOps global PATs retire 2026-12-01).
+	@if [ -n "$(VSCE_PRERELEASE_FLAG)" ]; then \
+		echo "    Pre-release channel (odd-minor $(VERSION)) — publishing with --pre-release."; \
+	fi
 	@if [ -n "$$VSCE_PAT" ]; then \
 		echo "    VSCE_PAT set — using the legacy stored PAT (override)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath $(VSIX_FILE); \
 	elif az account show >/dev/null 2>&1; then \
 		echo "    Keyless publish via Azure Entra (--azure-credential, no PAT)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish --azure-credential --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath $(VSIX_FILE); \
 	else \
 		echo "    No Azure CLI session for keyless publishing."; \
 		echo "    Run:  az login --allow-no-subscriptions"; \
@@ -304,8 +315,8 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscode
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
-	@echo "==> Packaging .vsix (stripped, not obfuscated)"
-	cd $(STAGE_DIR) && $(VSCE) package --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
+	@echo "==> Packaging .vsix (stripped, not obfuscated)$(if $(VSCE_PRERELEASE_FLAG), [pre-release],)"
+	cd $(STAGE_DIR) && $(VSCE) package $(VSCE_PRERELEASE_FLAG) --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
 	@echo ""
 	@echo "Built: $(VSIX_FILE)"
 	@ls -lh $(VSIX_FILE)
@@ -1729,8 +1740,14 @@ publish-verify: ## Sanity-check publishing readiness (credentials, tool versions
 publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "Release + publish flow — no marketplace tokens go into CI."
 	@echo ""
+	@echo "  Channels (the tag decides — scripts/release/prerelease.sh):"
+	@echo "    stable / default   v1.x, v2.2.0 (even 2.x minor)  cut from main"
+	@echo "    pre-release/brave  v2.1.x (odd 2.x minor)         cut from rust"
+	@echo "    # odd-minor 2.x -> GitHub --prerelease + VS Code --pre-release channel;"
+	@echo "    # 1.x stays the default install until a user opts into pre-releases."
+	@echo ""
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
-	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag"
+	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"
 	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
 	@echo "     # (sigstore OIDC, no marketplace tokens; see docs/design/contracts/release-and-publish.md)"
 	@echo "  3. wait for ci.yml to finish on the tag"

@@ -102,6 +102,41 @@ lines) checks every published-from-laptop credential and tool
 non-destructively — it never ships anything.  Designed for a quick
 pre-flight check the week before a planned release.
 
+## Stable vs pre-release channels (odd/even-minor)
+
+Two release lines run in parallel and the **tag alone** decides which:
+
+| Line | Tags | Cut from | GitHub Release | VS Code Marketplace |
+|---|---|---|---|---|
+| **Stable** (default) | `v1.x`, `v2.2.0`, … (even 2.x minor) | `main` | normal / `latest` | normal channel |
+| **Pre-release** ("for the brave") | `v2.1.x` (odd 2.x minor) | `rust` | `--prerelease` (never `latest`) | `--pre-release` channel |
+
+This is the VS Code Marketplace
+[odd/even-minor convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions):
+from major 2 onward an **odd** minor is a pre-release and an **even**
+minor is stable.  The 2.x rewrite ships its alphas on `2.1.x`
+(`2.1.0`, `2.1.1`, …) and promotes to the stable `2.2.0` when ready.
+The 1.x line predates the convention and is always stable, so it stays
+the default download and the default Marketplace install for everyone
+who has not opted into pre-releases.
+
+**`scripts/release/prerelease.sh X.Y.Z` is the single source of truth.**
+It prints `true`/`false`, and every pre-release switch reads it so CI,
+the Makefile, and `tag.sh` can never disagree:
+
+* `tag.sh` expects an odd-minor 2.x tag to be cut from `rust`, an even /
+  1.x tag from `main` (override with `ALLOW_NON_MAIN_RELEASE=1`).
+* the `create-release` CI job adds `--prerelease` to `gh release create`.
+* the Makefile's `VSCE_PRERELEASE_FLAG` adds `--pre-release` to both
+  `vsce package` (so the `.vsix` self-describes) and the laptop
+  `make publish-vsix`.
+* the `publish-vsix-marketplace` CI job adds `--pre-release` to
+  `vsce publish`.
+
+No source-file edits or per-version config are needed: tag `v2.1.0`
+from `rust`, and the whole pipeline routes it to the pre-release
+channel automatically.
+
 ## Marketplace token table
 
 Each marketplace's credential lives in exactly one place on the
@@ -152,6 +187,19 @@ opening it requires updating this contract and `AGENTS.md`.
   composite actions for the CI build/sign tail.
 - [`scripts/release/`](../../../scripts/release/) — every script that
   takes a marketplace credential or pushes to a marketplace.
+- [`scripts/release/prerelease.sh`](../../../scripts/release/prerelease.sh) —
+  the single source of truth for the stable-vs-pre-release decision
+  (odd/even-minor convention), read by CI, the Makefile, and `tag.sh`.
+- [`scripts/release/github_release.sh`](../../../scripts/release/github_release.sh) —
+  the body of the CI `create-release` step: idempotent `gh release create`
+  with `--prerelease` for odd-minor 2.x tags.  CI *invokes* it (one-line
+  `run:`) rather than inlining the logic.
+- [`scripts/release/vsce_publish.sh`](../../../scripts/release/vsce_publish.sh) —
+  the body of the CI `publish-vsix-marketplace` step: runs the local vsce
+  binary with `--pre-release` for odd-minor 2.x tags.  Still keyless (no
+  PAT); CI invokes it via one-line `run:`.
+- [`scripts/release/tag.sh`](../../../scripts/release/tag.sh) — creates +
+  pushes the annotated tag; enforces the per-channel source branch.
 - [`scripts/release/publish_verify.sh`](../../../scripts/release/publish_verify.sh) —
   pre-flight credential check.
 
