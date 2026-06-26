@@ -1,3 +1,38 @@
+# v2.1.0
+
+**First alpha of the 2.x line — pre-release channel.**
+
+This is the first pre-release on the new **2.x** channel, the line where the
+ongoing Python → Rust rewrite of tcl-lsp ships its alphas. It is opt-in:
+install it from the VS Code Marketplace **pre-release** channel, or download
+the pre-release VSIX from this GitHub release. The stable **1.x** line stays
+the default install for everyone who has not opted into pre-releases.
+
+The 2.x line follows the odd-minor pre-release convention — `2.1.x` is the
+alpha channel, and the line promotes to a stable **2.2.0** when it is ready.
+A `2.1.x` build will never become the "latest" GitHub release or the default
+Marketplace download.
+
+## What this is
+
+The 2.x line carries the in-progress rewrite of the compiler, analyser,
+bytecode VM, and LSP server from Python into Rust, ported concern-by-concern
+behind a continuous parity audit against the 1.x engine (see
+`docs/rust-rewrite.md`). Editor integrations are unchanged and every 1.x
+feature continues to work — the rewrite is incremental, with no "big bang"
+branch and no point at which the build is intentionally broken. This alpha
+exists so early adopters can track that work and report regressions before
+the line promotes to stable.
+
+## Using this alpha
+
+- Behaviour should match the 1.x stable line. Where it does not, that is a
+  bug — please file it and note that you are on the 2.x pre-release.
+- Diagnostics, formatting, navigation, and the AI/CLI tooling work as in 1.x.
+- **1.x remains the recommended install for production use.**
+
+---
+
 # v1.11.2
 
 ## New Features
