@@ -190,6 +190,14 @@ opening it requires updating this contract and `AGENTS.md`.
 - [`scripts/release/prerelease.sh`](../../../scripts/release/prerelease.sh) —
   the single source of truth for the stable-vs-pre-release decision
   (odd/even-minor convention), read by CI, the Makefile, and `tag.sh`.
+- [`scripts/release/github_release.sh`](../../../scripts/release/github_release.sh) —
+  the body of the CI `create-release` step: idempotent `gh release create`
+  with `--prerelease` for odd-minor 2.x tags.  CI *invokes* it (one-line
+  `run:`) rather than inlining the logic.
+- [`scripts/release/vsce_publish.sh`](../../../scripts/release/vsce_publish.sh) —
+  the body of the CI `publish-vsix-marketplace` step: runs the local vsce
+  binary with `--pre-release` for odd-minor 2.x tags.  Still keyless (no
+  PAT); CI invokes it via one-line `run:`.
 - [`scripts/release/tag.sh`](../../../scripts/release/tag.sh) — creates +
   pushes the annotated tag; enforces the per-channel source branch.
 - [`scripts/release/publish_verify.sh`](../../../scripts/release/publish_verify.sh) —
