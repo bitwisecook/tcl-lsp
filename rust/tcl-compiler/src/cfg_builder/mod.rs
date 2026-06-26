@@ -365,7 +365,7 @@ impl CfgBuilder {
         };
 
         let mut defs: Vec<String> = Vec::new();
-        let mut record = |name: Option<&String>, defs: &mut Vec<String>| {
+        let record = |name: Option<&String>, defs: &mut Vec<String>| {
             if let Some(n) = name
                 && !n.is_empty()
                 && !n.contains('$')
