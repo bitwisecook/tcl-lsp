@@ -1044,7 +1044,20 @@ jobs:
   # release, plus an optional cosign keyless signature. The installer
   # verifies downloaded artefacts against this file.
   publish-checksums:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Decoupled from the peripheral build jobs: this step downloads and sums
+    # *whatever* is attached to the release, so a peripheral build that fails
+    # (e.g. a zipapp profile, an editor package) must not block it — and must
+    # not block the Marketplace publish that depends on it.  It runs once all
+    # builds have settled (success or failure — `!cancelled()` lets the `if`
+    # evaluate despite a failed/​skipped need) but only requires the CORE to have
+    # succeeded: create-release (the release object) and build-vsix (the artifact
+    # the Marketplace publish ships).  The peripheral builds stay in `needs` for
+    # ordering only.
+    if: >-
+      !cancelled()
+      && startsWith(github.ref, 'refs/tags/v')
+      && needs.create-release.result == 'success'
+      && needs.build-vsix.result == 'success'
     needs: [create-release, build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed]
     runs-on: ubuntu-24.04
     permissions:
