@@ -498,6 +498,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     commands.registerCommand("tclLsp.restartServer", restartServer),
     commands.registerCommand("tclLsp.selectDialect", selectDialect),
+    commands.registerCommand("tclLsp.selectTclInstallation", selectTclInstallation),
     commands.registerCommand("tclLsp.exportConfig", exportConfig),
     commands.registerCommand("tclLsp.optimiseDocument", optimiseDocument),
     commands.registerCommand("tclLsp.showOptimisations", showOptimisations),
@@ -736,6 +737,88 @@ async function selectDialect(): Promise<void> {
     await workspace.getConfiguration("tclLsp").update("dialect", picked.value, target);
     await setServerDialect(picked.value);
   }
+}
+
+interface TclInstallation {
+  version: string;
+  tclLibrary: string;
+  autoPath: string[];
+}
+
+interface TclInstallationsResult {
+  installations: TclInstallation[];
+  activeAutoPath: string[];
+  editorLibraryPaths: string[];
+}
+
+/**
+ * "Select Tcl Installation" — ask the server which Tcl installations it
+ * discovered on disk (it never runs tclsh), let the user pick one or enter a
+ * custom path, and write the chosen `auto_path` root(s) to
+ * `tclLsp.libraryPaths` so the package database (and #723 W120 resolution) can
+ * see system-installed packages like Tk.
+ */
+async function selectTclInstallation(): Promise<void> {
+  const client = getClient();
+  if (!client) {
+    window.showWarningMessage("Tcl language server is not running.");
+    return;
+  }
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.listTclInstallations",
+    arguments: [],
+  })) as TclInstallationsResult | null;
+
+  const installs = result?.installations ?? [];
+  type Item = vscode.QuickPickItem & { paths?: string[]; custom?: boolean; clear?: boolean };
+  const items: Item[] = installs.map((inst) => ({
+    label: inst.version ? `Tcl ${inst.version}` : "Tcl",
+    description: inst.tclLibrary,
+    detail: inst.autoPath.join("  ·  "),
+    paths: inst.autoPath,
+  }));
+  items.push({ label: "$(folder) Enter a custom path…", custom: true });
+  if ((result?.editorLibraryPaths?.length ?? 0) > 0) {
+    items.push({ label: "$(clear-all) Clear configured library paths", clear: true });
+  }
+
+  const picked = await window.showQuickPick(items, {
+    title: "Select Tcl Installation",
+    placeHolder:
+      installs.length > 0
+        ? "Pick a discovered Tcl installation, or enter your own path"
+        : "No installations discovered — enter a path to your Tcl library",
+  });
+  if (!picked) {
+    return;
+  }
+
+  let paths: string[] | undefined;
+  if (picked.clear) {
+    paths = [];
+  } else if (picked.custom) {
+    const entered = await window.showInputBox({
+      title: "Tcl library / auto_path directory",
+      prompt: "Absolute path to a Tcl library directory (containing pkgIndex.tcl files)",
+      ignoreFocusOut: true,
+    });
+    if (entered === undefined) {
+      return;
+    }
+    paths = entered.trim() ? [entered.trim()] : [];
+  } else {
+    paths = picked.paths ?? [];
+  }
+
+  const target = workspace.workspaceFolders?.length
+    ? undefined
+    : vscode.ConfigurationTarget.Global;
+  await workspace.getConfiguration("tclLsp").update("libraryPaths", paths, target);
+  window.showInformationMessage(
+    paths.length > 0
+      ? `Tcl library paths set to: ${paths.join(", ")}`
+      : "Cleared configured Tcl library paths.",
+  );
 }
 
 /** Regex for the ``# tcl-dialect: <dialect>`` per-file directive. */

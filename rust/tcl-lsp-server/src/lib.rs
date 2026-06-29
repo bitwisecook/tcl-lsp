@@ -48,6 +48,7 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+use tcl_lsp_core::tcl_install as core_tcl_install;
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_index as core_workspace_index;
@@ -748,6 +749,16 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk (#723).
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Tcl installations discovered by scanning common install locations on
+    /// disk (never by executing `tclsh`). Cached once per session. The package
+    /// database scans these (plus configured `libraryPaths`) so it can see
+    /// system-installed packages (Tk, tcllib, …), not just workspace ones.
+    discovered_tcl: Arc<std::sync::OnceLock<Vec<core_tcl_install::TclInstallation>>>,
+    /// Editor-provided `tclLsp.libraryPaths` (the `auto_path` the user picked /
+    /// typed). Merged with the config-file layers (`config.ini [global]`,
+    /// `.tcl-lsp.ini [project]`) and discovery when building the package
+    /// database. Mirrors the Python server's `libraryPaths` setting.
+    editor_library_paths: Mutex<Vec<String>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -995,6 +1006,8 @@ impl Backend {
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
+            editor_library_paths: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -2569,6 +2582,33 @@ impl Backend {
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
+        // `tclLsp.libraryPaths` — the editor layer of the package database's
+        // `auto_path` (the user's picked installation / hand-entered paths).
+        // Mirrors the Python server's `libraryPaths` setting. A change rebuilds
+        // the database so the new paths take effect immediately.
+        if let Some(paths) = cfg
+            .get("libraryPaths")
+            .and_then(serde_json::Value::as_array)
+        {
+            let libs: Vec<String> = paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect();
+            let changed = {
+                let mut guard = self.editor_library_paths.lock().await;
+                if *guard == libs {
+                    false
+                } else {
+                    *guard = libs;
+                    true
+                }
+            };
+            if changed {
+                self.scan_workspace_folders().await;
+            }
+        }
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -2802,6 +2842,46 @@ impl Backend {
     /// rely on regardless of population.
     fn list_known_packages_command() -> serde_json::Value {
         serde_json::json!({ "packages": serde_json::Value::Array(vec![]) })
+    }
+
+    /// `tcl-lsp.listTclInstallations` — report the Tcl installations discovered
+    /// on disk (for the editor's "select a Tcl installation" picker) plus the
+    /// `auto_path` currently feeding the package database. The editor writes
+    /// the chosen `tcl_library` (or a custom path) back to
+    /// `tclLsp.libraryPaths`.
+    async fn list_tcl_installations_command(&self) -> serde_json::Value {
+        let discovered = Arc::clone(&self.discovered_tcl);
+        let editor_paths = self.editor_library_paths.lock().await.clone();
+        let roots: Vec<PathBuf> = self
+            .workspace_folder_urls()
+            .await
+            .iter()
+            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect();
+        tokio::task::spawn_blocking(move || {
+            let installs = discovered.get_or_init(|| {
+                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+            });
+            let active = effective_auto_path(&roots, &editor_paths, installs);
+            serde_json::json!({
+                "installations": installs
+                    .iter()
+                    .map(|i| serde_json::json!({
+                        "version": i.version,
+                        "tclLibrary": i.tcl_library.to_string_lossy(),
+                        "autoPath": i.auto_path.iter()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .collect::<Vec<_>>(),
+                    }))
+                    .collect::<Vec<_>>(),
+                "activeAutoPath": active.iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                "editorLibraryPaths": editor_paths,
+            })
+        })
+        .await
+        .unwrap_or(serde_json::Value::Null)
     }
 
     /// Handle `tcl-lsp.suggestPackagesForSymbol`.  Echoes the symbol and an
@@ -3311,20 +3391,27 @@ impl Backend {
         let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
         let folder_dialects = self.folder_dialects.lock().await.clone();
         let default_dialect = self.default_dialect.lock().await.clone();
+        // Inputs for the package-database `auto_path`: the editor's
+        // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
+        // disk in the worker) and the discovered-installation cache.
+        let editor_library_paths = self.editor_library_paths.lock().await.clone();
+        let discovered_cell = Arc::clone(&self.discovered_tcl);
 
         let resolver_roots = roots.clone();
         let analysed = tokio::task::spawn_blocking(move || {
-            // Build the package database first: scan each workspace root's tree
-            // for pkgIndex.tcl / tclIndex (an IDE workspace nests packages
-            // arbitrarily), then each `TCLLIBPATH` entry with C Tcl's
-            // immediate-subdir `auto_path` rule.
-            let mut resolver = PackageResolver::new();
-            for root in &resolver_roots {
-                resolver.scan_tree(root, WORKSPACE_SCAN_DIR_CAP);
-            }
-            for dir in tcllibpath_dirs() {
-                resolver.scan_path(&dir);
-            }
+            // Build the package database: the workspace trees plus the resolved
+            // `auto_path` (editor + config-file `libraryPaths`, discovered Tcl
+            // installations, and `TCLLIBPATH`). Discovery is cached for the
+            // session.
+            let discovered = discovered_cell.get_or_init(|| {
+                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+            });
+            let resolver = build_package_resolver(
+                &resolver_roots,
+                &editor_library_paths,
+                discovered,
+                WORKSPACE_SCAN_DIR_CAP,
+            );
 
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
@@ -5319,6 +5406,7 @@ impl LanguageServer for Backend {
                 Self::suggest_packages_for_symbol_command(&params.arguments),
             )),
             "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
+            "tcl-lsp.listTclInstallations" => Ok(Some(self.list_tcl_installations_command().await)),
             _ => Ok(None),
         }
     }
@@ -6785,20 +6873,73 @@ const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
 /// visits per workspace root, so a huge tree can't stall the package scan.
 const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
 
-/// The directories on `TCLLIBPATH` (a Tcl list — entries are whitespace- or
-/// brace-separated). These are real `auto_path` entries, so the resolver scans
-/// them with C Tcl's immediate-subdir rule. Empty when the variable is unset.
-fn tcllibpath_dirs() -> Vec<PathBuf> {
-    let Ok(raw) = std::env::var("TCLLIBPATH") else {
-        return Vec::new();
+/// Build the package database (`pkgIndex.tcl` / `tclIndex`) the W120 refinement
+/// consults: the workspace trees (recursive — an IDE nests packages
+/// arbitrarily) plus the resolved `auto_path` ([`effective_auto_path`]) scanned
+/// with C Tcl's immediate-subdir rule. Pure filesystem work, so it runs on the
+/// scan worker.
+fn build_package_resolver(
+    roots: &[PathBuf],
+    editor_library_paths: &[String],
+    discovered: &[core_tcl_install::TclInstallation],
+    dir_cap: usize,
+) -> PackageResolver {
+    let mut resolver = PackageResolver::new();
+    for root in roots {
+        resolver.scan_tree(root, dir_cap);
+    }
+    for dir in effective_auto_path(roots, editor_library_paths, discovered) {
+        resolver.scan_path(&dir);
+    }
+    resolver
+}
+
+/// The effective `auto_path` for the package database, layering the sources the
+/// Python server honoured plus on-disk discovery (deduped, in priority order):
+///
+/// 1. editor `tclLsp.libraryPaths`,
+/// 2. user config `config.ini` `[global] libraryPaths`,
+/// 3. per-workspace `.tcl-lsp.ini` `[project] libraryPaths`,
+/// 4. discovered Tcl installations' `auto_path`,
+/// 5. `TCLLIBPATH`.
+fn effective_auto_path(
+    roots: &[PathBuf],
+    editor_library_paths: &[String],
+    discovered: &[core_tcl_install::TclInstallation],
+) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    let push = |p: PathBuf, out: &mut Vec<PathBuf>| {
+        if !out.contains(&p) {
+            out.push(p);
+        }
     };
-    // A real Tcl list can brace-quote a path with spaces; handle the common
-    // unbraced + single-brace-group cases without a full list parser.
-    raw.split_whitespace()
-        .map(|s| s.trim_matches(['{', '}']))
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .collect()
+    for p in editor_library_paths {
+        push(PathBuf::from(p), &mut out);
+    }
+    if let Some(cfg) = core_tcl_install::user_config_path()
+        && let Ok(content) = std::fs::read_to_string(&cfg)
+    {
+        for p in core_tcl_install::library_paths_from_ini(&content, "global") {
+            push(PathBuf::from(p), &mut out);
+        }
+    }
+    for root in roots {
+        let proj = core_tcl_install::project_config_path(root);
+        if let Ok(content) = std::fs::read_to_string(&proj) {
+            for p in core_tcl_install::library_paths_from_ini(&content, "project") {
+                push(PathBuf::from(p), &mut out);
+            }
+        }
+    }
+    for inst in discovered {
+        for p in &inst.auto_path {
+            push(p.clone(), &mut out);
+        }
+    }
+    for p in core_tcl_install::tcllibpath_dirs() {
+        push(p, &mut out);
+    }
+    out
 }
 
 /// `true` when `path` names a directory the workspace scan should
@@ -7053,6 +7194,7 @@ fn build_server_capabilities(
                 "tcl-lsp.listKnownPackages".to_owned(),
                 "tcl-lsp.suggestPackagesForSymbol".to_owned(),
                 "tcl-lsp.exportConfig".to_owned(),
+                "tcl-lsp.listTclInstallations".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -7303,6 +7445,53 @@ mod tests {
 
     fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
         diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    #[test]
+    fn effective_auto_path_layers_editor_project_and_discovery() {
+        // editor libraryPaths → global → project .tcl-lsp.ini → discovered →
+        // TCLLIBPATH, deduped and in priority order.
+        let ws = TmpWs::new("ap");
+        ws.write(".tcl-lsp.ini", "[project]\nlibraryPaths = /proj/lib\n");
+        let editor = vec!["/editor/lib".to_owned()];
+        let discovered = vec![core_tcl_install::TclInstallation {
+            version: "8.6".to_owned(),
+            tcl_library: PathBuf::from("/sys/lib/tcl8.6"),
+            auto_path: vec![PathBuf::from("/sys/lib"), PathBuf::from("/sys/lib/tcl8.6")],
+        }];
+        let ap = effective_auto_path(&[ws.0.clone()], &editor, &discovered);
+        assert!(ap.contains(&PathBuf::from("/editor/lib")));
+        assert!(ap.contains(&PathBuf::from("/proj/lib")));
+        assert!(ap.contains(&PathBuf::from("/sys/lib")));
+        let pos = |p: &str| ap.iter().position(|x| x == &PathBuf::from(p)).unwrap();
+        assert!(pos("/editor/lib") < pos("/proj/lib"));
+        assert!(pos("/proj/lib") < pos("/sys/lib"));
+    }
+
+    #[test]
+    fn build_package_resolver_picks_up_a_discovered_installation_package() {
+        // A discovered installation whose `auto_path` holds a package's
+        // pkgIndex.tcl is scanned, so the database can resolve it — the
+        // mechanism that lets W120 refinement see system-installed Tk.
+        let sys = TmpWs::new("sys");
+        sys.write(
+            "lib/tk8.6/pkgIndex.tcl",
+            "package ifneeded Tk 8.6 [list load [file join $dir libtk8.6.so] Tk]\n",
+        );
+        // The package has no source file (a C extension loaded via `load`); the
+        // fallback lists the dir's *.tcl — none here, so give it a marker .tcl.
+        sys.write("lib/tk8.6/tk.tcl", "# tk\n");
+        let lib_root = sys.0.join("lib");
+        let discovered = vec![core_tcl_install::TclInstallation {
+            version: "8.6".to_owned(),
+            tcl_library: lib_root.join("tcl8.6"),
+            auto_path: vec![lib_root.clone()],
+        }];
+        let resolver = build_package_resolver(&[], &[], &discovered, 100);
+        assert!(
+            resolver.provides("Tk"),
+            "discovered install's Tk package should be in the database"
+        );
     }
 
     #[test]
@@ -8742,6 +8931,8 @@ mod tests {
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
+            editor_library_paths: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
