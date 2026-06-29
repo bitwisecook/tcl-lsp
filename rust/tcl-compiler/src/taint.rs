@@ -2168,7 +2168,7 @@ fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
 /// clean — e.g. `puts [string length $x]` outputs the integer length, never
 /// `$x`'s content (tclsh-verified). Conservative: a bare `$name` outside any
 /// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
-/// taint reaches the sink). Mirrors the carve-out the `expr`/word_taint path
+/// taint reaches the sink). Mirrors the carve-out the `expr`/`word_taint` path
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
 fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: &str) -> bool {
     let mut seen = false;

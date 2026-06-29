@@ -1046,7 +1046,6 @@ fn is_unsafe_member(member: &str) -> bool {
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 fn process_scope(
     source: &str,
     analysis: &AnalysisResult,

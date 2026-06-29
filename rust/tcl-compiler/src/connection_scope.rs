@@ -152,6 +152,7 @@ pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -
 /// - Names used at SSA version 0 (i.e. read before any local
 ///   def — candidate cross-event imports).
 /// - Names explicitly ``unset`` in this event.
+///
 /// Record every `info exists <name>` literal-variable read found in `text`
 /// (the base name, namespace-global `::`-prefixed excluded — those aren't
 /// connection-scoped). Catches the pattern wherever it appears: a bare

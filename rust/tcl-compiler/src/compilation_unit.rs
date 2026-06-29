@@ -692,7 +692,7 @@ impl CompilationUnit {
                 .map(String::as_str)
                 .collect();
             if !cross.is_empty() {
-                for (qn, fu) in procedures.iter_mut() {
+                for (qn, fu) in &mut procedures {
                     if !qn.starts_with("::when::") {
                         continue;
                     }

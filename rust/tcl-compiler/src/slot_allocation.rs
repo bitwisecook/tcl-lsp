@@ -278,6 +278,9 @@ fn add_clique(graph: &mut Interference, live: &HashSet<String>) {
 ///
 /// `live_out` must be the per-block name-level live-out from
 /// [`live_out_by_name`] for the same `cfg` / `ssa`.
+// `live_out` is the `live_out_by_name` map, always built with the default
+// hasher; generalising over the hasher would not help any caller.
+#[allow(clippy::implicit_hasher)]
 #[must_use]
 pub fn build_interference(
     cfg: &cfg::Function,
@@ -333,6 +336,9 @@ pub fn build_interference(
 ///
 /// The result maps every name in the interference graph (plus any param) to a
 /// slot; [`slot_count`] of it is the coalesced slot count.
+// `live_out` is the `live_out_by_name` map, always built with the default
+// hasher; generalising over the hasher would not help any caller.
+#[allow(clippy::implicit_hasher)]
 #[must_use]
 pub fn coalesce_slots(
     cfg: &cfg::Function,
@@ -341,14 +347,6 @@ pub fn coalesce_slots(
     params: &[String],
     registry: &CommandRegistry,
 ) -> SlotMapping {
-    let mut graph = build_interference(cfg, ssa, live_out, registry);
-    // A parameter never read in the body still needs a slot of its own.
-    for p in params {
-        graph.entry(p.clone()).or_default();
-    }
-
-    let mut colour: SlotMapping = HashMap::new();
-
     // Colour `name` with the lowest slot not taken by a coloured neighbour.
     fn assign(name: &str, graph: &Interference, colour: &mut SlotMapping) {
         if colour.contains_key(name) {
@@ -366,6 +364,14 @@ pub fn coalesce_slots(
         }
         colour.insert(name.to_owned(), slot);
     }
+
+    let mut graph = build_interference(cfg, ssa, live_out, registry);
+    // A parameter never read in the body still needs a slot of its own.
+    for p in params {
+        graph.entry(p.clone()).or_default();
+    }
+
+    let mut colour: SlotMapping = HashMap::new();
 
     // Parameters first (stable low slots, in incoming order).
     for p in params {
