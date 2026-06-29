@@ -30,6 +30,7 @@ pub mod irules_context;
 pub mod irules_object_refs;
 pub mod linked_editing_range;
 pub mod minify;
+pub mod package_resolver;
 pub mod refactor;
 pub mod references;
 pub mod rename;
