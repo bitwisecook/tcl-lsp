@@ -354,6 +354,66 @@ fn resolver_auto_command_uses_auto_qualify_candidates() {
 }
 
 #[test]
+fn package_requires_in_collects_require_and_provide_names() {
+    let content = "package require Tk\n\
+                   package require -exact Tcl 8.6\n\
+                   package provide myTkPackage 1.0\n\
+                   package require $dynamic\n\
+                   set x 1\n";
+    let mut names = package_requires_in(content);
+    names.sort();
+    assert_eq!(names, vec!["Tcl", "Tk", "myTkPackage"]);
+}
+
+#[test]
+fn transitive_closure_pulls_in_tk_through_a_wrapper_package() {
+    // Regression model for #723: `package require myTkPackage`, whose
+    // implementation does `package require Tk`, makes Tk transitively
+    // available — exactly what C Tcl's ifneeded script would do.
+    let td = TempDir::new("trans");
+    let pkg_dir = td.path().join("mytk1.0");
+    write(
+        &pkg_dir.join("mytk.tcl"),
+        "package provide myTkPackage 1.0\npackage require Tk\nproc mytk::go {} {}\n",
+    );
+    write(
+        &pkg_dir.join("pkgIndex.tcl"),
+        "package ifneeded myTkPackage 1.0 [list source [file join $dir mytk.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(td.path());
+
+    let available = resolver.transitive_available_packages(&["myTkPackage".to_owned()], &|p| {
+        std::fs::read_to_string(p).ok()
+    });
+    assert!(available.contains("myTkPackage"));
+    assert!(
+        available.contains("Tk"),
+        "Tk must be transitively available: {available:?}"
+    );
+
+    // A package that does NOT pull in Tk leaves Tk unavailable.
+    let other = td.path().join("plain1.0");
+    write(
+        &other.join("plain.tcl"),
+        "package provide plain 1.0\nproc p {} {}\n",
+    );
+    write(
+        &other.join("pkgIndex.tcl"),
+        "package ifneeded plain 1.0 [list source [file join $dir plain.tcl]]\n",
+    );
+    let mut resolver2 = PackageResolver::new();
+    resolver2.scan_path(td.path());
+    let avail2 = resolver2
+        .transitive_available_packages(&["plain".to_owned()], &|p| std::fs::read_to_string(p).ok());
+    assert!(avail2.contains("plain"));
+    assert!(
+        !avail2.contains("Tk"),
+        "plain must not provide Tk: {avail2:?}"
+    );
+}
+
+#[test]
 fn resolver_first_provider_wins() {
     // Two providers of the same package: the first scanned keeps the head.
     let td = TempDir::new("dup");

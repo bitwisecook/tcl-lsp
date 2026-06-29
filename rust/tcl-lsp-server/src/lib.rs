@@ -39,6 +39,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -249,6 +250,8 @@ struct DiagInputs {
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    /// Package database for the W120 workspace-refinement post-filter (#723).
+    package_resolver: Arc<RwLock<PackageResolver>>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -375,6 +378,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         opt_disabled,
         documents,
         workspace_index,
+        package_resolver,
         db,
         db_project,
         pull_diag_cache,
@@ -552,6 +556,26 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         })
     };
 
+    // #723: refine the analyser's single-file W120 against the workspace
+    // package database. The common case (no W120, or no `package require`)
+    // skips the resolver entirely; otherwise the (bounded) transitive scan
+    // reads only the required packages' implementation files.
+    let analyser_diags = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+        let pkg_requires: Vec<String> = analysis
+            .package_requires
+            .iter()
+            .map(|pr| pr.name.clone())
+            .collect();
+        if pkg_requires.is_empty() {
+            analyser_diags
+        } else {
+            let resolver = package_resolver.read().await;
+            refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, &registry)
+        }
+    } else {
+        analyser_diags
+    };
+
     let analysis_lifts = Arc::clone(&analysis);
     let lift_text = text.clone();
     let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
@@ -717,6 +741,13 @@ pub struct Backend {
     /// completion enumerate procs from sibling files.
     /// `Arc` so the detached diagnostics task can update it off the event loop.
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    /// Tcl package database scanned from the workspace + `TCLLIBPATH`: the
+    /// `pkgIndex.tcl` / `tclIndex` index used to resolve a `package require`
+    /// to the files it loads (and transitively what *they* require). The
+    /// diagnostics worker consults it to refine W120 — e.g. to see that a
+    /// `package require myTkPackage` (transitively) pulls in Tk (#723).
+    /// Rebuilt by `scan_workspace_folders`.
+    package_resolver: Arc<RwLock<PackageResolver>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -963,6 +994,7 @@ impl Backend {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -2964,6 +2996,7 @@ impl Backend {
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
+            package_resolver: Arc::clone(&self.package_resolver),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project: Arc::clone(&self.db_project),
@@ -3279,7 +3312,20 @@ impl Backend {
         let folder_dialects = self.folder_dialects.lock().await.clone();
         let default_dialect = self.default_dialect.lock().await.clone();
 
+        let resolver_roots = roots.clone();
         let analysed = tokio::task::spawn_blocking(move || {
+            // Build the package database first: scan each workspace root's tree
+            // for pkgIndex.tcl / tclIndex (an IDE workspace nests packages
+            // arbitrarily), then each `TCLLIBPATH` entry with C Tcl's
+            // immediate-subdir `auto_path` rule.
+            let mut resolver = PackageResolver::new();
+            for root in &resolver_roots {
+                resolver.scan_tree(root, WORKSPACE_SCAN_DIR_CAP);
+            }
+            for dir in tcllibpath_dirs() {
+                resolver.scan_path(&dir);
+            }
+
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
@@ -3303,11 +3349,15 @@ impl Backend {
                 let analysis = analyser.analyse(&text, &dialect).clone();
                 out.push((uri, text, dialect, analysis));
             }
-            out
+            (resolver, out)
         })
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
+        let (resolver, analysed) = analysed;
 
+        // Publish the freshly-scanned package database for the diagnostics
+        // worker, then merge the per-file analysis into the index + salsa db.
+        *self.package_resolver.write().await = resolver;
         self.merge_workspace_scan_results(&analysed).await;
     }
 
@@ -6402,6 +6452,70 @@ async fn f5_dialect_diagnostics(
     None
 }
 
+/// Workspace-level refinement of the analyser's single-file W120
+/// (missing-`package require`) diagnostics, using the scanned package database.
+///
+/// This is where #723 is resolved precisely. The analyser only knows the
+/// packages required/provided *in the document*; here we additionally know,
+/// from the workspace + `TCLLIBPATH` `pkgIndex.tcl` files, what each
+/// `package require` (transitively) pulls in — exactly the knowledge C Tcl
+/// gains by running the `ifneeded` scripts.
+///
+/// Two rules, mirroring C Tcl's reality that a package's load script can
+/// register arbitrary commands:
+///
+/// 1. **Conservative.** If any required package is *unknowable* — neither the
+///    command registry nor the scanned database can resolve it, and it isn't
+///    the core `Tcl` version pseudo-package — it may load anything, so every
+///    W120 is dropped. (A wrapper package not present in the workspace /
+///    `auto_path` lands here, keeping #723 fixed even with an empty database.)
+/// 2. **Precise.** Otherwise a W120 for package `P` is a false positive exactly
+///    when `P` is in the transitive closure of what the document's requires
+///    pull in — e.g. `package require myTkPackage`, whose implementation does
+///    `package require Tk`, makes `Tk` available and suppresses its W120, while
+///    a required package that does *not* pull in `Tk` leaves the W120 standing.
+fn refine_w120_diagnostics(
+    diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    package_requires: &[String],
+    resolver: &PackageResolver,
+    registry: &CommandRegistry,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let unknowable = package_requires
+        .iter()
+        .any(|p| p != "Tcl" && !registry.provides_package(p) && !resolver.provides(p));
+    if unknowable {
+        return diags
+            .into_iter()
+            .filter(|d| d.code != DiagCode::W120)
+            .collect();
+    }
+    let available = resolver
+        .transitive_available_packages(package_requires, &|p| std::fs::read_to_string(p).ok());
+    diags
+        .into_iter()
+        .filter(|d| {
+            if d.code != DiagCode::W120 {
+                return true;
+            }
+            match w120_required_package(d) {
+                Some(pkg) => !available.contains(pkg),
+                None => true,
+            }
+        })
+        .collect()
+}
+
+/// The package name a W120 says is missing, read from its quick-fix
+/// (`package require {pkg}\n`) — the structured, deterministic carrier the
+/// analyser emits.
+fn w120_required_package(d: &tcl_compiler::analyser::Diagnostic) -> Option<&str> {
+    let fix = d.fixes.first()?;
+    fix.new_text
+        .trim()
+        .strip_prefix("package require ")
+        .map(str::trim)
+}
+
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
@@ -6666,6 +6780,26 @@ fn folder_dialect_for(uri: &Uri, folders: &[(Uri, String)]) -> Option<String> {
 /// start-up.  Open documents are always indexed regardless of
 /// this cap (they flow through `publish_analyser_diagnostics`).
 const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
+
+/// Upper bound on the number of directories the package-database tree scan
+/// visits per workspace root, so a huge tree can't stall the package scan.
+const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
+
+/// The directories on `TCLLIBPATH` (a Tcl list — entries are whitespace- or
+/// brace-separated). These are real `auto_path` entries, so the resolver scans
+/// them with C Tcl's immediate-subdir rule. Empty when the variable is unset.
+fn tcllibpath_dirs() -> Vec<PathBuf> {
+    let Ok(raw) = std::env::var("TCLLIBPATH") else {
+        return Vec::new();
+    };
+    // A real Tcl list can brace-quote a path with spaces; handle the common
+    // unbraced + single-brace-group cases without a full list parser.
+    raw.split_whitespace()
+        .map(|s| s.trim_matches(['{', '}']))
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
 
 /// `true` when `path` names a directory the workspace scan should
 /// not descend into: hidden directories (dot-prefixed) and the
@@ -7125,6 +7259,126 @@ mod tests {
     use tower_lsp_server::ls_types::{
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    // ---- #723 W120 workspace-refinement helpers ----------------------------
+
+    /// A throwaway directory under the system temp dir, removed on drop.
+    struct TmpWs(PathBuf);
+    impl TmpWs {
+        fn new(tag: &str) -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static C: AtomicUsize = AtomicUsize::new(0);
+            let n = C.fetch_add(1, Ordering::Relaxed);
+            let mut p = std::env::temp_dir();
+            p.push(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
+            std::fs::create_dir_all(&p).unwrap();
+            Self(p)
+        }
+        fn write(&self, rel: &str, content: &str) {
+            let path = self.0.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, content).unwrap();
+        }
+    }
+    impl Drop for TmpWs {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn w120_diag(pkg: &str) -> tcl_compiler::analyser::Diagnostic {
+        use tcl_compiler::analyser::types::{CodeFix, Severity};
+        tcl_compiler::analyser::Diagnostic {
+            code: DiagCode::W120,
+            span: tcl_lexer::Span::new(0, 1),
+            message: format!("\"cmd\" requires `package require {pkg}`"),
+            severity: Severity::Warning,
+            fixes: vec![CodeFix {
+                span: tcl_lexer::Span::new(0, 0),
+                new_text: format!("package require {pkg}\n"),
+                description: format!("Add 'package require {pkg}'"),
+            }],
+        }
+    }
+
+    fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
+        diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    #[test]
+    fn refine_w120_conservative_drops_all_for_unknowable_require() {
+        // `package require myTkPackage` is unknown to both the registry and an
+        // empty package database, so it may load anything — drop the W120.
+        let registry = CommandRegistry::build_default();
+        let resolver = PackageResolver::new();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["myTkPackage".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            !has_w120(&out),
+            "unknowable require ⇒ W120 dropped: {out:?}"
+        );
+    }
+
+    #[test]
+    fn refine_w120_suppressed_when_wrapper_transitively_requires_tk() {
+        // The precise #723 case: a workspace package whose implementation does
+        // `package require Tk` makes Tk available, so the Tk W120 is a false
+        // positive.
+        let ws = TmpWs::new("wrap");
+        ws.write(
+            "mytk/mytk.tcl",
+            "package provide myTkPackage 1.0\npackage require Tk\nproc mytk::go {} {}\n",
+        );
+        ws.write(
+            "mytk/pkgIndex.tcl",
+            "package ifneeded myTkPackage 1.0 [list source [file join $dir mytk.tcl]]\n",
+        );
+        let mut resolver = PackageResolver::new();
+        resolver.scan_tree(&ws.0, 100);
+        let registry = CommandRegistry::build_default();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["myTkPackage".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            !has_w120(&out),
+            "wrapper transitively requires Tk ⇒ W120 suppressed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn refine_w120_kept_when_resolvable_require_does_not_provide_tk() {
+        // A resolvable package that does NOT pull in Tk leaves the Tk W120
+        // standing — the refinement is precise, not a blanket suppression.
+        let ws = TmpWs::new("plain");
+        ws.write(
+            "plain/plain.tcl",
+            "package provide plain 1.0\nproc plain::p {} {}\n",
+        );
+        ws.write(
+            "plain/pkgIndex.tcl",
+            "package ifneeded plain 1.0 [list source [file join $dir plain.tcl]]\n",
+        );
+        let mut resolver = PackageResolver::new();
+        resolver.scan_tree(&ws.0, 100);
+        let registry = CommandRegistry::build_default();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["plain".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            has_w120(&out),
+            "plain doesn't provide Tk ⇒ W120 kept: {out:?}"
+        );
+    }
 
     #[test]
     fn default_off_w242_is_not_published() {
@@ -8487,6 +8741,7 @@ mod tests {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),

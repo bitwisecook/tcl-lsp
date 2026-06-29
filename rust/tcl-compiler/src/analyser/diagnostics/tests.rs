@@ -3999,37 +3999,11 @@ fn w120_fix_inserts_after_existing_require() {
     assert_eq!(&src[..off], "package require Tcl 8.6\n");
 }
 
-#[test]
-fn w120_suppressed_when_unknown_package_required() {
-    // Regression for #723: requiring an unknown third-party package may pull
-    // in Tk (or any extension) internally — `package require myTkPackage`
-    // whose body does `package require Tk`.  The analyser can't see those
-    // commands, so it must not flag Tk usage as missing a `package require`.
-    let mut a = Analyser::new();
-    let r = a.analyse(
-        "package require myTkPackage\nif {[tk windowingsystem] eq \"aqua\"} {}\n",
-        "tcl8.6",
-    );
-    assert!(
-        !r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
-        "W120 must not fire when an unknown package is required; got {:?}",
-        r.diagnostics,
-    );
-}
-
-#[test]
-fn w120_still_fires_with_only_core_tcl_require() {
-    // The core `Tcl` pseudo-package is a version assertion, not a command
-    // provider, so `package require Tcl` must not suppress W120 for a
-    // genuinely package-gated command used without its require.
-    let mut a = Analyser::new();
-    let r = a.analyse("package require Tcl 8.6\ntcl::idna decode x\n", "tcl9.0");
-    assert!(
-        r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
-        "W120 expected with only a core `Tcl` require; got {:?}",
-        r.diagnostics,
-    );
-}
+// NB: the workspace-level #723 behaviour — suppressing W120 when a required
+// package (transitively) provides the gated package — is the LSP server's
+// `package_resolver`-backed post-filter, tested in `tcl-lsp-server`. The
+// analyser's single-file W120 here intentionally fires whenever the gated
+// package is not required/provided *in this document*.
 
 #[test]
 fn w120_emitted_once_per_command_name() {

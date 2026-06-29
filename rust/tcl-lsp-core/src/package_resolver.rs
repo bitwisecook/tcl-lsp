@@ -39,7 +39,7 @@
 //! [`tclPkgUnknown`]: https://www.tcl-lang.org/man/tcl/TclCmd/package.htm
 //! [`auto_load_index`]: https://www.tcl-lang.org/man/tcl/TclCmd/library.htm
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use tcl_lexer::{Lexer, Token, TokenType};
@@ -426,6 +426,45 @@ fn push_auto_entry(
     }
 }
 
+/// The package names a file makes available: every literal `package require
+/// NAME` (with optional `-exact`) plus every `package provide NAME`.
+///
+/// Used to chase the *transitive* closure of a `package require` — a package
+/// whose implementation does `package require Tk` (transitively) makes `Tk`
+/// available, exactly as C Tcl would once that package's `ifneeded` script
+/// runs. A non-literal name (`package require $x`) is skipped: its provided
+/// set is unknowable statically, and the caller treats that conservatively.
+#[must_use]
+pub fn package_requires_in(content: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for words in walk_command_words(content) {
+        if words.len() < 3 || word_raw(content, &words[0]) != "package" {
+            continue;
+        }
+        let sub = word_raw(content, &words[1]);
+        let name = match sub {
+            "require" => {
+                // `package require ?-exact? NAME ?version?`
+                let idx = if word_raw(content, &words[2]) == "-exact" {
+                    3
+                } else {
+                    2
+                };
+                words.get(idx).map(|w| word_raw(content, w))
+            }
+            "provide" => Some(word_raw(content, &words[2])),
+            _ => None,
+        };
+        if let Some(name) = name
+            && !name.is_empty()
+            && !name.contains(['$', '[', '{'])
+        {
+            names.push(name.to_owned());
+        }
+    }
+    names
+}
+
 // ---------------------------------------------------------------------------
 // Name qualification (exact port of C Tcl's auto_qualify).
 // ---------------------------------------------------------------------------
@@ -551,14 +590,12 @@ impl PackageResolver {
     /// `glob -directory $dir -join * pkgIndex.tcl` plus the `$dir/pkgIndex.tcl`
     /// case (`library/package.tcl:486-534`). Idempotent per directory.
     pub fn scan_path(&mut self, dir: &Path) {
-        let dir = dir.to_path_buf();
-        if self.scanned_dirs.contains(&dir) || !dir.is_dir() {
+        if !dir.is_dir() {
             return;
         }
-        self.scanned_dirs.push(dir.clone());
         // The directory itself, then each immediate subdirectory.
-        self.scan_single_dir(&dir);
-        if let Ok(read) = std::fs::read_dir(&dir) {
+        self.scan_single_dir(dir);
+        if let Ok(read) = std::fs::read_dir(dir) {
             for entry in read.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
@@ -568,7 +605,44 @@ impl PackageResolver {
         }
     }
 
+    /// Recursively scan a directory tree (bounded to `max_dirs` directories)
+    /// for `pkgIndex.tcl` / `tclIndex` files.
+    ///
+    /// Unlike [`Self::scan_path`] — which follows C Tcl's `auto_path` rule of
+    /// scanning a directory and its *immediate* subdirectories — this walks
+    /// the whole tree, the right behaviour for an IDE workspace root where a
+    /// project may nest its packages arbitrarily deep (matching the Python
+    /// resolver's `os.walk`). The `max_dirs` cap keeps a huge tree from
+    /// stalling the scan.
+    pub fn scan_tree(&mut self, root: &Path, max_dirs: usize) {
+        let mut stack = vec![root.to_path_buf()];
+        let mut visited = 0usize;
+        while let Some(dir) = stack.pop() {
+            if visited >= max_dirs {
+                break;
+            }
+            if !dir.is_dir() {
+                continue;
+            }
+            visited += 1;
+            self.scan_single_dir(&dir);
+            if let Ok(read) = std::fs::read_dir(&dir) {
+                for entry in read.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    }
+                }
+            }
+        }
+    }
+
     fn scan_single_dir(&mut self, dir: &Path) {
+        let dir_buf = dir.to_path_buf();
+        if self.scanned_dirs.contains(&dir_buf) {
+            return;
+        }
+        self.scanned_dirs.push(dir_buf);
         let pkg_index = dir.join("pkgIndex.tcl");
         if pkg_index.is_file()
             && let Ok(content) = std::fs::read_to_string(&pkg_index)
@@ -621,6 +695,43 @@ impl PackageResolver {
     #[must_use]
     pub fn provides(&self, name: &str) -> bool {
         self.packages.contains_key(name)
+    }
+
+    /// The transitive set of package names available once `roots` are
+    /// required.
+    ///
+    /// Starts from `roots` (a document's own `package require` names) and, for
+    /// each *resolvable* package, reads its implementation files (`read_file`)
+    /// and folds in the packages they `require` / `provide`, to a fixpoint.
+    /// This mirrors C Tcl evaluating each `ifneeded` script, which may itself
+    /// `package require` further packages: e.g. a wrapper whose body does
+    /// `package require Tk` makes `Tk` available transitively. The returned
+    /// set includes `roots`. Unresolvable roots simply contribute only
+    /// themselves (their provided set is unknowable here — the caller decides
+    /// how to treat that).
+    #[must_use]
+    pub fn transitive_available_packages(
+        &self,
+        roots: &[String],
+        read_file: &dyn Fn(&Path) -> Option<String>,
+    ) -> HashSet<String> {
+        let mut available: HashSet<String> = HashSet::new();
+        let mut work: Vec<String> = roots.to_vec();
+        while let Some(pkg) = work.pop() {
+            if !available.insert(pkg.clone()) {
+                continue;
+            }
+            for file in self.resolve(&pkg, None) {
+                if let Some(content) = read_file(&file) {
+                    for req in package_requires_in(&content) {
+                        if !available.contains(&req) {
+                            work.push(req);
+                        }
+                    }
+                }
+            }
+        }
+        available
     }
 
     /// Resolve an auto-loaded command `cmd` (used in `namespace`) to the files

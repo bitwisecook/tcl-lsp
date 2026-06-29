@@ -292,27 +292,18 @@ impl Analyser {
             return;
         }
 
-        // An unknown third-party `package require` ⇒ unknowable command
-        // set ⇒ no W120.  A package the registry doesn't recognise (no
-        // command declares it as its `required_package`) may load Tk or
-        // any extension internally — e.g. `package require myTkPackage`
-        // whose body does `package require Tk`.  The analyser cannot
-        // prove a Tk/extension command is unprovided in that file, so it
-        // suppresses W120, matching the runtime reality that the wrapper
-        // package can register arbitrary commands. (#723)
-        //
-        // The core `Tcl` pseudo-package is excluded: `package require Tcl
-        // 8.6` is a version assertion that introduces no commands, and is
-        // common enough that treating it as an unknown provider would
-        // silence W120 across most scripts.
-        if self
-            .result
-            .package_requires
-            .iter()
-            .any(|pr| pr.name != "Tcl" && !registry.provides_package(&pr.name))
-        {
-            return;
-        }
+        // This is the **single-file** W120: it knows only the packages
+        // required / provided *in this document*.  Workspace-level
+        // refinement — resolving a `package require X` through the
+        // project's `pkgIndex.tcl` files to learn what `X` (transitively)
+        // pulls in, e.g. a wrapper package whose body does `package
+        // require Tk` (#723) — is layered on top by the LSP server, which
+        // owns the `tcl-lsp-core::package_resolver` package database and
+        // the workspace/`auto_path` it was scanned from.  Keeping the
+        // analyser single-file mirrors C Tcl, where the set of available
+        // commands is only known after the `auto_path` is searched and the
+        // `ifneeded` scripts run — knowledge the document text alone does
+        // not carry.
 
         // Packages already available in this file: every
         // `package require` name plus every `package provide`
