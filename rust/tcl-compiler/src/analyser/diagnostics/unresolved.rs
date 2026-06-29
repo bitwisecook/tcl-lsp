@@ -292,6 +292,28 @@ impl Analyser {
             return;
         }
 
+        // An unknown third-party `package require` ⇒ unknowable command
+        // set ⇒ no W120.  A package the registry doesn't recognise (no
+        // command declares it as its `required_package`) may load Tk or
+        // any extension internally — e.g. `package require myTkPackage`
+        // whose body does `package require Tk`.  The analyser cannot
+        // prove a Tk/extension command is unprovided in that file, so it
+        // suppresses W120, matching the runtime reality that the wrapper
+        // package can register arbitrary commands. (#723)
+        //
+        // The core `Tcl` pseudo-package is excluded: `package require Tcl
+        // 8.6` is a version assertion that introduces no commands, and is
+        // common enough that treating it as an unknown provider would
+        // silence W120 across most scripts.
+        if self
+            .result
+            .package_requires
+            .iter()
+            .any(|pr| pr.name != "Tcl" && !registry.provides_package(&pr.name))
+        {
+            return;
+        }
+
         // Packages already available in this file: every
         // `package require` name plus every `package provide`
         // name (a file that provides a package needn't require

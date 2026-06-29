@@ -659,6 +659,30 @@ fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
 }
 
 #[test]
+fn after_integer_ms_is_not_unknown_subcommand() {
+    // Regression for #720: ``after`` dispatches on cancel/idle/info, but its
+    // first word may instead be a millisecond delay. An integer first word is
+    // a valid time argument, not an unknown subcommand, so no W001 fires.
+    for snippet in ["after 200 {puts \"Hello world!\"}", "after 0", "after 1000"] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?}: {:?}",
+            result.diagnostics
+        );
+    }
+    // A non-integer, non-subcommand first word is still a genuine error.
+    let mut a = Analyser::new();
+    let result = a.analyse("after bogus {puts hi}", "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+        "W001 expected for `after bogus`: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
 fn e001_fires_for_bare_subcommand_command() {
     // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
     // with no subcommand at all is E001.
@@ -1824,6 +1848,23 @@ fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
     );
     assert_eq!(w210s[0].severity, Severity::Warning);
     assert!(w210s[0].message.contains("read before it is set"));
+}
+
+#[test]
+fn w210_not_fired_for_qualified_global_read() {
+    // Regression for #725: ``$::myVar`` is an explicit global read; its
+    // definition may live in another proc, namespace, or file, so it must
+    // never be flagged read-before-set even when this unit never sets it.
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics("proc foo {} { puts $::myVar }");
+    assert!(
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
+        "W210 must not fire on a fully-qualified global read; got {:?}",
+        a.result.diagnostics,
+    );
 }
 
 #[test]
@@ -3959,6 +4000,38 @@ fn w120_fix_inserts_after_existing_require() {
 }
 
 #[test]
+fn w120_suppressed_when_unknown_package_required() {
+    // Regression for #723: requiring an unknown third-party package may pull
+    // in Tk (or any extension) internally — `package require myTkPackage`
+    // whose body does `package require Tk`.  The analyser can't see those
+    // commands, so it must not flag Tk usage as missing a `package require`.
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "package require myTkPackage\nif {[tk windowingsystem] eq \"aqua\"} {}\n",
+        "tcl8.6",
+    );
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
+        "W120 must not fire when an unknown package is required; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w120_still_fires_with_only_core_tcl_require() {
+    // The core `Tcl` pseudo-package is a version assertion, not a command
+    // provider, so `package require Tcl` must not suppress W120 for a
+    // genuinely package-gated command used without its require.
+    let mut a = Analyser::new();
+    let r = a.analyse("package require Tcl 8.6\ntcl::idna decode x\n", "tcl9.0");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
+        "W120 expected with only a core `Tcl` require; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
 fn w120_emitted_once_per_command_name() {
     let src = "tcl::idna decode a\ntcl::idna encode b\n";
     let mut a = Analyser::new();
@@ -4431,4 +4504,19 @@ fn issue_703_backslash_escaped_dash_no_false_w210() {
     let src =
         "proc p {} {\n    try {set v ok} on ok x \\- on error y {\n        return $x\n    }\n}\n";
     assert_eq!(count_code(src, "W210"), 0);
+}
+
+#[test]
+fn scratch_dup_e003_per_item() {
+    let mut a = Analyser::new();
+    let r = a.analyse_per_item("set var 10 10\n", "tcl8.6");
+    let e003: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
+    eprintln!("per_item E003 count = {}", e003.len());
+    for d in &e003 {
+        eprintln!("  span={:?} msg={}", d.span, d.message);
+    }
 }

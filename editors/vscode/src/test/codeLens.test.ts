@@ -78,4 +78,49 @@ suite("Code Lens", () => {
       `::nsb644::dup644 should have no phantom reference: got "${titleByLine.get(8)}"`,
     );
   });
+
+  // Regression for issue #724: the reference-count lens must be *clickable* —
+  // its resolved command must invoke `tcl-lsp.showReferences` with the URI,
+  // anchor position, and reference locations. A bare title with no command is
+  // rendered but inert ("reference is not active").
+  test("resolved lens invokes the showReferences command with locations", async () => {
+    const refsUri = getDocUri("codeLensRefs.tcl");
+    await activate(refsUri);
+    await sleep(500);
+    const lenses = (await vscode.commands.executeCommand(
+      "vscode.executeCodeLensProvider",
+      refsUri,
+      100,
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(lenses, "codeLens result should not be null");
+
+    const withCommand = lenses.filter((l) => l.command && l.command.command);
+    assert.ok(
+      withCommand.length >= 1,
+      `Expected at least one lens with a non-empty command, got ${withCommand.length}`,
+    );
+    for (const lens of withCommand) {
+      assert.strictEqual(
+        lens.command?.command,
+        "tcl-lsp.showReferences",
+        `lens should invoke the showReferences wrapper, got "${lens.command?.command}"`,
+      );
+      const args = lens.command?.arguments;
+      assert.ok(
+        Array.isArray(args) && args.length === 3,
+        `showReferences needs [uri, position, locations], got ${JSON.stringify(args)}`,
+      );
+      assert.strictEqual(typeof args[0], "string", "first arg is the URI string");
+    }
+
+    // The forward-referenced proc on line 1 has exactly one call site, so its
+    // lens must carry exactly one location for the peek.
+    const line1 = withCommand.find((l) => l.range.start.line === 1);
+    assert.ok(line1, "expected a clickable lens on line 1");
+    const locations = line1.command?.arguments?.[2] as unknown[];
+    assert.ok(
+      Array.isArray(locations) && locations.length === 1,
+      `line 1 proc has one reference → one peek location, got ${JSON.stringify(locations)}`,
+    );
+  });
 });

@@ -272,6 +272,10 @@ struct DiagInputs {
     /// for this document (resolved per folder in [`Backend::diag_inputs`]).
     /// Only takes effect on `f5-irules` documents.
     xc_diagnostics: bool,
+    /// Snapshot of [`Backend::client_supports_pull_diagnostics`].  When `true`
+    /// the worker keeps the pull cache current and asks the client to re-pull
+    /// instead of pushing — see that field for the rationale (#721).
+    client_supports_pull: bool,
 }
 
 impl DiagInputs {
@@ -324,6 +328,38 @@ impl DiagInputs {
 /// `set_text` cancels an in-flight read at a per-item query boundary, so the
 /// diagnostics path no longer needs the uncancellable direct-`analyse` detour
 /// that previously decoupled it from salsa to avoid write-contention stalls.
+/// Deliver a freshly-computed diagnostic set to the client.
+///
+/// The pull cache is always updated by the caller *before* this runs, so a
+/// `textDocument/diagnostic` request reflects the latest set either way. How
+/// the client is *notified* then depends on what it supports:
+///
+/// - **Pull-capable client** (`client_supports_pull`): don't push. Ask the
+///   client to re-pull via `workspace/diagnostic/refresh`; it then issues a
+///   `textDocument/diagnostic` and reads the cache we just primed. Pushing
+///   *and* pulling the same set makes such clients show every diagnostic
+///   twice (#721); a refresh also covers cross-file (`xcDiagnostics`) updates
+///   the client would otherwise not know to re-pull.
+/// - **Push-only client**: publish as before, the only channel it has.
+async fn deliver_diagnostics(
+    client: &Client,
+    uri: &Uri,
+    diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    version: Option<i32>,
+    client_supports_pull: bool,
+) {
+    if client_supports_pull {
+        // Best-effort: a client that advertised pull support is expected to
+        // honour the refresh, but a transport error here must not abort the
+        // worker (the primed cache still serves the next manual pull).
+        let _ = client.workspace_diagnostic_refresh().await;
+    } else {
+        client
+            .publish_diagnostics(uri.clone(), diags, version)
+            .await;
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
     // Returns whether this version is **settled** (published, intentionally
@@ -343,6 +379,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         db_project,
         pull_diag_cache,
         xc_diagnostics,
+        client_supports_pull,
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
         db_config: _,
@@ -384,9 +421,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     diagnostics: diags.clone(),
                 },
             );
-            client
-                .publish_diagnostics(uri.clone(), diags, version)
-                .await;
+            deliver_diagnostics(&client, uri, diags, version, client_supports_pull).await;
         }
         return true;
     }
@@ -583,9 +618,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     diagnostics: diags.clone(),
                 },
             );
-            client
-                .publish_diagnostics(uri.clone(), diags, version)
-                .await;
+            deliver_diagnostics(&client, uri, diags, version, client_supports_pull).await;
             let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
             client
                 .log_message(
@@ -729,6 +762,17 @@ pub struct Backend {
     /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
     /// `did_close`.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    /// Whether the client advertised pull-diagnostic support
+    /// (`textDocument.diagnostic` client capability) at `initialize`.
+    ///
+    /// When `true` the worker stops *pushing* diagnostics via
+    /// `publish_diagnostics` and instead keeps the pull cache current and asks
+    /// the client to re-pull (`workspace/diagnostic/refresh`).  A client that
+    /// supports both — `vscode-languageclient` does — otherwise routes the
+    /// server's push **and** its own pull into two separate diagnostic
+    /// collections and renders every diagnostic twice (#721).  Editors that
+    /// only understand push (no pull capability) keep receiving the push.
+    client_supports_pull_diagnostics: std::sync::atomic::AtomicBool,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -929,6 +973,7 @@ impl Backend {
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -1745,6 +1790,50 @@ impl Backend {
             t
         };
         self.resolve_target_locations(targets).await
+    }
+
+    /// Resolve the call-site reference [`Location`]s for the symbol whose name
+    /// starts at `position` — the locations the code-lens peek
+    /// (`tcl-lsp.showReferences`) opens.  Mirrors the [`Self::references`]
+    /// handler (local hits + cross-document call sites, deduped) but never
+    /// includes the declaration, matching the lens's "N references" call-site
+    /// count.
+    async fn reference_locations_at(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        analysis: &AnalysisResult,
+        position: Position,
+    ) -> Vec<Location> {
+        let owned_text = text.to_owned();
+        let owned_dialect = dialect.to_owned();
+        let analysis_for_worker = analysis.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_references::references(
+                &owned_text,
+                &owned_dialect,
+                position.line,
+                position.character,
+                &analysis_for_worker,
+                false,
+            )
+        })
+        .await
+        .unwrap_or_default();
+        let mut locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        let cross = self
+            .cross_document_references(uri, text, analysis, position, false)
+            .await;
+        locations.extend(cross);
+        dedup_locations(&mut locations);
+        locations
     }
 
     /// Add cross-document rename edits for the proc / class at
@@ -2882,6 +2971,9 @@ impl Backend {
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
             xc_diagnostics,
+            client_supports_pull: self
+                .client_supports_pull_diagnostics
+                .load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 
@@ -3261,6 +3353,14 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
+        // Record whether the client will *pull* diagnostics
+        // (`textDocument/diagnostic`).  If it does, the worker stops pushing
+        // them — pushing and pulling the same set makes such clients render
+        // every diagnostic twice (#721).
+        self.client_supports_pull_diagnostics.store(
+            client_supports_pull_diagnostics(&params),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let position_encoding = negotiate_position_encoding(&params);
         if client_lacks_utf16_support(&params) {
             // The client advertised position encodings without UTF-16. The
@@ -4926,12 +5026,15 @@ impl LanguageServer for Backend {
         // rather than a private copy.
         let workspace_index = Arc::clone(&self.workspace_index);
         let uri_str = uri.to_string();
+        let analysis_for_count = Arc::clone(&analysis);
+        let count_text = doc.text.clone();
+        let count_dialect = doc.dialect.clone();
         let lenses = tokio::task::spawn_blocking(move || {
             let workspace = workspace_index.blocking_read();
             core_code_lens::code_lenses(
-                &doc.text,
-                &doc.dialect,
-                Some(&analysis),
+                &count_text,
+                &count_dialect,
+                Some(&analysis_for_count),
                 Some(&*workspace),
                 &uri_str,
             )
@@ -4944,10 +5047,25 @@ impl LanguageServer for Backend {
         })?;
         let mut lens = lens;
         if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
+            // Resolve the actual reference locations so clicking the lens opens
+            // a peek (the lens title alone is informational — a bare title with
+            // no command is rendered but inert, the "reference is not active"
+            // regression of #724).  The locations feed the client-side
+            // `tcl-lsp.showReferences` wrapper, which converts them and
+            // delegates to the built-in `editor.action.showReferences`.
+            let position = lens.range.start;
+            let locations = self
+                .reference_locations_at(&uri, &doc.text, &doc.dialect, &analysis, position)
+                .await;
+            let arguments = vec![
+                serde_json::Value::String(uri.to_string()),
+                serde_json::to_value(position).unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(&locations).unwrap_or(serde_json::Value::Null),
+            ];
             lens.command = Some(tower_lsp_server::ls_types::Command {
                 title: matching.command_title,
-                command: matching.command,
-                arguments: None,
+                command: "tcl-lsp.showReferences".to_owned(),
+                arguments: Some(arguments),
             });
         }
         Ok(lens)
@@ -6688,6 +6806,20 @@ fn client_lacks_utf16_support(params: &InitializeParams) -> bool {
         .is_some_and(|encs| !encs.is_empty() && !encs.contains(&PositionEncodingKind::UTF16))
 }
 
+/// Whether the client advertised pull-diagnostic support
+/// (`textDocument.diagnostic`).  Such a client (e.g. `vscode-languageclient`)
+/// issues `textDocument/diagnostic` requests itself, so the server must not
+/// *also* push diagnostics — pushing and pulling the same set lands them in
+/// two diagnostic collections and shows each one twice (#721).
+fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|td| td.diagnostic.as_ref())
+        .is_some()
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
@@ -7238,6 +7370,30 @@ mod tests {
         ]))));
         assert!(!client_lacks_utf16_support(&params_with(Some(vec![]))));
         assert!(!client_lacks_utf16_support(&InitializeParams::default()));
+    }
+
+    #[test]
+    fn pull_diagnostic_capability_detection() {
+        use tower_lsp_server::ls_types::{
+            ClientCapabilities, DiagnosticClientCapabilities, TextDocumentClientCapabilities,
+        };
+        // No `textDocument.diagnostic` → push-only client (no pull).
+        assert!(!client_supports_pull_diagnostics(
+            &InitializeParams::default()
+        ));
+        // A client advertising `textDocument/diagnostic` support → pull-capable,
+        // so the worker must stop pushing to avoid the #721 double-display.
+        let pull_params = InitializeParams {
+            capabilities: ClientCapabilities {
+                text_document: Some(TextDocumentClientCapabilities {
+                    diagnostic: Some(DiagnosticClientCapabilities::default()),
+                    ..TextDocumentClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+        assert!(client_supports_pull_diagnostics(&pull_params));
     }
 
     #[test]
@@ -8341,6 +8497,7 @@ mod tests {
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -9991,6 +10148,54 @@ mod tests {
             .await;
         assert_eq!(cross.len(), 2, "{cross:?}");
         assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command() {
+        // Regression for #724: the proc reference-count lens must resolve to a
+        // *clickable* `tcl-lsp.showReferences` command carrying the URI,
+        // anchor position, and reference locations — not a bare, inert title.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///refs.tcl").unwrap();
+        // `helper` defined once and called twice → 2 references.
+        register(&backend, &uri, "proc helper {} {}\nhelper\nhelper\n").await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        let lens = lenses
+            .into_iter()
+            .find(|l| {
+                l.data
+                    .as_ref()
+                    .and_then(serde_json::Value::as_object)
+                    .and_then(|d| d.get("qname"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("::helper")
+            })
+            .expect("a lens for ::helper");
+        let resolved = backend.code_lens_resolve(lens).await.expect("resolve ok");
+        let command = resolved.command.expect("resolved lens carries a command");
+        assert_eq!(
+            command.command, "tcl-lsp.showReferences",
+            "lens must invoke the show-references wrapper, got {command:?}",
+        );
+        assert!(
+            command.title.contains("references"),
+            "title should show the count: {command:?}",
+        );
+        let args = command.arguments.expect("showReferences needs arguments");
+        // [uriString, position, locations]
+        assert_eq!(args.len(), 3, "{args:?}");
+        assert_eq!(args[0], serde_json::Value::String(uri.to_string()));
+        let locations = args[2].as_array().expect("locations array");
+        assert_eq!(locations.len(), 2, "two call sites: {locations:?}");
     }
 
     #[tokio::test]

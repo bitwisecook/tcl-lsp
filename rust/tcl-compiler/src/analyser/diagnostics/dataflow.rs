@@ -829,6 +829,16 @@ file; this call falls through to the 'unknown' handler."
             if params.contains(var.as_str()) {
                 continue;
             }
+            // A fully-qualified read (`$::myVar`, `$ns::var`) explicitly
+            // targets the global / a named namespace scope, whose definition
+            // may live in another proc, another namespace, or — for a
+            // multi-file project — another file entirely.  Single-unit
+            // dataflow can't see those writers, so a qualified read must never
+            // be flagged read-before-set (matches the phi-undef emitter and
+            // the dead-store pass, which already exempt `::`-qualified names).
+            if var.contains("::") {
+                continue;
+            }
             // A dynamic-target upvar local is possibly-unset, so its
             // scope-alias status must not suppress the read-before-set (an
             // unconditional `$local` read still fires; an `[info exists local]`

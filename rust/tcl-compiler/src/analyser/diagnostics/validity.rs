@@ -13,7 +13,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 
-use super::helpers::is_ident_continue;
+use super::helpers::{is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -143,6 +143,14 @@ impl Analyser {
             return;
         };
         if sig.allow_unknown {
+            return;
+        }
+        // `after` dispatches on `cancel` / `idle` / `info`, but its first word
+        // may instead be a millisecond delay (`after 200 {…}`).  An integer
+        // first word is a valid time argument, not an unknown subcommand, so
+        // it must not trip W001.  (Non-integer, non-subcommand words such as
+        // `after foo` remain genuine errors and still fire.)
+        if cmd_name == "after" && is_integer_word(first_arg) {
             return;
         }
         // Tk geometry managers accept `manager pathName ?args?` as a shortcut
