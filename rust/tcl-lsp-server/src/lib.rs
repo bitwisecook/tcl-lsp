@@ -12,6 +12,8 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod config_ini;
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -2540,12 +2542,35 @@ impl Backend {
         let Some(cfg) = values.into_iter().next() else {
             return;
         };
-        self.apply_global_config(&cfg).await;
+        // Full config parity with the Python server: layer the editor's pulled
+        // `tclLsp` settings between the user `config.ini` `[global]` (lowest)
+        // and the project `.tcl-lsp.ini` `[project]` (highest). Same precedence
+        // and merge rules as `server/settings.py`.
+        let global_ini = read_ini_layer(
+            core_tcl_install::user_config_path(),
+            config_ini::Layer::Global,
+        );
+        let folders = self.workspace_folder_urls().await;
+        // Session-level apply uses the primary root's project file (the whole
+        // story for a single-root workspace; per-folder applies below refine
+        // the analyser knobs for multi-root).
+        let primary_project = read_ini_layer(
+            folders
+                .first()
+                .and_then(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+                .map(|root| core_tcl_install::project_config_path(&root)),
+            config_ini::Layer::Project,
+        );
+        let merged = config_ini::merge_settings(
+            &config_ini::merge_settings(&global_ini, &cfg),
+            &primary_project,
+        );
+        self.apply_global_config(&merged).await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
-        // per scope, so pull each folder's resolved config and store it for
+        // per scope, so pull each folder's resolved config, layer it between the
+        // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
-        let folders = self.workspace_folder_urls().await;
         if !folders.is_empty() {
             let items: Vec<ConfigurationItem> = folders
                 .iter()
@@ -2558,7 +2583,20 @@ impl Backend {
                 let parsed: Vec<(Uri, FolderConfig)> = folders
                     .into_iter()
                     .zip(values)
-                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .filter_map(|(folder, editor_cfg)| {
+                        let project = read_ini_layer(
+                            folder
+                                .to_file_path()
+                                .map(std::borrow::Cow::into_owned)
+                                .map(|root| core_tcl_install::project_config_path(&root)),
+                            config_ini::Layer::Project,
+                        );
+                        let merged = config_ini::merge_settings(
+                            &config_ini::merge_settings(&global_ini, &editor_cfg),
+                            &project,
+                        );
+                        parse_folder_config(&merged).map(|fc| (folder, fc))
+                    })
                     .collect();
                 self.apply_folder_configs(parsed).await;
             }
@@ -6062,6 +6100,17 @@ fn formatter_config_from_options(
     }
 }
 
+/// Read an INI config file at `path` (if present/readable) into the
+/// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
+/// files yield an empty object, so a layer simply contributes nothing.
+fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json::Value {
+    path.and_then(|p| std::fs::read_to_string(p).ok())
+        .map_or_else(
+            || serde_json::json!({}),
+            |content| config_ini::settings_from_ini(&content, layer),
+        )
+}
+
 /// Resolve the user config-file path for `tcl-lsp.exportConfig`:
 /// `$XDG_CONFIG_HOME/tcl-lsp/config.ini`, falling back to
 /// `$HOME/.config/tcl-lsp/config.ini`.  Both env vars are honoured on every
@@ -7445,6 +7494,43 @@ mod tests {
 
     fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
         diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    #[tokio::test]
+    async fn config_file_settings_apply_through_global_config() {
+        // A `config.ini`-shaped file, read and applied through the same path as
+        // editor settings, takes effect.
+        let backend = test_backend();
+        let ws = TmpWs::new("cfgfile");
+        let path = ws.0.join("config.ini");
+        std::fs::write(
+            &path,
+            "[global]\ndialect = tcl9.0\n[optimiser]\nenabled = false\n",
+        )
+        .unwrap();
+        let global = read_ini_layer(Some(path), config_ini::Layer::Global);
+        backend.apply_global_config(&global).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert!(!*backend.optimiser_enabled.lock().await);
+    }
+
+    #[tokio::test]
+    async fn config_precedence_project_over_editor_over_global() {
+        // global config.ini < editor < project .tcl-lsp.ini.
+        let backend = test_backend();
+        let global = config_ini::settings_from_ini(
+            "[global]\ndialect = tcl8.5\n",
+            config_ini::Layer::Global,
+        );
+        let editor = serde_json::json!({ "dialect": "tcl8.6" });
+        let project = config_ini::settings_from_ini(
+            "[project]\ndialect = tcl9.0\n",
+            config_ini::Layer::Project,
+        );
+        let merged =
+            config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
+        backend.apply_global_config(&merged).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
     }
 
     #[test]
