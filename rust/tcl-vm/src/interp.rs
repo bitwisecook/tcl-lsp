@@ -327,6 +327,7 @@ impl Vm {
     /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
     /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
+        use tcl_platform::backend::{self, key};
         let plat = [
             ("platform", "unix"),
             ("os", "Linux"),
@@ -348,7 +349,6 @@ impl Vm {
         // eBPF facts come from the build's `cfg` (empty on a native build) and
         // may be overridden from the environment to evaluate another backend's
         // skip lists.
-        use tcl_platform::backend::{self, key};
         let detected = |k: &str| -> String {
             backend::override_env_var(k)
                 .and_then(|var| std::env::var(var).ok())
