@@ -11,7 +11,10 @@
 ## Verdict
 
 The Rust analyser **matches or exceeds Python and agrees with the Tcl 9.0
-oracle**, with one real recall gap found and **fixed** in this change.
+oracle** across every analysis (diagnostics, taint, optimiser, call/symbol
+graphs, CFG/diagram, legacy detection, class hierarchy). Two real gaps were
+found and **fixed** here (body-recursion; `append`/`lappend` symbols); two
+narrow export-only residuals are documented.
 
 * **Parity (committed corpus).** Across both the lighter `diag` path and the
   fuller `lint` path the Rust analyser emits **everything Python does, at the
@@ -35,7 +38,26 @@ oracle**, with one real recall gap found and **fixed** in this change.
 * **Rust test suite green:** `tcl-compiler` lib `3323 passed; 0 failed`
   (incl. 2 new regression tests); `tcl-registry` all green.
 
-## The gap found — and fixed: body-recursion into `catch` and `tcltest test`
+## Every analysis verified (Rust↔Python differential + Tcl oracle)
+
+Each analysis verb was run on a shared corpus through **both** back-ends and the
+outputs compared order-insensitively; behavioural passes were checked against
+live `tclsh9.0`.
+
+| Analysis (verb) | Result |
+|---|---|
+| **Diagnostics** (`diag`/`lint`/`validate`; E/W/IRULE/T/S) | Parity — 0 missing/pos/msg/**sev**; Rust richer (EXTRA_FIRE). Body-recursion gap **fixed** (below). |
+| **Taint** (`dataflow` `taint_warnings`, T100–T106, IRULE3xxx) | Parity — cross-proc taint propagation, sinks, messages, codes all match. |
+| **Effects / connection-state** (`dataflow`/`callgraph` `effects`) | Parity **except** one gap: Rust omits per-command state bits (`HTTP_STATE`) — see *Residual*. |
+| **Optimiser** (`opt`, O100–O130; GVN/SCCP/dead-store/const-fold) | **Behaviourally correct** — broad before/after sweep through `tclsh9.0`: **0 semantic mismatches**. The four 2026-06-22 audit miscompiles (O122, O109/O126, O129, O103) are **fixed** (verified end-to-end). |
+| **Call graph** (`callgraph`) | Parity (nodes/edges) except the shared `effects`-bit gap above. |
+| **Symbols / symbol graph** (`symbols`/`symbolgraph`) | Parity for `set`/`variable`/`global`/`incr`/proc/namespace/TclOO; **`append`/`lappend` var-defs fixed** (below). Long-tail residual documented. |
+| **Control-flow diagram** (`diagram`) | Full parity. |
+| **Legacy detection** (`find-legacy`) | Parity. |
+| **Class hierarchy / MRO** (TclOO `oo::class`/`superclass`) | Parity (classes, methods, superclass symbols match). |
+| **Pipeline reps** (`diff`: AST/IR/CFG/SSA) | Produce expected structured output; CFG/SSA reachable. |
+
+## The gaps found — and fixed: body-recursion into `catch` and `tcltest test`
 
 Running the differential over real Tcl `*.test` files (not just the hand-written
 corpus) surfaced a large `MISSING_FIRE` count. Root cause, pinned to exact code:
@@ -90,6 +112,40 @@ Regression tests added: `catch_body_is_walked_for_syntactic_checks`,
 `tcltest_test_body_is_walked_when_imported` (covers qualified call, bare import,
 the un-walked `-result` field, and the un-imported opaque case).
 
+## Second gap — and fix: `append` / `lappend` variable definitions
+
+The `symbols` verb (and completion/hover) collects `scope.variables`, which the
+analyser populates only for `set` / `variable` / `global` / `incr`. So a
+variable created by **`append varName …`** or **`lappend varName …`** — both of
+which create their target if absent — was **dropped from the symbol table**,
+where Python records it.
+
+**Fix.** `handle_append_lappend_command` defines the first argument as a
+variable (`warn_if_unused = false`, since the command reads the prior value, so
+the target is never "set but never used" — Python emits no `W211` for it
+either). On a 20-file real-suite `symbols` differential the semantic
+`py-only-missing` set fell **53 → 35** (and `rust-only-extra` `53 → 1`); the
+minimal `append`/`lappend`/test-body cases now match exactly. Regression test:
+`append_and_lappend_define_their_target_variable`.
+
+## Residual divergences (documented, not fixed)
+
+* **`EXTRA_FIRE` arity (E002), Tcl-correct.** As above — Rust now surfaces real
+  arity errors inside `catch`/`test` error-probe idioms; *exceeds* Python.
+* **Effect-bit aggregation (`HTTP_STATE`).** `callgraph`/`dataflow` `effects`
+  report `UNKNOWN_STATE` where Python reports `HTTP_STATE|UNKNOWN_STATE`: Rust
+  does not aggregate the per-command connection-state bit for state-reading
+  iRules commands (`HTTP::uri`, …) into the handler-node effect set. Narrow
+  (export-only; the diagnostics that consume state are at parity), left as a
+  follow-up.
+* **Long-tail symbol definers (~35/20-files).** Variables created **inside
+  `[...]` command substitutions** (`[catch {…} msg]` result vars, `set` inside
+  `interp eval` bodies) are not dispatched through the var-defining handlers, so
+  their names are absent from `symbols`. A few cases are arguably **Rust-correct**
+  (Python lists `unset` targets and dynamic `proc $::SRC` names as symbols).
+  Closing this needs full handler dispatch through `[...]` subs — larger and of
+  marginal value for an export verb.
+
 ## Residual divergences (all benign / Rust-correct)
 
 * **`EXTRA_FIRE` rose (E002 arity, ~56).** Now that Rust walks `catch`/`test`
@@ -120,8 +176,10 @@ cargo test -p tcl-compiler --lib catch_body tcltest_test_body
 
 ## Files changed
 
-* `rust/tcl-compiler/src/analyser/handlers.rs` — walk the `catch` body.
+* `rust/tcl-compiler/src/analyser/handlers.rs` — walk the `catch` body;
+  `handle_append_lappend_command` defines the `append`/`lappend` target var.
 * `rust/tcl-registry/src/commands/stdlib/tcltest__test.rs` — `test_arg_roles`
   resolver + `body_kind`.
-* `rust/tcl-compiler/src/analyser/commands.rs` — imported-name body-role fallback.
-* `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — 2 regression tests.
+* `rust/tcl-compiler/src/analyser/commands.rs` — imported-name body-role
+  fallback; dispatch `handle_append_lappend_command`.
+* `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — 3 regression tests.

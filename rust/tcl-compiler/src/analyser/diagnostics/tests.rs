@@ -4579,3 +4579,24 @@ fn tcltest_test_body_is_walked_when_imported() {
     // undefined until tcltest is loaded).
     assert_eq!(count_code("test t1 {d} { expr $x+1 } {}\n", "W100"), 0);
 }
+
+#[test]
+fn append_and_lappend_define_their_target_variable() {
+    // `append`/`lappend` create their first argument if absent, so the target
+    // is a variable definition (it must surface in `symbols`/completion/hover,
+    // matching the Python analyser). Regression: previously only `set` /
+    // `variable` / `global` / `incr` defined vars, so an `append`/`lappend`
+    // target was dropped from the symbol table.
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse("lappend safe 1\nappend out hi\n", "tcl8.6");
+    assert!(
+        r.global_scope.variables.contains_key("safe"),
+        "lappend target"
+    );
+    assert!(
+        r.global_scope.variables.contains_key("out"),
+        "append target"
+    );
+    // A read-modify-write target is not "set but never used": no W211.
+    assert_eq!(count_code("lappend safe 1\n", "W211"), 0);
+}
