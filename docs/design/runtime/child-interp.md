@@ -353,3 +353,33 @@ Three layers:
   `_delete` / `_eval_script` / `_root_ns` / `_hidden_find_in`.
 - Upstream `interp.test` sections 1–6 ported verbatim as
   `TestInterpTestPort` (59 cases, all passing).
+
+## 13. Rust ports
+
+The two Rust execution engines implement the same contract, mirroring the
+design above:
+
+- **`runtime/rust`** (tree-walk runtime — native and wasm32-wasip1) carries the
+  faithful port: `Interp(Rc<InterpState>)` with a `children` map, `hidden`
+  table, `parent` `Weak`, and `is_safe` flag, the `enter`/`leave`-style
+  `with_child` re-entrancy guard, and cross-interp aliases (`§6`). `interp
+  create`/`eval`/`delete`/`exists`/`children`/`issafe`/`marktrusted`/`hide`/
+  `expose`/`hidden`/`invokehidden`/`recursionlimit` are implemented; the Safe
+  Base (`safe.tcl` access-path virtualisation) and `interp limit`/`target`/
+  `debug`/`share` are the remaining gaps.
+
+- **`tcl-vm`** (bytecode VM) uses a simpler model fit to its plain-struct
+  `Vm`: a child **is** a full `Vm` sharing the parent's output sink and
+  (stateless) compile service via `Rc`, held in a `children` map and reachable
+  as a command through the `Command::ChildInterp` variant. `interp eval` takes
+  the child out of the map for the call and restores it (no aliased `&mut`), so
+  there is no cross-interp re-entry yet — `interp alias` from a child back to
+  the parent is the main deferred piece. `create ?-safe?`/`eval`/`delete`/
+  `exists`/`children`/`issafe`/`marktrusted`/`hide`/`expose`/`hidden`/
+  `recursionlimit` are implemented; `-safe` hides the host-reaching commands
+  into a per-interp hidden table; `share`/`transfer` are accepted so top-level
+  channel wiring does not abort a test file.
+
+Both are gated against the upstream `interp.test`/`safe.test` suites through the
+[tier scoreboard](rust-vm-tier-parity.md); child interpreters are the
+[Tier 7](tcl-test-tiers.md) feature.
