@@ -48,7 +48,7 @@ live `tclsh9.0`.
 |---|---|
 | **Diagnostics** (`diag`/`lint`/`validate`; E/W/IRULE/T/S) | Parity — 0 missing/pos/msg/**sev**; Rust richer (EXTRA_FIRE). Body-recursion gap **fixed** (below). |
 | **Taint** (`dataflow` `taint_warnings`, T100–T106, IRULE3xxx) | Parity — cross-proc taint propagation, sinks, messages, codes all match. |
-| **Effects / connection-state** (`dataflow`/`callgraph` `effects`) | Parity **except** one gap: Rust omits per-command state bits (`HTTP_STATE`) — see *Residual*. |
+| **Effects / connection-state** (`dataflow`/`callgraph` `effects`) | Parity — `HTTP::uri`/`path`/`query` state bits **fixed** (below); only an expression-nested sub-case residual remains. |
 | **Optimiser** (`opt`, O100–O130; GVN/SCCP/dead-store/const-fold) | **Behaviourally correct** — broad before/after sweep through `tclsh9.0`: **0 semantic mismatches**. The four 2026-06-22 audit miscompiles (O122, O109/O126, O129, O103) are **fixed** (verified end-to-end). |
 | **Call graph** (`callgraph`) | Parity (nodes/edges) except the shared `effects`-bit gap above. |
 | **Symbols / symbol graph** (`symbols`/`symbolgraph`) | Parity for `set`/`variable`/`global`/`incr`/proc/namespace/TclOO; **`append`/`lappend` var-defs fixed** (below). Long-tail residual documented. |
@@ -128,23 +128,46 @@ either). On a 20-file real-suite `symbols` differential the semantic
 minimal `append`/`lappend`/test-body cases now match exactly. Regression test:
 `append_and_lappend_define_their_target_variable`.
 
+## Third gap — and fix: `HTTP::uri` / `HTTP::path` / `HTTP::query` effect data
+
+The `callgraph`/`dataflow` `effects` field reported `UNKNOWN_STATE` where Python
+reported `HTTP_STATE` for handlers that read the request URI. Root cause: of the
+1016 iRules command specs, **14 had no `side_effects`**, and three of them —
+`HTTP::uri`, `HTTP::path`, `HTTP::query` — should carry a `HTTP_URI` read effect
+(Python's specs do). The other 11 correctly have none on both sides (the
+`HTML::`/`URI::` encoders are pure; `accumulate`/`ip_addr`/`local_port`/
+`remote_port` are effect-free deprecated stubs).
+
+**Fix.** Added `SideEffect { target: HttpUri, reads: true, writes: false,
+connection_side: Both }` to the three specs (mirroring the sibling `HTTP::host`
+getter; the `PURE` classification path forces the getter read-only). Direct
+`HTTP::uri`/`path`/`query` now classify into the `HTTP_STATE` read region,
+matching Python; `symbolgraph` and `symbols` corpus differentials are now **0
+DIFF**. Regression test: `http_uri_family_reads_http_state_region`.
+
 ## Residual divergences (documented, not fixed)
 
-* **`EXTRA_FIRE` arity (E002), Tcl-correct.** As above — Rust now surfaces real
-  arity errors inside `catch`/`test` error-probe idioms; *exceeds* Python.
-* **Effect-bit aggregation (`HTTP_STATE`).** `callgraph`/`dataflow` `effects`
-  report `UNKNOWN_STATE` where Python reports `HTTP_STATE|UNKNOWN_STATE`: Rust
-  does not aggregate the per-command connection-state bit for state-reading
-  iRules commands (`HTTP::uri`, …) into the handler-node effect set. Narrow
-  (export-only; the diagnostics that consume state are at parity), left as a
-  follow-up.
+These remaining divergences share **one deep root cause** — full per-command
+analysis is not dispatched into commands nested in `[...]` command
+substitutions — which Python handles **context-dependently** (effects propagate
+in *expression* contexts only; var-defs propagate more broadly). Matching this
+exactly is risky: an attempt to scan command-arg substitutions for effects
+*over-reported* vs Python (Python does **not** propagate `[HTTP::uri]`'s state
+through a plain `matchclass [HTTP::uri] …` arg), so it was reverted. All are
+**export-only** (the diagnostics that consume state/symbols are at parity).
+
+* **`EXTRA_FIRE` arity (E002), Tcl-correct.** Rust surfaces real arity errors
+  inside `catch`/`test` error-probe idioms; *exceeds* Python.
+* **Effect bit inside an expression-nested sub (1 corpus file).**
+  `if {[matchclass [HTTP::uri] …]}` — Rust under-reports `HTTP_STATE` because the
+  expression scanner recurses into BODY/EXPR-role args but not plain value-arg
+  `[...]` subs. Fixing needs an `in_expr`-threaded scan to avoid the command-context
+  over-report above.
 * **Long-tail symbol definers (~35/20-files).** Variables created **inside
-  `[...]` command substitutions** (`[catch {…} msg]` result vars, `set` inside
-  `interp eval` bodies) are not dispatched through the var-defining handlers, so
-  their names are absent from `symbols`. A few cases are arguably **Rust-correct**
-  (Python lists `unset` targets and dynamic `proc $::SRC` names as symbols).
-  Closing this needs full handler dispatch through `[...]` subs — larger and of
-  marginal value for an export verb.
+  `[...]` subs** (`[catch {…} msg]` result vars, `set` inside `interp eval`
+  bodies) are not dispatched through the var-defining handlers. A few cases are
+  arguably **Rust-correct** (Python lists `unset` targets and dynamic
+  `proc $::SRC` names as symbols).
 
 ## Residual divergences (all benign / Rust-correct)
 
@@ -183,3 +206,7 @@ cargo test -p tcl-compiler --lib catch_body tcltest_test_body
 * `rust/tcl-compiler/src/analyser/commands.rs` — imported-name body-role
   fallback; dispatch `handle_append_lappend_command`.
 * `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — 3 regression tests.
+* `rust/tcl-registry/src/commands/irules/http__{uri,path,query}.rs` — add the
+  `HttpUri` read `side_effects` (effect-region parity).
+* `rust/tcl-compiler/src/side_effects.rs` — `http_uri_family_reads_http_state_region`
+  regression test.

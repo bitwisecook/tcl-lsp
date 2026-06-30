@@ -1113,6 +1113,29 @@ mod tests {
         assert!(!combined.contains(EffectRegion::UNKNOWN_STATE));
     }
 
+    #[test]
+    fn http_uri_family_reads_http_state_region() {
+        // Regression: `HTTP::uri` / `HTTP::path` / `HTTP::query` getters carry a
+        // read-only `HttpUri` side effect (mirroring the Python registry), so
+        // they classify into the `HTTP_STATE` *read* region. Previously their
+        // Rust specs had no `side_effects`, so callgraph/dataflow reported
+        // `NONE` where Python reported `HTTP_STATE`.
+        let mut reg = tcl_registry::CommandRegistry::build_default();
+        reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
+            let ci = classify_side_effects(&reg, cmd, &[], None, None);
+            let (reads, writes) = ci.to_effect_regions();
+            assert!(
+                reads.contains(EffectRegion::HTTP_STATE),
+                "{cmd}: reads should include HTTP_STATE, got {reads:?}"
+            );
+            assert!(
+                !writes.contains(EffectRegion::HTTP_STATE),
+                "{cmd}: getter form must not write HTTP_STATE, got {writes:?}"
+            );
+        }
+    }
+
     // -- SideEffect / CommandSideEffects --
 
     #[test]

@@ -43,6 +43,12 @@ pub const fn spec() -> CommandSpec {
                 synopsis: "HTTP::query <QUERY_STRING>",
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
