@@ -4576,6 +4576,16 @@ impl Interp {
         for &k in UNSAFE_PLATFORM {
             self.var_unset_elem(b"tcl_platform", k);
         }
+        // A safe interp has no `env` array and no real library/package paths
+        // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.
+        for v in [
+            &b"env"[..],
+            b"tcl_library",
+            b"tclDefaultLibrary",
+            b"tcl_pkgPath",
+        ] {
+            self.var_unset(v);
+        }
         self.is_safe.set(true);
     }
 
