@@ -375,10 +375,29 @@ fn w114_ignores_non_expr_context_and_plain_expr() {
 }
 
 #[test]
+fn w114_ignores_expr_nested_in_command_substitution() {
+    // Issue #726: the `[expr {1+1}]` is an argument to `myCmd` (a fresh command
+    // context), not a top-level command substitution in the `if` condition, so
+    // it is NOT redundant and must not be flagged.
+    assert_eq!(
+        w114_codes("proc myCmd {a} {return $a}\nif {[myCmd [expr {1 + 1}]]} {puts hi}\n"),
+        0,
+    );
+    // A top-level `[expr]` in the same condition position IS redundant.
+    assert_eq!(w114_codes("if {[expr {1 + 1}]} {puts hi}\n"), 1);
+    // And one mixed at top level alongside other operands still fires.
+    assert_eq!(w114_codes("if {$x + [expr {1 + 1}]} {puts hi}\n"), 1);
+}
+
+#[test]
 fn first_nested_expr_finds_bracketed_expr() {
     assert_eq!(first_nested_expr("{[expr {$x}]}"), Some((1, 11)));
     assert_eq!(first_nested_expr("{$x + 1}"), None);
     assert_eq!(first_nested_expr("[express]"), None); // not `expr` + ws
+    // Nested inside another command substitution → not a top-level expr.
+    assert_eq!(first_nested_expr("{[myCmd [expr {1+1}]]}"), None);
+    // Top-level expr alongside another bracket sub is still found.
+    assert_eq!(first_nested_expr("{[a] + [expr {$x}]}"), Some((7, 17)));
 }
 
 #[test]
