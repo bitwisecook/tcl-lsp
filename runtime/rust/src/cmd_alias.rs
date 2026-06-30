@@ -264,14 +264,66 @@ enum HideOp {
     Expose,
 }
 
+/// Whether `name` resolves in the global namespace — it carries no namespace
+/// qualifiers beyond an optional leading `::`.
+fn is_global_command(name: &[u8]) -> bool {
+    let body = name.strip_prefix(b"::".as_slice()).unwrap_or(name);
+    !body.windows(2).any(|w| w == b"::")
+}
+
 /// `interp hide|expose path cmdName` — move a command into/out of the hidden
 /// table of the named (or current, when path is `{}`) interpreter.
 fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(interp, b"interp hide|expose path cmdName");
+    // `interp hide   path cmdName     ?hiddenCmdName?`
+    // `interp expose path hiddenName  ?cmdName?`
+    if argv.len() != 4 && argv.len() != 5 {
+        return match op {
+            HideOp::Hide => wrong_args(interp, b"interp hide path cmdName ?hiddenCmdName?"),
+            HideOp::Expose => wrong_args(interp, b"interp expose path hiddenCmdName ?cmdName?"),
+        };
+    }
+    // A safe interpreter may not touch the hidden-command table of itself or
+    // any of its children (the check is on the *executing* interp).
+    if interp.is_safe() {
+        return interp.set_error(match op {
+            HideOp::Hide => b"permission denied: safe interpreter cannot hide commands",
+            HideOp::Expose => b"permission denied: safe interpreter cannot expose commands",
+        });
     }
     let path = obj_bytes(argv[2]);
     let cmd = obj_bytes(argv[3]);
+    let token = if argv.len() == 5 {
+        obj_bytes(argv[4])
+    } else {
+        cmd.clone()
+    };
+    // The hidden-command token may never carry namespace qualifiers, and only
+    // global-namespace commands can be hidden / exposed-from.
+    match op {
+        HideOp::Hide => {
+            if token.windows(2).any(|w| w == b"::") {
+                return interp.set_error(
+                    b"cannot use namespace qualifiers in hidden command token (rename)",
+                );
+            }
+            if !is_global_command(&cmd) {
+                return interp
+                    .set_error(b"can only hide global namespace commands (use rename then hide)");
+            }
+        }
+        HideOp::Expose => {
+            if cmd.windows(2).any(|w| w == b"::") {
+                return interp.set_error(
+                    b"cannot use namespace qualifiers in hidden command token (rename)",
+                );
+            }
+            if !is_global_command(&token) {
+                return interp.set_error(
+                    b"cannot expose to a namespace (use expose to toplevel, then rename)",
+                );
+            }
+        }
+    }
     let did = if path.is_empty() {
         match op {
             HideOp::Hide => interp.hide_command(&cmd),
@@ -316,6 +368,9 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     if i >= argv.len() {
         return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
+    }
+    if interp.is_safe() {
+        return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
     }
     let cmd = obj_bytes(argv[i]);
     // Build the hidden command's argv (cmd + remaining args).
