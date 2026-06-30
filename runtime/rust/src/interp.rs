@@ -713,6 +713,12 @@ pub struct InterpState {
     /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
     /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
     cmd_arena: RefCell<CmdArena>,
+    /// `interp limit` configuration. The `time` limit is enforced by the loop
+    /// commands; `commands` is stored for query/set only.
+    limits: RefCell<LimitSet>,
+    /// Free-running counter that throttles wall-clock polling for the `time`
+    /// limit (see [`Interp::limit_check_tick`]).
+    limit_tick: Cell<u32>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -730,6 +736,33 @@ pub(crate) struct EnsembleRewrite {
     /// (C's `numInsertedObjs`); `inserted - 1` formal parameters are already
     /// filled and so dropped from the usage message.
     pub inserted: usize,
+}
+
+/// `interp limit` configuration for one interpreter — the `commands` and `time`
+/// limit types. The `time` limit is enforced (polled by the loop commands);
+/// `commands` is stored for query/set only.
+#[derive(Clone)]
+pub(crate) struct LimitSet {
+    cmd_command: Vec<u8>,
+    cmd_granularity: i64,
+    cmd_value: Option<i64>,
+    time_command: Vec<u8>,
+    time_granularity: i64,
+    /// Absolute wall-clock deadline as `(seconds, milliseconds)`; `None` unset.
+    time_value: Option<(i64, i64)>,
+}
+
+impl Default for LimitSet {
+    fn default() -> Self {
+        Self {
+            cmd_command: Vec::new(),
+            cmd_granularity: 1,
+            cmd_value: None,
+            time_command: Vec::new(),
+            time_granularity: 10,
+            time_value: None,
+        }
+    }
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -759,6 +792,68 @@ fn parse_recursion_limit(bytes: &[u8]) -> Result<i64, Vec<u8>> {
         return Err(b"integer value too large to represent".to_vec());
     }
     Err(not_int())
+}
+
+/// Build a Tcl dict (flat key/value list) object from `pairs`, releasing the
+/// builder's references once the list has taken its own.
+fn dict_obj(pairs: &[(&[u8], Vec<u8>)]) -> *mut TclObj {
+    let mut elems: Vec<*mut TclObj> = Vec::with_capacity(pairs.len() * 2);
+    for (k, v) in pairs {
+        elems.push(obj::new_string_bytes(k));
+        elems.push(obj::new_string_bytes(v));
+    }
+    let list = crate::list::new_list_obj(&elems);
+    for e in elems {
+        drop_fresh(e);
+    }
+    list
+}
+
+/// Render an optional limit integer: the decimal bytes, or empty when unset.
+fn opt_int(v: Option<i64>) -> Vec<u8> {
+    v.map(|n| n.to_string().into_bytes()).unwrap_or_default()
+}
+
+/// Resolve an `interp limit` option by unambiguous prefix against `opts`
+/// (mirroring C's `Tcl_GetIndexFromObj`). Returns the canonical spelling or a
+/// `bad option "X": must be …` error.
+fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
+    let matches: Vec<&[u8]> = opts
+        .iter()
+        .copied()
+        .filter(|o| o.starts_with(arg))
+        .collect();
+    if matches.len() == 1 {
+        return Ok(matches[0].to_vec());
+    }
+    if opts.contains(&arg) {
+        return Ok(arg.to_vec());
+    }
+    let mut m = b"bad option \"".to_vec();
+    m.extend_from_slice(arg);
+    m.extend_from_slice(b"\": must be ");
+    for (i, o) in opts.iter().enumerate() {
+        if i == opts.len() - 1 && i > 0 {
+            m.extend_from_slice(b", or ");
+        } else if i > 0 {
+            m.extend_from_slice(b", ");
+        }
+        m.extend_from_slice(o);
+    }
+    Err(m)
+}
+
+/// Parse an `interp limit` integer option value (`expected integer but got "X"`).
+fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        if let Ok(n) = s.trim().parse::<i64>() {
+            return Ok(n);
+        }
+    }
+    let mut m = b"expected integer but got \"".to_vec();
+    m.extend_from_slice(bytes);
+    m.push(b'"');
+    Err(m)
 }
 
 impl Interp {
@@ -819,6 +914,8 @@ impl Interp {
             during: Cell::new(None),
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
+            limits: RefCell::new(LimitSet::default()),
+            limit_tick: Cell::new(0),
         }));
         builtins::install(&mut interp);
         interp
@@ -4420,6 +4517,26 @@ impl Interp {
                     None => self.error(b"could not find interpreter"),
                 }
             }
+            // `$child limit limitType ?-option value …?` — query/configure the
+            // child's commands/time limit.
+            b"limit" => {
+                if argv.len() < 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" limit limitType ?-option value ...?\"");
+                    return self.error(&m);
+                }
+                let ltype = obj_bytes(argv[2]);
+                let opts: Vec<*mut TclObj> = argv[3..].to_vec();
+                match self.with_child(name, |c| c.limit_apply(&ltype, &opts)) {
+                    Some(Ok(o)) => {
+                        self.set_result(o);
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
             other => {
                 let mut m = b"interp subcommand \"".to_vec();
                 m.extend_from_slice(other);
@@ -4620,6 +4737,176 @@ impl Interp {
                 Ok(n)
             }
         }
+    }
+
+    /// `interp limit limitType ?-option value …?` on this interp. Returns the
+    /// fresh result object on success, or the error-message bytes the caller
+    /// should raise.
+    pub(crate) fn limit_apply(
+        &self,
+        ltype: &[u8],
+        opts: &[*mut TclObj],
+    ) -> Result<*mut TclObj, Vec<u8>> {
+        match ltype {
+            b"commands" => self.limit_commands(opts),
+            b"time" => self.limit_time(opts),
+            other => {
+                let mut m = b"bad limit type \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be commands or time");
+                Err(m)
+            }
+        }
+    }
+
+    fn limit_commands(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        const OPTS: &[&[u8]] = &[b"-command", b"-granularity", b"-value"];
+        if opts.is_empty() {
+            let l = self.limits.borrow();
+            return Ok(dict_obj(&[
+                (b"-command", l.cmd_command.clone()),
+                (b"-granularity", l.cmd_granularity.to_string().into_bytes()),
+                (b"-value", opt_int(l.cmd_value)),
+            ]));
+        }
+        if opts.len() == 1 {
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)?;
+            let l = self.limits.borrow();
+            let val = match opt.as_slice() {
+                b"-command" => l.cmd_command.clone(),
+                b"-granularity" => l.cmd_granularity.to_string().into_bytes(),
+                _ => opt_int(l.cmd_value),
+            };
+            return Ok(obj::new_string_bytes(&val));
+        }
+        let mut i = 0;
+        while i + 1 < opts.len() {
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
+            let val = obj_bytes(opts[i + 1]);
+            match opt.as_slice() {
+                b"-command" => self.limits.borrow_mut().cmd_command = val,
+                b"-granularity" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 1 {
+                        return Err(b"granularity must be at least 1".to_vec());
+                    }
+                    self.limits.borrow_mut().cmd_granularity = n;
+                }
+                _ => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"command limit value must be at least 0".to_vec());
+                    }
+                    self.limits.borrow_mut().cmd_value = Some(n);
+                }
+            }
+            i += 2;
+        }
+        Ok(obj::new_string_bytes(b""))
+    }
+
+    fn limit_time(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        const OPTS: &[&[u8]] = &[b"-command", b"-granularity", b"-milliseconds", b"-seconds"];
+        if opts.is_empty() {
+            let l = self.limits.borrow();
+            let (secs, millis) = match l.time_value {
+                Some((s, m)) => (s.to_string().into_bytes(), m.to_string().into_bytes()),
+                None => (Vec::new(), Vec::new()),
+            };
+            return Ok(dict_obj(&[
+                (b"-command", l.time_command.clone()),
+                (b"-granularity", l.time_granularity.to_string().into_bytes()),
+                (b"-milliseconds", millis),
+                (b"-seconds", secs),
+            ]));
+        }
+        if opts.len() == 1 {
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)?;
+            let l = self.limits.borrow();
+            let val = match opt.as_slice() {
+                b"-command" => l.time_command.clone(),
+                b"-granularity" => l.time_granularity.to_string().into_bytes(),
+                b"-seconds" => opt_int(l.time_value.map(|(s, _)| s)),
+                _ => opt_int(l.time_value.map(|(_, m)| m)),
+            };
+            return Ok(obj::new_string_bytes(&val));
+        }
+        let (mut sec, mut ms) = self.limits.borrow().time_value.unwrap_or((0, 0));
+        let mut touched = self.limits.borrow().time_value.is_some();
+        let mut i = 0;
+        while i + 1 < opts.len() {
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
+            let val = obj_bytes(opts[i + 1]);
+            match opt.as_slice() {
+                b"-command" => self.limits.borrow_mut().time_command = val,
+                b"-granularity" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 1 {
+                        return Err(b"granularity must be at least 1".to_vec());
+                    }
+                    self.limits.borrow_mut().time_granularity = n;
+                }
+                b"-seconds" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"seconds must be non-negative".to_vec());
+                    }
+                    sec = n;
+                    touched = true;
+                }
+                _ => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"milliseconds must be non-negative".to_vec());
+                    }
+                    ms = n;
+                    touched = true;
+                }
+            }
+            i += 2;
+        }
+        if touched {
+            // Normalise excess milliseconds into seconds.
+            sec += ms.div_euclid(1000);
+            ms = ms.rem_euclid(1000);
+            self.limits.borrow_mut().time_value = Some((sec, ms));
+        }
+        Ok(obj::new_string_bytes(b""))
+    }
+
+    /// Whether this interp's `time` limit has elapsed (an absolute wall-clock
+    /// deadline). `false` when no time limit is set.
+    pub(crate) fn time_limit_exceeded(&self) -> bool {
+        match self.limits.borrow().time_value {
+            Some((secs, millis)) => {
+                let deadline = i128::from(secs) * 1000 + i128::from(millis);
+                self.host().clock().now_millis() >= deadline
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a `time` limit is configured at all — the cheap guard the loop
+    /// commands check before paying for a wall-clock read.
+    pub(crate) fn has_time_limit(&self) -> bool {
+        self.limits.borrow().time_value.is_some()
+    }
+
+    /// Advance the limit-poll counter and, when a `time` limit is armed and the
+    /// throttle window elapses, set the `time limit exceeded` error and return
+    /// its `Code`. Called from the loop commands (`while`/`for`) each iteration
+    /// so an unbounded loop under `interp limit $i time` terminates. A guarded
+    /// no-op when no time limit is set.
+    pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
+        if !self.has_time_limit() {
+            return None;
+        }
+        let t = self.limit_tick.get().wrapping_add(1);
+        self.limit_tick.set(t);
+        if t & 0x0FFF == 0 && self.time_limit_exceeded() {
+            return Some(self.error(b"time limit exceeded"));
+        }
+        None
     }
 
     /// The names of this interp's direct child interpreters (sorted).
