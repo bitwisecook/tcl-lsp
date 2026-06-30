@@ -637,6 +637,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
         // on (else identical to `analysis_lifts.diagnostics`).
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
+        append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
             &compiler_diags,
@@ -3447,6 +3448,7 @@ impl Backend {
         let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
+            append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
                 &text,
                 &compiler_diags,
@@ -7098,6 +7100,41 @@ fn lift_analyser_diagnostics(
             data: None,
         })
         .collect()
+}
+
+/// Append the O111 "brace expression performance" hint next to every W100
+/// (unbraced-expression) diagnostic, mirroring the Python publish pipeline
+/// (`server/features/diagnostics.py`): when the optimiser is enabled and O111
+/// is not disabled, each W100 gets a paired `Information` hint at the same
+/// range suggesting the user brace the expression for bytecode compilation.
+fn append_brace_expr_perf_hints(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    optimiser_enabled: bool,
+    opt_disabled: &std::collections::HashSet<String>,
+) {
+    use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+    if !optimiser_enabled || opt_disabled.contains("O111") {
+        return;
+    }
+    let hints: Vec<Diagnostic> = diagnostics
+        .iter()
+        .filter(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "W100"))
+        .map(|w100| Diagnostic {
+            range: w100.range,
+            severity: Some(DiagnosticSeverity::INFORMATION),
+            code: Some(NumberOrString::String("O111".to_string())),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: "Brace expression text (for example, `expr {...}` / `if {...}`) to pass \
+                      a single static argument, enabling bytecode compilation and avoiding \
+                      per-evaluation substitution/parsing overhead."
+                .to_string(),
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect();
+    diagnostics.extend(hints);
 }
 
 /// Lift the source-style pass (W111 line length,
@@ -11541,6 +11578,55 @@ mod tests {
         assert!(
             off.is_empty(),
             "diagnostics disabled must yield an empty report: {off:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn o111_brace_expr_hint_pairs_with_w100() {
+        // Python pairs an O111 "brace your expression" Information hint with
+        // every W100; the pairing is gated on the optimiser being enabled and
+        // O111 not being disabled.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o111.tcl").unwrap();
+        let src = "set y [expr $a + $b]\n"; // unbraced expr → W100
+        register(&backend, &uri, src).await;
+
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let codes = |ds: &[tower_lsp_server::ls_types::Diagnostic]| -> Vec<String> {
+            ds.iter()
+                .filter_map(|d| match &d.code {
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let on_codes = codes(&on);
+        assert!(
+            on_codes.iter().any(|c| c == "W100"),
+            "expected W100: {on_codes:?}"
+        );
+        assert!(
+            on_codes.iter().any(|c| c == "O111"),
+            "expected the paired O111 hint: {on_codes:?}",
+        );
+
+        // Disabling the optimiser drops the O111 hint but keeps W100.
+        backend
+            .apply_global_config(&serde_json::json!({ "optimiser": { "enabled": false } }))
+            .await;
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let off_codes = codes(&off);
+        assert!(
+            off_codes.iter().any(|c| c == "W100"),
+            "W100 still expected: {off_codes:?}"
+        );
+        assert!(
+            !off_codes.iter().any(|c| c == "O111"),
+            "O111 must be gated off when the optimiser is disabled: {off_codes:?}",
         );
     }
 

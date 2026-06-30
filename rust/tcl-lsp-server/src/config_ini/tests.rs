@@ -49,6 +49,85 @@ fn diagnostics_disabled_and_patterns() {
 }
 
 #[test]
+fn multiline_disabled_codes_list() {
+    // A `configparser`-style continuation list joins into the same code set a
+    // comma list would (Python test_user_config::test_multiline_disabled_list).
+    let ini = "[diagnostics]\n\
+               disabled =\n\
+               \x20   W111\n\
+               \x20   T100\n\
+               \x20   W120\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["diagnostics"]["W111"], json!(false));
+    assert_eq!(s["diagnostics"]["T100"], json!(false));
+    assert_eq!(s["diagnostics"]["W120"], json!(false));
+}
+
+#[test]
+fn extra_commands_multiline() {
+    // Continuation form of `extraCommands`, equivalent to the comma form
+    // (Python test_user_config::test_extra_commands_multiline). NOTE: bare
+    // command names join correctly; `::`-qualified names must use the comma
+    // form because the continuation heuristic treats an indented `a::b` as a
+    // `key: value` line (a known limitation — see the parity catalog).
+    let ini = "[global]\n\
+               extraCommands =\n\
+               \x20   myhelper\n\
+               \x20   myother\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["extraCommands"], json!(["myhelper", "myother"]));
+    // The comma form handles namespace-qualified names.
+    let comma = settings_from_ini("[global]\nextraCommands = a::b, c::d\n", Layer::Global);
+    assert_eq!(comma["extraCommands"], json!(["a::b", "c::d"]));
+}
+
+#[test]
+fn invalid_values_are_ignored_not_crashing() {
+    // Non-bool / non-integer values are dropped, leaving the defaults intact
+    // (Python test_user_config::test_invalid_bool_ignored /
+    // test_non_integer_line_length_ignored / test_invalid_optimiser_bool_ignored).
+    let ini = "[shimmer]\nenabled = banana\n\
+               [optimiser]\nenabled = maybe\n\
+               [formatting]\nmax_line_length = abc\n\
+               [style]\nline_length = wide\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert!(
+        s.get("shimmer").is_none(),
+        "invalid shimmer bool dropped: {s}"
+    );
+    assert!(
+        s.get("optimiser").is_none(),
+        "invalid optimiser bool dropped: {s}",
+    );
+    assert!(
+        s.get("formatting").is_none(),
+        "non-integer formatting line length dropped: {s}",
+    );
+    assert!(
+        s.get("style").is_none(),
+        "non-integer style line length dropped: {s}",
+    );
+}
+
+#[test]
+fn empty_dialect_is_ignored() {
+    // An empty `dialect =` keeps the default (Python
+    // test_user_config::test_empty_dialect_is_ignored).
+    let s = settings_from_ini("[global]\ndialect =\n", Layer::Global);
+    assert!(s.get("dialect").is_none(), "empty dialect ignored: {s}");
+}
+
+#[test]
+fn top_level_keys_coexist_with_nested_sections() {
+    // A `[global]` top-level key and a `[diagnostics]` section in one file are
+    // both honoured (Python test_user_config::test_combined_with_other_sections).
+    let ini = "[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["dialect"], json!("tcl9.0"));
+    assert_eq!(s["diagnostics"]["W111"], json!(false));
+}
+
+#[test]
 fn optimiser_section() {
     let ini = "[optimiser]\nenabled = true\nprofile = readability\ndisabled = O109, O126\n";
     let s = settings_from_ini(ini, Layer::Global);
