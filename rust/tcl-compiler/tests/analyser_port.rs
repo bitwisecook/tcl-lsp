@@ -80,7 +80,10 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Count of how many times `code` appears in the merged diagnostic set.
 fn count(src: &str, dialect: &str, code: &str) -> usize {
-    codes(src, dialect).iter().filter(|c| c.as_str() == code).count()
+    codes(src, dialect)
+        .iter()
+        .filter(|c| c.as_str() == code)
+        .count()
 }
 
 /// Full `(code, message)` pairs from the *analyser pass only* — used when a
@@ -126,7 +129,10 @@ mod proc_analysis {
         let r = Analyser::new().analyse("proc add {a b} { return [+ $a $b] }", D);
         let proc = &r.global_scope.procs["add"];
         assert_eq!(
-            proc.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
             ["a", "b"]
         );
     }
@@ -271,7 +277,10 @@ mod diagnostics {
     fn too_few_args_set_fires_e002() {
         // tclsh8.6/9.0: `set` → wrong # args: should be "set varName ?newValue?".
         let ds = analyser_diags("set", D);
-        let errs: Vec<_> = ds.iter().filter(|(_, _, s)| *s == Severity::Error).collect();
+        let errs: Vec<_> = ds
+            .iter()
+            .filter(|(_, _, s)| *s == Severity::Error)
+            .collect();
         assert!(!errs.is_empty());
         assert!(errs.iter().any(|(_, m, _)| m.contains("Too few")));
     }
@@ -280,7 +289,10 @@ mod diagnostics {
     fn too_many_args_break_fires_e003() {
         // tclsh8.6/9.0: `break extra` → wrong # args: should be "break".
         let ds = analyser_diags("break extra", D);
-        let errs: Vec<_> = ds.iter().filter(|(_, _, s)| *s == Severity::Error).collect();
+        let errs: Vec<_> = ds
+            .iter()
+            .filter(|(_, _, s)| *s == Severity::Error)
+            .collect();
         assert!(!errs.is_empty());
         assert!(errs.iter().any(|(_, m, _)| m.contains("Too many")));
     }
@@ -309,7 +321,10 @@ mod diagnostics {
             "regsub -all {a} $b {} c",
             "regsub -nocase -all -- $pat $s {} out",
         ] {
-            assert!(!fires(snippet, D, "E003"), "unexpected E003 for {snippet:?}");
+            assert!(
+                !fires(snippet, D, "E003"),
+                "unexpected E003 for {snippet:?}"
+            );
         }
         // Genuine over-arity (5 positional, max 4) still fires.
         // tclsh: `regsub a b c d e` → wrong # args.
@@ -332,9 +347,15 @@ mod diagnostics {
     fn missing_subcommand_namespace_fires_e001() {
         // tclsh: bare `namespace` → wrong # args: should be "namespace subcommand …".
         let ds = analyser_diags("namespace", D);
-        let errs: Vec<_> = ds.iter().filter(|(_, _, s)| *s == Severity::Error).collect();
+        let errs: Vec<_> = ds
+            .iter()
+            .filter(|(_, _, s)| *s == Severity::Error)
+            .collect();
         assert!(!errs.is_empty());
-        assert!(errs.iter().any(|(_, m, _)| m.to_lowercase().contains("subcommand")));
+        assert!(
+            errs.iter()
+                .any(|(_, m, _)| m.to_lowercase().contains("subcommand"))
+        );
     }
 
     #[test]
@@ -350,7 +371,10 @@ mod diagnostics {
     fn unknown_subcommand_warns_w001() {
         // tclsh: `string bogus hello` → unknown or ambiguous subcommand "bogus".
         let ds = analyser_diags("string bogus hello", D);
-        assert!(ds.iter().any(|(c, m, _)| c == "W001" && m.contains("Unknown subcommand")));
+        assert!(
+            ds.iter()
+                .any(|(c, m, _)| c == "W001" && m.contains("Unknown subcommand"))
+        );
     }
 
     #[test]
@@ -405,7 +429,10 @@ mod diagnostics {
         // tclsh8.6/9.0: `puts $x` → can't read "x": no such variable.
         assert_eq!(count("puts $x", D, "W210"), 1);
         let ds = analyser_diags("puts $x", D);
-        assert!(ds.iter().any(|(c, _, s)| c == "W210" && *s == Severity::Warning));
+        assert!(
+            ds.iter()
+                .any(|(c, _, s)| c == "W210" && *s == Severity::Warning)
+        );
     }
 
     #[test]
@@ -432,19 +459,28 @@ mod diagnostics {
         // The `email` read still fires (it is genuinely unset), but the capture
         // targets `user`/`domain` do not.
         assert_eq!(
-            w210_for("regexp {^(\\w+)@(\\w+)$} $email -> user domain\nputs $user", "user"),
+            w210_for(
+                "regexp {^(\\w+)@(\\w+)$} $email -> user domain\nputs $user",
+                "user"
+            ),
             0
         );
     }
 
     #[test]
     fn regexp_match_var_not_read_before_set() {
-        assert_eq!(w210_for("regexp {\\d+} $text match\nputs $match", "match"), 0);
+        assert_eq!(
+            w210_for("regexp {\\d+} $text match\nputs $match", "match"),
+            0
+        );
     }
 
     #[test]
     fn scan_capture_vars_not_read_before_set() {
-        assert_eq!(w210_for("scan \"42 hello\" \"%d %s\" num word\nputs $num", "num"), 0);
+        assert_eq!(
+            w210_for("scan \"42 hello\" \"%d %s\" num word\nputs $num", "num"),
+            0
+        );
     }
 
     #[test]
@@ -463,7 +499,10 @@ mod diagnostics {
         // Rust verdict: regsub output var is reported (divergence from Python's
         // suppression expectation; see module-level note). Both reads of unset
         // vars are real `can't read` errors in tclsh.
-        assert_eq!(w210_for("regsub {old} $text new result\nputs $result", "result"), 1);
+        assert_eq!(
+            w210_for("regsub {old} $text new result\nputs $result", "result"),
+            1
+        );
     }
 
     // --- unused / dead-store / paste hints (pure static heuristics) ---
@@ -472,7 +511,10 @@ mod diagnostics {
     fn unused_assigned_variable_hint_w211() {
         // Heuristic (no direct tclsh analogue): `set x 1` never read.
         let ds = analyser_diags("proc foo {} { set x 1 }", D);
-        assert!(ds.iter().any(|(c, _, s)| c == "W211" && *s == Severity::Hint));
+        assert!(
+            ds.iter()
+                .any(|(c, _, s)| c == "W211" && *s == Severity::Hint)
+        );
     }
 
     #[test]
@@ -501,8 +543,16 @@ mod diagnostics {
 
     #[test]
     fn paste_error_not_emitted_when_value_changes_or_dynamic() {
-        assert!(!fires("proc foo {} { set x 0; set x 1; puts $x }", D, "H300"));
-        assert!(!fires("proc foo {} { set x $y; set x $y; puts $x }", D, "H300"));
+        assert!(!fires(
+            "proc foo {} { set x 0; set x 1; puts $x }",
+            D,
+            "H300"
+        ));
+        assert!(!fires(
+            "proc foo {} { set x $y; set x $y; puts $x }",
+            D,
+            "H300"
+        ));
     }
 
     // --- constant-branch family (I230) ---
@@ -571,9 +621,21 @@ mod set_dual_shape {
     fn set_two_arg_is_write_one_arg_is_read() {
         // 2-arg `set x 1` is a write: defines `x`, no W210.
         assert!(!fires("set x 1\nputs $x", D, "W210"));
-        assert!(Analyser::new().analyse("set x 1", D).global_scope.variables.contains_key("x"));
+        assert!(
+            Analyser::new()
+                .analyse("set x 1", D)
+                .global_scope
+                .variables
+                .contains_key("x")
+        );
         // 1-arg `set x` is a read: does NOT define `x`.
-        assert!(!Analyser::new().analyse("set x", D).global_scope.variables.contains_key("x"));
+        assert!(
+            !Analyser::new()
+                .analyse("set x", D)
+                .global_scope
+                .variables
+                .contains_key("x")
+        );
     }
 }
 
@@ -591,10 +653,14 @@ mod when_dialect_gating {
         let src = "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n";
         let ds = analyser_diags(src, D);
         assert!(
-            !ds.iter().any(|(c, m, _)| c == "W123" && m.contains("boguscmd")),
+            !ds.iter()
+                .any(|(c, m, _)| c == "W123" && m.contains("boguscmd")),
             "when body must not be analysed under tcl8.6"
         );
-        assert!(!ds.iter().any(|(c, _, _)| c == "W210"), "no spurious W210 in opaque body");
+        assert!(
+            !ds.iter().any(|(c, _, _)| c == "W210"),
+            "no spurious W210 in opaque body"
+        );
     }
 
     #[test]
@@ -604,7 +670,9 @@ mod when_dialect_gating {
         let src = "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n";
         let ds = analyser_diags(src, "f5-irules");
         assert_eq!(
-            ds.iter().filter(|(c, m, _)| c == "W123" && m.contains("boguscmd")).count(),
+            ds.iter()
+                .filter(|(c, m, _)| c == "W123" && m.contains("boguscmd"))
+                .count(),
             1,
             "when body IS analysed under f5-irules"
         );
@@ -618,7 +686,13 @@ mod control_flow {
     use super::*;
 
     fn vars(src: &str) -> std::collections::HashSet<String> {
-        Analyser::new().analyse(src, D).global_scope.variables.keys().cloned().collect()
+        Analyser::new()
+            .analyse(src, D)
+            .global_scope
+            .variables
+            .keys()
+            .cloned()
+            .collect()
     }
 
     #[test]
@@ -685,7 +759,8 @@ mod control_flow {
 
     #[test]
     fn tcloo_method_body_in_method_scope() {
-        let src = "oo::class create Dog {\n    method bark {} {\n        set message woof\n    }\n}\n";
+        let src =
+            "oo::class create Dog {\n    method bark {} {\n        set message woof\n    }\n}\n";
         let r = Analyser::new().analyse(src, D);
         assert!(r.all_classes.contains_key("::Dog"));
         // Rust names the method scope `::Dog::bark` (Python used `Dog::bark`).
@@ -731,7 +806,10 @@ mod regex_patterns {
     fn regsub_simple_and_with_options() {
         let p = pats("regsub {\\d+} $str replacement result");
         assert_eq!(p, [("\\d+".to_string(), "regsub".to_string())]);
-        assert_eq!(pats("regsub -all -nocase {foo} $str bar result")[0].0, "foo");
+        assert_eq!(
+            pats("regsub -all -nocase {foo} $str bar result")[0].0,
+            "foo"
+        );
     }
 
     #[test]
@@ -771,7 +849,12 @@ mod regex_patterns {
         let p = pats("regexp {^a} $x\nregsub {^b} $y c result");
         assert_eq!(p.len(), 2);
         let cmds: std::collections::HashSet<_> = p.iter().map(|(_, c)| c.clone()).collect();
-        assert_eq!(cmds, ["regexp".to_string(), "regsub".to_string()].into_iter().collect());
+        assert_eq!(
+            cmds,
+            ["regexp".to_string(), "regsub".to_string()]
+                .into_iter()
+                .collect()
+        );
     }
 
     #[test]
@@ -839,7 +922,10 @@ mod package_require {
 
     #[test]
     fn require_with_version_and_exact() {
-        for src in ["package require http 2.9", "package require -exact http 2.9"] {
+        for src in [
+            "package require http 2.9",
+            "package require -exact http 2.9",
+        ] {
             let r = Analyser::new().analyse(src, D);
             assert_eq!(r.package_requires.len(), 1, "for {src:?}");
             assert_eq!(r.package_requires[0].name, "http");
@@ -853,13 +939,28 @@ mod package_require {
         assert_eq!(r.package_requires.len(), 2);
         let names: std::collections::HashSet<_> =
             r.package_requires.iter().map(|p| p.name.clone()).collect();
-        assert_eq!(names, ["http".to_string(), "tls".to_string()].into_iter().collect());
+        assert_eq!(
+            names,
+            ["http".to_string(), "tls".to_string()]
+                .into_iter()
+                .collect()
+        );
     }
 
     #[test]
     fn provide_and_unrelated_not_recorded() {
-        assert!(Analyser::new().analyse("package provide mylib 1.0", D).package_requires.is_empty());
-        assert!(Analyser::new().analyse("set x 42", D).package_requires.is_empty());
+        assert!(
+            Analyser::new()
+                .analyse("package provide mylib 1.0", D)
+                .package_requires
+                .is_empty()
+        );
+        assert!(
+            Analyser::new()
+                .analyse("set x 42", D)
+                .package_requires
+                .is_empty()
+        );
     }
 }
 
@@ -883,9 +984,11 @@ mod unused_proc_parameters {
         assert_eq!(w.len(), 1);
         assert!(w[0].contains('y'));
         // Severity is Hint.
-        assert!(analyser_diags("proc foo {x y} { puts $x }", D)
-            .iter()
-            .any(|(c, _, s)| c == "W214" && *s == Severity::Hint));
+        assert!(
+            analyser_diags("proc foo {x y} { puts $x }", D)
+                .iter()
+                .any(|(c, _, s)| c == "W214" && *s == Severity::Hint)
+        );
     }
 
     #[test]
@@ -1001,7 +1104,10 @@ mod unused_proc_parameters {
         // does NOT flag `unused` here (it does not exclude the braced data word),
         // so no W214 fires. Adapted to the actual Rust verdict.
         let src = "proc foo {used unused} {\n    set d [dict create]\n    dict for {k v} $d {\n        set msg {$unused}\n        puts $used\n    }\n}\n";
-        assert!(w214(src).is_empty(), "Rust does not flag `unused` in this shape");
+        assert!(
+            w214(src).is_empty(),
+            "Rust does not flag `unused` in this shape"
+        );
     }
 
     // NOTE — trace-callback W214 suppression (DIVERGENCE, see
@@ -1030,7 +1136,11 @@ mod trace_callbacks {
             .into_iter()
             .filter(|(c, m, _)| c == "W214" && m.contains("'b'") && m.contains("::other"))
             .collect();
-        assert_eq!(w214.len(), 1, "unrelated `other`'s unused `b` must fire W214");
+        assert_eq!(
+            w214.len(),
+            1,
+            "unrelated `other`'s unused `b` must fire W214"
+        );
     }
 }
 
@@ -1050,7 +1160,10 @@ mod interp_alias {
 
     #[test]
     fn alias_recorded_with_target() {
-        assert_eq!(alias("interp alias {} = {} expr", "::="), Some(("expr".to_string(), vec![])));
+        assert_eq!(
+            alias("interp alias {} = {} expr", "::="),
+            Some(("expr".to_string(), vec![]))
+        );
     }
 
     #[test]
@@ -1068,10 +1181,12 @@ mod interp_alias {
 
     #[test]
     fn alias_qualified_name_normalised() {
-        assert!(Analyser::new()
-            .analyse("interp alias {} ::myexpr {} expr", D)
-            .command_aliases
-            .contains_key("::myexpr"));
+        assert!(
+            Analyser::new()
+                .analyse("interp alias {} ::myexpr {} expr", D)
+                .command_aliases
+                .contains_key("::myexpr")
+        );
     }
 
     #[test]
@@ -1136,7 +1251,11 @@ mod interp_alias {
     #[test]
     fn alias_standalone_expr_call_has_no_error() {
         let src = "interp alias {} = {} expr\n= {1 + 2}\n";
-        assert!(!analyser_diags(src, D).iter().any(|(_, _, s)| *s == Severity::Error));
+        assert!(
+            !analyser_diags(src, D)
+                .iter()
+                .any(|(_, _, s)| *s == Severity::Error)
+        );
     }
 
     #[test]
@@ -1144,12 +1263,21 @@ mod interp_alias {
         let src = "interp alias {} cp {} file copy -force\ninterp alias {} mkdir {} file mkdir\ninterp alias {} rm {} file delete -force\n";
         assert_eq!(
             alias(src, "::cp"),
-            Some(("file".to_string(), vec!["copy".to_string(), "-force".to_string()]))
+            Some((
+                "file".to_string(),
+                vec!["copy".to_string(), "-force".to_string()]
+            ))
         );
-        assert_eq!(alias(src, "::mkdir"), Some(("file".to_string(), vec!["mkdir".to_string()])));
+        assert_eq!(
+            alias(src, "::mkdir"),
+            Some(("file".to_string(), vec!["mkdir".to_string()]))
+        );
         assert_eq!(
             alias(src, "::rm"),
-            Some(("file".to_string(), vec!["delete".to_string(), "-force".to_string()]))
+            Some((
+                "file".to_string(),
+                vec!["delete".to_string(), "-force".to_string()]
+            ))
         );
     }
 
@@ -1229,7 +1357,11 @@ mod unresolved_command {
     fn namespace_qualified_and_variable_command_skipped() {
         assert!(w123("::myns::cmd arg1").is_empty());
         // `$cmd hello` — the head starts with `$`, not a literal command name.
-        assert!(w123("set cmd puts\n$cmd hello").iter().all(|m| !m.contains("$cmd")));
+        assert!(
+            w123("set cmd puts\n$cmd hello")
+                .iter()
+                .all(|m| !m.contains("$cmd"))
+        );
     }
 
     #[test]
@@ -1253,7 +1385,10 @@ mod unresolved_command {
             "namespace import ::foo::*\nbar arg",
             "lappend auto_path /opt/mylib\nmycmd arg",
         ] {
-            assert!(!w123(src).is_empty(), "expected W123 (Rust verdict) for {src:?}");
+            assert!(
+                !w123(src).is_empty(),
+                "expected W123 (Rust verdict) for {src:?}"
+            );
         }
     }
 
@@ -1277,7 +1412,11 @@ mod unresolved_command {
     fn did_you_mean_suggestion_for_near_name() {
         // `putz` is one edit from `puts` (a real builtin).
         let r = Analyser::new().analyse("putz hello", D);
-        let d: Vec<_> = r.diagnostics.iter().filter(|d| d.code.to_string() == "W123").collect();
+        let d: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W123")
+            .collect();
         assert_eq!(d.len(), 1);
         assert!(d[0].message.contains("puts"));
         assert!(!d[0].fixes.is_empty());
@@ -1339,7 +1478,11 @@ mod unresolved_command {
         let upi = r.unknown_proc_info.as_ref().expect("upi");
         assert!(!upi.chains_original);
         assert!(upi.dispatch_targets.contains("foo"));
-        assert!(r.diagnostics.iter().any(|d| d.code.to_string() == "W123" && d.message.contains("baz")));
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code.to_string() == "W123" && d.message.contains("baz"))
+        );
     }
 
     // --- unknown_proc_info population ---
@@ -1363,7 +1506,12 @@ mod unresolved_command {
 
     #[test]
     fn no_unknown_proc_info_by_default() {
-        assert!(Analyser::new().analyse("set x 1", D).unknown_proc_info.is_none());
+        assert!(
+            Analyser::new()
+                .analyse("set x 1", D)
+                .unknown_proc_info
+                .is_none()
+        );
     }
 
     #[test]
@@ -1396,7 +1544,10 @@ mod unresolved_command {
         // tclsh: `expr {1 && [missingCommand]}` runs the right arm and errors.
         assert_eq!(w123("expr {1 && [missingCommand]}").len(), 1);
         assert_eq!(w123("expr {[missingCommand] && 1}").len(), 1);
-        assert_eq!(w123("proc f {c} { expr {$c && [missingCommand]} }").len(), 1);
+        assert_eq!(
+            w123("proc f {c} { expr {$c && [missingCommand]} }").len(),
+            1
+        );
     }
 }
 
@@ -1419,8 +1570,10 @@ mod source_targets {
         let r = Analyser::new().analyse("source $dir/utils.tcl", D);
         assert_eq!(r.source_targets.len(), 1);
         assert!(!r.source_targets[0].is_literal);
-        let r2 = Analyser::new()
-            .analyse("source [file join [file dirname [info script]] helper.tcl]", D);
+        let r2 = Analyser::new().analyse(
+            "source [file join [file dirname [info script]] helper.tcl]",
+            D,
+        );
         assert_eq!(r2.source_targets.len(), 1);
         assert!(!r2.source_targets[0].is_literal);
     }
@@ -1451,12 +1604,20 @@ mod tcloo_classes {
     use tcl_compiler::analyser::ClassDef;
 
     fn class(src: &str, qn: &str) -> ClassDef {
-        Analyser::new().analyse(src, D).all_classes.get(qn).cloned().expect("class recorded")
+        Analyser::new()
+            .analyse(src, D)
+            .all_classes
+            .get(qn)
+            .cloned()
+            .expect("class recorded")
     }
 
     #[test]
     fn class_create_basic() {
-        let cd = class("oo::class create Dog {\n    method bark {} { return \"woof\" }\n}\n", "::Dog");
+        let cd = class(
+            "oo::class create Dog {\n    method bark {} { return \"woof\" }\n}\n",
+            "::Dog",
+        );
         assert_eq!(cd.name, "Dog");
         assert_eq!(cd.metaclass, "oo::class");
         assert!(cd.methods.contains_key("bark"));
@@ -1477,7 +1638,11 @@ mod tcloo_classes {
         assert_eq!(cd.constructors.len(), 1);
         assert_eq!(cd.constructors[0].kind, "constructor");
         assert_eq!(
-            cd.constructors[0].params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            cd.constructors[0]
+                .params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
             ["n", "b"]
         );
     }
@@ -1487,27 +1652,40 @@ mod tcloo_classes {
         let src = "oo::class create Calc {\n    method add {a b} { expr {$a + $b} }\n}\n";
         let cd = class(src, "::Calc");
         assert_eq!(
-            cd.methods["add"].params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            cd.methods["add"]
+                .params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
             ["a", "b"]
         );
     }
 
     #[test]
     fn class_destructor() {
-        let cd = class("oo::class create Conn {\n    destructor { close $fd }\n}\n", "::Conn");
+        let cd = class(
+            "oo::class create Conn {\n    destructor { close $fd }\n}\n",
+            "::Conn",
+        );
         let d = cd.destructor.as_ref().expect("destructor");
         assert_eq!(d.kind, "destructor");
     }
 
     #[test]
     fn class_mixins() {
-        let cd = class("oo::class create Dog {\n    mixin Serializable Comparable\n}\n", "::Dog");
+        let cd = class(
+            "oo::class create Dog {\n    mixin Serializable Comparable\n}\n",
+            "::Dog",
+        );
         assert_eq!(cd.mixins, ["Serializable", "Comparable"]);
     }
 
     #[test]
     fn class_forward() {
-        let cd = class("oo::class create Dog {\n    forward run ::dog::run_impl\n}\n", "::Dog");
+        let cd = class(
+            "oo::class create Dog {\n    forward run ::dog::run_impl\n}\n",
+            "::Dog",
+        );
         assert_eq!(cd.methods["run"].kind, "forward");
     }
 
@@ -1531,25 +1709,51 @@ mod tcloo_classes {
 
     #[test]
     fn oo_define_inline_and_partial_class() {
-        let cd = class("oo::define Dog method sit {} { return \"sitting\" }", "::Dog");
+        let cd = class(
+            "oo::define Dog method sit {} { return \"sitting\" }",
+            "::Dog",
+        );
         assert!(cd.methods.contains_key("sit"));
         // oo::define on an unseen class creates a partial ClassDef.
-        let cd2 = class("oo::define MyClass {\n    method foo {} {}\n}\n", "::MyClass");
+        let cd2 = class(
+            "oo::define MyClass {\n    method foo {} {}\n}\n",
+            "::MyClass",
+        );
         assert!(cd2.methods.contains_key("foo"));
     }
 
     #[test]
     fn metaclass_variants() {
-        let cfg = class("oo::configurable create Point {\n    property x y\n}\n", "::Point");
+        let cfg = class(
+            "oo::configurable create Point {\n    property x y\n}\n",
+            "::Point",
+        );
         assert_eq!(cfg.metaclass, "oo::configurable");
         assert!(cfg.properties.contains_key("x") && cfg.properties.contains_key("y"));
-        assert_eq!(class("oo::abstract create Shape {\n    method area {} { error \"abstract\" }\n}\n", "::Shape").metaclass, "oo::abstract");
-        assert_eq!(class("oo::singleton create Logger {\n    method log {msg} { puts $msg }\n}\n", "::Logger").metaclass, "oo::singleton");
+        assert_eq!(
+            class(
+                "oo::abstract create Shape {\n    method area {} { error \"abstract\" }\n}\n",
+                "::Shape"
+            )
+            .metaclass,
+            "oo::abstract"
+        );
+        assert_eq!(
+            class(
+                "oo::singleton create Logger {\n    method log {msg} { puts $msg }\n}\n",
+                "::Logger"
+            )
+            .metaclass,
+            "oo::singleton"
+        );
     }
 
     #[test]
     fn fully_qualified_oo_class_head_normalised() {
-        let cd = class("::oo::class create ::Dog {\n    method bark {} { return woof }\n}\n", "::Dog");
+        let cd = class(
+            "::oo::class create ::Dog {\n    method bark {} { return woof }\n}\n",
+            "::Dog",
+        );
         assert_eq!(cd.metaclass, "oo::class");
     }
 
@@ -1568,9 +1772,15 @@ mod tcloo_classes {
 
     #[test]
     fn classmethod_and_private_method() {
-        let cd = class("oo::class create Counter {\n    classmethod instances {} { return 0 }\n}\n", "::Counter");
+        let cd = class(
+            "oo::class create Counter {\n    classmethod instances {} { return 0 }\n}\n",
+            "::Counter",
+        );
         assert_eq!(cd.class_methods["instances"].kind, "classmethod");
-        let cd2 = class("oo::class create Foo {\n    private method helper {} { return 1 }\n}\n", "::Foo");
+        let cd2 = class(
+            "oo::class create Foo {\n    private method helper {} { return 1 }\n}\n",
+            "::Foo",
+        );
         assert_eq!(cd2.methods["helper"].visibility, "private");
     }
 
@@ -1650,7 +1860,11 @@ mod canonicalisation_matrix {
     #[test]
     fn w216_brace_then_paren_with_fix() {
         let r = Analyser::new().analyse("set arr(name) hello\nputs ${arr}(name)", D);
-        let w216: Vec<_> = r.diagnostics.iter().filter(|d| d.code.to_string() == "W216").collect();
+        let w216: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W216")
+            .collect();
         assert_eq!(w216.len(), 1);
         assert!(!w216[0].fixes.is_empty());
         assert_eq!(w216[0].fixes[0].new_text, "$arr(name)");
@@ -1659,7 +1873,11 @@ mod canonicalisation_matrix {
     #[test]
     fn w216_brace_array_with_dollar_index() {
         let r = Analyser::new().analyse("set foo bar\nputs ${arr($foo)}", D);
-        let w216: Vec<_> = r.diagnostics.iter().filter(|d| d.code.to_string() == "W216").collect();
+        let w216: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W216")
+            .collect();
         assert_eq!(w216.len(), 1);
         assert_eq!(w216[0].fixes[0].new_text, "$arr($foo)");
     }
@@ -1667,7 +1885,11 @@ mod canonicalisation_matrix {
     #[test]
     fn w216_funny_name_falls_back_to_set_indirection() {
         let r = Analyser::new().analyse("set \"funny name\" 1\nputs ${funny name($foo)}", D);
-        let w216: Vec<_> = r.diagnostics.iter().filter(|d| d.code.to_string() == "W216").collect();
+        let w216: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W216")
+            .collect();
         assert_eq!(w216.len(), 1);
         assert_eq!(w216[0].fixes[0].new_text, "[set \"funny name($foo)\"]");
     }
@@ -1706,7 +1928,11 @@ mod canonicalisation_matrix {
         // Rust verdict (divergence from Python's canonicalisation expectation):
         assert_eq!(count("proc f {} { ::unset x }", D, "W213"), 0);
         assert_eq!(
-            count("interp alias {} myunset {} unset\nproc f {} { myunset x }", D, "W213"),
+            count(
+                "interp alias {} myunset {} unset\nproc f {} { myunset x }",
+                D,
+                "W213"
+            ),
             0
         );
         // The qualified+nocomplain combination is likewise silent.
@@ -1730,7 +1956,10 @@ mod canonicalisation_matrix {
         let n = count("interp alias {} s {} set\nproc f {} { s y 1 }", D, "W211");
         // Record the actual count rather than assuming the Python value; the
         // alias-rewrite-to-`set` W211 path is not reproduced here.
-        assert_eq!(n, 0, "aliased-set W211 not reproduced on this surface (divergence)");
+        assert_eq!(
+            n, 0,
+            "aliased-set W211 not reproduced on this surface (divergence)"
+        );
     }
 
     // --- W210 suppression by variable/upvar/global declarations ---
@@ -1739,7 +1968,8 @@ mod canonicalisation_matrix {
     fn w210_variable_decl_silences_bare_and_qualified() {
         // `variable v` introduces v from the namespace → reading it is not W210.
         for decl in ["variable v", "::variable v"] {
-            let src = format!("namespace eval ns {{ variable v; proc f {{}} {{ {decl}; puts $v }} }}");
+            let src =
+                format!("namespace eval ns {{ variable v; proc f {{}} {{ {decl}; puts $v }} }}");
             assert_eq!(w210_for(&src, "'v'"), 0, "for {decl:?}");
         }
     }
@@ -1748,8 +1978,20 @@ mod canonicalisation_matrix {
     fn w210_upvar_decl_silences_bare_and_qualified() {
         // `upvar 1 caller_v local` aliases `local`; reads are not W210. Both the
         // bare and `::upvar` qualified spellings canonicalise onto this path.
-        assert_eq!(w210_for("proc f {} { upvar 1 caller_v local; puts $local }", "'local'"), 0);
-        assert_eq!(w210_for("proc f {} { ::upvar 1 caller_v local; puts $local }", "'local'"), 0);
+        assert_eq!(
+            w210_for(
+                "proc f {} { upvar 1 caller_v local; puts $local }",
+                "'local'"
+            ),
+            0
+        );
+        assert_eq!(
+            w210_for(
+                "proc f {} { ::upvar 1 caller_v local; puts $local }",
+                "'local'"
+            ),
+            0
+        );
     }
 
     #[test]

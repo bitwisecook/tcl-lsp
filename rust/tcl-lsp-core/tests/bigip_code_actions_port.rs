@@ -165,7 +165,11 @@ fn rename_action_title_uses_full_path() {
 fn pool_stanza_offers_only_object_rename() {
     let source = "ltm pool /Common/web_pool { }\n";
     let actions = bigip_code_actions(source, range_at(0), URI);
-    assert_eq!(actions.len(), 1, "pool: exactly one action, got: {actions:?}");
+    assert_eq!(
+        actions.len(),
+        1,
+        "pool: exactly one action, got: {actions:?}"
+    );
     assert!(
         actions
             .iter()

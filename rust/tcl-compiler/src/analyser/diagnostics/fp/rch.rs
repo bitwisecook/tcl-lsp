@@ -2,7 +2,7 @@
 //! handler bodies that used to be CFG islands.
 //! Pairs to `tests/test_fp_rch.py` and the §RCH entries in `docs/design/compiler/FP.md`.
 
-use super::{fires, D};
+use super::{D, fires};
 use crate::analyser::Analyser;
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
@@ -122,7 +122,8 @@ fn fp_rch_02_handler_body_reachable() {
 fn fp_rch_02_handler_var_not_unset() {
     // FP-RCH-02 control: the handler-bound var `e` is defined by the handler
     // clause itself — must NOT be W210 read-before-set.
-    let src = "proc f {} {\n    try {\n        risky\n    } on error {e} {\n        puts $e\n    }\n}";
+    let src =
+        "proc f {} {\n    try {\n        risky\n    } on error {e} {\n        puts $e\n    }\n}";
     assert!(
         !fires(src, D, "W210"),
         "FP-RCH-02: handler-bound `e` is defined by the clause; emitted {:?}",

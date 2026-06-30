@@ -391,7 +391,10 @@ mod tests {
         let max = o.new_int(i64::MAX);
         let one = o.new_int(1);
         // i64::MAX + 1 overflows the fixed-width tower.
-        assert_eq!(o.int_add(Some(&max), &one), Err(ValueError::IntegerOverflow));
+        assert_eq!(
+            o.int_add(Some(&max), &one),
+            Err(ValueError::IntegerOverflow)
+        );
     }
 
     #[test]
@@ -441,7 +444,9 @@ mod tests {
         let odd = o.new_str("a 1 b");
         assert_eq!(
             o.dict_pairs(&odd),
-            Err(ValueError::BadList("missing value to go with key".to_string()))
+            Err(ValueError::BadList(
+                "missing value to go with key".to_string()
+            ))
         );
     }
 

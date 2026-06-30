@@ -206,7 +206,10 @@ mod taint_join {
     #[test]
     fn different_colours_lose_both() {
         // IP_ADDRESS & PORT = 0 (different flags) → join keeps neither.
-        let r = join(TAINTED | TaintColour::IP_ADDRESS, TAINTED | TaintColour::PORT);
+        let r = join(
+            TAINTED | TaintColour::IP_ADDRESS,
+            TAINTED | TaintColour::PORT,
+        );
         assert!(r.is_tainted());
         assert!(!r.colours.contains(TaintColour::IP_ADDRESS));
         assert!(!r.colours.contains(TaintColour::PORT));
@@ -265,7 +268,10 @@ mod lattice_join_new_colours {
 
     #[test]
     fn list_canonical_self() {
-        let r = join(t(TaintColour::LIST_CANONICAL), t(TaintColour::LIST_CANONICAL));
+        let r = join(
+            t(TaintColour::LIST_CANONICAL),
+            t(TaintColour::LIST_CANONICAL),
+        );
         assert!(r.colours.contains(TaintColour::LIST_CANONICAL));
     }
 
@@ -278,7 +284,10 @@ mod lattice_join_new_colours {
 
     #[test]
     fn path_normalised_self() {
-        let r = join(t(TaintColour::PATH_NORMALISED), t(TaintColour::PATH_NORMALISED));
+        let r = join(
+            t(TaintColour::PATH_NORMALISED),
+            t(TaintColour::PATH_NORMALISED),
+        );
         assert!(r.colours.contains(TaintColour::PATH_NORMALISED));
     }
 
@@ -348,7 +357,10 @@ mod no_false_positives {
     #[test]
     fn safe_eval() {
         // `eval $x` where x is a literal string — no taint reaches the sink.
-        assert_eq!(codes("set x \"puts hello\"\neval $x", D), Vec::<String>::new());
+        assert_eq!(
+            codes("set x \"puts hello\"\neval $x", D),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -519,7 +531,8 @@ mod taint_propagation {
 
     #[test]
     fn taint_through_if_branch() {
-        let source = "set x [read $fd]\nif {1} {\n    set y $x\n} else {\n    set y \"safe\"\n}\neval $y\n";
+        let source =
+            "set x [read $fd]\nif {1} {\n    set y $x\n} else {\n    set y \"safe\"\n}\neval $y\n";
         let ws = of_code(source, D, "T100");
         assert!(ws.iter().any(|w| w.variable == "y"));
     }
@@ -534,8 +547,7 @@ mod interprocedural_taint {
     #[test]
     fn helper_sanitiser_suppresses_taint() {
         // tclsh: the helper returns `string length` (an int) → clean result.
-        let source =
-            "proc safe_len {x} { return [string length $x] }\nset raw [read $fd]\nset n [safe_len $raw]\nexpr $n\n";
+        let source = "proc safe_len {x} { return [string length $x] }\nset raw [read $fd]\nset n [safe_len $raw]\nexpr $n\n";
         assert_eq!(codes(source, D), Vec::<String>::new());
     }
 
@@ -793,10 +805,7 @@ mod option_injection {
     fn unset_literal_name_no_warning() {
         // tclsh: `unset name` takes a literal variable name that cannot start
         // with `-`, so even a tainted var by that name is not option-injectable.
-        assert!(
-            of_code("set thelongname [read $fd]\nunset thelongname", D, "T102")
-                .is_empty()
-        );
+        assert!(of_code("set thelongname [read $fd]\nunset thelongname", D, "T102").is_empty());
     }
 
     #[test]
@@ -1005,14 +1014,7 @@ mod t102_suppression {
     #[test]
     fn literal_prefix_concat_no_t102() {
         // A fixed non-dash literal prefix is option-injection-safe.
-        assert!(
-            of_code(
-                "set foo \"path_[HTTP::path]\"\nregexp $foo test",
-                D,
-                "T102",
-            )
-            .is_empty()
-        );
+        assert!(of_code("set foo \"path_[HTTP::path]\"\nregexp $foo test", D, "T102",).is_empty());
     }
 
     #[test]
@@ -1037,14 +1039,7 @@ mod t102_suppression {
 
     #[test]
     fn path_prefixed_copy_suppresses() {
-        assert!(
-            of_code(
-                "set uri [HTTP::uri]\nset x $uri\nregexp $x test",
-                D,
-                "T102",
-            )
-            .is_empty()
-        );
+        assert!(of_code("set uri [HTTP::uri]\nset x $uri\nregexp $x test", D, "T102",).is_empty());
     }
 
     #[test]
@@ -1186,12 +1181,26 @@ mod crlf_free {
 
     #[test]
     fn ip_client_addr_augments_crlf_free() {
-        assert!(of_code("set addr [IP::client_addr]\nlog local0. $addr", IR, "IRULE3003").is_empty());
+        assert!(
+            of_code(
+                "set addr [IP::client_addr]\nlog local0. $addr",
+                IR,
+                "IRULE3003"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn tcp_client_port_augments_crlf_free() {
-        assert!(of_code("set port [TCP::client_port]\nlog local0. $port", IR, "IRULE3003").is_empty());
+        assert!(
+            of_code(
+                "set port [TCP::client_port]\nlog local0. $port",
+                IR,
+                "IRULE3003"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -1325,7 +1334,11 @@ mod list_canonical {
     #[test]
     fn list_command_propagates_taint_to_eval_fires() {
         // tclsh: `eval [list $raw]` runs $raw as the command word → T100.
-        let ws = of_code("set raw [read $fd]\nset lst [list $raw]\neval $lst", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset lst [list $raw]\neval $lst",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
@@ -1334,28 +1347,44 @@ mod list_canonical {
     fn lsort_eval_fires() {
         // tclsh: lsort returns a canonical list but its first element is still
         // user-controlled — no command-word safety.
-        let ws = of_code("set raw [read $fd]\nset sorted [lsort $raw]\neval $sorted", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset sorted [lsort $raw]\neval $sorted",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 
     #[test]
     fn lrange_eval_fires() {
-        let ws = of_code("set raw [read $fd]\nset sub [lrange $raw 0 2]\neval $sub", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset sub [lrange $raw 0 2]\neval $sub",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 
     #[test]
     fn split_eval_fires() {
-        let ws = of_code("set raw [read $fd]\nset parts [split $raw :]\neval $parts", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset parts [split $raw :]\neval $parts",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 
     #[test]
     fn list_command_propagates_taint_to_puts() {
-        let ws = of_code("set raw [read $fd]\nset lst [list $raw]\nputs $lst", D, "T101");
+        let ws = of_code(
+            "set raw [read $fd]\nset lst [list $raw]\nputs $lst",
+            D,
+            "T101",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -1413,13 +1442,21 @@ mod regex_literal {
 
     #[test]
     fn regex_quote_produces_colour() {
-        let ws = of_code("set raw [read $fd]\nset safe [regex::quote $raw]\neval $safe", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset safe [regex::quote $raw]\neval $safe",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
     }
 
     #[test]
     fn regexp_quote_produces_colour() {
-        let ws = of_code("set raw [read $fd]\nset safe [regexp::quote $raw]\neval $safe", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset safe [regexp::quote $raw]\neval $safe",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -1453,7 +1490,11 @@ mod path_normalised {
 
     #[test]
     fn file_normalize_produces_colour() {
-        let ws = of_code("set raw [read $fd]\nset norm [file normalize $raw]\neval $norm", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset norm [file normalize $raw]\neval $norm",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -1587,7 +1628,11 @@ mod url_encoded {
 
     #[test]
     fn uri_encode_produces_colour() {
-        let ws = of_code("set raw [read $fd]\nset enc [URI::encode $raw]\neval $enc", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset enc [URI::encode $raw]\neval $enc",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -1603,7 +1648,11 @@ mod url_encoded {
 
     #[test]
     fn uri_escape_produces_colour() {
-        let ws = of_code("set raw [read $fd]\nset enc [URI::escape $raw]\neval $enc", D, "T100");
+        let ws = of_code(
+            "set raw [read $fd]\nset enc [URI::escape $raw]\neval $enc",
+            D,
+            "T100",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -1804,8 +1853,7 @@ mod interprocedural_colours {
     fn helper_returning_uri_encode_suppresses_irule3003() {
         // Python: a proc that returns `[URI::encode $x]` returns a CRLF_FREE
         // value, so the caller's `log local0. $safe` is IRULE3003-suppressed.
-        let source =
-            "proc encode_it {x} { return [URI::encode $x] }\nset raw [HTTP::query]\nset safe [encode_it $raw]\nlog local0. $safe\n";
+        let source = "proc encode_it {x} { return [URI::encode $x] }\nset raw [HTTP::query]\nset safe [encode_it $raw]\nlog local0. $safe\n";
         // FIXED (lattice-join identity): the return summary joins the helper's
         // CRLF_FREE scenario onto a clean base; with clean now the join identity
         // the colour survives into the caller's `$safe`, so IRULE3003 stays
@@ -1817,8 +1865,7 @@ mod interprocedural_colours {
     fn helper_returning_html_encode_suppresses_irule3001() {
         // Python: a proc returning `[HTML::encode $x]` returns HTML_ESCAPED →
         // caller's HTTP::respond is IRULE3001-suppressed.
-        let source =
-            "proc html_safe {x} { return [HTML::encode $x] }\nset raw [HTTP::query]\nset safe [html_safe $raw]\nHTTP::respond 200 content $safe\n";
+        let source = "proc html_safe {x} { return [HTML::encode $x] }\nset raw [HTTP::query]\nset safe [html_safe $raw]\nHTTP::respond 200 content $safe\n";
         // FIXED (lattice-join identity): the HTML_ESCAPED return scenario now
         // survives the summary join into the caller, so IRULE3001 stays
         // suppressed.
@@ -1827,16 +1874,14 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_passthrough_generic_taint_fires_t102() {
-        let source =
-            "proc identity {x} { return $x }\nset raw [read $fd]\nset x [identity $raw]\nregexp $x test\n";
+        let source = "proc identity {x} { return $x }\nset raw [read $fd]\nset x [identity $raw]\nregexp $x test\n";
         assert!(!of_code(source, D, "T102").is_empty());
     }
 
     #[test]
     fn helper_list_wrapper_eval_still_fires() {
         // tclsh: even via a helper, `eval [list $x]` runs $x as the command word.
-        let source =
-            "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\neval $lst\n";
+        let source = "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\neval $lst\n";
         let ws = of_code(source, D, "T100");
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
@@ -1844,8 +1889,7 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_list_wrapper_still_tainted() {
-        let source =
-            "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\nputs $lst\n";
+        let source = "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\nputs $lst\n";
         assert!(!of_code(source, D, "T101").is_empty());
     }
 
@@ -1939,8 +1983,7 @@ mod transform_colour_edge_cases {
 
     #[test]
     fn concat_of_mixed_canonicality() {
-        let source =
-            "set raw [read $fd]\nset a [list $raw]\nset b [read $fd2]\nset c [concat $a $b]\neval $c";
+        let source = "set raw [read $fd]\nset a [list $raw]\nset b [read $fd2]\nset c [concat $a $b]\neval $c";
         assert!(!of_code(source, D, "T100").is_empty());
     }
 
@@ -1952,7 +1995,14 @@ mod transform_colour_edge_cases {
 
     #[test]
     fn file_normalize_with_untainted_no_colour() {
-        assert!(of_code("set norm [file normalize \"/tmp/foo\"]\neval $norm", D, "T100").is_empty());
+        assert!(
+            of_code(
+                "set norm [file normalize \"/tmp/foo\"]\neval $norm",
+                D,
+                "T100"
+            )
+            .is_empty()
+        );
     }
 }
 
@@ -1966,13 +2016,15 @@ mod sink_suppression_matrix {
     #[test]
     fn irule3001_not_suppressed_by_crlf_free() {
         // URL_ENCODED/CRLF_FREE does NOT suppress IRULE3001 (XSS).
-        let source = "set raw [HTTP::query]\nset enc [URI::encode $raw]\nHTTP::respond 200 content $enc";
+        let source =
+            "set raw [HTTP::query]\nset enc [URI::encode $raw]\nHTTP::respond 200 content $enc";
         assert!(!of_code(source, IR, "IRULE3001").is_empty());
     }
 
     #[test]
     fn irule3001_suppressed_by_html_escaped() {
-        let source = "set raw [HTTP::query]\nset enc [HTML::encode $raw]\nHTTP::respond 200 content $enc";
+        let source =
+            "set raw [HTTP::query]\nset enc [HTML::encode $raw]\nHTTP::respond 200 content $enc";
         assert!(of_code(source, IR, "IRULE3001").is_empty());
     }
 
@@ -2132,13 +2184,21 @@ mod t103_regexp_pattern_injection {
 
     #[test]
     fn tainted_regsub_pattern_fires() {
-        let ws = of_code("set pat [read $fd]\nregsub $pat teststring replacement", D, "T103");
+        let ws = of_code(
+            "set pat [read $fd]\nregsub $pat teststring replacement",
+            D,
+            "T103",
+        );
         assert!(!ws.is_empty());
     }
 
     #[test]
     fn tainted_regexp_with_options_fires() {
-        let ws = of_code("set pat [read $fd]\nregexp -nocase -- $pat teststring", D, "T103");
+        let ws = of_code(
+            "set pat [read $fd]\nregexp -nocase -- $pat teststring",
+            D,
+            "T103",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -2174,9 +2234,7 @@ mod t103_regexp_pattern_injection {
         let ws = of_code("set pat [read $fd]\nregexp $pat teststring", D, "T103");
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("pat"));
-        assert!(
-            ws[0].message.contains("regexp") || ws[0].message.to_lowercase().contains("regex")
-        );
+        assert!(ws[0].message.contains("regexp") || ws[0].message.to_lowercase().contains("regex"));
     }
 }
 
@@ -2215,7 +2273,11 @@ mod irule3004_open_redirect {
 
     #[test]
     fn tainted_redirect_fires() {
-        let ws = of_code("set dest [HTTP::query]\nHTTP::redirect $dest", IR, "IRULE3004");
+        let ws = of_code(
+            "set dest [HTTP::query]\nHTTP::redirect $dest",
+            IR,
+            "IRULE3004",
+        );
         assert!(!ws.is_empty());
         assert!(ws[0].message.to_lowercase().contains("redirect"));
     }
@@ -2251,7 +2313,14 @@ mod irule3004_open_redirect {
 
     #[test]
     fn literal_redirect_clean() {
-        assert!(of_code("HTTP::redirect \"https://example.com/home\"", IR, "IRULE3004").is_empty());
+        assert!(
+            of_code(
+                "HTTP::redirect \"https://example.com/home\"",
+                IR,
+                "IRULE3004"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2261,7 +2330,11 @@ mod irule3004_open_redirect {
 
     #[test]
     fn message_format() {
-        let ws = of_code("set url [HTTP::query]\nHTTP::redirect $url", IR, "IRULE3004");
+        let ws = of_code(
+            "set url [HTTP::query]\nHTTP::redirect $url",
+            IR,
+            "IRULE3004",
+        );
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("$url"));
         assert!(ws[0].message.contains("HTTP::redirect"));
@@ -2277,7 +2350,8 @@ mod t106_double_encoding {
 
     #[test]
     fn double_html_encode() {
-        let source = "set raw [read $fd]\nset safe [HTML::encode $raw]\nset double [HTML::encode $safe]";
+        let source =
+            "set raw [read $fd]\nset safe [HTML::encode $raw]\nset double [HTML::encode $safe]";
         let ws = of_code(source, IR, "T106");
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("HTML-escaped"));
@@ -2285,7 +2359,8 @@ mod t106_double_encoding {
 
     #[test]
     fn double_uri_encode() {
-        let source = "set raw [read $fd]\nset enc [URI::encode $raw]\nset double [URI::encode $enc]";
+        let source =
+            "set raw [read $fd]\nset enc [URI::encode $raw]\nset double [URI::encode $enc]";
         let ws = of_code(source, IR, "T106");
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("URL-encoded"));
@@ -2293,7 +2368,8 @@ mod t106_double_encoding {
 
     #[test]
     fn double_regex_quote() {
-        let source = "set raw [read $fd]\nset esc [regex::quote $raw]\nset double [regex::quote $esc]";
+        let source =
+            "set raw [read $fd]\nset esc [regex::quote $raw]\nset double [regex::quote $esc]";
         let ws = of_code(source, IR, "T106");
         assert!(!ws.is_empty());
         assert!(ws[0].message.contains("regex-escaped"));
@@ -2314,8 +2390,7 @@ mod t106_double_encoding {
 
     #[test]
     fn double_encode_through_copy() {
-        let source =
-            "set raw [read $fd]\nset enc [URI::encode $raw]\nset copy $enc\nset double [URI::encode $copy]";
+        let source = "set raw [read $fd]\nset enc [URI::encode $raw]\nset copy $enc\nset double [URI::encode $copy]";
         assert!(!of_code(source, IR, "T106").is_empty());
     }
 
@@ -2370,7 +2445,11 @@ mod t104_network_sinks {
 
     #[test]
     fn socket_propagation_through_copy() {
-        let ws = of_code("set host [read $fd]\nset h2 $host\nsocket $h2 443", D, "T104");
+        let ws = of_code(
+            "set host [read $fd]\nset h2 $host\nsocket $h2 443",
+            D,
+            "T104",
+        );
         assert!(ws.iter().any(|w| w.variable == "h2"));
     }
 
@@ -2394,7 +2473,11 @@ mod t105_interp_eval_sinks {
 
     #[test]
     fn interp_eval_tainted() {
-        let ws = of_code("set script [read $fd]\ninterp eval $child $script", D, "T105");
+        let ws = of_code(
+            "set script [read $fd]\ninterp eval $child $script",
+            D,
+            "T105",
+        );
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command.contains("interp eval")));
     }
@@ -2406,7 +2489,11 @@ mod t105_interp_eval_sinks {
 
     #[test]
     fn interp_invokehidden_tainted() {
-        let ws = of_code("set cmd [read $fd]\ninterp invokehidden $child $cmd", D, "T105");
+        let ws = of_code(
+            "set cmd [read $fd]\ninterp invokehidden $child $cmd",
+            D,
+            "T105",
+        );
         assert!(!ws.is_empty());
     }
 
@@ -2446,7 +2533,11 @@ mod irule3103_uri_split {
 
     #[test]
     fn split_uri_on_question_mark() {
-        let ws = of_code("set uri [HTTP::uri]\nset parts [split $uri \"?\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set uri [HTTP::uri]\nset parts [split $uri \"?\"]",
+            IR,
+            "IRULE3103",
+        );
         assert_eq!(ws.len(), 1);
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("HTTP::query"));
@@ -2454,14 +2545,22 @@ mod irule3103_uri_split {
 
     #[test]
     fn split_uri_on_ampersand() {
-        let ws = of_code("set uri [HTTP::uri]\nset parts [split $uri \"&\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set uri [HTTP::uri]\nset parts [split $uri \"&\"]",
+            IR,
+            "IRULE3103",
+        );
         assert_eq!(ws.len(), 1);
         assert!(ws[0].message.contains("HTTP::query"));
     }
 
     #[test]
     fn split_uri_on_question_and_ampersand() {
-        let ws = of_code("set uri [HTTP::uri]\nset parts [split $uri \"?&\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set uri [HTTP::uri]\nset parts [split $uri \"?&\"]",
+            IR,
+            "IRULE3103",
+        );
         assert_eq!(ws.len(), 1);
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("HTTP::query"));
@@ -2475,19 +2574,31 @@ mod irule3103_uri_split {
 
     #[test]
     fn split_non_uri_clean() {
-        let ws = of_code("set x \"foo?bar\"\nset parts [split $x \"?\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set x \"foo?bar\"\nset parts [split $x \"?\"]",
+            IR,
+            "IRULE3103",
+        );
         assert!(ws.is_empty());
     }
 
     #[test]
     fn split_http_path_clean() {
-        let ws = of_code("set p [HTTP::path]\nset parts [split $p \"?\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set p [HTTP::path]\nset parts [split $p \"?\"]",
+            IR,
+            "IRULE3103",
+        );
         assert!(ws.is_empty());
     }
 
     #[test]
     fn split_uri_on_slash_clean() {
-        let ws = of_code("set uri [HTTP::uri]\nset parts [split $uri \"/\"]", IR, "IRULE3103");
+        let ws = of_code(
+            "set uri [HTTP::uri]\nset parts [split $uri \"/\"]",
+            IR,
+            "IRULE3103",
+        );
         assert!(ws.is_empty());
     }
 
@@ -2851,7 +2962,10 @@ mod irule3103_edge_cases {
         assert_eq!(ws.len(), 2);
         let mut sinks: Vec<String> = ws.iter().map(|w| w.sink_command.clone()).collect();
         sinks.sort();
-        assert_eq!(sinks, vec!["contains".to_string(), "string match".to_string()]);
+        assert_eq!(
+            sinks,
+            vec!["contains".to_string(), "string match".to_string()]
+        );
     }
 
     #[test]

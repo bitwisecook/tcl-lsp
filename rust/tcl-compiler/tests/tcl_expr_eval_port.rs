@@ -881,7 +881,10 @@ fn irules_starts_with() {
     assert_eq!(eval_irules(r#""abc" starts_with "abc""#), int(1));
     assert_eq!(eval_irules(r#""ab" starts_with "abc""#), int(0));
     assert_eq!(
-        eval_irules_env(r#"$path starts_with "/api/""#, &env_str("path", "/api/v2/users")),
+        eval_irules_env(
+            r#"$path starts_with "/api/""#,
+            &env_str("path", "/api/v2/users")
+        ),
         int(1)
     );
 }
@@ -941,7 +944,10 @@ fn irules_matches_glob() {
     assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), int(1));
     assert_eq!(eval_irules(r#""ax" matches_glob "a[0-9]""#), int(0));
     assert_eq!(
-        eval_irules_env(r#"$uri matches_glob "/images/*""#, &env_str("uri", "/images/logo.png")),
+        eval_irules_env(
+            r#"$uri matches_glob "/images/*""#,
+            &env_str("uri", "/images/logo.png")
+        ),
         int(1)
     );
 }
@@ -991,15 +997,24 @@ fn irules_in_list_membership() {
     assert_eq!(eval_irules(r#""apple" in "apple""#), int(1));
     assert_eq!(eval_irules(r#""apple" in """#), int(0));
     // Braced grouping: {hello world} is one element.
-    assert_eq!(eval_irules(r#""hello world" in "{hello world} simple""#), int(1));
+    assert_eq!(
+        eval_irules(r#""hello world" in "{hello world} simple""#),
+        int(1)
+    );
     // A prefix is not a list element.
     assert_eq!(eval_irules(r#""app" in "apple banana""#), int(0));
     assert_eq!(
-        eval_irules_env(r#"$method in "GET HEAD OPTIONS""#, &env_str("method", "GET")),
+        eval_irules_env(
+            r#"$method in "GET HEAD OPTIONS""#,
+            &env_str("method", "GET")
+        ),
         int(1)
     );
     assert_eq!(
-        eval_irules_env(r#"$method in "GET HEAD OPTIONS""#, &env_str("method", "POST")),
+        eval_irules_env(
+            r#"$method in "GET HEAD OPTIONS""#,
+            &env_str("method", "POST")
+        ),
         int(0)
     );
 }

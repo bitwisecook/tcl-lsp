@@ -276,7 +276,10 @@ if {$total > 5} {
         // `if {0} {set x 1}` — x's def is in dead code, not a dead *store*, and
         // a constant-false branch is recorded. tclsh: `expr {0}` → 0 (false).
         let src = "if {0} {set x 1}\nset y 2\nset z [expr {$y + 0}]";
-        assert!(!dead_store_vars(src).contains("x"), "x is in dead code, not a dead store");
+        assert!(
+            !dead_store_vars(src).contains("x"),
+            "x is in dead code, not a dead store"
+        );
         let cu = build(src);
         assert!(
             const_branches(&cu.top_level).iter().any(|(_, v)| !v),
@@ -342,8 +345,13 @@ if {$total > 5} {
     #[test]
     fn analysis_runs_for_lowered_procedures() {
         // The per-proc lattice is populated: inside ::add_static, a=1, b=3.
-        let cu = build("proc add_static {} {\n    set a 1\n    set b [expr {$a + 2}]\n    return $b\n}\n");
-        let p = cu.procedures.get("::add_static").expect("::add_static lowered");
+        let cu = build(
+            "proc add_static {} {\n    set a 1\n    set b [expr {$a + 2}]\n    return $b\n}\n",
+        );
+        let p = cu
+            .procedures
+            .get("::add_static")
+            .expect("::add_static lowered");
         assert_const_int(p, "a", 1, 1);
         assert_const_int(p, "b", 1, 3);
     }
@@ -389,9 +397,14 @@ mod new_lowering_analysis {
         // `hello` and items is a list.
         let cu = build("lappend items hello");
         if let Some(t) = ty(&cu.top_level, "items", 1)
-            && t.kind == TypeKind::Known {
-                assert_eq!(t.tcl_type, Some(TclType::List), "lappend result must be LIST");
-            }
+            && t.kind == TypeKind::Known
+        {
+            assert_eq!(
+                t.tcl_type,
+                Some(TclType::List),
+                "lappend result must be LIST"
+            );
+        }
     }
 
     #[test]
@@ -473,7 +486,9 @@ mod interpolation_folding {
         // DIVERGENCE (fold coverage): as at top level, the expr part c₁ folds to
         // CONST(1) inside a proc body, but the interpolation value c₂ is left
         // Overdefined (Python folds it to "10"). tclsh value: 10.
-        let cu = build("proc add {a b} {\n    set c [expr {0+1}]\n    set c \"${c}0\"\n    incr b $c\n    return $c\n}\n");
+        let cu = build(
+            "proc add {a b} {\n    set c [expr {0+1}]\n    set c \"${c}0\"\n    incr b $c\n    return $c\n}\n",
+        );
         let p = cu.procedures.get("::add").expect("::add lowered");
         assert_const_int(p, "c", 1, 1);
         assert_overdefined_or_absent(p, "c", 2, "interpolation value in proc");
@@ -486,7 +501,10 @@ mod interpolation_folding {
         //   ERR: expected integer but got "hello".
         let cu = build("set s hello\nset x 0\nincr x $s");
         assert!(
-            matches!(lat(&cu.top_level, "x", 2), Some(LatticeValue::Overdefined) | None),
+            matches!(
+                lat(&cu.top_level, "x", 2),
+                Some(LatticeValue::Overdefined) | None
+            ),
             "non-numeric incr increment must not fold, got {:?}",
             lat(&cu.top_level, "x", 2)
         );
@@ -627,7 +645,11 @@ proc wire_namespace_vars {} {
         // foreach over an unknown $items → x never CONSTSET.
         let cu = build("foreach x $items {puts $x}");
         for v in lats_for(&cu.top_level, "x") {
-            assert_ne!(v.kind(), LatticeKind::ConstSet, "unknown-list foreach must not be CONSTSET");
+            assert_ne!(
+                v.kind(),
+                LatticeKind::ConstSet,
+                "unknown-list foreach must not be CONSTSET"
+            );
         }
     }
 
@@ -736,7 +758,10 @@ proc wire_namespace_vars {} {
             .into_iter()
             .filter(|v| v.kind() == LatticeKind::ConstSet)
             .collect();
-        assert!(!cs.is_empty(), "x must resolve to CONSTSET through the [list a b] fold");
+        assert!(
+            !cs.is_empty(),
+            "x must resolve to CONSTSET through the [list a b] fold"
+        );
         assert_constset_strs(cs[0], &["a", "b"]);
     }
 }
@@ -841,18 +866,27 @@ mod no_read_before_set {
     fn info_exists_is_not_read_before_set() {
         // Policy: `info exists FOO` tests existence, never reads FOO → no W210.
         // (tclsh: `info exists FOO` on an unset local → 0, no error.)
-        assert!(!fires("proc p {} { if {[info exists FOO]} { set y 1 } }", "W210"));
+        assert!(!fires(
+            "proc p {} { if {[info exists FOO]} { set y 1 } }",
+            "W210"
+        ));
     }
 
     #[test]
     fn array_exists_is_not_read_before_set() {
         // tclsh: `array exists FOO` on an unset name → 0, no error.
-        assert!(!fires("proc p {} { if {[array exists FOO]} { set y 1 } }", "W210"));
+        assert!(!fires(
+            "proc p {} { if {[array exists FOO]} { set y 1 } }",
+            "W210"
+        ));
     }
 
     #[test]
     fn check_in_value_is_not_read_before_set() {
-        assert!(!fires("proc p {} { set r [info exists FOO]; puts $r }", "W210"));
+        assert!(!fires(
+            "proc p {} { set r [info exists FOO]; puts $r }",
+            "W210"
+        ));
     }
 
     #[test]
@@ -927,7 +961,10 @@ mod no_read_before_set {
         // body-local writes inside the `dict for` barrier, so it flags
         // `$fileData` (W210). A sound over-warn; asserted at the actual verdict.
         let src = "proc p {} {\n    dict for {k v} {a 1 b 2} {\n        set fileData $k\n        puts $fileData\n    }\n}\n";
-        assert!(fires(src, "W210"), "Rust flags the body-local set inside `dict for`");
+        assert!(
+            fires(src, "W210"),
+            "Rust flags the body-local set inside `dict for`"
+        );
     }
 
     #[test]
@@ -944,7 +981,10 @@ mod no_read_before_set {
         // `dict_for_body_local_set_diverges`. Rust flags the body-local
         // `set out $k`'s read (W210); Python recovers it. Sound over-warn.
         let src = "proc p {} {\n    dict map {k v} {a 1 b 2} {\n        set out $k\n        list $out\n    }\n}\n";
-        assert!(fires(src, "W210"), "Rust flags the body-local set inside `dict map`");
+        assert!(
+            fires(src, "W210"),
+            "Rust flags the body-local set inside `dict map`"
+        );
     }
 
     #[test]
@@ -964,7 +1004,10 @@ mod no_read_before_set {
         // it flags `$x` (W210). A sound over-warn (it never suppresses a real
         // read); asserted at the actual verdict.
         let src = "proc p {f} { return [read [set x [open $f r]]][close $x] }\n";
-        assert!(fires(src, "W210"), "Rust flags the cmd-sub-defined $x in a return value");
+        assert!(
+            fires(src, "W210"),
+            "Rust flags the cmd-sub-defined $x in a return value"
+        );
     }
 
     #[test]
@@ -975,7 +1018,10 @@ mod no_read_before_set {
         // not scan branch-condition cmd-sub writes, so `$x` is flagged W210.
         // Sound over-warn; actual verdict asserted.
         let src = "proc p {} { if {[set x 1]} { puts $x } }\n";
-        assert!(fires(src, "W210"), "Rust flags the cmd-sub-defined $x in a branch condition");
+        assert!(
+            fires(src, "W210"),
+            "Rust flags the cmd-sub-defined $x in a branch condition"
+        );
     }
 
     #[test]
@@ -998,7 +1044,9 @@ mod provably_absent_folds_false {
         // tclsh: `info exists ACCESS_RPC_HANDLE` (unset local) → 0.
         let src = "proc myProc {} {\n    if {[info exists ACCESS_RPC_HANDLE]} {\n        set y 1\n    }\n}";
         assert!(
-            i230_messages(src).iter().any(|m| m.contains("always false")),
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false")),
             "expected an 'always false' I230; got {:?}",
             i230_messages(src)
         );
@@ -1028,7 +1076,11 @@ mod provably_absent_folds_false {
     fn array_exists_absent_folds_false() {
         // tclsh: `array exists FOO` on unset name → 0.
         let src = "proc p {} { if {[array exists FOO]} { puts dead } }";
-        assert!(i230_messages(src).iter().any(|m| m.contains("always false")));
+        assert!(
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false"))
+        );
     }
 
     #[test]
@@ -1091,40 +1143,61 @@ mod soundness_gates {
     #[test]
     fn global_is_not_folded() {
         // A global may exist independently of this frame → no I230.
-        assert!(!fires("proc p {} { global H; if {[info exists H]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { global H; if {[info exists H]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn namespace_variable_is_not_folded() {
-        assert!(!fires("proc p {} { variable H; if {[info exists H]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { variable H; if {[info exists H]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn eval_barrier_disables_fold() {
         // `eval $cmd` is an opaque barrier that could define X → no fold.
-        assert!(!fires("proc p {} { eval $cmd; if {[info exists X]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { eval $cmd; if {[info exists X]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn namespace_qualified_name_is_not_folded() {
-        assert!(!fires("proc p {} { if {[info exists ::ns::X]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { if {[info exists ::ns::X]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn array_element_is_not_folded() {
-        assert!(!fires("proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn nested_command_sub_assignment_is_not_folded() {
         // `set y [set X 1]` creates X with no SSA def → folder must not treat X
         // as absent. tclsh: `set y [set X 1]; info exists X` → 1.
-        assert!(!fires("proc p {} { set y [set X 1]; if {[info exists X]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { set y [set X 1]; if {[info exists X]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
     fn command_sub_in_call_arg_is_not_folded() {
-        assert!(!fires("proc p {} { puts [set X 1]; if {[info exists X]} { puts a } else { puts b } }", "I230"));
+        assert!(!fires(
+            "proc p {} { puts [set X 1]; if {[info exists X]} { puts a } else { puts b } }",
+            "I230"
+        ));
     }
 
     #[test]
@@ -1132,7 +1205,11 @@ mod soundness_gates {
         // A value whose cmd-sub cannot create a local must not block folding:
         // `[string length abc]` is pure, so X (never defined) still folds false.
         let src = "proc p {} { set n [string length abc]; if {[info exists X]} { puts a } else { puts b } }";
-        assert!(i230_messages(src).iter().any(|m| m.contains("always false")));
+        assert!(
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false"))
+        );
     }
 }
 
@@ -1173,7 +1250,9 @@ mod flow_sensitive_narrowing {
 
     #[test]
     fn nested_true_branch_read_is_safe() {
-        assert!(!flagged("if {[info exists X]} { if {[string length a]} { puts $X } }").contains("X"));
+        assert!(
+            !flagged("if {[info exists X]} { if {[string length a]} { puts $X } }").contains("X")
+        );
     }
 
     #[test]
@@ -1340,7 +1419,8 @@ mod analysis_level {
     #[test]
     fn no_constant_branch_for_global() {
         // A global is exempt from the fold → no constant branch from it.
-        let cu = build("proc p {} { global FOO; if {[info exists FOO]} { puts x } else { puts y } }");
+        let cu =
+            build("proc p {} { global FOO; if {[info exists FOO]} { puts x } else { puts y } }");
         let fn_p = cu.procedures.get("::p").expect("::p lowered");
         assert!(
             fn_p.sccp.constant_branches.is_empty(),

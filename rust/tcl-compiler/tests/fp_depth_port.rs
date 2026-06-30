@@ -490,7 +490,8 @@ proc f {} {
         // The same dynamic-upvar local guarded by `[info exists v]` is safe per
         // use — the existence guard suppresses the override. tclsh: the guard
         // is the entire safety. Analyser policy: silent (guarded).
-        let src = "proc f {name} { upvar 1 $name v\n if {[info exists v]} { return $v }\n return {} }\n";
+        let src =
+            "proc f {name} { upvar 1 $name v\n if {[info exists v]} { return $v }\n return {} }\n";
         assert!(
             !fires(src, D, "W210"),
             "info-exists-guarded dynamic-upvar read must be silent; emitted {:?}",
@@ -1036,7 +1037,8 @@ mod obj_depth {
         // on the *same* local is firm evidence the user treats it as an object
         // handle, so W307 is suppressed. (The in-crate FP-OBJ-09 uses a 3-line
         // body; this pins the >=2-dispatch heuristic on a 2-dispatch shape.)
-        let src = "proc f {G} {\n    set TG [createTG $G]\n    $TG node first\n    $TG dispose\n}\n";
+        let src =
+            "proc f {G} {\n    set TG [createTG $G]\n    $TG node first\n    $TG dispose\n}\n";
         assert!(
             !fires(src, D, "W307"),
             "multi-dispatch on the same local must NOT fire W307; emitted {:?}",

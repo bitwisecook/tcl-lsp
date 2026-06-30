@@ -51,16 +51,16 @@ use std::collections::HashMap;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
-use tcl_compiler::var_escape::{
-    self, EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_var_escape, analyse_var_escape_cu,
-    assign_local_slots, is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-    solve_interprocedural_escape, FRAME_INSPECTING_SUBCOMMANDS, INTERPRETER_GLOBAL_SUBCOMMANDS,
-    LOCALS_ARRAY_CAP,
-};
 use tcl_compiler::var_escape::types::{
     Barrier, BarrierKind, EscapeFlags, EscapeReason, EscapeReasonKind,
 };
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_compiler::var_escape::{
+    self, EscapeTag, FRAME_INSPECTING_SUBCOMMANDS, INTERPRETER_GLOBAL_SUBCOMMANDS,
+    LOCALS_ARRAY_CAP, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_var_escape,
+    analyse_var_escape_cu, assign_local_slots, is_frame_inspecting_info_subcommand,
+    is_safe_info_subcommand, solve_interprocedural_escape,
+};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -94,10 +94,7 @@ fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
 
 /// Fetch the summary for a proc qname, panicking with the available keys
 /// if it is missing.
-fn summary<'a>(
-    map: &'a HashMap<String, ProcEscapeSummary>,
-    qname: &str,
-) -> &'a ProcEscapeSummary {
+fn summary<'a>(map: &'a HashMap<String, ProcEscapeSummary>, qname: &str) -> &'a ProcEscapeSummary {
     map.get(qname).unwrap_or_else(|| {
         panic!(
             "summary for {qname} not found; keys = {:?}",
@@ -189,7 +186,9 @@ fn upvar_escape_reason_is_upvar_source() {
     let p = summary(&s, "::setit");
     let reasons = p.reasons_for("v");
     assert!(
-        reasons.iter().any(|r| r.kind == EscapeReasonKind::UpvarSource),
+        reasons
+            .iter()
+            .any(|r| r.kind == EscapeReasonKind::UpvarSource),
         "expected an UpvarSource reason, got {reasons:?}"
     );
 }
@@ -252,8 +251,7 @@ fn info_exists_literal_escapes_just_that_name() {
         "a literal info-exists is not a whole-proc barrier"
     );
     // Only the named target escapes — a sibling local stays Local.
-    let s2 =
-        escape_ir("proc ::ie3 {} { set myvar 1\n set other 2\n return [info exists myvar] }");
+    let s2 = escape_ir("proc ::ie3 {} { set myvar 1\n set other 2\n return [info exists myvar] }");
     let p2 = summary(&s2, "::ie3");
     assert!(p2.is_frame("myvar"), "info-exists target Frame");
     assert_eq!(
@@ -358,7 +356,10 @@ fn interprocedural_caller_inherits_upvar_pessimism() {
          proc ::wrap {} { set x 5\n setit x 1 }",
     );
     let setit = summary(&s, "::setit");
-    assert!(setit.unbounded_upvar_source(), "dynamic upvar src is unbounded");
+    assert!(
+        setit.unbounded_upvar_source(),
+        "dynamic upvar src is unbounded"
+    );
     assert!(setit.dynamic_barrier());
     let wrap = summary(&s, "::wrap");
     assert!(
@@ -403,9 +404,18 @@ fn interprocedural_pure_leaf_downgrade_through_callees() {
          proc ::wrapuser {} { pureleaf 3 }\n\
          proc ::wrapbuiltin {msg} { puts $msg }",
     );
-    assert!(!summary(&s, "::setit").pure_leaf, "upvar proc is not pure-leaf");
-    assert!(!summary(&s, "::wrap").pure_leaf, "caller of impure proc downgraded");
-    assert!(summary(&s, "::pureleaf").pure_leaf, "leaf doing pure compute is pure-leaf");
+    assert!(
+        !summary(&s, "::setit").pure_leaf,
+        "upvar proc is not pure-leaf"
+    );
+    assert!(
+        !summary(&s, "::wrap").pure_leaf,
+        "caller of impure proc downgraded"
+    );
+    assert!(
+        summary(&s, "::pureleaf").pure_leaf,
+        "leaf doing pure compute is pure-leaf"
+    );
     assert!(
         !summary(&s, "::wrapuser").pure_leaf,
         "a caller of a compiled proc has a call fallback, so it is not pure-leaf"
@@ -483,7 +493,10 @@ fn cu_path_pure_local_needs_no_frame() {
     let s = escape_cu("proc ::pure {a b} { set t [expr {$a + $b}]\n return $t }");
     let p = summary(&s, "::pure");
     assert_eq!(p.tag("t"), EscapeTag::Local);
-    assert!(!p.frame_needed, "pure proc frame-elidable on the CU path too");
+    assert!(
+        !p.frame_needed,
+        "pure proc frame-elidable on the CU path too"
+    );
     assert!(!p.dynamic_barrier());
 }
 
@@ -527,15 +540,9 @@ fn slot_resolution_empty_for_pessimistic_proc() {
 fn assign_local_slots_direct_api() {
     // Drive `assign_local_slots` directly from the lowered proc body +
     // its summary — the public slot-resolution entry point.
-    let module = lower_to_ir(
-        "proc ::q {p1} { set m 1\n set n 2 }",
-        registry(),
-    );
+    let module = lower_to_ir("proc ::q {p1} { set m 1\n set n 2 }", registry());
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get("::q")
-        .expect("proc ::q lowered");
+    let proc = module.procedures.get("::q").expect("proc ::q lowered");
     let summ = summary(&summaries, "::q");
     let slots = assign_local_slots(&proc.body, summ, &proc.params);
     assert_eq!(slots.get("p1"), Some(&0), "param claims slot 0");
@@ -552,7 +559,10 @@ fn assign_local_slots_direct_api() {
 fn info_subcommand_classification_sets() {
     // Frame-inspecting subcommands force pessimism.
     for sub in FRAME_INSPECTING_SUBCOMMANDS {
-        assert!(is_frame_inspecting_info_subcommand(sub), "{sub} frame-inspecting");
+        assert!(
+            is_frame_inspecting_info_subcommand(sub),
+            "{sub} frame-inspecting"
+        );
         assert!(!is_safe_info_subcommand(sub), "{sub} must not also be safe");
     }
     // Interpreter-global subcommands are safe.
@@ -588,7 +598,10 @@ fn info_body_in_proc_is_safe() {
     // it is *not* a barrier and the local stays Local.
     let s = escape_ir("proc ::ib {} { set x [info body ::ib]\n return $x }");
     let p = summary(&s, "::ib");
-    assert!(!p.dynamic_barrier(), "info body is interpreter-global, not a barrier");
+    assert!(
+        !p.dynamic_barrier(),
+        "info body is interpreter-global, not a barrier"
+    );
 }
 
 // ===========================================================================
@@ -597,9 +610,18 @@ fn info_body_in_proc_is_safe() {
 
 #[test]
 fn summary_join_and_default_tag() {
-    assert_eq!(var_escape::join(EscapeTag::Local, EscapeTag::Local), EscapeTag::Local);
-    assert_eq!(var_escape::join(EscapeTag::Local, EscapeTag::Frame), EscapeTag::Frame);
-    assert_eq!(var_escape::join(EscapeTag::Frame, EscapeTag::Local), EscapeTag::Frame);
+    assert_eq!(
+        var_escape::join(EscapeTag::Local, EscapeTag::Local),
+        EscapeTag::Local
+    );
+    assert_eq!(
+        var_escape::join(EscapeTag::Local, EscapeTag::Frame),
+        EscapeTag::Frame
+    );
+    assert_eq!(
+        var_escape::join(EscapeTag::Frame, EscapeTag::Local),
+        EscapeTag::Frame
+    );
     let d = ProcEscapeSummary::default();
     assert_eq!(d.tag("anything"), EscapeTag::Local);
     assert!(!d.wants_frame());
@@ -637,7 +659,10 @@ fn summary_explicit_reason_passthrough_and_flags() {
     let mut tag_reasons: HashMap<String, Vec<EscapeReason>> = HashMap::new();
     tag_reasons.insert(
         "v".into(),
-        vec![EscapeReason::with_detail(EscapeReasonKind::CalleeUpvar, "callee upvars v")],
+        vec![EscapeReason::with_detail(
+            EscapeReasonKind::CalleeUpvar,
+            "callee upvars v",
+        )],
     );
     let s = ProcEscapeSummary {
         tags: HashMap::from([("v".to_string(), EscapeTag::Frame)]),
@@ -863,8 +888,7 @@ fn expr_unknown_function_is_numeric() {
     // a concrete Int/Double, but an `expr` always yields a number, so the
     // pass conservatively widens to the abstract `Numeric` join (no direct
     // single-value tclsh analogue — it is the Int-or-Double lattice point).
-    let lat = infer_lattice("set v [expr {not_a_real_fn($v)}]", "v")
-        .expect("v typed");
+    let lat = infer_lattice("set v [expr {not_a_real_fn($v)}]", "v").expect("v typed");
     assert_eq!(lat.tcl_type, Some(TclType::Numeric));
 }
 
@@ -904,23 +928,27 @@ fn scope_alias_def_widens_to_overdefined() {
         .types
         .iter()
         .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind == TypeKind::Overdefined);
-    assert!(widened, "scope-aliased counter should be Overdefined: {:?}", fu.types);
+    assert!(
+        widened,
+        "scope-aliased counter should be Overdefined: {:?}",
+        fu.types
+    );
 }
 
 #[test]
 fn global_alias_def_widens_to_overdefined() {
     // `global g` likewise imports an external intrep → Overdefined.
-    let cu = CompilationUnit::build_for(
-        "proc ::f {} { global g\n return $g }",
-        registry(),
-        false,
-    );
+    let cu = CompilationUnit::build_for("proc ::f {} { global g\n return $g }", registry(), false);
     let fu = cu.procedures.get("::f").expect("proc ::f");
     let widened = fu
         .types
         .iter()
         .any(|((n, _), t)| fu.ssa.var_name(*n) == "g" && t.kind == TypeKind::Overdefined);
-    assert!(widened, "global-aliased g should be Overdefined: {:?}", fu.types);
+    assert!(
+        widened,
+        "global-aliased g should be Overdefined: {:?}",
+        fu.types
+    );
 }
 
 // ===========================================================================
@@ -933,20 +961,14 @@ fn subst_nocommands_leaves_brackets_literal_and_substitutes_var() {
     // `[b]` command substitution is suppressed (that *is* -nocommands) while
     // `$x` is substituted. The compile-time helper matches, resolving `x`
     // from the const-map.
-    assert_eq!(
-        subst("a[b]c $x", &[("x", "Q")]).as_deref(),
-        Some("a[b]c Q")
-    );
+    assert_eq!(subst("a[b]c $x", &[("x", "Q")]).as_deref(), Some("a[b]c Q"));
 }
 
 #[test]
 fn subst_nocommands_nested_brackets_kept_whole() {
     // tclsh: `subst -nocommands {x[a [b] c]y}` -> "x[a [b] c]y" — the whole
     // balanced bracket span is left literal.
-    assert_eq!(
-        subst("x[a [b] c]y", &[]).as_deref(),
-        Some("x[a [b] c]y")
-    );
+    assert_eq!(subst("x[a [b] c]y", &[]).as_deref(), Some("x[a [b] c]y"));
 }
 
 #[test]
@@ -954,8 +976,14 @@ fn subst_nocommands_braced_and_bare_var_resolve_same_entry() {
     // tclsh: with `set name world`, both `subst -nocommands {$name}` and
     // `subst -nocommands {${name}}` -> "world".
     let m = cmap(&[("name", "world")]);
-    assert_eq!(var_escape_subst("hi $name", &m).as_deref(), Some("hi world"));
-    assert_eq!(var_escape_subst("hi ${name}", &m).as_deref(), Some("hi world"));
+    assert_eq!(
+        var_escape_subst("hi $name", &m).as_deref(),
+        Some("hi world")
+    );
+    assert_eq!(
+        var_escape_subst("hi ${name}", &m).as_deref(),
+        Some("hi world")
+    );
 }
 
 #[test]
@@ -977,7 +1005,10 @@ fn subst_nocommands_dollar_dollar_kept_literal() {
     // resolvable name.
     assert_eq!(subst("$$", &[]).as_deref(), Some("$$"));
     // A `$` followed by punctuation stays literal.
-    assert_eq!(subst("cost is $ now", &[]).as_deref(), Some("cost is $ now"));
+    assert_eq!(
+        subst("cost is $ now", &[]).as_deref(),
+        Some("cost is $ now")
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 //! SH family — shimmer (S100/S101/S102) FP/TP catalogue.
 //! Pairs to `tests/test_fp_sh.py` and the §SH entries in FP.md.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-SH-01 — OVERDEFINED values do not trigger shimmer
@@ -19,7 +19,8 @@ return $y
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-01: OVERDEFINED value should not produce a shimmer warning; got {got:?}"
     );
 }
@@ -55,7 +56,8 @@ proc f {} {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-02: scope-alias declared with `variable` must be typed OVERDEFINED, not STRING; got {got:?}"
     );
 }
@@ -66,14 +68,18 @@ fn fp_sh_02_global_alias_no_shimmer() {
     let src_global = "proc f {} { global g\n return [expr {$g + 1}] }";
     let got_g = codes(src_global, D);
     assert!(
-        !got_g.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got_g
+            .iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-02: `global` alias must be OVERDEFINED too; got {got_g:?}"
     );
 
     let src_upvar = "proc f {} { upvar 1 src dst\n return [expr {$dst + 1}] }";
     let got_u = codes(src_upvar, D);
     assert!(
-        !got_u.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got_u
+            .iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-02: `upvar` alias must be OVERDEFINED too; got {got_u:?}"
     );
 }
@@ -99,7 +105,8 @@ proc f {n} {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-03: INT-INT phi join must come out INT; no shimmer here; got {got:?}"
     );
 }
@@ -119,7 +126,8 @@ fn fp_sh_03_genuine_phi_string_int_still_fires() {
     );
     let got = codes(src, D);
     assert!(
-        got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-03 TP: genuine per-iteration loop shimmer must still fire; got {got:?}"
     );
 }
@@ -146,7 +154,8 @@ proc f {} {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-04: hex literal 0x80 must be typed INT; incr loop here is clean; got {got:?}"
     );
 }
@@ -157,7 +166,8 @@ fn fp_sh_04_binary_literal_increment_no_shimmer() {
     let src = "proc f {} { set n 0b1010; incr n; return $n }";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
         "FP-SH-04: binary literal 0b1010 must be typed INT; got {got:?}"
     );
 }

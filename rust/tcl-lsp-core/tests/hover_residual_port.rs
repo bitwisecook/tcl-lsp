@@ -33,9 +33,7 @@
 //! asserted directly.
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
-use tcl_lsp_core::hover::{
-    HoverKind, find_var_at_position, find_word_span_at_position, hover,
-};
+use tcl_lsp_core::hover::{HoverKind, find_var_at_position, find_word_span_at_position, hover};
 use tcl_registry::CommandRegistry;
 
 // ------------------------------------------------------------------
@@ -67,7 +65,11 @@ fn residual_hover_binary_format_braced_spec_renders_field_table() {
     let h = hover(src, 0, 16, &analysis, None).expect("binary format hover");
     assert_eq!(h.kind, HoverKind::Markdown);
     assert!(h.value.contains("binary format"), "{}", h.value);
-    assert!(h.value.contains("int8"), "expected int8 type label: {}", h.value);
+    assert!(
+        h.value.contains("int8"),
+        "expected int8 type label: {}",
+        h.value
+    );
     assert!(
         h.value.contains("str (null-pad)"),
         "expected null-pad str label: {}",
@@ -85,9 +87,17 @@ fn residual_hover_binary_scan_labels_fields_with_var_names() {
     // Cursor on the `H2` format word (argv[3] of `binary scan`).
     let h = hover(src, 0, 17, &analysis, None).expect("binary scan hover");
     assert!(h.value.contains("binary scan"), "{}", h.value);
-    assert!(h.value.contains("hex hi→lo"), "expected hex label: {}", h.value);
+    assert!(
+        h.value.contains("hex hi→lo"),
+        "expected hex label: {}",
+        h.value
+    );
     // The scan target variable name labels the field.
-    assert!(h.value.contains("hx"), "expected var-name label `hx`: {}", h.value);
+    assert!(
+        h.value.contains("hx"),
+        "expected var-name label `hx`: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -102,9 +112,17 @@ fn residual_hover_binary_absolute_seek_byte_math() {
     // Cursor on the bare `c@4c` format word (argv[2]).
     let h = hover(src, 0, 15, &analysis, None).expect("binary @-seek hover");
     assert!(h.value.contains("binary format"), "{}", h.value);
-    assert!(h.value.contains('5'), "expected 5-byte total from @4 seek: {}", h.value);
+    assert!(
+        h.value.contains('5'),
+        "expected 5-byte total from @4 seek: {}",
+        h.value
+    );
     // A small total (<=32) with all-known sizes draws the box-ruler.
-    assert!(h.value.contains('┌'), "expected byte-ruler diagram: {}", h.value);
+    assert!(
+        h.value.contains('┌'),
+        "expected byte-ruler diagram: {}",
+        h.value
+    );
 }
 
 // ==================================================================
@@ -190,7 +208,11 @@ fn residual_hover_regexp_pattern_anchors_and_class() {
     // Cursor inside the `{^[a-z]+$}` pattern literal.
     let h = hover(src, 0, 12, &analysis, None).expect("regexp hover");
     assert!(h.value.contains("Regex pattern"), "{}", h.value);
-    assert!(h.value.contains("anchor"), "expected anchor desc: {}", h.value);
+    assert!(
+        h.value.contains("anchor"),
+        "expected anchor desc: {}",
+        h.value
+    );
     assert!(
         h.value.contains("Character class"),
         "expected char-class desc: {}",
@@ -295,7 +317,11 @@ fn residual_hover_interp_alias_shows_target() {
     // Cursor on the `ll` use on line 1.
     let h = hover(src, 1, 0, &analysis, None).expect("alias hover");
     assert!(h.value.contains("Alias"), "{}", h.value);
-    assert!(h.value.contains("list"), "expected target `list`: {}", h.value);
+    assert!(
+        h.value.contains("list"),
+        "expected target `list`: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -390,7 +416,11 @@ fn residual_hover_class_lists_superclass_and_instance_variables() {
         "expected instance-variable list: {}",
         h.value,
     );
-    assert!(h.value.contains("name"), "expected variable `name`: {}", h.value);
+    assert!(
+        h.value.contains("name"),
+        "expected variable `name`: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -419,7 +449,11 @@ fn residual_hover_class_lists_class_methods() {
         "expected class-methods section: {}",
         h.value,
     );
-    assert!(h.value.contains("make"), "expected class method `make`: {}", h.value);
+    assert!(
+        h.value.contains("make"),
+        "expected class method `make`: {}",
+        h.value
+    );
 }
 
 // ==================================================================
@@ -467,7 +501,11 @@ fn residual_hover_class_with_mixin_and_doc_comment() {
     let analysis = analyse(src);
     // Cursor on the `C` class name (line 2, col 18).
     let h = hover(src, 2, 18, &analysis, None).expect("class+mixin hover");
-    assert!(h.value.contains("mixin"), "expected mixin annotation: {}", h.value);
+    assert!(
+        h.value.contains("mixin"),
+        "expected mixin annotation: {}",
+        h.value
+    );
     assert!(h.value.contains('M'), "{}", h.value);
     assert!(
         h.value.contains("A widget mixed with M"),
@@ -579,7 +617,11 @@ fn residual_hover_proc_renders_doc_comment_tags() {
     // Cursor on the `greet` proc name (line 3, col 6).
     let h = hover(src, 3, 6, &analysis, None).expect("proc-with-doc hover");
     assert!(h.value.contains("proc ::greet"), "{}", h.value);
-    assert!(h.value.contains("Greets a person"), "expected brief: {}", h.value);
+    assert!(
+        h.value.contains("Greets a person"),
+        "expected brief: {}",
+        h.value
+    );
     assert!(
         h.value.contains("**Parameters:**"),
         "expected parameters block: {}",

@@ -171,7 +171,11 @@ fn expr_known_int() {
         matches!(t.tcl_type, Some(TclType::Int | TclType::Numeric)),
         "expected Int or Numeric, got {t}"
     );
-    assert_eq!(t.tcl_type, Some(TclType::Int), "Rust pins SCCP result to Int");
+    assert_eq!(
+        t.tcl_type,
+        Some(TclType::Int),
+        "Rust pins SCCP result to Int"
+    );
 }
 
 // Phi merging (TestPhiMerging)
@@ -286,9 +290,15 @@ fn expr_bitwise_is_int() {
         TclType::Int
     );
     // tclsh: `expr {~0xFF}` -> -256 => Int
-    assert_eq!(tcl_type("set x 0xFF\nset z [expr {~$x}]", "z"), TclType::Int);
+    assert_eq!(
+        tcl_type("set x 0xFF\nset z [expr {~$x}]", "z"),
+        TclType::Int
+    );
     // tclsh: `expr {1 << 2}` -> 4 => Int
-    assert_eq!(tcl_type("set x 1\nset z [expr {$x << 2}]", "z"), TclType::Int);
+    assert_eq!(
+        tcl_type("set x 1\nset z [expr {$x << 2}]", "z"),
+        TclType::Int
+    );
 }
 
 #[test]
@@ -299,7 +309,10 @@ fn expr_logical_is_boolean() {
         TclType::Boolean
     );
     // tclsh: `expr {!1}` -> 0 => Boolean
-    assert_eq!(tcl_type("set x 1\nset z [expr {!$x}]", "z"), TclType::Boolean);
+    assert_eq!(
+        tcl_type("set x 1\nset z [expr {!$x}]", "z"),
+        TclType::Boolean
+    );
 }
 
 #[test]
@@ -463,7 +476,10 @@ fn expr_predicate_functions_are_boolean() {
 #[test]
 fn expr_abs_preserves_operand_type() {
     // tclsh: `expr {abs(-5)}` -> 5, `string is integer` = 1 => Int
-    assert_eq!(tcl_type("set x -5\nset z [expr {abs($x)}]", "z"), TclType::Int);
+    assert_eq!(
+        tcl_type("set x -5\nset z [expr {abs($x)}]", "z"),
+        TclType::Int
+    );
     // tclsh: `expr {abs(-3.14)}` -> 3.14, `string is double` = 1 => Double
     assert_eq!(
         tcl_type("set x -3.14\nset z [expr {abs($x)}]", "z"),
@@ -489,8 +505,14 @@ fn expr_min_max_join_operand_types() {
     // can't statically pin the result to exactly Int or Double, so it joins the
     // operand types to NUMERIC — the abstract Int-or-Double element, a sound
     // over-approximation of the runtime Double. No direct single-type Tcl analogue.
-    assert_eq!(tcl_type("set z [expr {max(1, 2.0)}]", "z"), TclType::Numeric);
-    assert_eq!(tcl_type("set z [expr {min(1, 2.0)}]", "z"), TclType::Numeric);
+    assert_eq!(
+        tcl_type("set z [expr {max(1, 2.0)}]", "z"),
+        TclType::Numeric
+    );
+    assert_eq!(
+        tcl_type("set z [expr {min(1, 2.0)}]", "z"),
+        TclType::Numeric
+    );
 }
 
 // Ternary (TestTernaryTypeInference + ternary_join)

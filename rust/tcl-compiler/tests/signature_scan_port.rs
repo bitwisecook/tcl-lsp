@@ -20,7 +20,7 @@
 //! `// GAP:` comments where they would otherwise appear.
 
 use tcl_compiler::signature_scan::params::parse_param_list;
-use tcl_compiler::signature_scan::{extract_signatures, SignatureScanResult};
+use tcl_compiler::signature_scan::{SignatureScanResult, extract_signatures};
 use tcl_registry::CommandRegistry;
 
 fn run(src: &str) -> SignatureScanResult {
@@ -248,8 +248,7 @@ fn proc_in_both_branches() {
 #[test]
 fn proc_in_elseif_branch() {
     // py: test_proc_in_elseif_branch
-    let src =
-        "if {$a} { proc a_proc {} {} } elseif {$b} { proc b_proc {} {} } else { proc c_proc {} {} }";
+    let src = "if {$a} { proc a_proc {} {} } elseif {$b} { proc b_proc {} {} } else { proc c_proc {} {} }";
     let r = run(src);
     for name in ["::a_proc", "::b_proc", "::c_proc"] {
         assert!(r.procs.contains_key(name), "missing {name}");
@@ -454,10 +453,11 @@ fn resolved_qualified_name_left_none() {
     // Signature scan intentionally skips scope resolution; downstream
     // readers must tolerate resolved_qualified_name == None.
     let r = run("puts hi");
-    assert!(r
-        .command_invocations
-        .iter()
-        .all(|inv| inv.resolved_qualified_name.is_none()));
+    assert!(
+        r.command_invocations
+            .iter()
+            .all(|inv| inv.resolved_qualified_name.is_none())
+    );
 }
 
 // ---------------------------------------------------------------------------

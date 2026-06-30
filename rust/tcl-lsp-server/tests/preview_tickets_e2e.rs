@@ -116,7 +116,10 @@ async fn did_open(
     uri: &str,
     text: &str,
 ) {
-    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+    let escaped = text
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n");
     let msg = format!(
         r#"{{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{{"textDocument":{{"uri":"{uri}","languageId":"tcl","version":1,"text":"{escaped}"}}}}}}"#,
     );
@@ -130,7 +133,8 @@ async fn published_codes(
 ) -> String {
     let frames = collect_frames(reader, Duration::from_millis(1200)).await;
     frames
-        .into_iter().rfind(|f| f.contains("publishDiagnostics") && f.contains(uri))
+        .into_iter()
+        .rfind(|f| f.contains("publishDiagnostics") && f.contains(uri))
         .unwrap_or_default()
 }
 

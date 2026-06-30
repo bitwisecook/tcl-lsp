@@ -218,7 +218,10 @@ fn fmt_expr_wrap_skips_quoted_operand_in_while() {
 fn fmt_short_expr_is_not_wrapped() {
     // The complementary negative: an `&&`/`||` expr that fits stays on one line
     // (the `find_expr_break_points` non-empty-but-fits path returns early).
-    assert_eq!(fmt("if {$a && $b} {\nputs hi\n}\n"), "if {$a && $b} {\n    puts hi\n}\n");
+    assert_eq!(
+        fmt("if {$a && $b} {\nputs hi\n}\n"),
+        "if {$a && $b} {\n    puts hi\n}\n"
+    );
 }
 
 // ===========================================================================
@@ -286,8 +289,7 @@ fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
     // Fixed behaviour: the splitter does not break inside a double-quoted
     // string, so the line is emitted over-length with its single-space
     // separators intact (layout is best effort; the data must never change).
-    let input =
-        "set s \"aaaaaaaaaa bbbbbbbbbb cccccccccc dddddddddd eeeeeeeeee ffffffffff gggggggggg hhhhhhhhhh iiiiiiiiii jjjjjjjjjj kkkkkkkkkk\"\n";
+    let input = "set s \"aaaaaaaaaa bbbbbbbbbb cccccccccc dddddddddd eeeeeeeeee ffffffffff gggggggggg hhhhhhhhhh iiiiiiiiii jjjjjjjjjj kkkkkkkkkk\"\n";
     let out = fmt(input);
     // The string literal's run of token-separating spaces must remain single
     // spaces: no `"…  …"` double space may appear inside the quoted region.
@@ -322,7 +324,10 @@ fn fmt_for_expands_only_the_body() {
 fn fmt_for_with_unbraced_body_is_left_inline() {
     // When the would-be body arg is NOT braced, the `is_braced` guard fails and
     // nothing expands — the command is emitted verbatim (modulo trailing NL).
-    assert_eq!(fmt("for {set i 0} {$i<3} {incr i} foo\n"), "for {set i 0} {$i<3} {incr i} foo\n");
+    assert_eq!(
+        fmt("for {set i 0} {$i<3} {incr i} foo\n"),
+        "for {set i 0} {$i<3} {incr i} foo\n"
+    );
 }
 
 #[test]
@@ -481,7 +486,10 @@ fn fmt_max_consecutive_blank_lines_config() {
         max_consecutive_blank_lines: 1,
         ..FormatterConfig::default()
     };
-    assert_eq!(fmt_with("set x 1\n\n\n\nset y 2\n", &one), "set x 1\n\nset y 2\n");
+    assert_eq!(
+        fmt_with("set x 1\n\n\n\nset y 2\n", &one),
+        "set x 1\n\nset y 2\n"
+    );
 }
 
 #[test]
@@ -574,7 +582,10 @@ fn fmt_is_idempotent_on_complex_input() {
     let src = "# header\nproc f {a {b 1}} {\nswitch $a {\nx {\nreturn 1\n}\ny -\nz {\nreturn 2\n}\n}\n}\nfor {set i 0} {$i < 3} {incr i} {\nputs $i\n}\n";
     let once = fmt(src);
     let twice = fmt(&once);
-    assert_eq!(once, twice, "format is not idempotent:\nonce:  {once:?}\ntwice: {twice:?}");
+    assert_eq!(
+        once, twice,
+        "format is not idempotent:\nonce:  {once:?}\ntwice: {twice:?}"
+    );
 }
 
 // ===========================================================================

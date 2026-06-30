@@ -284,10 +284,12 @@ mod tests {
         fn call(&mut self, function: &str, args: Vec<V>) -> Result<V, String> {
             self.calls.push(format!("{function}/{}", args.len()));
             // `max` of two numbers; otherwise echo the arg count.
-            if function == "max" && args.len() == 2
-                && let (V::Num(a), V::Num(b)) = (&args[0], &args[1]) {
-                    return Ok(V::Num((*a).max(*b)));
-                }
+            if function == "max"
+                && args.len() == 2
+                && let (V::Num(a), V::Num(b)) = (&args[0], &args[1])
+            {
+                return Ok(V::Num((*a).max(*b)));
+            }
             Ok(V::Num(args.len() as i64))
         }
         fn arith(&mut self, op: BinOp, left: V, right: V) -> Result<V, String> {

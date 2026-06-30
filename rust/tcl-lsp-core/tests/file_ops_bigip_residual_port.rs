@@ -81,13 +81,11 @@ fn rename_skips_substituted_source_path() {
     // `source $dynamic` is not a literal → the `!src.is_literal` guard
     // skips it (the conservative branch), leaving it untouched.
     let idx = index_of("file:///proj/main.tcl", "source $dynamic\n");
-    let edits = compute_rename_edits(
-        "file:///proj/dynamic",
-        "file:///proj/renamed",
-        &idx,
-        &[],
+    let edits = compute_rename_edits("file:///proj/dynamic", "file:///proj/renamed", &idx, &[]);
+    assert!(
+        edits.is_empty(),
+        "substituted source must be skipped: {edits:?}"
     );
-    assert!(edits.is_empty(), "substituted source must be skipped: {edits:?}");
 }
 
 #[test]
@@ -101,7 +99,10 @@ fn rename_literal_pointing_elsewhere_is_left_alone() {
         &idx,
         &[],
     );
-    assert!(edits.is_empty(), "unrelated literal must be left alone: {edits:?}");
+    assert!(
+        edits.is_empty(),
+        "unrelated literal must be left alone: {edits:?}"
+    );
 }
 
 #[test]
@@ -129,10 +130,7 @@ fn rename_braced_and_quoted_literals_edit_content_only() {
     // For a `{…}` / `"…"` literal, `content_span` narrows the edit to the
     // path content so the opening/closing delimiter is preserved — applying
     // the edit must reproduce the delimiter-wrapped new path.
-    for src in [
-        "source {lib/old.tcl}\n",
-        "source \"lib/old.tcl\"\n",
-    ] {
+    for src in ["source {lib/old.tcl}\n", "source \"lib/old.tcl\"\n"] {
         let idx = index_of("file:///proj/main.tcl", src);
         let edits = compute_rename_edits(
             "file:///proj/lib/old.tcl",
@@ -141,10 +139,18 @@ fn rename_braced_and_quoted_literals_edit_content_only() {
             &[],
         );
         assert_eq!(edits.len(), 1, "{src:?}");
-        assert_eq!(&src[edits[0].span.as_range()], "lib/old.tcl", "span for {src:?}");
+        assert_eq!(
+            &src[edits[0].span.as_range()],
+            "lib/old.tcl",
+            "span for {src:?}"
+        );
         let mut applied = src.to_string();
         applied.replace_range(edits[0].span.as_range(), &edits[0].new_text);
-        assert_eq!(applied, src.replace("lib/old.tcl", "lib/new.tcl"), "{src:?}");
+        assert_eq!(
+            applied,
+            src.replace("lib/old.tcl", "lib/new.tcl"),
+            "{src:?}"
+        );
     }
 }
 
@@ -218,7 +224,11 @@ fn rename_percent_decoded_uri_path_matches() {
         &idx,
         &[],
     );
-    assert_eq!(edits.len(), 1, "percent-encoded dir must resolve: {edits:?}");
+    assert_eq!(
+        edits.len(),
+        1,
+        "percent-encoded dir must resolve: {edits:?}"
+    );
     assert_eq!(edits[0].new_text, "lib/new.tcl");
 }
 
@@ -284,7 +294,11 @@ fn rename_percent_decode_handles_upper_and_lower_hex_digits() {
         &idx,
         &[],
     );
-    assert_eq!(edits.len(), 1, "mixed-case hex escapes must decode: {edits:?}");
+    assert_eq!(
+        edits.len(),
+        1,
+        "mixed-case hex escapes must decode: {edits:?}"
+    );
     assert_eq!(edits[0].new_text, "lib/new.tcl");
 }
 
@@ -301,7 +315,10 @@ fn rename_skips_dependent_with_non_file_uri() {
         &idx,
         &[],
     );
-    assert!(edits.is_empty(), "untitled dependent must be skipped: {edits:?}");
+    assert!(
+        edits.is_empty(),
+        "untitled dependent must be skipped: {edits:?}"
+    );
 }
 
 #[test]
@@ -502,7 +519,10 @@ fn bigip_backslash_escape_in_header_is_literal() {
     let src = "ltm node a\\ b {\n}\n";
     let syms = document_symbols(src);
     let all = names(&syms);
-    assert!(all.contains(&"a b".to_owned()), "escaped space joins token: {all:?}");
+    assert!(
+        all.contains(&"a b".to_owned()),
+        "escaped space joins token: {all:?}"
+    );
 }
 
 #[test]
@@ -523,7 +543,8 @@ fn bigip_nested_and_quoted_braces_inside_body_dont_break_scan() {
     // The brace-balanced scan respects a `"…}…"` quoted brace and a nested
     // `{ }` block inside the body, so the stanza's closing brace is found at
     // the right depth and the following stanza is parsed independently.
-    let src = "ltm rule /Common/r {\n    set x \"a}b\"\n    if { 1 } { }\n}\nltm pool /Common/p {\n}\n";
+    let src =
+        "ltm rule /Common/r {\n    set x \"a}b\"\n    if { 1 } { }\n}\nltm pool /Common/p {\n}\n";
     let syms = document_symbols(src);
     let ltm = module(&syms, "ltm").expect("ltm module");
     let all = names(&syms);
@@ -544,7 +565,10 @@ fn bigip_backslash_escape_inside_body_does_not_unbalance() {
     let syms = document_symbols(src);
     let all = names(&syms);
     assert!(all.contains(&"/Common/r".to_owned()), "{all:?}");
-    assert!(all.contains(&"/Common/p".to_owned()), "escaped brace kept balance: {all:?}");
+    assert!(
+        all.contains(&"/Common/p".to_owned()),
+        "escaped brace kept balance: {all:?}"
+    );
 }
 
 #[test]

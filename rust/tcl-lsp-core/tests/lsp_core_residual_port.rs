@@ -356,7 +356,10 @@ fn inline_bare_concat_without_whitespace_value_succeeds() {
     // bare concatenation. tclsh (8.6 + 9.0):
     //   `set g xyz; puts hi$g`  →  `hixyz`
     //   `puts hixyz`            →  `hixyz`
-    assert_eq!(inline("set g xyz\nputs hi$g", 0).as_deref(), Some("puts hixyz"));
+    assert_eq!(
+        inline("set g xyz\nputs hi$g", 0).as_deref(),
+        Some("puts hixyz")
+    );
 }
 
 #[test]
@@ -413,7 +416,10 @@ fn decode(source: &str, dialect: &str) -> Vec<Tok> {
 }
 
 fn type_set(source: &str, dialect: &str) -> std::collections::HashSet<String> {
-    decode(source, dialect).into_iter().map(|t| t.ttype).collect()
+    decode(source, dialect)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect()
 }
 
 #[test]
@@ -434,7 +440,10 @@ fn st_expr_emits_operator_number_and_variable_subtokens() {
     // `1` → number, the math function `abs` → function (defaultLibrary).
     let kinds = type_set("set y [expr {abs($a) + 1}]\n", "tcl8.6");
     for k in ["variable", "operator", "number", "function"] {
-        assert!(kinds.contains(k), "expected {k:?} in expr subtokens; got {kinds:?}");
+        assert!(
+            kinds.contains(k),
+            "expected {k:?} in expr subtokens; got {kinds:?}"
+        );
     }
 }
 
@@ -451,7 +460,10 @@ fn st_string_backslash_escape_subtokens() {
     // A bareword/quoted string with a `\t` escape splits into `string` literal
     // runs plus an `escape` sub-token (the `push_escape_subtokens` path).
     let kinds = type_set("puts \"a\\tb\"\n", "tcl8.6");
-    assert!(kinds.contains("escape"), "expected an escape token; got {kinds:?}");
+    assert!(
+        kinds.contains("escape"),
+        "expected an escape token; got {kinds:?}"
+    );
     assert!(kinds.contains("string"), "{kinds:?}");
 }
 
@@ -461,7 +473,8 @@ fn st_namespaced_bareword_argument_is_namespace() {
     // `namespace` (the `classify_arg_token` Esc `::` branch).
     let toks = decode("set x ::foo::bar\n", "tcl8.6");
     assert!(
-        toks.iter().any(|t| t.ttype == "namespace" && t.length == 10),
+        toks.iter()
+            .any(|t| t.ttype == "namespace" && t.length == 10),
         "expected a length-10 namespace arg token; got {toks:?}",
     );
 }
@@ -481,8 +494,17 @@ fn st_proc_name_carries_definition_modifier() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(name[3], function_idx, "proc name is a function: {:?}", st.data);
-    assert_eq!(name[4], 1 << 1, "proc name carries `definition`: {:?}", st.data);
+    assert_eq!(
+        name[3], function_idx,
+        "proc name is a function: {:?}",
+        st.data
+    );
+    assert_eq!(
+        name[4],
+        1 << 1,
+        "proc name carries `definition`: {:?}",
+        st.data
+    );
 }
 
 #[test]
@@ -519,8 +541,14 @@ fn st_multiline_tokens_are_dropped_from_stream() {
     // The inner `set`/`x`/`1` and `set`/`y`/`2` tokens must appear on their own
     // lines (1 and 2), proving the body recursion ran rather than emitting one
     // opaque multi-line string.
-    assert!(toks.iter().any(|t| t.line == 1 && t.ttype == "function"), "{toks:?}");
-    assert!(toks.iter().any(|t| t.line == 2 && t.ttype == "function"), "{toks:?}");
+    assert!(
+        toks.iter().any(|t| t.line == 1 && t.ttype == "function"),
+        "{toks:?}"
+    );
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "function"),
+        "{toks:?}"
+    );
 }
 
 #[test]
@@ -543,7 +571,11 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
     assert_eq!(r.data.len() % 5, 0);
     // First surviving token sits on line 1 → its leading delta-line is 1
     // (absolute from origin, per the LSP range contract).
-    assert_eq!(r.data[0], 1, "first range token delta-line is absolute: {:?}", r.data);
+    assert_eq!(
+        r.data[0], 1,
+        "first range token delta-line is absolute: {:?}",
+        r.data
+    );
     // Strictly fewer tokens than the full document.
     assert!(r.data.len() < full(src, "tcl8.6", reg()).data.len());
 }
@@ -568,7 +600,11 @@ fn st_diff_appends_a_single_token_via_provider() {
     assert_eq!(edit.start, 15, "{edit:?}");
     // A same-length literal edit produces an identical stream → no diff.
     let same_len = full("set x 2\n", "tcl8.6", reg()).data;
-    assert_eq!(diff(&before, &same_len), None, "1->2 leaves the stream unchanged");
+    assert_eq!(
+        diff(&before, &same_len),
+        None,
+        "1->2 leaves the stream unchanged"
+    );
 }
 
 // ===========================================================================

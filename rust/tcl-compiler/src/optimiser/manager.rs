@@ -163,8 +163,7 @@ fn elim_target_var(span_text: &str) -> Option<String> {
     }
     let name = words.next()?;
     let base = name.split_once('(').map_or(name, |(b, _)| b);
-    (!base.is_empty() && !base.contains('$') && !base.contains('['))
-        .then(|| base.to_string())
+    (!base.is_empty() && !base.contains('$') && !base.contains('[')).then(|| base.to_string())
 }
 
 /// Drop a def-elimination (empty replacement) when its target variable still

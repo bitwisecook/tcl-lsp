@@ -6,19 +6,97 @@
 //! `info commands` — the names below were taken from `info commands {[a-z]*}`
 //! on tclsh9.0 (and all exist on tclsh8.6 too).
 
-use tcl_registry::{registry_for_dialect, CommandRegistry, Traits};
+use tcl_registry::{CommandRegistry, Traits, registry_for_dialect};
 
 /// Commands present in both tclsh8.6 and tclsh9.0 `info commands`.
 const CORE_COMMANDS: &[&str] = &[
-    "after", "append", "apply", "array", "binary", "break", "catch", "cd", "chan", "clock",
-    "close", "concat", "continue", "dict", "encoding", "eof", "error", "eval", "exec", "exit",
-    "expr", "fblocked", "fconfigure", "fcopy", "file", "fileevent", "flush", "for", "foreach",
-    "format", "gets", "glob", "global", "if", "incr", "info", "interp", "join", "lappend",
-    "lassign", "lindex", "linsert", "list", "llength", "lmap", "load", "lrange", "lrepeat",
-    "lreplace", "lreverse", "lsearch", "lset", "lsort", "namespace", "open", "package", "pid",
-    "proc", "puts", "pwd", "read", "regexp", "regsub", "rename", "return", "scan", "seek", "set",
-    "socket", "source", "split", "string", "subst", "switch", "tailcall", "tell", "throw", "time",
-    "trace", "try", "unset", "update", "uplevel", "upvar", "variable", "vwait", "while",
+    "after",
+    "append",
+    "apply",
+    "array",
+    "binary",
+    "break",
+    "catch",
+    "cd",
+    "chan",
+    "clock",
+    "close",
+    "concat",
+    "continue",
+    "dict",
+    "encoding",
+    "eof",
+    "error",
+    "eval",
+    "exec",
+    "exit",
+    "expr",
+    "fblocked",
+    "fconfigure",
+    "fcopy",
+    "file",
+    "fileevent",
+    "flush",
+    "for",
+    "foreach",
+    "format",
+    "gets",
+    "glob",
+    "global",
+    "if",
+    "incr",
+    "info",
+    "interp",
+    "join",
+    "lappend",
+    "lassign",
+    "lindex",
+    "linsert",
+    "list",
+    "llength",
+    "lmap",
+    "load",
+    "lrange",
+    "lrepeat",
+    "lreplace",
+    "lreverse",
+    "lsearch",
+    "lset",
+    "lsort",
+    "namespace",
+    "open",
+    "package",
+    "pid",
+    "proc",
+    "puts",
+    "pwd",
+    "read",
+    "regexp",
+    "regsub",
+    "rename",
+    "return",
+    "scan",
+    "seek",
+    "set",
+    "socket",
+    "source",
+    "split",
+    "string",
+    "subst",
+    "switch",
+    "tailcall",
+    "tell",
+    "throw",
+    "time",
+    "trace",
+    "try",
+    "unset",
+    "update",
+    "uplevel",
+    "upvar",
+    "variable",
+    "vwait",
+    "while",
 ];
 
 #[test]
@@ -80,7 +158,12 @@ fn needs_start_cmd_trait() {
         );
     }
     // A typical data command does not.
-    assert!(!reg.get("set").unwrap().traits.contains(Traits::NEEDS_START_CMD));
+    assert!(
+        !reg.get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::NEEDS_START_CMD)
+    );
 }
 
 #[test]

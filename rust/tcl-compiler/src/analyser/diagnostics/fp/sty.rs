@@ -2,7 +2,7 @@
 //! W201/W210/W212/W214/W216/W302/W306).
 //! Pairs to `tests/test_fp_sty.py` and the §STY entries in `docs/design/compiler/FP.md`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-STY-01 — W001 Tk geometry-manager shortcut form (grid/pack/place pathName)
@@ -463,7 +463,8 @@ fn fp_sty_11_scan_20_vars_no_false_w210() {
 fn fp_sty_11_lassign_many_vars_no_false_w210() {
     // FP-STY-11: same fix for `lassign` — all positional args after the list arg
     // are classified VAR_WRITE.
-    let src = "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n";
+    let src =
+        "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n";
     assert!(
         !fires(src, D, "W210"),
         "FP-STY-11: lassign with many vars must NOT fire W210; emitted: {:?}",

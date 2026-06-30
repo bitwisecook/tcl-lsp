@@ -44,14 +44,16 @@ fn standalone_irule_not_detected() {
 /// test_ltm_rule_detected.
 #[test]
 fn ltm_rule_detected() {
-    let src = "ltm rule /Common/foo {\n    when HTTP_REQUEST {\n        log local0. \"hi\"\n    }\n}";
+    let src =
+        "ltm rule /Common/foo {\n    when HTTP_REQUEST {\n        log local0. \"hi\"\n    }\n}";
     assert!(is_conf_wrapped_irules(src));
 }
 
 /// test_gtm_rule_detected.
 #[test]
 fn gtm_rule_detected() {
-    let src = "gtm rule /Common/bar {\n    when DNS_REQUEST {\n        log local0. \"hi\"\n    }\n}";
+    let src =
+        "gtm rule /Common/bar {\n    when DNS_REQUEST {\n        log local0. \"hi\"\n    }\n}";
     assert!(is_conf_wrapped_irules(src));
 }
 
@@ -425,10 +427,16 @@ fn find_rule_at_offset_selects_and_misses() {
 
     // Offset inside rule a.
     let in_a = src.find("RULE_INIT").unwrap();
-    assert_eq!(find_rule_at_offset(src, in_a).unwrap().full_path, "/Common/a");
+    assert_eq!(
+        find_rule_at_offset(src, in_a).unwrap().full_path,
+        "/Common/a"
+    );
     // Offset inside rule b.
     let in_b = src.find("HTTP_REQUEST").unwrap();
-    assert_eq!(find_rule_at_offset(src, in_b).unwrap().full_path, "/Common/b");
+    assert_eq!(
+        find_rule_at_offset(src, in_b).unwrap().full_path,
+        "/Common/b"
+    );
 
     // The header start of each rule is an inclusive lower bound.
     assert_eq!(

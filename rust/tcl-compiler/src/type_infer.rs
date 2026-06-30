@@ -364,9 +364,9 @@ fn expr_call_type(
         // integer. Verified against tclsh8.6/9.0.
         "int" | "round" | "isqrt" | "wide" | "entier" => TypeLattice::of(TclType::Int),
         // Double-returning math (incl. ceil/floor, which yield N.0).
-        "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2"
-        | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow" | "hypot" | "fmod"
-        | "rand" | "srand" => TypeLattice::of(TclType::Double),
+        "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
+        | "atan2" | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow"
+        | "hypot" | "fmod" | "rand" | "srand" => TypeLattice::of(TclType::Double),
         // Boolean-returning predicates.
         "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
         // Unknown function — conservative.

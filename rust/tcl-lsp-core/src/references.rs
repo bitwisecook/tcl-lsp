@@ -418,7 +418,9 @@ fn find_class_member_references(
                 };
                 let h_start = head.span.start() as usize;
                 let h_end = head.span.end() as usize;
-                if h_start >= source.len() || h_end > source.len() || &source[h_start..h_end] != "my"
+                if h_start >= source.len()
+                    || h_end > source.len()
+                    || &source[h_start..h_end] != "my"
                 {
                     continue;
                 }

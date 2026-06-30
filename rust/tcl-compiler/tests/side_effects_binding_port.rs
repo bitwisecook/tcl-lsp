@@ -46,16 +46,16 @@
 //! subcommands win), not a bug.
 
 use tcl_compiler::command_binding::{
-    analyse_command_binding, scan_module_command_mutations, Binding, BindingKind,
+    Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::side_effects::{
-    classify_side_effects, CommandSideEffects, ConnectionSide, EffectRegion, SideEffect,
-    SideEffectTarget, StorageScope, StorageType,
+    CommandSideEffects, ConnectionSide, EffectRegion, SideEffect, SideEffectTarget, StorageScope,
+    StorageType, classify_side_effects,
 };
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -535,7 +535,10 @@ fn classify_session_lookup() {
     // exercised by `session add` (a mutator subcommand) below.
     let reg = irules_registry();
     let r = classify(&reg, "session", &["lookup", "key"], Some("irules"));
-    assert!(r.pure, "session lookup resolves via the pure-subcommand path");
+    assert!(
+        r.pure,
+        "session lookup resolves via the pure-subcommand path"
+    );
     assert!(!r.writes_any());
 }
 
@@ -730,7 +733,10 @@ fn conformance_irules_protocol_namespace_targets() {
         ("MESSAGE::proto", SideEffectTarget::MessageState),
         ("MR::message", SideEffectTarget::MessageState),
         ("REWRITE::enable", SideEffectTarget::StreamProfile),
-        ("CLASSIFY::application", SideEffectTarget::ClassificationState),
+        (
+            "CLASSIFY::application",
+            SideEffectTarget::ClassificationState,
+        ),
         ("CLASSIFICATION::app", SideEffectTarget::ClassificationState),
         ("PROFILE::http", SideEffectTarget::BigipConfig),
         ("X509::subject", SideEffectTarget::SslState),
@@ -791,8 +797,19 @@ fn hinted_tcl_commands_return_structured_effects() {
     // Tcl stdlib command yields a non-empty effect list (with an `x` argument).
     let reg = irules_registry();
     let cmds = [
-        "puts", "gets", "open", "close", "file", "socket", "proc", "rename",
-        "namespace", "set", "incr", "append", "unset",
+        "puts",
+        "gets",
+        "open",
+        "close",
+        "file",
+        "socket",
+        "proc",
+        "rename",
+        "namespace",
+        "set",
+        "incr",
+        "append",
+        "unset",
     ];
     for cmd in cmds {
         let r = classify(&reg, cmd, &["x"], None);
@@ -819,9 +836,10 @@ fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, 
     let mut last = None;
     for bid in cfg.reverse_postorder() {
         if let Some(blk) = cfg.blocks.get(&bid)
-            && !blk.statements.is_empty() {
-                last = Some((bid, blk.statements.len()));
-            }
+            && !blk.statements.is_empty()
+        {
+            last = Some((bid, blk.statements.len()));
+        }
     }
     last.expect("no non-empty block")
 }
@@ -855,10 +873,7 @@ fn binding_at_command(
 
 /// Index of the first statement in the entry block whose command equals `name`.
 fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
-    let blk = cfg
-        .blocks
-        .get(&cfg.entry)
-        .expect("entry block");
+    let blk = cfg.blocks.get(&cfg.entry).expect("entry block");
     blk.statements
         .iter()
         .position(|s| stmt_command(s) == name)

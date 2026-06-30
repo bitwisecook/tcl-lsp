@@ -44,8 +44,8 @@
 
 use core::cmp::Ordering;
 
-use tcl_syntax::expr::mathfunc::{dispatch, Num};
-use tcl_syntax::expr::{eval, parse_expr, BinOp, ExprNode, ExprOps, UnaryOp};
+use tcl_syntax::expr::mathfunc::{Num, dispatch};
+use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, UnaryOp, eval, parse_expr};
 
 // ===========================================================================
 // Part A — `mathfunc::dispatch` directly.
@@ -60,10 +60,7 @@ use tcl_syntax::expr::{eval, parse_expr, BinOp, ExprNode, ExprOps, UnaryOp};
 /// is platform-libm-dependent.
 fn approx(got: Num, want: f64) {
     match got {
-        Num::Float(f) => assert!(
-            (f - want).abs() < 1e-9,
-            "expected ~{want}, got {f}",
-        ),
+        Num::Float(f) => assert!((f - want).abs() < 1e-9, "expected ~{want}, got {f}",),
         Num::Int(i) => panic!("expected Float(~{want}), got Int({i})"),
     }
 }
@@ -73,11 +70,7 @@ fn approx(got: Num, want: f64) {
 /// tripping clippy's `float_cmp`.
 fn float_eq(got: Num, want: f64) {
     match got {
-        Num::Float(f) => assert_eq!(
-            f.to_bits(),
-            want.to_bits(),
-            "expected {want}, got {f}",
-        ),
+        Num::Float(f) => assert_eq!(f.to_bits(), want.to_bits(), "expected {want}, got {f}",),
         Num::Int(i) => panic!("expected Float({want}), got Int({i})"),
     }
 }
@@ -100,7 +93,10 @@ fn dispatch_unary_float_whole_table() {
     approx(dispatch("log", &[Num::Int(1)]).unwrap(), 0.0);
     approx(dispatch("log10", &[Num::Int(1000)]).unwrap(), 3.0);
     // tclsh: sqrt(2)=1.4142135623730951
-    approx(dispatch("sqrt", &[Num::Int(2)]).unwrap(), std::f64::consts::SQRT_2);
+    approx(
+        dispatch("sqrt", &[Num::Int(2)]).unwrap(),
+        std::f64::consts::SQRT_2,
+    );
 }
 
 #[test]
@@ -121,23 +117,38 @@ fn dispatch_binary_float_whole_table() {
     approx(dispatch("atan2", &[Num::Int(0), Num::Int(1)]).unwrap(), 0.0);
     float_eq(dispatch("hypot", &[Num::Int(3), Num::Int(4)]).unwrap(), 5.0);
     float_eq(dispatch("fmod", &[Num::Int(7), Num::Int(3)]).unwrap(), 1.0);
-    float_eq(dispatch("pow", &[Num::Int(2), Num::Int(10)]).unwrap(), 1024.0);
+    float_eq(
+        dispatch("pow", &[Num::Int(2), Num::Int(10)]).unwrap(),
+        1024.0,
+    );
     // fmod sign follows the DIVIDEND, like C fmod / Tcl.
     // tclsh: fmod(-7,3)=-1.0  fmod(7,-3)=1.0
-    float_eq(dispatch("fmod", &[Num::Int(-7), Num::Int(3)]).unwrap(), -1.0);
+    float_eq(
+        dispatch("fmod", &[Num::Int(-7), Num::Int(3)]).unwrap(),
+        -1.0,
+    );
     float_eq(dispatch("fmod", &[Num::Int(7), Num::Int(-3)]).unwrap(), 1.0);
     // tclsh: fmod(7.5,2)=1.5
-    float_eq(dispatch("fmod", &[Num::Float(7.5), Num::Int(2)]).unwrap(), 1.5);
+    float_eq(
+        dispatch("fmod", &[Num::Float(7.5), Num::Int(2)]).unwrap(),
+        1.5,
+    );
 }
 
 #[test]
 fn dispatch_binary_float_nan_and_arity() {
     // Either operand NaN → None (has_nan guard).
-    assert_eq!(dispatch("atan2", &[Num::Float(f64::NAN), Num::Int(1)]), None);
+    assert_eq!(
+        dispatch("atan2", &[Num::Float(f64::NAN), Num::Int(1)]),
+        None
+    );
     assert_eq!(dispatch("pow", &[Num::Int(1), Num::Float(f64::NAN)]), None);
     // Wrong arity → None.
     assert_eq!(dispatch("hypot", &[Num::Int(3)]), None);
-    assert_eq!(dispatch("fmod", &[Num::Int(1), Num::Int(2), Num::Int(3)]), None);
+    assert_eq!(
+        dispatch("fmod", &[Num::Int(1), Num::Int(2), Num::Int(3)]),
+        None
+    );
 }
 
 #[test]
@@ -153,7 +164,10 @@ fn dispatch_min_max_int_and_float_rungs() {
     );
     // A mixed int/float set promotes to the Float rung.
     // tclsh: min(3,1.5)=1.5  max(3,1.5,9.2)=9.2
-    float_eq(dispatch("min", &[Num::Int(3), Num::Float(1.5)]).unwrap(), 1.5);
+    float_eq(
+        dispatch("min", &[Num::Int(3), Num::Float(1.5)]).unwrap(),
+        1.5,
+    );
     float_eq(
         dispatch("max", &[Num::Int(3), Num::Float(1.5), Num::Float(9.2)]).unwrap(),
         9.2,
@@ -227,19 +241,31 @@ fn dispatch_ieee_predicates_9_0_only() {
     //
     // isinf / isnan / isfinite. tclsh9.0: isinf(Inf)=1 isinf(5)=0
     //   isnan(NaN)=1 isnan(5)=0  isfinite(1.0)=1 isfinite(Inf)=0 isfinite(5)=1
-    assert_eq!(dispatch("isinf", &[Num::Float(f64::INFINITY)]), Some(Num::Int(1)));
+    assert_eq!(
+        dispatch("isinf", &[Num::Float(f64::INFINITY)]),
+        Some(Num::Int(1))
+    );
     assert_eq!(dispatch("isinf", &[Num::Int(5)]), Some(Num::Int(0)));
-    assert_eq!(dispatch("isnan", &[Num::Float(f64::NAN)]), Some(Num::Int(1)));
+    assert_eq!(
+        dispatch("isnan", &[Num::Float(f64::NAN)]),
+        Some(Num::Int(1))
+    );
     assert_eq!(dispatch("isnan", &[Num::Int(5)]), Some(Num::Int(0)));
     assert_eq!(dispatch("isfinite", &[Num::Float(1.0)]), Some(Num::Int(1)));
-    assert_eq!(dispatch("isfinite", &[Num::Float(f64::INFINITY)]), Some(Num::Int(0)));
+    assert_eq!(
+        dispatch("isfinite", &[Num::Float(f64::INFINITY)]),
+        Some(Num::Int(0))
+    );
     assert_eq!(dispatch("isfinite", &[Num::Int(5)]), Some(Num::Int(1)));
     // isnormal / issubnormal. tclsh9.0: isnormal(1.0)=1 issubnormal(1.0)=0.
     // An integer widens to a finite normal double.
     assert_eq!(dispatch("isnormal", &[Num::Float(1.0)]), Some(Num::Int(1)));
     assert_eq!(dispatch("isnormal", &[Num::Int(7)]), Some(Num::Int(1)));
     assert_eq!(dispatch("isnormal", &[Num::Float(0.0)]), Some(Num::Int(0)));
-    assert_eq!(dispatch("issubnormal", &[Num::Float(1.0)]), Some(Num::Int(0)));
+    assert_eq!(
+        dispatch("issubnormal", &[Num::Float(1.0)]),
+        Some(Num::Int(0))
+    );
     // The smallest positive denormal is subnormal.
     assert_eq!(
         dispatch("issubnormal", &[Num::Float(f64::from_bits(1))]),
@@ -679,13 +705,19 @@ fn eval_short_circuit_logical_skips_right() {
     let node = parse_expr("0 && [boom]", None);
     let mut ops = Tower::default();
     assert_eq!(eval(&node, &mut ops).unwrap(), Val::N(Num::Int(0)));
-    assert!(ops.drain_commands().is_empty(), "&& right side must be skipped");
+    assert!(
+        ops.drain_commands().is_empty(),
+        "&& right side must be skipped"
+    );
 
     // `||` true-left: the right operand must NOT be evaluated either.
     let node = parse_expr("1 || [boom]", None);
     let mut ops = Tower::default();
     assert_eq!(eval(&node, &mut ops).unwrap(), Val::N(Num::Int(1)));
-    assert!(ops.drain_commands().is_empty(), "|| right side must be skipped");
+    assert!(
+        ops.drain_commands().is_empty(),
+        "|| right side must be skipped"
+    );
 
     // The evaluated paths still produce 0/1. tclsh: 1&&1=1 1&&0=0 0||1=1 0||0=0
     // 5&&3=1
@@ -746,9 +778,7 @@ fn eval_binary_other_override_is_reached() {
 #[test]
 fn eval_errors_propagate_from_seams() {
     // A `Raw` (unparseable) node surfaces `unsupported`.
-    let node = ExprNode::Raw {
-        text: "@#%".into(),
-    };
+    let node = ExprNode::Raw { text: "@#%".into() };
     let mut ops = Tower::default();
     assert_eq!(
         eval(&node, &mut ops).unwrap_err(),

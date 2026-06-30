@@ -170,8 +170,14 @@ fn extract_linked<'a>(
     let mut outgoing: HashMap<&str, Vec<&ObjectEdge>> = HashMap::new();
     let mut incoming: HashMap<&str, Vec<&ObjectEdge>> = HashMap::new();
     for edge in &graph.edges {
-        outgoing.entry(edge.source_id.as_str()).or_default().push(edge);
-        incoming.entry(edge.target_id.as_str()).or_default().push(edge);
+        outgoing
+            .entry(edge.source_id.as_str())
+            .or_default()
+            .push(edge);
+        incoming
+            .entry(edge.target_id.as_str())
+            .or_default()
+            .push(edge);
     }
 
     // Bidirectional BFS from all roots at depth 0.
@@ -473,8 +479,7 @@ fn extract_linked_objects_multi_cursor_deduplicates_same_object() {
     let offset_a = offset_of(source, "ltm pool", 5);
     let offset_b = offset_of(source, "members", 2);
 
-    let result =
-        extract_linked(&graph, &[(uri, offset_a), (uri, offset_b)], 4).expect("not None");
+    let result = extract_linked(&graph, &[(uri, offset_a), (uri, offset_b)], 4).expect("not None");
     assert_eq!(result.roots.len(), 1);
 }
 
@@ -581,7 +586,11 @@ fn extract_linked_objects_finds_firewall_rule_address_list_via_registry() {
     let uri = "file:///bigip.conf";
     let (graph, _ctx) = build_graph(&[(uri, source)]);
 
-    let offset = offset_of(source, "security firewall address-list /Common/web_servers", 5);
+    let offset = offset_of(
+        source,
+        "security firewall address-list /Common/web_servers",
+        5,
+    );
     let result = extract_linked(&graph, &[(uri, offset)], 4).expect("not None");
 
     let headers = result.headers();

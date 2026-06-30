@@ -760,7 +760,9 @@ impl Analyser {
                 {
                     let tail = &word[p + 3..];
                     if !tail.is_empty()
-                        && tail.chars().all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+                        && tail
+                            .chars()
+                            .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
                     {
                         continue;
                     }

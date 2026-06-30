@@ -58,9 +58,7 @@
 use std::collections::HashMap;
 
 use tcl_compiler::cfg_builder::build_cfg;
-use tcl_compiler::codegen::{
-    CodegenCtx, FunctionAsm, Op, Operand, codegen_module,
-};
+use tcl_compiler::codegen::{CodegenCtx, FunctionAsm, Op, Operand, codegen_module};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::var_escape::{
@@ -152,7 +150,10 @@ fn string_equal_nocase_uses_invoke_replace() {
 fn string_equal_nocase_end_to_end_through_proc() {
     // The same `-nocase` form reached through real surface syntax in a proc
     // body still selects INVOKE_REPLACE.
-    let ops = proc_ops("proc p {a b} { return [string equal -nocase $a $b] }", "::p");
+    let ops = proc_ops(
+        "proc p {a b} { return [string equal -nocase $a $b] }",
+        "::p",
+    );
     assert!(
         ops.contains(&Op::INVOKE_REPLACE),
         "surface-syntax -nocase → INVOKE_REPLACE: {ops:?}"
@@ -183,7 +184,10 @@ fn string_compare_nocase_uses_invoke_replace() {
     let mut ctx = proc_ctx(&reg, &["a", "b"]);
     ctx.emit_inline_cmd_subst("[string compare -nocase $a $b]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::INVOKE_REPLACE), "compare -nocase: {ops:?}");
+    assert!(
+        ops.contains(&Op::INVOKE_REPLACE),
+        "compare -nocase: {ops:?}"
+    );
 }
 
 // ── A.2  string is CLASS ?-strict? — the per-class lowering arms ─────────────
@@ -203,7 +207,10 @@ fn string_is_integer_non_strict_lowers_to_numeric_type_chain() {
         "integer test uses NUMERIC_TYPE: {ops:?}"
     );
     assert!(ops.contains(&Op::LE), "the <=3 type-class check: {ops:?}");
-    assert!(!ops.contains(&Op::STR_CLASS), "integer is not a STR_CLASS class");
+    assert!(
+        !ops.contains(&Op::STR_CLASS),
+        "integer is not a STR_CLASS class"
+    );
     assert_all_labels_resolve(ctx);
 }
 
@@ -236,7 +243,10 @@ fn string_is_double_lowers_to_numeric_type() {
     ctx.emit_inline_cmd_subst("[string is double $v]");
     let ops = ctx_ops(&ctx);
     assert!(ops.contains(&Op::NUMERIC_TYPE), "double arm: {ops:?}");
-    assert!(ops.contains(&Op::STR_EQ), "non-strict double compares against \"\"");
+    assert!(
+        ops.contains(&Op::STR_EQ),
+        "non-strict double compares against \"\""
+    );
     assert_all_labels_resolve(ctx);
 }
 
@@ -248,7 +258,10 @@ fn string_is_double_strict_omits_empty_compare() {
     ctx.emit_inline_cmd_subst("[string is double -strict $v]");
     let ops = ctx_ops(&ctx);
     assert!(ops.contains(&Op::NUMERIC_TYPE));
-    assert!(!ops.contains(&Op::STR_EQ), "strict double omits empty compare: {ops:?}");
+    assert!(
+        !ops.contains(&Op::STR_EQ),
+        "strict double omits empty compare: {ops:?}"
+    );
 }
 
 #[test]
@@ -301,7 +314,10 @@ fn string_is_charclass_strict_defers_to_generic() {
     );
     // The generic fallback keeps both `string` and `is` words.
     let lits = ctx.literals.entries();
-    assert!(lits.iter().any(|l| l == "string"), "keeps `string`: {lits:?}");
+    assert!(
+        lits.iter().any(|l| l == "string"),
+        "keeps `string`: {lits:?}"
+    );
     assert!(lits.iter().any(|l| l == "is"), "keeps `is`: {lits:?}");
 }
 
@@ -317,7 +333,10 @@ fn string_replace_zero_prefix_uses_reverse_range_concat() {
     let mut ctx = proc_ctx(&reg, &["s"]);
     ctx.emit_inline_cmd_subst("[string replace $s 0 1 XY]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::STR_RANGE_IMM), "fast path uses STR_RANGE_IMM: {ops:?}");
+    assert!(
+        ops.contains(&Op::STR_RANGE_IMM),
+        "fast path uses STR_RANGE_IMM: {ops:?}"
+    );
     assert!(ops.contains(&Op::REVERSE));
     assert!(ops.contains(&Op::STR_CONCAT1));
     assert!(
@@ -406,7 +425,10 @@ fn lreplace_lowers_to_lreplace4_with_replace_discriminator() {
     let mut ctx = proc_ctx(&reg, &["l"]);
     ctx.emit_inline_cmd_subst("[lreplace $l 1 2 X]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::LREPLACE4), "lreplace → LREPLACE4: {ops:?}");
+    assert!(
+        ops.contains(&Op::LREPLACE4),
+        "lreplace → LREPLACE4: {ops:?}"
+    );
     let lrep = ctx
         .instructions
         .iter()
@@ -451,7 +473,10 @@ fn info_exists_proc_uses_exist_scalar() {
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[info exists v]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::EXIST_SCALAR), "proc info exists → existScalar: {ops:?}");
+    assert!(
+        ops.contains(&Op::EXIST_SCALAR),
+        "proc info exists → existScalar: {ops:?}"
+    );
     assert!(!ops.contains(&Op::EXIST_STK));
 }
 
@@ -462,7 +487,11 @@ fn info_exists_script_uses_exist_stk() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     ctx.emit_inline_cmd_subst("[info exists v]");
     let ops = ctx_ops(&ctx);
-    assert_eq!(ops, vec![Op::PUSH1, Op::EXIST_STK], "script info exists → push; existStk");
+    assert_eq!(
+        ops,
+        vec![Op::PUSH1, Op::EXIST_STK],
+        "script info exists → push; existStk"
+    );
 }
 
 // ── A.7  array exists (imm) / array names (fqn invoke) ──────────────────────
@@ -475,7 +504,11 @@ fn array_exists_proc_uses_array_exists_imm() {
     let mut ctx = proc_ctx(&reg, &["arr"]);
     ctx.emit_inline_cmd_subst("[array exists arr]");
     let ops = ctx_ops(&ctx);
-    assert_eq!(ops, vec![Op::ARRAY_EXISTS_IMM], "array exists → arrayExistsImm");
+    assert_eq!(
+        ops,
+        vec![Op::ARRAY_EXISTS_IMM],
+        "array exists → arrayExistsImm"
+    );
 }
 
 #[test]
@@ -486,7 +519,10 @@ fn array_names_uses_fqn_invoke() {
     let mut ctx = proc_ctx(&reg, &["arr"]);
     ctx.emit_inline_cmd_subst("[array names arr]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::INVOKE_STK1), "array names → invoke: {ops:?}");
+    assert!(
+        ops.contains(&Op::INVOKE_STK1),
+        "array names → invoke: {ops:?}"
+    );
     assert!(ops.contains(&Op::START_CMD), "wrapped in a startCommand");
     assert!(
         ctx.literals
@@ -531,7 +567,10 @@ fn incr_qualified_large_amount_uses_full_incr_stk() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     ctx.emit_inline_cmd_subst("[incr ::g 200]");
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::INCR_STK), "big amount → INCR_STK: {ops:?}");
+    assert!(
+        ops.contains(&Op::INCR_STK),
+        "big amount → INCR_STK: {ops:?}"
+    );
     assert!(
         !ops.contains(&Op::INCR_STK_IMM),
         "200 does not fit the 1-byte immediate form"
@@ -590,7 +629,10 @@ fn cmd_subst_arg_bare_array_ref_loads_array() {
     let mut ctx = proc_ctx(&reg, &["arr"]);
     ctx.emit_cmd_subst_arg("$arr(idx)", false);
     let ops = ctx_ops(&ctx);
-    assert!(ops.contains(&Op::LOAD_ARRAY1), "bare array ref → loadArray1: {ops:?}");
+    assert!(
+        ops.contains(&Op::LOAD_ARRAY1),
+        "bare array ref → loadArray1: {ops:?}"
+    );
 }
 
 #[test]
@@ -600,7 +642,11 @@ fn cmd_subst_arg_braced_with_subst_rewraps() {
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["x"]);
     ctx.emit_cmd_subst_arg("$x", true);
-    assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1], "braced-with-subst → single push");
+    assert_eq!(
+        ctx_ops(&ctx),
+        vec![Op::PUSH1],
+        "braced-with-subst → single push"
+    );
     assert!(
         ctx.literals.entries().iter().any(|l| l == "{$x}"),
         "the brace-wrapped literal is interned: {:?}",
@@ -615,7 +661,11 @@ fn cmd_subst_arg_backslash_is_processed_and_pushed() {
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &[]);
     ctx.emit_cmd_subst_arg("a\\tb", false);
-    assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1], "backslash arg → single push");
+    assert_eq!(
+        ctx_ops(&ctx),
+        vec![Op::PUSH1],
+        "backslash arg → single push"
+    );
 }
 
 #[test]
@@ -645,7 +695,10 @@ fn generic_cmd_subst_leading_dollar_interpolated_word() {
     ctx.emit_generic_cmd_subst("foo", &[("$i.x".into(), false)]);
     let ops = ctx_ops(&ctx);
     assert!(ops.contains(&Op::LOAD_SCALAR1), "$i is loaded: {ops:?}");
-    assert!(ops.contains(&Op::STR_CONCAT1), "the .x suffix is concatenated");
+    assert!(
+        ops.contains(&Op::STR_CONCAT1),
+        "the .x suffix is concatenated"
+    );
 }
 
 // ── A.11  empty subst + expanded value-position form ────────────────────────
@@ -674,7 +727,10 @@ fn expanded_value_position_keeps_braced_word_verbatim() {
     assert!(ops.contains(&Op::EXPAND_START), "expanded form: {ops:?}");
     assert!(ops.contains(&Op::EXPAND_STKTOP));
     assert!(ops.contains(&Op::INVOKE_EXPANDED));
-    assert!(!ops.contains(&Op::POP), "value position leaves the result on TOS");
+    assert!(
+        !ops.contains(&Op::POP),
+        "value position leaves the result on TOS"
+    );
     assert!(
         ctx.literals.entries().iter().any(|l| l == "b c"),
         "the braced word is interned verbatim: {:?}",
@@ -764,7 +820,10 @@ fn emit_with_no_source_yields_empty_text() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     ctx.current_span = Some(Span::new(0, 5));
     let idx = ctx.emit(Op::NOP, vec![]);
-    assert_eq!(ctx.instructions[idx].source_cmd_text, "", "no source ⇒ empty cmd text");
+    assert_eq!(
+        ctx.instructions[idx].source_cmd_text, "",
+        "no source ⇒ empty cmd text"
+    );
     assert_eq!(
         ctx.instructions[idx].source_line, 1,
         "span_line reports line 1 for an empty source (no is_empty guard)"
@@ -819,7 +878,11 @@ fn fresh_label_is_monotonic_and_place_label_records_position() {
     // `label_positions` is crate-private; inspect it through the public `labels`
     // map that `into_function_asm` moves it into.
     let fa = ctx.into_function_asm("::probe".into());
-    assert_eq!(fa.labels.get(&l1), Some(&1), "place_label records the next index");
+    assert_eq!(
+        fa.labels.get(&l1),
+        Some(&1),
+        "place_label records the next index"
+    );
 }
 
 #[test]
@@ -852,7 +915,11 @@ fn module_dispatch_emits_proc_and_top_level() {
     let ir = lower_to_ir("proc foo {x} { return $x }\nset z 9", &reg);
     let cfg = build_cfg(&ir, false);
     let m = codegen_module(&cfg, &ir, &reg);
-    assert!(m.procedures.contains_key("::foo"), "proc emitted: {:?}", m.procedures.keys());
+    assert!(
+        m.procedures.contains_key("::foo"),
+        "proc emitted: {:?}",
+        m.procedures.keys()
+    );
     assert_eq!(m.top_level.name, "::top");
     assert_eq!(
         m.top_level.instructions.last().unwrap().op,
@@ -907,8 +974,12 @@ fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
 }
 
 fn summary<'a>(m: &'a HashMap<String, ProcEscapeSummary>, q: &str) -> &'a ProcEscapeSummary {
-    m.get(q)
-        .unwrap_or_else(|| panic!("summary {q} missing; keys = {:?}", m.keys().collect::<Vec<_>>()))
+    m.get(q).unwrap_or_else(|| {
+        panic!(
+            "summary {q} missing; keys = {:?}",
+            m.keys().collect::<Vec<_>>()
+        )
+    })
 }
 
 // ── C.1  apply_value_scan: a non-frameless [cmd] head in a value → fallback ──
@@ -925,8 +996,15 @@ fn cu_value_with_user_cmd_subst_head_records_fallback() {
         p.has_fallback(),
         "a non-frameless cmd-subst head in a value sets the fallback flag"
     );
-    assert_eq!(p.tag("x"), EscapeTag::Local, "the assigned name stays Local");
-    assert!(!p.dynamic_barrier(), "a fallback is not whole-proc pessimism");
+    assert_eq!(
+        p.tag("x"),
+        EscapeTag::Local,
+        "the assigned name stays Local"
+    );
+    assert!(
+        !p.dynamic_barrier(),
+        "a fallback is not whole-proc pessimism"
+    );
 }
 
 #[test]
@@ -948,7 +1026,10 @@ fn ir_value_with_user_cmd_subst_head_records_fallback() {
     // records the fallback for a non-frameless head.
     let s = escape_ir("proc ::p {} { set x [myproc a] }");
     let p = summary(&s, "::p");
-    assert!(p.has_fallback(), "IR-walk records the non-frameless head fallback");
+    assert!(
+        p.has_fallback(),
+        "IR-walk records the non-frameless head fallback"
+    );
     assert_eq!(p.tag("x"), EscapeTag::Local);
 }
 
@@ -971,7 +1052,10 @@ fn cu_records_statically_resolvable_callees() {
         "qualified call recorded: {:?}",
         p.direct_callees
     );
-    assert!(p.has_call_fallback(), "the user calls also set the call-fallback");
+    assert!(
+        p.has_call_fallback(),
+        "the user calls also set the call-fallback"
+    );
 }
 
 #[test]
@@ -985,7 +1069,10 @@ fn cu_dynamic_command_head_not_recorded_as_callee() {
         "a $cmd head is not a static callee: {:?}",
         p.direct_callees
     );
-    assert!(p.has_fallback(), "but the dynamic head sets the eval fallback");
+    assert!(
+        p.has_fallback(),
+        "but the dynamic head sets the eval fallback"
+    );
 }
 
 // ── C.3  Return-value / ExprEval scans catch [info exists ...] (IR walk) ─────
@@ -1003,7 +1090,10 @@ fn ir_return_value_info_exists_escapes_target() {
         p.is_frame("rv"),
         "info-exists target in a return value is Frame: {p:?}"
     );
-    assert!(!p.dynamic_barrier(), "a literal info-exists is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal info-exists is not pessimistic"
+    );
 }
 
 #[test]
@@ -1012,7 +1102,10 @@ fn ir_expr_eval_info_exists_escapes_target() {
     // expression scanned — the walker.rs `ExprEval { expr }` arm.
     let s = escape_ir("proc ::p {} { expr {[info exists ev]} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("ev"), "info-exists in an expr statement is Frame: {p:?}");
+    assert!(
+        p.is_frame("ev"),
+        "info-exists in an expr statement is Frame: {p:?}"
+    );
 }
 
 // ── C.4  standalone namespace upvar handler (handle_namespace_call) ──────────
@@ -1029,7 +1122,10 @@ fn cu_standalone_namespace_upvar_escapes_alias_and_records_namespace_callee() {
     let p = summary(&s, "::p");
     assert!(p.is_frame("c"), "namespace-upvar alias is Frame");
     assert!(p.frame_needed);
-    assert!(!p.dynamic_barrier(), "a literal namespace upvar is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal namespace upvar is not pessimistic"
+    );
     assert!(
         p.direct_callees.contains("namespace"),
         "the namespace command is recorded as a callee: {:?}",
@@ -1057,7 +1153,11 @@ fn cu_append_literal_name_does_not_escape() {
     // split.
     let s = escape_cu("proc ::p {} { append a x }");
     let p = summary(&s, "::p");
-    assert_eq!(p.tag("a"), EscapeTag::Local, "literal-name append stays Local");
+    assert_eq!(
+        p.tag("a"),
+        EscapeTag::Local,
+        "literal-name append stays Local"
+    );
     assert!(!p.dynamic_barrier());
     assert!(
         p.direct_callees.contains("append"),

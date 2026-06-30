@@ -56,8 +56,8 @@
 //! Facts verified identically on tclsh8.6 AND tclsh9.0 unless noted.
 
 use tcl_lsp_core::minify::{
-    MinifyResult, SymbolMap, minify_tcl, minify_tcl_aggressive, minify_tcl_compact, remap_line_references,
-    unminify_error,
+    MinifyResult, SymbolMap, minify_tcl, minify_tcl_aggressive, minify_tcl_compact,
+    remap_line_references, unminify_error,
 };
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
@@ -190,7 +190,8 @@ fn symbol_map_reverse_covers_aliases_and_array_members() {
         .insert("database".to_owned(), "m".to_owned());
     sm.command_aliases
         .insert("HTTP::uri".to_owned(), "p".to_owned());
-    sm.argument_aliases.insert("-flag".to_owned(), "q".to_owned());
+    sm.argument_aliases
+        .insert("-flag".to_owned(), "q".to_owned());
     sm.string_aliases.insert("lit".to_owned(), "r".to_owned());
 
     let rev = sm.reverse();
@@ -333,7 +334,10 @@ fn aggressive_constant_interpolation_in_set_value_preserves_value() {
     let res = agg("set x 5\nset y \"n=$x\"\nputs $y\n", false);
     assert_eq!(res.source, "set x 5;set y n=$x;puts $y");
     // Bookkeeping is internally consistent.
-    assert_eq!(res.original_length, "set x 5\nset y \"n=$x\"\nputs $y\n".len());
+    assert_eq!(
+        res.original_length,
+        "set x 5\nset y \"n=$x\"\nputs $y\n".len()
+    );
     assert_eq!(res.minified_length(), res.source.len());
 }
 
@@ -363,7 +367,10 @@ fn aggressive_does_not_fold_command_substitution() {
         "no fold expected: {:?}",
         res.symbol_map.static_folds,
     );
-    assert!(res.source.contains("$u") || res.source.contains("clock"), "{res:?}");
+    assert!(
+        res.source.contains("$u") || res.source.contains("clock"),
+        "{res:?}"
+    );
 }
 
 #[test]
@@ -456,7 +463,10 @@ fn switch_matchvar_option_consumes_value_and_minifies_bodies() {
     let out = min(
         "switch -matchvar m -regexp -- abc {\n  a.c {\n    puts ok\n  }\n  default {\n    puts no\n  }\n}\n",
     );
-    assert_eq!(out, "switch -matchvar m -regexp -- abc {a.c {puts ok} default {puts no}}");
+    assert_eq!(
+        out,
+        "switch -matchvar m -regexp -- abc {a.c {puts ok} default {puts no}}"
+    );
 }
 
 #[test]
@@ -466,7 +476,8 @@ fn switch_double_dash_terminator_in_case_list() {
     //   -> `hit`; minified `switch -- -x {-x {puts hit} default {puts miss}}`
     //   -> `hit` (8.6 + 9.0). The `--` lets `-x` be matched as a value, not an
     //   option.
-    let out = min("switch -- -x {\n  -x {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n");
+    let out =
+        min("switch -- -x {\n  -x {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n");
     assert_eq!(out, "switch -- -x {-x {puts hit} default {puts miss}}");
 }
 

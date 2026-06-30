@@ -67,14 +67,14 @@
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inline_uplevel::{
-    body_has_frame_reach, detect_passthrough_candidates, detect_static_passthrough,
-    inline_uplevel_passthrough, PassthroughShape,
+    PassthroughShape, body_has_frame_reach, detect_passthrough_candidates,
+    detect_static_passthrough, inline_uplevel_passthrough,
 };
 use tcl_compiler::inlining::{
-    classify_proc, count_statements, inline_module, InlineDecision, SMALL_BODY_THRESHOLD,
+    InlineDecision, SMALL_BODY_THRESHOLD, classify_proc, count_statements, inline_module,
 };
 use tcl_compiler::ir::{Module, Statement};
-use tcl_compiler::var_escape::{analyse_var_escape, ProcEscapeSummary};
+use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -720,14 +720,22 @@ fn array_element_write_inlines_with_array_rename() {
         .filter(|n| n.contains('('))
         .collect();
     assert_eq!(array_writes.len(), 2);
-    let bases: std::collections::HashSet<&str> =
-        array_writes.iter().map(|n| n.split('(').next().unwrap()).collect();
+    let bases: std::collections::HashSet<&str> = array_writes
+        .iter()
+        .map(|n| n.split('(').next().unwrap())
+        .collect();
     assert_eq!(bases.len(), 1, "both writes share one mangled base");
     let base = *bases.iter().next().unwrap();
     assert!(base.starts_with("__inline_") && base.ends_with("__arr"));
     let indices: std::collections::HashSet<String> = array_writes
         .iter()
-        .map(|n| n.split('(').nth(1).unwrap().trim_end_matches(')').to_owned())
+        .map(|n| {
+            n.split('(')
+                .nth(1)
+                .unwrap()
+                .trim_end_matches(')')
+                .to_owned()
+        })
         .collect();
     assert_eq!(
         indices,
@@ -913,9 +921,8 @@ fn qualified_command_body_is_conservatively_kept() {
 fn unqualified_call_in_namespace() {
     // Python TestResolution::test_unqualified_call_in_namespace — a bare
     // `noop` inside `::ns::caller` resolves to `::ns::noop` and is inlined.
-    let module = module_for(
-        "namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n",
-    );
+    let module =
+        module_for("namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n");
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::ns::noop"];
     assert_eq!(
@@ -1012,9 +1019,8 @@ fn zero_param_single_uplevel_is_candidate() {
     // run {} { set counter 10; reset; return $counter }; run` → 0 — the
     // body runs in the caller's frame; inlining as a same-frame Block
     // preserves that.
-    let out = uplevel_inlined(
-        "proc reset {} { uplevel 1 {set counter 0} }\nproc caller {} { reset }\n",
-    );
+    let out =
+        uplevel_inlined("proc reset {} { uplevel 1 {set counter 0} }\nproc caller {} { reset }\n");
     let caller = &out.procedures["::caller"];
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
@@ -1047,9 +1053,8 @@ fn non_passthrough_not_inlined() {
 fn non_unit_frame_shift_not_inlined() {
     // Python TestPassthroughRecognition::test_non_unit_frame_shift_not_inlined —
     // `uplevel #0` goes to the absolute global frame; not a same-frame inline.
-    let out = uplevel_inlined(
-        "proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n",
-    );
+    let out =
+        uplevel_inlined("proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n");
     let caller = &out.procedures["::caller"];
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(

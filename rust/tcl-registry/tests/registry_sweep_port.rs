@@ -38,7 +38,7 @@
 use std::collections::BTreeSet;
 
 use tcl_registry::arity::Arity;
-use tcl_registry::bigip::{default_registry, BigipRegistry, ValueKind};
+use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::hover::FormKind;
@@ -46,7 +46,7 @@ use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::TaintColour;
 use tcl_registry::{
-    available_dialects, registry_for_dialect, ArgRole, CommandRegistry, Traits, KNOWN_DIALECTS,
+    ArgRole, CommandRegistry, KNOWN_DIALECTS, Traits, available_dialects, registry_for_dialect,
 };
 
 // ---------------------------------------------------------------------------
@@ -134,7 +134,12 @@ const ALL_TRAITS: &[Traits] = &[
 /// Assert the basic arity invariant shared by every `Arity` (command or
 /// subcommand): `min <= max`, and the unlimited sentinel agrees with `max`.
 fn assert_arity_consistent(a: Arity, what: &str) {
-    assert!(a.min <= a.max, "{what}: arity min {} > max {}", a.min, a.max);
+    assert!(
+        a.min <= a.max,
+        "{what}: arity min {} > max {}",
+        a.min,
+        a.max
+    );
     assert_eq!(
         a.is_unlimited(),
         a.max == Arity::UNLIMITED,
@@ -185,7 +190,11 @@ fn sweep_every_command_every_accessor() {
             let spec = reg
                 .get(name)
                 .unwrap_or_else(|| panic!("{dname}: listed name {name:?} does not `get`"));
-            assert_eq!(spec.name, name.as_str(), "{dname}: spec.name mismatch for {name:?}");
+            assert_eq!(
+                spec.name,
+                name.as_str(),
+                "{dname}: spec.name mismatch for {name:?}"
+            );
             total_specs += 1;
 
             // --- arity (command level) ---
@@ -204,7 +213,10 @@ fn sweep_every_command_every_accessor() {
             }
             let mut seen: BTreeSet<&str> = BTreeSet::new();
             for sw in &switches {
-                assert!(seen.insert(sw), "{dname}/{name}: switch_names returned {sw:?} twice");
+                assert!(
+                    seen.insert(sw),
+                    "{dname}/{name}: switch_names returned {sw:?} twice"
+                );
                 assert!(
                     declared.contains(sw),
                     "{dname}/{name}: switch {sw:?} not among declared options"
@@ -225,7 +237,10 @@ fn sweep_every_command_every_accessor() {
 
             // --- subcommands: arity, roles, options, arg-values, hover ---
             for sub in spec.subcommands {
-                assert!(!sub.name.is_empty(), "{dname}/{name}: empty subcommand name");
+                assert!(
+                    !sub.name.is_empty(),
+                    "{dname}/{name}: empty subcommand name"
+                );
                 // `subcommand` lookup round-trips a declared subcommand.
                 assert!(
                     spec.subcommand(sub.name).is_some(),
@@ -266,7 +281,11 @@ fn sweep_every_command_every_accessor() {
                 }
                 // `cfg_rewrite_name`, when present, is a qualified ::tcl::… name.
                 if let Some(rw) = sub.cfg_rewrite_name {
-                    assert!(!rw.is_empty(), "{dname}/{name} {}: empty rewrite name", sub.name);
+                    assert!(
+                        !rw.is_empty(),
+                        "{dname}/{name} {}: empty rewrite name",
+                        sub.name
+                    );
                 }
             }
 
@@ -305,7 +324,10 @@ fn sweep_every_command_every_accessor() {
                 // Every form is classified; synopsis text may be empty but the
                 // kind must be one of the three variants (exercise the enum).
                 assert!(
-                    matches!(f.kind, FormKind::Default | FormKind::Getter | FormKind::Setter),
+                    matches!(
+                        f.kind,
+                        FormKind::Default | FormKind::Getter | FormKind::Setter
+                    ),
                     "{dname}/{name}: unexpected form kind"
                 );
             }
@@ -346,17 +368,21 @@ fn sweep_every_command_every_accessor() {
             // Must never panic; when it resolves, the spec name is preserved.
             let active = ds.unwrap_or(DialectSet::TCL86);
             if let Some(rc) = reg.resolve_call(name, &[], active) {
-                assert_eq!(rc.spec.name, spec.name, "{dname}/{name}: resolve_call(nullary) spec");
+                assert_eq!(
+                    rc.spec.name, spec.name,
+                    "{dname}/{name}: resolve_call(nullary) spec"
+                );
             }
             // If the command has subcommands, resolving with the first
             // subcommand name as arg 0 should attach that subcommand.
             if let Some(first_sub) = spec.subcommands.first()
-                && let Some(rc) = reg.resolve_call(name, &[first_sub.name], active) {
-                    assert_eq!(rc.spec.name, spec.name);
-                    if let Some(s) = rc.sub {
-                        assert_eq!(s.name, first_sub.name, "{dname}/{name}: wrong sub attached");
-                    }
+                && let Some(rc) = reg.resolve_call(name, &[first_sub.name], active)
+            {
+                assert_eq!(rc.spec.name, spec.name);
+                if let Some(s) = rc.sub {
+                    assert_eq!(s.name, first_sub.name, "{dname}/{name}: wrong sub attached");
                 }
+            }
             // resolve_option_terminator must not panic; when Some, scan_start is
             // within the (subcommand-or-form) contract (0 or 1).
             if let Some(term) = reg.resolve_option_terminator(name, &["--"], active) {
@@ -376,9 +402,16 @@ fn sweep_every_command_every_accessor() {
         }
     }
 
-    assert_eq!(dialects_seen, LOADABLE_DIALECTS.len(), "did not sweep every dialect");
+    assert_eq!(
+        dialects_seen,
+        LOADABLE_DIALECTS.len(),
+        "did not sweep every dialect"
+    );
     // Sanity floor: the full cross-dialect sweep touches thousands of specs.
-    assert!(total_specs > 1000, "sweep unexpectedly small: {total_specs} specs");
+    assert!(
+        total_specs > 1000,
+        "sweep unexpectedly small: {total_specs} specs"
+    );
 }
 
 /// Sweep the whole trait lattice through `commands_with_trait` in a few
@@ -464,7 +497,11 @@ fn sweep_dialect_resolution_is_consistent() {
 fn sweep_every_bigip_object_and_property() {
     let reg: &BigipRegistry = default_registry();
     assert!(!reg.is_empty(), "bigip registry empty");
-    assert!(reg.len() > 100, "bigip registry unexpectedly small: {}", reg.len());
+    assert!(
+        reg.len() > 100,
+        "bigip registry unexpectedly small: {}",
+        reg.len()
+    );
 
     // `specs()` and `kind_names()` must agree on cardinality / membership.
     let specs = reg.specs();
@@ -516,13 +553,23 @@ fn sweep_every_bigip_object_and_property() {
         for r in p.references {
             assert!(!r.is_empty(), "{kind}/{}: empty reference target", p.name);
         }
-        let _ = (p.shape_kind, p.default, p.required, p.repeated, p.allow_none);
+        let _ = (
+            p.shape_kind,
+            p.default,
+            p.required,
+            p.repeated,
+            p.allow_none,
+        );
         let _ = (p.min_value, p.max_value, p.pattern, p.description);
         let _ = (p.usage_flags, p.list_operators);
         // matches_section: unconstrained matches anything; constrained matches
         // exactly its listed sections.
         if p.in_sections.is_empty() {
-            assert!(p.matches_section(None), "{kind}/{}: unconstrained rejects None", p.name);
+            assert!(
+                p.matches_section(None),
+                "{kind}/{}: unconstrained rejects None",
+                p.name
+            );
             assert!(
                 p.matches_section(Some("anything")),
                 "{kind}/{}: unconstrained rejects a section",
@@ -581,17 +628,9 @@ fn sweep_every_bigip_object_and_property() {
             // candidate_kinds_for_key / _for_section_item must not panic for any
             // declared property name in this container.
             for p in spec.properties {
-                let _ = reg.candidate_kinds_for_key(
-                    p.name,
-                    None,
-                    Some(module),
-                    Some(object_type),
-                );
-                let _ = reg.candidate_kinds_for_section_item(
-                    p.name,
-                    Some(module),
-                    Some(object_type),
-                );
+                let _ = reg.candidate_kinds_for_key(p.name, None, Some(module), Some(object_type));
+                let _ =
+                    reg.candidate_kinds_for_section_item(p.name, Some(module), Some(object_type));
             }
         }
 
@@ -638,12 +677,14 @@ fn bigip_lookup_misses_are_graceful() {
     assert!(reg.get_by_header("nope", "nope").is_none());
     assert!(reg.kind_for_header("nope", "nope").is_none());
     assert!(reg.candidate_registry_kinds_for_display("").is_empty());
-    assert!(reg
-        .candidate_kinds_for_key("k", None, None, None)
-        .is_empty());
-    assert!(reg
-        .candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
-        .is_empty());
+    assert!(
+        reg.candidate_kinds_for_key("k", None, None, None)
+            .is_empty()
+    );
+    assert!(
+        reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
+            .is_empty()
+    );
 }
 
 // ===========================================================================
@@ -663,7 +704,11 @@ fn sweep_event_command_legality_parity() {
     let profiles = ProfileRegistry::build();
 
     let all_events = events.all_event_names();
-    assert!(all_events.len() > 50, "too few events: {}", all_events.len());
+    assert!(
+        all_events.len() > 50,
+        "too few events: {}",
+        all_events.len()
+    );
 
     for event in &all_events {
         let listed = reg.valid_irules_commands_for_event(event, &events, &profiles);
@@ -685,7 +730,11 @@ fn sweep_event_command_legality_parity() {
         // event_info agrees with the listing on known-ness and count.
         let info = reg.event_info(event, &events, &profiles);
         assert!(info.known, "{event}: listed event reports known=false");
-        assert_eq!(info.event, event.to_uppercase(), "{event}: event_info name not upper-cased");
+        assert_eq!(
+            info.event,
+            event.to_uppercase(),
+            "{event}: event_info name not upper-cased"
+        );
         assert_eq!(
             info.valid_command_count(),
             listed.len(),
@@ -693,8 +742,13 @@ fn sweep_event_command_legality_parity() {
         );
         // side label is one of the documented vocabulary.
         assert!(
-            ["client-side", "server-side", "client-side and server-side", "global"]
-                .contains(&info.side),
+            [
+                "client-side",
+                "server-side",
+                "client-side and server-side",
+                "global"
+            ]
+            .contains(&info.side),
             "{event}: unexpected side label {:?}",
             info.side
         );
@@ -716,9 +770,10 @@ fn sweep_event_command_legality_parity() {
     }
 
     // An unknown event is illegal for everything and yields an empty listing.
-    assert!(reg
-        .valid_irules_commands_for_event("__FAKE__", &events, &profiles)
-        .is_empty());
+    assert!(
+        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles)
+            .is_empty()
+    );
     let unknown = reg.event_info("__fake__", &events, &profiles);
     assert!(!unknown.known);
     assert_eq!(unknown.side, "unknown");
@@ -756,7 +811,10 @@ fn sweep_taint_source_colours() {
             );
         }
     }
-    assert!(sources_seen > 0, "no taint sources found in the f5-irules registry");
+    assert!(
+        sources_seen > 0,
+        "no taint sources found in the f5-irules registry"
+    );
 
     // Spot-check a couple of well-known colour-carrying sources (f5-dialect):
     // HTTP::path / HTTP::uri are path-prefixed sources.
@@ -784,7 +842,10 @@ fn family_control_flow_shapes() {
     let reg = registry_for_dialect("tcl8.6");
     for c in ["if", "while", "for", "foreach", "switch"] {
         let spec = reg.get(c).unwrap_or_else(|| panic!("{c} registered"));
-        assert!(spec.traits.contains(Traits::CONTROL_FLOW), "{c} CONTROL_FLOW");
+        assert!(
+            spec.traits.contains(Traits::CONTROL_FLOW),
+            "{c} CONTROL_FLOW"
+        );
     }
     // Loop constructs carry a loop body; `if`/`switch` do not.
     for c in ["while", "for", "foreach"] {
@@ -793,12 +854,20 @@ fn family_control_flow_shapes() {
             "{c} HAS_LOOP_BODY"
         );
     }
-    assert!(reg.get("switch").unwrap().traits.contains(Traits::HAS_SWITCH_BODY));
+    assert!(
+        reg.get("switch")
+            .unwrap()
+            .traits
+            .contains(Traits::HAS_SWITCH_BODY)
+    );
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
     let term = reg.resolve_option_terminator("switch", &["--", "abc"], DialectSet::TCL86);
     if let Some(t) = term {
-        assert!(t.options.iter().any(|o| o.name == "--"), "switch declares a -- option");
+        assert!(
+            t.options.iter().any(|o| o.name == "--"),
+            "switch declares a -- option"
+        );
     }
 }
 
@@ -818,7 +887,11 @@ fn family_string_dict_list_ops() {
         "list", "lower", "space", "true", "upper", "xdigit",
     ];
     let allowed: BTreeSet<&str> = is.arg_values_at(0).iter().map(|v| v.value).collect();
-    let missing: Vec<&str> = CLASSES.iter().copied().filter(|c| !allowed.contains(c)).collect();
+    let missing: Vec<&str> = CLASSES
+        .iter()
+        .copied()
+        .filter(|c| !allowed.contains(c))
+        .collect();
     assert!(
         missing.is_empty(),
         "string is missing classes from its arg-0 value set: {missing:?} (have {allowed:?})"
@@ -835,7 +908,14 @@ fn family_string_dict_list_ops() {
     // tclsh8.6 & 9.0: `lsort -bogus` lists -ascii … -unique (8.6∩9.0 below).
     let lsort = reg.get("lsort").expect("lsort");
     let sw = lsort.switch_names(Some(DialectSet::TCL86));
-    for opt in ["-ascii", "-decreasing", "-increasing", "-integer", "-nocase", "-unique"] {
+    for opt in [
+        "-ascii",
+        "-decreasing",
+        "-increasing",
+        "-integer",
+        "-nocase",
+        "-unique",
+    ] {
         assert!(sw.contains(&opt), "lsort missing {opt}: {sw:?}");
     }
 }
@@ -890,11 +970,17 @@ fn family_io_shapes() {
     assert!(sw.contains(&"-server"), "socket -server: {sw:?}");
     // socket needs host+port at minimum.
     assert_eq!(socket.arity.min, 2, "socket min arity");
-    assert!(socket.arity.is_unlimited(), "socket accepts trailing options");
+    assert!(
+        socket.arity.is_unlimited(),
+        "socket accepts trailing options"
+    );
 
     // open opens a channel (registry-metadata trait).
     assert!(
-        reg.get("open").unwrap().traits.contains(Traits::OPENS_CHANNEL),
+        reg.get("open")
+            .unwrap()
+            .traits
+            .contains(Traits::OPENS_CHANNEL),
         "open OPENS_CHANNEL"
     );
 
@@ -922,8 +1008,24 @@ fn family_namespace_proc_shapes() {
     // tclsh8.6 & 9.0: namespace subcommand set (8.6∩9.0 — identical on both).
     let ns = reg.get("namespace").expect("namespace");
     const NS_SUBS: &[&str] = &[
-        "children", "code", "current", "delete", "ensemble", "eval", "exists", "export", "forget",
-        "import", "inscope", "origin", "parent", "path", "qualifiers", "tail", "unknown", "upvar",
+        "children",
+        "code",
+        "current",
+        "delete",
+        "ensemble",
+        "eval",
+        "exists",
+        "export",
+        "forget",
+        "import",
+        "inscope",
+        "origin",
+        "parent",
+        "path",
+        "qualifiers",
+        "tail",
+        "unknown",
+        "upvar",
         "which",
     ];
     let missing: Vec<&str> = NS_SUBS
@@ -931,18 +1033,27 @@ fn family_namespace_proc_shapes() {
         .copied()
         .filter(|s| ns.subcommand(s).is_none())
         .collect();
-    assert!(missing.is_empty(), "namespace missing subcommands: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "namespace missing subcommands: {missing:?}"
+    );
 
     // proc defines a procedure and marks its body argument structural.
     let proc = reg.get("proc").expect("proc");
-    assert!(proc.traits.contains(Traits::DEFINES_PROCEDURE), "proc DEFINES_PROCEDURE");
+    assert!(
+        proc.traits.contains(Traits::DEFINES_PROCEDURE),
+        "proc DEFINES_PROCEDURE"
+    );
     assert_eq!(proc.arity, Arity::exact(3), "proc name args body");
     assert_eq!(proc.arg_role_at(2), Some(ArgRole::Body), "proc body role");
 
     // upvar / global / variable create scope aliases.
     for c in ["upvar", "global", "variable"] {
         assert!(
-            reg.get(c).unwrap().traits.contains(Traits::CREATES_SCOPE_ALIAS),
+            reg.get(c)
+                .unwrap()
+                .traits
+                .contains(Traits::CREATES_SCOPE_ALIAS),
             "{c} CREATES_SCOPE_ALIAS"
         );
     }
@@ -1012,12 +1123,22 @@ fn family_f5_irules_shapes() {
 
     // when is the event handler with a structural body.
     let when = reg.get_for_dialect("when", ds).expect("when");
-    assert!(when.traits.contains(Traits::IS_EVENT_HANDLER), "when IS_EVENT_HANDLER");
+    assert!(
+        when.traits.contains(Traits::IS_EVENT_HANDLER),
+        "when IS_EVENT_HANDLER"
+    );
 
     // HTTP::uri getter (no args, PURE source) vs setter (one arg) forms.
-    let getter = reg.resolve_call("HTTP::uri", &[], ds).expect("HTTP::uri getter");
-    assert!(getter.spec.traits.contains(Traits::PURE), "HTTP::uri getter is pure");
-    let setter = reg.resolve_call("HTTP::uri", &["/p"], ds).expect("HTTP::uri setter");
+    let getter = reg
+        .resolve_call("HTTP::uri", &[], ds)
+        .expect("HTTP::uri getter");
+    assert!(
+        getter.spec.traits.contains(Traits::PURE),
+        "HTTP::uri getter is pure"
+    );
+    let setter = reg
+        .resolve_call("HTTP::uri", &["/p"], ds)
+        .expect("HTTP::uri setter");
     assert_eq!(setter.spec.name, "HTTP::uri");
 
     // Side switches.
@@ -1026,15 +1147,28 @@ fn family_f5_irules_shapes() {
     }
 
     // Closed value arg: HTTP::version arg 0 is a closed version set.
-    let ver = reg.get_for_dialect("HTTP::version", ds).expect("HTTP::version");
-    assert!(ver.closed_value_args.contains(&0), "HTTP::version arg0 closed");
+    let ver = reg
+        .get_for_dialect("HTTP::version", ds)
+        .expect("HTTP::version");
+    assert!(
+        ver.closed_value_args.contains(&0),
+        "HTTP::version arg0 closed"
+    );
     let versions: BTreeSet<&str> = ver.arg_values_at(0).iter().map(|v| v.value).collect();
-    assert!(versions.contains("1.1"), "HTTP::version closed set has 1.1: {versions:?}");
+    assert!(
+        versions.contains("1.1"),
+        "HTTP::version closed set has 1.1: {versions:?}"
+    );
 
     // Excluded events: TCP::rcv_scale declares at least one excluded event, and
     // is illegal there.
-    let rcv = reg.get_for_dialect("TCP::rcv_scale", ds).expect("TCP::rcv_scale");
-    assert!(!rcv.excluded_events.is_empty(), "TCP::rcv_scale excluded_events");
+    let rcv = reg
+        .get_for_dialect("TCP::rcv_scale", ds)
+        .expect("TCP::rcv_scale");
+    assert!(
+        !rcv.excluded_events.is_empty(),
+        "TCP::rcv_scale excluded_events"
+    );
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     let ex = rcv.excluded_events[0];
@@ -1068,5 +1202,8 @@ fn sweep_dialect_catalogue() {
     // An unparseable dialect collapses to a plain-Tcl registry.
     let junk = registry_for_dialect("definitely-not-a-dialect");
     assert!(junk.get("set").is_some());
-    assert!(junk.get("HTTP::header").is_none(), "junk fallback is plain Tcl");
+    assert!(
+        junk.get("HTTP::header").is_none(),
+        "junk fallback is plain Tcl"
+    );
 }

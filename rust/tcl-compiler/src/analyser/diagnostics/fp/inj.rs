@@ -5,7 +5,7 @@
 //! The T102 cases are iRules-dialect (`HTTP::uri` / `HTTP::path` taint sources),
 //! so they run under the `f5-irules` dialect rather than the default `D`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 const IRULES: &str = "f5-irules";
 

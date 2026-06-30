@@ -50,11 +50,11 @@
 
 use tcl_compiler::cfg::{CfgModule, Function, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
-use tcl_compiler::cfg_layout::{assign_lanes, build_cfg_edges, ordered_block_names, EdgeKind};
+use tcl_compiler::cfg_layout::{EdgeKind, assign_lanes, build_cfg_edges, ordered_block_names};
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
 // Shared helpers (mirror dataflow_port.rs / optimiser_port.rs registry setup)
@@ -89,7 +89,10 @@ fn proc<'a>(module: &'a CfgModule, qname: &str) -> &'a Function {
 /// Every terminator in a function (block order is irrelevant for the
 /// any/count predicates the Python tests use).
 fn terminators(func: &Function) -> Vec<&Terminator> {
-    func.blocks.values().filter_map(|b| b.terminator.as_ref()).collect()
+    func.blocks
+        .values()
+        .filter_map(|b| b.terminator.as_ref())
+        .collect()
 }
 
 /// Does any block hold a `Statement::AssignConst` writing `name`? (Python
@@ -141,8 +144,15 @@ fn if_creates_branching_cfg() {
     // CFG. STRUCTURAL (which blocks branch is a property of the lowering).
     let module = cfg("if {$x > 0} {set y 1} else {set y 0}\nset z 1");
     let func = top(&module);
-    assert!(terminators(func).iter().any(|t| matches!(t, Terminator::Branch { .. })));
-    assert!(assigns_const(func, "z"), "post-if `set z 1` must remain in the CFG");
+    assert!(
+        terminators(func)
+            .iter()
+            .any(|t| matches!(t, Terminator::Branch { .. }))
+    );
+    assert!(
+        assigns_const(func, "z"),
+        "post-if `set z 1` must remain in the CFG"
+    );
 }
 
 #[test]
@@ -157,7 +167,10 @@ fn switch_creates_dispatch_branches() {
         .iter()
         .filter(|t| matches!(t, Terminator::Branch { .. }))
         .count();
-    assert!(branch_count >= 2, "expected ≥2 dispatch branches, got {branch_count}");
+    assert!(
+        branch_count >= 2,
+        "expected ≥2 dispatch branches, got {branch_count}"
+    );
 }
 
 #[test]
@@ -174,7 +187,10 @@ fn switch_fallthrough_stays_opaque() {
         .flat_map(|b| b.statements.iter())
         .filter(|s| matches!(s, Statement::Switch { .. }))
         .count();
-    assert_eq!(switch_count, 1, "fall-through exact switch stays one opaque Statement::Switch");
+    assert_eq!(
+        switch_count, 1,
+        "fall-through exact switch stays one opaque Statement::Switch"
+    );
 }
 
 #[test]
@@ -223,13 +239,22 @@ fn for_creates_loop_cfg() {
             _ => None,
         })
         .expect("a Branch carrying the real `$i < 3` condition");
-    assert!(func.blocks.contains_key(&cond_branch.0), "true target is a real block");
-    assert!(func.blocks.contains_key(&cond_branch.1), "false target is a real block");
+    assert!(
+        func.blocks.contains_key(&cond_branch.0),
+        "true target is a real block"
+    );
+    assert!(
+        func.blocks.contains_key(&cond_branch.1),
+        "false target is a real block"
+    );
 
     // (d) The loop's exit block (`for_end`) is recorded as a loop node — Python
     // `term.false_target in cfg.loop_nodes`. `loop_nodes` is keyed by the loop's
     // EXIT block id, so assert there is one and it names a `for_end` block.
-    assert!(!func.loop_nodes.is_empty(), "the `for` must register a loop node");
+    assert!(
+        !func.loop_nodes.is_empty(),
+        "the `for` must register a loop node"
+    );
     assert!(
         func.loop_nodes
             .keys()
@@ -261,7 +286,9 @@ fn return_terminates_block() {
     let module = cfg("proc foo {} {\n    set x 1\n    return $x\n    set y 2\n}\n");
     let func = proc(&module, "::foo");
     assert!(
-        terminators(func).iter().any(|t| matches!(t, Terminator::Return { .. })),
+        terminators(func)
+            .iter()
+            .any(|t| matches!(t, Terminator::Return { .. })),
         "the proc must have a Return terminator"
     );
     // `set y 2` is unreachable (the live-path equivalent of Python's "not in the CFG").
@@ -276,7 +303,9 @@ fn return_terminates_block() {
         "Rust retains the dead store in an unreachable block (not dropped)"
     );
     assert!(
-        func.blocks.values().any(|b| b.name.starts_with("unreachable")),
+        func.blocks
+            .values()
+            .any(|b| b.name.starts_with("unreachable")),
         "the dead tail lives in an `unreachable_*` block"
     );
 }
@@ -319,7 +348,10 @@ fn shortest_span_gets_innermost_lane() {
     // Python test_shortest_span_gets_innermost_lane: the longest span is
     // processed last → outer lane, so the shorter span gets the inner lane.
     let lanes = assign_lanes(&[(0, 5), (1, 2)]);
-    assert!(lanes[1] < lanes[0], "shortest span (index 1) must take the inner lane: {lanes:?}");
+    assert!(
+        lanes[1] < lanes[0],
+        "shortest span (index 1) must take the inner lane: {lanes:?}"
+    );
 }
 
 #[test]
@@ -340,7 +372,12 @@ fn no_two_same_lane_edges_overlap() {
     for _ in 0..500 {
         let n = 1 + (rng.next_u32() % 8) as usize; // 1..=8 spans (Python randint(1,8))
         let spans: Vec<(usize, usize)> = (0..n)
-            .map(|_| ((rng.next_u32() % 10) as usize, (rng.next_u32() % 10) as usize))
+            .map(|_| {
+                (
+                    (rng.next_u32() % 10) as usize,
+                    (rng.next_u32() % 10) as usize,
+                )
+            })
             .collect();
         let lanes = assign_lanes(&spans);
         // No two spans on the same lane may overlap.
@@ -418,7 +455,10 @@ fn edge_kinds_classified_goto_true_false() {
     let lfunc = top(&lin);
     let lorder = ordered_block_names(lfunc);
     let ledges = build_cfg_edges(lfunc, &lorder);
-    assert!(!ledges.is_empty(), "a linear script still has a fall-through Goto edge");
+    assert!(
+        !ledges.is_empty(),
+        "a linear script still has a fall-through Goto edge"
+    );
     assert!(
         ledges.iter().all(|e| e.kind == EdgeKind::Goto),
         "a branch-free script has only Goto edges: {:?}",
@@ -429,8 +469,14 @@ fn edge_kinds_classified_goto_true_false() {
     let func = proc(&module, "::f");
     let order = ordered_block_names(func);
     let edges = build_cfg_edges(func, &order);
-    assert!(edges.iter().any(|e| e.kind == EdgeKind::True), "branchy fn has a True edge");
-    assert!(edges.iter().any(|e| e.kind == EdgeKind::False), "branchy fn has a False edge");
+    assert!(
+        edges.iter().any(|e| e.kind == EdgeKind::True),
+        "branchy fn has a True edge"
+    );
+    assert!(
+        edges.iter().any(|e| e.kind == EdgeKind::False),
+        "branchy fn has a False edge"
+    );
     // The contract string form (as the JSON/renderers consume it).
     assert_eq!(EdgeKind::Goto.as_str(), "goto");
     assert_eq!(EdgeKind::True.as_str(), "true");
@@ -449,9 +495,16 @@ fn block_ordering_follows_creation_order() {
     let order = ordered_block_names(func);
 
     // The set of ordered names equals the set of the function's block names.
-    assert_eq!(order.len(), func.blocks.len(), "every block appears once in the order");
     assert_eq!(
-        order.iter().cloned().collect::<std::collections::HashSet<_>>(),
+        order.len(),
+        func.blocks.len(),
+        "every block appears once in the order"
+    );
+    assert_eq!(
+        order
+            .iter()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>(),
         func.blocks
             .values()
             .map(|b| b.name.clone())
@@ -494,8 +547,10 @@ fn block_ordering_follows_creation_order() {
 
 #[test]
 fn codegen_for_loop_is_header_tested() {
-    let module =
-        build_cfg_codegen(&lower_to_ir("for {set i 0} {$i < 3} {incr i} {set sum 1}", registry()), false);
+    let module = build_cfg_codegen(
+        &lower_to_ir("for {set i 0} {$i < 3} {incr i} {set sum 1}", registry()),
+        false,
+    );
     let func = &module.top_level;
     let header = func
         .blocks
@@ -526,7 +581,11 @@ struct XorShift(u64);
 impl XorShift {
     fn new(seed: u64) -> Self {
         // Avoid the all-zero fixed point.
-        Self(if seed == 0 { 0xDEAD_BEEF_CAFE_F00D } else { seed })
+        Self(if seed == 0 {
+            0xDEAD_BEEF_CAFE_F00D
+        } else {
+            seed
+        })
     }
 
     fn next_u32(&mut self) -> u32 {

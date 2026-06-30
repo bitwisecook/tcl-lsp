@@ -55,8 +55,8 @@ use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
-use tcl_compiler::var_escape::{analyse_cfg_function, EscapeTag};
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_compiler::var_escape::{EscapeTag, analyse_cfg_function};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 fn registry() -> &'static CommandRegistry {
     registry_for_dialect("tcl8.6")
@@ -85,7 +85,11 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
 fn bare_set_is_local_control() {
     // Negative control: outside a catch, `set x 1` is a pure local.
     let r = cfg_result("set x 1");
-    assert!(r.name_tags.is_empty(), "bare set is local: {:?}", r.name_tags);
+    assert!(
+        r.name_tags.is_empty(),
+        "bare set is local: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
@@ -93,13 +97,21 @@ fn catch_body_set_escapes_touched_name() {
     // tclsh: `proc f {} { catch {set x 42}; return $x }; f` -> 42 — the catch'd
     // `set` lands in f's frame.
     let r = cfg_result("catch {set x 1}");
-    assert!(is_frame(&r, "x"), "catch'd set escapes x: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "x"),
+        "catch'd set escapes x: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
 fn catch_body_incr_escapes_counter() {
     let r = cfg_result("catch {incr n 2}");
-    assert!(is_frame(&r, "n"), "catch'd incr escapes n: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "n"),
+        "catch'd incr escapes n: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
@@ -116,7 +128,10 @@ fn catch_dynamic_body_records_coarse_fallback() {
     );
     // The dynamic body was not walked, so its alias is not individually tagged —
     // the coarse fallback above is what keeps the result sound.
-    assert!(!is_frame(&r, "v"), "dynamic catch body is not precisely tagged");
+    assert!(
+        !is_frame(&r, "v"),
+        "dynamic catch body is not precisely tagged"
+    );
 }
 
 // ===========================================================================
@@ -140,7 +155,11 @@ fn catch_body_nested_eval_block_escapes_inner_name() {
     // tclsh: `proc f {} { catch {eval {set z 9}}; return $z }; f` -> 9. A literal
     // `eval` nested in the catch body reaches the tree walker's eval-block arm.
     let r = cfg_result("catch {eval {set z 1}}");
-    assert!(is_frame(&r, "z"), "name in catch'd nested eval escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "z"),
+        "name in catch'd nested eval escapes: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
@@ -148,7 +167,10 @@ fn catch_body_nested_uplevel_records_fallback() {
     // An `uplevel` nested in the catch body hits the tree walker's barrier arm,
     // which records an interpreter-dispatch fallback.
     let r = cfg_result("catch {uplevel #0 {set g 1}}");
-    assert!(r.has_fallback(), "nested uplevel in catch records a fallback");
+    assert!(
+        r.has_fallback(),
+        "nested uplevel in catch records a fallback"
+    );
 }
 
 #[test]
@@ -156,13 +178,19 @@ fn catch_body_return_is_not_pessimistic() {
     // The `return $x` arm of the tree walker runs; a plain-variable value scan
     // yields no whole-proc barrier.
     let r = cfg_result("catch {return $x}");
-    assert!(!r.dynamic_barrier(), "catch'd `return $x` is not pessimistic");
+    assert!(
+        !r.dynamic_barrier(),
+        "catch'd `return $x` is not pessimistic"
+    );
 }
 
 #[test]
 fn catch_body_expr_eval_is_not_pessimistic() {
     let r = cfg_result("catch {expr {1 + 1}}");
-    assert!(!r.dynamic_barrier(), "catch'd `expr {{1+1}}` is not pessimistic");
+    assert!(
+        !r.dynamic_barrier(),
+        "catch'd `expr {{1+1}}` is not pessimistic"
+    );
 }
 
 // ===========================================================================
@@ -176,7 +204,11 @@ fn catch_body_expr_eval_is_not_pessimistic() {
 fn catch_if_branch_upvar_escapes() {
     // tclsh: `proc g {} { catch {if {1} {set y 7}}; return $y }; g` -> 7.
     let r = cfg_result("catch {if {1} {upvar 1 cv v}}");
-    assert!(is_frame(&r, "v"), "upvar in catch'd if escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "v"),
+        "upvar in catch'd if escapes: {:?}",
+        r.name_tags
+    );
     assert!(r.upvar_source_names.contains("cv"));
 }
 
@@ -184,8 +216,16 @@ fn catch_if_branch_upvar_escapes() {
 fn catch_if_else_global_and_variable_escape() {
     // Both clauses of the catch'd `if` are walked.
     let r = cfg_result("catch {if {1} {global g} else {variable w}}");
-    assert!(is_frame(&r, "g"), "then-clause global escapes: {:?}", r.name_tags);
-    assert!(is_frame(&r, "w"), "else-clause variable escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "g"),
+        "then-clause global escapes: {:?}",
+        r.name_tags
+    );
+    assert!(
+        is_frame(&r, "w"),
+        "else-clause variable escapes: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
@@ -202,14 +242,22 @@ fn catch_for_body_variable_escapes() {
 #[test]
 fn catch_while_body_global_escapes() {
     let r = cfg_result("catch {while {1} {global g}}");
-    assert!(is_frame(&r, "g"), "global in catch'd while escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "g"),
+        "global in catch'd while escapes: {:?}",
+        r.name_tags
+    );
 }
 
 #[test]
 fn catch_foreach_body_upvar_escapes() {
     // tclsh: `proc k {} { catch {foreach e {a b} {set w $e}}; return $w }; k` -> b.
     let r = cfg_result("catch {foreach k {a b} {upvar 1 cv v}}");
-    assert!(is_frame(&r, "v"), "upvar in catch'd foreach escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "v"),
+        "upvar in catch'd foreach escapes: {:?}",
+        r.name_tags
+    );
     assert!(r.upvar_source_names.contains("cv"));
 }
 
@@ -218,7 +266,11 @@ fn catch_switch_arm_upvar_escapes() {
     // tclsh: `set cv 0; proc s {} { catch {switch x {x {upvar 1 cv v; set v 13}}} }; s`
     // leaves cv == 13.
     let r = cfg_result("catch {switch x {x {upvar 1 cv v}}}");
-    assert!(is_frame(&r, "v"), "upvar in catch'd switch arm escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "v"),
+        "upvar in catch'd switch arm escapes: {:?}",
+        r.name_tags
+    );
     assert!(r.upvar_source_names.contains("cv"));
 }
 
@@ -226,7 +278,11 @@ fn catch_switch_arm_upvar_escapes() {
 fn catch_nested_catch_upvar_escapes() {
     // A `catch` nested inside the catch body is itself walked.
     let r = cfg_result("catch {catch {upvar 1 cv v}}");
-    assert!(is_frame(&r, "v"), "upvar in nested catch escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "v"),
+        "upvar in nested catch escapes: {:?}",
+        r.name_tags
+    );
     assert!(r.upvar_source_names.contains("cv"));
 }
 
@@ -234,8 +290,16 @@ fn catch_nested_catch_upvar_escapes() {
 fn catch_try_body_and_finally_escape() {
     // tclsh: `proc f {} { catch {try {set x 1} finally {set y 2}}; return $x-$y }; f` -> 1-2.
     let r = cfg_result("catch {try {upvar 1 cv v} finally {global g}}");
-    assert!(is_frame(&r, "v"), "upvar in catch'd try body escapes: {:?}", r.name_tags);
-    assert!(is_frame(&r, "g"), "global in catch'd try finally escapes: {:?}", r.name_tags);
+    assert!(
+        is_frame(&r, "v"),
+        "upvar in catch'd try body escapes: {:?}",
+        r.name_tags
+    );
+    assert!(
+        is_frame(&r, "g"),
+        "global in catch'd try finally escapes: {:?}",
+        r.name_tags
+    );
 }
 
 // ===========================================================================
@@ -265,34 +329,52 @@ fn uplevel_global_zero_literal_body_is_not_pessimistic() {
     // visible there, so it is NOT a whole-proc barrier — but it still records an
     // interpreter-dispatch fallback.
     let r = cfg_result("uplevel #0 {set g 1}");
-    assert!(!r.dynamic_barrier(), "uplevel #0 literal body is not pessimistic");
-    assert!(r.has_fallback(), "uplevel still records an interpreter-dispatch fallback");
+    assert!(
+        !r.dynamic_barrier(),
+        "uplevel #0 literal body is not pessimistic"
+    );
+    assert!(
+        r.has_fallback(),
+        "uplevel still records an interpreter-dispatch fallback"
+    );
 }
 
 #[test]
 fn expand_word_unknown_call_is_pessimistic() {
     // `{*}$args` on a non-list/concat call defeats argument reasoning.
     let r = cfg_result("someproc {*}$args");
-    assert!(r.dynamic_barrier(), "expand-word on unknown call is pessimistic");
+    assert!(
+        r.dynamic_barrier(),
+        "expand-word on unknown call is pessimistic"
+    );
 }
 
 #[test]
 fn expand_word_list_is_not_pessimistic() {
     // `list`/`concat` are carved out of the expand-word barrier.
     let r = cfg_result("list {*}$args");
-    assert!(!r.dynamic_barrier(), "expand-word on `list` is not pessimistic");
+    assert!(
+        !r.dynamic_barrier(),
+        "expand-word on `list` is not pessimistic"
+    );
 }
 
 #[test]
 fn value_scan_unknown_cmd_subst_records_fallback() {
     // An embedded `[unknownproc …]` substitution head is not frameless.
     let r = cfg_result("set r [unknownproc x]");
-    assert!(r.has_fallback(), "non-frameless cmd-subst head records a fallback");
+    assert!(
+        r.has_fallback(),
+        "non-frameless cmd-subst head records a fallback"
+    );
 }
 
 #[test]
 fn value_scan_frameless_cmd_subst_no_fallback() {
     // `[string length …]` is a frameless runtime command — no fallback.
     let r = cfg_result("set r [string length $x]");
-    assert!(!r.has_fallback(), "frameless cmd-subst head records no fallback");
+    assert!(
+        !r.has_fallback(),
+        "frameless cmd-subst head records no fallback"
+    );
 }
