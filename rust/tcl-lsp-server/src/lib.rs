@@ -6560,7 +6560,96 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
 /// (the editor's per-request indentation wins, per the LSP contract). Mirrors
 /// Python's `_normalise_formatter_settings` field mapping so editor- and
 /// config-file-set formatter options actually take effect.
-#[allow(clippy::too_many_lines)]
+/// Apply the `tclLsp.formatting.*` JSON object (camelCase keys) onto `cfg`,
+/// coercing each key per its type. Split out of [`formatter_config_from`] so
+/// the per-key mapping stays a single flat block without tripping the
+/// `too_many_lines` lint on the caller.
+fn apply_formatting_object(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    cfg: &mut core_formatting::FormatterConfig,
+) {
+    use core_formatting::IndentStyle;
+    let as_usize = |v: &serde_json::Value| v.as_u64().map(|n| usize::try_from(n).unwrap_or(0));
+    if let Some(n) = obj.get("indentSize").and_then(as_usize) {
+        cfg.indent_size = n.max(1);
+    }
+    if let Some(s) = obj.get("indentStyle").and_then(serde_json::Value::as_str) {
+        cfg.indent_style = match s.to_ascii_lowercase().as_str() {
+            "tabs" | "tab" => IndentStyle::Tabs,
+            _ => IndentStyle::Spaces,
+        };
+    }
+    if let Some(n) = obj.get("continuationIndent").and_then(as_usize) {
+        cfg.continuation_indent = n;
+    }
+    // `braceStyle` is accepted but only K&R is implemented, so it stays the
+    // default (a no-op rather than an error).
+    if let Some(b) = obj
+        .get("spaceBetweenBraces")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.space_between_braces = b;
+    }
+    // Both `maxLineLength` and the legacy `lineLength` map to the hard limit.
+    if let Some(n) = obj
+        .get("maxLineLength")
+        .or_else(|| obj.get("lineLength"))
+        .and_then(as_usize)
+    {
+        cfg.max_line_length = n.max(1);
+    }
+    if let Some(n) = obj.get("goalLineLength").and_then(as_usize) {
+        cfg.goal_line_length = n.max(1);
+    }
+    if let Some(b) = obj
+        .get("spaceAfterCommentHash")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.space_after_comment_hash = b;
+    }
+    if let Some(b) = obj
+        .get("trimTrailingWhitespace")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.trim_trailing_whitespace = b;
+    }
+    if let Some(b) = obj
+        .get("enforceBracedVariables")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.enforce_braced_variables = b;
+    }
+    if let Some(s) = obj.get("lineEnding").and_then(serde_json::Value::as_str) {
+        cfg.line_ending = match s.to_ascii_lowercase().as_str() {
+            "crlf" => "\r\n".to_owned(),
+            "cr" => "\r".to_owned(),
+            "lf" => "\n".to_owned(),
+            other => other.to_owned(),
+        };
+    }
+    if let Some(b) = obj
+        .get("ensureFinalNewline")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.ensure_final_newline = b;
+    }
+    if let Some(b) = obj
+        .get("expandSingleLineBodies")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.expand_single_line_bodies = b;
+    }
+    if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
+        cfg.blank_lines_between_procs = n;
+    }
+    if let Some(n) = obj.get("blankLinesBetweenBlocks").and_then(as_usize) {
+        cfg.blank_lines_between_blocks = n;
+    }
+    if let Some(n) = obj.get("maxConsecutiveBlankLines").and_then(as_usize) {
+        cfg.max_consecutive_blank_lines = n;
+    }
+}
+
 fn formatter_config_from(
     formatting: &serde_json::Value,
     options: &tower_lsp_server::ls_types::FormattingOptions,
@@ -6568,85 +6657,7 @@ fn formatter_config_from(
     use core_formatting::IndentStyle;
     let mut cfg = core_formatting::FormatterConfig::default();
     if let Some(obj) = formatting.as_object() {
-        let as_usize = |v: &serde_json::Value| v.as_u64().map(|n| usize::try_from(n).unwrap_or(0));
-        if let Some(n) = obj.get("indentSize").and_then(as_usize) {
-            cfg.indent_size = n.max(1);
-        }
-        if let Some(s) = obj.get("indentStyle").and_then(serde_json::Value::as_str) {
-            cfg.indent_style = match s.to_ascii_lowercase().as_str() {
-                "tabs" | "tab" => IndentStyle::Tabs,
-                _ => IndentStyle::Spaces,
-            };
-        }
-        if let Some(n) = obj.get("continuationIndent").and_then(as_usize) {
-            cfg.continuation_indent = n;
-        }
-        // `braceStyle` is accepted but only K&R is implemented, so it stays the
-        // default (a no-op rather than an error).
-        if let Some(b) = obj
-            .get("spaceBetweenBraces")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.space_between_braces = b;
-        }
-        // Both `maxLineLength` and the legacy `lineLength` map to the hard limit.
-        if let Some(n) = obj
-            .get("maxLineLength")
-            .or_else(|| obj.get("lineLength"))
-            .and_then(as_usize)
-        {
-            cfg.max_line_length = n.max(1);
-        }
-        if let Some(n) = obj.get("goalLineLength").and_then(as_usize) {
-            cfg.goal_line_length = n.max(1);
-        }
-        if let Some(b) = obj
-            .get("spaceAfterCommentHash")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.space_after_comment_hash = b;
-        }
-        if let Some(b) = obj
-            .get("trimTrailingWhitespace")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.trim_trailing_whitespace = b;
-        }
-        if let Some(b) = obj
-            .get("enforceBracedVariables")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.enforce_braced_variables = b;
-        }
-        if let Some(s) = obj.get("lineEnding").and_then(serde_json::Value::as_str) {
-            cfg.line_ending = match s.to_ascii_lowercase().as_str() {
-                "crlf" => "\r\n".to_owned(),
-                "cr" => "\r".to_owned(),
-                "lf" => "\n".to_owned(),
-                other => other.to_owned(),
-            };
-        }
-        if let Some(b) = obj
-            .get("ensureFinalNewline")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.ensure_final_newline = b;
-        }
-        if let Some(b) = obj
-            .get("expandSingleLineBodies")
-            .and_then(serde_json::Value::as_bool)
-        {
-            cfg.expand_single_line_bodies = b;
-        }
-        if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
-            cfg.blank_lines_between_procs = n;
-        }
-        if let Some(n) = obj.get("blankLinesBetweenBlocks").and_then(as_usize) {
-            cfg.blank_lines_between_blocks = n;
-        }
-        if let Some(n) = obj.get("maxConsecutiveBlankLines").and_then(as_usize) {
-            cfg.max_consecutive_blank_lines = n;
-        }
+        apply_formatting_object(obj, &mut cfg);
     }
     // LSP `FormattingOptions` indentation overrides the config (per contract);
     // a real editor always sends `tabSize >= 1`, so a degenerate 0 falls back to
@@ -8400,7 +8411,7 @@ mod tests {
             tcl_library: PathBuf::from("/sys/lib/tcl8.6"),
             auto_path: vec![PathBuf::from("/sys/lib"), PathBuf::from("/sys/lib/tcl8.6")],
         }];
-        let ap = effective_auto_path(&[ws.0.clone()], &editor, &discovered);
+        let ap = effective_auto_path(std::slice::from_ref(&ws.0), &editor, &discovered);
         assert!(ap.contains(&PathBuf::from("/editor/lib")));
         assert!(ap.contains(&PathBuf::from("/proj/lib")));
         assert!(ap.contains(&PathBuf::from("/sys/lib")));
