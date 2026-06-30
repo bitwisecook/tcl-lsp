@@ -52,8 +52,10 @@ pub struct CmdCommandSite {
 /// Single-pass Tcl analyser.
 ///
 /// Constructed once per document, walked end-to-end, then dropped.
-// A long-lived analysis accumulator: its several independent pass flags are
-// intentional, not a sign they should be bit-packed into an enum.
+// False positive: a flat accumulator whose bools are independent pass
+// flags / config toggles (`structure_only`, `defer_proc_bodies`,
+// `deep_param_traits`, `took_fast_path`, the two `probe_skip_*` test hooks,
+// …) that combine freely — not a state machine, so no natural enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
@@ -3966,16 +3968,17 @@ mod tests {
     // Incremental analysis differential oracle
 
     /// A projection of `AnalysisResult` capturing the observable
-    /// identity an incremental analysis must preserve.
-    #[allow(clippy::type_complexity)]
-    fn project_result(
-        r: &AnalysisResult,
-    ) -> (
+    /// identity an incremental analysis must preserve: sorted
+    /// `(code, start, end)` diagnostics, proc names, global vars, and
+    /// `(invocation name, start)` pairs.
+    type ResultProjection = (
         Vec<(String, u32, u32)>,
         Vec<String>,
         Vec<String>,
         Vec<(String, u32)>,
-    ) {
+    );
+
+    fn project_result(r: &AnalysisResult) -> ResultProjection {
         let mut diags: Vec<_> = r
             .diagnostics
             .iter()

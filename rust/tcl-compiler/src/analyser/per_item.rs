@@ -92,16 +92,12 @@ impl Analyser {
     /// memoise it in salsa so a body edit recomputes only that body.
     /// Byte-identical to `analyse` whenever `body_fn` returns what
     /// [`analyse_proc_body_isolated`] would.
-    #[allow(clippy::too_many_lines)]
     pub fn analyse_per_item_with(
         &mut self,
         source: &str,
         dialect: &str,
         body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
     ) -> AnalysisResult {
-        use std::collections::HashSet;
-        use tcl_registry::CommandRegistry;
-
         self.took_fast_path = false;
         // Recovery / stub overlays are only modelled on the full `analyse`
         // path; fall back so the per-item result can never diverge.  Tk's
@@ -119,6 +115,61 @@ impl Analyser {
 
         // --- setup, mirroring `analyse` (gated by the corpus `per_item ==
         // analyse` test) ---
+        let mut commands = self.per_item_setup(source, dialect);
+
+        // Error recovery → fall back to full `analyse` (its ghost-recovery /
+        // partial-command handling is not reproduced on the per-item path).
+        let ghost = self.apply_ghost_recovery(source, &mut commands);
+        if ghost || commands.iter().any(|c| c.is_partial) {
+            return self.fresh_full_analyse(source, dialect);
+        }
+
+        // --- pass 1: shell (defer proc/method bodies) ---
+        self.defer_proc_bodies = true;
+        self.walk_commands_top_level(&commands, false);
+        self.defer_proc_bodies = false;
+
+        // --- pass 2: fill each deferred body ---
+        // Returns `Err(fallback_result)` for the patterns the isolated-body
+        // decomposition can't reproduce byte-for-byte.
+        if let Err(fallback) = self.fill_deferred_bodies(source, dialect, body_fn) {
+            return *fallback;
+        }
+
+        // --- tail (cross-item passes; canonicalises order) ---
+        self.run_diagnostic_emitters(source);
+
+        // Correctness backstop: a syntax error
+        // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
+        // (ghost-token re-lexing, recovery segmentation, body-level partial
+        // detection) that the per-item walk only partially reproduces — a
+        // locally-unbalanced `}` that `script_is_complete` still accepts is the
+        // classic case.  Re-analyse fully so the result is byte-identical to a
+        // from-scratch `analyse`.  Well-formed edits (the common case) carry no
+        // E-codes and stay on the fast path.
+        if self.result.diagnostics.iter().any(|d| d.code.is_error()) {
+            return self.fresh_full_analyse(source, dialect);
+        }
+
+        self.took_fast_path = true;
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
+    }
+
+    /// Per-item setup, mirroring `analyse`: record source/dialect, apply file +
+    /// `noqa` suppressions, build the stub overlay, stash a dialect-aware
+    /// registry + line offsets, and segment the source with recovery.  Returns
+    /// the segmented top-level commands.  (Gated by the corpus `per_item ==
+    /// analyse` test.)
+    fn per_item_setup(
+        &mut self,
+        source: &str,
+        dialect: &str,
+    ) -> Vec<crate::segmenter::SegmentedCommand> {
+        use std::collections::HashSet;
+        use tcl_registry::CommandRegistry;
+
         self.source = source.to_string();
         self.dialect = dialect.to_string();
         let file_codes = super::utils::parse_file_suppression(source);
@@ -151,48 +202,44 @@ impl Analyser {
             .expect("registry just stashed")
             .command_names()
             .collect();
-        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
+        crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known,
             self.lexer_config(),
-        );
-        drop(known);
+        )
+    }
 
-        // Error recovery → fall back to full `analyse` (its ghost-recovery /
-        // partial-command handling is not reproduced on the per-item path).
-        let ghost = self.apply_ghost_recovery(source, &mut commands);
-        if ghost || commands.iter().any(|c| c.is_partial) {
-            return self.fresh_full_analyse(source, dialect);
-        }
-
-        // --- pass 1: shell (defer proc/method bodies) ---
-        self.defer_proc_bodies = true;
-        self.walk_commands_top_level(&commands, false);
-        self.defer_proc_bodies = false;
-
-        // --- pass 2: fill each deferred body ---
+    /// Pass 2 of per-item analysis: analyse each deferred proc/method body in
+    /// isolation (via `body_fn`) and graft it into the shell.
+    ///
+    /// Returns `Err(result)` carrying a full `fresh_full_analyse` rebuild for the
+    /// patterns the isolated-body decomposition can't reproduce byte-for-byte:
+    ///
+    /// 1. **Duplicate definitions** — the same proc/method qualified name
+    ///    defined more than once.  A whole-file walk processes the
+    ///    redefinitions in source order (last-definition-wins for the shared
+    ///    scope/`all_variables` key); the per-item graft *merges* every
+    ///    body's facts instead.  Covers both top-level duplicates (e.g.
+    ///    platform-conditional `proc auto_execok` in `if {…} else {…}`) and a
+    ///    body that **redefines an enclosing/sibling proc** — the lazy-init
+    ///    pattern `proc p {a} { …; proc p {a} {real} }`, where the inner def
+    ///    wins in a whole-file walk but merges here.
+    /// 2. **Class definition / extension in a proc body** (`oo::class` /
+    ///    `oo::define` / `itcl::class` / object aliasing) — a class's methods
+    ///    accumulate across bodies in a whole-file walk (remove → add →
+    ///    re-insert), which the graft's overwrite-on-key cannot reproduce.
+    ///
+    /// Both are rare; everything else (namespace/global/`variable` state,
+    /// qualified `$::g` reads — replayed at graft) takes the fast incremental
+    /// path.  Guarded by the corpus `per_item == analyse` gate + the
+    /// `incremental == fresh` fuzzer.
+    fn fill_deferred_bodies(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
+    ) -> Result<(), Box<AnalysisResult>> {
         let deferred = std::mem::take(&mut self.deferred_bodies);
-        // Fall back to a full rebuild for the two patterns the isolated-body
-        // decomposition can't reproduce byte-for-byte:
-        //
-        // 1. **Duplicate definitions** — the same proc/method qualified name
-        //    defined more than once.  A whole-file walk processes the
-        //    redefinitions in source order (last-definition-wins for the shared
-        //    scope/`all_variables` key); the per-item graft *merges* every
-        //    body's facts instead.  Covers both top-level duplicates (e.g.
-        //    platform-conditional `proc auto_execok` in `if {…} else {…}`) and a
-        //    body that **redefines an enclosing/sibling proc** — the lazy-init
-        //    pattern `proc p {a} { …; proc p {a} {real} }`, where the inner def
-        //    wins in a whole-file walk but merges here.
-        // 2. **Class definition / extension in a proc body** (`oo::class` /
-        //    `oo::define` / `itcl::class` / object aliasing) — a class's methods
-        //    accumulate across bodies in a whole-file walk (remove → add →
-        //    re-insert), which the graft's overwrite-on-key cannot reproduce.
-        //
-        // Both are rare; everything else (namespace/global/`variable` state,
-        // qualified `$::g` reads — replayed at graft) takes the fast incremental
-        // path.  Guarded by the corpus `per_item == analyse` gate + the
-        // `incremental == fresh` fuzzer.
         // A **method** defined more than once (same qualified name) still forces a
         // fallback: method bodies fill their scope in place, so a genuine
         // duplicate would accumulate rather than last-definition-win.  (Distinct
@@ -209,7 +256,7 @@ impl Analyser {
                 .iter()
                 .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text));
         if duplicate_method || enclosing_fallback {
-            return self.fresh_full_analyse(source, dialect);
+            return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
         // **Proc duplicates take the fast path.**  A whole-file walk's
         // `all_variables` for a duplicated proc is the *union* of every
@@ -242,7 +289,7 @@ impl Analyser {
                 .keys()
                 .any(|name| !defined_procs.insert(name.clone()))
             {
-                return self.fresh_full_analyse(source, dialect);
+                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
             // A body that defines/extends a class whose `all_classes` entry
             // **collides** with one already present (a *different* value) can't be
@@ -250,7 +297,7 @@ impl Analyser {
             // *accumulates* there (`oo::define` adds methods to the existing
             // class).  A fresh (non-colliding) class definition stays fast.
             if class_facts_collide(&self.result, &frag.result) {
-                return self.fresh_full_analyse(source, dialect);
+                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
             // Object-instance tracking (W308) resolves the class at the walk
             // point.  A proc body's creations are captured and replayed by the
@@ -267,29 +314,10 @@ impl Analyser {
             if let Some(before) = inst_snapshot
                 && self.result.instance_classes != before
             {
-                return self.fresh_full_analyse(source, dialect);
+                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
         }
-
-        // --- tail (cross-item passes; canonicalises order) ---
-        self.run_diagnostic_emitters(source);
-
-        // Correctness backstop: a syntax error
-        // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
-        // (ghost-token re-lexing, recovery segmentation, body-level partial
-        // detection) that the per-item walk only partially reproduces — a
-        // locally-unbalanced `}` that `script_is_complete` still accepts is the
-        // classic case.  Re-analyse fully so the result is byte-identical to a
-        // from-scratch `analyse`.  Well-formed edits (the common case) carry no
-        // E-codes and stay on the fast path.
-        if self.result.diagnostics.iter().any(|d| d.code.is_error()) {
-            return self.fresh_full_analyse(source, dialect);
-        }
-
-        self.took_fast_path = true;
-        let result = std::mem::take(&mut self.result);
-        self.clear_run_state();
-        result
+        Ok(())
     }
 
     /// Graft an isolated (offset-0) proc body's facts into `self` (the shell):
@@ -475,27 +503,26 @@ pub struct BodyFragment {
 /// body start; [`Analyser::graft_proc_body`] rebases them by the body's real
 /// position.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn analyse_proc_body_isolated(
+pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     db: &DeferredBody,
     dialect: &str,
-    disabled: &std::collections::HashSet<String>,
+    disabled: &std::collections::HashSet<String, S>,
     non_ascii: super::state::NonAsciiMode,
     stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
 ) -> BodyFragment {
     use tcl_registry::CommandRegistry;
-    let mut a =
-        Analyser::with_disabled_diagnostics(disabled.clone()).with_non_ascii_mode(non_ascii);
+    // Rebuild into the default-hasher set `Analyser` stores.
+    let disabled: std::collections::HashSet<String> = disabled.iter().cloned().collect();
+    let mut a = Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(non_ascii);
     a.dialect = dialect.to_string();
     a.stub_overlay = stub_overlay;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
     a.source.clone_from(&db.body_text);
-    #[allow(clippy::cast_possible_truncation)]
-    let body_tok = Token::new(
-        tcl_lexer::TokenType::Str,
-        tcl_lexer::Span::new(0, db.body_text.len() as u32),
-    );
+    // Source spans are `u32`; a proc body longer than 4 GiB is not
+    // representable (and never occurs), so clamp to `u32::MAX`.
+    let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
+    let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
     let mut registry = CommandRegistry::build_default();
     if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
         registry.load_dialect(d);

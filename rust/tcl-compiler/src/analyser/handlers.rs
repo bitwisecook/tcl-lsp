@@ -252,11 +252,57 @@ impl Analyser {
         }
     }
 
+    /// **W113** — a `proc` name shadows a built-in command.
+    ///
+    /// The check runs against both the unqualified `raw_name` and the
+    /// fully-qualified form, with the leading `::` trimmed (the registry
+    /// indexes by bare command name).  The inner borrow on
+    /// `self.builtin_command_names()` is dropped before the diagnostic push so
+    /// `self.result` is free to mutate.
+    ///
+    /// Only *core global* built-ins are shadow-worthy (unqualified `set` /
+    /// `dict` / …).  A namespace-qualified match (`::base64::encode`,
+    /// `::snit::type`) is a library/package command living in its own namespace
+    /// — its own definition or a deliberate override, not shadowing a built-in.
+    /// And the overridable Tcl *library* procedures (`unknown`, `history`,
+    /// `auto_*`, …) are script-defined, documented user-replaceable overlays.
+    fn emit_w113_proc_shadows_builtin(&mut self, raw_name: &str, qualified: &str, name_span: Span) {
+        let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
+        let normalised_qual: String = qualified.trim_start_matches(':').to_string();
+        let shadow_name: Option<String> = {
+            let builtins = self.builtin_command_names();
+            if builtins.contains(&normalised_proc) {
+                Some(normalised_proc.clone())
+            } else if builtins.contains(&normalised_qual) {
+                Some(normalised_qual.clone())
+            } else {
+                None
+            }
+        };
+        let shadow_name = shadow_name.filter(|name| {
+            !name.contains("::") && !overridable_library_procs().contains(name.as_str())
+        });
+        if shadow_name.is_some() {
+            let dialect_label = if self.dialect.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", self.dialect)
+            };
+            let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W113,
+                span: name_span,
+                message,
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// Handle a `proc name params body` definition: record the procedure
     /// (name, parameter list, body, and harvested doc-comment) in the
     /// analysis result and run per-parameter trait inference. Returns `true`
     /// when the command was a `proc` definition this handler consumed.
-    #[allow(clippy::too_many_lines)]
     pub fn handle_proc_command(
         &mut self,
         cmd_name: &str,
@@ -281,50 +327,7 @@ impl Analyser {
         let body_span = body_tok.span;
 
         // **W113** — proc name shadows a built-in command.
-        // The check runs against
-        // both the unqualified ``proc_name`` and the fully-
-        // qualified form, with the leading ``::`` trimmed (the
-        // registry indexes by bare command name).  The inner
-        // borrow on ``self.builtin_command_names()`` is dropped
-        // before the diagnostic push so ``self.result`` is free
-        // to mutate.
-        let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
-        let normalised_qual: String = qualified.trim_start_matches(':').to_string();
-        let shadow_name: Option<String> = {
-            let builtins = self.builtin_command_names();
-            if builtins.contains(&normalised_proc) {
-                Some(normalised_proc.clone())
-            } else if builtins.contains(&normalised_qual) {
-                Some(normalised_qual.clone())
-            } else {
-                None
-            }
-        };
-        // Only *core global* built-ins are shadow-worthy (unqualified
-        // `set` / `dict` / …).  A namespace-qualified match
-        // (`::base64::encode`, `::snit::type`) is a library/package command
-        // living in its own namespace — its own definition or a deliberate
-        // override, not shadowing a built-in.  And the overridable Tcl
-        // *library* procedures (`unknown`, `history`, `auto_*`, …) are
-        // script-defined, documented user-replaceable overlays.
-        let shadow_name = shadow_name.filter(|name| {
-            !name.contains("::") && !overridable_library_procs().contains(name.as_str())
-        });
-        if shadow_name.is_some() {
-            let dialect_label = if self.dialect.is_empty() {
-                String::new()
-            } else {
-                format!(" ({})", self.dialect)
-            };
-            let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W113,
-                span: name_span,
-                message,
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
-        }
+        self.emit_w113_proc_shadows_builtin(raw_name, &qualified, name_span);
 
         let params = parse_param_list(&args[1]);
         // Doc string: prefer the preceding-comment harvest from
@@ -1268,7 +1271,7 @@ impl Analyser {
             // the subcommand + its args.
             let inline_args: Vec<String> = args[1..].to_vec();
             let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            self.parse_oo_define_inline(&inline_args, &inline_tokens, &mut class_def);
+            super::oo::parse_oo_define_inline(&inline_args, &inline_tokens, &mut class_def);
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.

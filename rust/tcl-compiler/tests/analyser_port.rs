@@ -27,6 +27,7 @@
 //!   * `string bogus hello` → `unknown … subcommand "bogus"`          (W001)
 //!   * `namespace`          → `wrong # args: should be "namespace …"` (E001)
 //!   * `unset x` (unset)    → `can't unset "x": no such variable`     (W213)
+//!
 //! Pure static-analysis heuristics with no direct runtime analogue (unused
 //! params, dead stores, paste-error hints, etc.) are noted as such inline.
 //!

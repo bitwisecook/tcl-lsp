@@ -382,9 +382,11 @@ pub fn find_unguarded_drop_warnings(
         let finals = walk_flow(
             &proc.body,
             &[DropFlowState::default()],
-            &mut out,
-            &leaf,
-            &dedupe_drop_states,
+            &mut FlowDispatch {
+                out: &mut out,
+                leaf: &leaf,
+                dedupe: &dedupe_drop_states,
+            },
             None,
         );
         for st in finals {
@@ -545,10 +547,15 @@ fn classify_stmt_for_collect_flow(
         if base_offset == 0 {
             return sp;
         }
+        // Spans are `u32`; the absolutised offset is clamped to `0`, and a
+        // source larger than 4 GiB is not representable, so saturate to
+        // `u32::MAX` on the (impossible-in-practice) overflow.
         let s = (i64::from(sp.start()) + base_offset).max(0);
         let e = (i64::from(sp.end()) + base_offset).max(0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Span::new(s as u32, e as u32)
+        Span::new(
+            u32::try_from(s).unwrap_or(u32::MAX),
+            u32::try_from(e).unwrap_or(u32::MAX),
+        )
     };
     match stmt {
         Statement::Call {
@@ -814,9 +821,11 @@ pub fn find_http_flow_warnings(
                 responded: false,
                 respond_at: None,
             }],
-            &mut out,
-            &leaf,
-            &dedupe_flow_states,
+            &mut FlowDispatch {
+                out: &mut out,
+                leaf: &leaf,
+                dedupe: &dedupe_flow_states,
+            },
             None,
         );
     }
@@ -911,12 +920,19 @@ fn apply_http_flow_command(
 /// `return` terminates the path.
 ///
 /// [`Catch`]: Statement::Catch
+/// The fixed dispatch state threaded through the flow walk: the warning sink
+/// `out`, the per-leaf transfer `leaf`, and the state-set `dedupe`.  Bundled so
+/// the mutually-recursive walk helpers stay under the argument limit.
+struct FlowDispatch<'a, L, D> {
+    out: &'a mut Vec<IrulesCheckWarning>,
+    leaf: &'a L,
+    dedupe: &'a D,
+}
+
 fn walk_flow<S, L, D>(
     script: &Script,
     in_states: &[S],
-    out: &mut Vec<IrulesCheckWarning>,
-    leaf: &L,
-    dedupe: &D,
+    fd: &mut FlowDispatch<'_, L, D>,
     mut return_sink: Option<&mut Vec<S>>,
 ) -> Vec<S>
 where
@@ -927,7 +943,7 @@ where
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
         // `None` ⇒ the statement terminates every current path (`return`).
-        match flow_step(stmt, &states, out, leaf, dedupe, return_sink.as_deref_mut()) {
+        match flow_step(stmt, &states, fd, return_sink.as_deref_mut()) {
             None => {
                 // Hand the at-return states to the enclosing catch (if any) so
                 // flow resumes past it, then terminate this script's path.
@@ -945,16 +961,10 @@ where
 /// Transfer one structured statement over the flow-state set, or `None` when
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
 /// through [`walk_flow`]; leaf statements go through `leaf`.
-// One cohesive `match` dispatcher over the statement kinds — splitting the arms
-// into separate generic helpers would only scatter the shared `<S, L, D>`
-// signature without aiding readability.
-#[allow(clippy::too_many_lines)]
 fn flow_step<S, L, D>(
     stmt: &Statement,
     states: &[S],
-    out: &mut Vec<IrulesCheckWarning>,
-    leaf: &L,
-    dedupe: &D,
+    fd: &mut FlowDispatch<'_, L, D>,
     mut return_sink: Option<&mut Vec<S>>,
 ) -> Option<Vec<S>>
 where
@@ -974,76 +984,31 @@ where
                     next.extend(walk_flow(
                         &clause.body,
                         one(st),
-                        out,
-                        leaf,
-                        dedupe,
+                        fd,
                         return_sink.as_deref_mut(),
                     ));
                 }
                 if let Some(eb) = else_body {
-                    next.extend(walk_flow(
-                        eb,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
+                    next.extend(walk_flow(eb, one(st), fd, return_sink.as_deref_mut()));
                 } else {
                     // condition-false path keeps the incoming state.
                     next.push(st.clone());
                 }
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Switch {
             arms, default_body, ..
-        } => {
-            let mut next = Vec::new();
-            for st in states {
-                // no-match fall-through path.
-                next.push(st.clone());
-                for arm in arms {
-                    if let Some(body) = &arm.body {
-                        next.extend(walk_flow(
-                            body,
-                            one(st),
-                            out,
-                            leaf,
-                            dedupe,
-                            return_sink.as_deref_mut(),
-                        ));
-                    }
-                }
-                if let Some(db) = default_body {
-                    next.extend(walk_flow(
-                        db,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
-                }
-            }
-            dedupe(next)
-        }
+        } => flow_step_switch(arms, default_body.as_ref(), states, fd, return_sink),
         Statement::For { body, .. }
         | Statement::While { body, .. }
         | Statement::Foreach { body, .. } => {
             let mut next = Vec::new();
             for st in states {
                 next.push(st.clone()); // zero iterations
-                next.extend(walk_flow(
-                    body,
-                    one(st),
-                    out,
-                    leaf,
-                    dedupe,
-                    return_sink.as_deref_mut(),
-                ));
+                next.extend(walk_flow(body, one(st), fd, return_sink.as_deref_mut()));
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Catch { body, .. } => {
             let mut next = Vec::new();
@@ -1052,8 +1017,7 @@ where
                 // any at-return states continue past the catch.  Fall back to
                 // the incoming state if the body yields nothing.
                 let mut catch_returns = Vec::new();
-                let mut body_out =
-                    walk_flow(body, one(st), out, leaf, dedupe, Some(&mut catch_returns));
+                let mut body_out = walk_flow(body, one(st), fd, Some(&mut catch_returns));
                 body_out.append(&mut catch_returns);
                 if body_out.is_empty() {
                     next.push(st.clone());
@@ -1061,60 +1025,107 @@ where
                     next.extend(body_out);
                 }
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
-        } => {
-            let mut next = Vec::new();
-            for st in states {
-                let mut branch =
-                    walk_flow(body, one(st), out, leaf, dedupe, return_sink.as_deref_mut());
-                for handler in handlers {
-                    branch.extend(walk_flow(
-                        &handler.body,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
-                }
-                if let Some(fb) = finally_body {
-                    let mut final_out = Vec::new();
-                    for mid in &branch {
-                        final_out.extend(walk_flow(
-                            fb,
-                            one(mid),
-                            out,
-                            leaf,
-                            dedupe,
-                            return_sink.as_deref_mut(),
-                        ));
-                    }
-                    branch = final_out;
-                }
-                if branch.is_empty() {
-                    next.push(st.clone());
-                } else {
-                    next.extend(branch);
-                }
-            }
-            dedupe(next)
-        }
+        } => flow_step_try(
+            body,
+            handlers,
+            finally_body.as_ref(),
+            states,
+            fd,
+            return_sink,
+        ),
         // A grouping block (namespace/uplevel body) runs in sequence.
-        Statement::Block { body, .. } => walk_flow(body, states, out, leaf, dedupe, return_sink),
+        Statement::Block { body, .. } => walk_flow(body, states, fd, return_sink),
         _ => {
             let mut next = Vec::with_capacity(states.len());
             for st in states {
-                next.push(leaf(st, stmt, out));
+                next.push((fd.leaf)(st, stmt, fd.out));
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
     })
+}
+
+/// The `switch` arm of [`flow_step`]: every arm body (and the default body) is
+/// a feasible path, plus the no-match fall-through that keeps the incoming
+/// state.
+fn flow_step_switch<S, L, D>(
+    arms: &[crate::ir::SwitchArm],
+    default_body: Option<&Script>,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let one = std::slice::from_ref;
+    let mut next = Vec::new();
+    for st in states {
+        // no-match fall-through path.
+        next.push(st.clone());
+        for arm in arms {
+            if let Some(body) = &arm.body {
+                next.extend(walk_flow(body, one(st), fd, return_sink.as_deref_mut()));
+            }
+        }
+        if let Some(db) = default_body {
+            next.extend(walk_flow(db, one(st), fd, return_sink.as_deref_mut()));
+        }
+    }
+    (fd.dedupe)(next)
+}
+
+/// The `try` arm of [`flow_step`]: the body and each handler are feasible
+/// paths; a `finally` body runs in sequence after each; an empty result keeps
+/// the incoming state.
+fn flow_step_try<S, L, D>(
+    body: &Script,
+    handlers: &[crate::ir::TryHandler],
+    finally_body: Option<&Script>,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let one = std::slice::from_ref;
+    let mut next = Vec::new();
+    for st in states {
+        let mut branch = walk_flow(body, one(st), fd, return_sink.as_deref_mut());
+        for handler in handlers {
+            branch.extend(walk_flow(
+                &handler.body,
+                one(st),
+                fd,
+                return_sink.as_deref_mut(),
+            ));
+        }
+        if let Some(fb) = finally_body {
+            let mut final_out = Vec::new();
+            for mid in &branch {
+                final_out.extend(walk_flow(fb, one(mid), fd, return_sink.as_deref_mut()));
+            }
+            branch = final_out;
+        }
+        if branch.is_empty() {
+            next.push(st.clone());
+        } else {
+            next.extend(branch);
+        }
+    }
+    (fd.dedupe)(next)
 }
 
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection

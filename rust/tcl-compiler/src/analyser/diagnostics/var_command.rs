@@ -19,6 +19,31 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 
+/// The "known command name" sets for the W307 non-literal-command check:
+/// registry command names, user proc qualified names, their simple-name tails,
+/// and class simple-name tails.
+struct W307KnownNames {
+    cmds: HashSet<String>,
+    procs: HashSet<String>,
+    proc_bare: HashSet<String>,
+    class_tails: HashSet<String>,
+}
+
+/// All the borrowed analysis data the W307 per-site suppression decision
+/// reads, bundled so [`Analyser::w307_site_suppressed`] takes one context
+/// argument instead of a dozen.
+struct W307Ctx<'a> {
+    known: &'a W307KnownNames,
+    all_constsets: &'a std::collections::HashMap<String, HashSet<String>>,
+    func_ranges: &'a [(String, u32, u32)],
+    fu_by_qname: &'a std::collections::HashMap<String, &'a crate::compilation_unit::FunctionUnit>,
+    factory_object_ranges: &'a [(u32, u32, HashSet<String>)],
+    snit_var_ranges: &'a [(u32, u32, &'a Vec<String>)],
+    proc_body_ranges: &'a [(u32, u32, String, HashSet<String>)],
+    dispatch_counts: &'a FxHashMap<(String, String), usize>,
+    tainted_by_scope: &'a FxHashMap<String, HashSet<String>>,
+}
+
 impl Analyser {
     /// True when `my <method>` / `self <method>` dispatched at `site_offset`
     /// resolves to a method in the enclosing class whose body is a simple
@@ -117,17 +142,306 @@ impl Analyser {
     /// known user procs and registry commands with a non-OBJECT return type),
     /// or another proc proven object-returning by the fixpoint.  This tracks
     /// *no* class identity — it only suppresses W307 (it never enables W308).
-    #[allow(clippy::too_many_lines)]
-    // A single fixpoint algorithm (classify heads → collect factory locals →
-    // seed → propagate → extend → materialise ranges) whose phases share local
-    // state; splitting it would only scatter that state behind extra args.
+    /// Aggregate type-lattice object knowledge across every analysable unit
+    /// (top level, procs, *and* method bodies) plus constructor-harvested
+    /// types: var name → the set of `TclType::Object` class qualified names it
+    /// can hold, for the W308 method-resolution check.
+    fn aggregate_object_types(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) -> std::collections::HashMap<String, HashSet<String>> {
+        use crate::types::TypeKind;
+        let mut all_object_types: std::collections::HashMap<String, HashSet<String>> =
+            std::collections::HashMap::new();
+        let collect_object_types =
+            |fu: &crate::compilation_unit::FunctionUnit,
+             out: &mut std::collections::HashMap<String, HashSet<String>>| {
+                for ((sym, _ver), tl) in &fu.types {
+                    if tl.kind != TypeKind::Known {
+                        continue;
+                    }
+                    if !matches!(tl.tcl_type, Some(tcl_registry::TclType::Object)) {
+                        continue;
+                    }
+                    let Some(class_name) = &tl.class_name else {
+                        continue;
+                    };
+                    out.entry(fu.ssa.var_name(*sym).to_owned())
+                        .or_default()
+                        .insert(class_name.clone());
+                }
+            };
+        collect_object_types(&cu.top_level, &mut all_object_types);
+        for fu in cu.procedures.values() {
+            collect_object_types(fu, &mut all_object_types);
+        }
+        // Method bodies are real analysable units (`cu.methods` carries a full
+        // FunctionUnit per method). Including them lets `$var method` dispatch
+        // inside a method body see object/const evidence from the same body.
+        for fu in cu.methods.values() {
+            collect_object_types(fu, &mut all_object_types);
+        }
+        self.harvest_constructor_object_types(cu, &mut all_object_types);
+        all_object_types
+    }
+
+    /// W308 method validation for a `$var method` dispatch where `var` is
+    /// known to hold an Object of one of `class_names`.
+    ///
+    /// A method counts as found when the hierarchy resolves it, a local class
+    /// declares it (or it's a built-in `new`/`create`/`destroy`/`configure`/
+    /// `cget` or an `unknown` handler), an inherited `unknown` handler exists,
+    /// the class has an external (unindexed) superclass, the receiver var was
+    /// `oo::objdefine`d, or any candidate class is a snit metaclass (whose
+    /// delegation the analyser can't model).  W308 fires only when not found
+    /// and at least one candidate class is locally known.
+    fn w308_for_object_var(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        class_names: &HashSet<String>,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        objdefined_vars: &HashSet<String>,
+    ) -> Option<super::types::Diagnostic> {
+        let (Some(method_name), Some(hierarchy)) = (&site.method_name, hierarchy) else {
+            return None;
+        };
+        let mut found = false;
+        let mut has_local_class = false;
+        for cls in class_names {
+            if hierarchy.method_target(cls, method_name).is_some() {
+                found = true;
+                break;
+            }
+            if let Some(cd) = self.result.all_classes.get(cls) {
+                has_local_class = true;
+                if cd.methods.contains_key(method_name)
+                    || cd.class_methods.contains_key(method_name)
+                    || matches!(
+                        method_name.as_str(),
+                        "new" | "create" | "destroy" | "configure" | "cget"
+                    )
+                    || cd.methods.contains_key("unknown")
+                {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        // Inherited ``unknown`` handler via MRO.
+        if !found && has_local_class {
+            for cls in class_names {
+                if hierarchy.method_target(cls, "unknown").is_some() {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        // External superclass: a method might come from a class outside the
+        // current index.
+        if !found && has_local_class {
+            const OO_BASE: &[&str] = &["oo::object", "oo::class"];
+            'cls_loop: for cls in class_names {
+                if let Some(cd) = self.result.all_classes.get(cls) {
+                    for s in &cd.superclasses {
+                        if !self.result.all_classes.contains_key(s)
+                            && !OO_BASE.contains(&s.as_str())
+                        {
+                            found = true;
+                            break 'cls_loop;
+                        }
+                    }
+                }
+            }
+        }
+        // ``oo::objdefine`` adds per-instance methods we can't see at the
+        // class level.
+        if !found && objdefined_vars.contains(&site.var_name) {
+            found = true;
+        }
+        // snit instances route method calls through delegation / hull /
+        // options / built-ins (`$self`, `-option` cget/configure,
+        // `info`/`destroy`), none of which the analyser models — so method
+        // validation on a snit-typed receiver is unsound and never fires W308
+        // (FP-OBJ-05).
+        if !found
+            && class_names.iter().any(|cls| {
+                self.result
+                    .all_classes
+                    .get(cls)
+                    .is_some_and(|cd| cd.metaclass.contains("snit::"))
+            })
+        {
+            found = true;
+        }
+        if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
+            let mut classes_sorted: Vec<&str> = class_names.iter().map(String::as_str).collect();
+            classes_sorted.sort_unstable();
+            let cls_display = classes_sorted.join(", ");
+            let message = format!("Unknown method '{method_name}' on class '{cls_display}'");
+            return Some(super::types::Diagnostic {
+                code: DiagCode::W308,
+                span: site.cmd_span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        None
+    }
+
+    /// Build the [`W307KnownNames`] universe: registry command names, user proc
+    /// qualified names + their simple-name tails, and class simple-name tails.
+    fn build_w307_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W307KnownNames {
+        let cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
+        let procs: HashSet<String> = self.result.all_procs.keys().cloned().collect();
+        let proc_bare: HashSet<String> = procs
+            .iter()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let class_tails: HashSet<String> = self
+            .result
+            .all_classes
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        W307KnownNames {
+            cmds,
+            procs,
+            proc_bare,
+            class_tails,
+        }
+    }
+
+    /// True when `v` resolves to a known command: a registry name, a user proc
+    /// (bare / `::`-qualified / tail), or a class command.
+    fn is_known_command(&self, known: &W307KnownNames, v: &str) -> bool {
+        known.cmds.contains(v)
+            || known.procs.contains(v)
+            || known.proc_bare.contains(v)
+            || known.procs.contains(&format!("::{v}"))
+            || known.class_tails.contains(v)
+            || self.result.all_classes.contains_key(&format!("::{v}"))
+    }
+
+    /// Decide whether a `$var <method>` dispatch site is suppressed (no W307).
+    ///
+    /// Suppressed when SCCP proves the value is a known command; when an
+    /// `in_method` dispatch lacks a proven non-command value; when the var is a
+    /// proc parameter or is dispatched ≥2 times in scope (and not tainted /
+    /// SCCP-non-command); when a namespaced-ensemble composition resolves; when
+    /// the var is an object-factory local or a class instance member; or when
+    /// it's a callback-array slot without SCCP non-command evidence.
+    fn w307_site_suppressed(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        ctx: &W307Ctx<'_>,
+    ) -> bool {
+        // Resolve the dispatch's value first: prefer the exact SSA use-version,
+        // falling back to the merged constset.  This drops the merged-set false
+        // positive on a variable reassigned from a non-command to a known
+        // command before the dispatch (`set c x; set c puts; $c ...`).
+        let precise = w307_precise_cmd_values(
+            ctx.func_ranges,
+            ctx.fu_by_qname,
+            site.cmd_span.start(),
+            &site.var_name,
+        );
+        let effective = precise
+            .as_ref()
+            .or_else(|| ctx.all_constsets.get(&site.var_name));
+        // SCCP concrete evidence the value IS a known command — suppress.
+        if effective
+            .is_some_and(|v| !v.is_empty() && v.iter().all(|x| self.is_known_command(ctx.known, x)))
+        {
+            return true;
+        }
+        // SCCP concrete evidence the value is NOT a command: every feasible
+        // value is a literal and none is a known command.  When SCCP proves
+        // this, the heuristic object-dispatch suppressions below (in-method,
+        // proc-param / multi-dispatch) must not silence the real "invalid
+        // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
+        let sccp_not_command = effective.is_some_and(|v| {
+            !v.is_empty() && v.iter().all(|x| !self.is_known_command(ctx.known, x))
+        });
+        // ``in_method`` short-circuits W307 because OO methods routinely use
+        // ``$obj method`` patterns — unless SCCP proves a non-command value.
+        if site.in_method && !sccp_not_command {
+            return true;
+        }
+        // Proc-parameter / multi-dispatch object-dispatch suppression: a
+        // dispatch on a parameter of the enclosing proc (any count), or on a
+        // non-parameter local dispatched ≥2 times in the same scope, is
+        // evidenced object usage — suppress unless the var is tainted.
+        let idx = w307_enclosing_idx(ctx.proc_body_ranges, site.cmd_span.start());
+        let encl_qname = idx.map_or(W307_TOP_SCOPE, |i| ctx.proc_body_ranges[i].2.as_str());
+        let is_param = idx.is_some_and(|i| ctx.proc_body_ranges[i].3.contains(&site.var_name));
+        let dispatch_count = ctx
+            .dispatch_counts
+            .get(&(encl_qname.to_owned(), site.var_name.clone()))
+            .copied()
+            .unwrap_or(0);
+        let dispatcher_suppressed = is_param || dispatch_count >= 2;
+        let tainted = ctx
+            .tainted_by_scope
+            .get(encl_qname)
+            .is_some_and(|s| s.contains(&site.var_name));
+        if dispatcher_suppressed && !tainted && !sccp_not_command {
+            return true;
+        }
+        // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where `ns`
+        // holds a namespace prefix and `::tail` composes a qualified command
+        // path (tcllib's logger / dns / irc modules use this).  When the prefix
+        // is an SCCP const and *every* composed name `<value>::tail` resolves to
+        // a known command/proc/class, the dispatch is statically resolvable —
+        // suppress.  A composition that resolves to nothing still fires.
+        if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span)
+            && let Some(values) = ctx.all_constsets.get(&prefix)
+            && !values.is_empty()
+            && values
+                .iter()
+                .all(|v| self.is_known_command(ctx.known, &format!("{v}::{tail}")))
+        {
+            return true;
+        }
+        // Object-factory provenance: `$var` holds a factory result in this scope
+        // — a designed object handle, so the dispatch is not a static error.
+        let off = site.cmd_span.start();
+        if ctx
+            .factory_object_ranges
+            .iter()
+            .any(|(s, e, names)| *s <= off && off <= *e && names.contains(&site.var_name))
+        {
+            return true;
+        }
+        // Class instance-variable dispatch inside the class body (component /
+        // sub-object) — W307 exemption.
+        if ctx
+            .snit_var_ranges
+            .iter()
+            .any(|(s, e, vars)| *s <= off && off <= *e && vars.contains(&site.var_name))
+        {
+            return true;
+        }
+        // Callback-registration array slot: `$state(-command)` /
+        // `$state(doneCallback)` dispatches a command the user registered into a
+        // switch-style option / callback slot. Unless SCCP has concrete evidence
+        // the slot holds a non-command (handled above via `sccp_not_command`,
+        // e.g. `array set state {-command notACommand}` or
+        // `set state(-command) notACommand`), treat it as a designed callback
+        // dispatch (FP-OBJ-10).
+        if !sccp_not_command && is_callback_array_slot(&site.var_name) {
+            return true;
+        }
+        false
+    }
+
     fn compute_factory_object_ranges(
         &self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> Vec<(u32, u32, HashSet<String>)> {
-        use crate::ir::Statement;
-
         let class_qnames: HashSet<&String> = self.result.all_classes.keys().collect();
         let class_tails: HashSet<&str> = class_qnames
             .iter()
@@ -178,45 +492,22 @@ impl Analyser {
 
         // Per-proc: factory-local vars (non-user-proc factory heads), the last
         // returned var, and the `{var -> rhs command head}` assignment map.
-        let mut factory_locals: FxHashMap<String, HashSet<String>> = FxHashMap::default();
-        let mut return_var: FxHashMap<String, Option<String>> = FxHashMap::default();
-        let mut assigns: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
-        let mut object_returning: FxHashSet<String> = FxHashSet::default();
+        let mut maps = FactoryMaps::default();
         for (qname, fu) in &units {
-            let mut names = HashSet::new();
-            let mut amap = FxHashMap::default();
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    let Statement::AssignValue { name, value, .. } = stmt else {
-                        continue;
-                    };
-                    let Some((head, _)) =
-                        crate::value_shapes::parse_command_substitution(value.trim())
-                    else {
-                        continue;
-                    };
-                    amap.insert(name.clone(), head.clone());
-                    if is_object_returning_head(&head) && !is_user_proc(&head) {
-                        names.insert(name.clone());
-                    }
-                }
-            }
-            factory_locals.insert((*qname).to_string(), names);
-            assigns.insert((*qname).to_string(), amap);
-            return_var.insert((*qname).to_string(), last_return_var_of(&fu.cfg));
-            // Seed: a proc whose every return value is a namespaced
-            // object-returning cmd-sub is itself object-returning (G4: ALL
-            // returns must qualify, so a string-returning branch disqualifies).
-            let rvs = return_values_of(&fu.cfg);
-            if !rvs.is_empty()
-                && rvs.iter().all(|rv| {
-                    crate::value_shapes::parse_command_substitution(rv.trim())
-                        .is_some_and(|(head, _)| is_object_returning_head(&head))
-                })
-            {
-                object_returning.insert((*qname).to_string());
-            }
+            seed_factory_maps(
+                qname,
+                fu,
+                &is_object_returning_head,
+                &is_user_proc,
+                &mut maps,
+            );
         }
+        let FactoryMaps {
+            mut factory_locals,
+            assigns,
+            return_var,
+            mut object_returning,
+        } = maps;
         // A proc returning one of its own factory locals is object-returning.
         for (qname, rv) in &return_var {
             if let Some(rv) = rv
@@ -232,53 +523,14 @@ impl Analyser {
             let bare = qname.rsplit_once("::").map_or(qname.as_str(), |(_, t)| t);
             bare_to_qnames.entry(bare).or_default().push(qname.as_str());
         }
-        let resolve_candidates = |head: &str| -> Vec<String> {
-            let mut c = vec![head.to_string(), format!("::{head}")];
-            if let Some(qs) = bare_to_qnames.get(head) {
-                c.extend(qs.iter().map(|s| (*s).to_string()));
-            }
-            c
-        };
 
-        // Fixpoint: a proc whose returned var is assigned `[other]` where
-        // `other` is a proven object-returning user proc is itself one.
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (qname, rv) in &return_var {
-                let Some(rv) = rv else { continue };
-                if object_returning.contains(qname) {
-                    continue;
-                }
-                let Some(rhs) = assigns.get(qname).and_then(|m| m.get(rv)) else {
-                    continue;
-                };
-                if resolve_candidates(rhs)
-                    .iter()
-                    .any(|c| object_returning.contains(c))
-                {
-                    object_returning.insert(qname.clone());
-                    changed = true;
-                }
-            }
-        }
-        // Extend factory locals: `set X [user_proc]` where the proc is now
-        // proven object-returning makes `X` a factory local too.
-        for (qname, amap) in &assigns {
-            let mut add = FxHashSet::default();
-            for (var, head) in amap {
-                if factory_locals.get(qname).is_some_and(|s| s.contains(var)) {
-                    continue;
-                }
-                if resolve_candidates(head)
-                    .iter()
-                    .any(|c| object_returning.contains(c))
-                {
-                    add.insert(var.clone());
-                }
-            }
-            factory_locals.entry(qname.clone()).or_default().extend(add);
-        }
+        propagate_object_returning(
+            &return_var,
+            &assigns,
+            &bare_to_qnames,
+            &mut object_returning,
+            &mut factory_locals,
+        );
 
         // Materialise ranges (top level spans the whole source).
         let mut ranges = Vec::new();
@@ -304,55 +556,19 @@ impl Analyser {
     /// set of known command names, an OBJECT of a known class (→ W308 method
     /// check), or a positive OO-dispatch signal (`$self`, `my`/`self`
     /// self-dispatch, namespaced ensemble, callback-array, dict-with unpack).
-    #[allow(clippy::too_many_lines)]
-    // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
     pub(super) fn emit_var_command_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use crate::types::TypeKind;
         use std::collections::HashMap;
 
         if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
-        // Aggregate type-lattice knowledge per variable name
-        // across every FunctionUnit.  For each var with a
-        // ``TclType::Object`` lattice entry that has a
-        // ``class_name``, record the class qualified name so
-        // W308 can validate the method against the class
-        // hierarchy.
-        let mut all_object_types: HashMap<String, HashSet<String>> = HashMap::new();
-        let collect_object_types =
-            |fu: &crate::compilation_unit::FunctionUnit,
-             out: &mut HashMap<String, HashSet<String>>| {
-                for ((sym, _ver), tl) in &fu.types {
-                    if tl.kind != TypeKind::Known {
-                        continue;
-                    }
-                    if !matches!(tl.tcl_type, Some(tcl_registry::TclType::Object)) {
-                        continue;
-                    }
-                    let Some(class_name) = &tl.class_name else {
-                        continue;
-                    };
-                    out.entry(fu.ssa.var_name(*sym).to_owned())
-                        .or_default()
-                        .insert(class_name.clone());
-                }
-            };
-        collect_object_types(&cu.top_level, &mut all_object_types);
-        for fu in cu.procedures.values() {
-            collect_object_types(fu, &mut all_object_types);
-        }
-        // Method bodies are real analysable units (`cu.methods` carries a full
-        // FunctionUnit per method). Including them lets `$var method` dispatch
-        // inside a method body see object/const evidence from the same body.
-        for fu in cu.methods.values() {
-            collect_object_types(fu, &mut all_object_types);
-        }
-        self.harvest_constructor_object_types(cu, &mut all_object_types);
+        // Aggregate type-lattice knowledge (var name → class qualified names)
+        // so W308 can validate methods against the class hierarchy.
+        let all_object_types = self.aggregate_object_types(cu);
 
         // Build the class hierarchy once for W308 method
         // resolution (uses the ``ClassHierarchy``).
@@ -364,62 +580,13 @@ impl Analyser {
             ))
         };
 
-        // Aggregate constant-string knowledge per variable name
-        // across every function in the CompilationUnit.  CONST and
-        // CONSTSET are expanded into a flat set of values.
-        let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
-        let collect_from = |fu: &crate::compilation_unit::FunctionUnit,
-                            out: &mut HashMap<String, HashSet<String>>| {
-            for ((sym, _ver), lv) in &fu.sccp.values {
-                let Some(values) = lattice_command_values(lv) else {
-                    continue;
-                };
-                let entry = out.entry(fu.ssa.var_name(*sym).to_owned()).or_default();
-                for v in values {
-                    entry.insert(v);
-                }
-            }
-        };
-        collect_from(&cu.top_level, &mut all_constsets);
-        for fu in cu.procedures.values() {
-            collect_from(fu, &mut all_constsets);
-        }
-        // A literal `set cmd nope` inside an `oo::class` method body must be
-        // captured so SCCP can prove `$cmd` is a non-command — defeating the
-        // blanket `in_method` W307 suppression (FP-OBJ-D4-F5).
-        for fu in cu.methods.values() {
-            collect_from(fu, &mut all_constsets);
-        }
+        // Aggregate constant-string knowledge (var name → flat CONST/CONSTSET
+        // value set) across every function in the CompilationUnit.
+        let all_constsets = aggregate_constsets(cu);
 
-        harvest_array_set_constants(cu, &mut all_constsets);
-        harvest_array_element_set_constants(cu, &mut all_constsets);
-        harvest_dict_with_constants(cu, &mut all_constsets);
-
-        // Build the "known commands" universe — registry +
-        // user-defined procs + class tail names.
-        let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
-        let known_procs: HashSet<String> = self.result.all_procs.keys().cloned().collect();
-        let known_proc_bare: HashSet<String> = known_procs
-            .iter()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
-        let known_class_tails: HashSet<String> = self
-            .result
-            .all_classes
-            .keys()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        let is_known_command = |v: &str| {
-            known_cmds.contains(v)
-                || known_procs.contains(v)
-                || known_proc_bare.contains(v)
-                || known_procs.contains(&format!("::{v}"))
-                || known_class_tails.contains(v)
-                || self.result.all_classes.contains_key(&format!("::{v}"))
-        };
+        // Build the "known commands" universe — registry + user procs + class
+        // tail names.
+        let known = self.build_w307_known_names(registry);
 
         // Per-SSA-version refinement: map each
         // function to its source range + FunctionUnit so the W307
@@ -446,11 +613,6 @@ impl Analyser {
         // new]` / `set x [::ns::factory]` / `set x [object_returning_proc]`).
         // A `$x method` dispatch on one suppresses W307 (designed object usage).
         let factory_object_ranges = self.compute_factory_object_ranges(cu, registry);
-        let is_factory_local = |var: &str, off: u32| -> bool {
-            factory_object_ranges
-                .iter()
-                .any(|(s, e, names)| *s <= off && off <= *e && names.contains(var))
-        };
         // Snit / OO instance-variable dispatch: `$mytree get` where `mytree` is
         // a class instance variable and the dispatch sits inside the class body
         // (including non-method helper `proc`s that `upvar` it). An instance var
@@ -464,11 +626,6 @@ impl Analyser {
             .filter(|cd| !cd.variables.is_empty())
             .map(|cd| (cd.body_span.start(), cd.body_span.end(), &cd.variables))
             .collect();
-        let is_snit_member = |var: &str, off: u32| -> bool {
-            snit_var_ranges
-                .iter()
-                .any(|(s, e, vars)| *s <= off && off <= *e && vars.iter().any(|v| v == var))
-        };
 
         // **Proc-parameter / multi-dispatch object-dispatch suppression.**
         // A dispatch on a proc
@@ -501,248 +658,76 @@ impl Analyser {
         // can wrap several, so this stays robust).  Returns the index into
         // `proc_body_ranges`, or `None` for the `::top` sentinel scope.
         proc_body_ranges.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
-        let enclosing_idx = |off: u32| -> Option<usize> {
-            proc_body_ranges
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (s, e, _, _))| *s <= off && off <= *e)
-                .map(|(i, _)| i)
-        };
-        let scope_qname = |idx: Option<usize>| -> &str {
-            idx.map_or(W307_TOP_SCOPE, |i| proc_body_ranges[i].2.as_str())
-        };
         let mut dispatch_counts: FxHashMap<(String, String), usize> = FxHashMap::default();
         for site in &sites {
-            let qname = scope_qname(enclosing_idx(site.cmd_span.start()));
+            let idx = w307_enclosing_idx(&proc_body_ranges, site.cmd_span.start());
+            let qname = idx.map_or(W307_TOP_SCOPE, |i| proc_body_ranges[i].2.as_str());
             *dispatch_counts
                 .entry((qname.to_owned(), site.var_name.clone()))
                 .or_insert(0) += 1;
         }
         // Per-scope tainted var names — any tainted SSA version of a name
-        // disqualifies it from dispatcher-suppression.  Keyed by qname, with
-        // `::top` for the top-level scope.
-        let tainted_names_of = |fu: &crate::compilation_unit::FunctionUnit| -> HashSet<String> {
-            fu.taints
-                .iter()
-                .filter(|(_, tl)| tl.is_tainted())
-                .map(|((sym, _ver), _)| fu.ssa.var_name(*sym).to_owned())
-                .collect()
+        // disqualifies it from dispatcher-suppression.
+        let tainted_by_scope = build_tainted_by_scope(cu);
+
+        let w307_ctx = W307Ctx {
+            known: &known,
+            all_constsets: &all_constsets,
+            func_ranges: &func_ranges,
+            fu_by_qname: &fu_by_qname,
+            factory_object_ranges: &factory_object_ranges,
+            snit_var_ranges: &snit_var_ranges,
+            proc_body_ranges: &proc_body_ranges,
+            dispatch_counts: &dispatch_counts,
+            tainted_by_scope: &tainted_by_scope,
         };
-        let mut tainted_by_scope: FxHashMap<String, HashSet<String>> = FxHashMap::default();
-        let top_tainted = tainted_names_of(&cu.top_level);
-        if !top_tainted.is_empty() {
-            tainted_by_scope.insert(W307_TOP_SCOPE.to_owned(), top_tainted);
-        }
-        for (qname, fu) in &cu.procedures {
-            let names = tainted_names_of(fu);
-            if !names.is_empty() {
-                tainted_by_scope.insert(qname.clone(), names);
-            }
-        }
 
         for site in &sites {
-            // **W308 path.**  Variable known to hold an Object
-            // — validate the method name against the class
-            // hierarchy.  When the method isn't found and the
-            // class doesn't have an external superclass that
-            // could carry it, emit W308.
+            // **W308 path.**  Variable known to hold an Object — validate the
+            // method against the hierarchy and emit W308 when it isn't found.
+            // The W307 path never fires for a known-Object var, so `continue`.
             if let Some(class_names) = all_object_types.get(&site.var_name) {
-                if let (Some(method_name), Some(hierarchy)) = (&site.method_name, &hierarchy) {
-                    let mut found = false;
-                    let mut has_local_class = false;
-                    for cls in class_names {
-                        if hierarchy.method_target(cls, method_name).is_some() {
-                            found = true;
-                            break;
-                        }
-                        if let Some(cd) = self.result.all_classes.get(cls) {
-                            has_local_class = true;
-                            if cd.methods.contains_key(method_name)
-                                || cd.class_methods.contains_key(method_name)
-                                || matches!(
-                                    method_name.as_str(),
-                                    "new" | "create" | "destroy" | "configure" | "cget"
-                                )
-                                || cd.methods.contains_key("unknown")
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    // Inherited ``unknown`` handler via MRO.
-                    if !found && has_local_class {
-                        for cls in class_names {
-                            if hierarchy.method_target(cls, "unknown").is_some() {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    // External superclass: a method might come
-                    // from a class outside the current index.
-                    if !found && has_local_class {
-                        const OO_BASE: &[&str] = &["oo::object", "oo::class"];
-                        'cls_loop: for cls in class_names {
-                            if let Some(cd) = self.result.all_classes.get(cls) {
-                                for s in &cd.superclasses {
-                                    if !self.result.all_classes.contains_key(s)
-                                        && !OO_BASE.contains(&s.as_str())
-                                    {
-                                        found = true;
-                                        break 'cls_loop;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // ``oo::objdefine`` adds per-instance
-                    // methods we can't see at the class level.
-                    if !found && objdefined_vars.contains(&site.var_name) {
-                        found = true;
-                    }
-                    // snit instances route method calls through delegation /
-                    // hull / options / built-ins (`$self`, `-option` cget/configure,
-                    // `info`/`destroy`), none of which the analyser models — so
-                    // method validation on a snit-typed receiver is unsound and
-                    // never fires W308 (FP-OBJ-05).
-                    if !found
-                        && class_names.iter().any(|cls| {
-                            self.result
-                                .all_classes
-                                .get(cls)
-                                .is_some_and(|cd| cd.metaclass.contains("snit::"))
-                        })
-                    {
-                        found = true;
-                    }
-                    if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
-                        let mut classes_sorted: Vec<&str> =
-                            class_names.iter().map(String::as_str).collect();
-                        classes_sorted.sort_unstable();
-                        let cls_display = classes_sorted.join(", ");
-                        let message =
-                            format!("Unknown method '{method_name}' on class '{cls_display}'");
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: DiagCode::W308,
-                            span: site.cmd_span,
-                            message,
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
-                    }
+                if let Some(diag) = self.w308_for_object_var(
+                    site,
+                    class_names,
+                    hierarchy.as_ref(),
+                    &objdefined_vars,
+                ) {
+                    self.result.diagnostics.push(diag);
                 }
-                // W307 path doesn't fire when the var is a
-                // known Object — the method-name check is the
-                // load-bearing piece.
                 continue;
             }
 
             // **W307 path.**  Variable not a known Object.
-            // Resolve the dispatch's value first: prefer the exact SSA
-            // use-version, falling back to the merged constset.  This drops the
-            // merged-set false positive on a variable reassigned from a
-            // non-command to a known command before the dispatch
-            // (`set c x; set c puts; $c ...`).
-            let precise = w307_precise_cmd_values(
-                &func_ranges,
-                &fu_by_qname,
-                site.cmd_span.start(),
-                &site.var_name,
-            );
-            let effective = precise
-                .as_ref()
-                .or_else(|| all_constsets.get(&site.var_name));
-            // SCCP concrete evidence the value IS a known command — suppress.
-            if effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| is_known_command(x))) {
-                continue;
+            if !self.w307_site_suppressed(site, &w307_ctx) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W307,
+                    span: site.cmd_span,
+                    message: "Non-literal command name — cannot statically analyze".to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
             }
-            // SCCP concrete evidence the value is NOT a command: every feasible
-            // value is a literal and none is a known command.  When SCCP proves
-            // this, the heuristic object-dispatch suppressions below (in-method,
-            // proc-param / multi-dispatch) must not silence the real "invalid
-            // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
-            let sccp_not_command =
-                effective.is_some_and(|v| !v.is_empty() && v.iter().all(|x| !is_known_command(x)));
-            // ``in_method`` short-circuits W307 because OO methods routinely use
-            // ``$obj method`` patterns — unless SCCP proves a non-command value.
-            if site.in_method && !sccp_not_command {
-                continue;
-            }
-            // Proc-parameter / multi-dispatch object-dispatch suppression: a
-            // dispatch on a parameter of the enclosing proc (any count), or on
-            // a non-parameter local dispatched ≥2 times in the same scope, is
-            // evidenced object usage — suppress unless the var is tainted.
-            let idx = enclosing_idx(site.cmd_span.start());
-            let encl_qname = scope_qname(idx);
-            let is_param = idx.is_some_and(|i| proc_body_ranges[i].3.contains(&site.var_name));
-            let dispatch_count = dispatch_counts
-                .get(&(encl_qname.to_owned(), site.var_name.clone()))
-                .copied()
-                .unwrap_or(0);
-            let dispatcher_suppressed = is_param || dispatch_count >= 2;
-            let tainted = tainted_by_scope
-                .get(encl_qname)
-                .is_some_and(|s| s.contains(&site.var_name));
-            if dispatcher_suppressed && !tainted && !sccp_not_command {
-                continue;
-            }
-            // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where
-            // `ns` holds a namespace prefix and `::tail` composes a qualified
-            // command path (tcllib's logger / dns / irc modules use this).
-            // When the prefix is an SCCP const and *every* composed name
-            // `<value>::tail` resolves to a known command/proc/class, the
-            // dispatch is statically resolvable — suppress.  A composition
-            // that resolves to nothing (unknown proc) still fires.
-            if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span)
-                && let Some(values) = all_constsets.get(&prefix)
-                && !values.is_empty()
-                && values
-                    .iter()
-                    .all(|v| is_known_command(&format!("{v}::{tail}")))
-            {
-                continue;
-            }
-            // Object-factory provenance: `$var` holds a factory result in this
-            // scope — a designed object handle, so the dispatch is not a static
-            // error. W307 exemption.
-            if is_factory_local(&site.var_name, site.cmd_span.start()) {
-                continue;
-            }
-            // Class instance-variable dispatch inside the class body (component
-            // / sub-object) — W307 exemption.
-            if is_snit_member(&site.var_name, site.cmd_span.start()) {
-                continue;
-            }
-            // Callback-registration array slot: `$state(-command)` /
-            // `$state(doneCallback)` dispatches a command the user registered
-            // into a switch-style option / callback slot. Unless SCCP has
-            // concrete evidence the slot holds a non-command (handled above via
-            // `sccp_not_command`, e.g. `array set state {-command notACommand}`
-            // or `set state(-command) notACommand`), treat it as a designed
-            // callback dispatch (FP-OBJ-10).
-            if !sccp_not_command && is_callback_array_slot(&site.var_name) {
-                continue;
-            }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W307,
-                span: site.cmd_span,
-                message: "Non-literal command name — cannot statically analyze".to_string(),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
         }
         // Restore the sites list — snapshot/restore expects it
         // to round-trip independently of emission.
         self.var_command_sites = sites;
 
-        // ``[cmd] method`` sites — emit
-        // W307 only when the inner command's return type is
-        // unknown AND the call isn't an OO self-dispatch
-        // (``my`` / ``self``).  When the return type is a
-        // known class, validate the method against the
-        // hierarchy and emit W308 instead of W307.
+        // ``[cmd] method`` sites — W307/W308 on command-substitution heads.
+        self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref());
+    }
+
+    /// Emit W307/W308 for `[cmd] method` command-substitution dispatch sites.
+    ///
+    /// W307 fires only when the inner command's return type is unknown AND the
+    /// call isn't an OO self-dispatch (`my` / `self`).  When the return type is
+    /// a known class, the method is validated against the hierarchy and W308 is
+    /// emitted instead.  Restores `cmd_command_sites` on exit.
+    fn emit_cmd_command_diagnostics(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) {
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
             // `[cmd]::method` namespaced-ensemble dispatch (FP-OBJ-07): a
@@ -863,12 +848,8 @@ impl Analyser {
                 {
                     let cls_qn = self.canonicalise_class_name(class_name);
                     let cd = self.result.all_classes.get(&cls_qn).cloned();
-                    let method_ok = self.validate_method_on_class(
-                        &cls_qn,
-                        method,
-                        cd.as_ref(),
-                        hierarchy.as_ref(),
-                    );
+                    let method_ok =
+                        self.validate_method_on_class(&cls_qn, method, cd.as_ref(), hierarchy);
                     if !method_ok {
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: DiagCode::W308,
@@ -1296,6 +1277,197 @@ fn extract_dollar_var(value: &str) -> Option<String> {
 /// value is a single `$var`.  Used by the object-returning-proc inference:
 /// a proc returning `$X` where `X` was assigned from a factory is itself an
 /// object factory.
+/// Per-scope tainted variable names (`::top` for the top-level scope): any
+/// tainted SSA version of a name disqualifies it from W307 dispatcher
+/// suppression.
+fn build_tainted_by_scope(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> FxHashMap<String, HashSet<String>> {
+    let tainted_names_of = |fu: &crate::compilation_unit::FunctionUnit| -> HashSet<String> {
+        fu.taints
+            .iter()
+            .filter(|(_, tl)| tl.is_tainted())
+            .map(|((sym, _ver), _)| fu.ssa.var_name(*sym).to_owned())
+            .collect()
+    };
+    let mut tainted_by_scope: FxHashMap<String, HashSet<String>> = FxHashMap::default();
+    let top_tainted = tainted_names_of(&cu.top_level);
+    if !top_tainted.is_empty() {
+        tainted_by_scope.insert(W307_TOP_SCOPE.to_owned(), top_tainted);
+    }
+    for (qname, fu) in &cu.procedures {
+        let names = tainted_names_of(fu);
+        if !names.is_empty() {
+            tainted_by_scope.insert(qname.clone(), names);
+        }
+    }
+    tainted_by_scope
+}
+
+/// Aggregate constant-string knowledge (var name → flat CONST/CONSTSET value
+/// set) across the top level, every proc, and every method body of `cu`, then
+/// fold in `array set` / array-element / `dict with` literal constants.  Used
+/// by the W307 non-literal-command-name check.
+fn aggregate_constsets(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> std::collections::HashMap<String, HashSet<String>> {
+    let mut all_constsets: std::collections::HashMap<String, HashSet<String>> =
+        std::collections::HashMap::new();
+    let collect_from =
+        |fu: &crate::compilation_unit::FunctionUnit,
+         out: &mut std::collections::HashMap<String, HashSet<String>>| {
+            for ((sym, _ver), lv) in &fu.sccp.values {
+                let Some(values) = lattice_command_values(lv) else {
+                    continue;
+                };
+                let entry = out.entry(fu.ssa.var_name(*sym).to_owned()).or_default();
+                for v in values {
+                    entry.insert(v);
+                }
+            }
+        };
+    collect_from(&cu.top_level, &mut all_constsets);
+    for fu in cu.procedures.values() {
+        collect_from(fu, &mut all_constsets);
+    }
+    // A literal `set cmd nope` inside an `oo::class` method body must be
+    // captured so SCCP can prove `$cmd` is a non-command — defeating the
+    // blanket `in_method` W307 suppression (FP-OBJ-D4-F5).
+    for fu in cu.methods.values() {
+        collect_from(fu, &mut all_constsets);
+    }
+
+    harvest_array_set_constants(cu, &mut all_constsets);
+    harvest_array_element_set_constants(cu, &mut all_constsets);
+    harvest_dict_with_constants(cu, &mut all_constsets);
+    all_constsets
+}
+
+/// The per-proc maps built by the factory-object analysis in
+/// [`Analyser::compute_factory_object_ranges`]: factory-local vars, the
+/// `{var -> rhs command head}` assignment map, the last returned var, and the
+/// set of procs proven object-returning.
+#[derive(Default)]
+struct FactoryMaps {
+    factory_locals: FxHashMap<String, HashSet<String>>,
+    assigns: FxHashMap<String, FxHashMap<String, String>>,
+    return_var: FxHashMap<String, Option<String>>,
+    object_returning: FxHashSet<String>,
+}
+
+/// Populate [`FactoryMaps`] for one analysable unit (`qname` / `fu`): record
+/// every `set X [head …]` assignment, mark `X` a factory local when `head` is
+/// object-returning and not a user proc, capture the last returned var, and
+/// seed `object_returning` when *every* return value is an object-returning
+/// command substitution.
+fn seed_factory_maps(
+    qname: &str,
+    fu: &crate::compilation_unit::FunctionUnit,
+    is_object_returning_head: &impl Fn(&str) -> bool,
+    is_user_proc: &impl Fn(&str) -> bool,
+    maps: &mut FactoryMaps,
+) {
+    use crate::ir::Statement;
+    let mut names = HashSet::new();
+    let mut amap = FxHashMap::default();
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            let Statement::AssignValue { name, value, .. } = stmt else {
+                continue;
+            };
+            let Some((head, _)) = crate::value_shapes::parse_command_substitution(value.trim())
+            else {
+                continue;
+            };
+            amap.insert(name.clone(), head.clone());
+            if is_object_returning_head(&head) && !is_user_proc(&head) {
+                names.insert(name.clone());
+            }
+        }
+    }
+    maps.factory_locals.insert(qname.to_string(), names);
+    maps.assigns.insert(qname.to_string(), amap);
+    maps.return_var
+        .insert(qname.to_string(), last_return_var_of(&fu.cfg));
+    // Seed: a proc whose every return value is a namespaced object-returning
+    // cmd-sub is itself object-returning (G4: ALL returns must qualify, so a
+    // string-returning branch disqualifies).
+    let rvs = return_values_of(&fu.cfg);
+    if !rvs.is_empty()
+        && rvs.iter().all(|rv| {
+            crate::value_shapes::parse_command_substitution(rv.trim())
+                .is_some_and(|(head, _)| is_object_returning_head(&head))
+        })
+    {
+        maps.object_returning.insert(qname.to_string());
+    }
+}
+
+/// Fixpoint over the factory-object analysis maps for
+/// [`Analyser::compute_factory_object_ranges`].
+///
+/// First propagates `object_returning`: a proc whose returned var is assigned
+/// `[other]` where `other` is a proven object-returning user proc is itself
+/// object-returning — iterated to a fixpoint.  Then extends `factory_locals`:
+/// a `set X [user_proc]` whose proc is now proven object-returning makes `X` a
+/// factory local too.  `bare_to_qnames` resolves relative call heads to the
+/// qualified names the analysis is keyed on.
+fn propagate_object_returning(
+    return_var: &FxHashMap<String, Option<String>>,
+    assigns: &FxHashMap<String, FxHashMap<String, String>>,
+    bare_to_qnames: &FxHashMap<&str, Vec<&str>>,
+    object_returning: &mut FxHashSet<String>,
+    factory_locals: &mut FxHashMap<String, HashSet<String>>,
+) {
+    let resolve_candidates = |head: &str| -> Vec<String> {
+        let mut c = vec![head.to_string(), format!("::{head}")];
+        if let Some(qs) = bare_to_qnames.get(head) {
+            c.extend(qs.iter().map(|s| (*s).to_string()));
+        }
+        c
+    };
+
+    // Fixpoint: a proc whose returned var is assigned `[other]` where
+    // `other` is a proven object-returning user proc is itself one.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (qname, rv) in return_var {
+            let Some(rv) = rv else { continue };
+            if object_returning.contains(qname) {
+                continue;
+            }
+            let Some(rhs) = assigns.get(qname).and_then(|m| m.get(rv)) else {
+                continue;
+            };
+            if resolve_candidates(rhs)
+                .iter()
+                .any(|c| object_returning.contains(c))
+            {
+                object_returning.insert(qname.clone());
+                changed = true;
+            }
+        }
+    }
+    // Extend factory locals: `set X [user_proc]` where the proc is now
+    // proven object-returning makes `X` a factory local too.
+    for (qname, amap) in assigns {
+        let mut add = FxHashSet::default();
+        for (var, head) in amap {
+            if factory_locals.get(qname).is_some_and(|s| s.contains(var)) {
+                continue;
+            }
+            if resolve_candidates(head)
+                .iter()
+                .any(|c| object_returning.contains(c))
+            {
+                add.insert(var.clone());
+            }
+        }
+        factory_locals.entry(qname.clone()).or_default().extend(add);
+    }
+}
+
 fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
     use crate::cfg::Terminator;
     use crate::ir::Statement;
@@ -1386,6 +1558,22 @@ fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<Stri
 /// falls back to the merged-set logic. Never broadens a fire into a
 /// suppression unsoundly — the value is the exact one flowing into the
 /// dispatch.
+/// Index of the innermost proc body range containing `off`, or `None` for the
+/// `::top` sentinel scope.  `proc_body_ranges` is sorted largest-start-first,
+/// so the reverse scan finds the innermost enclosing range (procs don't nest,
+/// but `namespace eval` bodies can wrap several, so this stays robust).
+fn w307_enclosing_idx(
+    proc_body_ranges: &[(u32, u32, String, HashSet<String>)],
+    off: u32,
+) -> Option<usize> {
+    proc_body_ranges
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, (s, e, _, _))| *s <= off && off <= *e)
+        .map(|(i, _)| i)
+}
+
 fn w307_precise_cmd_values(
     func_ranges: &[(String, u32, u32)],
     fu_by_qname: &std::collections::HashMap<String, &crate::compilation_unit::FunctionUnit>,

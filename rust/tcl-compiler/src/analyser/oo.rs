@@ -1,11 +1,4 @@
-#![allow(
-    clippy::doc_markdown,
-    clippy::similar_names,
-    clippy::unused_self,
-    clippy::match_same_arms
-)]
-
-//! TclOO class / method body parsing + unknown-proc detection.
+//! `TclOO` class / method body parsing + unknown-proc detection.
 //!
 //! Walks the body of an ``oo::class create Name { ... }`` or
 //! ``oo::define Name { ... }`` block and populates the
@@ -80,6 +73,24 @@ const SNIT_INSTANCE_IMPLICIT: &[&str] = &["self", "selfns", "type", "options"];
 /// Implicit variable snit injects into `typemethod` / `typeconstructor` bodies.
 const SNIT_TYPE_IMPLICIT: &[&str] = &["type"];
 
+/// The snit class being populated plus where its members live — bundled so the
+/// snit member dispatch / extraction helpers stay under the argument limit.
+struct SnitClassCtx<'a> {
+    class_def: &'a mut ClassDef,
+    class_qualified: &'a str,
+    scope_path: &'a [usize],
+}
+
+/// The declaration form of a snit member: its [`MethodDef::kind`], whether its
+/// body immediately follows the keyword (`no_arglist`, e.g. `destructor` /
+/// `typeconstructor` / `oncget`), and the synthetic name for the
+/// constructor/handler forms (empty for a named `method` / `typemethod`).
+struct SnitMethodForm<'a> {
+    kind: &'a str,
+    no_arglist: bool,
+    synthetic_name: &'a str,
+}
+
 impl Analyser {
     /// Walk the body of a ``oo::class create`` / ``oo::define``
     /// block, populating `class_def` from each subcommand.
@@ -152,7 +163,7 @@ impl Analyser {
         }
     }
 
-    /// Walk a single TclOO method body in a fresh [`ScopeKind::Method`] scope.
+    /// Walk a single `TclOO` method body in a fresh [`ScopeKind::Method`] scope.
     ///
     /// Pre-binds the method's formal parameters and the class's instance
     /// `variable`s as defined-but-not-warned locals (so reads of them do not
@@ -364,13 +375,16 @@ impl Analyser {
             }
             if let Some((sub, sub_args)) = cmd.texts.split_first() {
                 let sub_tokens = cmd.argv.get(1..).unwrap_or(&[]);
+                let mut ctx = SnitClassCtx {
+                    class_def,
+                    class_qualified,
+                    scope_path,
+                };
                 self.dispatch_snit_member(
                     sub,
                     sub_args,
                     sub_tokens,
-                    class_def,
-                    class_qualified,
-                    scope_path,
+                    &mut ctx,
                     &instance_vars,
                     &type_vars,
                 );
@@ -381,15 +395,12 @@ impl Analyser {
     /// Dispatch one snit body subcommand to the matching method extractor (or,
     /// for `proc`, the ordinary proc handler).  Split out of
     /// [`Self::parse_snit_definition_body`] so the two-pass walk stays small.
-    #[allow(clippy::too_many_arguments)]
     fn dispatch_snit_member(
         &mut self,
         sub: &str,
         sub_args: &[String],
         sub_tokens: &[Token],
-        class_def: &mut ClassDef,
-        class_qualified: &str,
-        scope_path: &[usize],
+        ctx: &mut SnitClassCtx<'_>,
         instance_vars: &[String],
         type_vars: &[String],
     ) {
@@ -397,62 +408,62 @@ impl Analyser {
             // snit allows a type-private `proc name args body` — analyse it as
             // an ordinary proc in the enclosing scope.
             "proc" => {
-                self.handle_proc_command("proc", sub_args, sub_tokens, scope_path);
+                self.handle_proc_command("proc", sub_args, sub_tokens, ctx.scope_path);
             }
             "method" => self.extract_snit_method(
                 sub_args,
                 sub_tokens,
-                class_def,
-                class_qualified,
-                scope_path,
+                ctx,
                 instance_vars,
-                "method",
-                false,
-                "",
+                &SnitMethodForm {
+                    kind: "method",
+                    no_arglist: false,
+                    synthetic_name: "",
+                },
             ),
             "typemethod" => self.extract_snit_method(
                 sub_args,
                 sub_tokens,
-                class_def,
-                class_qualified,
-                scope_path,
+                ctx,
                 type_vars,
-                "classmethod",
-                false,
-                "",
+                &SnitMethodForm {
+                    kind: "classmethod",
+                    no_arglist: false,
+                    synthetic_name: "",
+                },
             ),
             "constructor" => self.extract_snit_method(
                 sub_args,
                 sub_tokens,
-                class_def,
-                class_qualified,
-                scope_path,
+                ctx,
                 instance_vars,
-                "constructor",
-                false,
-                "<constructor>",
+                &SnitMethodForm {
+                    kind: "constructor",
+                    no_arglist: false,
+                    synthetic_name: "<constructor>",
+                },
             ),
             "destructor" => self.extract_snit_method(
                 sub_args,
                 sub_tokens,
-                class_def,
-                class_qualified,
-                scope_path,
+                ctx,
                 instance_vars,
-                "destructor",
-                true,
-                "<destructor>",
+                &SnitMethodForm {
+                    kind: "destructor",
+                    no_arglist: true,
+                    synthetic_name: "<destructor>",
+                },
             ),
             "typeconstructor" => self.extract_snit_method(
                 sub_args,
                 sub_tokens,
-                class_def,
-                class_qualified,
-                scope_path,
+                ctx,
                 type_vars,
-                "classmethod",
-                true,
-                "<typeconstructor>",
+                &SnitMethodForm {
+                    kind: "classmethod",
+                    no_arglist: true,
+                    synthetic_name: "<typeconstructor>",
+                },
             ),
             // `onconfigure -opt valuevar { body }` / `oncget -opt { body }`
             // (snit 1.x) — the leading `-opt` word is dropped.
@@ -463,13 +474,13 @@ impl Analyser {
                 self.extract_snit_method(
                     sub_args.get(1..).unwrap_or(&[]),
                     sub_tokens.get(1..).unwrap_or(&[]),
-                    class_def,
-                    class_qualified,
-                    scope_path,
+                    ctx,
                     instance_vars,
-                    "method",
-                    false,
-                    &label,
+                    &SnitMethodForm {
+                        kind: "method",
+                        no_arglist: false,
+                        synthetic_name: &label,
+                    },
                 );
             }
             "oncget" => {
@@ -479,13 +490,13 @@ impl Analyser {
                 self.extract_snit_method(
                     sub_args.get(1..).unwrap_or(&[]),
                     sub_tokens.get(1..).unwrap_or(&[]),
-                    class_def,
-                    class_qualified,
-                    scope_path,
+                    ctx,
                     instance_vars,
-                    "method",
-                    true,
-                    &label,
+                    &SnitMethodForm {
+                        kind: "method",
+                        no_arglist: true,
+                        synthetic_name: &label,
+                    },
                 );
             }
             _ => {}
@@ -498,19 +509,19 @@ impl Analyser {
     /// for declarations whose body immediately follows the keyword
     /// (`destructor` / `typeconstructor` / `oncget`); `synthetic_name` names
     /// the synthetic constructor/handler forms.
-    #[allow(clippy::too_many_arguments)]
     fn extract_snit_method(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
-        class_def: &mut ClassDef,
-        class_qualified: &str,
-        scope_path: &[usize],
+        ctx: &mut SnitClassCtx<'_>,
         seed_vars: &[String],
-        kind: &str,
-        no_arglist: bool,
-        synthetic_name: &str,
+        form: &SnitMethodForm<'_>,
     ) {
+        let SnitMethodForm {
+            kind,
+            no_arglist,
+            synthetic_name,
+        } = *form;
         let (name, params, body_text, body_tok, params_tok) = if no_arglist {
             let Some(body) = args.first() else {
                 return;
@@ -566,13 +577,13 @@ impl Analyser {
             doc: String::new(),
         };
         match kind {
-            "constructor" => class_def.constructors.push(method_def),
-            "destructor" => class_def.destructor = Some(method_def),
+            "constructor" => ctx.class_def.constructors.push(method_def),
+            "destructor" => ctx.class_def.destructor = Some(method_def),
             "classmethod" => {
-                class_def.class_methods.insert(name.clone(), method_def);
+                ctx.class_def.class_methods.insert(name.clone(), method_def);
             }
             _ => {
-                class_def.methods.insert(name.clone(), method_def);
+                ctx.class_def.methods.insert(name.clone(), method_def);
             }
         }
 
@@ -587,7 +598,7 @@ impl Analyser {
                 body_tok: bt,
                 params_tok,
             };
-            self.walk_method_body(seed_vars, class_qualified, scope_path, &mb);
+            self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb);
         }
     }
 
@@ -656,26 +667,25 @@ impl Analyser {
 
         info
     }
+}
 
-    /// Walk an inline ``oo::define Class subcmd ...`` form,
-    /// dispatching the same per-subcommand logic.
-    ///
-    /// Reuses [`apply_oo_subcommand`] — the inline form differs
-    /// from the body form only in how arguments are framed; the
-    /// per-subcommand handling is identical.
-    pub(super) fn parse_oo_define_inline(
-        &mut self,
-        args: &[String],
-        arg_tokens: &[Token],
-        class_def: &mut ClassDef,
-    ) {
-        if args.is_empty() {
-            return;
-        }
-        // Synthesise a single fake "command" matching what the
-        // body walker would have produced.
-        apply_oo_subcommand(args, arg_tokens, class_def);
+/// Walk an inline ``oo::define Class subcmd ...`` form,
+/// dispatching the same per-subcommand logic.
+///
+/// Reuses [`apply_oo_subcommand`] — the inline form differs
+/// from the body form only in how arguments are framed; the
+/// per-subcommand handling is identical.
+pub(super) fn parse_oo_define_inline(
+    args: &[String],
+    arg_tokens: &[Token],
+    class_def: &mut ClassDef,
+) {
+    if args.is_empty() {
+        return;
     }
+    // Synthesise a single fake "command" matching what the
+    // body walker would have produced.
+    apply_oo_subcommand(args, arg_tokens, class_def);
 }
 
 /// Inspect a single IR statement for unknown-proc dispatch
@@ -748,12 +758,10 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         }
         Statement::For { body, .. }
         | Statement::While { body, .. }
-        | Statement::Foreach { body, .. } => {
-            for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info);
-            }
-        }
-        Statement::Catch { body, .. } => {
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::Block { body, .. }
+        | Statement::UpFrame { body, .. } => {
             for inner in &body.statements {
                 walk_unknown_stmt(inner, first_param, info);
             }
@@ -778,11 +786,6 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
                 }
             }
         }
-        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
-            for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info);
-            }
-        }
         Statement::AssignConst { .. }
         | Statement::AssignExpr { .. }
         | Statement::AssignValue { .. }
@@ -800,7 +803,7 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
 /// `oo::define Cls private <subcmd> ...` — wraps a method-defining
 /// subcommand with `visibility = "private"`.  Extracted from
 /// [`apply_oo_subcommand`] to keep the dispatch under threshold.
-/// A TclOO method body collected during the class-body walk, to be analysed
+/// A `TclOO` method body collected during the class-body walk, to be analysed
 /// in a [`ScopeKind::Method`] scope once the whole `ClassDef` is populated.
 struct CollectedMethodBody {
     /// Method name (`<constructor>` / `<destructor>` for those forms).
@@ -985,13 +988,10 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
         }
         "forward" => apply_oo_forward(sub_args, sub_tokens, class_def),
         "private" => apply_oo_private(sub_args, sub_tokens, class_def),
-        // ``initialise`` / ``initialize`` are class-level
-        // initialisation scripts; their bodies are collected and
-        // walked separately in
-        // [`Analyser::parse_oo_definition_body`].  The subcommand
-        // is recognised here so the `_` arm doesn't silently drop
-        // it.
-        "initialise" | "initialize" => {}
+        // No `ClassDef` mutation here for the remaining subcommands.
+        // ``initialise`` / ``initialize`` are class-level initialisation
+        // scripts whose bodies are collected and walked separately in
+        // [`Analyser::parse_oo_definition_body`]; everything else is ignored.
         _ => {}
     }
 }
@@ -1007,7 +1007,7 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
 /// ``-kind``); there are no flag-only options.  When ``-kind``
 /// is omitted the property defaults to ``"readwrite"``.
 ///
-/// This records only the class-level PropertyDef entries; the
+/// This records only the class-level `PropertyDef` entries; the
 /// accessor (`-get` / `-set`) bodies are collected and walked
 /// separately by [`collect_property_accessor_bodies`].
 fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut ClassDef) {
@@ -1017,8 +1017,8 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
     // trailing options, in a two-pass shape.
     let mut names: Vec<(String, usize)> = Vec::new();
     let mut kind = "readwrite".to_string();
-    let mut has_getter = false;
-    let mut has_setter = false;
+    let mut getter_defined = false;
+    let mut setter_defined = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -1032,8 +1032,8 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
             let value = &args[i + 1];
             match stripped {
                 "kind" => kind.clone_from(value),
-                "get" => has_getter = true,
-                "set" => has_setter = true,
+                "get" => getter_defined = true,
+                "set" => setter_defined = true,
                 _ => {}
             }
             i += 2;
@@ -1051,8 +1051,8 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
                 name,
                 name_span: span,
                 kind: kind.clone(),
-                has_getter,
-                has_setter,
+                has_getter: getter_defined,
+                has_setter: setter_defined,
             },
         );
     }
@@ -1444,8 +1444,8 @@ mod tests {
     fn extract_method_def_too_few_args_returns_none() {
         // ``method`` with only 1 arg (just the name) — needs 3.
         let args: Vec<String> = vec!["foo".to_string()];
-        let argv: Vec<Token> = vec![tok((0, 3))];
-        let md = extract_method_def(&args, &argv, "method", "public", "");
+        let arg_tokens: Vec<Token> = vec![tok((0, 3))];
+        let md = extract_method_def(&args, &arg_tokens, "method", "public", "");
         assert!(md.is_none());
     }
 

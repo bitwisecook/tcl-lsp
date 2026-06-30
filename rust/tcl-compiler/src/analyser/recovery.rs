@@ -43,8 +43,6 @@
 //! on adjacent ``Esc`` tokens; the segmenter already preserves
 //! ``in_quote`` per-token.
 
-#![allow(clippy::doc_markdown, clippy::implicit_hasher)]
-
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
@@ -59,7 +57,7 @@ impl Analyser {
     /// in ``]`` (and isn't inside a double-quoted string), then
     /// scans backward for a known command name — that's the
     /// position the missing ``[`` should have been at.
-    /// Subsequent argv / texts / single_token_word entries are
+    /// Subsequent argv / texts / `single_token_word` entries are
     /// merged into a single virtual ``Cmd`` token so
     /// downstream dispatch sees the intended ``[name args]``
     /// command-substitution shape.
@@ -601,9 +599,9 @@ fn lookup_max_arity(cmd_name: &str) -> Option<usize> {
 /// `builtins` is the set of known command names — passed by
 /// reference so the per-command recovery loop can use O(1)
 /// lookup instead of an O(N) linear scan.
-pub fn looks_like_switch_case(
+pub fn looks_like_switch_case<S: std::hash::BuildHasher>(
     cmd: &SegmentedCommand,
-    builtins: &std::collections::HashSet<String>,
+    builtins: &std::collections::HashSet<String, S>,
 ) -> bool {
     if cmd.texts.len() != 2 {
         return false;
