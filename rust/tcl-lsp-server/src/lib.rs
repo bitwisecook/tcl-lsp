@@ -243,6 +243,9 @@ struct DiagSlot {
 /// capture) need without borrowing `Backend`, so the work can run on a
 /// `tokio::spawn`ed task off the LSP event loop.  `Clone` so the coalescing
 /// worker can reuse it across successive runs of one document.
+// Independent per-run config flags (optimiser / xc / pull / diagnostics master
+// switch); a bitflags type would only obscure an internal owned-inputs struct.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
@@ -259,6 +262,10 @@ struct DiagInputs {
     /// document's folder; fed to the source-style checks. Distinct from the
     /// formatter's `tclLsp.formatting.lineLength`.
     style_line_length: u32,
+    /// Master diagnostics switch (`tclLsp.features.diagnostics`). When `false`
+    /// the pipeline publishes an empty set (clearing squiggles) instead of
+    /// analysing, mirroring the Python `diagnostics_enabled` gate.
+    diagnostics_enabled: bool,
     non_ascii_mode: NonAsciiMode,
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
@@ -390,6 +397,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         extra_commands,
         generic_variable_patterns,
         style_line_length,
+        diagnostics_enabled,
         non_ascii_mode,
         optimiser_enabled,
         opt_disabled,
@@ -415,6 +423,29 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         file,
         config,
     } = job;
+
+    // Master switch (`tclLsp.features.diagnostics = false`): publish an empty
+    // set so any existing squiggles clear, then settle — the analyser, compiler
+    // checks, and F5 validators are all skipped.  Mirrors the Python pipeline's
+    // empty-publish when `diagnostics_enabled` is off.
+    if !diagnostics_enabled {
+        let is_current = {
+            let docs = documents.lock().await;
+            docs.get(uri).is_some_and(|doc| doc.revision == revision)
+        };
+        if is_current {
+            pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    revision,
+                    diagnostics: Vec::new(),
+                },
+            );
+            deliver_diagnostics(&client, uri, Vec::new(), version, client_supports_pull).await;
+        }
+        return true;
+    }
 
     // F5 dialect dispatch: BIG-IP config and iApp APL
     // presentation documents are not Tcl source — they have model-level
@@ -3282,6 +3313,7 @@ impl Backend {
         let extra_commands = self.extra_commands.lock().await.iter().cloned().collect();
         let generic_variable_patterns = self.generic_variable_patterns.lock().await.clone();
         let style_line_length = self.resolved_style_line_length(uri).await;
+        let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         DiagInputs {
             client: self.client.clone(),
             registry,
@@ -3289,6 +3321,7 @@ impl Backend {
             extra_commands,
             generic_variable_patterns,
             style_line_length,
+            diagnostics_enabled,
             non_ascii_mode,
             optimiser_enabled,
             opt_disabled,
@@ -3327,6 +3360,12 @@ impl Backend {
         dialect: String,
         language_id: &str,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        // Master switch off (`tclLsp.features.diagnostics = false`): the pull
+        // path returns an empty report, matching the push path's empty-publish
+        // and the Python `diagnostics_enabled` gate.
+        if !self.feature_enabled("diagnostics", uri).await {
+            return Vec::new();
+        }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // F5 dialect dispatch: BIG-IP config / iApp APL
@@ -11469,6 +11508,39 @@ mod tests {
                 .expect("ok")
                 .is_none(),
             "workspaceSymbols disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn diagnostics_master_switch_clears_the_report() {
+        // `tclLsp.features.diagnostics = false` yields an empty diagnostic
+        // report (clearing squiggles), mirroring the Python pipeline.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///d.tcl").unwrap();
+        // Trailing whitespace → W112 (a source-style hint, on by default and
+        // not opt-in) gives a guaranteed diagnostic to suppress.
+        let src = "set x 1  \n";
+        register(&backend, &uri, src).await;
+
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !on.is_empty(),
+            "expected at least one diagnostic with the feature on: {on:?}",
+        );
+
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            off.is_empty(),
+            "diagnostics disabled must yield an empty report: {off:?}",
         );
     }
 
