@@ -153,6 +153,12 @@ ownership matrices.
   running the real Tcl library and ``tcltest`` harness (the
   ``pkgIndex.tcl`` / ``tm`` machinery) against real C Tcl 9 under the
   runtime.
+- [runtime/tcl-test-tiers.md](runtime/tcl-test-tiers.md) — the capability
+  ladder (parsing → interpretation → fundamentals → control flow → I/O →
+  platform features) ordering the work toward C tcltest parity.
+- [runtime/backend-constraints.md](runtime/backend-constraints.md) — the
+  ``tcl_platform`` backend-introspection schema and the loadable overlay that
+  skips upstream tests a wasm / WASI / eBPF build cannot run.
 - [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
   phases 4 (residual), 5, and 6 of the Zig WASM runtime, companion to
   the master plan: remaining P4 work and P5/P6 sequencing.
