@@ -746,17 +746,22 @@ fn namespace_forget_removes_imported_command() {
     assert_eq!(res, "1");
 }
 
-/// `namespace ensemble` is accepted as a no-op returning empty. In tclsh,
-/// `namespace ensemble create` builds an ensemble and returns its command name
-/// (`::` at the global scope). UNIMPLEMENTED no-op.
+/// `namespace ensemble create` builds an ensemble command and returns its
+/// fully-qualified name (`::` at the global scope), and the command dispatches
+/// subcommands to the namespace's exported procs.
 ///   tclsh (both): namespace ensemble create -> "::"
-///   VM:           namespace ensemble create -> ""
 #[test]
-fn namespace_ensemble_is_noop_in_vm() {
+fn namespace_ensemble_create_dispatches() {
     let (ok, res, _) = run("namespace ensemble create");
     assert!(ok, "must not error: {res}");
-    // VM no-op returns empty; tclsh returns "::".
-    assert_eq!(res, "");
+    assert_eq!(res, "::");
+    // A named ensemble dispatches `cmd sub` to the exported `ns::sub`.
+    let (ok, res, _) = run(concat!(
+        "namespace eval ns {namespace export greet; proc greet {} {return hi}; ",
+        "namespace ensemble create}; ns greet",
+    ));
+    assert!(ok, "must not error: {res}");
+    assert_eq!(res, "hi");
 }
 
 /// `namespace upvar` links a namespace variable into the current frame in tclsh.

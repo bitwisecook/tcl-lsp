@@ -206,8 +206,9 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
+        "ensemble" => ns_ensemble(vm, rest),
         // Accepted no-ops (metadata only, for now).
-        "ensemble" | "unknown" => ok(Value::empty()),
+        "unknown" => ok(Value::empty()),
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"
@@ -219,6 +220,100 @@ fn first(rest: &[Value]) -> String {
     rest.first()
         .map(|v| v.to_str().to_string())
         .unwrap_or_default()
+}
+
+/// `namespace ensemble create|exists|configure` (`tclEnsemble.c`).
+fn ns_ensemble(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((op, args)) = rest.split_first() else {
+        return err("wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"");
+    };
+    match &*op.to_str() {
+        "create" => ns_ensemble_create(vm, args),
+        "exists" => match args {
+            [cmd] => ok(Value::bool(matches!(
+                vm.lookup_command(&cmd.to_str()),
+                Some(crate::command::Command::Ensemble(_))
+            ))),
+            _ => err("wrong # args: should be \"namespace ensemble exists cmd\""),
+        },
+        // `configure` query/set is not modelled; accept it so setup code runs.
+        "configure" => ok(Value::empty()),
+        other => err(format!(
+            "unknown or ambiguous subcommand \"{other}\": must be configure, create, or exists"
+        )),
+    }
+}
+
+/// `namespace ensemble create ?option value ...?` — build the ensemble command.
+fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use crate::command::{Command, EnsembleDef};
+    let mut ns = vm.current_ns().to_string();
+    let mut command: Option<String> = None;
+    let mut map: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
+    let mut subcommands: Option<Vec<String>> = None;
+    let mut prefixes = true;
+    let mut unknown: Option<Vec<Value>> = None;
+    let mut i = 0;
+    while i < args.len() {
+        let opt = args[i].to_str().to_string();
+        let Some(val) = args.get(i + 1) else {
+            return err(format!("missing value to go with \"{opt}\""));
+        };
+        match &*opt {
+            "-command" => command = Some(val.to_str().to_string()),
+            "-namespace" => ns = canon_ns(vm, &val.to_str()),
+            "-map" => {
+                let elems = match val.as_list() {
+                    Ok(e) => e,
+                    Err(e) => return err(e.message),
+                };
+                let mut it = elems.iter();
+                while let (Some(k), Some(v)) = (it.next(), it.next()) {
+                    let prefix = v.as_list().map_or_else(|_| vec![v.clone()], |l| l.to_vec());
+                    map.insert(k.to_str().to_string(), prefix);
+                }
+            }
+            "-subcommands" => {
+                let elems = match val.as_list() {
+                    Ok(e) => e,
+                    Err(e) => return err(e.message),
+                };
+                subcommands = Some(elems.iter().map(|v| v.to_str().to_string()).collect());
+            }
+            "-prefixes" => prefixes = val.as_bool().unwrap_or(true),
+            "-unknown" => {
+                let elems = match val.as_list() {
+                    Ok(e) => e,
+                    Err(e) => return err(e.message),
+                };
+                unknown = (!elems.is_empty()).then(|| elems.to_vec());
+            }
+            _ => {
+                return err(format!(
+                    "bad option \"{opt}\": must be -command, -map, -namespace, \
+                     -parameters, -prefixes, -subcommands, or -unknown"
+                ));
+            }
+        }
+        i += 2;
+    }
+    // The default command is the namespace itself; an explicit -command binds in
+    // the current namespace when unqualified.
+    let cmd_key = match command {
+        Some(c) => vm.qualify_name(&c),
+        None => ns.clone(),
+    };
+    vm.register_command(
+        &cmd_key,
+        Command::Ensemble(std::rc::Rc::new(EnsembleDef {
+            namespace: ns,
+            map,
+            subcommands,
+            prefixes,
+            unknown,
+        })),
+    );
+    ok(Value::string(display_ns(&cmd_key)))
 }
 
 /// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to

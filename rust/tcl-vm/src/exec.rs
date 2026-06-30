@@ -2084,6 +2084,15 @@ impl Vm {
                     Err(res)
                 }
             }
+            Some(Command::Ensemble(e)) => {
+                let res = self.dispatch_ensemble(&name, &e, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
             // Tcl's `unknown` fallback: an unresolved command name is handed to
             // the user-defined `unknown` proc as `unknown name arg…` (the basis
             // for auto-loading, ensembles, and the iRule command mocks). Only
@@ -2129,6 +2138,7 @@ impl Vm {
                 }
             }
             Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
+            Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
             // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
             None if name != "unknown" && self.lookup_command("unknown").is_some() => {
                 let mut full = Vec::with_capacity(argv.len() + 1);
