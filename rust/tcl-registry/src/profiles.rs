@@ -3,13 +3,6 @@
 //! Static data tables describing the 57 profile types, 87 protocol
 //! command namespaces, and stack modification commands.
 
-// `profile_specs` and `protocol_namespace_specs` are large flat
-// declarative arrays of `ProfileSpec` / `ProtocolNamespaceSpec`
-// literals (one entry per F5 profile / protocol namespace) —
-// splitting them by category adds ceremony without improving
-// readability.
-#![allow(clippy::too_many_lines)]
-
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Metadata for an F5 profile type.
@@ -290,6 +283,17 @@ const fn is_word_byte(b: u8) -> bool {
 // AUTO-GENERATED — do not edit manually
 
 fn profile_specs() -> Vec<ProfileSpec> {
+    let mut out = profile_specs_0();
+    out.extend(profile_specs_1());
+    out.extend(profile_specs_2());
+    out.extend(profile_specs_3());
+    out.extend(profile_specs_4());
+    out.extend(profile_specs_5());
+    out.extend(profile_specs_6());
+    out
+}
+
+fn profile_specs_0() -> Vec<ProfileSpec> {
     vec![
         ProfileSpec {
             name: "ACCESS",
@@ -363,6 +367,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &[],
         },
+    ]
+}
+
+fn profile_specs_1() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "CLIENTSSL",
             layer: "tls",
@@ -443,6 +452,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &[],
         },
+    ]
+}
+
+fn profile_specs_2() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "FASTHTTP",
             layer: "application",
@@ -523,6 +537,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &[],
         },
+    ]
+}
+
+fn profile_specs_3() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "ICAP",
             layer: "acceleration",
@@ -603,6 +622,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &[],
         },
+    ]
+}
+
+fn profile_specs_4() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "PCP",
             layer: "application",
@@ -685,6 +709,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &[],
         },
+    ]
+}
+
+fn profile_specs_5() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "RTSP",
             layer: "application",
@@ -767,6 +796,11 @@ fn profile_specs() -> Vec<ProfileSpec> {
             conflicts: &[],
             capabilities: &["extensions", "sessionid", "sni"],
         },
+    ]
+}
+
+fn profile_specs_6() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "STREAM",
             layer: "acceleration",
@@ -835,6 +869,20 @@ fn profile_specs() -> Vec<ProfileSpec> {
 }
 
 fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
+    let mut out = protocol_namespace_specs_0();
+    out.extend(protocol_namespace_specs_1());
+    out.extend(protocol_namespace_specs_2());
+    out.extend(protocol_namespace_specs_3());
+    out.extend(protocol_namespace_specs_4());
+    out.extend(protocol_namespace_specs_5());
+    out.extend(protocol_namespace_specs_6());
+    out.extend(protocol_namespace_specs_7());
+    out.extend(protocol_namespace_specs_8());
+    out.extend(protocol_namespace_specs_9());
+    out
+}
+
+fn protocol_namespace_specs_0() -> Vec<ProtocolNamespaceSpec> {
     vec![
         ProtocolNamespaceSpec {
             prefix: "AAA",
@@ -920,6 +968,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "both",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_1() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "BIGPROTO",
             profiles: &[],
@@ -1004,6 +1057,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "both",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_2() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "DECOMPRESS",
             profiles: &[],
@@ -1088,6 +1146,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "client",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_3() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "FIX",
             profiles: &["FIX"],
@@ -1172,6 +1235,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "both",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_4() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "ICAP",
             profiles: &["ICAP"],
@@ -1256,6 +1324,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "global",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_5() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "LDAP",
             profiles: &[],
@@ -1340,6 +1413,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "global",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_6() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "PCP",
             profiles: &["PCP"],
@@ -1424,6 +1502,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "global",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_7() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "RESOLVER",
             profiles: &[],
@@ -1508,6 +1591,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "both",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_8() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "SSL",
             profiles: &["CLIENTSSL", "PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
@@ -1592,6 +1680,11 @@ fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
             side: "both",
             side_selectable: false,
         },
+    ]
+}
+
+fn protocol_namespace_specs_9() -> Vec<ProtocolNamespaceSpec> {
+    vec![
         ProtocolNamespaceSpec {
             prefix: "WEBSSO",
             profiles: &["ACCESS", "HTTP"],

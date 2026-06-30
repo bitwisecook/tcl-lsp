@@ -161,6 +161,237 @@ fn assert_arity_consistent(a: Arity, what: &str) {
 // ===========================================================================
 // SWEEP 1 — every command in every dialect, every accessor.
 // ===========================================================================
+/// Exercise every accessor on one command spec (and its subcommands)
+/// for a given dialect. Extracted from `sweep_every_command_every_accessor`
+/// to keep that test within the line budget.
+/// Exercise every accessor on one subcommand spec. Extracted from
+/// [`check_command_accessors`] to keep both within the line budget.
+fn check_subcommand_accessors(
+    spec: &tcl_registry::CommandSpec,
+    sub: &tcl_registry::SubCommand,
+    ds: Option<DialectSet>,
+    dname: &str,
+    name: &str,
+) {
+    assert!(
+        !sub.name.is_empty(),
+        "{dname}/{name}: empty subcommand name"
+    );
+    // `subcommand` lookup round-trips a declared subcommand.
+    assert!(
+        spec.subcommand(sub.name).is_some(),
+        "{dname}/{name}: subcommand {:?} does not round-trip",
+        sub.name
+    );
+    assert_arity_consistent(sub.arity, &format!("{dname}/{name} {}", sub.name));
+    // Sub-level switch_names + arg_values + arg_role accessors.
+    let sub_sw = sub.switch_names(ds, spec.dialects);
+    let sub_declared: BTreeSet<&str> = sub.options.iter().map(|o| o.name).collect();
+    for sw in &sub_sw {
+        assert!(
+            sub_declared.contains(sw),
+            "{dname}/{name} {}: sub switch {sw:?} not declared",
+            sub.name
+        );
+    }
+    for idx in 0u8..6 {
+        for v in sub.arg_values_at(idx) {
+            assert!(
+                !v.value.is_empty(),
+                "{dname}/{name} {}: empty arg value at {idx}",
+                sub.name
+            );
+        }
+        let _ = sub.arg_role_at(idx);
+    }
+    if let Some(h) = sub.hover.as_ref() {
+        // Hover, when present, has *some* content.
+        assert!(
+            !h.summary.is_empty()
+                || !h.snippet.is_empty()
+                || !h.source.is_empty()
+                || !h.synopsis.is_empty(),
+            "{dname}/{name} {}: hover present but entirely empty",
+            sub.name
+        );
+    }
+    // `cfg_rewrite_name`, when present, is a qualified ::tcl::… name.
+    if let Some(rw) = sub.cfg_rewrite_name {
+        assert!(
+            !rw.is_empty(),
+            "{dname}/{name} {}: empty rewrite name",
+            sub.name
+        );
+    }
+}
+
+fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname: &str, name: &str) {
+    // `get` (dialect-agnostic) must resolve a name the registry lists.
+    let spec = reg
+        .get(name)
+        .unwrap_or_else(|| panic!("{dname}: listed name {name:?} does not `get`"));
+    assert_eq!(spec.name, name, "{dname}: spec.name mismatch for {name:?}");
+
+    // --- arity (command level) ---
+    assert_arity_consistent(spec.arity, &format!("{dname}/{name}"));
+
+    // --- switch / option accessors ---
+    // `switch_names` walks the flat options + every form's options.
+    let switches = spec.switch_names(ds);
+    // Names returned must be unique (the helper dedups) and a subset of
+    // the declared option names (flat + form-level).
+    let mut declared: BTreeSet<&str> = spec.options.iter().map(|o| o.name).collect();
+    for form in spec.command_forms {
+        for o in form.options {
+            declared.insert(o.name);
+        }
+    }
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    for sw in &switches {
+        assert!(
+            seen.insert(sw),
+            "{dname}/{name}: switch_names returned {sw:?} twice"
+        );
+        assert!(
+            declared.contains(sw),
+            "{dname}/{name}: switch {sw:?} not among declared options"
+        );
+    }
+    // A command that declares any options must surface a (typed)
+    // OptionSpec; touch its fields.
+    for opt in spec.options {
+        assert!(!opt.name.is_empty(), "{dname}/{name}: empty option name");
+        if opt.takes_value {
+            // A value-taking option carries a hint or a detail to show.
+            let _ = (opt.value_hint, opt.detail);
+        }
+        // Exercise the dialect predicate both with and without context.
+        let _ = opt.supports_dialect(ds, spec.dialects);
+        let _ = opt.supports_dialect(None, spec.dialects);
+    }
+
+    // --- subcommands: arity, roles, options, arg-values, hover ---
+    for sub in spec.subcommands {
+        check_subcommand_accessors(spec, sub, ds, dname, name);
+    }
+
+    // --- command-level arg-values + arg-roles ---
+    for idx in 0u8..8 {
+        for v in spec.arg_values_at(idx) {
+            assert!(
+                !v.value.is_empty(),
+                "{dname}/{name}: empty command arg value at {idx}"
+            );
+        }
+        let _ = spec.arg_role_at(idx);
+    }
+
+    // --- closed value args must name an index that *has* values ---
+    for &ci in spec.closed_value_args {
+        assert!(
+            !spec.arg_values_at(ci).is_empty(),
+            "{dname}/{name}: closed_value_args lists index {ci} with no arg_values"
+        );
+    }
+
+    // --- hover (command level) ---
+    if let Some(h) = spec.hover.as_ref() {
+        assert!(
+            !h.summary.is_empty()
+                || !h.snippet.is_empty()
+                || !h.source.is_empty()
+                || !h.synopsis.is_empty(),
+            "{dname}/{name}: hover present but entirely empty"
+        );
+    }
+
+    // --- forms (thin FormSpec for hover/completion) ---
+    for f in spec.forms {
+        // Every form is classified; synopsis text may be empty but the
+        // kind must be one of the three variants (exercise the enum).
+        assert!(
+            matches!(
+                f.kind,
+                FormKind::Default | FormKind::Getter | FormKind::Setter
+            ),
+            "{dname}/{name}: unexpected form kind"
+        );
+    }
+    // --- structured command_forms ---
+    for cf in spec.command_forms {
+        assert_arity_consistent(cf.arity, &format!("{dname}/{name} form {}", cf.name));
+    }
+
+    // --- side effects ---
+    // Touch every side-effect field. Note a declaration may legitimately
+    // be neither read nor write — e.g. `apply`/`proc` declare a
+    // `ProcDefinition` *definitional* effect (it neither reads nor writes
+    // program state, it introduces a binding), so we do NOT require
+    // reads||writes here; we just exercise the accessors.
+    for se in spec.side_effects {
+        let _ = (se.target, se.reads, se.writes, se.connection_side);
+    }
+
+    check_registry_queries(reg, ds, dname, name, spec);
+}
+
+/// Touch the registry-level per-name query helpers and `resolve_call` paths.
+/// Extracted from [`check_command_accessors`] to keep it within the line
+/// budget.
+fn check_registry_queries(
+    reg: &CommandRegistry,
+    ds: Option<DialectSet>,
+    dname: &str,
+    name: &str,
+    spec: &tcl_registry::CommandSpec,
+) {
+    // --- per-spec boolean / registry-level query helpers ---
+    // These all read the by-name spec list; calling them on every name
+    // executes their scan bodies.
+    let _ = reg.is_unsafe(name);
+    let _ = reg.is_side_switch(name);
+    let _ = reg.is_byte_compiled(name);
+    let _ = reg.is_diagram_action(name);
+    let _ = reg.is_irules_top_level_only(name);
+    let _ = reg.is_not_proc_factory(name);
+    let _ = reg.is_xc_never_translatable(name);
+    let _ = reg.is_xc_translatable_override(name);
+    let _ = reg.is_canonical_list_command(name);
+    // taint_source reads the compile-time TAINT_SOURCE_INDEX.
+    let _ = reg.taint_source(name);
+    // subcommands_with_trait over a couple of representative traits.
+    let _ = reg.subcommands_with_trait(name, Traits::PURE);
+    let _ = reg.subcommands_with_trait(name, Traits::INTROSPECTS_BY_NAME);
+
+    // --- resolve_call: nullary and a small arg list ---
+    // Must never panic; when it resolves, the spec name is preserved.
+    let active = ds.unwrap_or(DialectSet::TCL86);
+    if let Some(rc) = reg.resolve_call(name, &[], active) {
+        assert_eq!(
+            rc.spec.name, spec.name,
+            "{dname}/{name}: resolve_call(nullary) spec"
+        );
+    }
+    // If the command has subcommands, resolving with the first
+    // subcommand name as arg 0 should attach that subcommand.
+    if let Some(first_sub) = spec.subcommands.first()
+        && let Some(rc) = reg.resolve_call(name, &[first_sub.name], active)
+    {
+        assert_eq!(rc.spec.name, spec.name);
+        if let Some(s) = rc.sub {
+            assert_eq!(s.name, first_sub.name, "{dname}/{name}: wrong sub attached");
+        }
+    }
+    // resolve_option_terminator must not panic; when Some, scan_start is
+    // within the (subcommand-or-form) contract (0 or 1).
+    if let Some(term) = reg.resolve_option_terminator(name, &["--"], active) {
+        assert!(
+            term.scan_start <= 1,
+            "{dname}/{name}: terminator scan_start {} out of range",
+            term.scan_start
+        );
+    }
+}
 
 /// The headline sweep: for each loadable dialect, build the registry and
 /// iterate ALL registered command specs, calling EVERY public accessor on each
@@ -186,212 +417,8 @@ fn sweep_every_command_every_accessor() {
         assert!(!names.is_empty(), "{dname}: no command names");
 
         for name in &names {
-            // `get` (dialect-agnostic) must resolve a name the registry lists.
-            let spec = reg
-                .get(name)
-                .unwrap_or_else(|| panic!("{dname}: listed name {name:?} does not `get`"));
-            assert_eq!(
-                spec.name,
-                name.as_str(),
-                "{dname}: spec.name mismatch for {name:?}"
-            );
             total_specs += 1;
-
-            // --- arity (command level) ---
-            assert_arity_consistent(spec.arity, &format!("{dname}/{name}"));
-
-            // --- switch / option accessors ---
-            // `switch_names` walks the flat options + every form's options.
-            let switches = spec.switch_names(ds);
-            // Names returned must be unique (the helper dedups) and a subset of
-            // the declared option names (flat + form-level).
-            let mut declared: BTreeSet<&str> = spec.options.iter().map(|o| o.name).collect();
-            for form in spec.command_forms {
-                for o in form.options {
-                    declared.insert(o.name);
-                }
-            }
-            let mut seen: BTreeSet<&str> = BTreeSet::new();
-            for sw in &switches {
-                assert!(
-                    seen.insert(sw),
-                    "{dname}/{name}: switch_names returned {sw:?} twice"
-                );
-                assert!(
-                    declared.contains(sw),
-                    "{dname}/{name}: switch {sw:?} not among declared options"
-                );
-            }
-            // A command that declares any options must surface a (typed)
-            // OptionSpec; touch its fields.
-            for opt in spec.options {
-                assert!(!opt.name.is_empty(), "{dname}/{name}: empty option name");
-                if opt.takes_value {
-                    // A value-taking option carries a hint or a detail to show.
-                    let _ = (opt.value_hint, opt.detail);
-                }
-                // Exercise the dialect predicate both with and without context.
-                let _ = opt.supports_dialect(ds, spec.dialects);
-                let _ = opt.supports_dialect(None, spec.dialects);
-            }
-
-            // --- subcommands: arity, roles, options, arg-values, hover ---
-            for sub in spec.subcommands {
-                assert!(
-                    !sub.name.is_empty(),
-                    "{dname}/{name}: empty subcommand name"
-                );
-                // `subcommand` lookup round-trips a declared subcommand.
-                assert!(
-                    spec.subcommand(sub.name).is_some(),
-                    "{dname}/{name}: subcommand {:?} does not round-trip",
-                    sub.name
-                );
-                assert_arity_consistent(sub.arity, &format!("{dname}/{name} {}", sub.name));
-                // Sub-level switch_names + arg_values + arg_role accessors.
-                let sub_sw = sub.switch_names(ds, spec.dialects);
-                let sub_declared: BTreeSet<&str> = sub.options.iter().map(|o| o.name).collect();
-                for sw in &sub_sw {
-                    assert!(
-                        sub_declared.contains(sw),
-                        "{dname}/{name} {}: sub switch {sw:?} not declared",
-                        sub.name
-                    );
-                }
-                for idx in 0u8..6 {
-                    for v in sub.arg_values_at(idx) {
-                        assert!(
-                            !v.value.is_empty(),
-                            "{dname}/{name} {}: empty arg value at {idx}",
-                            sub.name
-                        );
-                    }
-                    let _ = sub.arg_role_at(idx);
-                }
-                if let Some(h) = sub.hover.as_ref() {
-                    // Hover, when present, has *some* content.
-                    assert!(
-                        !h.summary.is_empty()
-                            || !h.snippet.is_empty()
-                            || !h.source.is_empty()
-                            || !h.synopsis.is_empty(),
-                        "{dname}/{name} {}: hover present but entirely empty",
-                        sub.name
-                    );
-                }
-                // `cfg_rewrite_name`, when present, is a qualified ::tcl::… name.
-                if let Some(rw) = sub.cfg_rewrite_name {
-                    assert!(
-                        !rw.is_empty(),
-                        "{dname}/{name} {}: empty rewrite name",
-                        sub.name
-                    );
-                }
-            }
-
-            // --- command-level arg-values + arg-roles ---
-            for idx in 0u8..8 {
-                for v in spec.arg_values_at(idx) {
-                    assert!(
-                        !v.value.is_empty(),
-                        "{dname}/{name}: empty command arg value at {idx}"
-                    );
-                }
-                let _ = spec.arg_role_at(idx);
-            }
-
-            // --- closed value args must name an index that *has* values ---
-            for &ci in spec.closed_value_args {
-                assert!(
-                    !spec.arg_values_at(ci).is_empty(),
-                    "{dname}/{name}: closed_value_args lists index {ci} with no arg_values"
-                );
-            }
-
-            // --- hover (command level) ---
-            if let Some(h) = spec.hover.as_ref() {
-                assert!(
-                    !h.summary.is_empty()
-                        || !h.snippet.is_empty()
-                        || !h.source.is_empty()
-                        || !h.synopsis.is_empty(),
-                    "{dname}/{name}: hover present but entirely empty"
-                );
-            }
-
-            // --- forms (thin FormSpec for hover/completion) ---
-            for f in spec.forms {
-                // Every form is classified; synopsis text may be empty but the
-                // kind must be one of the three variants (exercise the enum).
-                assert!(
-                    matches!(
-                        f.kind,
-                        FormKind::Default | FormKind::Getter | FormKind::Setter
-                    ),
-                    "{dname}/{name}: unexpected form kind"
-                );
-            }
-            // --- structured command_forms ---
-            for cf in spec.command_forms {
-                assert_arity_consistent(cf.arity, &format!("{dname}/{name} form {}", cf.name));
-            }
-
-            // --- side effects ---
-            // Touch every side-effect field. Note a declaration may legitimately
-            // be neither read nor write — e.g. `apply`/`proc` declare a
-            // `ProcDefinition` *definitional* effect (it neither reads nor writes
-            // program state, it introduces a binding), so we do NOT require
-            // reads||writes here; we just exercise the accessors.
-            for se in spec.side_effects {
-                let _ = (se.target, se.reads, se.writes, se.connection_side);
-            }
-
-            // --- per-spec boolean / registry-level query helpers ---
-            // These all read the by-name spec list; calling them on every name
-            // executes their scan bodies.
-            let _ = reg.is_unsafe(name);
-            let _ = reg.is_side_switch(name);
-            let _ = reg.is_byte_compiled(name);
-            let _ = reg.is_diagram_action(name);
-            let _ = reg.is_irules_top_level_only(name);
-            let _ = reg.is_not_proc_factory(name);
-            let _ = reg.is_xc_never_translatable(name);
-            let _ = reg.is_xc_translatable_override(name);
-            let _ = reg.is_canonical_list_command(name);
-            // taint_source reads the compile-time TAINT_SOURCE_INDEX.
-            let _ = reg.taint_source(name);
-            // subcommands_with_trait over a couple of representative traits.
-            let _ = reg.subcommands_with_trait(name, Traits::PURE);
-            let _ = reg.subcommands_with_trait(name, Traits::INTROSPECTS_BY_NAME);
-
-            // --- resolve_call: nullary and a small arg list ---
-            // Must never panic; when it resolves, the spec name is preserved.
-            let active = ds.unwrap_or(DialectSet::TCL86);
-            if let Some(rc) = reg.resolve_call(name, &[], active) {
-                assert_eq!(
-                    rc.spec.name, spec.name,
-                    "{dname}/{name}: resolve_call(nullary) spec"
-                );
-            }
-            // If the command has subcommands, resolving with the first
-            // subcommand name as arg 0 should attach that subcommand.
-            if let Some(first_sub) = spec.subcommands.first()
-                && let Some(rc) = reg.resolve_call(name, &[first_sub.name], active)
-            {
-                assert_eq!(rc.spec.name, spec.name);
-                if let Some(s) = rc.sub {
-                    assert_eq!(s.name, first_sub.name, "{dname}/{name}: wrong sub attached");
-                }
-            }
-            // resolve_option_terminator must not panic; when Some, scan_start is
-            // within the (subcommand-or-form) contract (0 or 1).
-            if let Some(term) = reg.resolve_option_terminator(name, &["--"], active) {
-                assert!(
-                    term.scan_start <= 1,
-                    "{dname}/{name}: terminator scan_start {} out of range",
-                    term.scan_start
-                );
-            }
+            check_command_accessors(reg, ds, dname, name);
         }
 
         // byte_array_payload_layouts is a per-registry aggregate; iterate it.
@@ -488,12 +515,86 @@ fn sweep_dialect_resolution_is_consistent() {
 // SWEEP 2 — BIG-IP object specs and property specs.
 // ===========================================================================
 
+/// Recursively touch every accessor on a property spec and its block.
+fn visit_property(p: &tcl_registry::bigip::BigipPropertySpec, kind: &str) -> usize {
+    assert!(!p.name.is_empty(), "{kind}: empty property name");
+    // value_type tag round-trips through as_str (exercise the vocabulary).
+    let tag = p.value_type.as_str();
+    assert!(!tag.is_empty(), "{kind}/{}: empty value tag", p.name);
+    // is_list_valued and is_block agree with the underlying slices.
+    assert_eq!(
+        p.is_list_valued(),
+        !p.list_operators.is_empty(),
+        "{kind}/{}: is_list_valued disagrees",
+        p.name
+    );
+    assert_eq!(
+        p.is_block(),
+        !p.block.is_empty(),
+        "{kind}/{}: is_block disagrees",
+        p.name
+    );
+    // An Enum-kinded property should enumerate at least one value (or carry
+    // a shape_kind override); touch the enum slice regardless.
+    if p.value_type == ValueKind::Enum {
+        assert!(
+            !p.enum_values.is_empty() || p.shape_kind.is_some(),
+            "{kind}/{}: Enum kind with no enum_values and no shape_kind",
+            p.name
+        );
+    }
+    for ev in p.enum_values {
+        assert!(!ev.is_empty(), "{kind}/{}: empty enum value", p.name);
+    }
+    // Reference kinds: touch the references slice + shape_kind.
+    for r in p.references {
+        assert!(!r.is_empty(), "{kind}/{}: empty reference target", p.name);
+    }
+    let _ = (
+        p.shape_kind,
+        p.default,
+        p.required,
+        p.repeated,
+        p.allow_none,
+    );
+    let _ = (p.min_value, p.max_value, p.pattern, p.description);
+    let _ = (p.usage_flags, p.list_operators);
+    // matches_section: unconstrained matches anything; constrained matches
+    // exactly its listed sections.
+    if p.in_sections.is_empty() {
+        assert!(
+            p.matches_section(None),
+            "{kind}/{}: unconstrained rejects None",
+            p.name
+        );
+        assert!(
+            p.matches_section(Some("anything")),
+            "{kind}/{}: unconstrained rejects a section",
+            p.name
+        );
+    } else {
+        for &sec in p.in_sections {
+            assert!(
+                p.matches_section(Some(sec)),
+                "{kind}/{}: declared section {sec:?} not matched",
+                p.name
+            );
+        }
+    }
+    let mut count = 1;
+    for sub in p.block {
+        count += visit_property(sub, kind);
+    }
+    count
+}
+
 /// Iterate EVERY BIG-IP object spec and EVERY property spec (recursing into
 /// block sub-properties), querying every kind / value / display accessor.
 ///
 /// bigip: BIG-IP object specs are F5 tmsh schema data, not real Tcl. The
 /// assertions are structural invariants over that data.
 #[test]
+
 fn sweep_every_bigip_object_and_property() {
     let reg: &BigipRegistry = default_registry();
     assert!(!reg.is_empty(), "bigip registry empty");
@@ -517,79 +618,6 @@ fn sweep_every_bigip_object_and_property() {
 
     let mut props_seen = 0usize;
     let mut headers_seen = 0usize;
-
-    /// Recursively touch every accessor on a property spec and its block.
-    fn visit_property(p: &tcl_registry::bigip::BigipPropertySpec, kind: &str) -> usize {
-        assert!(!p.name.is_empty(), "{kind}: empty property name");
-        // value_type tag round-trips through as_str (exercise the vocabulary).
-        let tag = p.value_type.as_str();
-        assert!(!tag.is_empty(), "{kind}/{}: empty value tag", p.name);
-        // is_list_valued and is_block agree with the underlying slices.
-        assert_eq!(
-            p.is_list_valued(),
-            !p.list_operators.is_empty(),
-            "{kind}/{}: is_list_valued disagrees",
-            p.name
-        );
-        assert_eq!(
-            p.is_block(),
-            !p.block.is_empty(),
-            "{kind}/{}: is_block disagrees",
-            p.name
-        );
-        // An Enum-kinded property should enumerate at least one value (or carry
-        // a shape_kind override); touch the enum slice regardless.
-        if p.value_type == ValueKind::Enum {
-            assert!(
-                !p.enum_values.is_empty() || p.shape_kind.is_some(),
-                "{kind}/{}: Enum kind with no enum_values and no shape_kind",
-                p.name
-            );
-        }
-        for ev in p.enum_values {
-            assert!(!ev.is_empty(), "{kind}/{}: empty enum value", p.name);
-        }
-        // Reference kinds: touch the references slice + shape_kind.
-        for r in p.references {
-            assert!(!r.is_empty(), "{kind}/{}: empty reference target", p.name);
-        }
-        let _ = (
-            p.shape_kind,
-            p.default,
-            p.required,
-            p.repeated,
-            p.allow_none,
-        );
-        let _ = (p.min_value, p.max_value, p.pattern, p.description);
-        let _ = (p.usage_flags, p.list_operators);
-        // matches_section: unconstrained matches anything; constrained matches
-        // exactly its listed sections.
-        if p.in_sections.is_empty() {
-            assert!(
-                p.matches_section(None),
-                "{kind}/{}: unconstrained rejects None",
-                p.name
-            );
-            assert!(
-                p.matches_section(Some("anything")),
-                "{kind}/{}: unconstrained rejects a section",
-                p.name
-            );
-        } else {
-            for &sec in p.in_sections {
-                assert!(
-                    p.matches_section(Some(sec)),
-                    "{kind}/{}: declared section {sec:?} not matched",
-                    p.name
-                );
-            }
-        }
-        let mut count = 1;
-        for sub in p.block {
-            count += visit_property(sub, kind);
-        }
-        count
-    }
 
     for spec in specs {
         let kind = spec.kind();
@@ -877,15 +905,15 @@ fn family_control_flow_shapes() {
 /// are exactly what tclsh reports (probed via `catch {string is bogus}` etc.).
 #[test]
 fn family_string_dict_list_ops() {
-    let reg = registry_for_dialect("tcl8.6");
-
     // tclsh8.6 & 9.0: `string is bogus` lists these classes (8.6∩9.0).
-    let string = reg.get("string").expect("string");
-    let is = string.subcommand("is").expect("string is");
     const CLASSES: &[&str] = &[
         "alnum", "alpha", "ascii", "boolean", "control", "digit", "double", "false", "integer",
         "list", "lower", "space", "true", "upper", "xdigit",
     ];
+    let reg = registry_for_dialect("tcl8.6");
+
+    let string = reg.get("string").expect("string");
+    let is = string.subcommand("is").expect("string is");
     let allowed: BTreeSet<&str> = is.arg_values_at(0).iter().map(|v| v.value).collect();
     let missing: Vec<&str> = CLASSES
         .iter()
@@ -1003,10 +1031,7 @@ fn family_io_shapes() {
 /// children…which on 8.6 & 9.0). `proc` defines a procedure.
 #[test]
 fn family_namespace_proc_shapes() {
-    let reg = registry_for_dialect("tcl8.6");
-
     // tclsh8.6 & 9.0: namespace subcommand set (8.6∩9.0 — identical on both).
-    let ns = reg.get("namespace").expect("namespace");
     const NS_SUBS: &[&str] = &[
         "children",
         "code",
@@ -1028,6 +1053,9 @@ fn family_namespace_proc_shapes() {
         "upvar",
         "which",
     ];
+    let reg = registry_for_dialect("tcl8.6");
+
+    let ns = reg.get("namespace").expect("namespace");
     let missing: Vec<&str> = NS_SUBS
         .iter()
         .copied()
@@ -1070,9 +1098,6 @@ fn family_namespace_proc_shapes() {
 /// milliseconds, scan, seconds.
 #[test]
 fn family_array_clock_subcommands() {
-    let reg = registry_for_dialect("tcl8.6");
-
-    let array = reg.get("array").expect("array");
     const ARRAY_SUBS: &[&str] = &[
         "anymore",
         "donesearch",
@@ -1086,14 +1111,6 @@ fn family_array_clock_subcommands() {
         "statistics",
         "unset",
     ];
-    let missing: Vec<&str> = ARRAY_SUBS
-        .iter()
-        .copied()
-        .filter(|s| array.subcommand(s).is_none())
-        .collect();
-    assert!(missing.is_empty(), "array missing subcommands: {missing:?}");
-
-    let clock = reg.get("clock").expect("clock");
     const CLOCK_SUBS: &[&str] = &[
         "add",
         "clicks",
@@ -1103,6 +1120,17 @@ fn family_array_clock_subcommands() {
         "scan",
         "seconds",
     ];
+    let reg = registry_for_dialect("tcl8.6");
+
+    let array = reg.get("array").expect("array");
+    let missing: Vec<&str> = ARRAY_SUBS
+        .iter()
+        .copied()
+        .filter(|s| array.subcommand(s).is_none())
+        .collect();
+    assert!(missing.is_empty(), "array missing subcommands: {missing:?}");
+
+    let clock = reg.get("clock").expect("clock");
     let missing: Vec<&str> = CLOCK_SUBS
         .iter()
         .copied()

@@ -55,8 +55,13 @@ fn fold_length(args: &[&str]) -> Option<String> {
 
 /// `string cat ?string ...?` — pure concatenation (no transformation, so
 /// sound for any input; the O129 path quotes the result as one word).
-/// Always folds, but the `ConstFoldFn` signature is `-> Option<String>`.
-#[allow(clippy::unnecessary_wraps)]
+///
+/// The registry stores const-folds as `ConstFoldFn`
+/// (`fn(&[&str]) -> Option<String>`), so this signature is fixed by the
+/// dispatch table even though concatenation never fails. `unnecessary_wraps`
+/// is a false positive here: the `Option` is the shared callback contract,
+/// not redundant wrapping we control.
+#[allow(clippy::unnecessary_wraps)] // signature fixed by ConstFoldFn dispatch contract
 fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
@@ -1685,5 +1690,21 @@ mod tests {
         // Odd mapping → no fold; non-ASCII → no fold.
         assert_eq!(m(&["a b c", "x"]), None);
         assert_eq!(m(&["a b", "caf\u{e9}"]), None);
+    }
+
+    // `fold_cat` is wired through the `ConstFoldFn` callback contract
+    // (`-> Option<String>`) but pure concatenation never fails. Positive:
+    // several args concatenate. Edge: zero args fold to the empty string —
+    // it always returns `Some`, so the `Option` is a dispatch artefact.
+    #[test]
+    fn fold_cat_is_infallible() {
+        assert_eq!(super::fold_cat(&["a", "b", "c"]).as_deref(), Some("abc"));
+        assert_eq!(super::fold_cat(&[]).as_deref(), Some(""));
+        // Non-ASCII is fine for cat (no per-char transform).
+        assert_eq!(
+            super::fold_cat(&["caf", "\u{e9}"]).as_deref(),
+            Some("caf\u{e9}")
+        );
+        assert!(super::fold_cat(&["x"]).is_some());
     }
 }

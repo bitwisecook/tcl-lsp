@@ -8,8 +8,28 @@
 use crate::prelude::*;
 
 /// All `tcl::mathop` operator-command specs (every spelling).
-#[allow(clippy::too_many_lines)]
 pub fn specs() -> Vec<CommandSpec> {
+    let mut out = specs_0();
+    out.extend(specs_1());
+    out.extend(specs_2());
+    out.extend(specs_3());
+    out.extend(specs_4());
+    out.extend(specs_5());
+    out.extend(specs_6());
+    out.extend(specs_7());
+    out.extend(specs_8());
+    out.extend(specs_9());
+    out.extend(specs_10());
+    out.extend(specs_11());
+    out.extend(specs_12());
+    out.extend(specs_13());
+    out.extend(specs_14());
+    out.extend(specs_15());
+    out.extend(specs_16());
+    out
+}
+
+fn specs_0() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "!",
@@ -101,6 +121,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_1() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "*",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -191,6 +216,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_2() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::build-info",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -282,6 +312,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_3() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::&&",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -372,6 +407,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_4() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::/",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -462,6 +502,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_5() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::>",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -552,6 +597,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_6() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::eq",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -642,6 +692,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_7() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::ni",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -732,6 +787,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_8() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "<<",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -822,6 +882,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_9() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: ">>",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -912,6 +977,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_10() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "max",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1002,6 +1072,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_11() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::!=",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1092,6 +1167,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_12() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::**",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1182,6 +1262,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_13() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::<<",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1272,6 +1357,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_14() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::>>",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1362,6 +1452,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_15() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::max",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),
@@ -1452,6 +1547,11 @@ pub fn specs() -> Vec<CommandSpec> {
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_16() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::||",
             dialects: Some(DialectSet::NON_IRULES_OPERATORS),

@@ -174,7 +174,11 @@ pub(crate) fn fold_concat(args: &[&str]) -> Option<String> {
 }
 
 /// `list ?arg ...?` — build a proper Tcl list (each arg re-quoted).
-#[allow(clippy::unnecessary_wraps)]
+///
+/// Registered as a `ConstFoldFn` (`fn(&[&str]) -> Option<String>`); the
+/// `Option` is the dispatch-table contract, not redundant wrapping — building
+/// a list never fails. `unnecessary_wraps` is a false positive here.
+#[allow(clippy::unnecessary_wraps)] // signature fixed by ConstFoldFn dispatch contract
 pub(crate) fn fold_list(args: &[&str]) -> Option<String> {
     Some(list_join(args))
 }
@@ -467,6 +471,18 @@ mod tests {
         );
         // Malformed list arg → no fold.
         assert_eq!(fold_llength(&["{a b"]), None);
+    }
+
+    // `fold_list` is registered through the `ConstFoldFn` callback contract
+    // (`-> Option<String>`) but the computation is infallible. Positive: a
+    // non-empty arg list folds. Edge: even the empty arg list folds (to the
+    // empty list) — it never returns `None`, which is why the `Option` is a
+    // dispatch artefact, not a real failure channel.
+    #[test]
+    fn fold_list_is_infallible() {
+        assert_eq!(fold_list(&["a", "b c"]).as_deref(), Some("a {b c}"));
+        assert_eq!(fold_list(&[]).as_deref(), Some(""));
+        assert!(fold_list(&["x"]).is_some());
     }
 
     #[test]

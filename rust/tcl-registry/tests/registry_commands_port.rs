@@ -1158,8 +1158,6 @@ fn dialect_parse_roundtrip() {
 /// The set below is the 8.6∩9.0 intersection.
 #[test]
 fn string_subcommands_match_tclsh() {
-    let (reg, _) = reg_and_set("tcl8.6");
-    let spec = reg.get("string").expect("string registered");
     const COMMON: &[&str] = &[
         "cat",
         "compare",
@@ -1184,6 +1182,8 @@ fn string_subcommands_match_tclsh() {
         "wordend",
         "wordstart",
     ];
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("string").expect("string registered");
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()
@@ -1203,12 +1203,12 @@ fn string_subcommands_match_tclsh() {
 /// below is the 8.6∩9.0 intersection.
 #[test]
 fn dict_subcommands_match_tclsh() {
-    let (reg, _) = reg_and_set("tcl8.6");
-    let spec = reg.get("dict").expect("dict registered");
     const COMMON: &[&str] = &[
         "append", "create", "exists", "filter", "for", "get", "incr", "info", "keys", "lappend",
         "map", "merge", "remove", "replace", "set", "size", "unset", "update", "values", "with",
     ];
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("dict").expect("dict registered");
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()
@@ -1227,8 +1227,6 @@ fn dict_subcommands_match_tclsh() {
 /// intersection (i.e. the 8.6 list).
 #[test]
 fn info_subcommands_match_tclsh() {
-    let (reg, _) = reg_and_set("tcl8.6");
-    let spec = reg.get("info").expect("info registered");
     const COMMON: &[&str] = &[
         "args",
         "body",
@@ -1257,6 +1255,8 @@ fn info_subcommands_match_tclsh() {
         "tclversion",
         "vars",
     ];
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("info").expect("info registered");
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()

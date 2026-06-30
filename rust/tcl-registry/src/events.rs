@@ -4,14 +4,6 @@
 //! layer, connection side, required profiles, flow properties,
 //! and canonical firing order.
 
-// `event_props_table`, `master_order`, and `flow_chains` are
-// large flat declarative arrays of `EventProps` / `&str` /
-// `(&str, &[&str])` literals (one entry per iRules event) —
-// splitting them into per-protocol helpers adds ceremony without
-// improving readability and breaks the "one table per concept"
-// structure.
-#![allow(clippy::too_many_lines)]
-
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::side_effects::ConnectionSide;
@@ -407,6 +399,31 @@ pub fn event_satisfies(
 // AUTO-GENERATED — do not edit manually
 
 fn event_props_table() -> Vec<(&'static str, EventProps)> {
+    let mut out = event_props_table_0();
+    out.extend(event_props_table_1());
+    out.extend(event_props_table_2());
+    out.extend(event_props_table_3());
+    out.extend(event_props_table_4());
+    out.extend(event_props_table_5());
+    out.extend(event_props_table_6());
+    out.extend(event_props_table_7());
+    out.extend(event_props_table_8());
+    out.extend(event_props_table_9());
+    out.extend(event_props_table_10());
+    out.extend(event_props_table_11());
+    out.extend(event_props_table_12());
+    out.extend(event_props_table_13());
+    out.extend(event_props_table_14());
+    out.extend(event_props_table_15());
+    out.extend(event_props_table_16());
+    out.extend(event_props_table_17());
+    out.extend(event_props_table_18());
+    out.extend(event_props_table_19());
+    out.extend(event_props_table_20());
+    out
+}
+
+fn event_props_table_0() -> Vec<(&'static str, EventProps)> {
     vec![
         (
             "ACCESS2_POLICY_EXPRESSION_EVAL",
@@ -489,6 +506,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_1() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "ACCESS_SAML_SLO_RESP",
             EventProps {
@@ -574,6 +596,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_2() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "ASM_REQUEST_BLOCKING",
             EventProps {
@@ -651,6 +678,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_3() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "AUTH_SUCCESS",
             EventProps {
@@ -728,6 +760,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_4() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "CATEGORY_MATCHED",
             EventProps {
@@ -804,6 +841,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_5() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "CLIENT_ACCEPTED",
             EventProps {
@@ -881,6 +923,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_6() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "DNS_RESPONSE",
             EventProps {
@@ -964,6 +1011,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_7() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "GTP_GPDU_EGRESS",
             EventProps {
@@ -1049,6 +1101,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_8() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "HTTP_CLASS_SELECTED",
             EventProps {
@@ -1130,6 +1187,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_9() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "HTTP_REQUEST_RELEASE",
             EventProps {
@@ -1206,6 +1268,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_10() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "ICAP_RESPONSE",
             EventProps {
@@ -1288,6 +1355,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_11() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "JSON_RESPONSE_ERROR",
             EventProps {
@@ -1373,6 +1445,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_12() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "MQTT_CLIENT_INGRESS",
             EventProps {
@@ -1458,6 +1535,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_13() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "NAME_RESOLVED",
             EventProps {
@@ -1538,6 +1620,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_14() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "PING_RESPONSE_READY",
             EventProps {
@@ -1623,6 +1710,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_15() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "REWRITE_RESPONSE",
             EventProps {
@@ -1707,6 +1799,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "SERVERSSL_DATA",
             EventProps {
@@ -1784,6 +1881,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_17() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "SERVER_INIT",
             EventProps {
@@ -1865,6 +1967,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_18() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "STREAM_MATCHED",
             EventProps {
@@ -1945,6 +2052,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_19() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "WS_CLIENT_FRAME",
             EventProps {
@@ -2022,6 +2134,11 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 ..EventProps::DEFAULT
             },
         ),
+    ]
+}
+
+fn event_props_table_20() -> Vec<(&'static str, EventProps)> {
+    vec![
         (
             "XML_BEGIN_ELEMENT",
             EventProps {
@@ -2086,6 +2203,14 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
 }
 
 fn master_order() -> Vec<OrderEntry> {
+    let mut out = master_order_0();
+    out.extend(master_order_1());
+    out.extend(master_order_2());
+    out.extend(master_order_3());
+    out
+}
+
+fn master_order_0() -> Vec<OrderEntry> {
     vec![
         OrderEntry {
             event: "RULE_INIT",
@@ -2171,6 +2296,11 @@ fn master_order() -> Vec<OrderEntry> {
             event: "ACCESS_POLICY_COMPLETED",
             profile_gates: &["ACCESS"],
         },
+    ]
+}
+
+fn master_order_1() -> Vec<OrderEntry> {
+    vec![
         OrderEntry {
             event: "CLASSIFICATION_DETECTED",
             profile_gates: &["CLASSIFICATION"],
@@ -2255,6 +2385,11 @@ fn master_order() -> Vec<OrderEntry> {
             event: "ACCESS_PER_REQUEST_AGENT_EVENT",
             profile_gates: &["ACCESS"],
         },
+    ]
+}
+
+fn master_order_2() -> Vec<OrderEntry> {
+    vec![
         OrderEntry {
             event: "REWRITE_REQUEST_DONE",
             profile_gates: &["HTTP", "REWRITE"],
@@ -2339,6 +2474,11 @@ fn master_order() -> Vec<OrderEntry> {
             event: "BOTDEFENSE_ACTION",
             profile_gates: &["BOTDEFENSE"],
         },
+    ]
+}
+
+fn master_order_3() -> Vec<OrderEntry> {
+    vec![
         OrderEntry {
             event: "CACHE_UPDATE",
             profile_gates: &["CACHE", "WEBACCELERATION"],
@@ -2462,434 +2602,28 @@ fn flow_chains() -> Vec<FlowChain> {
             notes: "",
             description: "Plain TCP (tcp profile only)",
             profiles: &["TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_DATA",
-                    phase: "l4_client",
-                    conditional: true,
-                    condition_note: "Requires TCP::collect in CLIENT_ACCEPTED",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_DATA",
-                    phase: "l4_server",
-                    conditional: true,
-                    condition_note: "Requires TCP::collect in SERVER_CONNECTED",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: plain_tcp_steps(),
         },
         FlowChain {
             chain_id: "tcp_http",
             notes: "",
             description: "TCP + HTTP",
             profiles: &["HTTP", "TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST",
-                    phase: "http_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_DATA",
-                    phase: "http_request",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_REQUEST",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_SEND",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_RELEASE",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_DATA",
-                    phase: "http_response",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_RELEASE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: tcp_http_steps(),
         },
         FlowChain {
             chain_id: "tcp_clientssl_http",
             notes: "",
             description: "TCP + ClientSSL + HTTP (client-side TLS termination)",
             profiles: &["CLIENTSSL", "HTTP", "TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_CLIENTHELLO",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_SERVERHELLO_SEND",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_CLIENTCERT",
-                    phase: "tls_client",
-                    conditional: true,
-                    condition_note: "Only with mutual TLS (client certificate required)",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_HANDSHAKE",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST",
-                    phase: "http_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_DATA",
-                    phase: "http_request",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_REQUEST",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_SEND",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_RELEASE",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_DATA",
-                    phase: "http_response",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_RELEASE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: tcp_clientssl_http_steps(),
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http",
             notes: "",
             description: "Full HTTPS (ClientSSL + ServerSSL + HTTP)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_CLIENTHELLO",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_SERVERHELLO_SEND",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_CLIENTCERT",
-                    phase: "tls_client",
-                    conditional: true,
-                    condition_note: "Only with mutual TLS (client certificate required)",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_HANDSHAKE",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST",
-                    phase: "http_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_DATA",
-                    phase: "http_request",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_REQUEST",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_CLIENTHELLO_SEND",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_SERVERHELLO",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_SERVERCERT",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_HANDSHAKE",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_SEND",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_RELEASE",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_DATA",
-                    phase: "http_response",
-                    conditional: true,
-                    condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_RELEASE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: tcp_clientssl_serverssl_http_steps(),
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http_collect",
@@ -2898,246 +2632,713 @@ fn flow_chains() -> Vec<FlowChain> {
                     events.  Client sends a POST with body.",
             description: "Full HTTPS with HTTP::collect (request + response body)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_CLIENTHELLO",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_SERVERHELLO_SEND",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENTSSL_HANDSHAKE",
-                    phase: "tls_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST",
-                    phase: "http_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_DATA",
-                    phase: "http_request",
-                    conditional: false,
-                    condition_note: "HTTP::collect called in HTTP_REQUEST",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_CLIENTHELLO_SEND",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_SERVERHELLO",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_SERVERCERT",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVERSSL_HANDSHAKE",
-                    phase: "tls_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_SEND",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_REQUEST_RELEASE",
-                    phase: "http_request_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_DATA",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "HTTP::collect called in HTTP_RESPONSE",
-                },
-                FlowStep {
-                    event: "HTTP_RESPONSE_RELEASE",
-                    phase: "http_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: tcp_clientssl_serverssl_http_collect_steps(),
         },
         FlowChain {
             chain_id: "udp_dns",
             notes: "",
             description: "UDP + DNS",
             profiles: &["DNS", "UDP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "DNS_REQUEST",
-                    phase: "dns_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "DNS_RESPONSE",
-                    phase: "dns_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: udp_dns_steps(),
         },
         FlowChain {
             chain_id: "tcp_dns",
             notes: "",
             description: "TCP + DNS",
             profiles: &["DNS", "TCP"],
-            steps: vec![
-                FlowStep {
-                    event: "RULE_INIT",
-                    phase: "init",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_ACCEPTED",
-                    phase: "l4_client",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_DATA",
-                    phase: "l4_client",
-                    conditional: true,
-                    condition_note: "Requires TCP::collect in CLIENT_ACCEPTED",
-                },
-                FlowStep {
-                    event: "DNS_REQUEST",
-                    phase: "dns_request",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "LB_SELECTED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SA_PICKED",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_INIT",
-                    phase: "lb",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CONNECTED",
-                    phase: "l4_server",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "DNS_RESPONSE",
-                    phase: "dns_response",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "SERVER_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-                FlowStep {
-                    event: "CLIENT_CLOSED",
-                    phase: "l4_teardown",
-                    conditional: false,
-                    condition_note: "",
-                },
-            ],
+            steps: tcp_dns_steps(),
+        },
+    ]
+}
+
+fn plain_tcp_steps() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_DATA",
+            phase: "l4_client",
+            conditional: true,
+            condition_note: "Requires TCP::collect in CLIENT_ACCEPTED",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_DATA",
+            phase: "l4_server",
+            conditional: true,
+            condition_note: "Requires TCP::collect in SERVER_CONNECTED",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_http_steps() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST",
+            phase: "http_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_DATA",
+            phase: "http_request",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_REQUEST",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_SEND",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_RELEASE",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_DATA",
+            phase: "http_response",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_RELEASE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_http_steps() -> Vec<FlowStep> {
+    let mut out = tcp_clientssl_http_steps_0();
+    out.extend(tcp_clientssl_http_steps_1());
+    out
+}
+
+fn tcp_clientssl_http_steps_0() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_CLIENTHELLO",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_SERVERHELLO_SEND",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_CLIENTCERT",
+            phase: "tls_client",
+            conditional: true,
+            condition_note: "Only with mutual TLS (client certificate required)",
+        },
+        FlowStep {
+            event: "CLIENTSSL_HANDSHAKE",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST",
+            phase: "http_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_DATA",
+            phase: "http_request",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_REQUEST",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_SEND",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_http_steps_1() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "HTTP_REQUEST_RELEASE",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_DATA",
+            phase: "http_response",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_RELEASE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_serverssl_http_steps() -> Vec<FlowStep> {
+    let mut out = tcp_clientssl_serverssl_http_steps_0();
+    out.extend(tcp_clientssl_serverssl_http_steps_1());
+    out
+}
+
+fn tcp_clientssl_serverssl_http_steps_0() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_CLIENTHELLO",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_SERVERHELLO_SEND",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_CLIENTCERT",
+            phase: "tls_client",
+            conditional: true,
+            condition_note: "Only with mutual TLS (client certificate required)",
+        },
+        FlowStep {
+            event: "CLIENTSSL_HANDSHAKE",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST",
+            phase: "http_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_DATA",
+            phase: "http_request",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_REQUEST",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_CLIENTHELLO_SEND",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_serverssl_http_steps_1() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "SERVERSSL_SERVERHELLO",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_SERVERCERT",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_HANDSHAKE",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_SEND",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_RELEASE",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_DATA",
+            phase: "http_response",
+            conditional: true,
+            condition_note: "Requires HTTP::collect in HTTP_RESPONSE",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_RELEASE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_serverssl_http_collect_steps() -> Vec<FlowStep> {
+    let mut out = tcp_clientssl_serverssl_http_collect_steps_0();
+    out.extend(tcp_clientssl_serverssl_http_collect_steps_1());
+    out
+}
+
+fn tcp_clientssl_serverssl_http_collect_steps_0() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_CLIENTHELLO",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_SERVERHELLO_SEND",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENTSSL_HANDSHAKE",
+            phase: "tls_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST",
+            phase: "http_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_DATA",
+            phase: "http_request",
+            conditional: false,
+            condition_note: "HTTP::collect called in HTTP_REQUEST",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_CLIENTHELLO_SEND",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_SERVERHELLO",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_clientssl_serverssl_http_collect_steps_1() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "SERVERSSL_SERVERCERT",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVERSSL_HANDSHAKE",
+            phase: "tls_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_SEND",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_REQUEST_RELEASE",
+            phase: "http_request_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_DATA",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "HTTP::collect called in HTTP_RESPONSE",
+        },
+        FlowStep {
+            event: "HTTP_RESPONSE_RELEASE",
+            phase: "http_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn udp_dns_steps() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "DNS_REQUEST",
+            phase: "dns_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "DNS_RESPONSE",
+            phase: "dns_response",
+            conditional: false,
+            condition_note: "",
+        },
+    ]
+}
+
+fn tcp_dns_steps() -> Vec<FlowStep> {
+    vec![
+        FlowStep {
+            event: "RULE_INIT",
+            phase: "init",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_ACCEPTED",
+            phase: "l4_client",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_DATA",
+            phase: "l4_client",
+            conditional: true,
+            condition_note: "Requires TCP::collect in CLIENT_ACCEPTED",
+        },
+        FlowStep {
+            event: "DNS_REQUEST",
+            phase: "dns_request",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "LB_SELECTED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SA_PICKED",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_INIT",
+            phase: "lb",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CONNECTED",
+            phase: "l4_server",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "DNS_RESPONSE",
+            phase: "dns_response",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "SERVER_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
+        },
+        FlowStep {
+            event: "CLIENT_CLOSED",
+            phase: "l4_teardown",
+            conditional: false,
+            condition_note: "",
         },
     ]
 }

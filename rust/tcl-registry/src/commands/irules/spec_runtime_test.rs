@@ -10,7 +10,37 @@ use crate::spec::CommandSpec;
 
 #[test]
 fn every_irules_spec_constructs_at_runtime() {
-    let specs: Vec<CommandSpec> = vec![
+    let specs: Vec<CommandSpec> = runtime_specs();
+    assert_eq!(
+        specs.len(),
+        super::IRULES_SPECS.len(),
+        "runtime spec set must match the compile-time IRULES_SPECS array"
+    );
+    for s in &specs {
+        assert!(!s.name.is_empty(), "iRules command spec has an empty name");
+    }
+}
+
+/// Build every iRules command spec at runtime, in `IRULES_SPECS` order.
+/// Chunked so no single builder is oversized.
+fn runtime_specs() -> Vec<CommandSpec> {
+    let mut out = runtime_specs_0();
+    out.extend(runtime_specs_1());
+    out.extend(runtime_specs_2());
+    out.extend(runtime_specs_3());
+    out.extend(runtime_specs_4());
+    out.extend(runtime_specs_5());
+    out.extend(runtime_specs_6());
+    out.extend(runtime_specs_7());
+    out.extend(runtime_specs_8());
+    out.extend(runtime_specs_9());
+    out.extend(runtime_specs_10());
+    out.extend(runtime_specs_11());
+    out
+}
+
+fn runtime_specs_0() -> Vec<CommandSpec> {
+    vec![
         super::aaa__acct_result::spec(),
         super::aaa__acct_send::spec(),
         super::aaa__auth_result::spec(),
@@ -101,6 +131,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::asm__captcha::spec(),
         super::asm__captcha_age::spec(),
         super::asm__captcha_status::spec(),
+    ]
+}
+
+fn runtime_specs_1() -> Vec<CommandSpec> {
+    vec![
         super::asm__client_ip::spec(),
         super::asm__conviction::spec(),
         super::asm__deception::spec(),
@@ -191,6 +226,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::cache__disabled::spec(),
         super::cache__enable::spec(),
         super::cache__expire::spec(),
+    ]
+}
+
+fn runtime_specs_2() -> Vec<CommandSpec> {
+    vec![
         super::cache__fresh::spec(),
         super::cache__header::spec(),
         super::cache__headers::spec(),
@@ -281,6 +321,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::dhcpv6__hop_count::spec(),
         super::dhcpv6__len::spec(),
         super::dhcpv6__link_address::spec(),
+    ]
+}
+
+fn runtime_specs_3() -> Vec<CommandSpec> {
+    vec![
         super::dhcpv6__msg_type::spec(),
         super::dhcpv6__option::spec(),
         super::dhcpv6__peer_address::spec(),
@@ -371,6 +416,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::flow__idle_timeout::spec(),
         super::flow__peer::spec(),
         super::flow__priority::spec(),
+    ]
+}
+
+fn runtime_specs_4() -> Vec<CommandSpec> {
+    vec![
         super::flow__refresh::spec(),
         super::flow__this::spec(),
         super::flowtable__count::spec(),
@@ -461,6 +511,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::http_method::spec(),
         super::http_uri::spec(),
         super::http_version::spec(),
+    ]
+}
+
+fn runtime_specs_5() -> Vec<CommandSpec> {
+    vec![
         super::httplog__disable::spec(),
         super::httplog__enable::spec(),
         super::icap__header::spec(),
@@ -551,6 +606,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::ldap__activation_mode::spec(),
         super::ldap__disable::spec(),
         super::ldap__enable::spec(),
+    ]
+}
+
+fn runtime_specs_6() -> Vec<CommandSpec> {
+    vec![
         super::line__get::spec(),
         super::line__set::spec(),
         super::link__lasthop::spec(),
@@ -641,6 +701,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::nsh__mocksf::spec(),
         super::nsh__path_id::spec(),
         super::nsh__service_index::spec(),
+    ]
+}
+
+fn runtime_specs_7() -> Vec<CommandSpec> {
+    vec![
         super::ntlm__disable::spec(),
         super::ntlm__enable::spec(),
         super::ntohl::spec(),
@@ -731,6 +796,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::redirect::spec(),
         super::reject::spec(),
         super::relate_client::spec(),
+    ]
+}
+
+fn runtime_specs_8() -> Vec<CommandSpec> {
+    vec![
         super::relate_server::spec(),
         super::remote_addr::spec(),
         super::remote_port::spec(),
@@ -821,6 +891,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::ssl__allow_nonssl::spec(),
         super::ssl__alpn::spec(),
         super::ssl__authenticate::spec(),
+    ]
+}
+
+fn runtime_specs_9() -> Vec<CommandSpec> {
+    vec![
         super::ssl__c3d::spec(),
         super::ssl__cert::spec(),
         super::ssl__cert_constraint::spec(),
@@ -911,6 +986,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::tcp__respond::spec(),
         super::tcp__rexmt_thresh::spec(),
         super::tcp__rt_metrics_timeout::spec(),
+    ]
+}
+
+fn runtime_specs_10() -> Vec<CommandSpec> {
+    vec![
         super::tcp__rto::spec(),
         super::tcp__rtt::spec(),
         super::tcp__rttvar::spec(),
@@ -1001,6 +1081,11 @@ fn every_irules_spec_constructs_at_runtime() {
         super::x509__subject_public_key::spec(),
         super::x509__subject_public_key_rsa_bits::spec(),
         super::x509__subject_public_key_type::spec(),
+    ]
+}
+
+fn runtime_specs_11() -> Vec<CommandSpec> {
+    vec![
         super::x509__verify_cert_error_string::spec(),
         super::x509__version::spec(),
         super::x509__whole::spec(),
@@ -1026,13 +1111,5 @@ fn every_irules_spec_constructs_at_runtime() {
         super::xml__release::spec(),
         super::xml__soap::spec(),
         super::xml__subscribe::spec(),
-    ];
-    assert_eq!(
-        specs.len(),
-        super::IRULES_SPECS.len(),
-        "runtime spec set must match the compile-time IRULES_SPECS array"
-    );
-    for s in &specs {
-        assert!(!s.name.is_empty(), "iRules command spec has an empty name");
-    }
+    ]
 }
