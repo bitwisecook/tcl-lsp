@@ -531,8 +531,28 @@ exist yet — the verification-status table follows the list.
    This is a deep rearchitecture of the most central, effectful compiler pipeline,
    where any divergence corrupts every downstream consumer — distinctly harder
    than the optimiser/checks memos (pure per-function passes with summary-level
-   cross-proc deps and a ready clean gate). **Status: scoped + core difficulty
-   confirmed, not built** — the single remaining de-roped task and the deepest.
+   cross-proc deps and a ready clean gate). **Status: gated v1 shipped
+   (2026-06-30).** A salsa memo `lower_proc_body(ProcBodyKey)` lowers each
+   top-level `proc`'s static body in isolation (a fresh `Lowerer` at
+   `proc_depth == 1` with an empty const-map frame — the same clean slate
+   `lower_proc` gives a body, which is why the body lowering *is* a pure function
+   of `(body_text, namespace, dialect, config)` once the enclosing context is
+   absent), keyed on the **offset-0** body text and rebased to the body's real
+   span. It is installed (via `Lowerer::with_body_cache` →
+   `build_for_memoized_with_body_cache`) only for **context-free files**
+   (`file_body_cache_eligible`: no `namespace`/`oo::`/`interp`/`rename`/`when`/
+   nested-`proc`), where the isolated lowering drops no cross-item side effect and
+   is byte-identical to the in-place `lower_body`. A body-only edit re-lowers one
+   body; a pure shift re-lowers none (firewall
+   `lower_proc_body_reused_on_unrelated_edit`). Verified byte-identical over the
+   full release corpus + tcllib (`file_analysis_corpus` / `compiler_check_corpus`
+   fresh + warm random-edit, debug guards live). **The context-dependent half is
+   still the deep open work** — threading the const-map-materialisation /
+   namespace / alias / import context and the `specialise_factories` /
+   `inline_uplevel_passthrough` cross-procedural mutators as memo *inputs*, plus
+   capturing and re-applying the per-body effects (nested-proc registration, …) —
+   so coverage is partial (the context-free majority) on the non-paramount build
+   path. The from-scratch lowering remains the gate.
 
 4. **Approach B follow-ups** *(deferred — one half negligible, one coupled to
    Task 3).* Two sub-parts, both re-evaluated against measurement:
@@ -692,10 +712,33 @@ per-edit win (cheap apply win + the dominant `run_all_checks` slice) with no rop
 and no cross-file work. 3–4 close the lowering floor. 6 is the cross-file feature,
 built incremental-first. **Tasks 5 and 7 are dropped (rope-dependent, 2026-06-30
 decision)** — the `String` store is retained, so windowed re-lex (5) and the rope
-(7) are out of scope. **The de-roped track's completion target is Tasks 1–4 + 6:**
-1/2/4/6 **shipped** (Task 4 — the per-procedure `optimise_unit` memo — landed
-byte-identical, full-corpus-verified), leaving only **Task 3** (incremental
-per-item IR lowering), the ~59 ms lowering-floor refactor.
+(7) are out of scope. **The de-roped track's completion target is Tasks 1–4 + 6 —
+all shipped.** 1/2/4/6 landed earlier (Task 4 — the per-procedure `optimise_unit`
+memo — byte-identical, full-corpus-verified). **Task 3 (incremental per-item IR
+lowering) now ships as a gated v1:** a salsa-memoised per-procedure body-lowering
+query (`lower_proc_body`, keyed on the offset-0 body text) routes each top-level
+`proc`'s static body through the memo for **context-free files** (no
+`namespace`/`oo::`/`interp`/`when`/nested-`proc`; see `file_body_cache_eligible`),
+so a body-only edit re-lowers only the edited proc's body and a pure offset shift
+re-lowers nothing (`lower_proc_body_reused_on_unrelated_edit` firewall). Threaded
+via `Lowerer::with_body_cache` → `build_for_memoized_with_body_cache`; the
+offset-0 body is rebased to its real span. Byte-identical to the whole-file
+lowering, proven over the full release corpus + tcllib (`file_analysis_corpus`,
+`compiler_check_corpus` fresh + warm random-edit sweeps, debug guards live).
+Context-dependent files keep the status-quo whole-file lowering (the complete,
+cross-item-threaded version remains future work — see Approach A below).
+
+The corpus sweep also surfaced and fixed a **pre-existing soundness gap in the
+shipped 2b summary-cascade memo** (independent of Task 3): when a callee is buried
+in a nested command substitution under a dynamic command (e.g. `symbolNodeOf` in
+`return [$t get [symbolNodeOf …] …]`), `direct_calls` misses the edge, so the
+`SummaryDepsKey` under-approximated the callee summaries the inference reads and
+seeded the missed callee clean — an interproc taint **false-negative** that also
+tripped the debug fixpoint guard on `tcllib`'s `page/util_peg.tcl`. Fixed by
+completing the dep set with `resolved_callees` (CFG-statement scan) +
+`command_subst_callees` (a source scan of `[name …]` heads), and by wrapping the
+dirty-set worklist in a monotone full-round-robin completion loop so convergence
+no longer depends on `callers` (the `direct_calls` reverse map) being complete.
 
 ## Experiments & verification status
 
@@ -715,6 +758,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | 2b per-proc keys cannot be shared from `compilation_unit` (salsa return must be `'static`; cu carries only rebased `FunctionUnit`s) → dup-build required | **verified** (experiment) | reverted `BuiltUnit` threading spike — `lifetime may not live long enough` + `CompilationUnit: Eq` unsatisfied on salsa 0.27 |
 | **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
 | **2a per-function check memo shipped** — `compiler_check_diagnostics` 107→83 ms, per-edit 154→125 ms | **measured + verified** | `function_checks(FnLatticeKey)` rebased by `body_offset`; byte-identical over the full release corpus (893 files) + graphops debug-guard regression. (A first attempt's "coupled to Task 3" reading was a rebasing bug, since corrected.) |
+| **Task 3 gated v1 shipped:** `lower_proc_body(ProcBodyKey)` per-proc body-lowering memo for context-free files; body-only edit re-lowers one body, shift re-lowers none | **verified** (shipped) | `lower_proc_body_reused_on_unrelated_edit` firewall (3 cold → 1 on body edit → 0 on shift) + full-corpus `file_analysis_corpus` / `compiler_check_corpus` (fresh + warm random-edit) byte-identical, debug guards live |
+| **2b cascade-memo soundness fix:** `SummaryDepsKey` completed with `resolved_callees`+`command_subst_callees`; worklist gains a monotone round-robin completion loop | **verified** | reproduced an interproc taint false-negative + fixpoint-guard panic on tcllib `page/util_peg.tcl` (`[$t get [symbolNodeOf …] …]`); both gone, memo == uncached over the full corpus |
 | Task 1: `LineIndex::apply_edit` patch == rebuild; persisted index wired into `DocumentState` | **measured + verified** (shipped) | 5000-edit fuzz gate + live-path index-consistency test; ~0.02% per-edit value as predicted |
 | Task 5: `reparse_window` can be wired to bound re-lex today | **refuted** (code) | no windowed re-lex / incremental-segmentation consumer exists; `Lexer` lexes whole source, `did_change` feeds whole text to salsa — coupled to Task 7's chunk input |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
