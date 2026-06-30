@@ -156,6 +156,34 @@ fn features_shimmer_xc_and_line_length() {
 }
 
 #[test]
+fn formatting_section_maps_all_keys() {
+    // Every `[formatting]` key maps to its camelCase editor key with the right
+    // value type (mirrors the Python `_normalise_formatter_settings` mapping).
+    let ini = "[formatting]\n\
+               max_line_length = 100\n\
+               goal_line_length = 90\n\
+               indent_size = 2\n\
+               indent_style = tabs\n\
+               brace_style = k_and_r\n\
+               line_ending = crlf\n\
+               trim_trailing_whitespace = false\n\
+               expand_single_line_bodies = true\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    let f = &s["formatting"];
+    assert_eq!(f["maxLineLength"], json!(100));
+    // The legacy `lineLength` alias is also emitted for the server's resolved
+    // willSaveWaitUntil width.
+    assert_eq!(f["lineLength"], json!(100));
+    assert_eq!(f["goalLineLength"], json!(90));
+    assert_eq!(f["indentSize"], json!(2));
+    assert_eq!(f["indentStyle"], json!("tabs"));
+    assert_eq!(f["braceStyle"], json!("k_and_r"));
+    assert_eq!(f["lineEnding"], json!("crlf"));
+    assert_eq!(f["trimTrailingWhitespace"], json!(false));
+    assert_eq!(f["expandSingleLineBodies"], json!(true));
+}
+
+#[test]
 fn comments_and_blank_lines_ignored() {
     let ini = "# a comment\n[global]\n; another\ndialect = tcl9.0\n\n";
     assert_eq!(

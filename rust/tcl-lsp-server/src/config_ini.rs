@@ -143,6 +143,7 @@ fn parse_bool(value: &str) -> Option<bool> {
 /// Mirrors `shared/user_config.py::get_all_settings`. Only keys actually
 /// present are emitted, so absent settings keep their built-in defaults.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
     let sections = parse_ini(content);
     let mut out = Map::new();
@@ -198,12 +199,58 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         }
     }
 
-    // [formatting] `max_line_length` → the formatter width.
-    if let Some(len) = section_value(&sections, "formatting", "max_line_length")
-        .and_then(|v| v.trim().parse::<u64>().ok())
-    {
-        let mut fmt = Map::new();
-        fmt.insert("lineLength".to_owned(), Value::from(len));
+    // [formatting] → the formatter config object (camelCase editor keys). Each
+    // snake_case INI key maps to the matching `FormatterConfig` field the server
+    // consumes; integers, booleans, and strings are coerced per key.
+    let mut fmt = Map::new();
+    // Integer-valued keys → camelCase.
+    for (ini_key, json_key) in [
+        ("max_line_length", "maxLineLength"),
+        ("goal_line_length", "goalLineLength"),
+        ("indent_size", "indentSize"),
+        ("continuation_indent", "continuationIndent"),
+        ("blank_lines_between_procs", "blankLinesBetweenProcs"),
+        ("blank_lines_between_blocks", "blankLinesBetweenBlocks"),
+        ("max_consecutive_blank_lines", "maxConsecutiveBlankLines"),
+    ] {
+        if let Some(n) = section_value(&sections, "formatting", ini_key)
+            .and_then(|v| v.trim().parse::<u64>().ok())
+        {
+            fmt.insert(json_key.to_owned(), Value::from(n));
+        }
+    }
+    // `max_line_length` also feeds the legacy `lineLength` the server reads for
+    // the willSaveWaitUntil resolved width.
+    if let Some(n) = fmt.get("maxLineLength").cloned() {
+        fmt.insert("lineLength".to_owned(), n);
+    }
+    // String-valued keys.
+    for (ini_key, json_key) in [
+        ("indent_style", "indentStyle"),
+        ("brace_style", "braceStyle"),
+        ("line_ending", "lineEnding"),
+    ] {
+        if let Some(s) = section_value(&sections, "formatting", ini_key) {
+            let s = s.trim();
+            if !s.is_empty() {
+                fmt.insert(json_key.to_owned(), Value::String(s.to_owned()));
+            }
+        }
+    }
+    // Boolean-valued keys.
+    for (ini_key, json_key) in [
+        ("space_between_braces", "spaceBetweenBraces"),
+        ("space_after_comment_hash", "spaceAfterCommentHash"),
+        ("trim_trailing_whitespace", "trimTrailingWhitespace"),
+        ("enforce_braced_variables", "enforceBracedVariables"),
+        ("ensure_final_newline", "ensureFinalNewline"),
+        ("expand_single_line_bodies", "expandSingleLineBodies"),
+    ] {
+        if let Some(b) = section_value(&sections, "formatting", ini_key).and_then(parse_bool) {
+            fmt.insert(json_key.to_owned(), Value::Bool(b));
+        }
+    }
+    if !fmt.is_empty() {
         out.insert("formatting".to_owned(), Value::Object(fmt));
     }
 

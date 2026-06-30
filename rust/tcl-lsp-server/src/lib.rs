@@ -824,6 +824,11 @@ pub struct Backend {
     /// Mirrors the Python `generic_variable_patterns` setting; mirrored onto the
     /// salsa `AnalyserConfig`.
     generic_variable_patterns: Mutex<Option<Vec<String>>>,
+    /// Resolved `tclLsp.formatting` settings object (the whole section), used
+    /// to build the formatter `FormatterConfig` for the document-formatting
+    /// handlers. `Null`/absent keys keep the formatter defaults. Mirrors the
+    /// Python formatter-settings passthrough.
+    formatting_settings: Mutex<serde_json::Value>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -1030,6 +1035,9 @@ struct FolderConfig {
     optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
     optimiser_code_overrides: HashMap<String, bool>,
     line_length: Option<u32>,
+    /// `tclLsp.formatting` section override for the formatter; `None` inherits
+    /// the global formatting settings.
+    formatting: Option<serde_json::Value>,
     /// `tclLsp.style.lineLength` override (W111 threshold); `None` inherits the
     /// global value.
     style_line_length: Option<u32>,
@@ -1096,6 +1104,7 @@ impl Backend {
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
+            formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             shimmer_enabled: Mutex::new(true),
@@ -2812,10 +2821,16 @@ impl Backend {
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
+            .or_else(|| cfg.get("formatting").and_then(|f| f.get("maxLineLength")))
             .or_else(|| cfg.get("lineLength"))
             .and_then(serde_json::Value::as_u64)
         {
             *self.line_length.lock().await = u32::try_from(len).unwrap_or(80);
+        }
+        // The whole `tclLsp.formatting` section drives the formatter config
+        // (indent size/style, brace/line-length, blank-line policy, …).
+        if let Some(formatting) = cfg.get("formatting") {
+            *self.formatting_settings.lock().await = formatting.clone();
         }
         // `tclLsp.style.lineLength` — the W111 threshold (distinct from the
         // formatter width above). A positive value replaces the default 120.
@@ -3252,6 +3267,19 @@ impl Backend {
         match folder {
             Some(len) => len,
             None => *self.line_length.lock().await,
+        }
+    }
+
+    /// The resolved `tclLsp.formatting` settings object for `uri`: a folder
+    /// override wins, else the process-global section (or `Null`).
+    async fn resolved_formatting(&self, uri: &Uri) -> serde_json::Value {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.formatting.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.formatting_settings.lock().await.clone(),
         }
     }
 
@@ -5809,9 +5837,11 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // An explicit client `FormattingOptions.tabSize` / `insertSpaces`
-        // overrides the server's indentation by LSP contract.
-        let config = formatter_config_from_options(&params.options);
+        // Build from the resolved `tclLsp.formatting` settings; the client's
+        // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
+        // LSP contract.
+        let formatting = self.resolved_formatting(&params.text_document.uri).await;
+        let config = formatter_config_from(&formatting, &params.options);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
@@ -5852,16 +5882,13 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let formatting = self.resolved_formatting(&params.text_document.uri).await;
+        let config = formatter_config_from(&formatting, &params.options);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::range_formatting(
-                &text,
-                range,
-                &core_formatting::FormatterConfig::default(),
-                &registry,
-            )
+            core_formatting::range_formatting(&text, range, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -6463,25 +6490,113 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
     }
 }
 
-/// Build a [`core_formatting::FormatterConfig`] from an LSP request's
-/// [`FormattingOptions`].  An explicit client `tabSize` / `insertSpaces`
-/// overrides the server's default indentation by LSP contract; every
-/// other formatter knob keeps its default.
-fn formatter_config_from_options(
+/// Build a [`core_formatting::FormatterConfig`] from the resolved
+/// `tclLsp.formatting` settings object, then apply the request's LSP
+/// `FormattingOptions` (`tabSize` / `insertSpaces`) as the indentation override
+/// (the editor's per-request indentation wins, per the LSP contract). Mirrors
+/// Python's `_normalise_formatter_settings` field mapping so editor- and
+/// config-file-set formatter options actually take effect.
+#[allow(clippy::too_many_lines)]
+fn formatter_config_from(
+    formatting: &serde_json::Value,
     options: &tower_lsp_server::ls_types::FormattingOptions,
 ) -> core_formatting::FormatterConfig {
-    let indent_size = usize::try_from(options.tab_size).unwrap_or(4).max(1);
-    let indent_style = if options.insert_spaces {
-        core_formatting::IndentStyle::Spaces
-    } else {
-        core_formatting::IndentStyle::Tabs
-    };
-    core_formatting::FormatterConfig {
-        indent_size,
-        indent_style,
-        continuation_indent: indent_size,
-        ..core_formatting::FormatterConfig::default()
+    use core_formatting::IndentStyle;
+    let mut cfg = core_formatting::FormatterConfig::default();
+    if let Some(obj) = formatting.as_object() {
+        let as_usize = |v: &serde_json::Value| v.as_u64().map(|n| usize::try_from(n).unwrap_or(0));
+        if let Some(n) = obj.get("indentSize").and_then(as_usize) {
+            cfg.indent_size = n.max(1);
+        }
+        if let Some(s) = obj.get("indentStyle").and_then(serde_json::Value::as_str) {
+            cfg.indent_style = match s.to_ascii_lowercase().as_str() {
+                "tabs" | "tab" => IndentStyle::Tabs,
+                _ => IndentStyle::Spaces,
+            };
+        }
+        if let Some(n) = obj.get("continuationIndent").and_then(as_usize) {
+            cfg.continuation_indent = n;
+        }
+        // `braceStyle` is accepted but only K&R is implemented, so it stays the
+        // default (a no-op rather than an error).
+        if let Some(b) = obj
+            .get("spaceBetweenBraces")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.space_between_braces = b;
+        }
+        // Both `maxLineLength` and the legacy `lineLength` map to the hard limit.
+        if let Some(n) = obj
+            .get("maxLineLength")
+            .or_else(|| obj.get("lineLength"))
+            .and_then(as_usize)
+        {
+            cfg.max_line_length = n.max(1);
+        }
+        if let Some(n) = obj.get("goalLineLength").and_then(as_usize) {
+            cfg.goal_line_length = n.max(1);
+        }
+        if let Some(b) = obj
+            .get("spaceAfterCommentHash")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.space_after_comment_hash = b;
+        }
+        if let Some(b) = obj
+            .get("trimTrailingWhitespace")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.trim_trailing_whitespace = b;
+        }
+        if let Some(b) = obj
+            .get("enforceBracedVariables")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.enforce_braced_variables = b;
+        }
+        if let Some(s) = obj.get("lineEnding").and_then(serde_json::Value::as_str) {
+            cfg.line_ending = match s.to_ascii_lowercase().as_str() {
+                "crlf" => "\r\n".to_owned(),
+                "cr" => "\r".to_owned(),
+                "lf" => "\n".to_owned(),
+                other => other.to_owned(),
+            };
+        }
+        if let Some(b) = obj
+            .get("ensureFinalNewline")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.ensure_final_newline = b;
+        }
+        if let Some(b) = obj
+            .get("expandSingleLineBodies")
+            .and_then(serde_json::Value::as_bool)
+        {
+            cfg.expand_single_line_bodies = b;
+        }
+        if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
+            cfg.blank_lines_between_procs = n;
+        }
+        if let Some(n) = obj.get("blankLinesBetweenBlocks").and_then(as_usize) {
+            cfg.blank_lines_between_blocks = n;
+        }
+        if let Some(n) = obj.get("maxConsecutiveBlankLines").and_then(as_usize) {
+            cfg.max_consecutive_blank_lines = n;
+        }
     }
+    // LSP `FormattingOptions` indentation overrides the config (per contract);
+    // a real editor always sends `tabSize >= 1`, so a degenerate 0 falls back to
+    // the configured indent size rather than clamping it away.
+    if options.tab_size >= 1 {
+        cfg.indent_size = usize::try_from(options.tab_size).unwrap_or(cfg.indent_size);
+        cfg.indent_style = if options.insert_spaces {
+            IndentStyle::Spaces
+        } else {
+            IndentStyle::Tabs
+        };
+    }
+    cfg.indent_size = cfg.indent_size.max(1);
+    cfg
 }
 
 /// Whether `uri` names a tcl-lsp config file (`.tcl-lsp.ini` project config or
@@ -6646,10 +6761,14 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     if let Some(len) = obj
         .get("formatting")
         .and_then(|f| f.get("lineLength"))
+        .or_else(|| obj.get("formatting").and_then(|f| f.get("maxLineLength")))
         .or_else(|| obj.get("lineLength"))
         .and_then(serde_json::Value::as_u64)
     {
         fc.line_length = Some(u32::try_from(len).unwrap_or(80));
+    }
+    if let Some(formatting) = obj.get("formatting") {
+        fc.formatting = Some(formatting.clone());
     }
     if let Some(len) = obj
         .get("style")
@@ -8953,17 +9072,77 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from_options(&opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
-        // A zero tabSize is clamped to a usable minimum.
+        // A degenerate zero tabSize is ignored (editors always send >= 1), so
+        // the configured / default indent size stands (4 here).
         opts.tab_size = 0;
-        assert_eq!(formatter_config_from_options(&opts).indent_size, 1);
+        assert_eq!(
+            formatter_config_from(&serde_json::Value::Null, &opts).indent_size,
+            4
+        );
         // insertSpaces=false selects tab indentation.
         opts.tab_size = 4;
         opts.insert_spaces = false;
-        let cfg = formatter_config_from_options(&opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
+    }
+
+    #[test]
+    fn formatter_config_from_consumes_formatting_settings() {
+        // `tclLsp.formatting.*` settings flow into the FormatterConfig, while
+        // the request's LSP indentation options override indent size/style.
+        let formatting = serde_json::json!({
+            "maxLineLength": 100,
+            "goalLineLength": 90,
+            "indentSize": 8,
+            "indentStyle": "tabs",
+            "spaceBetweenBraces": false,
+            "lineEnding": "crlf",
+            "blankLinesBetweenProcs": 2,
+        });
+        let opts = tower_lsp_server::ls_types::FormattingOptions {
+            tab_size: 2,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        let cfg = formatter_config_from(&formatting, &opts);
+        assert_eq!(cfg.max_line_length, 100);
+        assert_eq!(cfg.goal_line_length, 90);
+        assert!(!cfg.space_between_braces);
+        assert_eq!(cfg.line_ending, "\r\n");
+        assert_eq!(cfg.blank_lines_between_procs, 2);
+        // LSP options win for indentation (tabSize=2, insertSpaces=true).
+        assert_eq!(cfg.indent_size, 2);
+        assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
+        // A null formatting object falls back to defaults + LSP options.
+        let dflt = formatter_config_from(&serde_json::Value::Null, &opts);
+        assert_eq!(dflt.max_line_length, 120);
+    }
+
+    #[tokio::test]
+    async fn resolved_formatting_applies_through_global_config() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///f.tcl").unwrap();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "formatting": { "indentSize": 8, "maxLineLength": 70 }
+            }))
+            .await;
+        let formatting = backend.resolved_formatting(&uri).await;
+        assert_eq!(formatting["indentSize"], serde_json::json!(8));
+        // With insertSpaces and no explicit tabSize override (tab_size: 0 → the
+        // config's indentSize is used since LSP clamps 0 away).
+        let opts = tower_lsp_server::ls_types::FormattingOptions {
+            tab_size: 0,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        let cfg = formatter_config_from(&formatting, &opts);
+        assert_eq!(cfg.max_line_length, 70);
+        // tab_size 0 → unwrap_or(cfg.indent_size=8).max(1) = 8.
+        assert_eq!(cfg.indent_size, 8);
     }
 
     #[test]
@@ -9613,6 +9792,7 @@ mod tests {
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
+            formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             shimmer_enabled: Mutex::new(true),
