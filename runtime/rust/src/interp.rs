@@ -719,6 +719,9 @@ pub struct InterpState {
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Interp::limit_check_tick`]).
     limit_tick: Cell<u32>,
+    /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
+    /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
+    debug_frame: Cell<bool>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -843,6 +846,26 @@ fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
     Err(m)
 }
 
+/// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
+fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
+    let o = obj_bytes(opt);
+    if !o.is_empty() && b"-frame".starts_with(o.as_slice()) {
+        return Ok(());
+    }
+    let mut m = b"bad debug option \"".to_vec();
+    m.extend_from_slice(&o);
+    m.extend_from_slice(b"\": must be -frame");
+    Err(m)
+}
+
+/// Whether `bytes` is a truthy boolean literal (for the `-frame` latch).
+fn parse_truth(bytes: &[u8]) -> bool {
+    matches!(
+        bytes.to_ascii_lowercase().as_slice(),
+        b"1" | b"true" | b"yes" | b"on"
+    )
+}
+
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
 fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
     if let Ok(s) = std::str::from_utf8(bytes) {
@@ -916,6 +939,7 @@ impl Interp {
             cmd_arena: RefCell::new(CmdArena::default()),
             limits: RefCell::new(LimitSet::default()),
             limit_tick: Cell::new(0),
+            debug_frame: Cell::new(false),
         }));
         builtins::install(&mut interp);
         interp
@@ -4517,6 +4541,32 @@ impl Interp {
                     None => self.error(b"could not find interpreter"),
                 }
             }
+            // `$child marktrusted` — clear the child's safe flag (denied from a
+            // safe interpreter).
+            b"marktrusted" => {
+                if self.is_safe() {
+                    return self.error(b"permission denied: safe interpreter cannot mark trusted");
+                }
+                self.with_child(name, |c| c.mark_trusted());
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
+            b"debug" => {
+                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
+                if argv.len() > 4 {
+                    return self
+                        .error(b"wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+                }
+                match self.with_child(name, |c| c.debug_apply(&opts)) {
+                    Some(Ok(o)) => {
+                        self.set_result(o);
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
             // `$child limit limitType ?-option value …?` — query/configure the
             // child's commands/time limit.
             b"limit" => {
@@ -4558,6 +4608,15 @@ impl Interp {
         // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
         // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
         child.set_startup_globals();
+        // `interp debug -frame` is seeded from the creating interp's
+        // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
+        if self
+            .var_get_elem(b"env", b"TCL_INTERP_DEBUG_FRAME")
+            .map(|o| parse_truth(&obj_bytes(o)))
+            .unwrap_or(false)
+        {
+            child.0.debug_frame.set(true);
+        }
         self.children.borrow_mut().insert(name.clone(), child);
         self.namespaces
             .borrow_mut()
@@ -4718,6 +4777,34 @@ impl Interp {
     /// Whether this interp is safe (`interp issafe`).
     pub(crate) fn is_safe(&self) -> bool {
         self.is_safe.get()
+    }
+
+    /// `interp marktrusted` — clear this interp's safe flag (a parent demoting a
+    /// child from safe to trusted). Future children it creates are trusted too.
+    pub(crate) fn mark_trusted(&self) {
+        self.is_safe.set(false);
+    }
+
+    /// `interp debug ?-frame ?bool??` on this interp. Returns the fresh result
+    /// object (the `-frame N` dict, or the bool), or the error-message bytes.
+    /// `-frame` is a one-way latch: setting it to false once true keeps it true.
+    pub(crate) fn debug_apply(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
+        match opts.len() {
+            0 => Ok(dict_obj(&[(b"-frame", frame_byte.to_vec())])),
+            1 => {
+                check_debug_opt(opts[0])?;
+                Ok(obj::new_string_bytes(frame_byte))
+            }
+            _ => {
+                check_debug_opt(opts[0])?;
+                if parse_truth(&obj_bytes(opts[1])) {
+                    self.debug_frame.set(true);
+                }
+                let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
+                Ok(obj::new_string_bytes(frame_byte))
+            }
+        }
     }
 
     /// `interp recursionlimit` get / set on this interp. `newlimit` is the
