@@ -4586,6 +4586,15 @@ impl Interp {
         ] {
             self.var_unset(v);
         }
+        // A safe interp's `clock` is aliased to the parent's, so date/time
+        // formatting works without the child reaching the timezone files.
+        self.ns_register(
+            b"clock",
+            Command::ParentAlias {
+                target: b"clock".to_vec(),
+                prefix: Vec::new(),
+            },
+        );
         self.is_safe.set(true);
     }
 
