@@ -181,7 +181,8 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
 /// `shared/user_config.py::_config_path`:
 ///
 /// * `$XDG_CONFIG_HOME/tcl-lsp/config.ini` when `XDG_CONFIG_HOME` is set,
-/// * Windows: `%APPDATA%\tcl-lsp\config.ini`,
+/// * Windows (native): `%APPDATA%\tcl-lsp\config.ini`,
+/// * Windows under MSYS2 / Cygwin (`MSYSTEM` set): `~/.config/tcl-lsp/config.ini`,
 /// * macOS: `~/Library/Application Support/tcl-lsp/config.ini`,
 /// * else (Linux/BSD/WSL): `~/.config/tcl-lsp/config.ini`.
 ///
@@ -194,25 +195,32 @@ pub fn user_config_path() -> Option<PathBuf> {
         std::env::var_os("HOME").as_deref(),
         cfg!(target_os = "windows"),
         cfg!(target_os = "macos"),
+        std::env::var_os("MSYSTEM").is_some(),
     )
 }
 
 /// Pure core of [`user_config_path`] — resolves the config file from the
 /// relevant environment values and platform flags, so the precedence is
-/// testable without mutating process environment.
+/// testable without mutating process environment. `posix_compat_windows` is
+/// `true` under an MSYS2 / Cygwin shell (`MSYSTEM` set), where the XDG `~/.config`
+/// convention is used instead of `%APPDATA%` (mirrors Python's
+/// `_is_posix_compat_windows`).
 fn config_path_for(
     xdg_config_home: Option<&std::ffi::OsStr>,
     appdata: Option<&std::ffi::OsStr>,
     home: Option<&std::ffi::OsStr>,
     is_windows: bool,
     is_macos: bool,
+    posix_compat_windows: bool,
 ) -> Option<PathBuf> {
     if let Some(xdg) = xdg_config_home
         && !xdg.is_empty()
     {
         return Some(PathBuf::from(xdg).join("tcl-lsp").join("config.ini"));
     }
-    if is_windows {
+    // Native Windows → %APPDATA%; under MSYS2 / Cygwin fall through to the XDG
+    // `~/.config` default below.
+    if is_windows && !posix_compat_windows {
         return appdata.map(|a| PathBuf::from(a).join("tcl-lsp").join("config.ini"));
     }
     let home = PathBuf::from(home?);

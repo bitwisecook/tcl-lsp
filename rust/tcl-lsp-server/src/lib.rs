@@ -2670,6 +2670,9 @@ impl Backend {
         let Some(cfg) = values.into_iter().next() else {
             return;
         };
+        // Accept nested / flat-dotted / unwrapped payload shapes (some clients,
+        // e.g. JetBrains, don't send the nested `tclLsp` object).
+        let cfg = normalize_config_payload(&cfg);
         // Full config parity with the Python server: layer the editor's pulled
         // `tclLsp` settings between the user `config.ini` `[global]` (lowest)
         // and the project `.tcl-lsp.ini` `[project]` (highest). Same precedence
@@ -6682,6 +6685,58 @@ fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json
         )
 }
 
+/// Normalise a pulled configuration payload into the unwrapped `tclLsp`-content
+/// object [`Backend::apply_global_config`] expects, accepting the three shapes
+/// Python's `_extract_tcl_lsp_settings` handles:
+///
+/// 1. **Nested** — `{ "tclLsp": { "optimiser": { "O109": false } } }`.
+/// 2. **Flat dotted** — `{ "tclLsp.optimiser.O109": false }` (or without the
+///    `tclLsp.` prefix), folded into nested objects.
+/// 3. **Unwrapped** — `{ "optimiser": { "O109": false }, "dialect": "tcl8.6" }`
+///    (e.g. a `JetBrains` pull-model response with no `tclLsp` prefix).
+///
+/// The shapes compose: a nested `tclLsp` object is merged with any flat dotted
+/// keys and any unwrapped top-level sections.
+fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
+    use serde_json::{Map, Value};
+    let mut out = Map::new();
+    let Some(obj) = payload.as_object() else {
+        return Value::Object(out);
+    };
+    // 1. A nested `tclLsp` object contributes its keys directly.
+    if let Some(nested) = obj.get("tclLsp").and_then(Value::as_object) {
+        for (k, v) in nested {
+            out.insert(k.clone(), v.clone());
+        }
+    }
+    for (key, value) in obj {
+        if key == "tclLsp" {
+            continue;
+        }
+        // 2. Flat dotted keys (`tclLsp.a.b` or `a.b`) → nested objects.
+        let path = key.strip_prefix("tclLsp.").unwrap_or(key);
+        if path.contains('.') {
+            let segments: Vec<&str> = path.split('.').collect();
+            let mut cursor = &mut out;
+            for seg in &segments[..segments.len() - 1] {
+                cursor = cursor
+                    .entry((*seg).to_owned())
+                    .or_insert_with(|| Value::Object(Map::new()))
+                    .as_object_mut()
+                    .expect("nested config segment is an object");
+            }
+            cursor.insert(segments[segments.len() - 1].to_owned(), value.clone());
+        } else if key.starts_with("tclLsp.") {
+            // `tclLsp.dialect` with no further nesting → top-level key.
+            out.insert(path.to_owned(), value.clone());
+        } else {
+            // 3. Unwrapped top-level section/scalar.
+            out.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(out)
+}
+
 /// Resolve the user config-file path for `tcl-lsp.exportConfig`:
 /// `$XDG_CONFIG_HOME/tcl-lsp/config.ini`, falling back to
 /// `$HOME/.config/tcl-lsp/config.ini`.  Both env vars are honoured on every
@@ -8223,6 +8278,41 @@ mod tests {
         for code in ["S100", "S101", "S102", "S110"] {
             assert!(disabled.contains(code), "{code} should be suppressed");
         }
+    }
+
+    #[test]
+    fn normalize_config_payload_handles_nested_flat_and_unwrapped() {
+        // Nested `tclLsp` object.
+        let nested = serde_json::json!({ "tclLsp": { "optimiser": { "O109": false } } });
+        assert_eq!(
+            normalize_config_payload(&nested),
+            serde_json::json!({ "optimiser": { "O109": false } }),
+        );
+        // Flat dotted keys (with and without the `tclLsp.` prefix).
+        let flat = serde_json::json!({
+            "tclLsp.optimiser.O109": false,
+            "tclLsp.dialect": "tcl8.6",
+        });
+        assert_eq!(
+            normalize_config_payload(&flat),
+            serde_json::json!({ "optimiser": { "O109": false }, "dialect": "tcl8.6" }),
+        );
+        // Unwrapped top-level sections (e.g. JetBrains).
+        let unwrapped =
+            serde_json::json!({ "optimiser": { "enabled": false }, "dialect": "tcl9.0" });
+        assert_eq!(
+            normalize_config_payload(&unwrapped),
+            serde_json::json!({ "optimiser": { "enabled": false }, "dialect": "tcl9.0" }),
+        );
+        // Composed: nested + flat merge key-by-key.
+        let composed = serde_json::json!({
+            "tclLsp": { "optimiser": { "O109": false } },
+            "tclLsp.optimiser.O110": false,
+        });
+        assert_eq!(
+            normalize_config_payload(&composed),
+            serde_json::json!({ "optimiser": { "O109": false, "O110": false } }),
+        );
     }
 
     #[tokio::test]

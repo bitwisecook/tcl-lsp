@@ -71,14 +71,15 @@ fn parse_ini(content: &str) -> Vec<Section> {
         // even when it contains `:` / `=` (e.g. a `mylib::send` command name or
         // a regex pattern with a colon).
         let indented = line.starts_with([' ', '\t']);
-        if indented && !stripped.is_empty() {
-            if let Some(last) = section.entries.last_mut() {
-                last.1.push('\n');
-                last.1.push_str(stripped);
-                continue;
-            }
-            // No key to continue (indented line right after a header) — fall
-            // through and treat it as a normal `key = value` if it parses.
+        // No key to continue (indented line right after a header) falls through
+        // and is treated as a normal `key = value` if it parses.
+        if indented
+            && !stripped.is_empty()
+            && let Some(last) = section.entries.last_mut()
+        {
+            last.1.push('\n');
+            last.1.push_str(stripped);
+            continue;
         }
         if stripped.is_empty() || stripped.starts_with('#') || stripped.starts_with(';') {
             continue;

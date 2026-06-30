@@ -128,18 +128,33 @@ fn config_path_precedence_is_platform_native() {
             None,
             Some(OsStr::new("/home/me")),
             false,
-            false
+            false,
+            false,
         ),
         Some(PathBuf::from("/x/xdg/tcl-lsp/config.ini"))
     );
     // Linux/BSD/WSL → ~/.config.
     assert_eq!(
-        config_path_for(None, None, Some(OsStr::new("/home/me")), false, false),
+        config_path_for(
+            None,
+            None,
+            Some(OsStr::new("/home/me")),
+            false,
+            false,
+            false
+        ),
         Some(PathBuf::from("/home/me/.config/tcl-lsp/config.ini"))
     );
     // macOS → ~/Library/Application Support.
     assert_eq!(
-        config_path_for(None, None, Some(OsStr::new("/Users/me")), false, true),
+        config_path_for(
+            None,
+            None,
+            Some(OsStr::new("/Users/me")),
+            false,
+            true,
+            false
+        ),
         Some(PathBuf::from(
             "/Users/me/Library/Application Support/tcl-lsp/config.ini"
         ))
@@ -148,8 +163,21 @@ fn config_path_precedence_is_platform_native() {
     // separator matches the test host).
     let appdata = r"C:\Users\me\AppData\Roaming";
     assert_eq!(
-        config_path_for(None, Some(OsStr::new(appdata)), None, true, false),
+        config_path_for(None, Some(OsStr::new(appdata)), None, true, false, false),
         Some(PathBuf::from(appdata).join("tcl-lsp").join("config.ini"))
+    );
+    // Windows under MSYS2 / Cygwin (`MSYSTEM` set) → XDG `~/.config`, NOT
+    // %APPDATA% — even when APPDATA is present.
+    assert_eq!(
+        config_path_for(
+            None,
+            Some(OsStr::new(appdata)),
+            Some(OsStr::new("/home/me")),
+            true,
+            false,
+            true,
+        ),
+        Some(PathBuf::from("/home/me/.config/tcl-lsp/config.ini"))
     );
     // Empty XDG is ignored (falls through to HOME).
     assert_eq!(
@@ -158,7 +186,8 @@ fn config_path_precedence_is_platform_native() {
             None,
             Some(OsStr::new("/home/me")),
             false,
-            false
+            false,
+            false,
         ),
         Some(PathBuf::from("/home/me/.config/tcl-lsp/config.ini"))
     );
