@@ -528,10 +528,32 @@ exist yet — the verification-status table follows the list.
      cross-function optimisations (an O103-relevant callee summary, the
      `proc_summary_cascade` pattern applied to the optimiser), settled byte-identical
      against the random-edit + corpus differential fuzzers (now built — see Task 2b
-     gate). For a measured ~15 ms lever this is an L-sized, high-divergence-risk
-     change with a real silent-miscompile hazard (the `command_mutations` trust gate);
-     **deliberately not landed** rather than shipped unverified. *Status:* designed +
-     blockers identified; not built.
+     gate). **Re-audit (later 2026-06-30): the O103 blocker (c) is milder than
+     first read** — `try_fold_static_proc_call` resolves via the **interproc
+     *summary*** (`summary.can_fold_static_calls` + `constant_return` +
+     `redefined_procedures`), **not** raw callee IR, so the cross-function
+     dependency is a *summary*-level fact reconstructable exactly as
+     `proc_summary_cascade` does for taint — no callee-IR threading needed. That
+     makes the memo tractable.
+     *Groundwork **landed** (commit on this branch):* `optimise_unit` is now split
+     into `optimise_unit_raw` (run-passes + canonicalising sort — the phase a
+     per-proc memo runs on a single-proc offset-0 unit) and `finalise_optimisations`
+     (the whole-module overlap/couple/drop/renumber tail), byte-identical (295
+     optimiser tests + the checks fuzzers).
+     *Remaining (precisely scoped, ~several hours, fuzzer-gated):* (1) thread the
+     **offset-0 body text** into the memo (the passes read `ctx.source` via
+     `fu.abs_span` in `full_word_span`/`full_rewrite_span`) — derive it as
+     `cu.source[body_span]`, interned per proc; (2) build the **single-procedure
+     offset-0 CU** (one `Procedure` from `FnLatticeKey.body` + the offset-0 fu +
+     reconstructed `interproc`); (3) an `OptDepsKey` capturing the O103 summaries +
+     `redefined_procedures` + **module `command_mutations`** (threaded via a
+     `optimise_unit_raw_with_mutations` variant, since the single-proc `ir_module`
+     can't recompute the whole-module trust gate) + the resolution domain; (4)
+     assemble per-proc raw (rebased by `body_offset`) + top-level raw, then
+     `finalise_optimisations` over the **real** unit; (5) converge byte-identical
+     on `compiler_check_incremental_matches_fresh_under_edits` + the corpus
+     fuzzer. *Status:* groundwork landed + design de-risked; memo wiring not yet
+     built. ~15 ms lever on the non-paramount debounced checks path.
 
 5. **Wire the structural-state index into the live re-lex path** *(**DROPPED** —
    rope-dependent, removed from scope 2026-06-30 by the "drop everything that
