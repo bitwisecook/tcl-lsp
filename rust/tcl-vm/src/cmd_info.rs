@@ -83,7 +83,13 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match canon {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
-            [name] => ok(tcl_cmd_core::info::exists(vm, name)),
+            [name] => {
+                // `info exists` fires read traces first (a trace may create the
+                // variable — tcltest's lazy `SafeFetch` constraint init relies
+                // on this); a trace error does not abort the existence check.
+                let _ = vm.fire_var_traces(&name.to_str(), "read");
+                ok(tcl_cmd_core::info::exists(vm, name))
+            }
             _ => err("wrong # args: should be \"info exists varName\""),
         },
         "complete" => match rest {

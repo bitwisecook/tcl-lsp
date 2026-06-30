@@ -907,10 +907,14 @@ impl Vm {
                 // into the LVT (the codegen names the slot `a(x)`), so resolve
                 // it element-aware.
                 let name = lvt_name(imm0(instr));
+                // `info exists` fires read traces (a trace may create the
+                // variable); a trace error does not abort the existence check.
+                let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
             }
             Op::EXIST_STK => {
                 let name = pop(f).to_str();
+                let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
             }
 
