@@ -2062,8 +2062,14 @@ mod tests {
     /// assert the calling file's cross-file diagnostics always match a fresh
     /// whole-project rebuild.  Catches any untracked read / non-deterministic
     /// fold in `project_diagnostics` or its cross-file dependency edges.
+    /// Reduce a `u64` PRNG draw to an index into a small slice. The modulo
+    /// is done in `u64` and the result (always `< len`) converts back
+    /// losslessly, so there is no truncating cast.
+    fn pick_index(r: u64, len: usize) -> usize {
+        usize::try_from(r % len as u64).unwrap()
+    }
+
     #[test]
-    #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
     fn project_diagnostics_incremental_matches_fresh_under_edits() {
         use salsa::Setter as _;
         // `a` calls four commands; `set` is a builtin, the rest resolve only if
@@ -2100,7 +2106,7 @@ mod tests {
             rng
         };
         for _ in 0..60 {
-            let b_text = b_variants[(next() % b_variants.len() as u64) as usize];
+            let b_text = b_variants[pick_index(next(), b_variants.len())];
             b.set_text(&mut db).to(b_text.to_owned());
             let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
             let fresh = mk(b_text);
@@ -2116,7 +2122,6 @@ mod tests {
     /// arg counts) while editing the callee changes the resolution/arity domain;
     /// catches any stale cross-file edge that a single-file fuzzer would miss.
     #[test]
-    #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
     fn project_diagnostics_incremental_matches_fresh_both_files_edited() {
         use salsa::Setter as _;
         // Caller variants: vary which commands are called and with how many args
@@ -2161,8 +2166,8 @@ mod tests {
         for _ in 0..80 {
             // Edit one file (sometimes both) per round.
             let pick = next() % 3;
-            let a_text = a_variants[(next() % a_variants.len() as u64) as usize];
-            let b_text = b_variants[(next() % b_variants.len() as u64) as usize];
+            let a_text = a_variants[pick_index(next(), a_variants.len())];
+            let b_text = b_variants[pick_index(next(), b_variants.len())];
             if pick != 1 {
                 a.set_text(&mut db).to(a_text.to_owned());
             }

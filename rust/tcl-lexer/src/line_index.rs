@@ -287,11 +287,10 @@ mod tests {
     /// edits only, so every byte offset is a `char` boundary; the alphabet is
     /// newline-heavy to exercise insert/delete of line-starts in every region.
     #[test]
-    #[allow(clippy::cast_possible_truncation)] // test indices are small + bounded
     fn apply_edit_matches_rebuild_under_fuzz() {
         let starts = |idx: &LineIndex| {
-            (0..idx.line_count())
-                .map(|l| idx.line_start(l as u32))
+            (0..u32::try_from(idx.line_count()).unwrap())
+                .map(|l| idx.line_start(l))
                 .collect::<Vec<_>>()
         };
         // Deterministic xorshift PRNG — reproducible without a dev-dependency.
@@ -306,10 +305,13 @@ mod tests {
         let mut idx = LineIndex::new(&source);
         for step in 0..5000 {
             let len = source.len();
-            let a = (next() as usize) % (len + 1);
-            let b = a + (next() as usize) % (len - a + 1);
+            // Reduce the u64 PRNG output modulo a small bound in u64, then
+            // convert — the result is < the bound, so it always fits usize.
+            let pick = |bound: usize, r: u64| usize::try_from(r % bound as u64).unwrap();
+            let a = pick(len + 1, next());
+            let b = a + pick(len - a + 1, next());
             // Build an ASCII replacement, newline-heavy (~1 in 3) and 0..6 long.
-            let ins_len = (next() as usize) % 7;
+            let ins_len = pick(7, next());
             let mut ins = String::with_capacity(ins_len);
             for _ in 0..ins_len {
                 ins.push(if next() % 3 == 0 { '\n' } else { 'x' });
@@ -341,11 +343,11 @@ mod tests {
         assert!(starts_eq(&idx, "a\nZ\nb\nc"));
     }
 
-    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn starts_eq(idx: &LineIndex, expected_src: &str) -> bool {
         let want = LineIndex::new(expected_src);
         idx.line_count() == want.line_count()
-            && (0..idx.line_count()).all(|l| idx.line_start(l as u32) == want.line_start(l as u32))
+            && (0..u32::try_from(idx.line_count()).unwrap())
+                .all(|l| idx.line_start(l) == want.line_start(l))
     }
 
     #[test]
