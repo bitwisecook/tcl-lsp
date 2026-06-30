@@ -1629,6 +1629,19 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
                 scan_value_substitutions(inner, ctx, facts);
             }
         }
+        // A `[cmd …]` substitution inside a *plain* value arg also executes in
+        // this value/expression context (`set x [matchclass [HTTP::uri] …]`,
+        // `if {[matchclass [HTTP::uri] …]}`), so its nested effects and edges
+        // propagate too — matching the Python analyser. This worker is reached
+        // only from value/return/expr scanning (plain statements go through the
+        // `Statement::Call` arm, which does *not* propagate, also matching
+        // Python). Braced args are inert (no `Cmd` token inside `{…}`); the
+        // body/expr args handled above are idempotent under a re-scan.
+        for arg in texts {
+            if arg.contains('[') {
+                scan_value_substitutions(arg, caller, known, registry, dialect, facts, params);
+            }
+        }
     }
 }
 
@@ -2546,5 +2559,53 @@ mod tests {
                 caller.calls,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod effect_propagation_tests {
+    use super::*;
+    use crate::lowering::lower_to_ir;
+    use tcl_registry::CommandRegistry;
+    use tcl_registry::dialects::DialectSet;
+
+    fn irules_registry() -> CommandRegistry {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::IRULES);
+        reg
+    }
+
+    /// A `[cmd …]` substitution that executes in a *value / expression* context
+    /// (`set x [matchclass [HTTP::uri] …]`, `if {[…]}`) propagates the nested
+    /// command's connection-state effect up to the enclosing body — matching the
+    /// Python analyser — while the same call as a *plain statement* does not.
+    #[test]
+    fn nested_substitution_effects_propagate_in_value_context_only() {
+        let reg = irules_registry();
+
+        for src in [
+            "proc p {} { set x [matchclass [HTTP::uri] equals $::l] }",
+            "proc p {} { return [matchclass [HTTP::uri] equals $::l] }",
+            "proc p {} { if {[matchclass [HTTP::uri] equals $::l]} {} }",
+        ] {
+            let module = lower_to_ir(src, &reg);
+            let ia = build_interprocedural_analysis(&module, &reg, Some("f5-irules"));
+            let s = ia.procedures.get("::p").expect("proc ::p in IA");
+            assert!(
+                s.effect_reads.contains(EffectRegion::HTTP_STATE),
+                "value-context nested [HTTP::uri] should propagate HTTP_STATE; src={src:?} reads={:?}",
+                s.effect_reads
+            );
+        }
+
+        // Plain statement: nested arg effects are NOT propagated (matches Python).
+        let module = lower_to_ir("proc q {} { matchclass [HTTP::uri] equals $::l }", &reg);
+        let ia = build_interprocedural_analysis(&module, &reg, Some("f5-irules"));
+        let s = ia.procedures.get("::q").expect("proc ::q in IA");
+        assert!(
+            !s.effect_reads.contains(EffectRegion::HTTP_STATE),
+            "plain-statement arg must not propagate HTTP_STATE; reads={:?}",
+            s.effect_reads
+        );
     }
 }
