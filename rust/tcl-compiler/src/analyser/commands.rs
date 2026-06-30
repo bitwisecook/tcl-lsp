@@ -436,6 +436,7 @@ impl Analyser {
         self.handle_set_command(cmd_name, args, arg_tokens, arg_single, scope_path);
         self.handle_var_declaration_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_incr_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_append_lappend_command(cmd_name, args, arg_tokens, scope_path);
         // Local-alias / loop-var bindings: `upvar`, `namespace upvar`, and
         // `dict for/update/with` introduce names visible to completion / hover.
         self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);

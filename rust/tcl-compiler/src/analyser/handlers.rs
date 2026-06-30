@@ -1616,6 +1616,30 @@ impl Analyser {
         }
     }
 
+    /// Handle `append VARNAME ?value ...?` / `lappend VARNAME ?value ...?`.
+    ///
+    /// Both read-modify-write their first argument, creating it if absent, so
+    /// the target is a variable *definition* for symbol/scope purposes — the
+    /// Python analyser records it (it surfaces in `symbols` / completion /
+    /// hover), and the Rust side previously did not. `warn_if_unused = false`
+    /// because the command itself reads the prior value, so an
+    /// `append`/`lappend` target is never "set but never used" (Python emits no
+    /// W211 for it either).
+    pub fn handle_append_lappend_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if !matches!(cmd_name, "append" | "lappend") {
+            return;
+        }
+        if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
+            self.define_var(name, *tok, scope_path, false, None);
+        }
+    }
+
     /// Resolve a command name to the `ProcDef` that implements
     /// it, walking the scope chain from `scope_path` outwards.
     ///
