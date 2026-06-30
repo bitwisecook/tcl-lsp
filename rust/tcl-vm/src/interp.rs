@@ -51,6 +51,29 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
     Err(format!("expected integer but got \"{s}\""))
 }
 
+/// Resolve an `interp limit` option by unambiguous prefix against `opts`,
+/// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
+/// `bad option "X": must be …` error.
+fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
+    let matches: Vec<&str> = opts.iter().copied().filter(|o| o.starts_with(arg)).collect();
+    match matches.as_slice() {
+        [exact] => Ok(exact),
+        _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
+        _ => Err(format!(
+            "bad option \"{arg}\": must be {}",
+            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
+        )),
+    }
+}
+
+/// Parse an `interp limit` integer option value, mirroring `parse_recursion_limit`'s
+/// `expected integer but got "X"` wording.
+fn parse_limit_int(s: &str) -> Result<i64, String> {
+    s.trim()
+        .parse::<i64>()
+        .map_err(|_| format!("expected integer but got \"{s}\""))
+}
+
 /// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
 /// subset of C's `init.tcl`: `auto_load_index` reads each `tclIndex` on
 /// `auto_path` (which sets `auto_index(cmd)` to a `::tcl::Pkg::source <file>`
@@ -274,6 +297,34 @@ pub struct Vm {
     debug_frame: bool,
     /// `interp bgerror` — the background-error handler command prefix.
     bgerror_handler: Value,
+    /// `interp limit` configuration (not enforced — stored for query/set).
+    limits: LimitSet,
+}
+
+/// `interp limit` configuration for one interpreter — the `commands` and `time`
+/// limit types. Stored and queried, but not enforced.
+#[derive(Clone)]
+pub(crate) struct LimitSet {
+    cmd_command: Value,
+    cmd_granularity: i64,
+    cmd_value: Option<i64>,
+    time_command: Value,
+    time_granularity: i64,
+    /// Combined seconds + milliseconds, normalised; `None` when unset.
+    time_value: Option<(i64, i64)>,
+}
+
+impl Default for LimitSet {
+    fn default() -> Self {
+        Self {
+            cmd_command: Value::string(""),
+            cmd_granularity: 1,
+            cmd_value: None,
+            time_command: Value::string(""),
+            time_granularity: 10,
+            time_value: None,
+        }
+    }
 }
 
 /// The command-identity arena backing `Namespaces::find_command` /
@@ -349,6 +400,7 @@ impl Vm {
             interp_counter: 0,
             debug_frame: false,
             bgerror_handler: Value::string("::tcl::Bgerror"),
+            limits: LimitSet::default(),
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
@@ -725,6 +777,134 @@ impl Vm {
         self.bgerror_handler.clone()
     }
 
+    /// `interp limit limitType ?-option value …?` on this interp (query / set;
+    /// not enforced).
+    pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
+        match ltype {
+            "commands" => self.limit_commands(args),
+            "time" => self.limit_time(args),
+            other => Err(format!(
+                "bad limit type \"{other}\": must be commands or time"
+            )),
+        }
+    }
+
+    fn limit_commands(&mut self, args: &[Value]) -> Result<Value, String> {
+        const OPTS: &[&str] = &["-command", "-granularity", "-value"];
+        let l = &self.limits;
+        let query = |opt: &str| match opt {
+            "-command" => l.cmd_command.clone(),
+            "-granularity" => Value::int(l.cmd_granularity),
+            _ => l.cmd_value.map_or_else(|| Value::string(""), Value::int),
+        };
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-command"),
+                l.cmd_command.clone(),
+                Value::string("-granularity"),
+                Value::int(l.cmd_granularity),
+                Value::string("-value"),
+                l.cmd_value.map_or_else(|| Value::string(""), Value::int),
+            ])),
+            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            _ => {
+                for pair in args.chunks(2) {
+                    let opt = resolve_limit_opt(&pair[0].to_str(), OPTS)?;
+                    let val = &pair[1];
+                    match opt {
+                        "-command" => self.limits.cmd_command = val.clone(),
+                        "-granularity" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 1 {
+                                return Err("granularity must be at least 1".into());
+                            }
+                            self.limits.cmd_granularity = n;
+                        }
+                        _ => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("command limit value must be at least 0".into());
+                            }
+                            self.limits.cmd_value = Some(n);
+                        }
+                    }
+                }
+                Ok(Value::string(""))
+            }
+        }
+    }
+
+    fn limit_time(&mut self, args: &[Value]) -> Result<Value, String> {
+        const OPTS: &[&str] = &["-command", "-granularity", "-milliseconds", "-seconds"];
+        let l = &self.limits;
+        let query = |opt: &str| match opt {
+            "-command" => l.time_command.clone(),
+            "-granularity" => Value::int(l.time_granularity),
+            "-seconds" => l
+                .time_value
+                .map_or_else(|| Value::string(""), |(s, _)| Value::int(s)),
+            _ => l
+                .time_value
+                .map_or_else(|| Value::string(""), |(_, m)| Value::int(m)),
+        };
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-command"),
+                l.time_command.clone(),
+                Value::string("-granularity"),
+                Value::int(l.time_granularity),
+                Value::string("-milliseconds"),
+                l.time_value
+                    .map_or_else(|| Value::string(""), |(_, m)| Value::int(m)),
+                Value::string("-seconds"),
+                l.time_value
+                    .map_or_else(|| Value::string(""), |(s, _)| Value::int(s)),
+            ])),
+            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            _ => {
+                let (mut sec, mut ms) = self.limits.time_value.unwrap_or((0, 0));
+                let mut touched = self.limits.time_value.is_some();
+                for pair in args.chunks(2) {
+                    let opt = resolve_limit_opt(&pair[0].to_str(), OPTS)?;
+                    let val = &pair[1];
+                    match opt {
+                        "-command" => self.limits.time_command = val.clone(),
+                        "-granularity" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 1 {
+                                return Err("granularity must be at least 1".into());
+                            }
+                            self.limits.time_granularity = n;
+                        }
+                        "-seconds" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("seconds must be non-negative".into());
+                            }
+                            sec = n;
+                            touched = true;
+                        }
+                        _ => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("milliseconds must be non-negative".into());
+                            }
+                            ms = n;
+                            touched = true;
+                        }
+                    }
+                }
+                if touched {
+                    // Normalise excess milliseconds into seconds.
+                    sec += ms.div_euclid(1000);
+                    ms = ms.rem_euclid(1000);
+                    self.limits.time_value = Some((sec, ms));
+                }
+                Ok(Value::string(""))
+            }
+        }
+    }
+
     /// Sorted names of this interp's direct children (`interp children`).
     pub(crate) fn child_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.children.keys().cloned().collect();
@@ -1087,9 +1267,26 @@ impl Vm {
             "recursionlimit" => err(format!(
                 "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
             )),
+            "limit" => {
+                let (ltype, opts) = match rest {
+                    [ltype, opts @ ..] => (ltype.to_str(), opts),
+                    _ => {
+                        return err(format!(
+                            "wrong # args: should be \"{name} limit limitType ?-option value ...?\""
+                        ));
+                    }
+                };
+                match self.children.get_mut(name) {
+                    Some(child) => match child.limit_apply(&ltype, opts) {
+                        Ok(v) => ok(v),
+                        Err(m) => err(m),
+                    },
+                    None => err(format!("could not find interpreter \"{name}\"")),
+                }
+            }
             other => err(format!(
                 "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
-                 expose, hide, hidden, issafe, invokehidden, marktrusted, \
+                 expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
                  recursionlimit, or transfer"
             )),
         }
