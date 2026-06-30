@@ -380,6 +380,21 @@ export async function activate(context: ExtensionContext) {
                     }
                   }
                 }
+                // `diagnostics.genericVariablePatterns` defaults to `[]`, but the
+                // server distinguishes "absent → built-in IRULE4002 patterns"
+                // from "explicit empty list → disable the check". Drop the empty
+                // default so an unconfigured workspace keeps the defaults (the
+                // JetBrains client omits it the same way).
+                const diagnostics = settings.diagnostics;
+                if (diagnostics && typeof diagnostics === "object") {
+                  const diag = diagnostics as Record<string, unknown>;
+                  if (
+                    Array.isArray(diag.genericVariablePatterns) &&
+                    diag.genericVariablePatterns.length === 0
+                  ) {
+                    delete diag.genericVariablePatterns;
+                  }
+                }
               }
             }
           }

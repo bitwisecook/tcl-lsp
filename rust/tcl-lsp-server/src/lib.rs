@@ -250,6 +250,11 @@ struct DiagInputs {
     disabled: HashSet<String>,
     /// `tclLsp.extraCommands` — names treated as known by W123.
     extra_commands: HashSet<String>,
+    /// `tclLsp.diagnostics.genericVariablePatterns` — IRULE4002 generic-name
+    /// patterns (`None` → default set, `Some` → replace). Only consulted on the
+    /// no-salsa-input uncached fallback; the memoised path reads them off the
+    /// salsa `AnalyserConfig`.
+    generic_variable_patterns: Option<Vec<String>>,
     non_ascii_mode: NonAsciiMode,
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
@@ -379,6 +384,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         registry,
         disabled,
         extra_commands,
+        generic_variable_patterns,
         non_ascii_mode,
         optimiser_enabled,
         opt_disabled,
@@ -526,7 +532,10 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = if let Some(file) = file {
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::compiler_check_diagnostics(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+            })
+            .ok()
         })
         .await
         {
@@ -547,11 +556,13 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     } else {
         let (c_text, c_dialect) = (text.clone(), dialect.clone());
         let c_registry = Arc::clone(&registry);
+        let c_generic = generic_variable_patterns.clone();
         tokio::task::spawn_blocking(move || {
             Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
                 &c_registry,
                 &c_dialect,
+                c_generic.as_deref(),
             ))
         })
         .await
@@ -769,6 +780,12 @@ pub struct Backend {
     /// known by the unknown-command (W123) check. Mirrors the Python
     /// `extra_commands` setting; mirrored onto the salsa `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// Generic `static::` variable-name patterns for IRULE4002
+    /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
+    /// default set; `Some(list)` replaces it (an empty list disables the check).
+    /// Mirrors the Python `generic_variable_patterns` setting; mirrored onto the
+    /// salsa `AnalyserConfig`.
+    generic_variable_patterns: Mutex<Option<Vec<String>>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -1008,8 +1025,13 @@ impl Backend {
     #[must_use]
     pub fn new(client: Client) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config =
-            tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let db_config = tcl_lsp_db::AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+        );
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -1026,6 +1048,7 @@ impl Backend {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            generic_variable_patterns: Mutex::new(None),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             shimmer_enabled: Mutex::new(true),
@@ -1204,11 +1227,13 @@ impl Backend {
         disabled.sort();
         let mode = *self.non_ascii_mode.lock().await;
         let extra = self.extra_commands.lock().await.clone();
+        let generic = self.generic_variable_patterns.lock().await.clone();
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
         config.set_extra_commands(&mut *db).to(extra);
+        config.set_generic_variable_patterns(&mut *db).to(generic);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -2760,6 +2785,23 @@ impl Backend {
                 .collect();
             *self.extra_commands.lock().await = extra;
         }
+        // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
+        // IRULE4002 generic-name set (an explicit empty list disables the
+        // check; an absent key leaves the default). Mirrors the Python
+        // `genericVariablePatterns` handling in `server/settings.py`.
+        if let Some(patterns) = cfg
+            .get("diagnostics")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|d| d.get("genericVariablePatterns"))
+            .and_then(serde_json::Value::as_array)
+        {
+            let patterns: Vec<String> = patterns
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            *self.generic_variable_patterns.lock().await = Some(patterns);
+        }
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
         // so re-wrap before reusing them for the W108 mode + disabled codes.
@@ -2795,6 +2837,8 @@ impl Backend {
             // Folder handles inherit the process-global extra-commands set
             // (`tclLsp.extraCommands` has no per-folder override).
             let global_extra = self.extra_commands.lock().await.clone();
+            // Likewise `tclLsp.diagnostics.genericVariablePatterns` is global.
+            let global_generic = self.generic_variable_patterns.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
@@ -2812,10 +2856,18 @@ impl Backend {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
                     handle.set_extra_commands(&mut *db).to(global_extra.clone());
+                    handle
+                        .set_generic_variable_patterns(&mut *db)
+                        .to(global_generic.clone());
                     next.push((folder.clone(), *handle));
                 } else {
-                    let handle =
-                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, global_extra.clone());
+                    let handle = tcl_lsp_db::AnalyserConfig::new(
+                        &*db,
+                        disabled,
+                        mode,
+                        global_extra.clone(),
+                        global_generic.clone(),
+                    );
                     next.push((folder.clone(), handle));
                 }
             }
@@ -3188,11 +3240,13 @@ impl Backend {
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let extra_commands = self.extra_commands.lock().await.iter().cloned().collect();
+        let generic_variable_patterns = self.generic_variable_patterns.lock().await.clone();
         DiagInputs {
             client: self.client.clone(),
             registry,
             disabled,
             extra_commands,
+            generic_variable_patterns,
             non_ascii_mode,
             optimiser_enabled,
             opt_disabled,
@@ -3278,8 +3332,14 @@ impl Backend {
         let compiler_diags = {
             let (c_text, c_dialect, c_registry) =
                 (text.clone(), dialect.clone(), Arc::clone(&registry));
+            let c_generic = self.generic_variable_patterns.lock().await.clone();
             tokio::task::spawn_blocking(move || {
-                tcl_lsp_db::compiler_check_diagnostics_uncached(&c_text, &c_registry, &c_dialect)
+                tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &c_text,
+                    &c_registry,
+                    &c_dialect,
+                    c_generic.as_deref(),
+                )
             })
             .await
             .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
@@ -5400,6 +5460,9 @@ impl LanguageServer for Backend {
             .collect();
         let dialect = doc.dialect.clone();
         let uri_str = uri.as_str().to_string();
+        // IRULE4002 generic-name patterns for the iRules-only compiler-checks
+        // code-action lowering below (uncached, off the salsa path).
+        let generic_patterns = self.generic_variable_patterns.lock().await.clone();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -5429,8 +5492,12 @@ impl LanguageServer for Backend {
                 {
                     actions.push(a);
                 }
-                let checks =
-                    tcl_lsp_db::compiler_check_diagnostics_uncached(&doc.text, &registry, &dialect);
+                let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &doc.text,
+                    &registry,
+                    &dialect,
+                    generic_patterns.as_deref(),
+                );
                 actions.extend(core_code_actions::check_diagnostic_actions(
                     &doc.text,
                     range,
@@ -7649,6 +7716,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn generic_variable_patterns_apply_through_global_config() {
+        let backend = test_backend();
+        // Default: unset (built-in IRULE4002 pattern set).
+        assert!(backend.generic_variable_patterns.lock().await.is_none());
+        // `tclLsp.diagnostics.genericVariablePatterns` replaces the default set.
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "genericVariablePatterns": ["^myapp_"] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.generic_variable_patterns.lock().await,
+            Some(vec!["^myapp_".to_owned()]),
+        );
+        // The salsa `AnalyserConfig` input mirrors the value.
+        {
+            let db = backend.db.lock().await;
+            let cfg = *backend.db_config.lock().await;
+            assert_eq!(
+                cfg.generic_variable_patterns(&*db).as_deref(),
+                Some(["^myapp_".to_owned()].as_slice()),
+            );
+        }
+        // An explicit empty list disables the check (Some(empty), not None).
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "genericVariablePatterns": [] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.generic_variable_patterns.lock().await,
+            Some(Vec::new()),
+        );
+    }
+
+    #[tokio::test]
     async fn config_file_settings_apply_through_global_config() {
         // A `config.ini`-shaped file, read and applied through the same path as
         // editor settings, takes effect.
@@ -7843,7 +7946,7 @@ mod tests {
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let diags = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -7868,7 +7971,7 @@ mod tests {
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
         let off = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             false,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -7883,7 +7986,7 @@ mod tests {
         disabled.insert("O100".to_string());
         let per_code = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             true,
             &disabled,
             &std::collections::HashSet::new(),
@@ -7903,7 +8006,8 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let cdiags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
         let diags = lift_compiler_diagnostics(
             src,
             &cdiags,
@@ -7931,7 +8035,8 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let cdiags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
         let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
@@ -9155,8 +9260,13 @@ mod tests {
     fn test_backend() -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config =
-            tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let db_config = tcl_lsp_db::AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+        );
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -9173,6 +9283,7 @@ mod tests {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            generic_variable_patterns: Mutex::new(None),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             shimmer_enabled: Mutex::new(true),

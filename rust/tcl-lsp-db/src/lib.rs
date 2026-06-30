@@ -136,6 +136,12 @@ pub struct AnalyserConfig {
     /// known by the unknown-command (W123) check.
     #[returns(ref)]
     pub extra_commands: Vec<String>,
+    /// Generic `static::` variable-name patterns for IRULE4002
+    /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` selects the
+    /// built-in default set; `Some(list)` replaces it (an empty list disables
+    /// the check) — mirroring Python's `genericVariablePatterns` semantics.
+    #[returns(ref)]
+    pub generic_variable_patterns: Option<Vec<String>>,
 }
 
 /// Whole-file analysis — the `AnalysisResult` every feature provider already
@@ -1288,9 +1294,15 @@ fn compiler_diagnostics_from_unit(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     dialect_opt: Option<&str>,
+    generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
     CompilerDiagnostics {
-        checks: tcl_compiler::compiler_checks::run_all_checks(cu, registry, dialect_opt),
+        checks: tcl_compiler::compiler_checks::run_all_checks_with_generic_patterns(
+            cu,
+            registry,
+            dialect_opt,
+            generic_patterns,
+        ),
         optimisations: tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt),
     }
 }
@@ -1303,7 +1315,11 @@ fn compiler_diagnostics_from_unit(
 /// never cross-pollute.  Byte-identical to the former direct
 /// `lift_compiler_diagnostics` build.
 #[salsa::tracked]
-pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<CompilerDiagnostics> {
+pub fn compiler_check_diagnostics(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
@@ -1324,11 +1340,13 @@ pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<Compi
     // unchanged.
     let solve = proc_taint_solve(db, file, cfg_key);
     let mut checks = solve.fn_checks.clone();
+    let generic_patterns = config.generic_variable_patterns(db).as_deref();
     tcl_compiler::compiler_checks::push_taint_and_module_checks(
         &cu,
         &registry,
         dialect_opt,
         &solve.taints,
+        generic_patterns,
         &mut checks,
     );
     tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
@@ -1346,6 +1364,7 @@ pub fn compiler_check_diagnostics_uncached(
     text: &str,
     registry: &CommandRegistry,
     dialect: &str,
+    generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     let cu = CompilationUnit::build_for_with_config(
@@ -1355,7 +1374,7 @@ pub fn compiler_check_diagnostics_uncached(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     )
     .with_interprocedural(registry, dialect_opt);
-    compiler_diagnostics_from_unit(&cu, registry, dialect_opt)
+    compiler_diagnostics_from_unit(&cu, registry, dialect_opt, generic_patterns)
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
@@ -1390,7 +1409,7 @@ mod tests {
     use super::*;
 
     fn cfg(db: &TclDatabase) -> AnalyserConfig {
-        AnalyserConfig::new(db, Vec::new(), NonAsciiMode::Default, Vec::new())
+        AnalyserConfig::new(db, Vec::new(), NonAsciiMode::Default, Vec::new(), None)
     }
 
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
@@ -1534,7 +1553,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let file = SourceFile::new(
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
@@ -1586,7 +1605,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let file = SourceFile::new(
             &db,
             "oo::class create K {\n  method a {} { set x 11111 }\n  method b {} { set y 22222 }\n}\n"
@@ -1636,9 +1655,13 @@ mod tests {
             ("when HTTP_REQUEST { set u [HTTP::uri] }\n", "f5-irules"),
         ] {
             let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
-            let got = compiler_check_diagnostics(&db, file);
+            let got = compiler_check_diagnostics(
+                &db,
+                file,
+                AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+            );
             let registry = db.registry(dialect);
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
             assert_eq!(
                 got.checks, want.checks,
                 "checks differ for ({dialect}):\n{src}"
@@ -1690,8 +1713,12 @@ mod tests {
         let file = SourceFile::new(&db, versions[0].to_owned(), dialect.to_owned());
         for src in versions {
             file.set_text(&mut db).to(src.to_owned());
-            let got = compiler_check_diagnostics(&db, file);
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect);
+            let got = compiler_check_diagnostics(
+                &db,
+                file,
+                AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+            );
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
             assert_eq!(
                 got.checks, want.checks,
                 "cascade checks diverge after edit to:\n{src}"
@@ -1740,7 +1767,11 @@ mod tests {
                 .to_owned(),
             "tcl8.6".to_owned(),
         );
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(
+            &db,
+            file,
+            AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+        );
         assert_eq!(
             cascades(&log),
             3,
@@ -1753,7 +1784,11 @@ mod tests {
              proc b {} { set y 99999999 }\n\
              proc c {} { set z 33333 }\n"
             .to_owned());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(
+            &db,
+            file,
+            AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+        );
         assert_eq!(
             cascades(&log),
             1,
@@ -1798,7 +1833,11 @@ mod tests {
                 .to_owned(),
             "tcl8.6".to_owned(),
         );
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(
+            &db,
+            file,
+            AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+        );
         assert_eq!(
             summaries(&log),
             3,
@@ -1811,7 +1850,11 @@ mod tests {
              proc b {} { set y 99999999 }\n\
              proc c {} { set z 33333 }\n"
             .to_owned());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(
+            &db,
+            file,
+            AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None),
+        );
         assert_eq!(
             summaries(&log),
             1,
@@ -1987,7 +2030,7 @@ mod tests {
     #[test]
     fn project_diagnostics_suppresses_cross_file_w123() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let a = SourceFile::new(&db, "helper foo bar\n".to_owned(), "tcl8.6".to_owned());
         let b = SourceFile::new(
             &db,
@@ -2036,7 +2079,7 @@ mod tests {
         ];
         let mk = |b_text: &str| -> Vec<(String, u32, u32, String)> {
             let db = TclDatabase::default();
-            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
             let project = Project::new(&db, vec![a, b]);
@@ -2044,7 +2087,7 @@ mod tests {
         };
 
         let mut db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
         let project = Project::new(&db, vec![a, b]);
@@ -2095,7 +2138,7 @@ mod tests {
         ];
         let mk = |a_text: &str, b_text: &str| -> Vec<(String, u32, u32, String)> {
             let db = TclDatabase::default();
-            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
             let project = Project::new(&db, vec![a, b]);
@@ -2103,7 +2146,7 @@ mod tests {
         };
 
         let mut db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned());
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
         let project = Project::new(&db, vec![a, b]);
@@ -2142,7 +2185,7 @@ mod tests {
     #[test]
     fn project_diagnostics_emits_cross_file_arity() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // B defines `proc helper {x y}` — arity exactly 2.
         let b = SourceFile::new(
             &db,
@@ -2190,7 +2233,7 @@ mod tests {
     #[test]
     fn cross_file_arity_suppressed_for_mixed_proc_nonproc_tail() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
         let b = SourceFile::new(
             &db,
@@ -2249,7 +2292,7 @@ mod tests {
         };
 
         // E003 enabled (default): wrong arity surfaces as E003, W123 suppressed.
-        let cfg_on = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg_on = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
         assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
         assert!(!has(&d_on, "W123"), "baseline: W123 suppressed (resolved)");
@@ -2261,6 +2304,7 @@ mod tests {
             vec!["E003".to_owned()],
             NonAsciiMode::Default,
             Vec::new(),
+            None,
         );
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
         assert!(
@@ -2296,6 +2340,7 @@ mod tests {
             vec!["W123".to_owned()],
             NonAsciiMode::Default,
             Vec::new(),
+            None,
         );
 
         // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
@@ -2340,7 +2385,7 @@ mod tests {
                 .any(|d| d.code.as_str() == "W123")
         };
         // Baseline: unknown command → W123.
-        let base = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let base = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         assert!(has_w123(base), "baseline W123 expected");
         // With the command declared extra → suppressed.
         let cfg = AnalyserConfig::new(
@@ -2348,6 +2393,7 @@ mod tests {
             Vec::new(),
             NonAsciiMode::Default,
             vec!["mylibsend".to_owned()],
+            None,
         );
         assert!(!has_w123(cfg), "extraCommands should suppress W123");
     }
@@ -2358,7 +2404,7 @@ mod tests {
     #[test]
     fn project_diagnostics_resolves_cross_file_class() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // B defines a TclOO class `Widget`.
         let b = SourceFile::new(
             &db,
@@ -2389,7 +2435,7 @@ mod tests {
     #[test]
     fn cross_file_arity_edge_cases() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let b = SourceFile::new(
             &db,
             "proc two {a b} {}\nproc opt {a {b 1}} {}\nproc variadic {a args} {}\nproc none {} {}\n"
@@ -2453,7 +2499,7 @@ mod tests {
     #[test]
     fn cross_file_arity_skips_expanded_call() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let b = SourceFile::new(&db, "proc two {a b} {}\n".to_owned(), "tcl8.6".to_owned());
         // `two {*}$lst` — one literal word, `{*}`-expanded → runtime arity unknown.
         let a = SourceFile::new(
@@ -2482,7 +2528,7 @@ mod tests {
     #[test]
     fn cross_file_arity_in_command_substitution() {
         let db = TclDatabase::default();
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let b = SourceFile::new(
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
@@ -2531,7 +2577,7 @@ mod tests {
         let src = "namespace eval ::a { proc x {p} { set q $p; return $q } }\n\
                    namespace eval ::b { proc x {p} { set q $p; return $q } }\n\
                    proc top {} { set z 1 }\n";
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
         let _ = file_analysis_incremental(&db, file, cfg);
         log.lock().unwrap().clear();
@@ -2569,7 +2615,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let file = SourceFile::new(
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
@@ -2623,7 +2669,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
         let file = SourceFile::new(
             &db,
@@ -2635,7 +2681,7 @@ mod tests {
             "tcl8.6".to_owned(),
         );
         let _ = file_analysis_incremental(&db, file, cfg);
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg);
         log.lock().unwrap().clear();
 
         // Length-changing body edit to ONE procedure (`b`); a/c/d shift but their
@@ -2646,7 +2692,7 @@ mod tests {
              proc d {} { set w 44444 }\n"
             .to_owned());
         let _ = file_analysis_incremental(&db, file, cfg);
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg);
         let after = std::mem::take(&mut *log.lock().unwrap());
         let count = |q: &str| after.iter().filter(|s| s.contains(q)).count();
 
@@ -2701,7 +2747,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // `other` first so editing it shifts the two below; `target` takes a
         // param `caller` always passes the literal `42` for -> param_constants.
         let file = SourceFile::new(
@@ -2770,7 +2816,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";
         let count_cu = |log: &Arc<Mutex<Vec<String>>>| {
             std::mem::take(&mut *log.lock().unwrap())
@@ -2782,7 +2828,7 @@ mod tests {
         // tcl8.6: default == for_dialect, so the two consumers share one build.
         let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
         let _ = file_analysis_incremental(&db, file86, cfg);
-        let _ = compiler_check_diagnostics(&db, file86);
+        let _ = compiler_check_diagnostics(&db, file86, cfg);
         assert_eq!(
             count_cu(&log),
             1,
@@ -2793,7 +2839,7 @@ mod tests {
         // and each consumer builds its own unit (two executions).
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned());
         let _ = file_analysis_incremental(&db, file84, cfg);
-        let _ = compiler_check_diagnostics(&db, file84);
+        let _ = compiler_check_diagnostics(&db, file84, cfg);
         assert_eq!(
             count_cu(&log),
             2,
@@ -2805,7 +2851,7 @@ mod tests {
             .set_text(&mut db)
             .to("proc a {x} { return $x }\nproc b {} { a 2 }\n".to_owned());
         let _ = file_analysis_incremental(&db, file86, cfg);
-        let _ = compiler_check_diagnostics(&db, file86);
+        let _ = compiler_check_diagnostics(&db, file86, cfg);
         assert_eq!(
             count_cu(&log),
             1,

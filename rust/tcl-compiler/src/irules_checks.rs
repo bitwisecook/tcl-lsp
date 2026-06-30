@@ -1207,81 +1207,86 @@ pub fn find_hoistable_set_warnings(
 // IRULE4002 — generic `static::` variable name that will collide
 //
 // Walks every `::when::` CFG body for statements that define a
-// `static::` variable and flags bare names matching a fixed set of
-// generic patterns. Deduplicated across events — the first occurrence's
-// span wins. Custom user patterns are not plumbed here (the analyser
-// uses the default set).
+// `static::` variable and flags bare names matching a set of generic
+// regex patterns. Deduplicated across events — the first occurrence's
+// span wins. The pattern set is configurable (`tclLsp.diagnostics.
+// genericVariablePatterns`): pass `None` for the built-in default set,
+// `Some(&[])` to disable the check, or `Some(custom)` to replace the
+// defaults — a faithful port of Python's `genericVariablePatterns`.
 
-/// Lowercased bare names considered generic. Every generic-name pattern
-/// is fully `^…$`-anchored over a finite alternation, so the regex
-/// `search` over the lowercased bare name is equivalent to exact
-/// membership in this set.
-const GENERIC_STATIC_NAMES: &[&str] = &[
+/// Default generic `static::` variable-name patterns — a faithful port of
+/// Python's `DEFAULT_GENERIC_VARIABLE_PATTERNS`
+/// (`compiler/irules_static_names.py`). Each is matched case-insensitively
+/// (the bare name is lowercased) against the part after the `static::`
+/// prefix. A user-supplied list replaces this set wholesale.
+pub const DEFAULT_GENERIC_VARIABLE_PATTERNS: &[&str] = &[
     // Debug / logging
-    "debug",
-    "debug_level",
-    "debug_enabled",
-    "dbg",
-    "log_level",
-    "log_server",
-    "log_enabled",
-    "logging",
-    "verbose",
-    "trace",
+    r"^debug(_level|_enabled)?$",
+    r"^dbg$",
+    r"^log_(level|server|enabled)$",
+    r"^logging$",
+    r"^verbose$",
+    r"^trace$",
     // Configuration
-    "timeout",
-    "response_timeout",
-    "retry",
-    "retries",
-    "max_retry",
-    "max_retries",
-    "config",
-    "enabled",
-    "disabled",
-    "active",
-    "mode",
-    "port",
-    "host",
-    "server",
-    "pool",
+    r"^(response_)?timeout$",
+    r"^(max_)?retr(y|ies)$",
+    r"^config$",
+    r"^(enabled|disabled|active)$",
+    r"^mode$",
+    r"^(port|host|server|pool)$",
     // Counters / limits
-    "count",
-    "counter",
-    "limit",
-    "max_connections",
-    "threshold",
-    "rate",
-    "interval",
+    r"^count(er)?$",
+    r"^(limit|max_connections|threshold|rate|interval)$",
     // Generic state
-    "flag",
-    "level",
-    "status",
-    "state",
-    "version",
-    "name",
-    "value",
-    "data",
-    "result",
-    "test",
-    "init",
-    "default",
+    r"^(flag|level|status|state|version|name|value|data|result|test|init|default)$",
 ];
 
-/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
-/// generic when its lowercased bare name is in [`GENERIC_STATIC_NAMES`].
-fn is_generic_static_name(var_name: &str) -> bool {
-    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
-    GENERIC_STATIC_NAMES.contains(&bare.to_ascii_lowercase().as_str())
+/// Compile the generic-name patterns for IRULE4002. `None` selects the
+/// built-in [`DEFAULT_GENERIC_VARIABLE_PATTERNS`]; `Some(custom)` uses the
+/// caller's list verbatim (an empty slice compiles to no patterns, which
+/// disables the check). Invalid regexes are skipped — matching Python's
+/// `re.error` swallow in `get_generic_patterns`.
+fn compile_generic_patterns(patterns: Option<&[String]>) -> Vec<regex::Regex> {
+    let build = |src: &str| {
+        regex::RegexBuilder::new(src)
+            .case_insensitive(true)
+            .build()
+            .ok()
+    };
+    match patterns {
+        None => DEFAULT_GENERIC_VARIABLE_PATTERNS
+            .iter()
+            .filter_map(|p| build(p))
+            .collect(),
+        Some(pats) => pats.iter().filter_map(|p| build(p)).collect(),
+    }
 }
 
-/// Generic-static-name warnings for IRULE4002.
+/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
+/// generic when its lowercased bare name matches any `compiled` pattern.
+fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
+    let bare = var_name
+        .strip_prefix("static::")
+        .unwrap_or(var_name)
+        .to_ascii_lowercase();
+    compiled.iter().any(|re| re.is_match(&bare))
+}
+
+/// Generic-static-name warnings for IRULE4002. `generic_patterns` follows the
+/// [`compile_generic_patterns`] convention (`None` → default set, `Some(&[])`
+/// → disabled, `Some(custom)` → replace defaults).
 #[must_use]
 pub fn find_generic_static_name_warnings(
     cu: &CompilationUnit,
     dialect: Option<&str>,
+    generic_patterns: Option<&[String]>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
     if !is_irules_dialect(dialect) {
+        return out;
+    }
+    let compiled = compile_generic_patterns(generic_patterns);
+    if compiled.is_empty() {
         return out;
     }
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -1299,11 +1304,11 @@ pub fn find_generic_static_name_warnings(
                     Statement::AssignConst { name, .. }
                     | Statement::AssignValue { name, .. }
                     | Statement::Incr { name, .. } => {
-                        check_generic_static(name, span, &mut seen, &mut out);
+                        check_generic_static(name, span, &compiled, &mut seen, &mut out);
                     }
                     Statement::Call { defs, .. } => {
                         for name in defs {
-                            check_generic_static(name, span, &mut seen, &mut out);
+                            check_generic_static(name, span, &compiled, &mut seen, &mut out);
                         }
                     }
                     _ => {}
@@ -1317,6 +1322,7 @@ pub fn find_generic_static_name_warnings(
 fn check_generic_static(
     var_name: &str,
     span: Span,
+    compiled: &[regex::Regex],
     seen: &mut std::collections::HashSet<String>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
@@ -1326,7 +1332,7 @@ fn check_generic_static(
     if seen.contains(var_name) {
         return;
     }
-    if !is_generic_static_name(var_name) {
+    if !is_generic_static_name(var_name, compiled) {
         return;
     }
     seen.insert(var_name.to_owned());
@@ -2115,7 +2121,12 @@ mod tests {
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some("f5-irules"))
+        find_generic_static_name_warnings(&cu, Some("f5-irules"), None)
+    }
+
+    fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_generic_static_name_warnings(&cu, Some("f5-irules"), Some(patterns))
     }
 
     #[test]
@@ -2156,15 +2167,43 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(find_generic_static_name_warnings(&cu, None).is_empty());
+        assert!(find_generic_static_name_warnings(&cu, None, None).is_empty());
     }
 
     #[test]
     fn is_generic_static_name_matches_default_set() {
-        assert!(is_generic_static_name("static::debug"));
-        assert!(is_generic_static_name("static::DEBUG"));
-        assert!(is_generic_static_name("static::max_retries"));
-        assert!(!is_generic_static_name("static::myapp_token"));
-        assert!(!is_generic_static_name("static::debugger"));
+        let compiled = compile_generic_patterns(None);
+        assert!(is_generic_static_name("static::debug", &compiled));
+        assert!(is_generic_static_name("static::DEBUG", &compiled));
+        assert!(is_generic_static_name("static::max_retries", &compiled));
+        assert!(!is_generic_static_name("static::myapp_token", &compiled));
+        assert!(!is_generic_static_name("static::debugger", &compiled));
+    }
+
+    #[test]
+    fn irule4002_custom_patterns_replace_defaults() {
+        // A custom pattern set replaces the defaults wholesale: `myapp_token`
+        // now fires, while the previously-generic `debug` goes quiet.
+        let patterns = vec![r"^myapp_".to_owned()];
+        let ws = generic_warnings_with("when RULE_INIT { set static::myapp_token 1 }", &patterns);
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule4002),
+            "expected IRULE4002 for static::myapp_token under custom patterns, got {ws:?}",
+        );
+        let quiet = generic_warnings_with("when RULE_INIT { set static::debug 1 }", &patterns);
+        assert!(
+            !quiet.iter().any(|w| w.code == DiagCode::Irule4002),
+            "static::debug should be quiet once defaults are replaced, got {quiet:?}",
+        );
+    }
+
+    #[test]
+    fn irule4002_empty_patterns_disable_check() {
+        // An explicit empty pattern list disables IRULE4002 entirely.
+        let ws = generic_warnings_with("when RULE_INIT { set static::debug 1 }", &[]);
+        assert!(
+            ws.iter().all(|w| w.code != DiagCode::Irule4002),
+            "empty pattern list should disable IRULE4002, got {ws:?}",
+        );
     }
 }

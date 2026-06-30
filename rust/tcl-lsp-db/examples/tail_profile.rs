@@ -69,10 +69,11 @@ fn main() {
         Vec::new(),
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
+        None,
     );
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
     let _ = file_analysis_incremental(&db, file, cfg);
-    let _ = compiler_check_diagnostics(&db, file);
+    let _ = compiler_check_diagnostics(&db, file, cfg);
 
     let edit_pos = src.find("\n    ").map_or(src.len() / 2, |p| p + 5);
     let mut edited = src.clone();
@@ -89,7 +90,7 @@ fn main() {
         t2 = !t2;
         file.set_text(&mut db)
             .to(if t2 { edited.clone() } else { src.clone() });
-        compiler_check_diagnostics(&db, file)
+        compiler_check_diagnostics(&db, file, cfg)
     });
     // Production shape: the server demands BOTH queries after one didChange, so
     // the shared `compilation_unit` build is paid once per edit (the second
@@ -100,7 +101,7 @@ fn main() {
         file.set_text(&mut db)
             .to(if t3 { edited.clone() } else { src.clone() });
         let a = file_analysis_incremental(&db, file, cfg);
-        let c = compiler_check_diagnostics(&db, file);
+        let c = compiler_check_diagnostics(&db, file, cfg);
         (a, c)
     });
 
@@ -159,7 +160,7 @@ fn main() {
         // Warm the shared build (populates function_lattice / taint_cascade) on the
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
         file.set_text(&mut db).to(edited.clone());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg);
         let dup = time("memoised_compilation_unit (2nd build, warm)", 5, || {
             tcl_lsp_db::memoised_compilation_unit(
                 &db,
@@ -196,10 +197,11 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
         Vec::new(),
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
+        None,
     );
     let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
     let _ = file_analysis_incremental(&db, file, cfg);
-    let _ = compiler_check_diagnostics(&db, file);
+    let _ = compiler_check_diagnostics(&db, file, cfg);
     let cold: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
     // A single-character body edit that changes a *token* (a letter inserted after
     // the first alphanumeric character of the largest proc body) — not whitespace,
@@ -223,7 +225,7 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
     edited_tok.insert(body_pos, 'Z');
     file.set_text(&mut db).to(edited_tok);
     let _ = file_analysis_incremental(&db, file, cfg);
-    let _ = compiler_check_diagnostics(&db, file);
+    let _ = compiler_check_diagnostics(&db, file, cfg);
     let warm: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
     let row = |q: &str| {
         let c = cold.iter().filter(|s| s.contains(q)).count();

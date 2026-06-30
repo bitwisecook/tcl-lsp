@@ -19,6 +19,7 @@ bitflags = "2"
 thiserror = "2.0"
 unicode-general-category = "1.1.0"
 rustc-hash = { workspace = true }
+regex = "1"
 
 [lints]
 workspace = true
