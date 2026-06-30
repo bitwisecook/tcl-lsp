@@ -70,8 +70,15 @@ fn run() -> i32 {
     // guards on `::tcltest` not already existing — which it does here — so the
     // driver performs the import the file would otherwise do.
     let registry = CommandRegistry::build_default();
-    let src =
-        format!("source {tcltest}\nnamespace import -force ::tcltest::*\nsource {testfile}\n");
+    // Optionally source the backend-constraint overlay (after tcltest, before
+    // the test file) so tests the running backend cannot support are skipped.
+    let overlay = match std::env::var("TCL_BACKEND_CONSTRAINTS") {
+        Ok(p) if !p.is_empty() => format!("source {p}\n"),
+        _ => String::new(),
+    };
+    let src = format!(
+        "source {tcltest}\nnamespace import -force ::tcltest::*\n{overlay}source {testfile}\n"
+    );
     let ir = lower_to_ir(&src, &registry);
     let cfg = build_cfg(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
