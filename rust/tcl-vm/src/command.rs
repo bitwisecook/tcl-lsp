@@ -434,12 +434,10 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
         i += 1;
     }
-    if let Some(ref n) = name {
-        if vm.child_exists(n) {
-            return err(format!(
-                "interpreter named \"{n}\" already exists, cannot create"
-            ));
-        }
+    if let Some(n) = name.as_ref().filter(|n| vm.child_exists(n)) {
+        return err(format!(
+            "interpreter named \"{n}\" already exists, cannot create"
+        ));
     }
     ok(Value::string(vm.create_child(name, safe)))
 }
@@ -463,6 +461,80 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Ok(n) => ok(Value::int(n)),
         Err(m) => err(m),
     }
+}
+
+/// `interp hidden ?path?` — the hidden-command names of the current or named
+/// interp.
+fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let path = rest
+        .first()
+        .map(|v| v.to_str().to_string())
+        .unwrap_or_default();
+    let names = if path.is_empty() {
+        vm.own_hidden_names()
+    } else {
+        match vm.child_hidden_names(&path) {
+            Some(n) => n,
+            None => return err(format!("could not find interpreter \"{path}\"")),
+        }
+    };
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
+/// `interp hide|expose path cmd` — move a command between the (current or
+/// child) interp's visible and hidden tables.
+fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Value> {
+    let [path, cmd] = rest else {
+        return err("wrong # args: should be \"interp hide path cmdName\"");
+    };
+    let p = path.to_str();
+    let c = cmd.to_str();
+    if p.is_empty() {
+        if hide {
+            if let Some(command) = vm.take_command(&c) {
+                vm.hide_own_command(&c, command);
+            }
+        } else {
+            vm.expose_own_command(&c);
+        }
+        ok(Value::empty())
+    } else if vm.child_hide(&p, &c, hide) {
+        ok(Value::empty())
+    } else {
+        err(format!("could not find interpreter \"{p}\""))
+    }
+}
+
+/// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
+/// hidden command in the named child.
+fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let usage =
+        "wrong # args: should be \"interp invokehidden path ?-namespace ns? ?--? cmd ?arg ..?\"";
+    let [path, tail @ ..] = rest else {
+        return err(usage);
+    };
+    if tail.is_empty() {
+        return err(usage);
+    }
+    // Skip the option flags we don't model (`-namespace ns`, `--`).
+    let mut i = 0;
+    while i < tail.len() {
+        match &*tail[i].to_str() {
+            "-namespace" => i += 2,
+            "--" => {
+                i += 1;
+                break;
+            }
+            s if s.starts_with('-') => i += 1,
+            _ => break,
+        }
+    }
+    let Some(cmd) = tail.get(i) else {
+        return err(usage);
+    };
+    let p = path.to_str();
+    vm.invoke_hidden_in_child(&p, &cmd.to_str(), &tail[i + 1..])
+        .unwrap_or_else(|| err(format!("could not find interpreter \"{p}\"")))
 }
 
 /// `interp` — child-interpreter creation, evaluation, and the single-interp
@@ -547,6 +619,10 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.child_names().into_iter().map(Value::string).collect(),
         )),
         "recursionlimit" => interp_recursionlimit_cmd(vm, rest),
+        // interp hide path cmd / interp expose path cmd
+        "hide" | "expose" => interp_hidectl_cmd(vm, &*sub.to_str() == "hide", rest),
+        "hidden" => interp_hidden_cmd(vm, rest),
+        "invokehidden" => interp_invokehidden_cmd(vm, rest),
         // `interp marktrusted path` — clear a child's safe flag.
         "marktrusted" => match rest {
             [path] => {

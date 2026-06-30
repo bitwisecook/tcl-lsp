@@ -707,6 +707,46 @@ impl Vm {
         Some(child.recursion_limit_apply(newlimit))
     }
 
+    /// Sorted hidden-command names of a child (`interp hidden path`).
+    pub(crate) fn child_hidden_names(&self, name: &str) -> Option<Vec<String>> {
+        self.children.get(name).map(|c| {
+            let mut names: Vec<String> = c.hidden_commands.keys().cloned().collect();
+            names.sort();
+            names
+        })
+    }
+
+    /// `interp invokehidden path cmd ?arg ...?` — invoke a hidden command inside
+    /// the child. The command is temporarily restored to the child's visible
+    /// table for the call (then the previous binding is put back), so it runs in
+    /// the child without permanently un-hiding it. `None` if the child is gone.
+    pub(crate) fn invoke_hidden_in_child(
+        &mut self,
+        name: &str,
+        cmd: &str,
+        args: &[Value],
+    ) -> Option<Completion<Value>> {
+        let mut child = self.children.remove(name)?;
+        let result = match child.hidden_commands.get(cmd).cloned() {
+            None => err(format!("invalid hidden command name \"{cmd}\"")),
+            Some(hidden) => {
+                let saved = child.commands.insert(cmd.to_string(), hidden);
+                let r = child.invoke_command(cmd, args);
+                match saved {
+                    Some(prev) => {
+                        child.commands.insert(cmd.to_string(), prev);
+                    }
+                    None => {
+                        child.commands.remove(cmd);
+                    }
+                }
+                r
+            }
+        };
+        self.children.insert(name.to_string(), child);
+        Some(result)
+    }
+
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
     /// hidden command). A no-op if the child does not exist.
     pub(crate) fn child_mark_trusted(&mut self, name: &str) {
@@ -721,7 +761,27 @@ impl Vm {
     /// `interp hide name` / `interp expose name` on a child: move a command
     /// between its visible and hidden tables. Returns `false` if the child is
     /// missing.
-    fn child_hide(&mut self, name: &str, cmd: &str, hide: bool) -> bool {
+    /// `interp hide {} cmd` — move one of *this* interp's commands into its
+    /// hidden table.
+    pub(crate) fn hide_own_command(&mut self, cmd: &str, command: Command) {
+        self.hidden_commands.insert(cmd.to_string(), command);
+    }
+
+    /// `interp expose {} cmd` — restore one of *this* interp's hidden commands.
+    pub(crate) fn expose_own_command(&mut self, cmd: &str) {
+        if let Some(c) = self.hidden_commands.remove(cmd) {
+            self.commands.insert(cmd.to_string(), c);
+        }
+    }
+
+    /// Sorted hidden-command names of *this* interp (`interp hidden {}`).
+    pub(crate) fn own_hidden_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.hidden_commands.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, hide: bool) -> bool {
         let Some(child) = self.children.get_mut(name) else {
             return false;
         };
@@ -756,14 +816,9 @@ impl Vm {
             "after",
             "vwait",
         ];
-        for &c in UNSAFE {
-            if let Some(cmd) = self.commands.remove(c) {
-                self.hidden_commands.insert(c.to_string(), cmd);
-            }
-        }
-        // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
-        // unsets os/osVersion/machine/user) plus our backend-introspection keys,
-        // so a safe interp exposes only the portable subset.
+        // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
+        // os/osVersion/machine/user) plus our backend-introspection keys, so a
+        // safe interp exposes only the portable subset.
         const UNSAFE_PLATFORM: &[&str] = &[
             "os",
             "osVersion",
@@ -777,6 +832,11 @@ impl Vm {
             "wasiVersion",
             "ebpf",
         ];
+        for &c in UNSAFE {
+            if let Some(cmd) = self.commands.remove(c) {
+                self.hidden_commands.insert(c.to_string(), cmd);
+            }
+        }
         for &k in UNSAFE_PLATFORM {
             let _ = self.unset_one(&format!("tcl_platform({k})"), false);
         }
@@ -947,6 +1007,29 @@ impl Vm {
             "marktrusted" => {
                 self.child_mark_trusted(name);
                 ok(Value::empty())
+            }
+            "invokehidden" if !rest.is_empty() => {
+                // Skip unmodelled `-namespace ns` / `--` flags.
+                let mut i = 0;
+                while i < rest.len() {
+                    match &*rest[i].to_str() {
+                        "-namespace" => i += 2,
+                        "--" => {
+                            i += 1;
+                            break;
+                        }
+                        s if s.starts_with('-') => i += 1,
+                        _ => break,
+                    }
+                }
+                match rest.get(i) {
+                    Some(cmd) => self
+                        .invoke_hidden_in_child(name, &cmd.to_str(), &rest[i + 1..])
+                        .unwrap_or_else(|| err(format!("could not find interpreter \"{name}\""))),
+                    None => err(format!(
+                        "wrong # args: should be \"{name} invokehidden ?-namespace ns? ?--? cmd ?arg ..?\""
+                    )),
+                }
             }
             "recursionlimit" if rest.len() <= 1 => {
                 let nl = rest.first().map(|v| v.to_str().to_string());
