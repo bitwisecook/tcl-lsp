@@ -503,57 +503,35 @@ exist yet — the verification-status table follows the list.
      **15+ call sites** (mostly tests passing an owned `InterproceduralAnalysis::
      default()`). 15-site churn for 0.1 ms is below the value bar — the rope
      tradeoff. Skipped.
-   - *Per-function `optimise_unit` memo:* **re-scoped to L (not M) after a
-     2026-06-30 implementation-path audit** — three concrete blockers, the third
-     decisive:
-     (a) the optimiser reads **absolute `source[span]` slices** (e.g.
-     `consumed_var_count` counts `$var` refs in the original source span;
-     `drop_def_elims_resurrected_by_replacements(&cu.source, …)`), so an offset-0
-     memo would need the source window threaded + rebased, not just span arithmetic;
-     (b) `optimise_unit` does **whole-module overlap selection**
-     (`select_non_overlapping`) + `couple_propagated_const_dead_stores` +
-     group renumbering across *all* functions' optimisations — the per-function raw
-     optimisations would memoise but this tail stays whole-module (the 2b shape,
-     fine);
-     (c) **the decisive one — there is no per-function optimiser seam, and the
-     per-function raw optimisations are not function-local.** Unlike the checks
-     (which had `function_nontaint_checks(fu)`, a clean offset-0 entry that made 2a
-     a small change), every optimiser pass is driven by `run(ctx, &CompilationUnit)`
-     and reads `cu.interproc` / `cu.ir_module` / `cu.source`. Critically,
-     `propagation::run_function` does **O103 proc-call chain folding** that resolves
-     a call against `cu.ir_module.procedures` — so one function's optimisations
-     **depend on other functions' bodies**. A correct memo therefore needs *both* a
-     new per-function offset-0 optimiser isolation (a `CompilationUnit`→`FunctionUnit`
-     refactor of the pass driver) **and** interproc reverse-dependency modeling for
-     cross-function optimisations (an O103-relevant callee summary, the
-     `proc_summary_cascade` pattern applied to the optimiser), settled byte-identical
-     against the random-edit + corpus differential fuzzers (now built — see Task 2b
-     gate). **Re-audit (later 2026-06-30): the O103 blocker (c) is milder than
-     first read** — `try_fold_static_proc_call` resolves via the **interproc
-     *summary*** (`summary.can_fold_static_calls` + `constant_return` +
-     `redefined_procedures`), **not** raw callee IR, so the cross-function
-     dependency is a *summary*-level fact reconstructable exactly as
-     `proc_summary_cascade` does for taint — no callee-IR threading needed. That
-     makes the memo tractable.
-     *Groundwork **landed** (commit on this branch):* `optimise_unit` is now split
-     into `optimise_unit_raw` (run-passes + canonicalising sort — the phase a
-     per-proc memo runs on a single-proc offset-0 unit) and `finalise_optimisations`
-     (the whole-module overlap/couple/drop/renumber tail), byte-identical (295
-     optimiser tests + the checks fuzzers).
-     *Remaining (precisely scoped, ~several hours, fuzzer-gated):* (1) thread the
-     **offset-0 body text** into the memo (the passes read `ctx.source` via
-     `fu.abs_span` in `full_word_span`/`full_rewrite_span`) — derive it as
-     `cu.source[body_span]`, interned per proc; (2) build the **single-procedure
-     offset-0 CU** (one `Procedure` from `FnLatticeKey.body` + the offset-0 fu +
-     reconstructed `interproc`); (3) an `OptDepsKey` capturing the O103 summaries +
-     `redefined_procedures` + **module `command_mutations`** (threaded via a
-     `optimise_unit_raw_with_mutations` variant, since the single-proc `ir_module`
-     can't recompute the whole-module trust gate) + the resolution domain; (4)
-     assemble per-proc raw (rebased by `body_offset`) + top-level raw, then
-     `finalise_optimisations` over the **real** unit; (5) converge byte-identical
-     on `compiler_check_incremental_matches_fresh_under_edits` + the corpus
-     fuzzer. *Status:* groundwork landed + design de-risked; memo wiring not yet
-     built. ~15 ms lever on the non-paramount debounced checks path.
+   - *Per-function `optimise_unit` memo:* **SHIPPED.** Optimisations are
+     assembled from a per-procedure memo (`function_optimisations(FnLatticeKey,
+     OptDepsKey)`) instead of a whole-module `optimise_unit` every edit. Each proc's
+     raw optimisations are computed on a **single-procedure offset-0
+     `CompilationUnit`** (its `function_lattice` unit + offset-0 IR body + a
+     reconstructed interproc) by `optimise_unit_raw`, memoised, then rebased by
+     `body_offset` (with per-proc group-id offsetting so `renumber_groups` matches);
+     `solve_optimisations` (inside `proc_taint_solve`, reusing its one build + keys —
+     no second build) assembles per-proc + a top-level-only raw build and runs the
+     whole-module `finalise_optimisations` once. `OptDepsKey` is a hashable projection
+     of every proc's opt-relevant summary (`can_fold_static_calls` / `constant_return`
+     / `pure` / `param_traits` / …) + resolution domain + `redefined_procedures` +
+     offset-0 body source — it re-keys only when a proc's fold/purity projection
+     changes, so a literal-only edit re-optimises just the edited proc.
+     *Fallback to whole-module `optimise_unit`* for iRules / TclOO methods / command
+     mutations / a complexity-guarded proc / **or any pure-non-constant proc** (the
+     **argument-sensitive** O103 fold runs `evaluate_proc_with_constants` on the
+     callee's whole `FunctionUnit` — a body dependency the single-proc unit can't
+     serve, the one blocker that was *not* summary-level).
+     *Convergence (fuzzer-found, fixed):* the offset-0 source slice
+     (`source[body_span]`, since `full_word_span` reads `ctx.source`); per-proc
+     group-id collision; and the call-by-name O109/O126 suppression needing callees'
+     `param_traits` (added `Ord` to `ProcArgTrait`).
+     *Gate (built + green):* `compiler_check_incremental_matches_fresh_under_edits`
+     (250-edit) + the single-shot differential + the **893-file cold corpus** +
+     **random-edit corpus** differentials + 3321 `tcl-compiler` tests; the win is
+     pinned by `function_optimisations_reused_on_unrelated_edit` (an unrelated body
+     edit re-runs exactly **one** proc's optimise, not all). ~15 ms lever on the
+     non-paramount debounced checks path.
 
 5. **Wire the structural-state index into the live re-lex path** *(**DROPPED** —
    rope-dependent, removed from scope 2026-06-30 by the "drop everything that
@@ -675,9 +653,10 @@ per-edit win (cheap apply win + the dominant `run_all_checks` slice) with no rop
 and no cross-file work. 3–4 close the lowering floor. 6 is the cross-file feature,
 built incremental-first. **Tasks 5 and 7 are dropped (rope-dependent, 2026-06-30
 decision)** — the `String` store is retained, so windowed re-lex (5) and the rope
-(7) are out of scope. **The de-roped track's completion target is therefore Tasks
-1–4 + 6:** 1/2/6 shipped, leaving 3 and 4 (both rope-independent per-edit-latency
-memoisations, each gated by an `incremental == fresh` differential fuzzer).
+(7) are out of scope. **The de-roped track's completion target is Tasks 1–4 + 6:**
+1/2/4/6 **shipped** (Task 4 — the per-procedure `optimise_unit` memo — landed
+byte-identical, full-corpus-verified), leaving only **Task 3** (incremental
+per-item IR lowering), the ~59 ms lowering-floor refactor.
 
 ## Experiments & verification status
 
