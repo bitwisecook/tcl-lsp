@@ -14,7 +14,7 @@ use tcl_runtime_api::{
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
-use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
+use crate::command::{BuiltinFn, Command, EnsembleDef, ProcDef, register_builtins};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
@@ -24,6 +24,17 @@ use crate::value::Value;
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
+
+/// Render a subcommand list as C's ensemble `must be …` clause — note the
+/// ensemble formatter puts a comma before `or` even for two items
+/// (`x1, or x2`), unlike `Tcl_GetIndexFromObj`.
+fn oxford_or(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [a] => a.clone(),
+        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+    }
+}
 
 /// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
 /// reports: a decimal that overflows `i64` is "too large to represent", a
@@ -633,6 +644,7 @@ impl Vm {
             Command::Proc(_) => "proc",
             Command::Alias(_) => "alias",
             Command::ChildInterp(_) => "interp",
+            Command::Ensemble(_) => "ensemble",
         })
     }
 
@@ -782,6 +794,100 @@ impl Vm {
 
     /// Dispatch a child-as-command call (`$child sub ?arg …?`) — the `interp`
     /// ensemble restricted to that child.
+    /// The exported command tails of namespace `ns` (the default ensemble
+    /// subcommand set): commands directly in `ns` whose tail matches an export
+    /// pattern.
+    fn exported_command_tails(&self, ns: &str) -> Vec<String> {
+        let prefix = if ns.is_empty() {
+            String::new()
+        } else {
+            format!("{ns}::")
+        };
+        let patterns = self.ns_exports.get(ns).cloned().unwrap_or_default();
+        let mut out = Vec::new();
+        for key in self.commands.keys() {
+            let Some(tail) = key.strip_prefix(&prefix) else {
+                continue;
+            };
+            if tail.is_empty() || tail.contains("::") {
+                continue;
+            }
+            if patterns
+                .iter()
+                .any(|p| tcl_syntax::glob::string_match(p, tail))
+            {
+                out.push(tail.to_string());
+            }
+        }
+        out
+    }
+
+    /// Dispatch a `namespace ensemble` call (`ens sub ?arg …?`): resolve `sub`
+    /// (exact, or unambiguous prefix) against the ensemble's subcommands and
+    /// invoke the mapped target (`-map`, else `namespace::sub`).
+    pub(crate) fn dispatch_ensemble(
+        &mut self,
+        ens_name: &str,
+        e: &EnsembleDef,
+        argv: &[Value],
+    ) -> Completion<Value> {
+        let Some((sub_val, rest)) = argv.split_first() else {
+            return err(format!(
+                "wrong # args: should be \"{ens_name} subcommand ?arg ...?\""
+            ));
+        };
+        let sub = sub_val.to_str().to_string();
+        let mut subs: Vec<String> = match &e.subcommands {
+            Some(list) => list.clone(),
+            None => self.exported_command_tails(&e.namespace),
+        };
+        for k in e.map.keys() {
+            if !subs.contains(k) {
+                subs.push(k.clone());
+            }
+        }
+        subs.sort();
+        subs.dedup();
+        let resolved = if subs.iter().any(|s| s == &sub) {
+            Some(sub.clone())
+        } else if e.prefixes {
+            let m: Vec<&String> = subs.iter().filter(|s| s.starts_with(&sub)).collect();
+            if m.len() == 1 {
+                Some(m[0].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        match resolved {
+            Some(s) => {
+                let mut full: Vec<Value> = match e.map.get(&s) {
+                    Some(words) => words.clone(),
+                    None => vec![Value::string(if e.namespace.is_empty() {
+                        s.clone()
+                    } else {
+                        format!("{}::{s}", e.namespace)
+                    })],
+                };
+                full.extend_from_slice(rest);
+                let target = full[0].to_str().to_string();
+                self.invoke_command(&target, &full[1..])
+            }
+            None if e.unknown.is_some() => {
+                let mut full = e.unknown.clone().unwrap();
+                full.push(Value::string(ens_name));
+                full.extend_from_slice(argv);
+                let target = full[0].to_str().to_string();
+                self.invoke_command(&target, &full[1..])
+            }
+            None => err(format!(
+                "unknown or ambiguous subcommand \"{sub}\": must be {}",
+                oxford_or(&subs)
+            )),
+        }
+    }
+
     pub(crate) fn dispatch_child(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         let Some((sub, rest)) = argv.split_first() else {
             return err(format!("wrong # args: should be \"{name} cmd ?arg ...?\""));

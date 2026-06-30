@@ -63,6 +63,26 @@ pub enum Command {
     /// keys into the parent's `children` table. Invoking it dispatches the
     /// `interp` ensemble restricted to that child.
     ChildInterp(String),
+    /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
+    /// the ensemble's subcommands and dispatches to the mapped target.
+    Ensemble(Rc<EnsembleDef>),
+}
+
+/// A `namespace ensemble create`d command (`tclEnsemble.c`).
+#[derive(Clone)]
+pub struct EnsembleDef {
+    /// The namespace whose exported commands form the default subcommand set and
+    /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
+    pub namespace: String,
+    /// `-map`: subcommand → target command prefix (already qualified).
+    pub map: std::collections::HashMap<String, Vec<Value>>,
+    /// `-subcommands`: the explicit subcommand list, or `None` to use the
+    /// namespace's exported commands.
+    pub subcommands: Option<Vec<String>>,
+    /// `-prefixes`: whether an unambiguous prefix of a subcommand resolves.
+    pub prefixes: bool,
+    /// `-unknown`: a handler prefix invoked when no subcommand matches.
+    pub unknown: Option<Vec<Value>>,
 }
 
 /// Register the builtin set on `vm`.
