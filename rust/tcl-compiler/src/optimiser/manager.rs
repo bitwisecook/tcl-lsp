@@ -68,7 +68,7 @@ pub fn optimise_unit(
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
     let raw = optimise_unit_raw(cu, registry, dialect);
-    finalise_optimisations(raw, cu, registry, dialect)
+    finalise_optimisations(&raw, cu, registry, dialect)
 }
 
 /// The total ordering key used to canonicalise the optimisation set before
@@ -149,12 +149,12 @@ pub fn optimise_unit_raw(
 /// rebased raw set — never a single-procedure unit.
 #[must_use]
 pub fn finalise_optimisations(
-    raw: Vec<Optimisation>,
+    raw: &[Optimisation],
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    let mut selected = select_non_overlapping(&raw);
+    let mut selected = select_non_overlapping(raw);
     // Couple constant propagation with dead-store removal: a `set x <const>`
     // whose every use was propagated away by a *surviving* O100/O101/O102/O103
     // rewrite is now dead and can be removed. Done after overlap selection so

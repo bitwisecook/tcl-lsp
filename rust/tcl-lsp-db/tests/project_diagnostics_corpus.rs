@@ -122,7 +122,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     let build =
         |lib: &str, caller: &str| -> (TclDatabase, AnalyserConfig, Vec<SourceFile>, Project) {
             let db = TclDatabase::default();
-            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
             let mut files = vec![
                 SourceFile::new(&db, lib.to_owned(), dialect.to_owned()),
                 SourceFile::new(&db, caller.to_owned(), dialect.to_owned()),
