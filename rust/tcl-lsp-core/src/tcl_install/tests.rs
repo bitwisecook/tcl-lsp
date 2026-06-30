@@ -41,7 +41,7 @@ fn discover_finds_a_library_subdir_and_its_auto_path() {
     );
     let base = td.0.join("lib");
 
-    let found = discover(&[base.clone()]);
+    let found = discover(std::slice::from_ref(&base));
     assert_eq!(found.len(), 1, "{found:?}");
     let inst = &found[0];
     assert_eq!(inst.tcl_library, base.join("tcl8.6"));
@@ -55,7 +55,7 @@ fn discover_treats_a_base_that_is_itself_a_library_dir() {
     let td = TempDir::new("baselib");
     td.write("tcl9.0/init.tcl", "# tcl\n");
     let lib = td.0.join("tcl9.0");
-    let found = discover(&[lib.clone()]);
+    let found = discover(std::slice::from_ref(&lib));
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].tcl_library, lib);
     assert_eq!(found[0].version, "9.0");

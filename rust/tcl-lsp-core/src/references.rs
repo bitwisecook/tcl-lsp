@@ -111,7 +111,6 @@ pub(crate) fn proc_reference_spans(
 /// flag — when `true`, the symbol's defining span is the first
 /// element of the returned vector.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn references(
     source: &str,
     dialect: &str,
@@ -121,23 +120,17 @@ pub fn references(
     include_declaration: bool,
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
+    let ctx = RefCtx {
+        source,
+        dialect,
+        line_index: &line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    };
 
-    if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-        let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-            &analysis.global_scope,
-            byte_offset,
-            &var_name,
-        ) else {
-            return Vec::new();
-        };
-        let mut out = Vec::new();
-        if include_declaration {
-            out.push(span_to_range(source, &line_index, var_def.definition_span));
-        }
-        for r in &var_def.references {
-            out.push(span_to_range(source, &line_index, *r));
-        }
+    if let Some(out) = variable_references(&ctx) {
         return out;
     }
 
@@ -146,6 +139,80 @@ pub fn references(
     };
 
     // Class references (checked first, before proc names).
+    if let Some(out) = class_references(&ctx, &word) {
+        return out;
+    }
+
+    // Proc references.
+    if let Some(out) = proc_references(&ctx, &word) {
+        return out;
+    }
+
+    // `$obj method` external call site.
+    if let Some(out) = instance_method_references(&ctx) {
+        return out;
+    }
+
+    // Class-member references (cursor inside a class body on a member name).
+    if let Some(out) = class_member_references(&ctx, &word) {
+        return out;
+    }
+
+    Vec::new()
+}
+
+/// Shared immutable inputs for the per-kind reference resolvers, so each
+/// helper takes a single context instead of re-threading the same seven
+/// parameters.
+#[derive(Clone, Copy)]
+struct RefCtx<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    line_index: &'a LineIndex,
+    line: u32,
+    character: u32,
+    analysis: &'a AnalysisResult,
+    include_declaration: bool,
+}
+
+/// Build `decl + references` ranges for a variable at the cursor.
+fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let var_name = find_var_at_position(source, line, character)?;
+    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let var_def = crate::definition::lookup_var_in_scope_chain(
+        &analysis.global_scope,
+        byte_offset,
+        &var_name,
+    )?;
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, var_def.definition_span));
+    }
+    for r in &var_def.references {
+        out.push(span_to_range(source, line_index, *r));
+    }
+    Some(out)
+}
+
+/// Build references for a class name at the cursor (constructor invocations
+/// plus `superclass`/`mixin` usages across every class body).
+fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
     for class_def in analysis.all_classes.values() {
         if class_def.name == word
             || class_def.qualified_name == word
@@ -155,11 +222,11 @@ pub fn references(
             let qualified = class_def.qualified_name.clone();
             let mut out = Vec::new();
             if include_declaration {
-                out.push(span_to_range(source, &line_index, class_def.name_span));
+                out.push(span_to_range(source, line_index, class_def.name_span));
             }
             for inv in &analysis.command_invocations {
                 if inv.name == simple || inv.name == qualified {
-                    out.push(span_to_range(source, &line_index, inv.range));
+                    out.push(span_to_range(source, line_index, inv.range));
                 }
             }
             // `superclass <C>` / `mixin <C>` usages across every class body
@@ -170,86 +237,125 @@ pub fn references(
             for other in analysis.all_classes.values() {
                 for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
                     if matches_name(name) {
-                        out.push(span_to_range(source, &line_index, *span));
+                        out.push(span_to_range(source, line_index, *span));
                     }
                 }
             }
             dedup_ranges(&mut out);
-            return out;
+            return Some(out);
         }
     }
+    None
+}
 
-    // Proc references.  Prefer the proc whose declaration the cursor sits on
-    // (so `helper` at the `a::helper` decl resolves to *that* namespace's
-    // proc, not a same-named one in another namespace); else the first proc
-    // matching the word.
-    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+/// Build references for a proc name at the cursor.  Prefers the proc whose
+/// declaration the cursor sits on (so `helper` at the `a::helper` decl
+/// resolves to *that* namespace's proc, not a same-named one in another
+/// namespace); else the first proc matching the word.
+fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
     let proc_match = analysis
         .all_procs
         .iter()
         .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
         .or_else(|| {
-            analysis
-                .all_procs
-                .iter()
-                .find(|(qn, p)| p.name == word || *qn == &word || *qn == &format!("::{word}"))
+            analysis.all_procs.iter().find(|(qn, p)| {
+                p.name == word || qn.as_str() == word || *qn == &format!("::{word}")
+            })
         });
-    if let Some((qname, proc_def)) = proc_match {
-        let mut out = Vec::new();
-        if include_declaration {
-            out.push(span_to_range(source, &line_index, proc_def.name_span));
-        }
-        for span in proc_reference_spans(analysis, qname, proc_def) {
-            out.push(span_to_range(source, &line_index, span));
-        }
-        dedup_ranges(&mut out);
-        return out;
+    let (qname, proc_def) = proc_match?;
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, proc_def.name_span));
     }
-
-    // `$obj method` external call site — when the cursor sits
-    // on the method-name token of an instance-method call and
-    // `$obj`'s class is known, surface the method declaration
-    // plus every call site (intra-class + external).
-    if let Some((inst, method)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
-        && let Some((decl_span, call_spans)) =
-            method_references_for_class(source, dialect, analysis, class_q, &method)
-    {
-        let mut out = Vec::new();
-        if include_declaration {
-            out.push(span_to_range(source, &line_index, decl_span));
-        }
-        for s in call_spans {
-            out.push(span_to_range(source, &line_index, s));
-        }
-        dedup_ranges(&mut out);
-        return out;
+    for span in proc_reference_spans(analysis, qname, proc_def) {
+        out.push(span_to_range(source, line_index, span));
     }
+    dedup_ranges(&mut out);
+    Some(out)
+}
 
-    // Class-member references — when the cursor sits inside a
-    // class body and `word` matches a method / classmethod /
-    // property, re-segment the sibling method bodies to find
-    // every invocation that names the same member, then append
-    // external `$obj method` call sites.  Mirrors the
-    // `rename_method` walk in `crate::rename`.
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(spans) =
-        find_class_member_references(source, dialect, &word, analysis, cursor_offset)
-    {
-        let (decl_span, call_spans) = spans;
-        let mut out = Vec::new();
-        if include_declaration {
-            out.push(span_to_range(source, &line_index, decl_span));
-        }
-        for s in call_spans {
-            out.push(span_to_range(source, &line_index, s));
-        }
-        dedup_ranges(&mut out);
-        return out;
+/// Build references for a `$obj method` call site: when the cursor sits on
+/// the method-name token of an instance-method call and `$obj`'s class is
+/// known, surface the method declaration plus every call site (intra-class
+/// + external).
+fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let (inst, method) = crate::definition::instance_method_at_cursor(source, line, character)?;
+    let class_q = analysis.instance_classes.get(&inst)?;
+    let (decl_span, call_spans) =
+        method_references_for_class(source, dialect, analysis, class_q, &method)?;
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Build references for a class member (method / classmethod / property)
+/// when the cursor sits inside a class body and `word` matches a member:
+/// re-segment the sibling method bodies for every invocation naming the
+/// same member, then append external `$obj method` call sites.  Mirrors the
+/// `rename_method` walk in `crate::rename`.
+fn class_member_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let (decl_span, call_spans) =
+        find_class_member_references(source, dialect, word, analysis, cursor_offset)?;
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Shared range-builder for the `(decl_span, call_spans)` member-reference
+/// shape: optional declaration first, then every call site, deduped.
+fn build_member_ranges(
+    source: &str,
+    line_index: &LineIndex,
+    decl_span: tcl_lexer::Span,
+    call_spans: Vec<tcl_lexer::Span>,
+    include_declaration: bool,
+) -> Vec<LspRange> {
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, decl_span));
     }
-
-    Vec::new()
+    for s in call_spans {
+        out.push(span_to_range(source, line_index, s));
+    }
+    dedup_ranges(&mut out);
+    out
 }
 
 /// Resolve a method's declaration span plus every call site —
@@ -494,30 +600,29 @@ pub(crate) fn find_obj_method_call_sites(
     }
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
-
-    // Region 1: the whole document.
-    scan_obj_method_region(
+    let ctx = ObjMethodScan {
         source,
         dialect,
-        0,
-        source.len(),
-        &var_set,
+        var_set: &var_set,
         method,
-        &mut out,
-        &mut seen,
-    );
+    };
+
+    // Region 1: the whole document.
+    {
+        let mut sink = SpanSink {
+            out: &mut out,
+            seen: &mut seen,
+        };
+        scan_obj_method_region(ctx, 0, source.len(), &mut sink);
+    }
     // Regions 2/3: proc + method bodies (the top-level scan
     // skips braced body args, so descend explicitly).
     for proc_def in analysis.all_procs.values() {
-        scan_obj_method_body(
-            source,
-            dialect,
-            proc_def.body_span,
-            &var_set,
-            method,
-            &mut out,
-            &mut seen,
-        );
+        let mut sink = SpanSink {
+            out: &mut out,
+            seen: &mut seen,
+        };
+        scan_obj_method_body(ctx, proc_def.body_span, &mut sink);
     }
     for class_def in analysis.all_classes.values() {
         for m in class_def
@@ -527,34 +632,45 @@ pub(crate) fn find_obj_method_call_sites(
             .chain(class_def.constructors.iter())
             .chain(class_def.destructor.iter())
         {
-            scan_obj_method_body(
-                source,
-                dialect,
-                m.body_span,
-                &var_set,
-                method,
-                &mut out,
-                &mut seen,
-            );
+            let mut sink = SpanSink {
+                out: &mut out,
+                seen: &mut seen,
+            };
+            scan_obj_method_body(ctx, m.body_span, &mut sink);
         }
     }
     out
 }
 
+/// Read-only context for the `$v method` call-site scan: the document
+/// `source`, its `dialect`, the set of in-scope instance variable names
+/// (`var_set`), and the `method` being looked up.
+#[derive(Clone, Copy)]
+struct ObjMethodScan<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    var_set: &'a FxHashSet<&'a str>,
+    method: &'a str,
+}
+
+/// Mutable sink for matched call-site spans plus the dedup set, threaded
+/// alongside [`ObjMethodScan`] through the recursive scan.
+struct SpanSink<'a> {
+    out: &'a mut Vec<tcl_lexer::Span>,
+    seen: &'a mut FxHashSet<(u32, u32)>,
+}
+
 /// Scan a brace-delimited body span for `$v method` call sites
 /// (stripping the surrounding braces first).
 fn scan_obj_method_body(
-    source: &str,
-    dialect: &str,
+    ctx: ObjMethodScan<'_>,
     body_span: tcl_lexer::Span,
-    var_set: &FxHashSet<&str>,
-    method: &str,
-    out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut FxHashSet<(u32, u32)>,
+    sink: &mut SpanSink<'_>,
 ) {
     if body_span.is_empty() {
         return;
     }
+    let source = ctx.source;
     let mut start = body_span.start() as usize;
     let mut end = body_span.end() as usize;
     if start >= source.len() || end > source.len() || start > end {
@@ -566,29 +682,22 @@ fn scan_obj_method_body(
     if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
         end -= 1;
     }
-    scan_obj_method_region(source, dialect, start, end, var_set, method, out, seen);
+    scan_obj_method_region(ctx, start, end, sink);
 }
 
 /// Segment `source[start..end]` and record every `$v method`
 /// call site, recursing into command-substitution (`[...]`)
 /// args.  `var_set` holds the bare names of in-scope instance
 /// variables.
-// `too_many_arguments`: the recursive OO-method scan threads its working
-// state by value; the added `dialect`
-// tips it to 8.  A context struct is a separate cleanup.
-#[allow(clippy::too_many_arguments)]
 fn scan_obj_method_region(
-    source: &str,
-    dialect: &str,
+    ctx: ObjMethodScan<'_>,
     start: usize,
     end: usize,
-    var_set: &FxHashSet<&str>,
-    method: &str,
-    out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut FxHashSet<(u32, u32)>,
+    sink: &mut SpanSink<'_>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
+    let source = ctx.source;
     if start >= end || end > source.len() {
         return;
     }
@@ -596,7 +705,7 @@ fn scan_obj_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
     );
     for cmd in &commands {
         // Head `$v` + method at argv[1].
@@ -608,17 +717,17 @@ fn scan_obj_method_region(
             if h_start < source.len() && h_end <= source.len() {
                 let raw = &source[h_start..h_end];
                 if let Some(name) = strip_var_decoration(raw)
-                    && var_set.contains(name)
+                    && ctx.var_set.contains(name)
                 {
                     let m_start = method_tok.span.start() as usize;
                     let m_end = method_tok.span.end() as usize;
                     if m_start < source.len()
                         && m_end <= source.len()
-                        && &source[m_start..m_end] == method
+                        && &source[m_start..m_end] == ctx.method
                     {
                         let key = (method_tok.span.start(), method_tok.span.end());
-                        if seen.insert(key) {
-                            out.push(method_tok.span);
+                        if sink.seen.insert(key) {
+                            sink.out.push(method_tok.span);
                         }
                     }
                 }
@@ -646,16 +755,7 @@ fn scan_obj_method_region(
                 } else {
                     a_end
                 };
-            scan_obj_method_region(
-                source,
-                dialect,
-                inner_start,
-                inner_end,
-                var_set,
-                method,
-                out,
-                seen,
-            );
+            scan_obj_method_region(ctx, inner_start, inner_end, sink);
         }
     }
 }

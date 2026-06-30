@@ -631,10 +631,16 @@ fn rename_method(
         if let Some(d) = &class_def.destructor {
             body_spans.push(d.body_span);
         }
+        let scan_ctx = MethodRenameCtx {
+            source,
+            dialect,
+            word,
+            new_name,
+            name_span,
+            line_index,
+        };
         for span in body_spans {
-            scan_body_for_method_calls(
-                source, dialect, span, word, new_name, name_span, line_index, &mut edits,
-            );
+            scan_body_for_method_calls(scan_ctx, span, &mut edits);
         }
         // Append external `$obj method` call sites for
         // methods / classmethods (not properties).
@@ -658,26 +664,32 @@ fn rename_method(
     None
 }
 
+/// Read-only context for the OO-method-rename body scan: the document
+/// `source` + `dialect`, the matched head `word`, its `new_name`
+/// replacement, the declaration `name_span` (skipped), and the
+/// `line_index` for span-to-range mapping.
+#[derive(Clone, Copy)]
+struct MethodRenameCtx<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    word: &'a str,
+    new_name: &'a str,
+    name_span: tcl_lexer::Span,
+    line_index: &'a LineIndex,
+}
+
 /// Re-segment a method body and append a rewrite edit for
 /// every command invocation whose head matches `word` (and
 /// isn't the declaration site itself).  Uses
 /// [`tcl_compiler::segmenter::segment_commands_with_offset`]
 /// so the resulting token spans use absolute source offsets.
-// `too_many_arguments`: the OO-method-rename body scan threads its working
-// state by value; the added `dialect` tips
-// it to 8.  A context struct is a separate cleanup.
-#[allow(clippy::too_many_arguments)]
 fn scan_body_for_method_calls(
-    source: &str,
-    dialect: &str,
+    ctx: MethodRenameCtx<'_>,
     body_span: tcl_lexer::Span,
-    word: &str,
-    new_name: &str,
-    name_span: tcl_lexer::Span,
-    line_index: &LineIndex,
     edits: &mut Vec<TextEdit>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let source = ctx.source;
     if body_span.is_empty() {
         return;
     }
@@ -701,7 +713,7 @@ fn scan_body_for_method_calls(
     let commands = segment_commands_with_offset_and_config(
         body_text,
         u32::try_from(start).unwrap_or(body_span.start()),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
     );
     for cmd in &commands {
         let Some(head) = cmd.argv.first() else {
@@ -716,16 +728,16 @@ fn scan_body_for_method_calls(
             continue;
         }
         let head_text = &source[head_start..head_end];
-        if head_text != word {
+        if head_text != ctx.word {
             continue;
         }
         // Skip the declaration site itself.
-        if head_span.start() == name_span.start() && head_span.end() == name_span.end() {
+        if head_span.start() == ctx.name_span.start() && head_span.end() == ctx.name_span.end() {
             continue;
         }
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, head_span),
-            new_text: new_name.to_owned(),
+            range: span_to_range(source, ctx.line_index, head_span),
+            new_text: ctx.new_name.to_owned(),
         });
     }
 }

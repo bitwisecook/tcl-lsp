@@ -375,7 +375,10 @@ fn minify_aggressive_reports_consistent_length_bookkeeping() {
     // independent of the rename bug.
     assert_eq!(res.original_length, src.len());
     assert_eq!(res.minified_length(), res.source.len());
-    let expected_pct = (1.0 - res.source.len() as f64 / src.len() as f64) * 100.0;
+    // Lengths are small known values; convert losslessly via u32.
+    let min_len = f64::from(u32::try_from(res.source.len()).unwrap());
+    let orig_len = f64::from(u32::try_from(src.len()).unwrap());
+    let expected_pct = (1.0 - min_len / orig_len) * 100.0;
     assert!(
         (res.savings_pct() - expected_pct).abs() < 1e-9,
         "savings_pct must equal 1 - min/orig: got {} want {expected_pct}",
@@ -387,7 +390,12 @@ fn minify_aggressive_reports_consistent_length_bookkeeping() {
 fn minify_aggressive_empty_source_has_zero_savings() {
     let res = minify_tcl_aggressive("", "tcl8.6", true, registry());
     assert_eq!(res.original_length, 0);
-    assert_eq!(res.savings_pct(), 0.0, "0/0 guard returns 0.0, not NaN");
+    // The 0/0 guard returns an exact 0.0 (not NaN); compare bit patterns.
+    assert_eq!(
+        res.savings_pct().to_bits(),
+        0.0_f64.to_bits(),
+        "0/0 guard returns 0.0, not NaN"
+    );
 }
 
 // --- BUG: compact/aggressive minify corrupts `incr`/`append`/`lappend` -----
@@ -731,7 +739,7 @@ fn linked_editing_links_namespace_relative_self_call() {
     let an = analyse(src);
     // Cursor on the `countdown` declaration name (line 1).
     let line1 = "proc countdown {n} {";
-    let col = line1.find("countdown").expect("name present") as u32;
+    let col = u32::try_from(line1.find("countdown").expect("name present")).unwrap();
     let result = linked_editing_ranges(src, 1, col, &an)
         .expect("namespace-relative self-call should link to the declaration");
     // Structural: at least the declaration + the relative self-call.
@@ -757,7 +765,7 @@ fn linked_editing_does_not_link_across_two_mutually_recursive_procs() {
                }\n";
     let an = analyse(src);
     // Cursor on `is_even`'s declaration name (line 0).
-    let col = "proc ".len() as u32;
+    let col = u32::try_from("proc ".len()).unwrap();
     // `is_even` is only *called* from is_odd's body (a cross-proc call, not a
     // self-call), so from its own declaration there is no second linkable
     // range -> None. This proves the provider does not mistake a mutual call

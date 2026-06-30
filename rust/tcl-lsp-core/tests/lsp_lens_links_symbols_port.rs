@@ -26,6 +26,7 @@
 //!     argument is the path / package name the link surfaces;
 //!   * the `catch {body} resultVar` semantics behind the W302 quick-fix
 //!     (a result variable captures the body's result/error).
+//!
 //! Each such test cites the corresponding `tclsh:` observation. Facts verified
 //! identically on tclsh8.6 AND tclsh9.0 unless noted.
 //!

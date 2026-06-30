@@ -26,9 +26,9 @@
 //!   * a user `proc puts {x} {...}` really redefines the built-in.
 //!
 //! Everything to do with *how* a fact is rendered — markdown framing
-//! (``**`name`**`` / fenced ```tcl blocks), table layout, completion-item
-//! ordering, sort-text buckets, the exact synopsis wording in the
-//! registry — is editor presentation, not a Tcl fact. Those are asserted
+//! (bold-name spans and fenced `tcl` code blocks), table layout,
+//! completion-item ordering, sort-text buckets, the exact synopsis wording
+//! in the registry — is editor presentation, not a Tcl fact. Those are asserted
 //! structurally (membership / kind / "contains") and noted inline so a
 //! cosmetic copy-edit to the registry doesn't break the suite.
 //!

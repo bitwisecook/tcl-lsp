@@ -24,10 +24,17 @@ pub enum IndentStyle {
 
 /// All configurable formatting options.
 ///
-/// This is a configuration DTO — the boolean toggles are
-/// independent user-facing settings, not a state machine, so the
-/// `struct_excessive_bools` allow follows the same convention the
-/// registry's `spec.rs` / `events.rs` config structs use.
+/// This is a flat configuration DTO: every boolean is an independent,
+/// user-facing on/off setting (not a state machine).
+///
+/// `struct_excessive_bools` is kept here deliberately. The only fix the
+/// lint accepts is grouping the bools into sub-structs, but the public
+/// flat-field API is consumed cross-crate by `tcl-lsp-server`
+/// (`formatter_config_from` builds it field-by-field, and a struct
+/// literal in `lib.rs` plus several `.field` reads depend on the flat
+/// shape). Regrouping cannot be done without editing `tcl-lsp-server`,
+/// which is out of scope for this crate, so the allow stays until that
+/// cross-crate change is made together.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatterConfig {

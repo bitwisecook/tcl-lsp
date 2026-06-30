@@ -279,7 +279,7 @@ fn parse_param_without_description() {
 fn parse_return_tag() {
     // test_return_tag — `@return <text>` → **Returns:** line.
     let md = render_doc_via_hover("# @return The sum of a and b", "a b");
-    assert!(md.contains("**Returns:** The sum of a and b"), "{md}",);
+    assert!(md.contains("**Returns:** The sum of a and b"), "{md}");
 }
 
 #[test]

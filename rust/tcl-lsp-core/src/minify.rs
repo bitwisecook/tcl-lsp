@@ -838,16 +838,21 @@ fn compact_names(
     let rmw_targets = rmw_target_var_names(source, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
-    process_scope(
+    let scope_ctx = ScopeCtx {
         source,
-        &analysis,
+        analysis: &analysis,
+        isolated,
+        barrier_scopes: &barrier_scopes,
+        rmw_targets: &rmw_targets,
+    };
+    process_scope(
+        scope_ctx,
         &analysis.global_scope,
         "::",
-        isolated,
-        &barrier_scopes,
-        &rmw_targets,
-        &mut symbol_map,
-        &mut edits,
+        &mut ScopeOut {
+            symbol_map: &mut symbol_map,
+            edits: &mut edits,
+        },
     );
 
     // Proc renaming.
@@ -1043,20 +1048,35 @@ fn is_unsafe_member(member: &str) -> bool {
     })
 }
 
+/// Read-only context for the recursive scope rename walk: the document
+/// `source`, the analyser result, the `isolated` flag, and the precomputed
+/// barrier-scope / read-modify-write-target name sets.
+#[derive(Clone, Copy)]
+struct ScopeCtx<'a> {
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    isolated: bool,
+    barrier_scopes: &'a FxHashSet<String>,
+    rmw_targets: &'a FxHashSet<String>,
+}
+
+/// Mutable outputs accumulated by [`process_scope`]: the symbol map and the
+/// edit list.
+struct ScopeOut<'a> {
+    symbol_map: &'a mut SymbolMap,
+    edits: &'a mut Vec<Edit>,
+}
+
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
-#[allow(clippy::too_many_arguments)]
-fn process_scope(
-    source: &str,
-    analysis: &AnalysisResult,
-    scope: &Scope,
-    scope_label: &str,
-    isolated: bool,
-    barrier_scopes: &FxHashSet<String>,
-    rmw_targets: &FxHashSet<String>,
-    symbol_map: &mut SymbolMap,
-    edits: &mut Vec<Edit>,
-) {
+fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut ScopeOut<'_>) {
+    let ScopeCtx {
+        source,
+        analysis,
+        isolated,
+        barrier_scopes,
+        rmw_targets,
+    } = ctx;
     let rename_scope = (scope.kind == ScopeKind::Proc
         || (isolated && scope.kind == ScopeKind::Global))
         && !barrier_scopes.contains(scope_label);
@@ -1107,7 +1127,8 @@ fn process_scope(
             if !is_param {
                 let r = var_def.definition_span;
                 if slice(source, r) == *var_name {
-                    edits.push((r.start() as usize, var_name.len(), short.clone()));
+                    out.edits
+                        .push((r.start() as usize, var_name.len(), short.clone()));
                 }
             }
             // Reference sites (`$var`): skip the `$`.
@@ -1116,7 +1137,7 @@ fn process_scope(
                 if let Some(rest) = ref_text.strip_prefix('$')
                     && rest == var_name
                 {
-                    edits.push((
+                    out.edits.push((
                         reference.start() as usize + 1,
                         var_name.len(),
                         short.clone(),
@@ -1129,26 +1150,18 @@ fn process_scope(
         if let Some(pd) = proc_def
             && !var_map.is_empty()
         {
-            rename_params_in_list(source, pd, &var_map, edits);
+            rename_params_in_list(source, pd, &var_map, out.edits);
         }
         if !var_map.is_empty() {
-            symbol_map.variables.insert(scope_label.to_owned(), var_map);
+            out.symbol_map
+                .variables
+                .insert(scope_label.to_owned(), var_map);
         }
     }
 
     for child in &scope.children {
         let label = child_scope_label(scope_label, &child.name);
-        process_scope(
-            source,
-            analysis,
-            child,
-            &label,
-            isolated,
-            barrier_scopes,
-            rmw_targets,
-            symbol_map,
-            edits,
-        );
+        process_scope(ctx, child, &label, out);
     }
 }
 

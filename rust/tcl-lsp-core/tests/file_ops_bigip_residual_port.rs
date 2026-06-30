@@ -398,13 +398,13 @@ fn bigip_recognises_canonical_basenames_case_insensitively() {
 
 /// Collect every symbol name (depth-first) from an outline.
 fn names(syms: &[DocumentSymbol]) -> Vec<String> {
-    let mut out = Vec::new();
     fn walk(syms: &[DocumentSymbol], out: &mut Vec<String>) {
         for s in syms {
             out.push(s.name.clone());
             walk(&s.children, out);
         }
     }
+    let mut out = Vec::new();
     walk(syms, &mut out);
     out
 }
@@ -474,9 +474,12 @@ fn bigip_multi_word_object_type_resolved_via_registry() {
     // module(`sys`) → kind(`diags ihealth`).
     let src = "sys diags ihealth {\n    user admin\n}\n";
     let syms = document_symbols(src);
-    let sys = module(&syms, "sys").expect("a `sys` module: {syms:?}");
+    let sys_module = module(&syms, "sys").expect("a `sys` module: {syms:?}");
     assert!(
-        sys.children.iter().any(|c| c.name == "diags ihealth"),
+        sys_module
+            .children
+            .iter()
+            .any(|c| c.name == "diags ihealth"),
         "expected a `diags ihealth` kind group: {:?}",
         names(&syms),
     );
