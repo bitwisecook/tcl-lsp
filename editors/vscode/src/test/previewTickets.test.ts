@@ -9,6 +9,8 @@ import { getDocUri, activate, waitForDiagnostics } from "./helper";
 //   #721  a single diagnostic must not be displayed twice (E003 here)
 //   #723  Tk commands behind an unknown `package require` must not draw W120
 //   #725  `$::var` (a qualified global read) must not draw "read before set" (W210)
+//   #726  a nested `[expr]` that is a command argument must not draw W114
+//   #727  go-to-definition of a method parameter resolves to the parameter name
 suite("Preview-version regression tickets", () => {
   const docUri = getDocUri("previewTickets.tcl");
 
@@ -29,6 +31,9 @@ suite("Preview-version regression tickets", () => {
     assert.ok(!codes.includes("W210"), `#725: unexpected W210 in [${codes}]`);
     // #723 — an unknown package may load Tk; the Tk commands must not draw W120.
     assert.ok(!codes.includes("W120"), `#723: unexpected W120 in [${codes}]`);
+    // #726 — the nested `[expr]` is a command argument, not an expression
+    // context, so it must not draw W114.
+    assert.ok(!codes.includes("W114"), `#726: unexpected W114 in [${codes}]`);
 
     // #721 — the genuine E003 must be present, and exactly once (no duplicate
     // from the server pushing *and* the client pulling the same diagnostic).
@@ -39,6 +44,40 @@ suite("Preview-version regression tickets", () => {
       `#721: expected exactly one E003, got ${e003.length}: ${e003
         .map((d) => `${d.range.start.line}:${d.message}`)
         .join("; ")}`,
+    );
+  });
+
+  test("#727: go-to-definition of a method parameter resolves to its name", async () => {
+    const methodUri = getDocUri("methodParam.tcl");
+    await activate(methodUri);
+    // `return "$greeting, $name"` is on line 4 (0-based); `$name` ends the
+    // string. Put the cursor inside the `$name` usage.
+    const doc = await vscode.workspace.openTextDocument(methodUri);
+    const line = doc.lineAt(4).text;
+    const nameIdx = line.lastIndexOf("name");
+    const pos = new vscode.Position(4, nameIdx + 1);
+    const locations = (await vscode.commands.executeCommand(
+      "vscode.executeDefinitionProvider",
+      methodUri,
+      pos,
+    )) as vscode.Location[];
+    assert.ok(locations && locations.length >= 1, "expected a definition location");
+    const target = locations[0].range;
+    // The declaration is the parameter `name` on line 2 (`method greet {name
+    // greeting} {`), a single-line, name-sized range — NOT the multi-line body.
+    assert.strictEqual(
+      target.start.line,
+      2,
+      `#727: param def should be on the declaration line 2, got ${target.start.line}`,
+    );
+    assert.strictEqual(
+      target.start.line,
+      target.end.line,
+      "#727: param def must be a single-line name span, not the body",
+    );
+    assert.ok(
+      target.end.character - target.start.character <= "greeting".length,
+      "#727: param def must be a name-sized span",
     );
   });
 });

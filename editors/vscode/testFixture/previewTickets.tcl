@@ -18,5 +18,14 @@ if {[tk windowingsystem] eq "aqua"} {
     set fpixels [winfo fpixels . 1i]
 }
 
+# A nested [expr] that is an argument to another command is NOT in an
+# expression context (#726) -> no W114 on the inner [expr].
+proc myCmd {arg1} {
+    return $arg1
+}
+if {[myCmd [expr {1 + 1}]]} {
+    # nothing
+}
+
 # A genuine error that must appear exactly ONCE (#721): too many arguments.
 set var 10 10
