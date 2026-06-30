@@ -25,6 +25,21 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
+/// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
+/// reports: a decimal that overflows `i64` is "too large to represent", a
+/// non-numeric value is "expected integer but got …".
+fn parse_recursion_limit(s: &str) -> Result<i64, String> {
+    let t = s.trim();
+    if let Ok(n) = t.parse::<i64>() {
+        return Ok(n);
+    }
+    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
+    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("integer value too large to represent".to_string());
+    }
+    Err(format!("expected integer but got \"{s}\""))
+}
+
 /// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
 /// subset of C's `init.tcl`: `auto_load_index` reads each `tclIndex` on
 /// `auto_path` (which sets `auto_index(cmd)` to a `::tcl::Pkg::source <file>`
@@ -236,6 +251,9 @@ pub struct Vm {
     children: HashMap<String, Vm>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: bool,
+    /// Per-interp recursion bound (`interp recursionlimit`), default
+    /// [`RECURSION_LIMIT`]. A child carries its own, independent of the parent's.
+    recursion_limit: usize,
     /// Commands hidden by `interp create -safe` / `interp hide`, keyed by name —
     /// invocable via `interp invokehidden`, restorable with `interp expose`.
     hidden_commands: HashMap<String, Command>,
@@ -311,6 +329,7 @@ impl Vm {
             host: Rc::new(NativeHost::new()),
             children: HashMap::new(),
             is_safe: false,
+            recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
             interp_counter: 0,
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
@@ -666,6 +685,16 @@ impl Vm {
         self.children.get(name).map(|c| c.is_safe)
     }
 
+    /// Get/set a child's recursion limit; `None` if the child does not exist.
+    pub(crate) fn child_recursion_limit_apply(
+        &mut self,
+        name: &str,
+        newlimit: Option<&str>,
+    ) -> Option<Result<i64, String>> {
+        let child = self.children.get_mut(name)?;
+        Some(child.recursion_limit_apply(newlimit))
+    }
+
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
     /// hidden command). A no-op if the child does not exist.
     pub(crate) fn child_mark_trusted(&mut self, name: &str) {
@@ -789,6 +818,17 @@ impl Vm {
                 self.child_mark_trusted(name);
                 ok(Value::empty())
             }
+            "recursionlimit" if rest.len() <= 1 => {
+                let nl = rest.first().map(|v| v.to_str().to_string());
+                match self.child_recursion_limit_apply(name, nl.as_deref()) {
+                    Some(Ok(n)) => ok(Value::int(n)),
+                    Some(Err(m)) => err(m),
+                    None => err(format!("could not find interpreter \"{name}\"")),
+                }
+            }
+            "recursionlimit" => err(format!(
+                "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
+            )),
             other => err(format!(
                 "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
                  expose, hide, hidden, issafe, invokehidden, marktrusted, \
@@ -1373,6 +1413,28 @@ impl Vm {
     /// The current call-nesting depth (proc recursion bound).
     pub(crate) fn recursion_depth(&self) -> usize {
         self.recursion_depth
+    }
+
+    /// This interp's recursion bound (`interp recursionlimit`).
+    pub(crate) fn recursion_limit(&self) -> usize {
+        self.recursion_limit
+    }
+
+    /// `interp recursionlimit` get / set on this interp. `newlimit` is the
+    /// optional new-limit string; returns the resulting limit or the error
+    /// message the caller should raise.
+    pub(crate) fn recursion_limit_apply(&mut self, newlimit: Option<&str>) -> Result<i64, String> {
+        match newlimit {
+            None => Ok(i64::try_from(self.recursion_limit).unwrap_or(i64::MAX)),
+            Some(s) => {
+                let n = parse_recursion_limit(s)?;
+                if n <= 0 {
+                    return Err("recursion limit must be > 0".to_string());
+                }
+                self.recursion_limit = usize::try_from(n).unwrap_or(usize::MAX);
+                Ok(n)
+            }
+        }
     }
 
     /// Evaluate `src` as if `target` were the current call frame (`uplevel`).

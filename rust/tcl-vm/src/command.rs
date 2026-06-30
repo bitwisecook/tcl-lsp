@@ -413,6 +413,27 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     ok(Value::string(vm.create_child(name, safe)))
 }
 
+/// `interp recursionlimit path ?newlimit?` — get/set a (possibly child) interp's
+/// recursion bound.
+fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, newlimit) = match rest {
+        [path] => (path.to_str(), None),
+        [path, nl] => (path.to_str(), Some(nl.to_str().to_string())),
+        _ => return err("wrong # args: should be \"interp recursionlimit path ?newlimit?\""),
+    };
+    let result = if path.is_empty() {
+        vm.recursion_limit_apply(newlimit.as_deref())
+    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit.as_deref()) {
+        r
+    } else {
+        return err(format!("could not find interpreter \"{path}\""));
+    };
+    match result {
+        Ok(n) => ok(Value::int(n)),
+        Err(m) => err(m),
+    }
+}
+
 /// `interp` — child-interpreter creation, evaluation, and the single-interp
 /// alias form. A child is a full `Vm` sharing the parent's output and compile
 /// service (see [`Vm::create_child`]); `interp eval`/`delete`/`issafe`/… address
@@ -494,6 +515,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "slaves" | "children" => ok(Value::list(
             vm.child_names().into_iter().map(Value::string).collect(),
         )),
+        "recursionlimit" => interp_recursionlimit_cmd(vm, rest),
         // `interp marktrusted path` — clear a child's safe flag.
         "marktrusted" => match rest {
             [path] => {
