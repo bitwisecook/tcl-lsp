@@ -12,28 +12,50 @@ in [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md). This document is the
 *semantic* grouping behind it — what each tier means, which **exact upstream
 `.test` files** belong to it, and why the order matters.
 
+## Purpose — incremental delivery with a ratchet
+
+The ladder is not just a description; it is the **delivery plan**. We bring the
+runtime to C parity **one tier at a time, bottom-up**, and once a tier is green
+we **lock it** so later work cannot silently break it. Two properties fall out:
+
+- **Contained rework.** A lower tier is a prerequisite for every tier above it,
+  so fixing it once (the fundamentals — parsing, traces, encodings, channels)
+  lifts everything that depends on it instead of being patched per-symptom in
+  ten higher-tier files. We finish a tier before climbing, so we are never
+  building Tier 5 behaviour on a Tier 3 bug.
+- **No backsliding.** Each tier's parity is captured as a pass-only ratchet in
+  the committed baselines (`tests/baselines/tcl9-tcltest-vm/summary.json` and
+  the WASM/runtime equivalents) — the regression gate only ever lets the
+  pass-count rise. A change that regresses a tier already declared green fails
+  the gate, so progress is monotonic: a tier, once passed, stays passed.
+
+So the workflow is: pick the lowest tier not yet at parity → drive it to
+MATCH across its files → ratchet the baseline → move up. The tier number is the
+order; the ratchet is what keeps the lower rungs from rotting while we work on
+the higher ones.
+
 ## Core language vs optional features
 
 The single most useful distinction the ladder encodes: a **core language**
 versus a long tail of **optional features**.
 
-- **Core language — Tiers 1–7.** What makes the thing Tcl: parsing,
+- **Core language — Tiers 1–8.** What makes the thing Tcl: parsing,
   interpretation, the fundamental machinery (variables, namespaces, traces,
-  aliases, option/ensemble dispatch, encodings, core channels), data types,
-  control flow, the object system, and interpreters. Every backend must match C
-  here, exactly — there is no "skip it" escape hatch, because a program cannot
-  run without it.
-- **Optional features — Tiers 8–10.** Capabilities layered on top. Some are
+  aliases, option/ensemble dispatch, encodings, core channels, the `env`
+  array), data types, control flow, the object system, package loading, and
+  interpreters. Every backend must match C here, exactly — there is no "skip it"
+  escape hatch, because a program (or the standard library that bootstraps it)
+  cannot run without it.
+- **Optional features — Tiers 9–11.** Capabilities layered on top. Some are
   **host/OS-dependent** (sockets, the event loop, subprocesses, dynamic
   loading, threads, clocks) and are legitimately absent on a sandboxed backend.
   Others are **"just a feature"** — a self-contained subsystem that could ship
   as a package and that no core program needs: compression (`zlib`/`zipfs`),
-  HTTP (`http*`), message catalogues (`msgcat`), the module/package machinery
-  (`package`/`tm`), the registry. Parity on these matters for completeness but
-  never blocks the core.
+  HTTP (`http*`), message catalogues (`msgcat`), the option parser (`opt`), the
+  registry. Parity on these matters for completeness but never blocks the core.
 
-Rule of thumb when triaging: a failure in Tiers 1–7 gets fixed; a failure in
-Tiers 8–10 first gets the question "can the running backend even do this?" — and
+Rule of thumb when triaging: a failure in Tiers 1–8 gets fixed; a failure in
+Tiers 9–11 first gets the question "can the running backend even do this?" — and
 if not, the [backend-constraint overlay](backend-constraints.md) skips it.
 
 ## How to read the file lists
@@ -53,9 +75,9 @@ if not, the [backend-constraint overlay](backend-constraints.md) skips it.
     (scan/string/split/regexp), control flow (return/switch).
 - The same overlap rule applies to whole subsystems: the **channel** and
   **encoding** files exercise both their fundamental core (Tier 3) and their
-  advanced surface (Tiers 8/10), so they appear in both.
+  advanced surface (Tiers 9/11), so they appear in both.
 - Platform-native files (`win*`, `mac*`/`macOSX*`, `unix*`) are listed in
-  Tier 10 and are out of scope for the portable Rust runtimes except where the
+  Tier 11 and are out of scope for the portable Rust runtimes except where the
   generic command underneath is tested.
 
 ## The ladder
@@ -84,9 +106,10 @@ subsystems that are *fundamental*, not platform extras: **option/ensemble
 dispatch**, **encodings**, and the **core channel abstraction**.
 
 - **Variable storage & management** — scalars, arrays, `upvar`/`uplevel`
-  linkage, qualified vs local resolution.
+  linkage, qualified vs local resolution, and the predefined globals
+  (`tcl_platform`, **`env`**) the bootstrap installs.
   > `var`, `set`, `set-old`, `append`, `incr`, `incr-old`, `upvar`, `uplevel`,
-  > `get`, `link` · `cmdMZ` (set/unset group)
+  > `get`, `link`, `env` · `cmdMZ` (set/unset group)
 - **Namespaces** — creation, qualified resolution,
   `import`/`forget`/`export`, ensembles, the namespace a command (incl. a
   renamed proc) runs in, custom resolvers.
@@ -97,20 +120,21 @@ dispatch**, **encodings**, and the **core channel abstraction**.
 - **Aliasing, rename & introspection** — `rename` (incl. across namespaces),
   and the `info` surface used to verify the machinery above.
   > `rename`, `info`, `cmdInfo` · `cmdIL` (info group)
-- **Option & ensemble dispatch** — `Tcl_GetIndexFromObj`-style subcommand /
-  option resolution (unambiguous-prefix matching, the `bad option …: must be …`
-  wording) and the `::tcl::OptProc` parser the standard library builds on.
-  > `opt`, `indexObj` · every ensemble (`string`/`dict`/`namespace`/`chan`/
-  > `file`/`clock`/`interp`) depends on this.
+- **Option & ensemble dispatch** — the built-in `Tcl_GetIndexFromObj`
+  subcommand / option resolution (unambiguous-prefix matching, the
+  `bad option …: must be …` wording) every ensemble relies on. (The pure-Tcl
+  `::tcl::OptProc` *package* — `opt` — is a library feature, Tier 11.)
+  > `indexObj` · every ensemble (`string`/`dict`/`namespace`/`chan`/`file`/
+  > `clock`/`interp`) depends on this.
 - **Encodings** — the Unicode core: `encoding convertfrom`/`convertto`, the
   internal UTF representation, and `\u`/`\U` handling that string and channel
   code assume.
-  > `encoding`, `utf`, `utfext` · advanced/external encodings → Tier 10
+  > `encoding`, `utf`, `utfext` · advanced/external encodings → Tier 11
 - **Core channels** — the channel abstraction itself: `puts`/`gets`/`read`/
   `open`/`close`/`flush`/`eof` on the standard and in-memory channels — what
   `puts stdout` and the test harness's output capture rely on.
   > `chan`, `io` (core groups) · non-blocking / transforms / sockets / events →
-  > Tier 8 · `cmdAH` (close/eof/flush/gets group)
+  > Tier 9 · `cmdAH` (close/eof/flush/gets group)
 
 ### Tier 4 — Data types  *(core)*
 
@@ -143,20 +167,33 @@ that drive a test body. Built on Tiers 1–4.
 ### Tier 6 — Object system (TclOO)  *(core, mid)*
 
 The standard object system — classes, objects, methods, `next`, mixins,
-filters, and properties. Mid-tier: it is core Tcl (8.6+), built squarely on
+filters, and properties. Mid-tier: core Tcl (8.6+), built squarely on
 procedures, namespaces, and ensemble dispatch (Tiers 3 & 5), but nothing below
 it depends on it.
 
 > `oo`, `ooNext2`, `ooProp`, `ooUtil`
 
-### Tier 7 — Interpreters (child & safe)  *(core)*
+### Tier 7 — Packages & code loading  *(core)*
+
+Loading code at run time: `source`, the `package` database
+(`provide`/`require`/`ifneeded`/`vsatisfies`/`vcompare`), Tcl modules (`tm`),
+and the auto-load / index machinery. Core because the standard library — and
+tcltest itself — bootstraps through it. The version/dependency logic is
+pure computation; the auto-load path layers on `source`, which needs the
+filesystem on backends that have one.
+
+> `package`, `pkgMkIndex`, `autoMkindex`, `tm`, `config` · `source`
+> (the loading primitive; FS surface shared with Tier 9)
+
+### Tier 8 — Interpreters (child & safe)  *(core)*
 
 Creating, evaluating in, and tearing down **child interpreters**, the
 cross-interpreter **alias** and **hidden-command** machinery, and **safe
 interpreters** (`interp create -safe`, `marktrusted`, the Safe Base). A child
 interp re-enters the whole evaluator; a *safe* interp is precisely the
 mechanism that gates a child's access to the optional-feature tiers above.
-Depends on namespaces and aliases (Tier 3) and `eval`/control flow (Tiers 2, 5).
+Depends on namespaces/aliases (Tier 3), control flow (Tier 5), and package
+loading (Tier 7 — the Safe Base is loaded as a package).
 
 - **Child interpreters** — `interp create`/`eval`/`delete`/`exists`/`children`,
   child-as-command dispatch, `recursionlimit`, `interp target`/`share`/
@@ -167,7 +204,7 @@ Depends on namespaces and aliases (Tier 3) and `eval`/control flow (Tiers 2, 5).
   `safe.tcl` re-aliasing of `source`/`load`/`file`/`encoding`.
   > `safe`, `safe-stock`, `safe-stock86`, `safe-zipfs`, `security`
 
-### Tier 8 — Advanced I/O & events  *(feature, host-dependent)*
+### Tier 9 — Advanced I/O & events  *(feature, host-dependent)*
 
 The capabilities beyond the Tier 3 channel core: sockets, the event loop and
 fileevents, channel transforms and stacking, the filesystem command surface,
@@ -180,10 +217,10 @@ no sockets, eBPF has no I/O at all — so this is where the
 > · Sockets: `socket`
 > · Event loop: `event`, `async`, `timer`, `notify`, `fileevent`
 > · Files / FS: `fCmd`, `fileName`, `fileSystem`, `fileSystemEncoding`, `pwd`,
-> `link`, `source`
+> `link`
 > · `cmdAH` (after/fblocked/fconfigure/file/fileevent/glob group)
 
-### Tier 9 — Concurrency & advanced evaluation  *(feature, late)*
+### Tier 10 — Concurrency & advanced evaluation  *(feature, late)*
 
 Constructs that suspend, resume, or parallelise execution. Late because they
 sit on top of a correct evaluator, the event loop, and (for threads) the host.
@@ -192,19 +229,18 @@ sit on top of a correct evaluator, the event loop, and (for threads) the host.
 > · Tailcall: `tailcall`
 > · Threads: `thread`, `mutex`
 
-### Tier 10 — Platform & library features  *(feature, late)*
+### Tier 11 — Platform & library features  *(feature, late)*
 
 The long tail. **Host/OS-dependent**: subprocesses, dynamic loading,
 clocks/timezones, the advanced/external encoding surface. **Pure library
-features** (each could be a package, none is needed by a core program):
-message catalogues, packages/modules, compression, networking protocols, the
+features** (each could be a package, none is needed by a core program): the
+option parser, message catalogues, compression, networking protocols, the
 registry. Heavily backend-gated — most are skipped on wasm / WASI / eBPF.
 
-> Host/OS: `exec`, `process`, `pid`, `env`, `load`, `unload`, `clock`,
-> `clock-ivm`, `icu`
-> · Library features: `msgcat`, `package`, `pkgMkIndex`, `autoMkindex`, `tm`,
-> `config`, `zipfs`, `zlib`, `http`, `http11`, `httpPipeline`, `httpProxy`,
-> `httpcookie`, `registry`
+> Host/OS: `exec`, `process`, `pid`, `load`, `unload`, `clock`, `clock-ivm`,
+> `icu`
+> · Library features: `opt`, `msgcat`, `zipfs`, `zlib`, `http`, `http11`,
+> `httpPipeline`, `httpProxy`, `httpcookie`, `registry`
 > · Bootstrap / misc: `platform`, `init`, `main`, `history`, `aaa_exit`,
 > `bigdata`, `brodnik`
 > · Native-only (out of scope for the portable runtimes): `unixFCmd`,
@@ -221,23 +257,25 @@ core-vs-feature lens.
 
 | Area | Files | Tier | Kind |
 |---|---|---|---|
-| Option / ensemble dispatch | `opt`, `indexObj` | 3 | core |
+| Built-in option / ensemble dispatch | `indexObj` | 3 | core |
 | Encodings / Unicode core | `encoding`, `utf`, `utfext` | 3 | core |
 | Core channels | `chan`, `io` (core) | 3 | core |
+| `env` array | `env` | 3 | core |
 | Namespace ensembles | `namespace` (ensemble group) | 3 | core |
 | Custom resolvers | `resolver` | 3 | core |
 | TclOO | `oo`, `ooNext2`, `ooProp`, `ooUtil` | 6 | core (mid) |
-| Child / safe interpreters | `interp`, `safe`, `safe-*`, `security` | 7 | core |
-| Channel transforms / stacking | `iogt`, `ioTrans` | 8 | feature (host) |
-| Event loop / async | `event`, `async`, `timer`, `notify`, `fileevent` | 8 | feature (host) |
-| Coroutines / NRE | `coroutine`, `dcall`, `nre` | 9 (2 for NRE basics) | feature |
-| Threads | `thread`, `mutex` | 9 | feature (host) |
-| Subprocess / dynamic load | `exec`, `process`, `load`, `unload` | 10 | feature (host) |
-| Packages / modules | `package`, `pkgMkIndex`, `autoMkindex`, `tm` | 10 | feature (library) |
-| Compression / archives | `zlib`, `zipfs` | 10 | feature (library) |
-| HTTP protocol | `http`, `http11`, `httpPipeline`, `httpProxy`, `httpcookie` | 10 | feature (library) |
-| Message catalogues | `msgcat` | 10 | feature (library) |
-| Abstract / big lists | `abstractlist`, `range`, `bigdata` | 4, 10 | core / feature |
+| Packages / modules / loading | `package`, `pkgMkIndex`, `autoMkindex`, `tm`, `source` | 7 | core |
+| Child / safe interpreters | `interp`, `safe`, `safe-*`, `security` | 8 | core |
+| Channel transforms / stacking | `iogt`, `ioTrans` | 9 | feature (host) |
+| Event loop / async | `event`, `async`, `timer`, `notify`, `fileevent` | 9 | feature (host) |
+| Coroutines / NRE | `coroutine`, `dcall`, `nre` | 10 (2 for NRE basics) | feature |
+| Threads | `thread`, `mutex` | 10 | feature (host) |
+| Subprocess / dynamic load | `exec`, `process`, `load`, `unload` | 11 | feature (host) |
+| Option parser package | `opt` | 11 | feature (library) |
+| Compression / archives | `zlib`, `zipfs` | 11 | feature (library) |
+| HTTP protocol | `http`, `http11`, `httpPipeline`, `httpProxy`, `httpcookie` | 11 | feature (library) |
+| Message catalogues | `msgcat` | 11 | feature (library) |
+| Abstract / big lists | `abstractlist`, `range`, `bigdata` | 4, 11 | core / feature |
 
 ## How to use the ladder
 
@@ -248,20 +286,20 @@ core-vs-feature lens.
   Tier 3 fundamental is broken is usually wasted work.
 - **A CRASH on a low tier is the highest-leverage fix** — it zeroes a whole
   file (e.g. `cmdAH`'s 16 820 C-passing tests are gated behind `interp create`,
-  a Tier 7 feature the bytecode VM still lacks).
+  a Tier 8 feature the bytecode VM still lacks).
 - **Use the scoreboard for "where", the ladder for "why".** Within a tier,
   prefer the stem whose failures share a single root cause.
-- **Tier 8–10 parity is per-backend.** On native, match C exactly; on
+- **Tier 9–11 parity is per-backend.** On native, match C exactly; on
   wasm / WASI / eBPF the honest target is "skip what you can't do", which the
-  [backend-constraint overlay](backend-constraints.md) handles. Tier 7 safe
+  [backend-constraint overlay](backend-constraints.md) handles. Tier 8 safe
   interpreters are the in-language counterpart: a safe child legitimately
-  *cannot* reach Tiers 8–10, so those tests are expected to fail closed.
+  *cannot* reach Tiers 9–11, so those tests are expected to fail closed.
 
 ## Cross-references
 
 - [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) — live per-stem scoreboard.
 - [`backend-constraints.md`](backend-constraints.md) — per-backend skip overlay
   and `tcl_platform` introspection.
-- [`child-interp.md`](child-interp.md) — child-interpreter design (Tier 7).
+- [`child-interp.md`](child-interp.md) — child-interpreter design (Tier 8).
 - [`tcltest-bringup.md`](tcltest-bringup.md) — how the real `init.tcl` /
   `tcltest.tcl` are brought up, and the no-edit hard rules.
