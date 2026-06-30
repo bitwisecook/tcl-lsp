@@ -97,6 +97,11 @@ impl std::error::Error for ValueError {}
 /// shimmer caching, interning, and result-object building stay the runtime's
 /// business (hence `&mut self`). Monomorphises per implementor — zero dynamic
 /// dispatch, exactly like [`crate::expr::ExprOps`].
+/// The canonical ordered key/value pairs of a dict, or a [`ValueError`] when the
+/// backing list is odd-length. The pair type is the implementor's `Value`, so it
+/// is parameterised here to keep [`ValueOps::dict_pairs`]'s signature readable.
+pub type DictPairs<V> = Result<Vec<(V, V)>, ValueError>;
+
 pub trait ValueOps {
     /// The runtime's value type (a cheap-to-clone handle).
     type Value: Clone;
@@ -212,11 +217,7 @@ pub trait ValueOps {
     /// runtime's `TclDict`, which shimmers to a list). An impl with a native dict
     /// rep may override for efficiency. Errors with the canonical "missing value
     /// to go with key" when the list is odd-length.
-    #[allow(clippy::type_complexity)] // a Self-dependent (key, value) pair vec
-    fn dict_pairs(
-        &mut self,
-        v: &Self::Value,
-    ) -> Result<Vec<(Self::Value, Self::Value)>, ValueError> {
+    fn dict_pairs(&mut self, v: &Self::Value) -> DictPairs<Self::Value> {
         let elems = self.list_elements(v)?;
         if elems.len() % 2 != 0 {
             return Err(ValueError::BadList(

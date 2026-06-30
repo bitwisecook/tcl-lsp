@@ -290,7 +290,7 @@ mod tests {
             {
                 return Ok(V::Num((*a).max(*b)));
             }
-            Ok(V::Num(args.len() as i64))
+            Ok(V::Num(i64::try_from(args.len()).unwrap_or(i64::MAX)))
         }
         fn arith(&mut self, op: BinOp, left: V, right: V) -> Result<V, String> {
             let (V::Num(a), V::Num(b)) = (&left, &right) else {
@@ -303,7 +303,7 @@ mod tests {
                 BinOp::Mul => a * b,
                 BinOp::Div => a / b,
                 BinOp::Mod => a % b,
-                BinOp::Pow => a.pow(b as u32),
+                BinOp::Pow => a.pow(u32::try_from(b).unwrap_or(0)),
                 BinOp::BitAnd => a & b,
                 BinOp::BitOr => a | b,
                 BinOp::BitXor => a ^ b,

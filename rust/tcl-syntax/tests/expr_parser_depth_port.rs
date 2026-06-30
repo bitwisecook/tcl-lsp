@@ -60,7 +60,7 @@ use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, UnaryOp, eval, parse_expr};
 /// is platform-libm-dependent.
 fn approx(got: Num, want: f64) {
     match got {
-        Num::Float(f) => assert!((f - want).abs() < 1e-9, "expected ~{want}, got {f}",),
+        Num::Float(f) => assert!((f - want).abs() < 1e-9, "expected ~{want}, got {f}"),
         Num::Int(i) => panic!("expected Float(~{want}), got Int({i})"),
     }
 }
@@ -70,7 +70,7 @@ fn approx(got: Num, want: f64) {
 /// tripping clippy's `float_cmp`.
 fn float_eq(got: Num, want: f64) {
     match got {
-        Num::Float(f) => assert_eq!(f.to_bits(), want.to_bits(), "expected {want}, got {f}",),
+        Num::Float(f) => assert_eq!(f.to_bits(), want.to_bits(), "expected {want}, got {f}"),
         Num::Int(i) => panic!("expected Float({want}), got Int({i})"),
     }
 }
