@@ -15,6 +15,52 @@ use crate::obj::TclObj;
 /// Register `clock`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"clock", clock_cmd);
+    // The ensemble's implementation members: the real `clock.tcl` rewrites
+    // `clock` into an ensemble whose subcommands dispatch to `::tcl::clock::…`,
+    // and library/framework code calls those fully-qualified forms directly.
+    // Each prepends its subcommand and reuses the same dispatch.
+    interp.register_builtin(b"::tcl::clock::seconds", clock_seconds);
+    interp.register_builtin(b"::tcl::clock::milliseconds", clock_milliseconds);
+    interp.register_builtin(b"::tcl::clock::microseconds", clock_microseconds);
+    interp.register_builtin(b"::tcl::clock::clicks", clock_clicks);
+    interp.register_builtin(b"::tcl::clock::format", clock_format);
+    interp.register_builtin(b"::tcl::clock::add", clock_add);
+    interp.register_builtin(b"::tcl::clock::scan", clock_scan);
+}
+
+/// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub` to the
+/// argument list and reusing [`clock_cmd`].
+fn clock_member(interp: &mut Interp, argv: &[*mut TclObj], sub: &[u8]) -> Code {
+    let sub_obj = crate::obj::new_string_bytes(sub);
+    let mut v: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
+    v.push(argv[0]);
+    v.push(sub_obj);
+    v.extend_from_slice(&argv[1..]);
+    let code = clock_cmd(interp, &v);
+    crate::interp::drop_fresh(sub_obj);
+    code
+}
+
+fn clock_seconds(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"seconds")
+}
+fn clock_milliseconds(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"milliseconds")
+}
+fn clock_microseconds(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"microseconds")
+}
+fn clock_clicks(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"clicks")
+}
+fn clock_format(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"format")
+}
+fn clock_add(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"add")
+}
+fn clock_scan(i: &mut Interp, a: &[*mut TclObj]) -> Code {
+    clock_member(i, a, b"scan")
 }
 
 fn clock_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
