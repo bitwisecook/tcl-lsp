@@ -134,6 +134,8 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"expose" => interp_hidectl(interp, argv, HideOp::Expose),
         b"invokehidden" => interp_invokehidden(interp, argv),
         b"limit" => interp_limit(interp, argv),
+        b"marktrusted" => interp_marktrusted(interp, argv),
+        b"debug" => interp_debug(interp, argv),
         b"hidden" => {
             // `interp hidden ?path?` — hidden command names in the (current or
             // named) interp.
@@ -299,6 +301,59 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_error(&m)
         }
     }
+}
+
+/// `interp marktrusted path` — clear a child interp's safe flag (denied from a
+/// safe interpreter).
+fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"interp marktrusted path");
+    }
+    if interp.is_safe() {
+        return interp.set_error(b"permission denied: safe interpreter cannot mark trusted");
+    }
+    let path = obj_bytes(argv[2]);
+    if path.is_empty() {
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    match interp.with_child(&path, |c| c.mark_trusted()) {
+        Some(()) => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        None => not_found(interp, &path),
+    }
+}
+
+/// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
+fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 || argv.len() > 5 {
+        return wrong_args(interp, b"interp debug path ?-frame ?bool??");
+    }
+    let path = obj_bytes(argv[2]);
+    let opts: Vec<*mut TclObj> = argv[3..].to_vec();
+    let result = if path.is_empty() {
+        Some(interp.debug_apply(&opts))
+    } else {
+        interp.with_child(&path, |c| c.debug_apply(&opts))
+    };
+    match result {
+        Some(Ok(o)) => {
+            interp.set_result(o);
+            Code::Ok
+        }
+        Some(Err(m)) => interp.set_error(&m),
+        None => not_found(interp, &path),
+    }
+}
+
+/// The `could not find interpreter "path"` error.
+fn not_found(interp: &mut Interp, path: &[u8]) -> Code {
+    let mut m = b"could not find interpreter \"".to_vec();
+    m.extend_from_slice(path);
+    m.push(b'"');
+    interp.set_error(&m)
 }
 
 /// Whether `name` resolves in the global namespace — it carries no namespace
