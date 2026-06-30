@@ -1043,6 +1043,16 @@ struct FolderConfig {
     style_line_length: Option<u32>,
     /// `tclLsp.shimmer.enabled` override; `None` inherits the global value.
     shimmer_enabled: Option<bool>,
+    /// `tclLsp.extraCommands` override; `None` inherits the global set.
+    extra_commands: Option<Vec<String>>,
+    /// `tclLsp.diagnostics.genericVariablePatterns` override. Outer `None`
+    /// inherits the global value; `Some(inner)` overrides, where `inner` follows
+    /// the same `None` = built-in defaults / `Some(list)` = replace semantics —
+    /// the nested option is intentional (folder-set vs the value's own option).
+    #[allow(clippy::option_option)]
+    generic_variable_patterns: Option<Option<Vec<String>>>,
+    /// `tclLsp.libraryPaths` override; `None` inherits the global set.
+    library_paths: Option<Vec<String>>,
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -2907,16 +2917,21 @@ impl Backend {
                 .collect();
             global_disabled.sort();
             let global_mode = *self.non_ascii_mode.lock().await;
-            // Folder handles inherit the process-global extra-commands set
-            // (`tclLsp.extraCommands` has no per-folder override).
+            // Per-folder `extraCommands` / `genericVariablePatterns` override the
+            // process-global value when set; otherwise the folder inherits it.
             let global_extra = self.extra_commands.lock().await.clone();
-            // Likewise `tclLsp.diagnostics.genericVariablePatterns` is global.
             let global_generic = self.generic_variable_patterns.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
-                if fc.disabled_diagnostics.is_none() && fc.non_ascii_mode.is_none() {
+                // A handle is only needed when the folder overrides one of the
+                // analyser-config inputs.
+                if fc.disabled_diagnostics.is_none()
+                    && fc.non_ascii_mode.is_none()
+                    && fc.extra_commands.is_none()
+                    && fc.generic_variable_patterns.is_none()
+                {
                     continue;
                 }
                 let mut disabled: Vec<String> = match &fc.disabled_diagnostics {
@@ -2925,22 +2940,23 @@ impl Backend {
                 };
                 disabled.sort();
                 let mode = fc.non_ascii_mode.unwrap_or(global_mode);
+                let extra = fc
+                    .extra_commands
+                    .clone()
+                    .unwrap_or_else(|| global_extra.clone());
+                let generic = fc
+                    .generic_variable_patterns
+                    .clone()
+                    .unwrap_or_else(|| global_generic.clone());
                 if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
-                    handle.set_extra_commands(&mut *db).to(global_extra.clone());
-                    handle
-                        .set_generic_variable_patterns(&mut *db)
-                        .to(global_generic.clone());
+                    handle.set_extra_commands(&mut *db).to(extra);
+                    handle.set_generic_variable_patterns(&mut *db).to(generic);
                     next.push((folder.clone(), *handle));
                 } else {
-                    let handle = tcl_lsp_db::AnalyserConfig::new(
-                        &*db,
-                        disabled,
-                        mode,
-                        global_extra.clone(),
-                        global_generic.clone(),
-                    );
+                    let handle =
+                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic);
                     next.push((folder.clone(), handle));
                 }
             }
@@ -3270,6 +3286,32 @@ impl Backend {
         }
     }
 
+    /// The resolved `tclLsp.extraCommands` for `uri`: a folder override wins,
+    /// else the process-global set.
+    async fn resolved_extra_commands(&self, uri: &Uri) -> Vec<String> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.extra_commands.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.extra_commands.lock().await.clone(),
+        }
+    }
+
+    /// The resolved `tclLsp.diagnostics.genericVariablePatterns` for `uri`: a
+    /// folder override wins, else the process-global value.
+    async fn resolved_generic_variable_patterns(&self, uri: &Uri) -> Option<Vec<String>> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.generic_variable_patterns.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.generic_variable_patterns.lock().await.clone(),
+        }
+    }
+
     /// The resolved `tclLsp.formatting` settings object for `uri`: a folder
     /// override wins, else the process-global section (or `Null`).
     async fn resolved_formatting(&self, uri: &Uri) -> serde_json::Value {
@@ -3339,8 +3381,12 @@ impl Backend {
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
-        let extra_commands = self.extra_commands.lock().await.iter().cloned().collect();
-        let generic_variable_patterns = self.generic_variable_patterns.lock().await.clone();
+        let extra_commands = self
+            .resolved_extra_commands(uri)
+            .await
+            .into_iter()
+            .collect();
+        let generic_variable_patterns = self.resolved_generic_variable_patterns(uri).await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         DiagInputs {
@@ -3688,8 +3734,23 @@ impl Backend {
         let default_dialect = self.default_dialect.lock().await.clone();
         // Inputs for the package-database `auto_path`: the editor's
         // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
-        // disk in the worker) and the discovered-installation cache.
-        let editor_library_paths = self.editor_library_paths.lock().await.clone();
+        // disk in the worker) and the discovered-installation cache.  Per-folder
+        // `libraryPaths` overrides are unioned in so a folder's configured
+        // package directories contribute to the shared package database (the
+        // database is additive — more known packages only refines W120).
+        let mut editor_library_paths = self.editor_library_paths.lock().await.clone();
+        {
+            let folder_configs = self.folder_configs.lock().await;
+            for (_, fc) in folder_configs.iter() {
+                if let Some(paths) = &fc.library_paths {
+                    for p in paths {
+                        if !editor_library_paths.contains(p) {
+                            editor_library_paths.push(p.clone());
+                        }
+                    }
+                }
+            }
+        }
         let discovered_cell = Arc::clone(&self.discovered_tcl);
 
         let resolver_roots = roots.clone();
@@ -6777,6 +6838,49 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
         .filter(|&len| len > 0)
     {
         fc.style_line_length = Some(u32::try_from(len).unwrap_or(120));
+    }
+    // `tclLsp.extraCommands` per-folder override.
+    if let Some(cmds) = obj
+        .get("extraCommands")
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.extra_commands = Some(
+            cmds.iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
+    // `tclLsp.diagnostics.genericVariablePatterns` per-folder override (a
+    // present array sets `Some(list)`; absent leaves the global value).
+    if let Some(patterns) = obj
+        .get("diagnostics")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|d| d.get("genericVariablePatterns"))
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.generic_variable_patterns = Some(Some(
+            patterns
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+        ));
+    }
+    // `tclLsp.libraryPaths` per-folder override.
+    if let Some(paths) = obj
+        .get("libraryPaths")
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.library_paths = Some(
+            paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
     }
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
@@ -10424,6 +10528,81 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle",
+        );
+    }
+
+    #[test]
+    fn parse_folder_config_reads_extra_library_and_generic_patterns() {
+        let cfg = serde_json::json!({
+            "extraCommands": ["mylib::send", "mylib::recv"],
+            "libraryPaths": ["/proj/lib"],
+            "diagnostics": { "genericVariablePatterns": ["^proj_"] },
+        });
+        let fc = parse_folder_config(&cfg).expect("folder config");
+        assert_eq!(
+            fc.extra_commands.as_deref(),
+            Some(["mylib::send".to_owned(), "mylib::recv".to_owned()].as_slice()),
+        );
+        assert_eq!(
+            fc.library_paths.as_deref(),
+            Some(["/proj/lib".to_owned()].as_slice())
+        );
+        assert_eq!(
+            fc.generic_variable_patterns,
+            Some(Some(vec!["^proj_".to_owned()])),
+        );
+    }
+
+    #[tokio::test]
+    async fn per_folder_extra_commands_and_patterns_are_isolated() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let inside = Uri::from_str("file:///proj-a/sub/file.tcl").unwrap();
+        let outside = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        // Global sets one extra command; proj-a overrides with its own.
+        *backend.extra_commands.lock().await = vec!["globalcmd".to_owned()];
+        let fc = FolderConfig {
+            extra_commands: Some(vec!["projacmd".to_owned()]),
+            generic_variable_patterns: Some(Some(vec!["^proja_".to_owned()])),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder_a.clone(), fc)])
+            .await;
+
+        // extraCommands resolve per folder.
+        assert_eq!(
+            backend.resolved_extra_commands(&inside).await,
+            vec!["projacmd".to_owned()],
+            "proj-a uses its own extraCommands",
+        );
+        assert_eq!(
+            backend.resolved_extra_commands(&outside).await,
+            vec!["globalcmd".to_owned()],
+            "proj-b inherits the global extraCommands",
+        );
+        // genericVariablePatterns resolve per folder.
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&inside).await,
+            Some(vec!["^proja_".to_owned()]),
+        );
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&outside).await,
+            None,
+            "proj-b inherits the global (default) patterns",
+        );
+        // proj-a gets a salsa handle (it overrides analyser-config inputs).
+        assert!(
+            backend
+                .folder_db_configs
+                .lock()
+                .await
+                .iter()
+                .any(|(u, _)| u == &folder_a),
+            "proj-a must have a per-folder AnalyserConfig handle for extraCommands",
         );
     }
 
