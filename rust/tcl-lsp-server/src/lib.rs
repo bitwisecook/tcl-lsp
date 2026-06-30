@@ -255,6 +255,10 @@ struct DiagInputs {
     /// no-salsa-input uncached fallback; the memoised path reads them off the
     /// salsa `AnalyserConfig`.
     generic_variable_patterns: Option<Vec<String>>,
+    /// Resolved `tclLsp.style.lineLength` (W111 max line length) for this
+    /// document's folder; fed to the source-style checks. Distinct from the
+    /// formatter's `tclLsp.formatting.lineLength`.
+    style_line_length: u32,
     non_ascii_mode: NonAsciiMode,
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
@@ -385,6 +389,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         disabled,
         extra_commands,
         generic_variable_patterns,
+        style_line_length,
         non_ascii_mode,
         optimiser_enabled,
         opt_disabled,
@@ -612,6 +617,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             &lift_text,
             &analysis_lifts.suppressed_lines,
             &disabled,
+            style_line_length as usize,
         ));
         // Opt-in: append the XC100-301 translatability diagnostics
         // for `f5-irules` documents when `xcDiagnostics` is enabled.
@@ -812,6 +818,11 @@ pub struct Backend {
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
+    /// Resolved source-style line length (`tclLsp.style.lineLength`) — the W111
+    /// "line too long" threshold, distinct from the formatter width above.
+    /// Default 120, matching the Python `line_length` style setting and
+    /// [`tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH`].
+    style_line_length: Mutex<u32>,
     /// Incremental query database (salsa 0.26) — the single memoised store of
     /// derived facts that is replacing the hand-maintained caches above.  The
     /// `db` handle is the write side (set inputs); reads clone it onto a
@@ -886,6 +897,7 @@ impl FeatureToggles {
         "selectionRange",
         "documentHighlight",
         "codeLens",
+        "workspaceFileOps",
         "implementation",
         "typeDefinition",
         "declaration",
@@ -986,6 +998,9 @@ struct FolderConfig {
     optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
     optimiser_code_overrides: HashMap<String, bool>,
     line_length: Option<u32>,
+    /// `tclLsp.style.lineLength` override (W111 threshold); `None` inherits the
+    /// global value.
+    style_line_length: Option<u32>,
     /// `tclLsp.shimmer.enabled` override; `None` inherits the global value.
     shimmer_enabled: Option<bool>,
 }
@@ -1055,6 +1070,7 @@ impl Backend {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
@@ -2769,6 +2785,16 @@ impl Backend {
         {
             *self.line_length.lock().await = u32::try_from(len).unwrap_or(80);
         }
+        // `tclLsp.style.lineLength` — the W111 threshold (distinct from the
+        // formatter width above). A positive value replaces the default 120.
+        if let Some(len) = cfg
+            .get("style")
+            .and_then(|s| s.get("lineLength"))
+            .and_then(serde_json::Value::as_u64)
+            .filter(|&len| len > 0)
+        {
+            *self.style_line_length.lock().await = u32::try_from(len).unwrap_or(120);
+        }
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
         }
@@ -3197,6 +3223,20 @@ impl Backend {
         }
     }
 
+    /// The resolved W111 source-style line length (`tclLsp.style.lineLength`)
+    /// for `uri`: a folder override wins, else the process-global value.
+    /// Distinct from [`Self::resolved_line_length`] (the formatter width).
+    async fn resolved_style_line_length(&self, uri: &Uri) -> u32 {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.style_line_length)
+        };
+        match folder {
+            Some(len) => len,
+            None => *self.style_line_length.lock().await,
+        }
+    }
+
     /// Build an `Analyser` carrying the configured disabled-diagnostics
     /// set and W108 mode.
     fn configured_analyser(
@@ -3241,12 +3281,14 @@ impl Backend {
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let extra_commands = self.extra_commands.lock().await.iter().cloned().collect();
         let generic_variable_patterns = self.generic_variable_patterns.lock().await.clone();
+        let style_line_length = self.resolved_style_line_length(uri).await;
         DiagInputs {
             client: self.client.clone(),
             registry,
             disabled,
             extra_commands,
             generic_variable_patterns,
+            style_line_length,
             non_ascii_mode,
             optimiser_enabled,
             opt_disabled,
@@ -3363,6 +3405,7 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
             diagnostics.extend(lift_compiler_diagnostics(
@@ -3376,6 +3419,7 @@ impl Backend {
                 &text,
                 &analysis.suppressed_lines,
                 &disabled,
+                style_line_length as usize,
             ));
             // Opt-in: XC100-301 translatability diagnostics for
             // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
@@ -4218,6 +4262,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDeclarationParams,
     ) -> jsonrpc::Result<Option<GotoDeclarationResponse>> {
+        if !self
+            .feature_enabled(
+                "declaration",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // For a `$var`, go-to-declaration resolves the
         // visible `global` / `variable` / `upvar` scoping statement that
         // declares the name; for any other symbol it defers to plain
@@ -4277,6 +4330,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoTypeDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoTypeDefinitionResponse>> {
+        if !self
+            .feature_enabled(
+                "typeDefinition",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // Type-definition jumps to the class that types
         // the symbol (a `$obj` instance's class, or a method's owning
         // class) — not the plain definition site it used to alias.
@@ -4319,6 +4381,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoImplementationParams,
     ) -> jsonrpc::Result<Option<GotoImplementationResponse>> {
+        if !self
+            .feature_enabled(
+                "implementation",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // Go-to-implementation is the TclOO subclass /
         // method-override fan-out, not the plain definition site it used
         // to alias.  Resolve in-document via `core_implementation`.
@@ -4448,6 +4519,15 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentHighlightParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+        if !self
+            .feature_enabled(
+                "documentHighlight",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -4500,6 +4580,15 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyPrepareParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyItem>>> {
+        if !self
+            .feature_enabled(
+                "callHierarchy",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -4544,6 +4633,12 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyIncomingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
+        if !self
+            .feature_enabled("callHierarchy", &params.item.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let item = params.item;
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
@@ -4616,6 +4711,12 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyOutgoingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
+        if !self
+            .feature_enabled("callHierarchy", &params.item.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let item = params.item;
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
@@ -4746,6 +4847,15 @@ impl LanguageServer for Backend {
         &self,
         params: LinkedEditingRangeParams,
     ) -> jsonrpc::Result<Option<LinkedEditingRanges>> {
+        if !self
+            .feature_enabled(
+                "linkedEditingRange",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // `S-linked-editing-range-rich`: when the cursor sits
         // on a proc declaration's name or inside the proc's
         // body, return every range that should be edited in
@@ -4945,6 +5055,12 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensParams,
     ) -> jsonrpc::Result<Option<SemanticTokensResult>> {
+        if !self
+            .feature_enabled("semanticTokens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -4981,6 +5097,12 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensDeltaParams,
     ) -> jsonrpc::Result<Option<SemanticTokensFullDeltaResult>> {
+        if !self
+            .feature_enabled("semanticTokens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -5053,6 +5175,16 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceSymbolParams,
     ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
+        // Workspace-wide query (no document URI): gate on the process-global
+        // toggle, as the Python server does with `workspace_symbols_enabled`.
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceSymbols")
+        {
+            return Ok(None);
+        }
         // Walk every cached document and collect matching
         // symbols.  This iterates the document
         // store on the LSP loop (acquiring the mutex briefly).
@@ -5268,6 +5400,12 @@ impl LanguageServer for Backend {
     }
 
     async fn code_lens(&self, params: CodeLensParams) -> jsonrpc::Result<Option<Vec<CodeLens>>> {
+        if !self
+            .feature_enabled("codeLens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -5411,6 +5549,12 @@ impl LanguageServer for Backend {
         &self,
         params: CodeActionParams,
     ) -> jsonrpc::Result<Option<Vec<CodeActionOrCommand>>> {
+        if !self
+            .feature_enabled("codeActions", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -5747,6 +5891,12 @@ impl LanguageServer for Backend {
         &self,
         params: TextDocumentPositionParams,
     ) -> jsonrpc::Result<Option<PrepareRenameResponse>> {
+        if !self
+            .feature_enabled("rename", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -5774,6 +5924,12 @@ impl LanguageServer for Backend {
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        if !self
+            .feature_enabled("rename", &params.text_document_position.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let new_name = params.new_name;
@@ -5868,6 +6024,16 @@ impl LanguageServer for Backend {
         &self,
         params: RenameFilesParams,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        // Workspace-wide file operation: gate on the process-global toggle,
+        // as the Python server does with `workspace_file_ops_enabled`.
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceFileOps")
+        {
+            return Ok(None);
+        }
         // Collect the byte-span edits for every rename in the batch.
         let roots: Vec<String> = self
             .workspace_folder_urls()
@@ -5926,6 +6092,16 @@ impl LanguageServer for Backend {
     /// entries and re-index the renamed file from its new path so
     /// cross-document features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
+        // Same workspace-file-ops gate as `will_rename_files` (mirrors the
+        // Python `workspace_file_ops_enabled` handler guard).
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceFileOps")
+        {
+            return;
+        }
         for f in &params.files {
             if let Ok(old_url) = Uri::from_str(&f.old_uri) {
                 self.workspace_index
@@ -6416,6 +6592,14 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     {
         fc.line_length = Some(u32::try_from(len).unwrap_or(80));
     }
+    if let Some(len) = obj
+        .get("style")
+        .and_then(|s| s.get("lineLength"))
+        .and_then(serde_json::Value::as_u64)
+        .filter(|&len| len > 0)
+    {
+        fc.style_line_length = Some(u32::try_from(len).unwrap_or(120));
+    }
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
     let wrapped = serde_json::json!({ "tclLsp": cfg });
@@ -6894,10 +7078,9 @@ fn lift_source_style_diagnostics(
     text: &str,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
     user_disabled: &std::collections::HashSet<String>,
+    line_length: usize,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::{
-        DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
-    };
+    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, StyleSeverity, style_diagnostics};
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
     // The file-level (`-1`) directive bucket doubles as a per-code
@@ -6911,7 +7094,7 @@ fn lift_source_style_diagnostics(
 
     style_diagnostics(
         text,
-        DEFAULT_LINE_LENGTH,
+        line_length,
         DEFAULT_LINE_ENDING,
         &disabled,
         suppressed,
@@ -8795,6 +8978,7 @@ mod tests {
             &src,
             &std::collections::HashMap::new(),
             &std::collections::HashSet::new(),
+            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
         );
         let codes: Vec<String> = diags
             .iter()
@@ -8823,8 +9007,12 @@ mod tests {
         let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
             std::collections::HashMap::new();
         suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
-        let diags =
-            lift_source_style_diagnostics(&src, &suppressed, &std::collections::HashSet::new());
+        let diags = lift_source_style_diagnostics(
+            &src,
+            &suppressed,
+            &std::collections::HashSet::new(),
+            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+        );
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
@@ -9290,6 +9478,7 @@ mod tests {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
@@ -11151,6 +11340,171 @@ mod tests {
         let consumer_edits = &changes[&consumer];
         assert_eq!(consumer_edits.len(), 2, "{consumer_edits:?}");
         assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
+    }
+
+    #[tokio::test]
+    async fn disabled_feature_toggles_short_circuit_their_handlers() {
+        // A representative sweep of the previously-unenforced toggles: each
+        // handler must honour `tclLsp.features.<feature> = false` and return
+        // an empty result, matching the Python server's per-handler gates.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///g.tcl").unwrap();
+        register(&backend, &uri, "proc helper {} {}\nhelper\n").await;
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({
+                "semanticTokens": false,
+                "codeActions": false,
+                "rename": false,
+                "documentHighlight": false,
+                "codeLens": false,
+                "implementation": false,
+                "typeDefinition": false,
+                "declaration": false,
+                "linkedEditingRange": false,
+                "callHierarchy": false,
+                "workspaceSymbols": false,
+            })
+            .as_object()
+            .unwrap(),
+        );
+
+        let td = TextDocumentIdentifier { uri: uri.clone() };
+        let pos_params = TextDocumentPositionParams {
+            text_document: td.clone(),
+            position: Position::new(0, 5),
+        };
+
+        assert!(
+            backend
+                .semantic_tokens_full(SemanticTokensParams {
+                    text_document: td.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "semanticTokens disabled must yield None",
+        );
+        assert!(
+            backend
+                .code_action(CodeActionParams {
+                    text_document: td.clone(),
+                    range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                    context: tower_lsp_server::ls_types::CodeActionContext::default(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "codeActions disabled must yield None",
+        );
+        assert!(
+            backend
+                .rename(RenameParams {
+                    text_document_position: pos_params.clone(),
+                    new_name: "do_it".to_owned(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "rename disabled must yield None",
+        );
+        assert!(
+            backend
+                .document_highlight(DocumentHighlightParams {
+                    text_document_position_params: pos_params.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "documentHighlight disabled must yield None",
+        );
+        assert!(
+            backend
+                .code_lens(CodeLensParams {
+                    text_document: td.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "codeLens disabled must yield None",
+        );
+        assert!(
+            backend
+                .linked_editing_range(LinkedEditingRangeParams {
+                    text_document_position_params: pos_params.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "linkedEditingRange disabled must yield None",
+        );
+        assert!(
+            backend
+                .prepare_call_hierarchy(CallHierarchyPrepareParams {
+                    text_document_position_params: pos_params.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "callHierarchy disabled must yield None",
+        );
+        assert!(
+            backend
+                .symbol(WorkspaceSymbolParams {
+                    query: "helper".to_owned(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "workspaceSymbols disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn style_line_length_setting_drives_w111() {
+        // `tclLsp.style.lineLength` is the W111 threshold, distinct from the
+        // formatter width. A short threshold makes an otherwise-fine line long.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w111.tcl").unwrap();
+        let src = "set x 1234567890\n"; // 16 chars on line 0
+        register(&backend, &uri, src).await;
+
+        // Default (120): no W111.
+        let none = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !none
+                .iter()
+                .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
+            "no W111 at the default threshold: {none:?}",
+        );
+
+        // Lower the style threshold to 8 → the 16-char line now trips W111.
+        backend
+            .apply_global_config(&serde_json::json!({ "style": { "lineLength": 8 } }))
+            .await;
+        assert_eq!(*backend.style_line_length.lock().await, 8);
+        let some = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            some.iter()
+                .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
+            "W111 should fire once the style line length is lowered: {some:?}",
+        );
     }
 
     #[tokio::test]

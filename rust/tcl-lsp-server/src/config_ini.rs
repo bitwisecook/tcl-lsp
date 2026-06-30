@@ -198,25 +198,32 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         }
     }
 
-    // [formatting] line length (`max_line_length`) and [style] (`line_length`)
-    // both feed the resolved formatter line length the server surfaces.
-    let line_length = section_value(&sections, "formatting", "max_line_length")
-        .or_else(|| section_value(&sections, "style", "line_length"))
-        .and_then(|v| v.trim().parse::<u64>().ok());
-    if let Some(len) = line_length {
+    // [formatting] `max_line_length` → the formatter width.
+    if let Some(len) = section_value(&sections, "formatting", "max_line_length")
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
         let mut fmt = Map::new();
         fmt.insert("lineLength".to_owned(), Value::from(len));
         out.insert("formatting".to_owned(), Value::Object(fmt));
     }
 
-    // [style] nonAscii → the W108 non-ASCII mode the server reads.
+    // [style] `line_length` → the W111 threshold; `nonAscii` → the W108
+    // non-ASCII mode.  These are distinct from the formatter width above,
+    // mirroring the Python `[style]` section mapping in `shared/user_config.py`.
+    let mut style = Map::new();
+    if let Some(len) =
+        section_value(&sections, "style", "line_length").and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        style.insert("lineLength".to_owned(), Value::from(len));
+    }
     if let Some(mode) = section_value(&sections, "style", "nonAscii") {
         let mode = mode.trim();
         if !mode.is_empty() {
-            let mut style = Map::new();
             style.insert("nonAscii".to_owned(), Value::String(mode.to_owned()));
-            out.insert("style".to_owned(), Value::Object(style));
         }
+    }
+    if !style.is_empty() {
+        out.insert("style".to_owned(), Value::Object(style));
     }
 
     Value::Object(out)

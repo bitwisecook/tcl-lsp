@@ -33,10 +33,12 @@
 //! The W112 / W115 quick-fixes are carried on
 //! [`StyleDiagnostic::fix`] but not yet surfaced as code actions —
 //! the code-action wiring is a separate concern, same posture as
-//! the optimiser O-code fixes.  Per-check feature-config toggles
-//! beyond the file-level `# noqa` / `# tcl-lsp: disable` suppression
-//! are not yet wired; today the checks run with the defaults (line
-//! length 120, expected line ending `\n`).
+//! the optimiser O-code fixes.  The W111 line length is configurable
+//! (`tclLsp.style.lineLength`, resolved per folder by the server and
+//! passed into [`style_diagnostics`]); the expected line ending is
+//! still the default `\n`.  Per-code on/off is handled by the
+//! file-level `# noqa` / `# tcl-lsp: disable` suppression plus the
+//! editor's `tclLsp.diagnostics.<CODE>` set.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;

@@ -63,13 +63,17 @@ fn features_shimmer_xc_and_line_length() {
     let ini = "[features]\nhover = true\ninlayHints = false\n\
                [shimmer]\nenabled = true\n\
                [xcDiagnostics]\nenabled = false\n\
+               [formatting]\nmax_line_length = 90\n\
                [style]\nline_length = 100\n";
     let s = settings_from_ini(ini, Layer::Global);
     assert_eq!(s["features"]["hover"], json!(true));
     assert_eq!(s["features"]["inlayHints"], json!(false));
     assert_eq!(s["shimmer"]["enabled"], json!(true));
     assert_eq!(s["xcDiagnostics"]["enabled"], json!(false));
-    assert_eq!(s["formatting"]["lineLength"], json!(100));
+    // `[formatting] max_line_length` → formatter width; `[style] line_length`
+    // → the W111 threshold. These are distinct settings (mirrors Python).
+    assert_eq!(s["formatting"]["lineLength"], json!(90));
+    assert_eq!(s["style"]["lineLength"], json!(100));
 }
 
 #[test]
