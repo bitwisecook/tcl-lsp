@@ -1,5 +1,3 @@
-#![allow(clippy::doc_markdown, clippy::implicit_hasher)]
-
 //! Cross-event variable scope analysis for iRules connection
 //! lifecycles.
 //!
@@ -21,8 +19,8 @@
 //!   `connection_scope.cross_event_defs` /
 //!   `cross_event_imports` through
 //!   `emit_cfg_ssa_diagnostics_for_function` so a
-//!   ``set::ip [IP::client_addr]`` in CLIENT_ACCEPTED that's
-//!   read in HTTP_REQUEST is not falsely flagged as unused.
+//!   ``set::ip [IP::client_addr]`` in `CLIENT_ACCEPTED` that's
+//!   read in `HTTP_REQUEST` is not falsely flagged as unused.
 
 use std::collections::{HashMap, HashSet};
 
@@ -80,7 +78,9 @@ pub struct ConnectionScope {
 /// vars at version 0 are already part of the SSA statement uses,
 /// so the sweep is rarely load-bearing.
 #[must_use]
-pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -> ConnectionScope {
+pub fn build_connection_scope<S: std::hash::BuildHasher>(
+    when_procedures: &HashMap<String, FunctionUnit, S>,
+) -> ConnectionScope {
     let registry = EventRegistry::build();
     let mut summaries: HashMap<String, EventVarSummary> = HashMap::new();
     for (qname, fu) in when_procedures {
@@ -152,6 +152,7 @@ pub fn build_connection_scope(when_procedures: &HashMap<String, FunctionUnit>) -
 /// - Names used at SSA version 0 (i.e. read before any local
 ///   def — candidate cross-event imports).
 /// - Names explicitly ``unset`` in this event.
+///
 /// Record every `info exists <name>` literal-variable read found in `text`
 /// (the base name, namespace-global `::`-prefixed excluded — those aren't
 /// connection-scoped). Catches the pattern wherever it appears: a bare

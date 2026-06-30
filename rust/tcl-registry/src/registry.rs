@@ -306,6 +306,23 @@ impl CommandRegistry {
         self.by_name.keys().map(String::as_str)
     }
 
+    /// Whether `pkg` is a package the registry knows about — i.e. at
+    /// least one registered command declares it as its
+    /// [`required_package`](crate::CommandSpec::required_package).
+    ///
+    /// Used by the W120 (missing-`package require`) check: a `package
+    /// require` of an *unknown* third-party package may itself pull in
+    /// arbitrary commands (e.g. a wrapper that `package require Tk`s
+    /// internally), so the analyser cannot prove a Tk/extension command
+    /// is unprovided and must suppress W120.
+    #[must_use]
+    pub fn provides_package(&self, pkg: &str) -> bool {
+        self.by_name
+            .values()
+            .flat_map(|specs| specs.iter())
+            .any(|spec| spec.required_package == Some(pkg))
+    }
+
     /// Return every registered [`CommandSpec`] for `name` (all dialects),
     /// in registration order. Empty when the name is unknown.
     ///

@@ -641,7 +641,58 @@ impl BraceBuilder<'_> {
     /// terminal parse error C Tcl reports as *complete* — which
     /// propagates up through every enclosing scope so the whole input is
     /// treated as complete (matching `[set x {b}{`).
-    #[allow(clippy::too_many_lines)] // one cohesive state machine
+    /// Advance one byte inside a verbatim brace word (`brace_level > 0`),
+    /// emitting brace events / inert escape pairs and returning the new
+    /// offset. Identical semantics to the inline brace arm it was
+    /// extracted from: nested `{` / `}` count, `\}` is escaped (does not
+    /// close), and the outermost close resets the word flags.
+    fn step_brace_word(
+        &mut self,
+        i: usize,
+        brace_level: &mut u32,
+        command_start: &mut bool,
+        newword: &mut bool,
+        just_closed_word: &mut bool,
+    ) -> usize {
+        let n = self.bytes.len();
+        match self.bytes[i] {
+            b'\\' => {
+                let end = (i + 2).min(n);
+                self.push_inert(i, end, true); // escape pair, always terminated
+                end
+            }
+            b'{' => {
+                *brace_level += 1;
+                self.push_event(i, 1);
+                i + 1
+            }
+            b'}' => {
+                *brace_level -= 1;
+                self.push_event(i, -1);
+                if *brace_level == 0 {
+                    *newword = true;
+                    *command_start = false;
+                    *just_closed_word = true;
+                }
+                i + 1
+            }
+            _ => i + 1,
+        }
+    }
+
+    /// Consume a `#` comment starting at `i` (the `#`), pushing it as one
+    /// inert (always-terminated) range and returning the offset of the
+    /// terminating `\n` (or EOF). Identical to the inline comment arm.
+    fn scan_comment_inert(&mut self, i: usize) -> usize {
+        let n = self.bytes.len();
+        let mut j = i;
+        while j < n && self.bytes[j] != b'\n' {
+            j += 1;
+        }
+        self.push_inert(i, j, true); // comment, always terminated
+        j
+    }
+
     fn scan_script(&mut self, start: usize, stop_at_bracket: bool) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
@@ -657,31 +708,13 @@ impl BraceBuilder<'_> {
         let mut just_closed_word = false;
         while i < n {
             if brace_level > 0 {
-                // Verbatim brace-word context: nested `{` / `}` count,
-                // `\}` is escaped (does not close).
-                match self.bytes[i] {
-                    b'\\' => {
-                        let end = (i + 2).min(n);
-                        self.push_inert(i, end, true); // escape pair, always terminated
-                        i = end;
-                    }
-                    b'{' => {
-                        brace_level += 1;
-                        self.push_event(i, 1);
-                        i += 1;
-                    }
-                    b'}' => {
-                        brace_level -= 1;
-                        self.push_event(i, -1);
-                        i += 1;
-                        if brace_level == 0 {
-                            newword = true;
-                            command_start = false;
-                            just_closed_word = true;
-                        }
-                    }
-                    _ => i += 1,
-                }
+                i = self.step_brace_word(
+                    i,
+                    &mut brace_level,
+                    &mut command_start,
+                    &mut newword,
+                    &mut just_closed_word,
+                );
                 continue;
             }
             // "Extra characters after close-brace/quote" gate.
@@ -701,14 +734,7 @@ impl BraceBuilder<'_> {
             // Command / word context.
             match self.bytes[i] {
                 b']' if stop_at_bracket => return (i + 1, false),
-                b'#' if command_start => {
-                    let mut j = i;
-                    while j < n && self.bytes[j] != b'\n' {
-                        j += 1;
-                    }
-                    self.push_inert(i, j, true); // comment, always terminated
-                    i = j;
-                }
+                b'#' if command_start => i = self.scan_comment_inert(i),
                 b'\\' => {
                     let end = (i + 2).min(n);
                     self.push_inert(i, end, true); // escape pair
@@ -1007,7 +1033,83 @@ fn ends_with_line_continuation(b: &[u8]) -> bool {
 /// scanner's `scan_script`, but tracking every dimension). A `[…]`
 /// interior is itself a script (`stop_at_bracket = true`). Returns
 /// `(end_offset, Completeness)`.
-#[allow(clippy::too_many_lines)] // one cohesive Tcl_CommandComplete state machine
+/// Skip a `#` comment starting at `start` (the `#` itself), returning the
+/// offset just past it. A trailing odd-backslash run before a newline
+/// continues the comment onto the next line (it swallows it), matching
+/// Tcl's backslash-newline-in-comment rule.
+///
+/// Documented bounded edge: a comment whose backslash-newline
+/// continuation is left *pending* at EOF (e.g. `# c\<newline>`) is
+/// reported complete by the caller but incomplete by C Tcl 9.0.3.
+/// `Tcl_CommandComplete`'s character-level backslash-newline handling in
+/// comments has subtle EOF semantics that depend on whether the dangling
+/// line carries content; reproducing it exactly is not worth the
+/// complexity for a case real Tcl never emits. Quantified at < 0.05% of
+/// an adversarial fuzz corpus by
+/// `ctcl9_script_is_complete_iff_info_complete`.
+fn skip_comment(b: &[u8], start: usize) -> usize {
+    let n = b.len();
+    let mut i = start;
+    loop {
+        let line_start = i;
+        while i < n && b[i] != b'\n' {
+            i += 1;
+        }
+        let mut bs = 0usize;
+        let mut k = i;
+        while k > line_start && b[k - 1] == b'\\' {
+            bs += 1;
+            k -= 1;
+        }
+        if bs % 2 == 1 && i < n {
+            i += 1; // swallow the escaped newline
+            continue;
+        }
+        break;
+    }
+    i
+}
+
+/// Advance one byte inside a verbatim brace word (`brace_level > 0`),
+/// returning the new offset. Identical semantics to the inline brace arm
+/// it was extracted from; updates `brace_level` and the word flags on the
+/// outermost close. `brace_is_var` is `true` for a `${name}` variable
+/// brace, which — unlike a command/argument brace word — *continues the
+/// word* on close (no "extra characters" terminal): `${a}b` is complete
+/// and keeps parsing, whereas `{a}b` does not.
+fn step_brace_word(
+    b: &[u8],
+    i: usize,
+    brace_level: &mut u32,
+    command_start: &mut bool,
+    newword: &mut bool,
+    just_closed_word: &mut bool,
+    brace_is_var: bool,
+) -> usize {
+    let n = b.len();
+    match b[i] {
+        b'\\' => (i + 2).min(n),
+        b'{' => {
+            *brace_level += 1;
+            i + 1
+        }
+        b'}' => {
+            *brace_level -= 1;
+            if *brace_level == 0 {
+                *command_start = false;
+                if brace_is_var {
+                    *newword = false;
+                } else {
+                    *newword = true;
+                    *just_closed_word = true;
+                }
+            }
+            i + 1
+        }
+        _ => i + 1,
+    }
+}
+
 fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Completeness) {
     let n = b.len();
     let mut i = start;
@@ -1015,35 +1117,18 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
     let mut newword = true;
     let mut brace_level: u32 = 0;
     let mut just_closed_word = false;
-    // `true` when the current brace word is a `${name}` variable brace
-    // (entered via `${`). C Tcl treats `${name}` as `$` + a nesting
-    // brace word, but — unlike a command/argument brace word — it
-    // *continues the word* on close (no "extra characters" terminal):
-    // `${a}b` is complete and keeps parsing, whereas `{a}b` does not.
     let mut brace_is_var = false;
     while i < n {
         if brace_level > 0 {
-            match b[i] {
-                b'\\' => i = (i + 2).min(n),
-                b'{' => {
-                    brace_level += 1;
-                    i += 1;
-                }
-                b'}' => {
-                    brace_level -= 1;
-                    i += 1;
-                    if brace_level == 0 {
-                        command_start = false;
-                        if brace_is_var {
-                            newword = false;
-                        } else {
-                            newword = true;
-                            just_closed_word = true;
-                        }
-                    }
-                }
-                _ => i += 1,
-            }
+            i = step_brace_word(
+                b,
+                i,
+                &mut brace_level,
+                &mut command_start,
+                &mut newword,
+                &mut just_closed_word,
+                brace_is_var,
+            );
             continue;
         }
         if just_closed_word {
@@ -1056,40 +1141,7 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
         }
         match b[i] {
             b']' if stop_at_bracket => return (i + 1, Completeness::Closed),
-            b'#' if command_start => {
-                // Comment to end of line; a trailing odd-backslash run
-                // before a newline continues the comment onto the next
-                // line (it swallows it), matching Tcl's
-                // backslash-newline-in-comment rule.
-                //
-                // Documented bounded edge: a comment whose backslash-
-                // newline continuation is left *pending* at EOF (e.g.
-                // `# c\<newline>`) is reported complete here but
-                // incomplete by C Tcl 9.0.3. `Tcl_CommandComplete`'s
-                // character-level backslash-newline handling in comments
-                // has subtle EOF semantics that depend on whether the
-                // dangling line carries content; reproducing it exactly
-                // is not worth the complexity for a case real Tcl never
-                // emits. Quantified at < 0.05% of an adversarial fuzz
-                // corpus by `ctcl9_script_is_complete_iff_info_complete`.
-                loop {
-                    let line_start = i;
-                    while i < n && b[i] != b'\n' {
-                        i += 1;
-                    }
-                    let mut bs = 0usize;
-                    let mut k = i;
-                    while k > line_start && b[k - 1] == b'\\' {
-                        bs += 1;
-                        k -= 1;
-                    }
-                    if bs % 2 == 1 && i < n {
-                        i += 1; // swallow the escaped newline
-                        continue;
-                    }
-                    break;
-                }
-            }
+            b'#' if command_start => i = skip_comment(b, i),
             // A backslash-newline is a line continuation (acts as
             // whitespace -> word boundary, same command); any other
             // escaped char is content.
@@ -2362,6 +2414,18 @@ while {1} {
             ("if {1} {\n", false), // open body brace
             ("proc p {} { return 1 }\n", true),
             ("}{", true), // extra close then mid-word `{`
+            // Extracted-helper coverage (oracle: tclsh9.0 `info complete`).
+            // step_brace_word — nested braces inside a brace word.
+            ("set x {a {b} c}", true), // balanced nested brace word
+            ("set x {a {b c}", false), // nested brace word still open
+            ("set x ${a{b}c}", true),  // `${...}` var brace with nested `{}`
+            ("${a}b", true),           // var-brace continues the word on close
+            ("{a}b", true),            // arg-brace close + extra chars (terminal)
+            ("set x {a \\} b}", true), // `\}` is escaped, does not close
+            ("set x {a \\} b", false), // ...so the word is still open at EOF
+            // skip_comment — backslash-newline continues the comment onto a
+            // line that carries content (not the documented EOF edge).
+            ("# c\\\nputs hi", true),
         ];
         for &(s, want) in pin {
             assert_eq!(script_is_complete(s), want, "script_is_complete({s:?})");

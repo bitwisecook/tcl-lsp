@@ -42,8 +42,11 @@ impl RouteDomain {
         if value < 0 {
             return Err(ValueError(format!("RouteDomain: negative ({value})")));
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Ok(Self { id: value as u32 })
+        // Route-domain ids are stored as a u32; reject values that would not
+        // round-trip (real route domains are 0..=65534, far below u32::MAX).
+        let id = u32::try_from(value)
+            .map_err(|_| ValueError(format!("RouteDomain: out of range ({value})")))?;
+        Ok(Self { id })
     }
 
     /// Like [`RouteDomain::parse`] but returns `None` instead of erroring.

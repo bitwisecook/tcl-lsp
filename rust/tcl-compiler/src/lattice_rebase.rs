@@ -55,10 +55,11 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
 fn shift(span: &mut Span, delta: i64) {
     let start = (i64::from(span.start()) + delta).max(0);
     let end = (i64::from(span.end()) + delta).max(0);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        *span = Span::new(start as u32, end as u32);
-    }
+    // `start`/`end` are clamped to `>= 0`; spans are `u32` offsets, so a
+    // shifted offset past `u32::MAX` is degenerate and clamps to the max.
+    let start = u32::try_from(start).unwrap_or(u32::MAX);
+    let end = u32::try_from(end).unwrap_or(u32::MAX);
+    *span = Span::new(start, end);
 }
 
 fn shift_opt(span: &mut Option<Span>, delta: i64) {
@@ -99,7 +100,6 @@ fn rebase_terminator(term: &mut Terminator, delta: i64) {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn rebase_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::AssignConst { span, .. }
@@ -123,22 +123,8 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             rebase_script(body, delta);
             rebase_tokens(tokens, delta);
         }
-        Statement::If {
-            span,
-            clauses,
-            else_body,
-            else_span,
-        } => {
-            shift(span, delta);
-            shift_opt(else_span, delta);
-            for clause in clauses {
-                shift(&mut clause.condition_span, delta);
-                shift(&mut clause.body_span, delta);
-                rebase_script(&mut clause.body, delta);
-            }
-            if let Some(body) = else_body {
-                rebase_script(body, delta);
-            }
+        Statement::If { .. } | Statement::Try { .. } | Statement::Switch { .. } => {
+            rebase_branching_statement(stmt, delta);
         }
         Statement::For {
             span,
@@ -200,6 +186,30 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             rebase_script(body, delta);
             rebase_tokens(tokens, delta);
         }
+    }
+}
+
+/// Rebase the span-bearing branching statements (`If` / `Try` / `Switch`),
+/// extracted from [`rebase_statement`] to keep each function small.
+fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
+    match stmt {
+        Statement::If {
+            span,
+            clauses,
+            else_body,
+            else_span,
+        } => {
+            shift(span, delta);
+            shift_opt(else_span, delta);
+            for clause in clauses {
+                shift(&mut clause.condition_span, delta);
+                shift(&mut clause.body_span, delta);
+                rebase_script(&mut clause.body, delta);
+            }
+            if let Some(body) = else_body {
+                rebase_script(body, delta);
+            }
+        }
         Statement::Try {
             span,
             body,
@@ -243,5 +253,6 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
                 rebase_script(body, delta);
             }
         }
+        _ => unreachable!("rebase_branching_statement called on non-branching statement"),
     }
 }

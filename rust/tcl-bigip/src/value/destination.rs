@@ -48,7 +48,6 @@ impl Destination {
     ///
     /// # Errors
     /// Returns [`ValueError`] for unparseable input.
-    #[allow(clippy::too_many_lines)]
     pub fn parse(text: &str) -> Result<Self, ValueError> {
         let text = text.trim();
         if text.is_empty() {
@@ -59,93 +58,123 @@ impl Destination {
 
         // IPv6 in brackets: ``[ADDR]`` followed by ``:port`` or ``.port``.
         if let Some(after_open) = rest.strip_prefix('[') {
-            let close = after_open.find(']').ok_or_else(|| {
-                ValueError(format!("Destination: unmatched '[' in {}", py_repr(text)))
-            })?;
-            let addr_text = &after_open[..close];
-            let port_part = &after_open[close + 1..];
-            let (addr_clean, route_domain, _) = split_route_domain(addr_text)?;
-            let ip = IPAddress::try_parse(&addr_clean).ok_or_else(|| {
-                ValueError(format!(
-                    "Destination: bracketed value isn't a valid IP ({})",
-                    py_repr(addr_text)
-                ))
-            })?;
-            if port_part.is_empty() {
-                return Ok(Self {
-                    address: Address::Ip(ip),
-                    port: Port::new(0, ""),
-                    folder,
-                    route_domain,
-                    ipv6_brackets: true,
-                    port_separator: ":".to_owned(),
-                });
-            }
-            let first = port_part.chars().next().unwrap();
-            if first != ':' && first != '.' {
-                return Err(ValueError(format!(
-                    "Destination: missing port separator after ']' in {}",
-                    py_repr(text)
-                )));
-            }
-            let port_separator = first.to_string();
-            let port = Port::parse(&port_part[first.len_utf8()..])?;
-            return Ok(Self {
-                address: Address::Ip(ip),
-                port,
-                folder,
-                route_domain,
-                ipv6_brackets: true,
-                port_separator,
-            });
+            return Self::parse_bracketed_ipv6(text, after_open, folder);
         }
 
         // No brackets — split address from port.
         let (addr_part, route_domain, _) = split_route_domain(&rest)?;
         if count_char(&addr_part, ':') >= 2 {
             // IPv6 without brackets: port separator is the last ``.``.
-            match addr_part.rfind('.') {
-                None => {
-                    let ip = IPAddress::try_parse(&addr_part).ok_or_else(|| {
-                        ValueError(format!(
-                            "Destination: invalid IPv6 ({})",
-                            py_repr(&addr_part)
-                        ))
-                    })?;
-                    return Ok(Self {
-                        address: Address::Ip(ip),
-                        port: Port::new(0, ""),
-                        folder,
-                        route_domain,
-                        ipv6_brackets: false,
-                        port_separator: ".".to_owned(),
-                    });
-                }
-                Some(sep) => {
-                    let addr_text = &addr_part[..sep];
-                    let port_text = &addr_part[sep + 1..];
-                    let ip = IPAddress::try_parse(addr_text).ok_or_else(|| {
-                        ValueError(format!(
-                            "Destination: invalid IPv6 ({})",
-                            py_repr(addr_text)
-                        ))
-                    })?;
-                    return Ok(Self {
-                        address: Address::Ip(ip),
-                        port: Port::parse(port_text)?,
-                        folder,
-                        route_domain,
-                        ipv6_brackets: false,
-                        port_separator: ".".to_owned(),
-                    });
-                }
-            }
+            return Self::parse_unbracketed_ipv6(&addr_part, folder, route_domain);
         }
 
         // IPv4 / FQDN — port separator is the LAST ``:``.
+        Self::parse_ipv4_or_fqdn(&addr_part, folder, route_domain)
+    }
+
+    /// Parse the bracketed IPv6 spelling ``[ADDR]`` optionally followed by a
+    /// ``:port`` / ``.port`` suffix. `after_open` is the text after the `[`.
+    fn parse_bracketed_ipv6(
+        text: &str,
+        after_open: &str,
+        folder: Option<Folder>,
+    ) -> Result<Self, ValueError> {
+        let close = after_open.find(']').ok_or_else(|| {
+            ValueError(format!("Destination: unmatched '[' in {}", py_repr(text)))
+        })?;
+        let addr_text = &after_open[..close];
+        let port_part = &after_open[close + 1..];
+        let (addr_clean, route_domain, _) = split_route_domain(addr_text)?;
+        let ip = IPAddress::try_parse(&addr_clean).ok_or_else(|| {
+            ValueError(format!(
+                "Destination: bracketed value isn't a valid IP ({})",
+                py_repr(addr_text)
+            ))
+        })?;
+        if port_part.is_empty() {
+            return Ok(Self {
+                address: Address::Ip(ip),
+                port: Port::new(0, ""),
+                folder,
+                route_domain,
+                ipv6_brackets: true,
+                port_separator: ":".to_owned(),
+            });
+        }
+        let first = port_part.chars().next().unwrap();
+        if first != ':' && first != '.' {
+            return Err(ValueError(format!(
+                "Destination: missing port separator after ']' in {}",
+                py_repr(text)
+            )));
+        }
+        let port_separator = first.to_string();
+        let port = Port::parse(&port_part[first.len_utf8()..])?;
+        Ok(Self {
+            address: Address::Ip(ip),
+            port,
+            folder,
+            route_domain,
+            ipv6_brackets: true,
+            port_separator,
+        })
+    }
+
+    /// Parse an unbracketed IPv6 destination, where the port separator (if any)
+    /// is the last ``.``.
+    fn parse_unbracketed_ipv6(
+        addr_part: &str,
+        folder: Option<Folder>,
+        route_domain: Option<RouteDomain>,
+    ) -> Result<Self, ValueError> {
+        match addr_part.rfind('.') {
+            None => {
+                let ip = IPAddress::try_parse(addr_part).ok_or_else(|| {
+                    ValueError(format!(
+                        "Destination: invalid IPv6 ({})",
+                        py_repr(addr_part)
+                    ))
+                })?;
+                Ok(Self {
+                    address: Address::Ip(ip),
+                    port: Port::new(0, ""),
+                    folder,
+                    route_domain,
+                    ipv6_brackets: false,
+                    port_separator: ".".to_owned(),
+                })
+            }
+            Some(sep) => {
+                let addr_text = &addr_part[..sep];
+                let port_text = &addr_part[sep + 1..];
+                let ip = IPAddress::try_parse(addr_text).ok_or_else(|| {
+                    ValueError(format!(
+                        "Destination: invalid IPv6 ({})",
+                        py_repr(addr_text)
+                    ))
+                })?;
+                Ok(Self {
+                    address: Address::Ip(ip),
+                    port: Port::parse(port_text)?,
+                    folder,
+                    route_domain,
+                    ipv6_brackets: false,
+                    port_separator: ".".to_owned(),
+                })
+            }
+        }
+    }
+
+    /// Parse an IPv4 / FQDN destination, where the port separator (if any) is
+    /// the last ``:``.
+    fn parse_ipv4_or_fqdn(
+        addr_part: &str,
+        folder: Option<Folder>,
+        route_domain: Option<RouteDomain>,
+    ) -> Result<Self, ValueError> {
         match addr_part.rfind(':') {
             None => {
-                let address_value = parse_address(&addr_part)?;
+                let address_value = parse_address(addr_part)?;
                 Ok(Self {
                     address: address_value,
                     port: Port::new(0, ""),

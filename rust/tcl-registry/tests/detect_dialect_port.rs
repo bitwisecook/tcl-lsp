@@ -69,7 +69,10 @@ fn directive_case_insensitive() {
 
 #[test]
 fn directive_crlf_line_endings() {
-    assert_eq!(detect("# tcl-dialect: tcl8.4\r\nset x 1\r\n"), Some("tcl8.4"));
+    assert_eq!(
+        detect("# tcl-dialect: tcl8.4\r\nset x 1\r\n"),
+        Some("tcl8.4")
+    );
 }
 
 #[test]
@@ -98,7 +101,10 @@ fn directive_beyond_scan_window() {
 
 #[test]
 fn package_require_tcl_version() {
-    assert_eq!(detect("# header\npackage require Tcl 8.6\n"), Some("tcl8.6"));
+    assert_eq!(
+        detect("# header\npackage require Tcl 8.6\n"),
+        Some("tcl8.6")
+    );
     assert_eq!(detect("package require -exact Tcl 9.0\n"), Some("tcl9.0"));
 }
 

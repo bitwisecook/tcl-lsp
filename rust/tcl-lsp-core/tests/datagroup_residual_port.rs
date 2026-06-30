@@ -133,7 +133,8 @@ fn infer_ip_type_from_ipv4_and_cidr() {
     // tclsh-proof: N/A — `type ip` and `class match … equals` are BIG-IP
     // runtime constructs; IPv4/CIDR *recognition* here is Rust's
     // `Ipv4Addr` parse, not a tclsh fact.
-    let source = "if {$a eq \"10.0.0.1\"} {\n    drop\n} elseif {$a eq \"10.0.0.0/8\"} {\n    drop\n}";
+    let source =
+        "if {$a eq \"10.0.0.1\"} {\n    drop\n} elseif {$a eq \"10.0.0.0/8\"} {\n    drop\n}";
     assert_eq!(dg(&if_dg(source, "ips").expect("result")).value_type, "ip");
 }
 
@@ -141,7 +142,10 @@ fn infer_ip_type_from_ipv4_and_cidr() {
 fn infer_integer_type_membership() {
     // All keys parse as i64 → `type integer`.
     let source = "if {$p eq \"80\"} {\n    drop\n} elseif {$p eq \"443\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "ports").expect("result")).value_type, "integer");
+    assert_eq!(
+        dg(&if_dg(source, "ports").expect("result")).value_type,
+        "integer"
+    );
 }
 
 #[test]
@@ -149,21 +153,30 @@ fn infer_string_when_keys_are_mixed_kinds() {
     // A mix of an integer and a non-integer/non-ip falls through to
     // `type string` (neither the all-ip nor the all-integer guard holds).
     let source = "if {$x eq \"80\"} {\n    drop\n} elseif {$x eq \"http\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "m").expect("result")).value_type, "string");
+    assert_eq!(
+        dg(&if_dg(source, "m").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
 fn infer_string_when_one_key_is_negative_int_mixed_with_word() {
     // `-5` is a valid i64 but `frob` is not → overall `string`.
     let source = "if {$x eq \"-5\"} {\n    drop\n} elseif {$x eq \"frob\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "m").expect("result")).value_type, "string");
+    assert_eq!(
+        dg(&if_dg(source, "m").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
 fn infer_integer_type_accepts_negative_ints() {
     // Negative integers are still integers.
     let source = "if {$x eq \"-5\"} {\n    drop\n} elseif {$x eq \"7\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "m").expect("result")).value_type, "integer");
+    assert_eq!(
+        dg(&if_dg(source, "m").expect("result")).value_type,
+        "integer"
+    );
 }
 
 #[test]
@@ -178,29 +191,42 @@ fn ipv4_addr_that_is_not_cidr_still_ip() {
 fn cidr_with_out_of_range_prefix_is_not_ip() {
     // `10.0.0.0/33` has a prefix > 32 → not a valid IPv4 network, so the
     // group degrades to `string` (the `width <= 32` guard fails).
-    let source = "if {$a eq \"10.0.0.0/33\"} {\n    drop\n} elseif {$a eq \"10.0.0.1\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "ip").expect("result")).value_type, "string");
+    let source =
+        "if {$a eq \"10.0.0.0/33\"} {\n    drop\n} elseif {$a eq \"10.0.0.1\"} {\n    drop\n}";
+    assert_eq!(
+        dg(&if_dg(source, "ip").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
 fn cidr_with_non_numeric_prefix_is_not_ip() {
     // `10.0.0.0/foo` — the prefix fails to parse as u32 → not a network.
-    let source = "if {$a eq \"10.0.0.0/foo\"} {\n    drop\n} elseif {$a eq \"10.0.0.1\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "ip").expect("result")).value_type, "string");
+    let source =
+        "if {$a eq \"10.0.0.0/foo\"} {\n    drop\n} elseif {$a eq \"10.0.0.1\"} {\n    drop\n}";
+    assert_eq!(
+        dg(&if_dg(source, "ip").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
 fn ipv6_cidr_over_128_is_not_ip() {
     // IPv6 prefix > 128 fails the `width <= 128` guard.
-    let source = "if {$a eq \"2001:db8::/129\"} {\n    drop\n} elseif {$a eq \"fd00::1\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "ip").expect("result")).value_type, "string");
+    let source =
+        "if {$a eq \"2001:db8::/129\"} {\n    drop\n} elseif {$a eq \"fd00::1\"} {\n    drop\n}";
+    assert_eq!(
+        dg(&if_dg(source, "ip").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
 fn ipv6_cidr_in_range_is_ip() {
     // IPv6 network with a valid prefix takes the `Ipv6Addr` + `width <= 128`
     // true arm.
-    let source = "if {$a eq \"2001:db8::/32\"} {\n    drop\n} elseif {$a eq \"fd00::/8\"} {\n    drop\n}";
+    let source =
+        "if {$a eq \"2001:db8::/32\"} {\n    drop\n} elseif {$a eq \"fd00::/8\"} {\n    drop\n}";
     assert_eq!(dg(&if_dg(source, "ip").expect("result")).value_type, "ip");
 }
 
@@ -275,7 +301,10 @@ fn if_membership_without_else_has_no_else_branch() {
     // Identical bodies, no else → single-arm `class match`.
     let source = "if {$h eq \"a\"} {\n    pool p\n} elseif {$h eq \"b\"} {\n    pool p\n}";
     let applied = if_dg(source, "hosts").expect("result").apply(source);
-    assert_eq!(applied, "if { [class match $h equals hosts] } {\n    pool p\n}");
+    assert_eq!(
+        applied,
+        "if { [class match $h equals hosts] } {\n    pool p\n}"
+    );
     assert!(!applied.contains("else"));
 }
 
@@ -296,7 +325,8 @@ fn if_mapping_set_form_uses_class_lookup() {
 #[test]
 fn if_mapping_return_form_uses_return_class_lookup() {
     // Distinct `return …` bodies → `return [class lookup …]`.
-    let source = "if {$p eq \"80\"} {\n    return http\n} elseif {$p eq \"443\"} {\n    return https\n}";
+    let source =
+        "if {$p eq \"80\"} {\n    return http\n} elseif {$p eq \"443\"} {\n    return https\n}";
     let r = if_dg(source, "proto_map").expect("result");
     assert_eq!(r.apply(source), "return [class lookup $p proto_map]");
 }
@@ -356,7 +386,11 @@ fn if_then_after_first_condition_does_not_produce_broken_extraction() {
         let g = dg(&r);
         // If it did produce something, every record key must be non-empty and
         // the edit must still be a single well-formed replacement.
-        assert!(g.records.iter().all(|(k, _)| !k.is_empty()), "{:?}", g.records);
+        assert!(
+            g.records.iter().all(|(k, _)| !k.is_empty()),
+            "{:?}",
+            g.records
+        );
         assert_eq!(r.edits.len(), 1);
     }
 }
@@ -396,7 +430,8 @@ fn if_mixed_target_vars_declines() {
 fn if_mapping_inconsistent_target_var_declines() {
     // Distinct bodies but assigning to *different* variables → the
     // set/return extractor rejects it.
-    let source = "if {$p eq \"80\"} {\n    set a http\n} elseif {$p eq \"443\"} {\n    set b https\n}";
+    let source =
+        "if {$p eq \"80\"} {\n    set a http\n} elseif {$p eq \"443\"} {\n    set b https\n}";
     assert!(if_dg(source, "n").is_none());
 }
 
@@ -404,7 +439,8 @@ fn if_mapping_inconsistent_target_var_declines() {
 fn if_mapping_mix_of_set_and_return_declines() {
     // One arm `set`, the other `return` → the extractor's use_return guard
     // rejects the mix.
-    let source = "if {$p eq \"80\"} {\n    set proto http\n} elseif {$p eq \"443\"} {\n    return https\n}";
+    let source =
+        "if {$p eq \"80\"} {\n    set proto http\n} elseif {$p eq \"443\"} {\n    return https\n}";
     assert!(if_dg(source, "n").is_none());
 }
 
@@ -412,7 +448,8 @@ fn if_mapping_mix_of_set_and_return_declines() {
 fn if_mapping_multi_command_body_declines() {
     // A distinct body that is not a single set/return (two commands) →
     // `parse_set_or_return` returns None → whole transform declines.
-    let source = "if {$p eq \"80\"} {\n    set a 1\n    set b 2\n} elseif {$p eq \"443\"} {\n    set c 3\n}";
+    let source =
+        "if {$p eq \"80\"} {\n    set a 1\n    set b 2\n} elseif {$p eq \"443\"} {\n    set c 3\n}";
     assert!(if_dg(source, "n").is_none());
 }
 
@@ -427,7 +464,10 @@ fn switch_membership_with_default_emits_else() {
     let source = "switch -exact -- $ext {\n    .jpg { drop }\n    .png { drop }\n    .gif { drop }\n    default { accept }\n}";
     let r = switch_dg(source, "imgs").expect("result");
     let applied = r.apply(source);
-    assert!(applied.contains("class match $ext equals imgs"), "{applied}");
+    assert!(
+        applied.contains("class match $ext equals imgs"),
+        "{applied}"
+    );
     assert!(applied.contains("} else {"), "{applied}");
     assert!(applied.contains("accept"), "{applied}");
     assert_eq!(dg(&r).records.len(), 3);
@@ -440,8 +480,14 @@ fn switch_mapping_with_default_set_form() {
     let source = "switch -exact -- $m {\n    GET { set h hg }\n    POST { set h hp }\n    PUT { set h hu }\n    default { set h hd }\n}";
     let r = switch_dg(source, "hmap").expect("result");
     let applied = r.apply(source);
-    assert!(applied.contains("if { [class match $m equals hmap] }"), "{applied}");
-    assert!(applied.contains("set h [class lookup $m hmap]"), "{applied}");
+    assert!(
+        applied.contains("if { [class match $m equals hmap] }"),
+        "{applied}"
+    );
+    assert!(
+        applied.contains("set h [class lookup $m hmap]"),
+        "{applied}"
+    );
     assert!(applied.contains("set h hd"), "{applied}");
 }
 
@@ -451,7 +497,10 @@ fn switch_mapping_with_default_return_form() {
     let source = "switch -exact -- $m {\n    GET { return hg }\n    POST { return hp }\n    PUT { return hu }\n    default { return hd }\n}";
     let r = switch_dg(source, "hmap").expect("result");
     let applied = r.apply(source);
-    assert!(applied.contains("return [class lookup $m hmap]"), "{applied}");
+    assert!(
+        applied.contains("return [class lookup $m hmap]"),
+        "{applied}"
+    );
     assert!(applied.contains("return hd"), "{applied}");
 }
 
@@ -501,7 +550,8 @@ fn switch_glob_mode_declines() {
 #[test]
 fn switch_fallthrough_dash_body_declines() {
     // A `-` fall-through body cannot be mapped to a data-group → declined.
-    let source = "switch -exact -- $e {\n    .a { drop }\n    .b -\n    .c { drop }\n    .d { drop }\n}";
+    let source =
+        "switch -exact -- $e {\n    .a { drop }\n    .b -\n    .c { drop }\n    .d { drop }\n}";
     assert!(switch_dg(source, "x").is_none());
 }
 
@@ -516,7 +566,8 @@ fn switch_non_var_subject_declines() {
 fn switch_default_only_leaves_too_few_regular_arms() {
     // Three arms where two are `default`/fallthrough leave < 3 regular arms.
     // Here: 3 regular + nothing is fine; instead drop to 2 regular + default.
-    let source = "switch -exact -- $e {\n    .a { drop }\n    .b { drop }\n    default { accept }\n}";
+    let source =
+        "switch -exact -- $e {\n    .a { drop }\n    .b { drop }\n    default { accept }\n}";
     // 2 regular arms + default → fewer than 3 regular → declined.
     assert!(switch_dg(source, "x").is_none());
 }
@@ -545,7 +596,8 @@ fn unified_dispatch_prefers_if_then_switch() {
 fn unified_dispatch_falls_through_to_switch() {
     // No `if` at the cursor, but a `switch` is → resolves via the switch
     // branch (the `or_else`).
-    let source = "switch -exact -- $u {\n    /a { set p ap }\n    /b { set p bp }\n    /c { set p cp }\n}";
+    let source =
+        "switch -exact -- $u {\n    /a { set p ap }\n    /b { set p bp }\n    /c { set p cp }\n}";
     assert!(any_dg(source, "x").is_some());
 }
 
@@ -592,7 +644,10 @@ fn cidr_with_non_ip_address_part_is_not_ip() {
     // `is_ip_network` address-family check falls through to its final `false`
     // arm. The group degrades to `string`.
     let source = "if {$a eq \"host/24\"} {\n    drop\n} elseif {$a eq \"10.0.0.1\"} {\n    drop\n}";
-    assert_eq!(dg(&if_dg(source, "x").expect("result")).value_type, "string");
+    assert_eq!(
+        dg(&if_dg(source, "x").expect("result")).value_type,
+        "string"
+    );
 }
 
 #[test]
@@ -608,7 +663,8 @@ fn switch_subject_bare_dollar_var_resolves() {
     // A plain `$method` switch subject (no braces) takes
     // `extract_var_name`'s `$`-prefix let-chain branch — leading alpha, all
     // alnum/underscore.
-    let source = "switch -exact -- $method {\n    GET { drop }\n    POST { drop }\n    PUT { drop }\n}";
+    let source =
+        "switch -exact -- $method {\n    GET { drop }\n    POST { drop }\n    PUT { drop }\n}";
     let r = switch_dg(source, "").expect("result");
     assert_eq!(dg(&r).name, "method_map");
 }
@@ -705,6 +761,7 @@ fn if_chain_trailing_condition_without_body_declines() {
     // making the final word a dangling condition with no body word.
     // `if {$h eq a} {b1} elseif {$h eq c}` — the trailing `elseif {$h eq c}`
     // has no body.
-    let source = "if {$h eq \"a\"} {\n    drop\n} elseif {$h eq \"b\"} {\n    drop\n} elseif {$h eq \"c\"}";
+    let source =
+        "if {$h eq \"a\"} {\n    drop\n} elseif {$h eq \"b\"} {\n    drop\n} elseif {$h eq \"c\"}";
     assert!(if_dg(source, "x").is_none());
 }

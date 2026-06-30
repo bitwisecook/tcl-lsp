@@ -70,9 +70,16 @@ pub(crate) fn find_expr_shimmers(
             match &ss.statement {
                 Statement::AssignExpr { expr, span, .. }
                 | Statement::ExprEval { expr, span, .. } => {
-                    collect_expr_shimmers(
-                        expr, &ss.uses, types, *span, in_loop, ssa, &mut seen, &mut out,
-                    );
+                    let mut ctx = ExprShimmerCtx {
+                        uses: &ss.uses,
+                        types,
+                        ssa,
+                        stmt_span: *span,
+                        in_loop,
+                        seen: &mut seen,
+                        out: &mut out,
+                    };
+                    collect_expr_shimmers(&mut ctx, expr);
                 }
                 _ => {}
             }
@@ -87,40 +94,45 @@ pub(crate) fn find_expr_shimmers(
             let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
             // Use exit_versions: those are the variable versions in scope
             // when the condition is evaluated.
-            collect_expr_shimmers(
-                condition,
-                &ssa_block.exit_versions,
+            let mut ctx = ExprShimmerCtx {
+                uses: &ssa_block.exit_versions,
                 types,
-                branch_span,
-                in_loop,
                 ssa,
-                &mut seen,
-                &mut out,
-            );
+                stmt_span: branch_span,
+                in_loop,
+                seen: &mut seen,
+                out: &mut out,
+            };
+            collect_expr_shimmers(&mut ctx, condition);
         }
     }
 
     out
 }
 
-#[allow(clippy::too_many_arguments)]
-fn collect_expr_shimmers(
-    node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
+/// Read-only context + warning sinks threaded through one expr walk.
+///
+/// `uses` / `stmt_span` / `in_loop` are constant for a single
+/// `collect_expr_shimmers` recursion (they describe the statement whose expr
+/// is being walked); `seen` / `out` accumulate de-duplicated warnings.
+struct ExprShimmerCtx<'a> {
+    uses: &'a HashMap<Symbol, u32>,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    ssa: &'a SsaFunction,
     stmt_span: Span,
     in_loop: bool,
-    ssa: &SsaFunction,
-    seen: &mut HashSet<(Span, String)>,
-    out: &mut Vec<ShimmerWarning>,
-) {
+    seen: &'a mut HashSet<(Span, String)>,
+    out: &'a mut Vec<ShimmerWarning>,
+}
+
+fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
     match node {
         ExprNode::Binary {
             op, left, right, ..
         } => {
             // Recurse into children first.
-            collect_expr_shimmers(left, uses, types, stmt_span, in_loop, ssa, seen, out);
-            collect_expr_shimmers(right, uses, types, stmt_span, in_loop, ssa, seen, out);
+            collect_expr_shimmers(ctx, left);
+            collect_expr_shimmers(ctx, right);
 
             match op {
                 // Arithmetic, bitwise, logical, and *ordering* comparison
@@ -143,27 +155,19 @@ fn collect_expr_shimmers(
                 | BinOp::Le
                 | BinOp::Gt
                 | BinOp::Ge => {
-                    check_numeric_operand(
-                        left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                    );
-                    check_numeric_operand(
-                        right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                    );
+                    check_numeric_operand(ctx, left, *op);
+                    check_numeric_operand(ctx, right, *op);
                 }
 
                 // `==` / `!=` take the numeric-coercion path only when at least
                 // one operand is provably numeric (else Tcl falls back to a
                 // string compare and no shimmer occurs).
                 BinOp::Eq | BinOp::Ne => {
-                    if operand_looks_numeric(left, uses, types, ssa)
-                        || operand_looks_numeric(right, uses, types, ssa)
+                    if operand_looks_numeric(left, ctx.uses, ctx.types, ctx.ssa)
+                        || operand_looks_numeric(right, ctx.uses, ctx.types, ctx.ssa)
                     {
-                        check_numeric_operand(
-                            left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                        );
-                        check_numeric_operand(
-                            right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                        );
+                        check_numeric_operand(ctx, left, *op);
+                        check_numeric_operand(ctx, right, *op);
                     }
                 }
 
@@ -174,12 +178,8 @@ fn collect_expr_shimmers(
                 | BinOp::StrLe
                 | BinOp::StrGt
                 | BinOp::StrGe => {
-                    check_string_operand(
-                        left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                    );
-                    check_string_operand(
-                        right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
-                    );
+                    check_string_operand(ctx, left, *op);
+                    check_string_operand(ctx, right, *op);
                 }
 
                 _ => {}
@@ -187,7 +187,7 @@ fn collect_expr_shimmers(
         }
 
         ExprNode::Unary { operand, .. } => {
-            collect_expr_shimmers(operand, uses, types, stmt_span, in_loop, ssa, seen, out);
+            collect_expr_shimmers(ctx, operand);
         }
 
         ExprNode::Ternary {
@@ -196,18 +196,9 @@ fn collect_expr_shimmers(
             false_branch,
             ..
         } => {
-            collect_expr_shimmers(condition, uses, types, stmt_span, in_loop, ssa, seen, out);
-            collect_expr_shimmers(true_branch, uses, types, stmt_span, in_loop, ssa, seen, out);
-            collect_expr_shimmers(
-                false_branch,
-                uses,
-                types,
-                stmt_span,
-                in_loop,
-                ssa,
-                seen,
-                out,
-            );
+            collect_expr_shimmers(ctx, condition);
+            collect_expr_shimmers(ctx, true_branch);
+            collect_expr_shimmers(ctx, false_branch);
         }
 
         _ => {}
@@ -278,30 +269,22 @@ fn expr_string_is_numeric(text: &str) -> bool {
 /// Emit a shimmer if `node` is a variable reference with a non-numeric
 /// type used in a numeric arithmetic context.  The code is S101 inside a
 /// loop body (per-iteration conversion) and S100 outside one.
-#[allow(clippy::too_many_arguments)]
-fn check_numeric_operand(
-    node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    span: Span,
-    op: BinOp,
-    in_loop: bool,
-    ssa: &SsaFunction,
-    seen: &mut HashSet<(Span, String)>,
-    out: &mut Vec<ShimmerWarning>,
-) {
+fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
     let ExprNode::Var { name, .. } = node else {
         return;
     };
     let base = normalise_var_name(name);
-    let Some(sym) = ssa.var_symbol(base) else {
+    let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
-    let Some(&ver) = uses.get(&sym) else { return };
+    let Some(&ver) = ctx.uses.get(&sym) else {
+        return;
+    };
     if ver == 0 {
         return;
     }
-    let lattice = types
+    let lattice = ctx
+        .types
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
@@ -314,21 +297,21 @@ fn check_numeric_operand(
     // Only flag clearly non-numeric types (String, List, Dict).
     if matches!(current, TclType::String | TclType::List | TclType::Dict) {
         // De-duplicate per (statement span, variable) within the block.
-        if !seen.insert((span, base.to_owned())) {
+        if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
         }
-        let code = if in_loop {
+        let code = if ctx.in_loop {
             DiagCode::S101
         } else {
             DiagCode::S100
         };
-        out.push(ShimmerWarning {
-            span,
+        ctx.out.push(ShimmerWarning {
+            span: ctx.stmt_span,
             variable: base.to_owned(),
             from_type: current,
             to_type: TclType::Numeric,
             command: format!("expr:{op:?}"),
-            in_loop,
+            in_loop: ctx.in_loop,
             code,
             message: format!(
                 "{code}: variable '{var}' has {from} intrep used in arithmetic \
@@ -343,30 +326,22 @@ fn check_numeric_operand(
 
 /// Emit a shimmer if `node` is a numeric variable used in a string
 /// comparison.  S101 inside a loop body, S100 outside one.
-#[allow(clippy::too_many_arguments)]
-fn check_string_operand(
-    node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    span: Span,
-    op: BinOp,
-    in_loop: bool,
-    ssa: &SsaFunction,
-    seen: &mut HashSet<(Span, String)>,
-    out: &mut Vec<ShimmerWarning>,
-) {
+fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
     let ExprNode::Var { name, .. } = node else {
         return;
     };
     let base = normalise_var_name(name);
-    let Some(sym) = ssa.var_symbol(base) else {
+    let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
-    let Some(&ver) = uses.get(&sym) else { return };
+    let Some(&ver) = ctx.uses.get(&sym) else {
+        return;
+    };
     if ver == 0 {
         return;
     }
-    let lattice = types
+    let lattice = ctx
+        .types
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
@@ -382,21 +357,21 @@ fn check_string_operand(
         TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
     ) {
         // De-duplicate per (statement span, variable) within the block.
-        if !seen.insert((span, base.to_owned())) {
+        if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
         }
-        let code = if in_loop {
+        let code = if ctx.in_loop {
             DiagCode::S101
         } else {
             DiagCode::S100
         };
-        out.push(ShimmerWarning {
-            span,
+        ctx.out.push(ShimmerWarning {
+            span: ctx.stmt_span,
             variable: base.to_owned(),
             from_type: current,
             to_type: TclType::String,
             command: format!("expr:{op:?}"),
-            in_loop,
+            in_loop: ctx.in_loop,
             code,
             message: format!(
                 "{code}: numeric variable '{base}' used in string comparison (op {op:?}); \

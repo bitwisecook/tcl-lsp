@@ -36,7 +36,7 @@
 //!     is a real method dispatch.  With two instances `$a bark` / `$b bark`
 //!     both dispatch -> woof/woof.
 //!   * `oo::class create Puppy {superclass Dog}; puts [[Puppy new] bark]`
-//!     -> woof  (the `superclass Dog` word makes Puppy inherit Dog::bark, so
+//!     -> woof  (the `superclass Dog` word makes Puppy inherit `Dog::bark`, so
 //!     it is a genuine reference to Dog).
 //!   * `oo::class create C {}; oo::define C self method build {} {return built};
 //!     puts [C build]`  -> built  (a classmethod is invoked on the class
@@ -44,7 +44,7 @@
 //!   * `oo::class create P {variable color; constructor {} {set color red};
 //!     method show {} {return $color}}; puts [[P new] show]`  -> red.
 //!   * BUG witness: a *bare* `greet` at command-head position inside a sibling
-//!     method body is NOT a valid TclOO call —
+//!     method body is NOT a valid `TclOO` call —
 //!     `oo::class create C {method greet {} {return hi};
 //!      method twice {} {return "[greet][greet]"}}; puts [[C new] twice]`
 //!     -> ERR: invalid command name "greet".  The runnable form is `my greet`
@@ -86,7 +86,8 @@ fn references_class_includes_decl_and_every_instantiation() {
     //   so both `Dog new` words are real uses of the class `Dog`.
     // The reference set for `Dog` is its decl (line 0) + both `Dog new`
     // instantiation sites (lines 3 and 4).
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
+    let src =
+        "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
     // Cursor on `Dog` in the `oo::class create Dog` head (line 0, col 18).
     let refs = references(src, "tcl", 0, 18, &analysis, true);
@@ -104,7 +105,8 @@ fn references_class_includes_decl_and_every_instantiation() {
 
 #[test]
 fn references_class_exclude_declaration_keeps_only_instantiations() {
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
+    let src =
+        "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
     let with_decl = references(src, "tcl", 0, 18, &analysis, true);
     let without_decl = references(src, "tcl", 0, 18, &analysis, false);
@@ -188,7 +190,8 @@ fn document_highlights_var_marks_def_write_and_reads_read() {
     // Cursor inside the first `$x` (line 1).
     let h = document_highlights(src, "tcl", 1, 6, &analysis);
     assert!(
-        h.iter().any(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write),
+        h.iter()
+            .any(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write),
         "Write at the `set x` definition (line 0); got {h:?}",
     );
     let reads = h.iter().filter(|(_, k)| *k == HighlightKind::Read).count();
@@ -230,11 +233,18 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
             array_indices: std::collections::BTreeSet::new(),
         },
     );
-    let analysis = R { global_scope: scope, ..R::default() };
+    let analysis = R {
+        global_scope: scope,
+        ..R::default()
+    };
     let src = "set x 1\nputs $x\n";
     // Cursor on `$x` (line 1, col 6).
     let h = document_highlights(src, "tcl", 1, 6, &analysis);
-    assert_eq!(h.len(), 1, "the duplicate (start,end) collapses to one: {h:?}");
+    assert_eq!(
+        h.len(),
+        1,
+        "the duplicate (start,end) collapses to one: {h:?}"
+    );
     assert_eq!(
         h[0].1,
         HighlightKind::Write,
@@ -251,11 +261,16 @@ fn document_highlights_class_decl_and_instantiations_are_text() {
     // tclsh-proof: both `Dog new` words are real instantiations (script runs).
     // A class carries no Read/Write distinction — decl + every `Dog new`
     // command-invocation head is Text.
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
+    let src =
+        "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
     // Cursor on `Dog` in the decl (line 0, col 18).
     let h = document_highlights(src, "tcl", 0, 18, &analysis);
-    assert_eq!(hl_lines(&h), vec![0, 3, 4], "decl + both `Dog new`; got {h:?}");
+    assert_eq!(
+        hl_lines(&h),
+        vec![0, 3, 4],
+        "decl + both `Dog new`; got {h:?}"
+    );
     assert!(
         h.iter().all(|(_, k)| *k == HighlightKind::Text),
         "every class highlight is Text (no Read/Write); got {h:?}",
@@ -334,7 +349,8 @@ fn references_classmethod_decl_resolves_to_member() {
     //   bare-`build` head match (line 2) is an editor heuristic — asserted
     //   structurally only (the decl is present; whether the sibling bare call
     //   is a runnable invocation is covered by the BUG tests below).
-    let src = "oo::class create C {\n    classmethod build {} {}\n    classmethod make {} { build }\n}\n";
+    let src =
+        "oo::class create C {\n    classmethod build {} {}\n    classmethod make {} { build }\n}\n";
     let analysis = analyse(src);
     // Cursor on the `build` classmethod declaration (line 1, col 17).
     let refs = references(src, "tcl", 1, 17, &analysis, true);
@@ -537,7 +553,8 @@ fn bug_intra_class_my_method_call_sites_are_missed() {
 //   identical on tclsh8.6 and tclsh9.0).
 #[test]
 fn bug_intra_class_bare_head_is_not_a_real_reference() {
-    let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+    let src =
+        "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
     let analysis = analyse(src);
     // Cursor on the `greet` declaration (line 1, col 11).
     let refs = references(src, "tcl", 1, 11, &analysis, false); // exclude decl

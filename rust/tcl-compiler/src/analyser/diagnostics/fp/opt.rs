@@ -229,8 +229,7 @@ fn fp_opt_04_call_by_name_suppresses_dead_store() {
         .collect();
     assert!(
         relevant.is_empty(),
-        "FP-OPT-04: call-by-name suppression should silence O109/O126 on tag/type; got {:?}",
-        relevant
+        "FP-OPT-04: call-by-name suppression should silence O109/O126 on tag/type; got {relevant:?}"
     );
 }
 
@@ -288,8 +287,7 @@ fn fp_opt_05_o126_pure_rhs_still_fires() {
 // FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
 // ---------------------------------------------------------------------------
 
-const FP_OPT_06_REPRO: &str =
-    "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
+const FP_OPT_06_REPRO: &str = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
 
 #[test]
 fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
@@ -322,7 +320,8 @@ fn fp_opt_07_pure_user_proc_rhs_is_deleted() {
 #[test]
 fn fp_opt_07_impure_user_proc_rhs_preserved() {
     // TN control: impure user proc RHS must NOT be deleted by O126.
-    let src = "proc shout {x} { puts $x; expr {$x + 1} }\nproc f {} { set unused [shout 1]; puts done }";
+    let src =
+        "proc shout {x} { puts $x; expr {$x + 1} }\nproc f {} { set unused [shout 1]; puts done }";
     assert!(
         !opt_fires(src, D, "O126"),
         "FP-OPT-07 TN: impure user-proc RHS must NOT be deleted by O126; rewrites={:?}",
@@ -352,8 +351,7 @@ fn fp_opt_08_nested_if_constant_chain_does_not_delete_inner_var() {
     if opt_src.contains("$b") {
         assert!(
             opt_src.contains("set b 0") || opt_src.contains("set b {0}"),
-            "FP-OPT-08: O109/O126 must not delete 'set b 0' when $b survives; got: {:?}",
-            opt_src
+            "FP-OPT-08: O109/O126 must not delete 'set b 0' when $b survives; got: {opt_src:?}"
         );
     }
 }
@@ -394,8 +392,7 @@ fn fp_opt_09_unknown_type_param_blocks_identity_rewrite() {
         .collect();
     assert!(
         unsound_o110.is_empty(),
-        "FP-OPT-09: unsound O110 drop of `$x + 0` on unknown-type param; got {:?}",
-        unsound_o110
+        "FP-OPT-09: unsound O110 drop of `$x + 0` on unknown-type param; got {unsound_o110:?}"
     );
     // The diagnostic surface should also be quiet on O110.
     assert!(
@@ -419,10 +416,8 @@ fn fp_opt_09_provably_numeric_var_still_fires() {
 // FP-OPT-10 — D5-O114: set x [expr {$x + N}] -> incr x N requires proof x is INT
 // ---------------------------------------------------------------------------
 
-const FP_OPT_10_TP_REPRO: &str =
-    "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n";
-const FP_OPT_10_TN_REPRO: &str =
-    "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
+const FP_OPT_10_TP_REPRO: &str = "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n";
+const FP_OPT_10_TN_REPRO: &str = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
 
 #[test]
 fn fp_opt_10_unknown_type_param_blocks_incr_rewrite() {
@@ -448,10 +443,8 @@ fn fp_opt_10_provably_int_var_still_fires() {
 // FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
 // ---------------------------------------------------------------------------
 
-const FP_OPT_11_TP_REPRO: &str =
-    "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"1\"} { puts yes } else { puts no }\n}\n";
-const FP_OPT_11_TN_REPRO: &str =
-    "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"hello\"} { puts yes } else { puts no }\n}\n";
+const FP_OPT_11_TP_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"1\"} { puts yes } else { puts no }\n}\n";
+const FP_OPT_11_TN_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"hello\"} { puts yes } else { puts no }\n}\n";
 
 #[test]
 fn fp_opt_11_numeric_like_literal_string_typed_var_no_rewrite() {
@@ -474,8 +467,7 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
     let opt_src = optimised(FP_OPT_11_TN_REPRO, D);
     assert!(
         opt_src.contains("$a eq \"hello\""),
-        "FP-OPT-11 TN: expected eq-form in optimised source; got: {:?}",
-        opt_src
+        "FP-OPT-11 TN: expected eq-form in optimised source; got: {opt_src:?}"
     );
 }
 

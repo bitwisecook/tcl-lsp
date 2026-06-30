@@ -52,8 +52,10 @@ pub struct CmdCommandSite {
 /// Single-pass Tcl analyser.
 ///
 /// Constructed once per document, walked end-to-end, then dropped.
-// A long-lived analysis accumulator: its several independent pass flags are
-// intentional, not a sign they should be bit-packed into an enum.
+// False positive: a flat accumulator whose bools are independent pass
+// flags / config toggles (`structure_only`, `defer_proc_bodies`,
+// `deep_param_traits`, `took_fast_path`, the two `probe_skip_*` test hooks,
+// …) that combine freely — not a state machine, so no natural enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
@@ -80,6 +82,10 @@ pub struct Analyser {
     pub dialect: String,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
+    /// User-declared extra command names (`tclLsp.extraCommands`) treated as
+    /// known, so calling them never draws an unknown-command W123. Mirrors the
+    /// Python `extra_commands` setting.
+    pub extra_commands: HashSet<String>,
     /// Last seen comment text, for proc / class doc-comment
     /// harvesting.
     pub last_comment: String,
@@ -362,6 +368,7 @@ impl Analyser {
             source: String::new(),
             dialect: String::new(),
             disabled_diagnostics: disabled,
+            extra_commands: HashSet::new(),
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
@@ -409,6 +416,15 @@ impl Analyser {
     #[must_use]
     pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
         self.non_ascii_mode = mode;
+        self
+    }
+
+    /// Set the user-declared extra command names (`tclLsp.extraCommands`),
+    /// returning `self` for builder-style configuration. These names are
+    /// treated as known commands by the unknown-command (W123) check.
+    #[must_use]
+    pub fn with_extra_commands(mut self, extra: HashSet<String>) -> Self {
+        self.extra_commands = extra;
         self
     }
 
@@ -1017,7 +1033,8 @@ impl Analyser {
     /// safe way to take the full-rebuild fallback mid-call.
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
-            .with_non_ascii_mode(self.non_ascii_mode);
+            .with_non_ascii_mode(self.non_ascii_mode)
+            .with_extra_commands(self.extra_commands.clone());
         fresh.analyse(new_text, dialect)
     }
 
@@ -3951,16 +3968,17 @@ mod tests {
     // Incremental analysis differential oracle
 
     /// A projection of `AnalysisResult` capturing the observable
-    /// identity an incremental analysis must preserve.
-    #[allow(clippy::type_complexity)]
-    fn project_result(
-        r: &AnalysisResult,
-    ) -> (
+    /// identity an incremental analysis must preserve: sorted
+    /// `(code, start, end)` diagnostics, proc names, global vars, and
+    /// `(invocation name, start)` pairs.
+    type ResultProjection = (
         Vec<(String, u32, u32)>,
         Vec<String>,
         Vec<String>,
         Vec<(String, u32)>,
-    ) {
+    );
+
+    fn project_result(r: &AnalysisResult) -> ResultProjection {
         let mut diags: Vec<_> = r
             .diagnostics
             .iter()

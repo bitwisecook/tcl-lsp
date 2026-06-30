@@ -203,8 +203,22 @@ pub fn run_all_checks(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Diagnostic> {
+    run_all_checks_with_generic_patterns(cu, registry, dialect, None)
+}
+
+/// Like [`run_all_checks`] but with explicit IRULE4002 generic-name patterns
+/// (`None` → default set, `Some(&[])` → disabled, `Some(custom)` → replace).
+/// Used by the no-salsa-input fallback so user `genericVariablePatterns`
+/// configuration is honoured even off the memoised path.
+#[must_use]
+pub fn run_all_checks_with_generic_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    generic_patterns: Option<&[String]>,
+) -> Vec<Diagnostic> {
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
-    run_all_checks_with_solved(cu, registry, dialect, &solved)
+    run_all_checks_with_solved_and_patterns(cu, registry, dialect, &solved, generic_patterns)
 }
 
 /// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
@@ -216,6 +230,19 @@ pub fn run_all_checks_with_solved(
     registry: &CommandRegistry,
     dialect: Option<&str>,
     solved: &crate::taint_interproc::InterprocTaintResult,
+) -> Vec<Diagnostic> {
+    run_all_checks_with_solved_and_patterns(cu, registry, dialect, solved, None)
+}
+
+/// Like [`run_all_checks_with_solved`] but with explicit IRULE4002 generic-name
+/// patterns (see [`run_all_checks_with_generic_patterns`]).
+#[must_use]
+pub fn run_all_checks_with_solved_and_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+    generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
 
@@ -233,7 +260,7 @@ pub fn run_all_checks_with_solved(
 
     // Taint (per-function, reading the interprocedural `solved`) + iRules
     // module-level checks — the half that is not per-function-pure.
-    push_taint_and_module_checks(cu, registry, dialect, solved, &mut out);
+    push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
 
     // Deterministic ordering (producers emit in `HashMap`-iteration order);
     // see [`sort_diagnostics`].
@@ -310,6 +337,7 @@ pub fn push_taint_and_module_checks(
     registry: &CommandRegistry,
     dialect: Option<&str>,
     solved: &crate::taint_interproc::InterprocTaintResult,
+    generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {
     // The interprocedural solve produces colour-aware return summaries and
@@ -377,7 +405,7 @@ pub fn push_taint_and_module_checks(
     }
 
     // iRules-dialect non-taint (module-level / control-flow) checks.
-    push_irules_flow_checks(cu, registry, dialect, out);
+    push_irules_flow_checks(cu, registry, dialect, generic_patterns, out);
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +
@@ -390,6 +418,7 @@ fn push_irules_flow_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {
     for w in find_unnormalised_getter_warnings(cu, registry, dialect) {
@@ -407,7 +436,7 @@ fn push_irules_flow_checks(
     for w in find_hoistable_set_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
-    for w in find_generic_static_name_warnings(cu, dialect) {
+    for w in find_generic_static_name_warnings(cu, dialect, generic_patterns) {
         out.push(Diagnostic::from_irules_check(&w));
     }
 }

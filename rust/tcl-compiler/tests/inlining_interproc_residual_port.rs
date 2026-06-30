@@ -7,9 +7,9 @@
 //!   * `inlining_rename_port.rs`  (the α-renamer descent),
 //!   * `compiler_analysis_residual_port.rs` (a first slice of
 //!     `classify_proc` / `inline_module` / `count_statements` declines),
-//! — cover the *common* inlining paths.  This suite deliberately targets the
-//! **remaining** uncovered branches, enumerated by walking every match arm /
-//! if-branch / early-return the three ports do not reach:
+//!     — cover the *common* inlining paths.  This suite deliberately targets
+//!     the **remaining** uncovered branches, enumerated by walking every match
+//!     arm / if-branch / early-return the three ports do not reach:
 //!
 //!   inlining/mod.rs
 //!     * `count_one` over `Block` / `UpFrame` / `For` / `While` / `If`-with-else
@@ -62,13 +62,13 @@
 //! no execution proof beyond the tclsh fact that the un-inlined program's value
 //! is unchanged.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inlining::{count_statements, inline_module};
 use tcl_compiler::interprocedural::{
+    Arity, ConstantReturn, InterproceduralAnalysis, ProcArgTrait, ProcIndex,
     build_interprocedural_analysis, build_proc_index_from_summaries, collect_call_by_name_reads,
-    Arity, ConstantReturn, InterproceduralAnalysis, ProcArgTrait,
 };
 use tcl_compiler::ir::{Module, Statement};
 use tcl_compiler::side_effects::EffectRegion;
@@ -356,12 +356,23 @@ fn rewrite_recurses_into_switch_arm_and_default() {
         unreachable!()
     };
     assert_eq!(
-        calls_to(arms[0].body.as_ref().expect("arm body").statements.as_slice(), "noop"),
+        calls_to(
+            arms[0]
+                .body
+                .as_ref()
+                .expect("arm body")
+                .statements
+                .as_slice(),
+            "noop"
+        ),
         0,
         "arm body noop inlined"
     );
     assert_eq!(
-        calls_to(&default_body.as_ref().expect("default body").statements, "noop"),
+        calls_to(
+            &default_body.as_ref().expect("default body").statements,
+            "noop"
+        ),
         0,
         "default body noop inlined"
     );
@@ -388,9 +399,7 @@ fn rewrite_recurses_into_upframe_body() {
 #[test]
 fn rewrite_recurses_into_try_body_handler_and_finally() {
     // Try body, the `on error` handler body, and the `finally` body all recurse.
-    let out = inlined(
-        "proc noop {} {}\ntry { noop } on error {e} { noop } finally { noop }\n",
-    );
+    let out = inlined("proc noop {} {}\ntry { noop } on error {e} { noop } finally { noop }\n");
     let try_node = out
         .top_level
         .statements
@@ -406,7 +415,11 @@ fn rewrite_recurses_into_try_body_handler_and_finally() {
     else {
         unreachable!()
     };
-    assert_eq!(calls_to(&body.statements, "noop"), 0, "try body noop inlined");
+    assert_eq!(
+        calls_to(&body.statements, "noop"),
+        0,
+        "try body noop inlined"
+    );
     assert_eq!(
         calls_to(&handlers[0].body.statements, "noop"),
         0,
@@ -491,7 +504,11 @@ fn wrapper_with_local_write_takes_v3_not_verbatim_path() {
     // tclsh (8.6, 9.0): `proc w {} { set g 0; incr g; return $g }; w` → 1; the
     // v3 inline preserves that.
     let out = inlined("proc w {} { set g 0\nincr g }\nw\n");
-    assert_eq!(top_calls_to(&out, "w"), 0, "v3 inlines the local-write body");
+    assert_eq!(
+        top_calls_to(&out, "w"),
+        0,
+        "v3 inlines the local-write body"
+    );
     assert!(
         all_assign_names(&out.top_level.statements)
             .iter()
@@ -513,7 +530,10 @@ fn variadic_with_default_fills_default_and_empty_args() {
     // f 1` → "1 9 {}"; the inlined bindings reproduce a=1, b=9, args="".
     let out = inlined("proc f {a {b 9} args} { puts $a }\nf 1\n");
     assert_eq!(top_calls_to(&out, "f"), 0, "the call inlined");
-    assert_eq!(binding_value(&out.top_level.statements, "__a").as_deref(), Some("1"));
+    assert_eq!(
+        binding_value(&out.top_level.statements, "__a").as_deref(),
+        Some("1")
+    );
     assert_eq!(
         binding_value(&out.top_level.statements, "__b").as_deref(),
         Some("9"),
@@ -703,7 +723,10 @@ fn inline_module_no_inlinable_proc_returns_unchanged() {
     // identical to its input.
     let m = module_for("proc p {n} { upvar 1 $n v\nset v 1 }\np x\n");
     let out = inline_module(m.clone());
-    assert_eq!(out, m, "an empty inlinable map returns the module unchanged");
+    assert_eq!(
+        out, m,
+        "an empty inlinable map returns the module unchanged"
+    );
 }
 
 #[test]
@@ -851,8 +874,7 @@ fn call_by_name_empty_index_short_circuits() {
     let r = reg();
     let cu = CompilationUnit::build_for("proc f {} { setvar y 1 }\n", &r, false);
     let fu = cu.function("::f").expect("proc f");
-    let empty: HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)> =
-        HashMap::new();
+    let empty = ProcIndex::new();
     assert!(
         collect_call_by_name_reads(&fu.cfg, &empty).is_empty(),
         "an empty proc index yields no call-by-name reads"
@@ -868,7 +890,10 @@ fn proc_index_registers_bare_qualified_and_stripped_keys() {
     let ia = interproc("namespace eval ::demo {\n proc bump {n} { upvar 1 $n x\nincr x }\n}\n");
     let index = build_proc_index_from_summaries(&ia);
     assert!(index.contains_key("bump"), "leaf key registered");
-    assert!(index.contains_key("::demo::bump"), "qualified key registered");
+    assert!(
+        index.contains_key("::demo::bump"),
+        "qualified key registered"
+    );
     assert!(
         index.contains_key("demo::bump"),
         "leading-colon-stripped key registered"
@@ -885,9 +910,7 @@ fn proc_index_registers_bare_qualified_and_stripped_keys() {
 fn direct_calls_excludes_transitive_edges() {
     // a → b → c. `a.calls` is the transitive closure {b, c}; `a.direct_calls` is
     // only {b}.
-    let ia = interproc(
-        "proc ::a {} { ::b }\nproc ::b {} { ::c }\nproc ::c {} { set x 1 }\n",
-    );
+    let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { ::c }\nproc ::c {} { set x 1 }\n");
     let a = ia.procedures.get("::a").expect("::a summary");
     assert!(
         a.direct_calls.contains(&"::b".to_string()),
@@ -916,9 +939,7 @@ fn direct_calls_excludes_transitive_edges() {
 fn writes_global_propagates_transitively() {
     // `a` itself writes nothing global, but it calls `b` which writes `::g`.
     // `a.writes_global` must be true via the transitive OR.
-    let ia = interproc(
-        "proc ::a {} { ::b }\nproc ::b {} { set ::g 1 }\n",
-    );
+    let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { set ::g 1 }\n");
     let a = ia.procedures.get("::a").expect("::a summary");
     assert!(
         a.writes_global,
@@ -933,9 +954,7 @@ fn writes_global_propagates_transitively() {
 fn has_unknown_calls_propagates_transitively() {
     // `a` calls `b`, and `b` calls an unknown command. `a.has_unknown_calls` is
     // true via the transitive OR.
-    let ia = interproc(
-        "proc ::a {} { ::b }\nproc ::b {} { nosuchcmd_xyz }\n",
-    );
+    let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { nosuchcmd_xyz }\n");
     let a = ia.procedures.get("::a").expect("::a summary");
     assert!(
         a.has_unknown_calls,
@@ -1048,7 +1067,10 @@ fn passthrough_brace_form_param_detected() {
     let ia = interproc("proc ::id {x} { return ${x} }\n");
     let s = ia.procedures.get("::id").unwrap();
     assert_eq!(s.return_passthrough_param.as_deref(), Some("x"));
-    assert!(!s.returns_constant, "a passthrough is not a constant return");
+    assert!(
+        !s.returns_constant,
+        "a passthrough is not a constant return"
+    );
 }
 
 #[test]
@@ -1070,9 +1092,7 @@ fn return_uses_param_records_depends_not_passthrough() {
 fn mixed_passthrough_params_is_depends_only() {
     // Two returns passing through *different* params → not a single passthrough;
     // the depends set is the union {x, y}.
-    let ia = interproc(
-        "proc ::f {x y} { if {$x > 0} { return $x } else { return $y } }\n",
-    );
+    let ia = interproc("proc ::f {x y} { if {$x > 0} { return $x } else { return $y } }\n");
     let s = ia.procedures.get("::f").unwrap();
     assert_eq!(s.return_passthrough_param, None);
     assert_eq!(
@@ -1132,9 +1152,8 @@ fn edge_via_return_substitution() {
 fn edge_via_incr_amount_substitution() {
     // `incr acc [amount]` — the `[amount]` substitution in the incr amount is a
     // call site (the `Statement::Incr { amount }` substitution scan).
-    let ia = interproc(
-        "proc ::amount {} { return 3 }\nproc ::a {} { set acc 0\nincr acc [amount] }\n",
-    );
+    let ia =
+        interproc("proc ::amount {} { return 3 }\nproc ::a {} { set acc 0\nincr acc [amount] }\n");
     let a = ia.procedures.get("::a").expect("::a summary");
     assert!(
         a.calls.contains(&"::amount".to_string()),
@@ -1152,7 +1171,10 @@ fn edge_via_incr_amount_substitution() {
 fn proc_arg_trait_wire_forms() {
     assert_eq!(ProcArgTrait::Passthrough.as_str(), "passthrough");
     assert_eq!(ProcArgTrait::UsedInCondition.as_str(), "used_in_condition");
-    assert_eq!(ProcArgTrait::ForwardedToCallee.as_str(), "forwarded_to_callee");
+    assert_eq!(
+        ProcArgTrait::ForwardedToCallee.as_str(),
+        "forwarded_to_callee"
+    );
     assert_eq!(ProcArgTrait::VarRead.as_str(), "var_read");
     assert_eq!(ProcArgTrait::VarWrite.as_str(), "var_write");
     assert_eq!(ProcArgTrait::Unused.as_str(), "unused");
@@ -1160,7 +1182,10 @@ fn proc_arg_trait_wire_forms() {
 
 #[test]
 fn constant_return_kind_text_wire_forms() {
-    assert_eq!(ConstantReturn::Int(42).as_kind_text(), ("int", "42".to_string()));
+    assert_eq!(
+        ConstantReturn::Int(42).as_kind_text(),
+        ("int", "42".to_string())
+    );
     assert_eq!(
         ConstantReturn::Float(1.5).as_kind_text(),
         ("float", "1.5".to_string())
@@ -1210,9 +1235,7 @@ fn method_calling_impure_proc_unions_its_effects() {
 fn method_return_constant_and_arity_summarised() {
     // A method `get {a b}` returning a constant records the constant + the
     // exact arity (2 params); MRO/`my`/`next` tracking is left empty by design.
-    let ia = interproc(
-        "oo::class create C {\n method get {a b} { return 7 }\n}\n",
-    );
+    let ia = interproc("oo::class create C {\n method get {a b} { return 7 }\n}\n");
     let m = ia.methods.get("::C::get").expect("method summary");
     assert!(m.base.returns_constant, "constant return summarised");
     assert_eq!(m.base.constant_return, Some(ConstantReturn::Int(7)));
@@ -1241,5 +1264,8 @@ fn proc_arity_is_param_count_even_for_variadic_decl() {
         Arity::exact(3),
         "arity counts declared params a, b, args"
     );
-    assert_eq!(s.params, vec!["a".to_string(), "b".to_string(), "args".to_string()]);
+    assert_eq!(
+        s.params,
+        vec!["a".to_string(), "b".to_string(), "args".to_string()]
+    );
 }

@@ -97,7 +97,7 @@ fn negative_number_is_positional_not_flag() {
     // `-1` is no command's option, so it gets a positional parameter hint
     // rather than being skipped as a flag.
     let source = "set s hello\nstring index $s -1\n";
-    let neg_one_col = source.lines().nth(1).unwrap().find("-1").unwrap() as u32;
+    let neg_one_col = u32::try_from(source.lines().nth(1).unwrap().find("-1").unwrap()).unwrap();
     let on_neg = hints(source)
         .iter()
         .filter(|x| x.kind == InlayHintKind::Parameter && x.position_line == 1)

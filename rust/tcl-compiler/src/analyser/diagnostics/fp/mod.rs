@@ -54,7 +54,7 @@ pub(super) fn fires(src: &str, dialect: &str, code: &str) -> bool {
 
 #[cfg(test)]
 mod sanity {
-    use super::{codes, fires, D};
+    use super::{D, codes, fires};
 
     #[test]
     fn baseline_read_before_set_fires_w210() {
@@ -80,14 +80,14 @@ mod sanity {
     }
 }
 
-mod obj;
+mod bnd;
 mod ds;
-mod sh;
+mod inj;
+mod nab;
+mod obj;
+mod opt;
 mod rbs;
 mod rch;
-mod inj;
-mod bnd;
+mod sh;
 mod sty;
 mod tnt;
-mod nab;
-mod opt;

@@ -11,7 +11,7 @@
 //! and literal values 0xFF=255, 0o17=15, 0b101=5, .5=0.5, 5.=5.0.
 
 use tcl_syntax::expr::ast::render_expr;
-use tcl_syntax::expr::{parse_expr, BinOp, ExprNode, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp, parse_expr};
 
 fn p(src: &str) -> ExprNode {
     parse_expr(src, None)
@@ -120,10 +120,34 @@ fn add_operands_are_vars() {
 
 #[test]
 fn unary_operator_kinds() {
-    assert!(matches!(p("-$x"), ExprNode::Unary { op: UnaryOp::Neg, .. }));
-    assert!(matches!(p("+$x"), ExprNode::Unary { op: UnaryOp::Pos, .. }));
-    assert!(matches!(p("!$x"), ExprNode::Unary { op: UnaryOp::Not, .. }));
-    assert!(matches!(p("~$x"), ExprNode::Unary { op: UnaryOp::BitNot, .. }));
+    assert!(matches!(
+        p("-$x"),
+        ExprNode::Unary {
+            op: UnaryOp::Neg,
+            ..
+        }
+    ));
+    assert!(matches!(
+        p("+$x"),
+        ExprNode::Unary {
+            op: UnaryOp::Pos,
+            ..
+        }
+    ));
+    assert!(matches!(
+        p("!$x"),
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    ));
+    assert!(matches!(
+        p("~$x"),
+        ExprNode::Unary {
+            op: UnaryOp::BitNot,
+            ..
+        }
+    ));
 }
 
 // -- Precedence (tclsh-proven structure) --
@@ -132,7 +156,11 @@ fn unary_operator_kinds() {
 fn mul_binds_tighter_than_add() {
     // 2 + 3 * 4 = 14 ⇒ Add(2, Mul(3,4)).
     match p("2 + 3 * 4") {
-        ExprNode::Binary { op: BinOp::Add, right, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Add,
+            right,
+            ..
+        } => {
             assert_eq!(binop(&right), BinOp::Mul);
         }
         other => panic!("expected Add at root, got {other:?}"),
@@ -143,7 +171,11 @@ fn mul_binds_tighter_than_add() {
 fn subtraction_is_left_associative() {
     // 10 - 3 - 2 = 5 ⇒ Sub(Sub(10,3),2).
     match p("10 - 3 - 2") {
-        ExprNode::Binary { op: BinOp::Sub, left, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Sub,
+            left,
+            ..
+        } => {
             assert_eq!(binop(&left), BinOp::Sub);
         }
         other => panic!("expected left-assoc Sub, got {other:?}"),
@@ -154,7 +186,11 @@ fn subtraction_is_left_associative() {
 fn power_is_right_associative() {
     // 2 ** 3 ** 2 = 512 ⇒ Pow(2, Pow(3,2)).
     match p("2 ** 3 ** 2") {
-        ExprNode::Binary { op: BinOp::Pow, right, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Pow,
+            right,
+            ..
+        } => {
             assert_eq!(binop(&right), BinOp::Pow);
         }
         other => panic!("expected right-assoc Pow, got {other:?}"),
@@ -165,7 +201,11 @@ fn power_is_right_associative() {
 fn arithmetic_binds_tighter_than_comparison() {
     // 1 + 2 < 4 = 1 ⇒ Lt(Add(1,2),4).
     match p("1 + 2 < 4") {
-        ExprNode::Binary { op: BinOp::Lt, left, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Lt,
+            left,
+            ..
+        } => {
             assert_eq!(binop(&left), BinOp::Add);
         }
         other => panic!("expected Lt at root, got {other:?}"),
@@ -176,7 +216,11 @@ fn arithmetic_binds_tighter_than_comparison() {
 fn comparison_binds_tighter_than_logical() {
     // $a < $b && $c < $d ⇒ And(Lt(a,b), Lt(c,d)).
     match p("$a < $b && $c < $d") {
-        ExprNode::Binary { op: BinOp::And, left, right } => {
+        ExprNode::Binary {
+            op: BinOp::And,
+            left,
+            right,
+        } => {
             assert_eq!(binop(&left), BinOp::Lt);
             assert_eq!(binop(&right), BinOp::Lt);
         }
@@ -188,7 +232,11 @@ fn comparison_binds_tighter_than_logical() {
 fn or_binds_looser_than_and() {
     // $a && $b || $c ⇒ Or(And(a,b), c).
     match p("$a && $b || $c") {
-        ExprNode::Binary { op: BinOp::Or, left, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Or,
+            left,
+            ..
+        } => {
             assert_eq!(binop(&left), BinOp::And);
         }
         other => panic!("expected Or at root, got {other:?}"),
@@ -199,7 +247,11 @@ fn or_binds_looser_than_and() {
 fn parentheses_override_precedence() {
     // (2 + 3) * 4 ⇒ Mul(Add(2,3), 4).
     match p("(2 + 3) * 4") {
-        ExprNode::Binary { op: BinOp::Mul, left, .. } => {
+        ExprNode::Binary {
+            op: BinOp::Mul,
+            left,
+            ..
+        } => {
             assert_eq!(binop(&left), BinOp::Add);
         }
         other => panic!("expected Mul at root, got {other:?}"),
@@ -290,7 +342,13 @@ fn boolean_literals() {
         assert!(matches!(p(b), ExprNode::Literal { .. }), "{b}");
     }
     // `!true` is unary-not over a boolean literal.
-    assert!(matches!(p("!true"), ExprNode::Unary { op: UnaryOp::Not, .. }));
+    assert!(matches!(
+        p("!true"),
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    ));
 }
 
 // -- Numeric literals (tclsh values: 0xFF=255, 0o17=15, 0b101=5, .5=0.5, 5.=5.0) --
@@ -298,8 +356,20 @@ fn boolean_literals() {
 #[test]
 fn numeric_literal_forms() {
     for s in [
-        "0o17", "0O17", "0b101", "0B101", "0xff", "0xFF", "1.5e10", "1.5e+10", "1.5e-10", "1.5E10",
-        ".5", "5.", "0", "123456789012345",
+        "0o17",
+        "0O17",
+        "0b101",
+        "0B101",
+        "0xff",
+        "0xFF",
+        "1.5e10",
+        "1.5e+10",
+        "1.5e-10",
+        "1.5E10",
+        ".5",
+        "5.",
+        "0",
+        "123456789012345",
     ] {
         // Each parses to a single Literal node carrying the verbatim text.
         assert_eq!(lit_text(&p(s)), s, "{s}");

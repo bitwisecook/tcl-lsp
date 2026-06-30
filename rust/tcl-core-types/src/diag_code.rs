@@ -647,9 +647,9 @@ mod tests {
 
     #[test]
     fn unknown_diag_code_displays_message() {
+        use core::fmt::Write;
         // Render `UnknownDiagCode` through Display (exercises the fmt impl).
         let mut buf: heapless_fmt::Buf = heapless_fmt::Buf::new();
-        use core::fmt::Write;
         write!(buf, "{UnknownDiagCode}").unwrap();
         assert_eq!(buf.as_str(), "unknown diagnostic code");
     }

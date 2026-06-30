@@ -411,13 +411,15 @@ impl Analyser {
         // values).
         self.emit_return_phi_undef_w210(
             function_unit,
-            &rbs_params,
-            &exists_guards,
-            &scope_aliases,
-            extra_known_defined,
-            &defined,
-            &considered,
-            &supp,
+            &dataflow::ReturnUndefCtx {
+                params: &rbs_params,
+                exists_guards: &exists_guards,
+                scope_aliases: &scope_aliases,
+                extra_known_defined,
+                defined_vars: &defined,
+                considered: &considered,
+                supp: &supp,
+            },
         );
         // W210 on reads of a provably-no-match regexp / scan output var.
         self.emit_provably_unset_w210(function_unit, &considered, &defined);

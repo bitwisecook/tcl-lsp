@@ -1267,35 +1267,49 @@ pub(super) fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
 pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
     let bytes = slice.as_bytes();
     let len = bytes.len();
+    // Bracket-substitution nesting depth.  Only a *top-level* (depth-0)
+    // `[expr …]` command substitution is "already in expression context" and
+    // therefore redundant.  An `[expr …]` nested inside another command
+    // substitution's arguments — e.g. `if {[myCmd [expr {1+1}]]}` — is a fresh
+    // command-argument context, not an expression context, so it must NOT be
+    // flagged (issue #726).
+    let mut depth: i32 = 0;
     let mut open = 0;
     while open < len {
-        if bytes[open] == b'[' {
-            // `\s*`
-            let mut after_ws = open + 1;
-            while after_ws < len && bytes[after_ws].is_ascii_whitespace() {
-                after_ws += 1;
-            }
-            // `expr` followed by a whitespace byte.
-            let kw_end = after_ws + 4;
-            if kw_end < len
-                && &bytes[after_ws..kw_end] == b"expr"
-                && bytes[kw_end].is_ascii_whitespace()
-            {
-                // Depth-scan for the matching `]` (the open `[` is
-                // already counted).
-                let mut depth = 1;
-                let mut scan = open + 1;
-                while scan < len && depth > 0 {
-                    match bytes[scan] {
-                        b'[' => depth += 1,
-                        b']' => depth -= 1,
-                        _ => {}
+        match bytes[open] {
+            b'[' => {
+                if depth == 0 {
+                    // `\s*`
+                    let mut after_ws = open + 1;
+                    while after_ws < len && bytes[after_ws].is_ascii_whitespace() {
+                        after_ws += 1;
                     }
-                    scan += 1;
+                    // `expr` followed by a whitespace byte.
+                    let kw_end = after_ws + 4;
+                    if kw_end < len
+                        && &bytes[after_ws..kw_end] == b"expr"
+                        && bytes[kw_end].is_ascii_whitespace()
+                    {
+                        // Depth-scan for the matching `]` (the open `[` is
+                        // already counted).
+                        let mut d = 1;
+                        let mut scan = open + 1;
+                        while scan < len && d > 0 {
+                            match bytes[scan] {
+                                b'[' => d += 1,
+                                b']' => d -= 1,
+                                _ => {}
+                            }
+                            scan += 1;
+                        }
+                        let close = if d == 0 { scan - 1 } else { len - 1 };
+                        return Some((open, close));
+                    }
                 }
-                let close = if depth == 0 { scan - 1 } else { len - 1 };
-                return Some((open, close));
+                depth += 1;
             }
+            b']' => depth = depth.saturating_sub(1),
+            _ => {}
         }
         open += 1;
     }

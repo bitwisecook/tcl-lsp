@@ -61,8 +61,38 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     }
 }
 
-#[allow(clippy::too_many_lines)] // one arm per IR statement variant
+/// Rename a binding-position local: a renamed name maps through, an
+/// untracked name passes through unchanged.
+fn rename_local(name: &str, rename: &HashMap<String, String>) -> String {
+    rename.get(name).cloned().unwrap_or_else(|| name.to_owned())
+}
+
 fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
+        Statement::AssignConst { .. }
+        | Statement::AssignValue { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::Incr { .. }
+        | Statement::ExprEval { .. } => rewrite_assign_like(stmt, rename),
+        Statement::Call { .. } | Statement::Return { .. } => rewrite_call_like(stmt, rename),
+        Statement::Block { .. } | Statement::UpFrame { .. } => rewrite_block_like(stmt, rename),
+        Statement::If { .. } | Statement::For { .. } | Statement::While { .. } => {
+            rewrite_control_flow(stmt, rename)
+        }
+        Statement::Foreach { .. } | Statement::Catch { .. } | Statement::Try { .. } => {
+            rewrite_binding_scope(stmt, rename)
+        }
+        Statement::Switch { .. } => rewrite_switch(stmt, rename),
+        // Barrier never appears in a v3-eligible body (it isn't
+        // splice-eligible, so `_v3_eligible` rejects the proc). Pass
+        // through unchanged for completeness.
+        Statement::Barrier { .. } => stmt.clone(),
+    }
+}
+
+/// Assignment-shaped statements: rename the LHS name and rewrite the RHS
+/// value / expression.
+fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
     match stmt {
         Statement::AssignConst {
             span,
@@ -118,6 +148,14 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             span: *span,
             expr: rewrite_expr(expr, rename),
         },
+        _ => unreachable!("rewrite_assign_like dispatched a non-assign statement"),
+    }
+}
+
+/// `Call` / `Return`: rewrite argument value strings and (for calls)
+/// `defs` / `reads` variable names.
+fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
         Statement::Call {
             span,
             command,
@@ -155,6 +193,13 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
             braced: *braced,
         },
+        _ => unreachable!("rewrite_call_like dispatched a non-call statement"),
+    }
+}
+
+/// `Block` / `UpFrame`: rewrite the nested body script.
+fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
         Statement::Block {
             span,
             body,
@@ -177,6 +222,13 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             body: rewrite_script(body, rename),
             tokens: tokens.clone(),
         },
+        _ => unreachable!("rewrite_block_like dispatched a non-block statement"),
+    }
+}
+
+/// `If` / `For` / `While`: rewrite conditions, sub-scripts, and bodies.
+fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
         Statement::If {
             span,
             clauses,
@@ -238,6 +290,14 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             raw_args: raw_args.clone(),
             raw_tokens: raw_tokens.clone(),
         },
+        _ => unreachable!("rewrite_control_flow dispatched a non-control statement"),
+    }
+}
+
+/// `Foreach` / `Catch` / `Try`: rewrite bodies plus the binding-position
+/// locals each introduces (loop vars, result/options vars, handler vars).
+fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
         Statement::Foreach {
             span,
             iterators,
@@ -252,11 +312,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             iterators: iterators
                 .iter()
                 .map(|it| crate::ir::ForeachIterator {
-                    vars: it
-                        .vars
-                        .iter()
-                        .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone()))
-                        .collect(),
+                    vars: it.vars.iter().map(|v| rename_local(v, rename)).collect(),
                     list_arg: rewrite_value_string(&it.list_arg, rename),
                 })
                 .collect(),
@@ -279,12 +335,8 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             span: *span,
             body: rewrite_script(body, rename),
             body_span: *body_span,
-            result_var: result_var
-                .as_ref()
-                .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone())),
-            options_var: options_var
-                .as_ref()
-                .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone())),
+            result_var: result_var.as_ref().map(|v| rename_local(v, rename)),
+            options_var: options_var.as_ref().map(|v| rename_local(v, rename)),
             raw_args: raw_args.clone(),
             tokens: tokens.clone(),
         },
@@ -305,14 +357,8 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
                 .map(|h| TryHandler {
                     kind: h.kind.clone(),
                     match_arg: h.match_arg.clone(),
-                    var_name: h
-                        .var_name
-                        .as_ref()
-                        .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone())),
-                    options_var: h
-                        .options_var
-                        .as_ref()
-                        .map(|v| rename.get(v).cloned().unwrap_or_else(|| v.clone())),
+                    var_name: h.var_name.as_ref().map(|v| rename_local(v, rename)),
+                    options_var: h.options_var.as_ref().map(|v| rename_local(v, rename)),
                     body: rewrite_script(&h.body, rename),
                     body_span: h.body_span,
                     fallthrough: h.fallthrough,
@@ -322,42 +368,47 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
             finally_span: *finally_span,
             raw_args: raw_args.clone(),
         },
-        Statement::Switch {
-            span,
-            subject,
-            subject_span,
-            arms,
-            default_body,
-            default_span,
-            mode,
-            nocase,
-            raw_args,
-            patterns_braced,
-        } => Statement::Switch {
-            span: *span,
-            subject: rewrite_value_string(subject, rename),
-            subject_span: *subject_span,
-            arms: arms
-                .iter()
-                .map(|a| SwitchArm {
-                    pattern: a.pattern.clone(),
-                    pattern_span: a.pattern_span,
-                    body: a.body.as_ref().map(|b| rewrite_script(b, rename)),
-                    body_span: a.body_span,
-                    fallthrough: a.fallthrough,
-                })
-                .collect(),
-            default_body: default_body.as_ref().map(|b| rewrite_script(b, rename)),
-            default_span: *default_span,
-            mode: *mode,
-            nocase: *nocase,
-            raw_args: raw_args.clone(),
-            patterns_braced: *patterns_braced,
-        },
-        // Barrier never appears in a v3-eligible body (it isn't
-        // splice-eligible, so `_v3_eligible` rejects the proc). Pass
-        // through unchanged for completeness.
-        Statement::Barrier { .. } => stmt.clone(),
+        _ => unreachable!("rewrite_binding_scope dispatched an unexpected statement"),
+    }
+}
+
+/// `Switch`: rewrite the subject value and each arm / default body.
+fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    let Statement::Switch {
+        span,
+        subject,
+        subject_span,
+        arms,
+        default_body,
+        default_span,
+        mode,
+        nocase,
+        raw_args,
+        patterns_braced,
+    } = stmt
+    else {
+        unreachable!("rewrite_switch dispatched a non-switch statement");
+    };
+    Statement::Switch {
+        span: *span,
+        subject: rewrite_value_string(subject, rename),
+        subject_span: *subject_span,
+        arms: arms
+            .iter()
+            .map(|a| SwitchArm {
+                pattern: a.pattern.clone(),
+                pattern_span: a.pattern_span,
+                body: a.body.as_ref().map(|b| rewrite_script(b, rename)),
+                body_span: a.body_span,
+                fallthrough: a.fallthrough,
+            })
+            .collect(),
+        default_body: default_body.as_ref().map(|b| rewrite_script(b, rename)),
+        default_span: *default_span,
+        mode: *mode,
+        nocase: *nocase,
+        raw_args: raw_args.clone(),
+        patterns_braced: *patterns_braced,
     }
 }
 

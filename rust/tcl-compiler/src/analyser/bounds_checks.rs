@@ -451,7 +451,6 @@ fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) 
 /// silently returns empty / clamps.  `args` / `arg_tokens` exclude the
 /// command name.  (W231 `lset` needs const-var tracking and is handled
 /// separately.)
-#[allow(clippy::similar_names)] // first_text/first_tok/first_val read clearly
 pub(crate) fn list_index_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -483,39 +482,39 @@ pub(crate) fn list_index_diagnostics(
     if args.len() < 3 || arg_tokens.len() < 3 || (cmd_name == "lrange" && args.len() != 3) {
         return Vec::new();
     }
-    let (first_text, last_text) = (&args[1], &args[2]);
-    let (first_tok, last_tok) = (&arg_tokens[1], &arg_tokens[2]);
-    if has_subst(first_text, first_tok)
-        || !is_literal_index(first_text)
-        || has_subst(last_text, last_tok)
-        || !is_literal_index(last_text)
+    let (lo_text, hi_text) = (&args[1], &args[2]);
+    let (lo_token, hi_token) = (&arg_tokens[1], &arg_tokens[2]);
+    if has_subst(lo_text, lo_token)
+        || !is_literal_index(lo_text)
+        || has_subst(hi_text, hi_token)
+        || !is_literal_index(hi_text)
     {
         return Vec::new();
     }
-    let (Some(first_val), Some(last_val)) = (
-        resolve_index(first_text, length),
-        resolve_index(last_text, length),
+    let (Some(lo_index), Some(hi_index)) = (
+        resolve_index(lo_text, length),
+        resolve_index(hi_text, length),
     ) else {
         return Vec::new();
     };
-    if !pair_slice_empty(first_val, last_val, length) {
+    if !pair_slice_empty(lo_index, hi_index, length) {
         return Vec::new();
     }
     let verb = if cmd_name == "lrange" {
         "lrange slice is empty".to_string()
-    } else if first_val < 0 && last_val < 0 {
+    } else if lo_index < 0 && hi_index < 0 {
         "lreplace prepends instead of replacing (both indices resolve before the list)".to_string()
-    } else if first_val >= length && last_val >= length {
+    } else if lo_index >= length && hi_index >= length {
         "lreplace appends instead of replacing (both indices resolve past the list)".to_string()
     } else {
         "lreplace touches no element (first > last after clamping)".to_string()
     };
     vec![Diagnostic {
         code: DiagCode::W230,
-        span: tcl_lexer::Span::new(first_tok.span.start(), last_tok.span.end()),
+        span: tcl_lexer::Span::new(lo_token.span.start(), hi_token.span.end()),
         message: format!(
-            "{verb}: first='{first_text}' resolves to {first_val}, last='{last_text}' resolves \
-             to {last_val} (list has {length} element{}).",
+            "{verb}: first='{lo_text}' resolves to {lo_index}, last='{hi_text}' resolves \
+             to {hi_index} (list has {length} element{}).",
             if length == 1 { "" } else { "s" }
         ),
         severity: Severity::Warning,

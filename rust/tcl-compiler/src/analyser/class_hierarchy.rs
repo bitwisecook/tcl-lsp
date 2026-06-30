@@ -1,6 +1,4 @@
-#![allow(clippy::implicit_hasher, clippy::doc_markdown)]
-
-//! Class Hierarchy Analysis (CHA) for TclOO.
+//! Class Hierarchy Analysis (`CHA`) for `TclOO`.
 //!
 //! Builds a complete class hierarchy from the analyser's class
 //! index, computes the MRO (two-pass DFS with late-placement
@@ -8,7 +6,7 @@
 //! class, and answers queries about subtype relationships,
 //! method providers, and method resolution.
 //!
-//! Inspired by the CHA techniques used in LLVM and JVM HotSpot
+//! Inspired by the CHA techniques used in LLVM and JVM `HotSpot`
 //! for devirtualisation and call graph construction.
 
 use std::collections::{HashMap, HashSet};
@@ -62,7 +60,7 @@ impl ClassHierarchy {
 
     /// Return all `(class, defining_class)` pairs that
     /// implement `method_name`.  Order matches the iteration
-    /// order of `method_providers` (HashMap — non-deterministic
+    /// order of `method_providers` (`HashMap` — non-deterministic
     /// across runs; sort externally if determinism matters).
     #[must_use]
     pub fn all_implementations(&self, method_name: &str) -> Vec<(String, String)> {
@@ -76,7 +74,7 @@ impl ClassHierarchy {
 
 /// Build a [`ClassHierarchy`] from a dict of class definitions.
 ///
-/// Computes TclOO MRO, subclass maps, and method-provider
+/// Computes `TclOO` MRO, subclass maps, and method-provider
 /// resolution for all
 /// classes in the index.
 ///
@@ -166,7 +164,12 @@ fn build_method_providers(
 /// MRO linearisation, computes direct + transitive subclass sets, and
 /// resolves method-provider chains.
 #[must_use]
-pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
+pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
+    classes: HashMap<String, ClassDef, S>,
+) -> ClassHierarchy {
+    // Normalise to the default-hasher map used by `ClassHierarchy::classes`
+    // so the rest of the routine (and the public field) stay hasher-agnostic.
+    let classes: HashMap<String, ClassDef> = classes.into_iter().collect();
     let (supers_map, mixins_map) = build_supers_mixins_maps(&classes);
 
     // Compute MRO for every class.  ``build_mro_map`` walks

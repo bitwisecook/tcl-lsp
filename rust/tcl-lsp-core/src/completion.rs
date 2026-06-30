@@ -148,6 +148,106 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
         .sum()
 }
 
+/// Registry-driven, context-aware completion: switch / event-name /
+/// user-proc / subcommand / arg-value suggestions resolved from the
+/// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
+/// cursor isn't inside a recognised command context (so the caller falls
+/// through to plain command + proc completion).
+fn context_aware_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    let (cmd, word_idx) = command_context_on_line(source, line, character)?;
+    let spec = registry.get(&cmd)?;
+
+    // Switch completion fires when the identifier
+    // partial is preceded by a literal `-` on the
+    // line.  `word_partial_at_position` stops at the
+    // dash (it's not an identifier char), so detect
+    // the dash here and rebuild the switch partial.
+    if let Some(switch_partial) = switch_partial_at_position(source, line, character, partial)
+        && !spec.options.is_empty()
+    {
+        // Replacement range spans the `-partial` already typed
+        // (dash column → cursor) so the dash isn't duplicated.
+        let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+        let cursor_col = utf16_col_to_char_col(line_text, character).min(line_text.chars().count());
+        let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
+        let edit = (
+            char_col_to_utf16(line_text, dash_col),
+            char_col_to_utf16(line_text, cursor_col),
+        );
+        return Some(switch_completions(spec, &switch_partial, edit));
+    }
+    // iRules `when EVENT { body }`: when the cursor is
+    // typing the first argument of an event-handler
+    // command, enumerate the known event names from the
+    // shared event registry.
+    if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
+        return Some(event_name_completions(partial));
+    }
+    // iRules `call PROC_NAME ?ARGS?`: when the cursor
+    // is typing the first argument of an
+    // `INVOKES_USER_PROC` command (today only `call`
+    // in iRules), surface user-defined proc names —
+    // and only those, not built-in commands.
+    if word_idx == 1
+        && spec
+            .traits
+            .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+    {
+        let usage = document_usage_counts(analysis);
+        return Some(proc_completions(analysis, partial, &usage));
+    }
+    if word_idx == 1 && !spec.subcommands.is_empty() {
+        return Some(subcommand_completions(spec, partial));
+    }
+    // Subcommand argument-value completion — e.g.
+    // `string is <class>`.  When the cursor is at
+    // word-index ≥ 2 of a command whose subcommand
+    // (the word at index 1) declares enumerable
+    // values for that sub-arg position, list them.
+    if word_idx >= 2
+        && let Some(sub_name) = nth_word_on_line(source, line, 1)
+        && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+    {
+        let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
+        let values = sub.arg_values_at(sub_arg_idx);
+        if !values.is_empty() {
+            return Some(arg_value_completions(values, partial));
+        }
+    }
+    // Command-level positional arg-value completion — the
+    // bareword value sets declared directly on the command
+    // (not a subcommand).  Covers iRules `when EVENT timing
+    // enable|disable` and `HTTP::respond <status>
+    // content|noserver|version`.  The argument index is the
+    // 0-based position after the command name (`word_idx - 1`).
+    if word_idx >= 1 {
+        let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
+        let mut values = spec.arg_values_at(arg_idx);
+        // `when`'s keyword tail carries an enumerable value
+        // slot only after the `timing` keyword (the `priority`
+        // keyword takes a numeric argument).  Even-index
+        // value slots are gated on the preceding literal being
+        // `timing`.
+        if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+            && arg_idx >= 2
+            && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
+        {
+            values = &[];
+        }
+        if !values.is_empty() {
+            return Some(arg_value_completions(values, partial));
+        }
+    }
+    None
+}
+
 /// Compute completions for a position in `source`.
 ///
 /// `analysis` is the pre-computed analyser result; the caller
@@ -173,7 +273,6 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
 ///    user-defined procs from `analysis.all_procs`, plus all
 ///    built-in commands the `registry` knows about.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn completions(
     source: &str,
     line: u32,
@@ -201,91 +300,10 @@ pub fn completions(
     // can't tell which switches / subcommands / events are valid,
     // so fall through to plain command + proc completion.
     if let Some(registry) = registry
-        && let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
-        && let Some(spec) = registry.get(&cmd)
+        && let Some(items) =
+            context_aware_completions(source, line, character, analysis, registry, &partial)
     {
-        // Switch completion fires when the identifier
-        // partial is preceded by a literal `-` on the
-        // line.  `word_partial_at_position` stops at the
-        // dash (it's not an identifier char), so detect
-        // the dash here and rebuild the switch partial.
-        if let Some(switch_partial) = switch_partial_at_position(source, line, character, &partial)
-            && !spec.options.is_empty()
-        {
-            // Replacement range spans the `-partial` already typed
-            // (dash column → cursor) so the dash isn't duplicated.
-            let line_text = source.split('\n').nth(line as usize).unwrap_or("");
-            let cursor_col =
-                utf16_col_to_char_col(line_text, character).min(line_text.chars().count());
-            let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
-            let edit = (
-                char_col_to_utf16(line_text, dash_col),
-                char_col_to_utf16(line_text, cursor_col),
-            );
-            return switch_completions(spec, &switch_partial, edit);
-        }
-        // iRules `when EVENT { body }`: when the cursor is
-        // typing the first argument of an event-handler
-        // command, enumerate the known event names from the
-        // shared event registry.
-        if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
-            return event_name_completions(&partial);
-        }
-        // iRules `call PROC_NAME ?ARGS?`: when the cursor
-        // is typing the first argument of an
-        // `INVOKES_USER_PROC` command (today only `call`
-        // in iRules), surface user-defined proc names —
-        // and only those, not built-in commands.
-        if word_idx == 1
-            && spec
-                .traits
-                .contains(tcl_registry::Traits::INVOKES_USER_PROC)
-        {
-            let usage = document_usage_counts(analysis);
-            return proc_completions(analysis, &partial, &usage);
-        }
-        if word_idx == 1 && !spec.subcommands.is_empty() {
-            return subcommand_completions(spec, &partial);
-        }
-        // Subcommand argument-value completion — e.g.
-        // `string is <class>`.  When the cursor is at
-        // word-index ≥ 2 of a command whose subcommand
-        // (the word at index 1) declares enumerable
-        // values for that sub-arg position, list them.
-        if word_idx >= 2
-            && let Some(sub_name) = nth_word_on_line(source, line, 1)
-            && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
-        {
-            let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
-            let values = sub.arg_values_at(sub_arg_idx);
-            if !values.is_empty() {
-                return arg_value_completions(values, &partial);
-            }
-        }
-        // Command-level positional arg-value completion — the
-        // bareword value sets declared directly on the command
-        // (not a subcommand).  Covers iRules `when EVENT timing
-        // enable|disable` and `HTTP::respond <status>
-        // content|noserver|version`.  The argument index is the
-        // 0-based position after the command name (`word_idx - 1`).
-        if word_idx >= 1 {
-            let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
-            let mut values = spec.arg_values_at(arg_idx);
-            // `when`'s keyword tail carries an enumerable value
-            // slot only after the `timing` keyword (the `priority`
-            // keyword takes a numeric argument).  Even-index
-            // value slots are gated on the preceding literal being
-            // `timing`.
-            if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
-                && arg_idx >= 2
-                && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
-            {
-                values = &[];
-            }
-            if !values.is_empty() {
-                return arg_value_completions(values, &partial);
-            }
-        }
+        return items;
     }
 
     let usage = document_usage_counts(analysis);
@@ -461,7 +479,6 @@ fn var_is_substitutable(name: &str) -> bool {
     !name.contains('}') && !name.contains('\\') && !name.contains('\n')
 }
 
-#[allow(clippy::too_many_lines)]
 fn variable_completions(
     source: &str,
     line: u32,
@@ -528,55 +545,19 @@ fn variable_completions(
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
-    // indices of `arr` as `$arr(index)`.
+    // indices of `arr` as `$arr(index)`.  A `(` in the partial always
+    // resolves here (to suggestions or an empty list); it never falls
+    // through to plain-name completion.
     if let Some(paren) = partial.find('(') {
-        let arr_name = partial[..paren].trim_start_matches('{');
-        let elem_prefix = &partial[paren + 1..];
-        if let Some(arr_def) =
-            crate::definition::lookup_var_in_scope_chain(scope, byte_offset, arr_name)
-            && !arr_def.array_indices.is_empty()
-            && is_bare_var_name(arr_name)
-        {
-            // Extend the replace range to swallow an existing `)`.
-            let mut arr_end = end;
-            let line_chars: Vec<char> = line_text.chars().collect();
-            while arr_end < line_chars.len() && line_chars[arr_end] != ')' {
-                arr_end += 1;
-            }
-            if arr_end < line_chars.len() && line_chars[arr_end] == ')' {
-                arr_end += 1;
-            }
-            let arr_edit_end = char_col_to_utf16(line_text, arr_end);
-            let mut items = Vec::new();
-            for elem in &arr_def.array_indices {
-                if elem.is_empty() || elem.contains(')') {
-                    continue;
-                }
-                if !elem_prefix.is_empty() && !elem.starts_with(elem_prefix) {
-                    continue;
-                }
-                let new_text = format!("${arr_name}({elem})");
-                let text_edit = edit_start.map(|start_char| CompletionEdit {
-                    start_char,
-                    end_char: arr_edit_end,
-                    new_text: new_text.clone(),
-                });
-                items.push(CompletionItem {
-                    label: format!("${arr_name}({elem})"),
-                    insert_text: new_text,
-                    kind: CompletionKind::Variable,
-                    detail: None,
-                    sort_text: None,
-                    is_snippet: false,
-                    filter_text: None,
-                    text_edit,
-                    documentation: None,
-                });
-            }
-            items.sort_by(|a, b| a.label.cmp(&b.label));
-            return items;
-        }
-        return Vec::new();
+        return array_element_completions(
+            line_text,
+            paren,
+            scope,
+            byte_offset,
+            partial,
+            end,
+            edit_start,
+        );
     }
 
     // Scope-aware: union of variables visible at the cursor (innermost scope
@@ -619,6 +600,32 @@ fn variable_completions(
     // Cross-namespace candidates — variables in *other* namespaces, offered in
     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
     // chain are already above as bare names).
+    let edit = VarEdit {
+        start: edit_start,
+        end: edit_end,
+        has_open_brace,
+    };
+    push_cross_namespace_vars(&mut items, scope, byte_offset, partial, edit);
+    items
+}
+
+/// Edit-range + brace-form parameters shared by the variable-name builders.
+#[derive(Clone, Copy)]
+struct VarEdit {
+    start: Option<u32>,
+    end: u32,
+    has_open_brace: bool,
+}
+
+/// Append fully-qualified `::ns::var` candidates from namespaces outside the
+/// cursor's own lexical chain, deduped against the labels already in `items`.
+fn push_cross_namespace_vars(
+    items: &mut Vec<CompletionItem>,
+    scope: &Scope,
+    byte_offset: u32,
+    partial: &str,
+    edit: VarEdit,
+) {
     let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
     let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
     let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
@@ -632,15 +639,15 @@ fn variable_completions(
         if !seen.insert(label.clone()) {
             continue;
         }
-        let use_brace = has_open_brace || !is_bare_var_name(&qname);
+        let use_brace = edit.has_open_brace || !is_bare_var_name(&qname);
         let new_text = if use_brace {
             format!("${{{qname}}}")
         } else {
             format!("${qname}")
         };
-        let text_edit = edit_start.map(|start_char| CompletionEdit {
+        let text_edit = edit.start.map(|start_char| CompletionEdit {
             start_char,
-            end_char: edit_end,
+            end_char: edit.end,
             new_text: new_text.clone(),
         });
         items.push(CompletionItem {
@@ -655,6 +662,66 @@ fn variable_completions(
             documentation: None,
         });
     }
+}
+
+/// Build `$arr(index)` completions for the recorded indices of `arr` when
+/// the partial contains `(`.  Always returns (suggestions or empty) —
+/// matching the original short-circuit semantics for array-element context.
+fn array_element_completions(
+    line_text: &str,
+    paren: usize,
+    scope: &Scope,
+    byte_offset: u32,
+    partial: &str,
+    end: usize,
+    edit_start: Option<u32>,
+) -> Vec<CompletionItem> {
+    let arr_name = partial[..paren].trim_start_matches('{');
+    let elem_prefix = &partial[paren + 1..];
+    let Some(arr_def) = crate::definition::lookup_var_in_scope_chain(scope, byte_offset, arr_name)
+    else {
+        return Vec::new();
+    };
+    if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {
+        return Vec::new();
+    }
+    // Extend the replace range to swallow an existing `)`.
+    let mut arr_end = end;
+    let line_chars: Vec<char> = line_text.chars().collect();
+    while arr_end < line_chars.len() && line_chars[arr_end] != ')' {
+        arr_end += 1;
+    }
+    if arr_end < line_chars.len() && line_chars[arr_end] == ')' {
+        arr_end += 1;
+    }
+    let arr_edit_end = char_col_to_utf16(line_text, arr_end);
+    let mut items = Vec::new();
+    for elem in &arr_def.array_indices {
+        if elem.is_empty() || elem.contains(')') {
+            continue;
+        }
+        if !elem_prefix.is_empty() && !elem.starts_with(elem_prefix) {
+            continue;
+        }
+        let new_text = format!("${arr_name}({elem})");
+        let text_edit = edit_start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: arr_edit_end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label: format!("${arr_name}({elem})"),
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
     items
 }
 

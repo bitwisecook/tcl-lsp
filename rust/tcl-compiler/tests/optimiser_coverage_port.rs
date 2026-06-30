@@ -9,16 +9,17 @@
 //!     Rust equivalent: `apply_optimisations(src, &optimise_with_dialect(...))`
 //!     for the rewritten text, and the `Vec<Optimisation>` for the `O1xx` codes.
 //!   * `find_redundant_computations(src)` — the GVN/CSE/LICM finder. Rust
-//!     equivalent: `find_redundancies_for_cu` + `find_partial_redundancies_for_cu`
-//!     + `find_loop_invariants_for_cu` over a `CompilationUnit` (all three are the
-//!     pieces Python's single function returns; full/partial → O105, loop → O106).
+//!     equivalent: `find_redundancies_for_cu`, `find_partial_redundancies_for_cu`,
+//!     and `find_loop_invariants_for_cu` over a `CompilationUnit` (all three are
+//!     the pieces Python's single function returns; full/partial → O105, loop →
+//!     O106).
 //!   * `find_shimmer_warnings(src)` — the shimmer/thunking detector. Rust
 //!     equivalent: `find_shimmer_warnings_for_cu` (S100/S101) +
 //!     `find_thunking_warnings_for_cu` (S102).
 //!
 //! The Python `demorgan_transform` / `invert_expression` string→string helpers
 //! have no standalone Rust analogue (the Rust De-Morgan / inversion logic lives
-//! inside the O110 InstCombine pass on the expr AST). Those API tests are ported
+//! inside the O110 `InstCombine` pass on the expr AST). Those API tests are ported
 //! as O110-driven `[expr {...}]` rewrites, which exercise the same logic and are
 //! the form `optimiser_port.rs` already uses.
 //!
@@ -94,16 +95,6 @@ fn optimised(src: &str, dialect: &str) -> String {
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
-/// Count optimisations carrying `code`.
-fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
-    optimise_with_dialect(src, registry, d)
-        .iter()
-        .filter(|o| o.code.as_str() == code)
-        .count()
-}
-
 /// True if any emitted code is in `wanted` (Python `any(r.code in (...))`).
 fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
     let registry = registry_for_dialect(dialect);
@@ -154,9 +145,11 @@ fn shimmer_count(src: &str, code: &str) -> usize {
 
 /// Python `_int_x` wrapper: a loop where `$x` is SCCP-typed INT and live (the
 /// precondition D5-O110 identity/annihilator drops require). Matches the helper
-/// in optimiser_port.rs / the Python file byte-for-byte.
+/// in `optimiser_port.rs` / the Python file byte-for-byte.
 fn int_x(body: &str) -> String {
-    format!("proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n")
+    format!(
+        "proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n"
+    )
 }
 
 // ===========================================================================
@@ -188,8 +181,12 @@ fn o100_constant_propagation() {
     // the dead store and forwards the literal; the multipass folds `b`), matching
     // optimiser_port.rs's handling of the same Python single-pass expectation.
     let registry = registry_for_dialect(TCL);
-    let (reassign, _) =
-        optimise_source_multipass("set a 1\nset a 2\nset b [expr {$a + 1}]", registry, Some(TCL), 10);
+    let (reassign, _) = optimise_source_multipass(
+        "set a 1\nset a 2\nset b [expr {$a + 1}]",
+        registry,
+        Some(TCL),
+        10,
+    );
     assert!(reassign.contains("set b 3"));
     // tclsh: a=3, b=4 ⇒ a+b == 7.
     assert!(optimised("set a 3\nset b 4\nset c [expr {$a + $b}]", TCL).contains("set c 7"));
@@ -199,7 +196,10 @@ fn o100_constant_propagation() {
     // `+0` identity removal pre-empts the constant fold, leaving
     // `set a 0\nset b [expr {$a}]` (still b==0). With a consumer the propagation
     // completes to the literal — assert the tclsh value end-to-end.
-    assert_eq!(optimised("set a 0\nset b [expr {$a + 0}]\nputs $b", TCL), "set a 0\nputs 0");
+    assert_eq!(
+        optimised("set a 0\nset b [expr {$a + 0}]\nputs $b", TCL),
+        "set a 0\nputs 0"
+    );
 }
 
 // ===========================================================================
@@ -272,7 +272,11 @@ fn o102_expr_command_substitution() {
     assert!(opt_fires(prop, TCL, "O100"));
 
     // Dynamic expr ([clock seconds]) does not fold via O102.
-    assert!(opt_absent("set v [expr {[clock seconds] + 1}]", TCL, "O102"));
+    assert!(opt_absent(
+        "set v [expr {[clock seconds] + 1}]",
+        TCL,
+        "O102"
+    ));
 }
 
 // ===========================================================================
@@ -284,23 +288,21 @@ fn o103_interprocedural_folding() {
     // tclsh: pi == 3.
     assert!(optimised("proc pi {} { return 3 }\nset v [pi]\n", TCL).contains("set v 3"));
     // tclsh: double 21 == 42.
-    assert!(optimised(
-        "proc double {x} { return [expr {$x * 2}] }\nset v [double 21]\n",
-        TCL
-    )
-    .contains("set v 42"));
+    assert!(
+        optimised(
+            "proc double {x} { return [expr {$x * 2}] }\nset v [double 21]\n",
+            TCL
+        )
+        .contains("set v 42")
+    );
     // tclsh: id 99 == 99.
-    assert!(optimised(
-        "proc id {x} { return $x }\nset a 99\nset v [id $a]\n",
-        TCL
-    )
-    .contains("set v 99"));
+    assert!(
+        optimised("proc id {x} { return $x }\nset a 99\nset v [id $a]\n", TCL).contains("set v 99")
+    );
     // tclsh: bump 5 (incr x; return x) == 6.
-    assert!(optimised(
-        "proc bump {x} { incr x; return $x }\nset v [bump 5]\n",
-        TCL
-    )
-    .contains("set v 6"));
+    assert!(
+        optimised("proc bump {x} { incr x; return $x }\nset v [bump 5]\n", TCL).contains("set v 6")
+    );
     // tclsh: util::add 10 20 == 30.
     assert!(optimised(
         "namespace eval util {\n    proc add {a b} { return [expr {$a + $b}] }\n}\nset v [util::add 10 20]\n",
@@ -341,7 +343,11 @@ fn o104_string_build_chain() {
         "O104"
     ));
     // set + single append is a valid 2-write chain.
-    assert!(opt_fires("set msg {Hello}\nappend msg { World}", TCL, "O104"));
+    assert!(opt_fires(
+        "set msg {Hello}\nappend msg { World}",
+        TCL,
+        "O104"
+    ));
     // Empty initial value still chains.
     assert!(opt_fires(
         "set msg {}\nappend msg hello\nappend msg { world}",
@@ -368,8 +374,10 @@ fn o104_string_build_chain() {
     // statement (`puts ok`) into `set msg {Hello World}`. Rust does not fold a
     // chain that straddles an intervening statement; it leaves `append` intact.
     // tclsh: both forms bind msg to "Hello World", so leaving it is sound.
-    assert!(optimised("set msg {Hello}\nputs ok\nappend msg { World}", TCL)
-        .contains("append msg { World}"));
+    assert!(
+        optimised("set msg {Hello}\nputs ok\nappend msg { World}", TCL)
+            .contains("append msg { World}")
+    );
     assert!(opt_absent(
         "set msg {Hello}\nputs ok\nappend msg { World}",
         TCL,
@@ -391,7 +399,10 @@ fn o100_o105_const_ref_propagation() {
         "puts 5\nputs 5"
     );
     // Through a chain. tclsh: a=1 ⇒ b==2 ⇒ `puts 2`.
-    assert_eq!(optimised("set a 1\nset b [expr {$a + 1}]\nputs $b", TCL), "puts 2");
+    assert_eq!(
+        optimised("set a 1\nset b [expr {$a + 1}]\nputs $b", TCL),
+        "puts 2"
+    );
 
     // String interpolation: $x inside "...". tclsh: x=5 ⇒ "val=5".
     // DIVERGENCE (sound): Python labels the string-interp fold O105; Rust labels
@@ -426,7 +437,10 @@ fn o100_o105_const_ref_propagation() {
 
     // Combined string-interp + expr fold + DSE. tclsh: x=5 ⇒ "x=5" and y==6.
     assert_eq!(
-        optimised("set x 5\nset y [expr {$x + 1}]\nputs \"x=$x\"\nputs $y", TCL),
+        optimised(
+            "set x 5\nset y [expr {$x + 1}]\nputs \"x=$x\"\nputs $y",
+            TCL
+        ),
         "puts \"x=5\"\nputs 6"
     );
 
@@ -484,7 +498,10 @@ fn o109_dead_store_elimination() {
 
     // eval reads all vars — the store feeding `[eval $s]` survives (not DSE'd).
     let esc = "set n [eval $s]\nset n 1\nputs $n";
-    assert_eq!(optimised(esc, TCL).lines().next().unwrap(), "set n [eval $s]");
+    assert_eq!(
+        optimised(esc, TCL).lines().next().unwrap(),
+        "set n [eval $s]"
+    );
 
     // A dead store inside a proc fires O109.
     assert!(opt_fires(
@@ -496,8 +513,7 @@ fn o109_dead_store_elimination() {
     // Call-by-name suppression: a local passed BY NAME to a proc with upvar
     // VAR_READ/VAR_WRITE traits is indirectly read — its store must survive
     // (no O109/O126). Deleting it would feed an uninitialised name to the callee.
-    let byname =
-        "proc reader {name} { upvar 1 $name local; puts $local }\nproc f {} {\n    set x \"hello\"\n    reader x\n}\n";
+    let byname = "proc reader {name} { upvar 1 $name local; puts $local }\nproc f {} {\n    set x \"hello\"\n    reader x\n}\n";
     assert!(opt_absent(byname, TCL, "O109"));
     assert!(opt_absent(byname, TCL, "O126"));
 
@@ -680,7 +696,9 @@ fn o110_de_morgan() {
     // !$a && !$b; the 4-var chain matches its inversion (proven in the port log).
     assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
     assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
-    assert!(optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d"));
+    assert!(
+        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d")
+    );
 
     // De Morgan inside an `if` condition is carried under O110 or O113 (Rust's
     // if-condition rewrite path is owned by the strength-reduce pass). The
@@ -698,9 +716,17 @@ fn o110_ternary_and_double_not() {
     // Double-not in an `if`. (Structural: O110 fires.)
     assert!(opt_fires("if {!!$x} { puts yes }", TCL, "O110"));
     // De Morgan inside an `if` is reported under O110/O113.
-    assert!(opt_any_of("if {!($x && $y)} { puts yes }", TCL, &["O110", "O113"]));
+    assert!(opt_any_of(
+        "if {!($x && $y)} { puts yes }",
+        TCL,
+        &["O110", "O113"]
+    ));
     // Boolean-context ternary `($a > $b) ? 1 : 0` simplifies (O110).
-    assert!(opt_fires("if {($a > $b) ? 1 : 0} { puts yes }", TCL, "O110"));
+    assert!(opt_fires(
+        "if {($a > $b) ? 1 : 0} { puts yes }",
+        TCL,
+        "O110"
+    ));
 
     // NOTE on Rust gaps (sound; reported): `$x ? 0 : 1` ⇒ `!$x`, `$c ? $a : $a`
     // (identical branches), and `!$c ? $a : $b` ⇒ `$c ? $b : $a` (cond flip) are
@@ -711,7 +737,11 @@ fn o110_ternary_and_double_not() {
 #[test]
 fn o110_no_instcombine_with_command_subst() {
     // x+0=x is unsafe when x has side effects ([clock seconds]). No O110.
-    assert!(opt_absent("set v [expr {[clock seconds] + 0}]", TCL, "O110"));
+    assert!(opt_absent(
+        "set v [expr {[clock seconds] + 0}]",
+        TCL,
+        "O110"
+    ));
 }
 
 // ===========================================================================
@@ -782,12 +812,18 @@ fn o112_while_for_elimination() {
 #[test]
 fn o112_switch_elimination() {
     // tclsh: switch abc {abc {1} def {2}} ⇒ arm 1.
-    let lit = optimised("switch abc {\n    abc { set x 1 }\n    def { set y 2 }\n}", TCL);
+    let lit = optimised(
+        "switch abc {\n    abc { set x 1 }\n    def { set y 2 }\n}",
+        TCL,
+    );
     assert!(lit.contains("set x 1"));
     assert!(!lit.contains("set y 2"));
 
     // No literal match ⇒ default. tclsh: switch xyz {...default {2}} ⇒ 2.
-    let def = optimised("switch xyz {\n    abc { set a 1 }\n    default { set b 2 }\n}", TCL);
+    let def = optimised(
+        "switch xyz {\n    abc { set a 1 }\n    default { set b 2 }\n}",
+        TCL,
+    );
     assert!(!def.contains("set a 1"));
     assert!(def.contains("set b 2"));
 
@@ -797,7 +833,11 @@ fn o112_switch_elimination() {
     assert!(nm.contains("puts done"));
 
     // Dynamic subject is untouched.
-    assert!(opt_absent("switch $x {\n    abc { set a 1 }\n}", TCL, "O112"));
+    assert!(opt_absent(
+        "switch $x {\n    abc { set a 1 }\n}",
+        TCL,
+        "O112"
+    ));
 }
 
 #[test]
@@ -868,9 +908,17 @@ fn o114_incr_idiom() {
 
     // Unknown-type param must NOT be incr-rewritten (could be a float at runtime;
     // tclsh: `set x [expr {$x + 1}]` on 1.5 ⇒ 2.5, but `incr x` errors).
-    assert!(opt_absent("proc foo {x} {\n    set x [expr {$x + 1}]\n}\n", TCL, "O114"));
+    assert!(opt_absent(
+        "proc foo {x} {\n    set x [expr {$x + 1}]\n}\n",
+        TCL,
+        "O114"
+    ));
     // Different target var ⇒ no incr.
-    assert!(opt_absent("proc foo {x} {\n    set y [expr {$x + 1}]\n}\n", TCL, "O114"));
+    assert!(opt_absent(
+        "proc foo {x} {\n    set y [expr {$x + 1}]\n}\n",
+        TCL,
+        "O114"
+    ));
 }
 
 // ===========================================================================
@@ -911,7 +959,11 @@ fn o116_list_folding() {
     assert!(opt_any_of(single, TCL, &["O116", "O100"]));
 
     // Empty list folds (O116, or SCCP O100/O109).
-    assert!(opt_any_of("set x [list]\nputs $x", TCL, &["O116", "O100", "O109"]));
+    assert!(opt_any_of(
+        "set x [list]\nputs $x",
+        TCL,
+        &["O116", "O100", "O109"]
+    ));
 
     // Multi-element [list a b c] must NOT fold via O116 (intrep shimmer); Rust
     // may propagate it as a braced word via O100, which is semantically
@@ -954,9 +1006,18 @@ fn o117_strlen_zero_check() {
 #[test]
 fn o118_lindex_folding() {
     // tclsh-verified each fold result.
-    assert_eq!(optimised("set x [lindex {a b c} 0]\nputs $x", TCL), "set x a\nputs $x"); // tclsh: a
-    assert_eq!(optimised("set x [lindex {a b c} 1]\nputs $x", TCL), "set x b\nputs $x"); // tclsh: b
-    assert_eq!(optimised("set x [lindex {x y z} end]\nputs $x", TCL), "set x z\nputs $x"); // tclsh: z
+    assert_eq!(
+        optimised("set x [lindex {a b c} 0]\nputs $x", TCL),
+        "set x a\nputs $x"
+    ); // tclsh: a
+    assert_eq!(
+        optimised("set x [lindex {a b c} 1]\nputs $x", TCL),
+        "set x b\nputs $x"
+    ); // tclsh: b
+    assert_eq!(
+        optimised("set x [lindex {x y z} end]\nputs $x", TCL),
+        "set x z\nputs $x"
+    ); // tclsh: z
     assert_eq!(
         optimised("set x [lindex {a b c d} end-1]\nputs $x", TCL),
         "set x c\nputs $x"
@@ -970,7 +1031,11 @@ fn o118_lindex_folding() {
     ));
 
     // Variable index ⇒ not folded.
-    assert!(opt_absent("set x [lindex {a b c} $i]\nputs $x", TCL, "O118"));
+    assert!(opt_absent(
+        "set x [lindex {a b c} $i]\nputs $x",
+        TCL,
+        "O118"
+    ));
 
     // DIVERGENCE (Rust MORE precise, tclsh-proven sound): Python
     // `test_no_fold_nested_braces` asserts `[lindex {{a b} c} 0]` must NOT fold.
@@ -998,7 +1063,11 @@ fn o119_multi_set_packing() {
     // sound. Assert the packing-disabled invariants Python also requires.
 
     // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
-    assert!(opt_absent("set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"", "tcl9.0", "O119"));
+    assert!(opt_absent(
+        "set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"",
+        "tcl9.0",
+        "O119"
+    ));
     // Too few consecutive sets ⇒ no packing.
     assert!(opt_absent("set a 1\nset b 2\neval {$a $b}", TCL, "O119"));
     // The eval-barrier form is folded rather than packed. tclsh: identical value.
@@ -1032,14 +1101,14 @@ fn o120_string_compare_eq_ne() {
 
     // Conservative non-rewrites (D5-O120: needs ≥1 provably-non-numeric operand).
     for src in [
-        "set a [clock seconds]\nif {$a == \"1\"} {}",     // INT-typed var, numeric literal
-        "set a [string trim $raw]\nif {$a == \"1\"} {}",  // STRING type ≠ non-numeric value
+        "set a [clock seconds]\nif {$a == \"1\"} {}", // INT-typed var, numeric literal
+        "set a [string trim $raw]\nif {$a == \"1\"} {}", // STRING type ≠ non-numeric value
         "set a [string trim $raw]\nif {$a == \"true\"} {}", // boolean-like literal
         "set a [string trim $raw]\nif {$a == \"1.25\"} {}", // float-like literal
         "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}", // two STRING vars
-        "if {$a == $b} {}",        // both unknown
-        "if {$a == \"true\"} {}",  // boolean-like literal, unknown var
-        "if {$a == \"1.25\"} {}",  // float-like literal, unknown var
+        "if {$a == $b} {}",                           // both unknown
+        "if {$a == \"true\"} {}",                     // boolean-like literal, unknown var
+        "if {$a == \"1.25\"} {}",                     // float-like literal, unknown var
     ] {
         assert!(opt_absent(src, TCL, "O120"), "O120 must not fire: {src}");
     }
@@ -1097,7 +1166,9 @@ fn invert_logic_via_o110() {
     assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
     assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
     // Complex chain. tclsh sweep: !(a==b && c<d) == (a!=b || c>=d).
-    assert!(optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d"));
+    assert!(
+        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d")
+    );
     // Double-not removal in a boolean context. tclsh: !!x in `if` == x.
     assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));
 }
@@ -1130,7 +1201,10 @@ fn apply_optimisations_edge_cases() {
     let starts: Vec<u32> = opts.iter().map(|o| o.span.start()).collect();
     let mut sorted = starts.clone();
     sorted.sort_unstable();
-    assert_eq!(starts, sorted, "optimisations must be span-start-sorted: {starts:?}");
+    assert_eq!(
+        starts, sorted,
+        "optimisations must be span-start-sorted: {starts:?}"
+    );
 }
 
 // ===========================================================================
@@ -1145,7 +1219,10 @@ fn variable_shape_guardrails() {
         "set x $::ns::arr(k)\nputs $x",
     ] {
         assert_eq!(optimised(src, TCL), src);
-        assert!(opt_codes(src, TCL).is_empty(), "no rewrite for shape: {src}");
+        assert!(
+            opt_codes(src, TCL).is_empty(),
+            "no rewrite for shape: {src}"
+        );
     }
 }
 
@@ -1186,15 +1263,26 @@ fn shimmer_no_false_positives() {
         Vec::<String>::new()
     );
     // `string length` accepts any type — int→strlen does not shimmer.
-    assert_eq!(shimmer_count("set x 42\nset y [string length $x]", "S100"), 0);
+    assert_eq!(
+        shimmer_count("set x 42\nset y [string length $x]", "S100"),
+        0
+    );
     // boolean → int is a numeric sub-type, not a shimmer.
-    assert_eq!(shimmer_count("set x true\nset y [expr {$x + 1}]", "S100"), 0);
+    assert_eq!(
+        shimmer_count("set x true\nset y [expr {$x + 1}]", "S100"),
+        0
+    );
 }
 
 #[test]
 fn shimmer_string_in_numeric_context_s100() {
     // A STRING-typed var used in a numeric expr shimmers (S100 outside a loop).
-    assert!(shimmer_count("set x [string trim \" hello \"]\nset y [expr {$x + 1}]", "S100") >= 1);
+    assert!(
+        shimmer_count(
+            "set x [string trim \" hello \"]\nset y [expr {$x + 1}]",
+            "S100"
+        ) >= 1
+    );
     // incr on a STRING var shimmers.
     assert!(shimmer_count("set x [string trim \" hello \"]\nincr x", "S100") >= 1);
 }
@@ -1310,7 +1398,8 @@ fn edge_cases_no_crash() {
 #[test]
 fn edge_cases_loops_and_namespaces() {
     // Constants before a loop that may modify them are NOT propagated in.
-    let loop_src = "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
+    let loop_src =
+        "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
     assert_eq!(optimised(loop_src, TCL), loop_src);
     assert!(opt_codes(loop_src, TCL).is_empty());
 
@@ -1366,7 +1455,11 @@ fn o124_unused_irule_procs() {
     }
 
     // Plain Tcl is never touched by O124.
-    assert!(opt_absent("proc helper {} { return 1 }\nputs hello", TCL, "O124"));
+    assert!(opt_absent(
+        "proc helper {} { return 1 }\nputs hello",
+        TCL,
+        "O124"
+    ));
 
     // O124 supersedes tail-call rewrites for an unused tail-recursive proc.
     let supersede = "proc fact {n acc} {\n    if {$n <= 1} { return $acc }\n    return [fact [expr {$n - 1}] [expr {$n * $acc}]]\n}\nwhen HTTP_REQUEST { pool p1 }";
@@ -1435,8 +1528,16 @@ fn o125_code_sinking() {
 
     // O125 must NOT fire when the var is read in the condition or its RHS is a
     // command substitution.
-    assert!(opt_absent("set b $x\nif {$b} {\n    puts hello\n}", TCL, "O125")); // var in condition
-    assert!(opt_absent("set b [clock seconds]\nif {$a} {\n    puts $b\n}", TCL, "O125")); // cmd-sub RHS
+    assert!(opt_absent(
+        "set b $x\nif {$b} {\n    puts hello\n}",
+        TCL,
+        "O125"
+    )); // var in condition
+    assert!(opt_absent(
+        "set b [clock seconds]\nif {$a} {\n    puts $b\n}",
+        TCL,
+        "O125"
+    )); // cmd-sub RHS
 
     // Coexists with O120 (string-compare rewrite in the condition).
     let with120 = "set b foo\nif {$kind == \"x\"} {\n    puts $b\n}";
@@ -1464,14 +1565,30 @@ fn o127_load_forwarding() {
     assert!(optimised(constv, TCL).contains("puts 42"));
 
     // More-than-once use ⇒ not inlined.
-    assert!(opt_absent("proc f {} { set x [clock seconds]\n puts $x\n puts $x }", TCL, "O127"));
+    assert!(opt_absent(
+        "proc f {} { set x [clock seconds]\n puts $x\n puts $x }",
+        TCL,
+        "O127"
+    ));
     // Top-level variables ⇒ not inlined.
     assert!(opt_absent("set x [clock seconds]\nputs $x", TCL, "O127"));
     // A barrier (info exists between) blocks forwarding.
-    assert!(opt_absent("proc f {} { set x [clock seconds]\n info exists x\n puts $x }", TCL, "O127"));
+    assert!(opt_absent(
+        "proc f {} { set x [clock seconds]\n info exists x\n puts $x }",
+        TCL,
+        "O127"
+    ));
     // upvar/global aliasing blocks forwarding.
-    assert!(opt_absent("proc f {} { upvar 1 ext x\n set x [clock seconds]\n puts $x }", TCL, "O127"));
-    assert!(opt_absent("proc f {} { global x\n set x [clock seconds]\n puts $x }", TCL, "O127"));
+    assert!(opt_absent(
+        "proc f {} { upvar 1 ext x\n set x [clock seconds]\n puts $x }",
+        TCL,
+        "O127"
+    ));
+    assert!(opt_absent(
+        "proc f {} { global x\n set x [clock seconds]\n puts $x }",
+        TCL,
+        "O127"
+    ));
     // A phi merge (two defining branches) blocks forwarding.
     assert!(opt_absent(
         "proc f {c} { if {$c} { set x [clock seconds] } else { set x [clock clicks] }\n puts $x }",
@@ -1526,7 +1643,11 @@ fn pass_interactions() {
     // Strength reduction inside a command substitution expr.
     assert!(opt_fires("if {$x ** 2} { puts yes }", TCL, "O113"));
     // O117 fires in branch conditions.
-    assert!(opt_fires("if {[string length $s] == 0} { puts empty }", TCL, "O117"));
+    assert!(opt_fires(
+        "if {[string length $s] == 0} { puts empty }",
+        TCL,
+        "O117"
+    ));
     // String-compare ⇒ eq rewrite inside [expr {...}]. Rust routes the expr-subst
     // form through O110 (instcombine) rather than O120; the rewrite is identical.
     // tclsh: $a == "hello" <=> $a eq "hello".
@@ -1543,7 +1664,8 @@ fn pass_interactions() {
 fn profile_directive_and_multipass() {
     // The `# profiles: HTTP2` comment survives optimisation; the `if {1}` inside
     // the event unwraps (O112) and keeps the HTTP2 call.
-    let src = "# profiles: HTTP2\nwhen HTTP_REQUEST {\n    if {1} {\n        HTTP2::active\n    }\n}\n";
+    let src =
+        "# profiles: HTTP2\nwhen HTTP_REQUEST {\n    if {1} {\n        HTTP2::active\n    }\n}\n";
     let out = optimised(src, IR);
     assert!(out.contains("# profiles: HTTP2"));
     assert!(out.contains("HTTP2::active"));

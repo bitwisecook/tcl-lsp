@@ -35,6 +35,15 @@ pub(super) fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Whether `word` is a literal Tcl integer (decimal, with an optional
+/// leading sign).  Used by the W001 unknown-subcommand check to let
+/// `after <ms>` through — `after`'s first word is a delay in
+/// milliseconds, not a subcommand, when it parses as an integer.
+pub(super) fn is_integer_word(word: &str) -> bool {
+    let digits = word.strip_prefix(['+', '-']).unwrap_or(word);
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// One dotted-quad match found in a value: the four octet substrings and
 /// the byte offset where it begins (for context checks like a preceding
 /// `/`).
@@ -200,6 +209,19 @@ fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
     out
 }
 
+/// Read-only context threaded unchanged through [`phi_can_undef`]'s recursion:
+/// the phi indices, the `unset`-killed set, the executable block / edge sets,
+/// the dominating existence guards, and the SSA function itself.
+pub(super) struct PhiUndefCtx<'a> {
+    pub phi_def: &'a PhiDefMap,
+    pub phi_block: &'a PhiBlockMap,
+    pub killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+    pub considered: &'a HashSet<BlockId>,
+    pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
+    pub exists_guards: &'a [(String, BlockId)],
+    pub ssa: &'a crate::ssa::SsaFunction,
+}
+
 /// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
 /// definition reached it, but a phi result whose reachable incomings
 /// include an undefined (version-0) or `unset`-killed origin only reaches
@@ -211,19 +233,21 @@ fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
 /// (concrete) definition is never undef; a phi is undef if any of its
 /// reachable, non-existence-guarded incomings is undef.  Cycles
 /// (loop-header phis) conservatively resolve to *not* undef on the cycle.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn phi_can_undef(
     name: &str,
     version: crate::ssa::Version,
-    phi_def: &PhiDefMap,
-    phi_block: &PhiBlockMap,
-    killed: &FxHashSet<(String, crate::ssa::Version)>,
-    considered: &HashSet<BlockId>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
-    exists_guards: &[(String, BlockId)],
-    ssa: &crate::ssa::SsaFunction,
+    ctx: &PhiUndefCtx<'_>,
     seen: &mut FxHashSet<(String, crate::ssa::Version)>,
 ) -> bool {
+    let PhiUndefCtx {
+        phi_def,
+        phi_block,
+        killed,
+        considered,
+        executable_edges,
+        exists_guards,
+        ssa,
+    } = ctx;
     if version == 0 {
         return true;
     }
@@ -270,18 +294,7 @@ pub(super) fn phi_can_undef(
         {
             continue;
         }
-        if phi_can_undef(
-            name,
-            incoming_ver,
-            phi_def,
-            phi_block,
-            killed,
-            considered,
-            executable_edges,
-            exists_guards,
-            ssa,
-            seen,
-        ) {
+        if phi_can_undef(name, incoming_ver, ctx, seen) {
             result = true;
             break;
         }
@@ -576,18 +589,16 @@ pub(super) fn build_undef_suppression(
     let mut can_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
     for key in phi_def.keys() {
         let mut seen = FxHashSet::default();
-        if phi_can_undef(
-            &key.0,
-            key.1,
-            &phi_def,
-            &phi_block,
-            &killed,
+        let ctx = PhiUndefCtx {
+            phi_def: &phi_def,
+            phi_block: &phi_block,
+            killed: &killed,
             considered,
-            &fu.sccp.executable_edges,
-            &exists_guards,
-            &fu.ssa,
-            &mut seen,
-        ) {
+            executable_edges: &fu.sccp.executable_edges,
+            exists_guards: &exists_guards,
+            ssa: &fu.ssa,
+        };
+        if phi_can_undef(&key.0, key.1, &ctx, &mut seen) {
             can_undef.insert(key.clone());
         }
     }

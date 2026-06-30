@@ -78,14 +78,19 @@ fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
 
 /// Count optimisations with `code`.
 fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
-    opt_codes(src, dialect).iter().filter(|c| *c == code).count()
+    opt_codes(src, dialect)
+        .iter()
+        .filter(|c| *c == code)
+        .count()
 }
 
 /// The `O125` family Python wraps `_int_x` around: an `expr` body where `$x`
 /// is an SCCP-typed INT loop counter (D5-O110 identity/annihilator drops need a
 /// provably-numeric operand). Matches the Python `_int_x` helper exactly.
 fn int_x(body: &str) -> String {
-    format!("proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n")
+    format!(
+        "proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n"
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -117,17 +122,29 @@ fn propagation_and_constant_folding_core() {
     // Python's single pass does. tclsh: a=1; a=5; b==7. (Leading blank line is
     // the byte where the eliminated `set a 1` stood.)
     let registry = registry_for_dialect(TCL);
-    let (reassign_out, _) =
-        optimise_source_multipass("set a 1\nset a 5\nset b [expr {$a + 2}]", registry, Some(TCL), 10);
+    let (reassign_out, _) = optimise_source_multipass(
+        "set a 1\nset a 5\nset b [expr {$a + 2}]",
+        registry,
+        Some(TCL),
+        10,
+    );
     assert_eq!(reassign_out.trim_start_matches('\n'), "set b 7");
-    assert!(opt_fires("set a 1\nset a 5\nset b [expr {$a + 2}]", TCL, "O102"));
+    assert!(opt_fires(
+        "set a 1\nset a 5\nset b [expr {$a + 2}]",
+        TCL,
+        "O102"
+    ));
 
     // tclsh: chained a=1→b=3→c=8.
     assert_eq!(
         optimised("set a 1\nset b [expr {$a + 2}]\nset c [expr {$b + 5}]", TCL),
         "set c 8"
     );
-    assert!(opt_fires("set a 1\nset b [expr {$a + 2}]\nset c [expr {$b + 5}]", TCL, "O102"));
+    assert!(opt_fires(
+        "set a 1\nset b [expr {$a + 2}]\nset c [expr {$b + 5}]",
+        TCL,
+        "O102"
+    ));
 
     // `unset a` clears the constant ⇒ $a is unknown ⇒ no fold.
     // DIVERGENCE: Rust still emits the hint-only O102 (forward literal load)
@@ -195,7 +212,8 @@ fn interprocedural_constant_folding() {
     let add = "proc add {a b} { return [expr {$a + $b}] }\nset v [add 3 4]\n";
     assert!(optimised(add, TCL).contains("set v 7"));
     assert!(opt_fires(add, TCL, "O103"));
-    let mx = "proc max {a b} {\n    if {$a > $b} { return $a } else { return $b }\n}\nset v [max 3 7]\n";
+    let mx =
+        "proc max {a b} {\n    if {$a > $b} { return $a } else { return $b }\n}\nset v [max 3 7]\n";
     assert!(optimised(mx, TCL).contains("set v 7"));
     assert!(opt_fires(mx, TCL, "O103"));
     let inc = "proc inc3 {x} { incr x 3; return $x }\nset v [inc3 10]\n";
@@ -206,7 +224,8 @@ fn interprocedural_constant_folding() {
 #[test]
 fn loop_constants_and_post_loop_folding() {
     // Outer constants are NOT propagated into a loop body that redefines them.
-    let loop_src = "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
+    let loop_src =
+        "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
     assert_eq!(optimised(loop_src, TCL), loop_src);
     assert!(opt_codes(loop_src, TCL).is_empty());
 
@@ -256,7 +275,8 @@ fn proc_call_inside_expr_argument() {
     // semantically identical. Assert no miscompile.
     let one = "proc one {} { return 1 }\nif {[one] != 0} {\n    puts yes\n}\n";
     assert_eq!(optimised(one, TCL), one);
-    let add = "proc add {a b} { return [expr {$a + $b}] }\nif {[add 3 4] == 7} {\n    puts yes\n}\n";
+    let add =
+        "proc add {a b} { return [expr {$a + $b}] }\nif {[add 3 4] == 7} {\n    puts yes\n}\n";
     assert_eq!(optimised(add, TCL), add);
 
     // With a constant local in the mix Rust DOES propagate it into the branch
@@ -290,10 +310,10 @@ fn dead_store_and_dead_code_elimination() {
 
     // DCE of an `if {0}` block: dead body removed, `puts always` survives (O112).
     let dce = "if {0} {\n    puts never\n    set x 1\n}\nputs always\n";
-    let dce_out = optimised(dce, TCL);
-    assert!(!dce_out.contains("puts never"));
-    assert!(!dce_out.contains("set x 1"));
-    assert!(dce_out.contains("puts always"));
+    let dce_result = optimised(dce, TCL);
+    assert!(!dce_result.contains("puts never"));
+    assert!(!dce_result.contains("set x 1"));
+    assert!(dce_result.contains("puts always"));
     assert!(opt_fires(dce, TCL, "O112"));
 }
 
@@ -362,10 +382,14 @@ fn instcombine_de_morgan() {
     assert!(opt_fires("set v [expr {!($a || $b)}]", TCL, "O110"));
 
     // De Morgan + comparison inversion via fixpoint (tclsh 4-var sweep == ).
-    assert!(optimised("set v [expr {!($a == $b && $c < $d)}]", TCL)
-        .contains("set v [expr {$a != $b || $c >= $d}]"));
-    assert!(optimised("set v [expr {!($a == $b || $c < $d)}]", TCL)
-        .contains("set v [expr {$a != $b && $c >= $d}]"));
+    assert!(
+        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL)
+            .contains("set v [expr {$a != $b || $c >= $d}]")
+    );
+    assert!(
+        optimised("set v [expr {!($a == $b || $c < $d)}]", TCL)
+            .contains("set v [expr {$a != $b && $c >= $d}]")
+    );
 
     // De Morgan inside an `if` condition.
     // DIVERGENCE (adapted, sound): Python expects this to be reported under
@@ -380,7 +404,10 @@ fn instcombine_de_morgan() {
     let carried = opt_rewrites(in_if, TCL)
         .into_iter()
         .any(|(c, r)| (c == "O110" || c == "O113") && r.contains("!$x || !$y"));
-    assert!(carried, "De Morgan rewrite must appear in O110/O113 replacement");
+    assert!(
+        carried,
+        "De Morgan rewrite must appear in O110/O113 replacement"
+    );
 }
 
 #[test]
@@ -408,7 +435,10 @@ fn instcombine_ternary_and_boolean_context() {
     let has = opt_rewrites(ten10, TCL)
         .into_iter()
         .any(|(c, r)| c == "O110" && r.contains("$a > $b"));
-    assert!(has, "boolean-context ternary O110 replacement must mention `$a > $b`");
+    assert!(
+        has,
+        "boolean-context ternary O110 replacement must mention `$a > $b`"
+    );
 
     // In an `if`, `!!$x` → `$x` (tclsh: !!x is the boolean of x; in a condition
     // identical to x). Rust carries this as O110 with replacement `{$x}`.
@@ -510,14 +540,19 @@ fn structure_elimination_switch() {
     assert!(opt_fires(glob, TCL, "O112"));
 
     // -glob no match → default.
-    let gdef = "switch -glob xyz {\n    a* { set x 1 }\n    b* { set y 2 }\n    default { set z 3 }\n}";
+    let gdef =
+        "switch -glob xyz {\n    a* { set x 1 }\n    b* { set y 2 }\n    default { set z 3 }\n}";
     assert!(!optimised(gdef, TCL).contains("set x 1"));
     assert!(!optimised(gdef, TCL).contains("set y 2"));
     assert!(optimised(gdef, TCL).contains("set z 3"));
     assert!(opt_fires(gdef, TCL, "O112"));
 
     // -regexp is NOT statically eliminated.
-    assert!(!opt_fires("switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}", TCL, "O112"));
+    assert!(!opt_fires(
+        "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}",
+        TCL,
+        "O112"
+    ));
 
     // -glob fallthrough (`a* -` then `z* {body}`) selects the next body.
     // tclsh: switch -glob abc {a* - z* {1} default {2}} ⇒ 1.
@@ -604,12 +639,22 @@ fn constant_propagation_into_commands_o100() {
     assert!(opt_fires("set x 42\nputs $x", TCL, "O109"));
 
     // Through expr+command: a=1 ⇒ puts 2.
-    assert_eq!(optimised("set a 1\nset b [expr {$a + 1}]\nputs $b", TCL), "puts 2");
-    assert!(opt_fires("set a 1\nset b [expr {$a + 1}]\nputs $b", TCL, "O100"));
+    assert_eq!(
+        optimised("set a 1\nset b [expr {$a + 1}]\nputs $b", TCL),
+        "puts 2"
+    );
+    assert!(opt_fires(
+        "set a 1\nset b [expr {$a + 1}]\nputs $b",
+        TCL,
+        "O100"
+    ));
 
     // Chained: ⇒ puts 8.
     assert_eq!(
-        optimised("set a 1\nset b [expr {$a + 2}]\nset c [expr {$b + 5}]\nputs $c", TCL),
+        optimised(
+            "set a 1\nset b [expr {$a + 2}]\nset c [expr {$b + 5}]\nputs $c",
+            TCL
+        ),
         "puts 8"
     );
 
@@ -622,7 +667,10 @@ fn constant_propagation_into_commands_o100() {
 
     // Whole-word multi-word string ⇒ braced literal (semantically identical).
     // tclsh: `set msg {Hello World}; puts $msg` == `puts {Hello World}`.
-    assert_eq!(optimised("set msg {Hello World}\nputs $msg", TCL), "puts {Hello World}");
+    assert_eq!(
+        optimised("set msg {Hello World}\nputs $msg", TCL),
+        "puts {Hello World}"
+    );
     assert!(opt_fires("set msg {Hello World}\nputs $msg", TCL, "O100"));
 
     // Metacharacters are suppressed by the braces (NOT executed). tclsh:
@@ -660,7 +708,7 @@ fn constant_propagation_into_strings_o105() {
     let bstr = "set x 7\nputs \"${x}\"";
     let bs = optimised(bstr, TCL);
     assert!(!bs.contains("\"7}\""));
-    assert!(bs.contains("7"));
+    assert!(bs.contains('7'));
 
     // A call barrier (string length abc) stops propagation into the later string.
     let barrier = "set x 5\nstring length abc\nputs \"val=$x\"";
@@ -812,12 +860,20 @@ fn list_and_lindex_folding() {
     // lindex of a literal list folds. tclsh: [lindex {a b c} 1] == "b".
     let lf = "set x [lindex {a b c} 1]\nputs $x";
     assert!(!optimised(lf, TCL).contains("[lindex"));
-    assert!(opt_codes(lf, TCL).iter().any(|c| c == "O118" || c == "O100"));
+    assert!(
+        opt_codes(lf, TCL)
+            .iter()
+            .any(|c| c == "O118" || c == "O100")
+    );
 
     // tclsh: [lindex {x y z} end] == "z".
     let le = "set x [lindex {x y z} end]\nputs $x";
     assert!(!optimised(le, TCL).contains("[lindex"));
-    assert!(opt_codes(le, TCL).iter().any(|c| c == "O118" || c == "O100"));
+    assert!(
+        opt_codes(le, TCL)
+            .iter()
+            .any(|c| c == "O118" || c == "O100")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -843,7 +899,10 @@ fn strlen_zero_check_o117() {
     // simplify the `> 0` form (only `== 0` / `!= 0`). Sound to leave unchanged
     // (`[string length $s] > 0` and `$s ne ""` are equivalent, just not folded);
     // listed as a Rust gap in the report.
-    assert_eq!(optimised("if {[string length $s] > 0} {}", TCL), "if {[string length $s] > 0} {}");
+    assert_eq!(
+        optimised("if {[string length $s] > 0} {}", TCL),
+        "if {[string length $s] > 0} {}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -902,9 +961,9 @@ fn string_compare_o120_conservative_non_rewrites() {
         "set a [string trim $raw]\nif {$a == \"true\"} {}",
         "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}",
         "set a [expr {1 + 2}]\nset b [expr {3 + 4}]\nif {$a == $b} {}", // both INT
-        "if {$a == $b} {}",     // both unknown
-        "if {$a == \"true\"} {}",  // boolean-like literal, unknown var
-        "if {$a == \"1.25\"} {}",  // float-like literal, unknown var
+        "if {$a == $b} {}",                                             // both unknown
+        "if {$a == \"true\"} {}", // boolean-like literal, unknown var
+        "if {$a == \"1.25\"} {}", // float-like literal, unknown var
     ];
     for src in cases {
         assert!(!opt_fires(src, TCL, "O120"), "O120 must not fire: {src}");
@@ -937,7 +996,10 @@ fn multi_set_packing_o119() {
 
     // The eval-barrier forms are folded rather than packed; assert the sound
     // constant-forwarded result instead of the (absent) O119 packing.
-    assert_eq!(optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL), "eval {1 2 3}");
+    assert_eq!(
+        optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL),
+        "eval {1 2 3}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -949,15 +1011,42 @@ fn end_offset_rewrites_o128() {
     // Each tclsh-verified: the length-arithmetic index equals the end-offset.
     // (Sweeps in the module doc proved lindex/lrange/lreplace/string index/range.)
     let cases: &[(&str, &str)] = &[
-        ("set x [lindex $L [expr {[llength $L] - 1}]]", "set x [lindex $L end]"),
-        ("set x [lindex $L [expr {[llength $L] - 2}]]", "set x [lindex $L end-1]"),
-        ("set x [lrange $L 0 [expr {[llength $L] - 1}]]", "set x [lrange $L 0 end]"),
-        ("set x [string index $s [expr {[string length $s] - 1}]]", "set x [string index $s end]"),
-        ("set x [string range $s 0 [expr {[string length $s] - 1}]]", "set x [string range $s 0 end]"),
-        ("set x [lindex ${my::list} [expr {[llength ${my::list}] - 1}]]", "set x [lindex ${my::list} end]"),
-        ("puts [lindex $L [expr {[llength $L] - 3}]]", "puts [lindex $L end-2]"),
-        ("set x [lindex $a(1) [expr {[llength $a(1)] - 1}]]", "set x [lindex $a(1) end]"),
-        ("set x [lindex $L [expr {[llength $L] - 1}] 0]", "set x [lindex $L end 0]"),
+        (
+            "set x [lindex $L [expr {[llength $L] - 1}]]",
+            "set x [lindex $L end]",
+        ),
+        (
+            "set x [lindex $L [expr {[llength $L] - 2}]]",
+            "set x [lindex $L end-1]",
+        ),
+        (
+            "set x [lrange $L 0 [expr {[llength $L] - 1}]]",
+            "set x [lrange $L 0 end]",
+        ),
+        (
+            "set x [string index $s [expr {[string length $s] - 1}]]",
+            "set x [string index $s end]",
+        ),
+        (
+            "set x [string range $s 0 [expr {[string length $s] - 1}]]",
+            "set x [string range $s 0 end]",
+        ),
+        (
+            "set x [lindex ${my::list} [expr {[llength ${my::list}] - 1}]]",
+            "set x [lindex ${my::list} end]",
+        ),
+        (
+            "puts [lindex $L [expr {[llength $L] - 3}]]",
+            "puts [lindex $L end-2]",
+        ),
+        (
+            "set x [lindex $a(1) [expr {[llength $a(1)] - 1}]]",
+            "set x [lindex $a(1) end]",
+        ),
+        (
+            "set x [lindex $L [expr {[llength $L] - 1}] 0]",
+            "set x [lindex $L end 0]",
+        ),
     ];
     for (src, want) in cases {
         assert_eq!(optimised(src, TCL), *want, "O128 rewrite: {src}");
@@ -970,7 +1059,8 @@ fn end_offset_rewrites_o128() {
     assert_eq!(opt_count(lr, TCL, "O128"), 2);
 
     // Inside a proc body.
-    let inproc = "proc last {L} {\n    set r [lindex $L [expr {[llength $L] - 1}]]\n    return $r\n}";
+    let inproc =
+        "proc last {L} {\n    set r [lindex $L [expr {[llength $L] - 1}]]\n    return $r\n}";
     assert!(optimised(inproc, TCL).contains("[lindex $L end]"));
     assert!(opt_fires(inproc, TCL, "O128"));
 }
@@ -981,29 +1071,29 @@ fn end_offset_o128_must_not_fire() {
     // unchanged in Rust (no O128). Several are paired in the firing test above
     // with their safe counterpart.
     let neg = [
-        "set x [lindex $L [expr {[llength $M] - 1}]]",        // mismatched var
-        "set x [lindex $L [expr {[llength $L] - 0}]]",        // -0 is past the end
-        "set x [lindex $L [expr {[llength $L]}]]",            // bare length
+        "set x [lindex $L [expr {[llength $M] - 1}]]", // mismatched var
+        "set x [lindex $L [expr {[llength $L] - 0}]]", // -0 is past the end
+        "set x [lindex $L [expr {[llength $L]}]]",     // bare length
         "set x [lindex $L [expr {[string length $L] - 1}]]", // wrong length cmd
         "set x [string index $s [expr {[llength $s] - 1}]]", // wrong length cmd
-        "set x [linsert $L [expr {[llength $L] - 1}] foo]",  // linsert excluded
+        "set x [linsert $L [expr {[llength $L] - 1}] foo]", // linsert excluded
         "set x [linsert $L [expr {[llength $L] - 3}] foo]",
-        "set x [lindex $L 0 [expr {[llength $L] - 1}]]",     // later multi-index pos
+        "set x [lindex $L 0 [expr {[llength $L] - 1}]]", // later multi-index pos
         "set x [lindex $a(1) [expr {[llength $a(2)] - 1}]]", // mismatched array elem
         "set x [lindex [get_list] [expr {[llength [get_list]] - 1}]]", // cmd-sub container
-        "set x [lindex {a b c d} [expr {[llength {a b c d}] - 1}]]",    // literal container
-        "set x [lindex $L [expr {[llength $L] - $N}]]",      // non-literal offset
-        "set x [lindex $L [expr {[llength $L] + 1}]]",       // addition
-        "set x [lindex $L [expr {[llength $L] * 2 - 1}]]",   // multiplication
-        "set x [lindex $L [expr {1 - [llength $L]}]]",       // reversed subtraction
-        "set x [lindex $L [expr {[llength $L] - 1 - 1}]]",   // chained subtraction
-        "set x [lindex $L [expr {[llength $L] - -1}]]",      // negative constant
-        "set x [lindex $L [expr [llength $L] - 1]]",         // unbraced expr
+        "set x [lindex {a b c d} [expr {[llength {a b c d}] - 1}]]", // literal container
+        "set x [lindex $L [expr {[llength $L] - $N}]]",  // non-literal offset
+        "set x [lindex $L [expr {[llength $L] + 1}]]",   // addition
+        "set x [lindex $L [expr {[llength $L] * 2 - 1}]]", // multiplication
+        "set x [lindex $L [expr {1 - [llength $L]}]]",   // reversed subtraction
+        "set x [lindex $L [expr {[llength $L] - 1 - 1}]]", // chained subtraction
+        "set x [lindex $L [expr {[llength $L] - -1}]]",  // negative constant
+        "set x [lindex $L [expr [llength $L] - 1]]",     // unbraced expr
         "set x [lindex $L [expr {[llength [lsort $L]] - 1}]]", // llength of cmd result
         "set x [lindex $L:extra [expr {[llength $L:extra] - 1}]]", // adjacent text
-        "lset L [expr {[llength $L] - 1}] foo",              // lset excluded
+        "lset L [expr {[llength $L] - 1}] foo",          // lset excluded
         "set x [lindex $L [expr {[llength $L] - [get_offset]}]]", // other substitution
-        "set x [lindex $L [expr {{[llength $L] - 1}}]]",     // nested brace grouping
+        "set x [lindex $L [expr {{[llength $L] - 1}}]]", // nested brace grouping
     ];
     for src in neg {
         assert!(!opt_fires(src, TCL, "O128"), "O128 must not fire: {src}");
@@ -1057,7 +1147,10 @@ fn variable_shape_guardrails() {
         "set x $::ns::arr(k)\nputs $x",
     ] {
         assert_eq!(optimised(src, TCL), src);
-        assert!(opt_codes(src, TCL).is_empty(), "no rewrite for shape: {src}");
+        assert!(
+            opt_codes(src, TCL).is_empty(),
+            "no rewrite for shape: {src}"
+        );
     }
 }
 
@@ -1134,7 +1227,10 @@ fn tail_call_loop_conversion_o122() {
         "proc f {n} {\n    while {[f $n]} {\n        return [f [expr {$n - 1}]]\n    }\n    return $n\n}\n",
         "proc f {n} {\n    for {set i 0} {[f $n]} {incr i} {\n        return [f [expr {$n - 1}]]\n    }\n    return $n\n}\n",
     ] {
-        assert!(!opt_fires(src, TCL, "O122"), "no O122 (self-call in control): {src}");
+        assert!(
+            !opt_fires(src, TCL, "O122"),
+            "no O122 (self-call in control): {src}"
+        );
     }
 
     // Arity mismatch: O121 may fire but O122 (full loop conversion) must not.
@@ -1158,7 +1254,10 @@ fn tail_call_loop_conversion_o122() {
     let suppress = "proc f {n acc} {\n    if {$n <= 1} { return $acc }\n    return [f [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
     let has121 = opt_fires(suppress, TCL, "O121");
     let has122 = opt_fires(suppress, TCL, "O122");
-    assert!(has121 ^ has122, "exactly one of O121/O122 should survive selection");
+    assert!(
+        has121 ^ has122,
+        "exactly one of O121/O122 should survive selection"
+    );
 }
 
 #[test]
@@ -1235,7 +1334,11 @@ fn unused_irule_procs_o124() {
     }
 
     // O124 only applies to f5-irules — plain Tcl is untouched.
-    assert!(!opt_fires("proc unused {} {\n    return 1\n}\nputs hello", TCL, "O124"));
+    assert!(!opt_fires(
+        "proc unused {} {\n    return 1\n}\nputs hello",
+        TCL,
+        "O124"
+    ));
 
     // Multiple unused procs ⇒ two O124, naming each.
     let multi = "proc used {} {\n    return 1\n}\n\nproc unused_a {} {\n    return 2\n}\n\nproc unused_b {} {\n    return 3\n}\n\nwhen HTTP_REQUEST {\n    set val [call used]\n}";
@@ -1303,7 +1406,10 @@ fn code_sinking_o125_positive() {
     let indent = "set b foo\nif {$a} {\n    if {$c} {\n        set b bar\n    }\n    if {$d} {\n        puts $b\n    }\n}";
     assert!(opt_fires(indent, TCL, "O125"));
     let io = optimised(indent, TCL);
-    let sunk: Vec<&str> = io.lines().filter(|l| l.trim_start().starts_with("set b foo")).collect();
+    let sunk: Vec<&str> = io
+        .lines()
+        .filter(|l| l.trim_start().starts_with("set b foo"))
+        .collect();
     assert!(!sunk.is_empty(), "expected a sunk `set b foo` line: {io}");
 
     // Coexists with O120 (string-compare rewrite in the condition).
@@ -1319,9 +1425,9 @@ fn code_sinking_o125_negatives() {
     // O125 must NOT fire when the var is read in the condition, used after the
     // block, or its RHS is a command substitution.
     let neg = [
-        "set b $x\nif {$b} {\n    puts hello\n}",                  // var in condition
-        "set b foo\nif {$a} {\n    puts $b\n}\nputs $b",            // used after ($-form)
-        "set b [clock seconds]\nif {$a} {\n    puts $b\n}",         // cmd-sub RHS
+        "set b $x\nif {$b} {\n    puts hello\n}", // var in condition
+        "set b foo\nif {$a} {\n    puts $b\n}\nputs $b", // used after ($-form)
+        "set b [clock seconds]\nif {$a} {\n    puts $b\n}", // cmd-sub RHS
     ];
     for src in neg {
         assert!(!opt_fires(src, TCL, "O125"), "O125 must not fire: {src}");
@@ -1389,7 +1495,8 @@ fn load_forwarding_o127() {
 fn profile_directive_survives_structure_elimination() {
     // The `# profiles: HTTP2` comment must survive optimisation (it drives later
     // HTTP2 hints), and the constant `if {1}` inside the event unwraps (O112).
-    let src = "# profiles: HTTP2\nwhen HTTP_REQUEST {\n    if {1} {\n        HTTP2::active\n    }\n}\n";
+    let src =
+        "# profiles: HTTP2\nwhen HTTP_REQUEST {\n    if {1} {\n        HTTP2::active\n    }\n}\n";
     let out = optimised(src, "f5-irules");
     assert!(out.contains("# profiles: HTTP2"));
     assert!(opt_fires(src, "f5-irules", "O112"));
@@ -1463,6 +1570,9 @@ mod cross_event_dse {
     fn same_event_dead_store_still_eliminated() {
         // Control: a store overwritten in the SAME event is genuinely dead.
         let out = optimised("when HTTP_REQUEST { set t 1\n set t 2\n log local0. $t }");
-        assert!(!out.contains("set t 1"), "same-event dead store kept:\n{out}");
+        assert!(
+            !out.contains("set t 1"),
+            "same-event dead store kept:\n{out}"
+        );
     }
 }

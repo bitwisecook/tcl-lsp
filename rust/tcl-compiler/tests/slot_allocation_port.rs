@@ -25,10 +25,10 @@ use tcl_compiler::cfg::{BlockId, Function};
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::slot_allocation::{
-    build_interference, coalesce_slots, live_out_by_name, slot_count, Interference, SlotMapping,
+    Interference, SlotMapping, build_interference, coalesce_slots, live_out_by_name, slot_count,
 };
-use tcl_compiler::ssa::{build_ssa, SsaFunction};
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_compiler::ssa::{SsaFunction, build_ssa};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 const TCL: &str = "tcl8.6";
 
@@ -42,13 +42,22 @@ fn registry() -> &'static CommandRegistry {
 ///
 /// `proc` is the **qualified** name (e.g. `"::g"`), matching the keys of
 /// `Module.procedures`.
-fn setup(src: &str, proc: &str) -> (Function, SsaFunction, HashMap<BlockId, std::collections::HashSet<String>>) {
+fn setup(
+    src: &str,
+    proc: &str,
+) -> (
+    Function,
+    SsaFunction,
+    HashMap<BlockId, std::collections::HashSet<String>>,
+) {
     let reg = registry();
     let module = lower_to_ir(src, reg);
-    let procedure = module
-        .procedures
-        .get(proc)
-        .unwrap_or_else(|| panic!("proc {proc} not found; keys = {:?}", module.procedures.keys().collect::<Vec<_>>()));
+    let procedure = module.procedures.get(proc).unwrap_or_else(|| {
+        panic!(
+            "proc {proc} not found; keys = {:?}",
+            module.procedures.keys().collect::<Vec<_>>()
+        )
+    });
     // `false` = do not inline loops, matching the analysis CFG (build_cfg) the
     // Python harness uses; coalescing depends on liveness only.
     let cfg = build_cfg_function(proc, &procedure.body, false);
@@ -91,7 +100,10 @@ fn disjoint_locals_do_not_interfere() {
     // proc f {} { set a 1; puts $a; set b 2; puts $b }
     // a is dead before b is defined -> they do not interfere.
     let graph = interference("proc f {} { set a 1\n puts $a\n set b 2\n puts $b }", "::f");
-    assert!(!interferes(&graph, "a", "b"), "b must NOT be in graph[a]: {graph:?}");
+    assert!(
+        !interferes(&graph, "a", "b"),
+        "b must NOT be in graph[a]: {graph:?}"
+    );
 }
 
 // ===========================================================================
@@ -107,16 +119,31 @@ fn disjoint_ranges_share_one_slot() {
         "::f",
         &[],
     );
-    assert_eq!(slot_count(&mapping), 1, "three disjoint locals -> 1 slot: {mapping:?}");
+    assert_eq!(
+        slot_count(&mapping),
+        1,
+        "three disjoint locals -> 1 slot: {mapping:?}"
+    );
 }
 
 #[test]
 fn overlapping_ranges_need_distinct_slots() {
     // proc g {} { set a 1; set b 2; puts $a; puts $b }
     // Two overlapping locals need two distinct slots.
-    let mapping = coalesce("proc g {} { set a 1\n set b 2\n puts $a\n puts $b }", "::g", &[]);
-    assert_ne!(mapping["a"], mapping["b"], "overlapping locals get distinct slots: {mapping:?}");
-    assert_eq!(slot_count(&mapping), 2, "two overlapping locals -> 2 slots: {mapping:?}");
+    let mapping = coalesce(
+        "proc g {} { set a 1\n set b 2\n puts $a\n puts $b }",
+        "::g",
+        &[],
+    );
+    assert_ne!(
+        mapping["a"], mapping["b"],
+        "overlapping locals get distinct slots: {mapping:?}"
+    );
+    assert_eq!(
+        slot_count(&mapping),
+        2,
+        "two overlapping locals -> 2 slots: {mapping:?}"
+    );
 }
 
 #[test]
@@ -124,9 +151,16 @@ fn params_get_stable_low_slots_and_never_share() {
     // proc h {x y} { return [expr {$x + $y}] }
     // Parameters are live on entry, so they mutually interfere and keep
     // distinct low slots in incoming order: x -> 0, y -> 1.
-    let mapping = coalesce("proc h {x y} { return [expr {$x + $y}] }", "::h", &["x", "y"]);
+    let mapping = coalesce(
+        "proc h {x y} { return [expr {$x + $y}] }",
+        "::h",
+        &["x", "y"],
+    );
     assert_eq!(mapping["x"], 0, "x gets slot 0: {mapping:?}");
     assert_eq!(mapping["y"], 1, "y gets slot 1: {mapping:?}");
     // Live on entry -> they interfere -> never share.
-    assert_ne!(mapping["x"], mapping["y"], "params never share a slot: {mapping:?}");
+    assert_ne!(
+        mapping["x"], mapping["y"],
+        "params never share a slot: {mapping:?}"
+    );
 }

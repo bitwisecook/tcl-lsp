@@ -18,11 +18,24 @@
 use std::path::{Path, PathBuf};
 
 use tcl_lsp_db::{
-    SourceFile, TclDatabase, TclDb, compiler_check_diagnostics, compiler_check_diagnostics_uncached,
+    AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
+    compiler_check_diagnostics_uncached,
 };
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// A default `AnalyserConfig` (no overrides) for the memo-vs-uncached
+/// differential — both sides then use the built-in generic-name patterns.
+fn default_config(db: &TclDatabase) -> AnalyserConfig {
+    AnalyserConfig::new(
+        db,
+        Vec::new(),
+        tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
+        None,
+    )
 }
 
 fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
@@ -61,9 +74,9 @@ fn compiler_check_memo_matches_uncached_graphops() {
     };
     let db = TclDatabase::default();
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
-    let got = compiler_check_diagnostics(&db, file);
+    let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
-    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
     assert_eq!(
         got.checks, want.checks,
         "graphops checks diverge (memo vs uncached)"
@@ -91,9 +104,9 @@ fn compiler_check_memo_matches_uncached_init() {
     };
     let db = TclDatabase::default();
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
-    let got = compiler_check_diagnostics(&db, file);
+    let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
-    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
     assert_eq!(
         got.checks, want.checks,
         "init.tcl checks diverge (memo vs uncached)"
@@ -126,9 +139,9 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
             continue;
         }
         let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
-        let got = compiler_check_diagnostics(&db, file);
+        let got = compiler_check_diagnostics(&db, file, default_config(&db));
         let registry = db.registry(dialect);
-        let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+        let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
         checked += 1;
         if (got.checks != want.checks || got.optimisations != want.optimisations) && bad.len() < 40
         {

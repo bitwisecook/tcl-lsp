@@ -425,175 +425,178 @@ fn resolve_target_node_id(
     None
 }
 
-/// Build the forward reference edges across all nodes (legacy token-scan path).
-// The pilot + two legacy reference passes plus the shared dedup read most
-// clearly as one function.
-#[allow(clippy::too_many_lines)]
-fn build_forward_edges(
-    nodes_by_uri: &[(String, Vec<ObjectNode>)],
-    configs: &[(String, &BigipConfig)],
-    reg: &BigipRegistry,
-    irules_registry: &tcl_registry::CommandRegistry,
-) -> Vec<ObjectEdge> {
-    let mut edges = Vec::new();
-    let mut seen: HashSet<(String, String, String, String)> = HashSet::new();
+/// Shared resolution context + edge accumulator for [`build_forward_edges`].
+struct EdgeBuilder<'a> {
+    edges: Vec<ObjectEdge>,
+    seen: HashSet<(String, String, String, String)>,
+    by_range: HashMap<&'a str, HashMap<RangeKey, String>>,
+    nodes_by_uri: &'a [(String, Vec<ObjectNode>)],
+    configs: &'a [(String, &'a BigipConfig)],
+    reg: &'a BigipRegistry,
+}
 
-    let mut by_range: HashMap<&str, HashMap<RangeKey, String>> = HashMap::new();
-    for (uri, nodes) in nodes_by_uri {
-        let m = by_range.entry(uri.as_str()).or_default();
-        for n in nodes {
-            m.insert(range_key_from(n.range), n.node_id.clone());
+impl<'a> EdgeBuilder<'a> {
+    fn new(
+        nodes_by_uri: &'a [(String, Vec<ObjectNode>)],
+        configs: &'a [(String, &'a BigipConfig)],
+        reg: &'a BigipRegistry,
+    ) -> Self {
+        let mut by_range: HashMap<&str, HashMap<RangeKey, String>> = HashMap::new();
+        for (uri, nodes) in nodes_by_uri {
+            let m = by_range.entry(uri.as_str()).or_default();
+            for n in nodes {
+                m.insert(range_key_from(n.range), n.node_id.clone());
+            }
+        }
+        Self {
+            edges: Vec::new(),
+            seen: HashSet::new(),
+            by_range,
+            nodes_by_uri,
+            configs,
+            reg,
         }
     }
 
-    let mut push_edge = |edges: &mut Vec<ObjectEdge>,
-                         src: &str,
-                         target_id: String,
-                         via_property: String,
-                         kind: &str| {
+    /// Resolve a single reference to a target node id under the shared context.
+    fn resolve(&self, kind: &str, reference: &str, source_module: &str) -> Option<String> {
+        resolve_target_node_id(
+            kind,
+            reference,
+            Some(source_module),
+            self.configs,
+            &self.by_range,
+            self.nodes_by_uri,
+            self.reg,
+        )
+    }
+
+    /// Dedup-insert one edge.
+    fn push(&mut self, src: &str, target_id: String, via_property: String, kind: &str) {
         let ek = (
             src.to_owned(),
             target_id.clone(),
             via_property.clone(),
             kind.to_owned(),
         );
-        if seen.insert(ek) {
-            edges.push(ObjectEdge {
+        if self.seen.insert(ek) {
+            self.edges.push(ObjectEdge {
                 source_id: src.to_owned(),
                 target_id,
                 via_property,
                 via_kind: kind.to_owned(),
             });
         }
-    };
+    }
 
-    for (_uri, nodes) in nodes_by_uri {
-        for node in nodes {
-            for (key, prop) in parse_properties_with_spans(&node.body) {
-                // Registry-first (pilot value-spec) dispatch — runs BEFORE the
-                // legacy path, so its edges win the shared
-                // dedup and the output order matches. Migrated properties whose
-                // legacy `references` were cleared (e.g. `policies`/`vlans` on
-                // `ltm virtual`) get their edges only from here.
-                if let Some(spec_refs) =
-                    pilot_references(&node.module, &node.object_type, &key, &prop.value)
-                {
-                    for (target_kind, target_path) in spec_refs {
-                        for &kind in &reg.candidate_registry_kinds_for_display(&target_kind) {
-                            let reference = normalise_reference_for_kind(kind, &target_path);
-                            if let Some(target_id) = resolve_target_node_id(
-                                kind,
-                                &reference,
-                                Some(&node.module),
-                                configs,
-                                &by_range,
-                                nodes_by_uri,
-                                reg,
-                            ) {
-                                push_edge(&mut edges, &node.node_id, target_id, key.clone(), kind);
-                            }
-                        }
-                    }
-                }
-
-                // Legacy key path: candidate kinds for the property name.
-                let key_kinds = reg.candidate_kinds_for_key(
-                    &key,
-                    None,
-                    Some(&node.module),
-                    Some(&node.object_type),
-                );
-                if !key_kinds.is_empty() {
-                    for token in extract_value_tokens(&prop.value) {
-                        if !is_candidate_reference(&token) {
-                            continue;
-                        }
-                        for &kind in &key_kinds {
-                            let reference = normalise_reference_for_kind(kind, &token);
-                            if let Some(target_id) = resolve_target_node_id(
-                                kind,
-                                &reference,
-                                Some(&node.module),
-                                configs,
-                                &by_range,
-                                nodes_by_uri,
-                                reg,
-                            ) {
-                                push_edge(&mut edges, &node.node_id, target_id, key.clone(), kind);
-                            }
-                        }
-                    }
-                }
-
-                // Legacy section path: candidate kinds for list items.
-                let section_kinds = reg.candidate_kinds_for_section_item(
-                    &key,
-                    Some(&node.module),
-                    Some(&node.object_type),
-                );
-                if section_kinds.is_empty() {
-                    continue;
-                }
-                for token in parse_list_block(&prop.value) {
-                    if !is_candidate_reference(&token) {
-                        continue;
-                    }
-                    for &kind in &section_kinds {
-                        let reference = normalise_reference_for_kind(kind, &token);
-                        if let Some(target_id) = resolve_target_node_id(
-                            kind,
-                            &reference,
-                            Some(&node.module),
-                            configs,
-                            &by_range,
-                            nodes_by_uri,
-                            reg,
-                        ) {
-                            push_edge(
-                                &mut edges,
-                                &node.node_id,
-                                target_id,
-                                format!("{key}[]"),
-                                kind,
-                            );
-                        }
-                    }
-                }
-            }
-
-            // iRule object references — walk an `ltm`/`gtm` rule body and
-            // resolve every BIG-IP object it names via
-            // `extract_irules_object_references`.
-            if matches!(node.module.as_str(), "ltm" | "gtm") && node.object_type == "rule" {
-                for reference in extract_irules_object_references(
-                    &node.body,
-                    Some(&node.module),
-                    irules_registry,
-                ) {
-                    for &kind in &reference.kinds {
-                        if let Some(target_id) = resolve_target_node_id(
-                            kind,
-                            &reference.name,
-                            Some(&node.module),
-                            configs,
-                            &by_range,
-                            nodes_by_uri,
-                            reg,
-                        ) {
-                            push_edge(
-                                &mut edges,
-                                &node.node_id,
-                                target_id,
-                                format!("irule:{}", reference.command),
-                                kind,
-                            );
-                        }
-                    }
+    /// Registry-first (pilot value-spec) dispatch — runs BEFORE the legacy
+    /// path, so its edges win the shared dedup and the output order matches.
+    /// Migrated properties whose legacy `references` were cleared (e.g.
+    /// `policies`/`vlans` on `ltm virtual`) get their edges only from here.
+    fn pilot_pass(&mut self, node: &ObjectNode, key: &str, value: &str) {
+        let Some(spec_refs) = pilot_references(&node.module, &node.object_type, key, value) else {
+            return;
+        };
+        for (target_kind, target_path) in spec_refs {
+            for &kind in &self.reg.candidate_registry_kinds_for_display(&target_kind) {
+                let reference = normalise_reference_for_kind(kind, &target_path);
+                if let Some(target_id) = self.resolve(kind, &reference, &node.module) {
+                    self.push(&node.node_id, target_id, key.to_owned(), kind);
                 }
             }
         }
     }
-    edges
+
+    /// Legacy key path: candidate kinds for the property name.
+    fn key_pass(&mut self, node: &ObjectNode, key: &str, value: &str) {
+        let key_kinds = self.reg.candidate_kinds_for_key(
+            key,
+            None,
+            Some(&node.module),
+            Some(&node.object_type),
+        );
+        if key_kinds.is_empty() {
+            return;
+        }
+        for token in extract_value_tokens(value) {
+            if !is_candidate_reference(&token) {
+                continue;
+            }
+            for &kind in &key_kinds {
+                let reference = normalise_reference_for_kind(kind, &token);
+                if let Some(target_id) = self.resolve(kind, &reference, &node.module) {
+                    self.push(&node.node_id, target_id, key.to_owned(), kind);
+                }
+            }
+        }
+    }
+
+    /// Legacy section path: candidate kinds for list items.
+    fn section_pass(&mut self, node: &ObjectNode, key: &str, value: &str) {
+        let section_kinds = self.reg.candidate_kinds_for_section_item(
+            key,
+            Some(&node.module),
+            Some(&node.object_type),
+        );
+        if section_kinds.is_empty() {
+            return;
+        }
+        for token in parse_list_block(value) {
+            if !is_candidate_reference(&token) {
+                continue;
+            }
+            for &kind in &section_kinds {
+                let reference = normalise_reference_for_kind(kind, &token);
+                if let Some(target_id) = self.resolve(kind, &reference, &node.module) {
+                    self.push(&node.node_id, target_id, format!("{key}[]"), kind);
+                }
+            }
+        }
+    }
+
+    /// iRule object references — walk an `ltm`/`gtm` rule body and resolve every
+    /// BIG-IP object it names via `extract_irules_object_references`.
+    fn irule_pass(&mut self, node: &ObjectNode, irules_registry: &tcl_registry::CommandRegistry) {
+        if !(matches!(node.module.as_str(), "ltm" | "gtm") && node.object_type == "rule") {
+            return;
+        }
+        for reference in
+            extract_irules_object_references(&node.body, Some(&node.module), irules_registry)
+        {
+            for &kind in &reference.kinds {
+                if let Some(target_id) = self.resolve(kind, &reference.name, &node.module) {
+                    self.push(
+                        &node.node_id,
+                        target_id,
+                        format!("irule:{}", reference.command),
+                        kind,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Build the forward reference edges across all nodes (legacy token-scan path).
+fn build_forward_edges(
+    nodes_by_uri: &[(String, Vec<ObjectNode>)],
+    configs: &[(String, &BigipConfig)],
+    reg: &BigipRegistry,
+    irules_registry: &tcl_registry::CommandRegistry,
+) -> Vec<ObjectEdge> {
+    let mut builder = EdgeBuilder::new(nodes_by_uri, configs, reg);
+
+    for (_uri, nodes) in nodes_by_uri {
+        for node in nodes {
+            for (key, prop) in parse_properties_with_spans(&node.body) {
+                builder.pilot_pass(node, &key, &prop.value);
+                builder.key_pass(node, &key, &prop.value);
+                builder.section_pass(node, &key, &prop.value);
+            }
+            builder.irule_pass(node, irules_registry);
+        }
+    }
+    builder.edges
 }
 
 /// The full object graph: per-source nodes (in source order) and the flat list

@@ -34,28 +34,30 @@ use tcl_bigip::rule_extract::{
 
 // -- Detection (TestDetection) -----------------------------------------------
 
-/// test_standalone_irule_not_detected: a bare `when … { }` is not conf-wrapped.
+/// `test_standalone_irule_not_detected`: a bare `when … { }` is not conf-wrapped.
 #[test]
 fn standalone_irule_not_detected() {
     let src = "when HTTP_REQUEST {\n    log local0. \"hi\"\n}";
     assert!(!is_conf_wrapped_irules(src));
 }
 
-/// test_ltm_rule_detected.
+/// `test_ltm_rule_detected`.
 #[test]
 fn ltm_rule_detected() {
-    let src = "ltm rule /Common/foo {\n    when HTTP_REQUEST {\n        log local0. \"hi\"\n    }\n}";
+    let src =
+        "ltm rule /Common/foo {\n    when HTTP_REQUEST {\n        log local0. \"hi\"\n    }\n}";
     assert!(is_conf_wrapped_irules(src));
 }
 
-/// test_gtm_rule_detected.
+/// `test_gtm_rule_detected`.
 #[test]
 fn gtm_rule_detected() {
-    let src = "gtm rule /Common/bar {\n    when DNS_REQUEST {\n        log local0. \"hi\"\n    }\n}";
+    let src =
+        "gtm rule /Common/bar {\n    when DNS_REQUEST {\n        log local0. \"hi\"\n    }\n}";
     assert!(is_conf_wrapped_irules(src));
 }
 
-/// test_multiple_rules_detected.
+/// `test_multiple_rules_detected`.
 #[test]
 fn multiple_rules_detected() {
     let src = "ltm rule /Common/a {\n    when RULE_INIT { }\n}\n\
@@ -72,7 +74,7 @@ fn multiple_rules_detected() {
 
 // -- Embedded-rule extraction range (test_bigip_rule_extract.py) --------------
 
-/// test_find_embedded_rules_range_maps_to_braces: the stanza range starts at
+/// `test_find_embedded_rules_range_maps_to_braces`: the stanza range starts at
 /// the `ltm rule` header (line 0, col 0) and ends at the closing `}`.
 #[test]
 fn find_embedded_rules_range_maps_to_braces() {
@@ -101,7 +103,7 @@ fn find_embedded_rules_range_maps_to_braces() {
     assert_eq!(rule.range.end.character, 0);
 }
 
-/// test_find_rule_at_offset_inside_block: an offset inside the block resolves
+/// `test_find_rule_at_offset_inside_block`: an offset inside the block resolves
 /// to the enclosing rule.
 #[test]
 fn find_rule_at_offset_inside_block() {
@@ -116,7 +118,7 @@ fn find_rule_at_offset_inside_block() {
 // `analyse_conf_wrapped` returns `(result, rules)`; the *rules* half is exactly
 // `find_embedded_rules`. The diagnostics half (IRULE5006/5007 etc.) is a GAP.
 
-/// test_single_rule_diagnostics (rules portion): one rule named `test`.
+/// `test_single_rule_diagnostics` (rules portion): one rule named `test`.
 #[test]
 fn single_rule_extracted() {
     let src = "ltm rule /Common/test {\n\
@@ -131,7 +133,7 @@ fn single_rule_extracted() {
     // `analyse_conf_wrapped`; not modelled in Rust (no conf-wrapped analysis).
 }
 
-/// test_multiple_rules_all_analysed (rules portion): two rules, ordered.
+/// `test_multiple_rules_all_analysed` (rules portion): two rules, ordered.
 #[test]
 fn multiple_rules_all_extracted() {
     let src = "ltm rule /Common/rule_a {\n\
@@ -150,7 +152,7 @@ fn multiple_rules_all_extracted() {
     assert_eq!(rules[1].name, "rule_b");
 }
 
-/// test_gtm_rule_analysed (rules portion): a `gtm rule` is extracted by name.
+/// `test_gtm_rule_analysed` (rules portion): a `gtm rule` is extracted by name.
 #[test]
 fn gtm_rule_extracted() {
     let src = "gtm rule /Common/dns_handler {\n\
@@ -163,7 +165,7 @@ fn gtm_rule_extracted() {
     assert_eq!(rules[0].name, "dns_handler");
 }
 
-/// test_multiple_when_blocks_in_one_rule (rules portion): multiple `when`
+/// `test_multiple_when_blocks_in_one_rule` (rules portion): multiple `when`
 /// blocks still extract as one rule, and both events live in the body.
 #[test]
 fn multiple_when_blocks_in_one_rule() {
@@ -188,7 +190,7 @@ fn multiple_when_blocks_in_one_rule() {
 // guard — that a rule's body offsets are well-formed and absolute, and that the
 // second rule's body sits after the first — are ported here via EmbeddedRule.
 
-/// test_diagnostic_offsets_are_absolute (structural portion): every rule's
+/// `test_diagnostic_offsets_are_absolute` (structural portion): every rule's
 /// body offsets are within `[0, len(src)]` and well-ordered.
 #[test]
 fn body_offsets_within_source_bounds() {
@@ -210,7 +212,7 @@ fn body_offsets_within_source_bounds() {
     }
 }
 
-/// test_second_rule_diagnostic_exact_line + test_second_rule_diagnostic_offset_in_range
+/// `test_second_rule_diagnostic_exact_line` + `test_second_rule_diagnostic_offset_in_range`
 /// (structural portion): the second rule's body starts on a later line and its
 /// body offsets follow the first rule's.
 #[test]
@@ -235,7 +237,7 @@ fn second_rule_body_offsets_follow_first() {
     // requires the dialect-scoped analyser; not modelled in Rust.
 }
 
-/// test_proc_in_rule_has_shifted_range (structural portion): a `proc` declared
+/// `test_proc_in_rule_has_shifted_range` (structural portion): a `proc` declared
 /// in a rule body lies within that rule's body offsets, on a later line.
 #[test]
 fn proc_in_rule_within_body() {
@@ -262,7 +264,7 @@ fn proc_in_rule_within_body() {
 // rely on — which rule body a given line falls inside — is ported here via the
 // EmbeddedRule line ranges.
 
-/// test_cursor_in_first_rule / test_cursor_in_second_rule (structural portion):
+/// `test_cursor_in_first_rule` / `test_cursor_in_second_rule` (structural portion):
 /// a cursor line maps to the correct rule body by line range.
 #[test]
 fn cursor_line_maps_to_rule_body() {
@@ -292,7 +294,7 @@ fn cursor_line_maps_to_rule_body() {
     // for those lines under the embedded_rules scoping is not modelled in Rust.
 }
 
-/// test_cursor_outside_all_rules (structural portion): a line past the closing
+/// `test_cursor_outside_all_rules` (structural portion): a line past the closing
 /// brace of the only rule falls in no rule body.
 #[test]
 fn cursor_outside_all_rules() {
@@ -307,7 +309,7 @@ fn cursor_outside_all_rules() {
 
 // -- Brace scanning robustness (TestBraceScanning) ---------------------------
 
-/// test_braces_in_quoted_string: braces inside a double-quoted string do not
+/// `test_braces_in_quoted_string`: braces inside a double-quoted string do not
 /// terminate the rule body.
 #[test]
 fn braces_in_quoted_string() {
@@ -327,7 +329,7 @@ fn braces_in_quoted_string() {
     assert!(rules[0].body.contains("log local0. $x"));
 }
 
-/// test_escaped_quote_in_string: escaped quotes inside strings are handled.
+/// `test_escaped_quote_in_string`: escaped quotes inside strings are handled.
 #[test]
 fn escaped_quote_in_string() {
     let src = "ltm rule /Common/escaped {\n\
@@ -342,7 +344,7 @@ fn escaped_quote_in_string() {
 
 // -- Empty / edge cases (TestEdgeCases) --------------------------------------
 
-/// test_empty_rule_body.
+/// `test_empty_rule_body`.
 #[test]
 fn empty_rule_body() {
     let src = "ltm rule /Common/empty {\n}\n";
@@ -351,7 +353,7 @@ fn empty_rule_body() {
     assert_eq!(rules[0].name, "empty");
 }
 
-/// test_no_rules_returns_empty.
+/// `test_no_rules_returns_empty`.
 #[test]
 fn no_rules_returns_empty() {
     let src = "# just a comment\n";
@@ -362,7 +364,7 @@ fn no_rules_returns_empty() {
     // analysis layer (and thus any diagnostics) is not modelled in Rust.
 }
 
-/// test_mixed_ltm_gtm_rules: ltm and gtm rules extract together.
+/// `test_mixed_ltm_gtm_rules`: ltm and gtm rules extract together.
 #[test]
 fn mixed_ltm_gtm_rules() {
     let src = "ltm rule /Common/http_handler {\n\
@@ -380,7 +382,7 @@ fn mixed_ltm_gtm_rules() {
 
 // -- Additional direct ports of EmbeddedRule fields & helpers ----------------
 
-/// EmbeddedRule header / full_path / body fields are populated as documented
+/// `EmbeddedRule` header / `full_path` / body fields are populated as documented
 /// (the `header` excludes the opening brace; the `body` excludes both braces).
 #[test]
 fn embedded_rule_fields_populated() {
@@ -400,7 +402,7 @@ fn embedded_rule_fields_populated() {
     assert!(r.body.starts_with("\n    when HTTP_REQUEST"));
 }
 
-/// replace_rule_body swaps the body bytes between the braces, leaving the
+/// `replace_rule_body` swaps the body bytes between the braces, leaving the
 /// header and closing brace intact (port of `replace_rule_body`).
 #[test]
 fn replace_rule_body_swaps_body() {
@@ -415,7 +417,7 @@ fn replace_rule_body_swaps_body() {
     assert!(rules2[0].body.contains("DNS_REQUEST"));
 }
 
-/// find_rule_at_offset returns None when the offset is in no rule, and selects
+/// `find_rule_at_offset` returns None when the offset is in no rule, and selects
 /// the correct rule among several (block span is inclusive of both ends).
 #[test]
 fn find_rule_at_offset_selects_and_misses() {
@@ -425,10 +427,16 @@ fn find_rule_at_offset_selects_and_misses() {
 
     // Offset inside rule a.
     let in_a = src.find("RULE_INIT").unwrap();
-    assert_eq!(find_rule_at_offset(src, in_a).unwrap().full_path, "/Common/a");
+    assert_eq!(
+        find_rule_at_offset(src, in_a).unwrap().full_path,
+        "/Common/a"
+    );
     // Offset inside rule b.
     let in_b = src.find("HTTP_REQUEST").unwrap();
-    assert_eq!(find_rule_at_offset(src, in_b).unwrap().full_path, "/Common/b");
+    assert_eq!(
+        find_rule_at_offset(src, in_b).unwrap().full_path,
+        "/Common/b"
+    );
 
     // The header start of each rule is an inclusive lower bound.
     assert_eq!(

@@ -57,12 +57,12 @@
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{
-    extract_dataflow_graph, extract_function_dataflow, DataFlowGraph, EdgeKind, FunctionInputs,
+    DataFlowGraph, EdgeKind, FunctionInputs, extract_dataflow_graph, extract_function_dataflow,
 };
 use tcl_compiler::dead_stores::liveness_dead_stores;
 use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -225,7 +225,10 @@ fn def_use_phi_incoming_edges_are_uses() {
         .flat_map(|c| c.uses.iter())
         .filter(|u| u.kind == UseKind::PhiIncoming)
         .count();
-    assert!(phi_uses >= 2, "expected phi-incoming uses for both branches");
+    assert!(
+        phi_uses >= 2,
+        "expected phi-incoming uses for both branches"
+    );
 }
 
 // -- TestDefUseTerminator --
@@ -253,7 +256,10 @@ fn def_use_while_condition_is_use() {
         .filter_map(|k| chain(fu, &k.0, k.1))
         .flat_map(|c| c.uses.iter())
         .any(|u| u.kind == UseKind::Terminator);
-    assert!(has_terminator, "expected a TERMINATOR use for the loop condition");
+    assert!(
+        has_terminator,
+        "expected a TERMINATOR use for the loop condition"
+    );
 }
 
 // -- TestDefUseLoop --
@@ -283,8 +289,14 @@ fn def_use_proc_parameters() {
     assert_eq!(fu.def_use.uses_of("x", 0).len(), 1);
     assert_eq!(fu.def_use.uses_of("y", 0).len(), 1);
     // Both are genuine parameter defs (version 0, read-before-set).
-    assert_eq!(chain(fu, "x", 0).unwrap().definition.kind, DefKind::Parameter);
-    assert_eq!(chain(fu, "y", 0).unwrap().definition.kind, DefKind::Parameter);
+    assert_eq!(
+        chain(fu, "x", 0).unwrap().definition.kind,
+        DefKind::Parameter
+    );
+    assert_eq!(
+        chain(fu, "y", 0).unwrap().definition.kind,
+        DefKind::Parameter
+    );
 }
 
 // -- TestDefUseResultMethods --
@@ -335,7 +347,8 @@ fn def_use_has_phi_use() {
 fn def_use_if_inside_while() {
     // Python test_if_inside_while: nested if-in-while gives ≥2 defs of i (init +
     // loop phi) and ≥2 defs of x (the two branch stores).
-    let cu = build_cu("set i 0\nwhile {$i < 10} {\nif {$i > 5} {set x 1} else {set x 2}\nincr i\n}");
+    let cu =
+        build_cu("set i 0\nwhile {$i < 10} {\nif {$i > 5} {set x 1} else {set x 2}\nincr i\n}");
     let fu = top_fu(&cu);
     assert!(reaching_defs(fu, "i").len() >= 2);
     assert!(reaching_defs(fu, "x").len() >= 2);
@@ -347,7 +360,7 @@ fn def_use_foreach_loop() {
     // ≥1 def of the loop variable `item`. tclsh: after the loop item == c.
     let cu = build_cu("foreach item {a b c} { set result $item }");
     let fu = top_fu(&cu);
-    assert!(reaching_defs(fu, "item").len() >= 1);
+    assert!(!reaching_defs(fu, "item").is_empty());
 }
 
 // ===========================================================================
@@ -594,7 +607,10 @@ fn dce_command_subst_rhs_not_a_dead_store() {
     // excludes an `AssignValue` whose value contains `[` (a command subst), so
     // `tmp` is NOT flagged — matching Python. tclsh: `set tmp [info commands]`
     // runs `info commands` regardless of whether tmp is later read.
-    let dead = dead_store_vars("proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n", "::f");
+    let dead = dead_store_vars(
+        "proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n",
+        "::f",
+    );
     assert!(
         !dead.contains(&"tmp".to_string()),
         "command-subst RHS must not be flagged dead: {dead:?}"
@@ -701,7 +717,10 @@ fn dce_multiple_writes_both_unread_are_dead() {
     // flags BOTH (`tmp#1` is overwritten before any read; `tmp#2` is never
     // read), which is the correct *liveness* verdict. tclsh: `set tmp 5; set tmp
     // 6; puts hi` ⇒ `hi`; neither 5 nor 6 is ever observed.
-    let dead = dead_store_vars("proc f {} {\n  set tmp 5\n  set tmp 6\n  puts \"hi\"\n}\n", "::f");
+    let dead = dead_store_vars(
+        "proc f {} {\n  set tmp 5\n  set tmp 6\n  puts \"hi\"\n}\n",
+        "::f",
+    );
     assert_eq!(
         dead.iter().filter(|v| *v == "tmp").count(),
         2,

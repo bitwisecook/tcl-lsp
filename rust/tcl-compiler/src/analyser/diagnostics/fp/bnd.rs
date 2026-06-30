@@ -9,8 +9,8 @@ use crate::compiler_checks::run_all_checks;
 use tcl_registry::registry_for_dialect;
 
 /// Full `(code, message)` diagnostics for `src`, mirroring `tcl diag` (analyser
-/// + run_all_checks, optimisation codes excluded). Bounds codes (W23x) flow
-/// through these passes.
+/// plus `run_all_checks`, optimisation codes excluded). Bounds codes (W23x)
+/// flow through these passes.
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
@@ -90,7 +90,11 @@ fn fp_bnd_02_dynamic_append_slot_silent() {
 fn fp_bnd_02_in_range_dynamic_silent() {
     // FP control: a clearly-in-range dynamic index must NOT fire.
     let src = "proc f {v} { set l {a b c}\n set j 1\n lset l $j $v }";
-    assert!(!fires(src, "W231"), "FP-BND-02: in-range dynamic index fired W231; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W231"),
+        "FP-BND-02: in-range dynamic index fired W231; {:?}",
+        diags(src, D)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -109,28 +113,44 @@ proc f {} {
 #[test]
 fn fp_bnd_03_string_index_past_end_fires() {
     // TP: `string index $s 10` on a 5-char string is past-end (smell-tier W232).
-    assert!(fires(FP_BND_03_REPRO, "W232"), "FP-BND-03 TP: past-end string index must fire W232; {:?}", diags(FP_BND_03_REPRO, D));
+    assert!(
+        fires(FP_BND_03_REPRO, "W232"),
+        "FP-BND-03 TP: past-end string index must fire W232; {:?}",
+        diags(FP_BND_03_REPRO, D)
+    );
 }
 
 #[test]
 fn fp_bnd_03_idx_equals_length_fires() {
     // TP: idx == length is also out-of-range for `string index` (returns "").
     let src = "proc f {} { set s \"hello\"\n set i 5\n return [string index $s $i] }";
-    assert!(fires(src, "W232"), "FP-BND-03 TP: idx==length must fire W232; {:?}", diags(src, D));
+    assert!(
+        fires(src, "W232"),
+        "FP-BND-03 TP: idx==length must fire W232; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_03_in_range_silent() {
     // FP control: an in-range string index must NOT fire.
     let src = "proc f {} { set s \"hello\"\n set i 2\n return [string index $s $i] }";
-    assert!(!fires(src, "W232"), "FP-BND-03: in-range string index fired W232; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W232"),
+        "FP-BND-03: in-range string index fired W232; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_03_unknown_string_silent() {
     // FP control: unknown string + unknown index is not provable OOR.
     let src = "proc f {s i} { return [string index $s $i] }";
-    assert!(!fires(src, "W232"), "FP-BND-03: unknown string/index fired W232; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W232"),
+        "FP-BND-03: unknown string/index fired W232; {:?}",
+        diags(src, D)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -147,29 +167,47 @@ proc f {} {
 
 #[test]
 fn fp_bnd_04_const_zero_divisor_fires() {
-    assert!(fires(FP_BND_04_REPRO, "W233"), "FP-BND-04 TP: const-zero divisor must fire W233; {:?}", diags(FP_BND_04_REPRO, D));
+    assert!(
+        fires(FP_BND_04_REPRO, "W233"),
+        "FP-BND-04 TP: const-zero divisor must fire W233; {:?}",
+        diags(FP_BND_04_REPRO, D)
+    );
 }
 
 #[test]
 fn fp_bnd_04_literal_div_zero_fires() {
-    assert!(fires("proc f {} { return [expr {1 / 0}] }", "W233"), "FP-BND-04 TP: literal 1/0 must fire W233");
+    assert!(
+        fires("proc f {} { return [expr {1 / 0}] }", "W233"),
+        "FP-BND-04 TP: literal 1/0 must fire W233"
+    );
 }
 
 #[test]
 fn fp_bnd_04_literal_mod_zero_fires() {
-    assert!(fires("proc f {} { return [expr {5 % 0}] }", "W233"), "FP-BND-04 TP: literal 5%0 must fire W233");
+    assert!(
+        fires("proc f {} { return [expr {5 % 0}] }", "W233"),
+        "FP-BND-04 TP: literal 5%0 must fire W233"
+    );
 }
 
 #[test]
 fn fp_bnd_04_nonzero_divisor_silent() {
     let src = "proc f {} { set d 3\n return [expr {10 / $d}] }";
-    assert!(!fires(src, "W233"), "FP-BND-04: non-zero const divisor fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-04: non-zero const divisor fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_04_unknown_divisor_silent() {
     let src = "proc f {n} { return [expr {10 / $n}] }";
-    assert!(!fires(src, "W233"), "FP-BND-04: unknown divisor fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-04: unknown divisor fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -180,26 +218,42 @@ fn fp_bnd_04_unknown_divisor_silent() {
 fn fp_bnd_05_dead_ternary_arm_silent() {
     // FP: `0 ? 1/0 : 7` -> dead arm; tclsh returns 7.
     let src = "proc f {} { return [expr {0 ? 1/0 : 7}] }";
-    assert!(!fires(src, "W233"), "FP-BND-05: dead ternary arm fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-05: dead ternary arm fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_05_short_circuit_or_silent() {
     let src = "proc f {} { return [expr {1 || 1/0}] }";
-    assert!(!fires(src, "W233"), "FP-BND-05: `||` short-circuit fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-05: `||` short-circuit fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_05_short_circuit_and_silent() {
     let src = "proc f {} { return [expr {0 && 1/0}] }";
-    assert!(!fires(src, "W233"), "FP-BND-05: `&&` short-circuit fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-05: `&&` short-circuit fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_bnd_05_guard_excludes_zero_silent() {
     // FP control: `if {$d != 0}` guard makes the division unreachable when d==0.
     let src = "proc f {} { set d 0\n if {$d != 0} { return [expr {1 / $d}] }\n return safe }";
-    assert!(!fires(src, "W233"), "FP-BND-05: guarded division fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-05: guarded division fired W233; {:?}",
+        diags(src, D)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -208,33 +262,70 @@ fn fp_bnd_05_guard_excludes_zero_silent() {
 
 #[test]
 fn fp_bnd_06_float_guard_forces_arm_fires() {
-    assert!(fires("proc f {} { return [expr {1.0 && 1/0}] }", "W233"), "FP-BND-06 TP: 1.0 && 1/0 must fire W233");
-    assert!(fires("proc f {} { return [expr {0.0 || 1/0}] }", "W233"), "FP-BND-06 TP: 0.0 || 1/0 must fire W233");
-    assert!(fires("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233"), "FP-BND-06 TP: 1.5 ? 1/0 : 7 must fire W233");
+    assert!(
+        fires("proc f {} { return [expr {1.0 && 1/0}] }", "W233"),
+        "FP-BND-06 TP: 1.0 && 1/0 must fire W233"
+    );
+    assert!(
+        fires("proc f {} { return [expr {0.0 || 1/0}] }", "W233"),
+        "FP-BND-06 TP: 0.0 || 1/0 must fire W233"
+    );
+    assert!(
+        fires("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233"),
+        "FP-BND-06 TP: 1.5 ? 1/0 : 7 must fire W233"
+    );
 }
 
 #[test]
 fn fp_bnd_06_uppercase_bool_guard_forces_arm_fires() {
-    assert!(fires("proc f {} { return [expr {True && 1/0}] }", "W233"), "FP-BND-06 TP: True && 1/0 must fire W233");
-    assert!(fires("proc f {} { return [expr {TRUE && 1/0}] }", "W233"), "FP-BND-06 TP: TRUE && 1/0 must fire W233");
-    assert!(fires("proc f {} { return [expr {No || 1/0}] }", "W233"), "FP-BND-06 TP: No || 1/0 must fire W233");
+    assert!(
+        fires("proc f {} { return [expr {True && 1/0}] }", "W233"),
+        "FP-BND-06 TP: True && 1/0 must fire W233"
+    );
+    assert!(
+        fires("proc f {} { return [expr {TRUE && 1/0}] }", "W233"),
+        "FP-BND-06 TP: TRUE && 1/0 must fire W233"
+    );
+    assert!(
+        fires("proc f {} { return [expr {No || 1/0}] }", "W233"),
+        "FP-BND-06 TP: No || 1/0 must fire W233"
+    );
 }
 
 #[test]
 fn fp_bnd_06_unary_constant_guard_forces_arm_fires() {
-    assert!(fires("proc f {} { return [expr {-1 && 1/0}] }", "W233"), "FP-BND-06 TP: -1 && 1/0 must fire W233");
-    assert!(fires("proc f {} { return [expr {!0 && 1/0}] }", "W233"), "FP-BND-06 TP: !0 && 1/0 must fire W233");
+    assert!(
+        fires("proc f {} { return [expr {-1 && 1/0}] }", "W233"),
+        "FP-BND-06 TP: -1 && 1/0 must fire W233"
+    );
+    assert!(
+        fires("proc f {} { return [expr {!0 && 1/0}] }", "W233"),
+        "FP-BND-06 TP: !0 && 1/0 must fire W233"
+    );
 }
 
 #[test]
 fn fp_bnd_06_false_constant_guard_short_circuits_silent() {
-    assert!(!fires("proc f {} { return [expr {False && 1/0}] }", "W233"), "FP-BND-06: False && short-circuits");
-    assert!(!fires("proc f {} { return [expr {!1 && 1/0}] }", "W233"), "FP-BND-06: !1 && short-circuits");
-    assert!(!fires("proc f {} { return [expr {0.0 && 1/0}] }", "W233"), "FP-BND-06: 0.0 && short-circuits");
+    assert!(
+        !fires("proc f {} { return [expr {False && 1/0}] }", "W233"),
+        "FP-BND-06: False && short-circuits"
+    );
+    assert!(
+        !fires("proc f {} { return [expr {!1 && 1/0}] }", "W233"),
+        "FP-BND-06: !1 && short-circuits"
+    );
+    assert!(
+        !fires("proc f {} { return [expr {0.0 && 1/0}] }", "W233"),
+        "FP-BND-06: 0.0 && short-circuits"
+    );
 }
 
 #[test]
 fn fp_bnd_06_nonconstant_guard_silent() {
     let src = "proc f {c} { return [expr {$c && 1/0}] }";
-    assert!(!fires(src, "W233"), "FP-BND-06: non-constant guard fired W233; {:?}", diags(src, D));
+    assert!(
+        !fires(src, "W233"),
+        "FP-BND-06: non-constant guard fired W233; {:?}",
+        diags(src, D)
+    );
 }

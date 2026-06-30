@@ -91,7 +91,10 @@ fn decode(source: &str, dialect: &str) -> Vec<Tok> {
 
 /// The set of token-type names present in the decoded stream.
 fn type_set(source: &str, dialect: &str) -> HashSet<String> {
-    decode(source, dialect).into_iter().map(|t| t.ttype).collect()
+    decode(source, dialect)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect()
 }
 
 /// All decoded tokens of a given type-name.
@@ -322,7 +325,10 @@ fn st_switch_regexp_default_keyword_is_not_a_regex() {
         .iter()
         .find(|t| t.line == 2 && t.character == 2 && t.length == 7)
         .expect("the `default` word token");
-    assert_eq!(default_tok.ttype, "string", "`default` is a string keyword word; got {toks:?}");
+    assert_eq!(
+        default_tok.ttype, "string",
+        "`default` is a string keyword word; got {toks:?}"
+    );
 }
 
 #[test]
@@ -333,7 +339,8 @@ fn st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp() {
     let src = "switch -regexp $x {\n  abc {puts 1}\n}\n";
     let toks = decode(src, "tcl8.6");
     assert!(
-        toks.iter().any(|t| t.line == 1 && t.ttype == "regexp" && t.length == 3),
+        toks.iter()
+            .any(|t| t.line == 1 && t.ttype == "regexp" && t.length == 3),
         "literal `abc` pattern should be one length-3 regexp; got {toks:?}",
     );
 }
@@ -357,7 +364,10 @@ fn st_sprintf_positional_argument_specifier() {
         2,
         "positional spec emits `%` and `$` as formatPercent; got {toks:?}",
     );
-    assert!(of_type(&toks, "formatWidth").iter().any(|t| t.length == 1), "{toks:?}");
+    assert!(
+        of_type(&toks, "formatWidth").iter().any(|t| t.length == 1),
+        "{toks:?}"
+    );
     assert!(!of_type(&toks, "formatSpec").is_empty(), "{toks:?}");
 }
 
@@ -411,7 +421,10 @@ fn st_sprintf_malformed_precision_separator_stays_plain_string() {
         of_type(&toks, "formatPercent").is_empty(),
         "malformed `%5,3d` should not decompose; got {toks:?}",
     );
-    assert!(type_set("format {%5,3d} $x\n", "tcl8.6").contains("string"), "{toks:?}");
+    assert!(
+        type_set("format {%5,3d} $x\n", "tcl8.6").contains("string"),
+        "{toks:?}"
+    );
 }
 
 #[test]
@@ -527,9 +540,15 @@ fn st_binary_signed_modifier_present_in_86_absent_in_84() {
     // `binaryFlag` (8.5+ feature); under 8.4 the modifier is suppressed
     // (`allow_mod == false`), so no binaryFlag.
     let on_86 = type_set("binary scan $d su r\n", "tcl8.6");
-    assert!(on_86.contains("binaryFlag"), "8.6 keeps the `u` modifier: {on_86:?}");
+    assert!(
+        on_86.contains("binaryFlag"),
+        "8.6 keeps the `u` modifier: {on_86:?}"
+    );
     let on_84 = type_set("binary scan $d su r\n", "tcl8.4");
-    assert!(!on_84.contains("binaryFlag"), "8.4 suppresses the `u` modifier: {on_84:?}");
+    assert!(
+        !on_84.contains("binaryFlag"),
+        "8.4 suppresses the `u` modifier: {on_84:?}"
+    );
 }
 
 #[test]
@@ -556,9 +575,18 @@ fn st_regsub_replacement_backref_and_whole_match() {
     // `{\1-\&}` — `\1` is a capture backref (`number`), `\&` the whole match
     // (`operator`), and the literal `-` between them a `string` run.
     let toks = decode("regsub {(a)} $s {\\1-\\&} out\n", "tcl8.6");
-    assert!(of_type(&toks, "number").iter().any(|t| t.length == 2), "{toks:?}");
-    assert!(of_type(&toks, "operator").iter().any(|t| t.length == 2), "{toks:?}");
-    assert!(!of_type(&toks, "string").is_empty(), "the `-` run is a string; got {toks:?}");
+    assert!(
+        of_type(&toks, "number").iter().any(|t| t.length == 2),
+        "{toks:?}"
+    );
+    assert!(
+        of_type(&toks, "operator").iter().any(|t| t.length == 2),
+        "{toks:?}"
+    );
+    assert!(
+        !of_type(&toks, "string").is_empty(),
+        "the `-` run is a string; got {toks:?}"
+    );
 }
 
 #[test]
@@ -593,7 +621,12 @@ fn st_namespaced_builtin_head_tail_is_function_with_default_library() {
     assert_eq!(st.data[3], ns_idx, "prefix is namespace: {:?}", st.data);
     assert_eq!(st.data[2], 2, "prefix is `::` (len 2): {:?}", st.data);
     assert_eq!(st.data[8], fn_idx, "tail is function: {:?}", st.data);
-    assert_eq!(st.data[9], 1 << 3, "tail carries defaultLibrary: {:?}", st.data);
+    assert_eq!(
+        st.data[9],
+        1 << 3,
+        "tail carries defaultLibrary: {:?}",
+        st.data
+    );
 }
 
 #[test]
@@ -604,7 +637,8 @@ fn st_namespaced_user_proc_name_definition_is_function() {
     // offset; the name is not split here).
     let toks = decode("proc ::ns::fn {} {}\n", "tcl8.6");
     assert!(
-        toks.iter().any(|t| t.ttype == "function" && t.length == 8 && t.character == 5),
+        toks.iter()
+            .any(|t| t.ttype == "function" && t.length == 8 && t.character == 5),
         "the proc name `::ns::fn` (len 8) should be a function; got {toks:?}",
     );
 }
@@ -615,7 +649,8 @@ fn st_namespaced_bareword_argument_classified_as_namespace() {
     // `classify_arg_token`'s `text.contains("::")` arm → `namespace`.
     let toks = decode("puts ::foo::bar\n", "tcl8.6");
     assert!(
-        toks.iter().any(|t| t.ttype == "namespace" && t.length == 10),
+        toks.iter()
+            .any(|t| t.ttype == "namespace" && t.length == 10),
         "`::foo::bar` arg should be a length-10 namespace; got {toks:?}",
     );
 }
@@ -632,7 +667,10 @@ fn st_expr_nested_command_substitution_recurses() {
     // the `[`/`]` and recurses into the inner script, so `llength` surfaces as
     // a `function` head and `$a` as a `variable`.
     let kinds = type_set("set y [expr {[llength $a] + 1}]\n", "tcl8.6");
-    assert!(kinds.contains("function"), "nested [llength] head; got {kinds:?}");
+    assert!(
+        kinds.contains("function"),
+        "nested [llength] head; got {kinds:?}"
+    );
     assert!(kinds.contains("variable"), "nested $a; got {kinds:?}");
     assert!(kinds.contains("operator"), "the `+`; got {kinds:?}");
     assert!(kinds.contains("number"), "the `1`; got {kinds:?}");
@@ -644,8 +682,14 @@ fn st_expr_string_literal_is_string_token() {
     // arm emits a `string` sub-token.
     // tclsh-proof: tclsh8.6/9.0 `expr {"hi" eq "hi"}` -> 1.
     let kinds = type_set("set y [expr {\"hi\" eq $a}]\n", "tcl8.6");
-    assert!(kinds.contains("string"), "the `\"hi\"` literal; got {kinds:?}");
-    assert!(kinds.contains("operator"), "the `eq` operator; got {kinds:?}");
+    assert!(
+        kinds.contains("string"),
+        "the `\"hi\"` literal; got {kinds:?}"
+    );
+    assert!(
+        kinds.contains("operator"),
+        "the `eq` operator; got {kinds:?}"
+    );
 }
 
 #[test]
@@ -659,7 +703,12 @@ fn st_expr_math_function_carries_default_library() {
     let mut found = false;
     for c in st.data.chunks(5) {
         if c[3] == fn_idx && c[2] == 3 {
-            assert_eq!(c[4], 1 << 3, "math fn `abs` carries defaultLibrary: {:?}", st.data);
+            assert_eq!(
+                c[4],
+                1 << 3,
+                "math fn `abs` carries defaultLibrary: {:?}",
+                st.data
+            );
             found = true;
         }
     }
@@ -689,7 +738,10 @@ fn st_bareword_backslash_escape_splits_into_string_and_escape() {
     // it into a `string` run (`a`), an `escape` (`\t`), and a `string` run
     // (`b`).
     let toks = decode("puts a\\tb\n", "tcl8.6");
-    assert!(of_type(&toks, "escape").iter().any(|t| t.length == 2), "{toks:?}");
+    assert!(
+        of_type(&toks, "escape").iter().any(|t| t.length == 2),
+        "{toks:?}"
+    );
     assert_eq!(
         of_type(&toks, "string").len(),
         2,
@@ -719,7 +771,10 @@ fn st_quoted_structural_keyword_arg_trims_delimiters() {
         .iter()
         .find(|t| t.ttype == "keyword" && t.line == 2)
         .expect("an `on` keyword token on the `}` line");
-    assert_eq!(on_kw.length, 2, "quoted `\"on\"` marks just `on`; got {toks:?}");
+    assert_eq!(
+        on_kw.length, 2,
+        "quoted `\"on\"` marks just `on`; got {toks:?}"
+    );
 }
 
 // ===========================================================================
@@ -760,7 +815,9 @@ fn st_irules_object_ref_suppresses_overlapping_string_in_single_line_body() {
     assert_eq!(obj.length, 8, "`web_pool` object span; got {toks:?}");
     // No `string` token should remain at the object's column (it was replaced).
     assert!(
-        !toks.iter().any(|t| t.ttype == "string" && t.character == obj.character),
+        !toks
+            .iter()
+            .any(|t| t.ttype == "string" && t.character == obj.character),
         "the overlapping string must be suppressed; got {toks:?}",
     );
 }
@@ -789,7 +846,10 @@ fn st_known_option_is_decorator_unknown_stays_string() {
     //   `regexp -nocase {ABC} abc` -> 1
     assert!(type_set("regexp -nocase {p} $s\n", "tcl8.6").contains("decorator"));
     let puts = type_set("puts -foo\n", "tcl8.6");
-    assert!(!puts.contains("decorator"), "`-foo` is not a puts option: {puts:?}");
+    assert!(
+        !puts.contains("decorator"),
+        "`-foo` is not a puts option: {puts:?}"
+    );
     assert!(puts.contains("string"), "`-foo` stays a string: {puts:?}");
 }
 
@@ -807,7 +867,12 @@ fn st_subcommand_word_is_keyword_with_default_library() {
     assert_eq!(len_tok.ttype, "keyword", "{toks:?}");
     // Confirm the defaultLibrary modifier on that (2nd) token in the packed stream.
     let st = full("string length $s\n", "tcl8.6", reg());
-    assert_eq!(st.data[9], 1 << 3, "subcommand keyword carries defaultLibrary: {:?}", st.data);
+    assert_eq!(
+        st.data[9],
+        1 << 3,
+        "subcommand keyword carries defaultLibrary: {:?}",
+        st.data
+    );
 }
 
 // ===========================================================================
@@ -834,9 +899,17 @@ fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
     assert!(!r.data.is_empty(), "{:?}", r.data);
     // First surviving token is on line 1 → its leading delta-line is 1 (absolute
     // from origin per the LSP range contract).
-    assert_eq!(r.data[0], 1, "first range token delta-line is absolute: {:?}", r.data);
+    assert_eq!(
+        r.data[0], 1,
+        "first range token delta-line is absolute: {:?}",
+        r.data
+    );
     // Strictly fewer tokens than the whole document.
-    assert!(r.data.len() < full(src, "tcl8.6", reg()).data.len(), "{:?}", r.data);
+    assert!(
+        r.data.len() < full(src, "tcl8.6", reg()).data.len(),
+        "{:?}",
+        r.data
+    );
 }
 
 #[test]
@@ -855,7 +928,11 @@ fn st_range_empty_window_yields_no_tokens() {
         },
         reg(),
     );
-    assert!(r.data.is_empty(), "empty window yields no tokens; got {:?}", r.data);
+    assert!(
+        r.data.is_empty(),
+        "empty window yields no tokens; got {:?}",
+        r.data
+    );
 }
 
 #[test]
@@ -865,11 +942,19 @@ fn st_multiline_braced_body_is_recursed_not_emitted_whole() {
     // emitted token therefore stays on a single line.
     let src = "proc f {} {\n  set x 1\n  set y 2\n}\n";
     let toks = decode(src, "tcl8.6");
-    assert!(toks.iter().any(|t| t.line == 1 && t.ttype == "function"), "{toks:?}");
-    assert!(toks.iter().any(|t| t.line == 2 && t.ttype == "function"), "{toks:?}");
+    assert!(
+        toks.iter().any(|t| t.line == 1 && t.ttype == "function"),
+        "{toks:?}"
+    );
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "function"),
+        "{toks:?}"
+    );
     // The body braces never surface as a single multi-line string token.
     assert!(
-        !toks.iter().any(|t| t.line == 0 && t.ttype == "string" && t.length > 5),
+        !toks
+            .iter()
+            .any(|t| t.line == 0 && t.ttype == "string" && t.length > 5),
         "no opaque multi-line body string; got {toks:?}",
     );
 }
@@ -890,7 +975,10 @@ fn st_regexp_start_option_value_skipped_before_pattern() {
     let toks = decode("regexp -start 1 {b+} $s\n", "tcl8.6");
     // `-start` is a decorator, `1` its numeric value, and the pattern is a
     // regex (quantifier present) — proving the skip targeted the right word.
-    assert!(of_type(&toks, "decorator").iter().any(|t| t.length == 6), "{toks:?}");
+    assert!(
+        of_type(&toks, "decorator").iter().any(|t| t.length == 6),
+        "{toks:?}"
+    );
     assert!(
         toks.iter().any(|t| t.ttype == "regexpQuantifier"),
         "the `{{b+}}` pattern after `-start 1` must sub-tokenise as regex; got {toks:?}",
@@ -905,7 +993,10 @@ fn st_regexp_double_dash_ends_options_before_pattern() {
     // tclsh-proof: `--` is the regexp end-of-options marker. tclsh8.6/9.0:
     //   `regexp -- {-x} -x-` -> 1
     let toks = decode("regexp -- {ab} $s\n", "tcl8.6");
-    assert!(of_type(&toks, "decorator").iter().any(|t| t.length == 2), "`--` decorator; got {toks:?}");
+    assert!(
+        of_type(&toks, "decorator").iter().any(|t| t.length == 2),
+        "`--` decorator; got {toks:?}"
+    );
     // The `{ab}` pattern (no metacharacters) falls back to a single `regexp`
     // token — proving the `--` skip landed the override on the pattern word
     // rather than leaving it a plain `string`.

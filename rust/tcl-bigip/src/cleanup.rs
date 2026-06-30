@@ -6,6 +6,7 @@
 //! runs after the objects that reference its target are already gone.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::BuildHasher;
 
 use crate::graph::{ObjectEdge, ObjectGraph, ObjectNode};
 use crate::range::Range;
@@ -54,9 +55,9 @@ fn build_delete_command(node: &ObjectNode) -> String {
     )
 }
 
-fn matches_keep_filter(
+fn matches_keep_filter<S: BuildHasher>(
     node: &ObjectNode,
-    keep_paths: &HashSet<String>,
+    keep_paths: &HashSet<String, S>,
     keep_partitions: &[String],
 ) -> bool {
     keep_paths.contains(&node.identifier)
@@ -68,11 +69,10 @@ fn matches_keep_filter(
 /// Compute the cleanup report. `source_uris` should be the sorted input URIs
 /// (used only in the script header).
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn compute_cleanup(
+pub fn compute_cleanup<S: BuildHasher>(
     graph: &ObjectGraph,
     source_uris: &[String],
-    keep_paths: &HashSet<String>,
+    keep_paths: &HashSet<String, S>,
     keep_partitions: &[String],
 ) -> CleanupReport {
     let all_nodes: Vec<&ObjectNode> = graph

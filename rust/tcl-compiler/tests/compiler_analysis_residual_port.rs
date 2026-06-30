@@ -1072,12 +1072,16 @@ fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
     // Boundary at SMALL_BODY_THRESHOLD: a body of exactly the threshold is
     // Always; threshold+1 is count-dependent (IfSingleCall at 1 caller, Never
     // otherwise).
-    let small: String = (0..SMALL_BODY_THRESHOLD)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
-    let big: String = (0..SMALL_BODY_THRESHOLD + 1)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let assign_body = |n: usize| -> String {
+        use std::fmt::Write as _;
+        let mut body = String::new();
+        for i in 0..n {
+            let _ = writeln!(body, "  set v{i} {i}");
+        }
+        body
+    };
+    let small = assign_body(SMALL_BODY_THRESHOLD);
+    let big = assign_body(SMALL_BODY_THRESHOLD + 1);
     let ms = module_for(&format!("proc ::s {{}} {{\n{small}}}\n"));
     let mb = module_for(&format!("proc ::b {{}} {{\n{big}}}\n"));
     let ss = analyse_var_escape(&ms, true);

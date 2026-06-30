@@ -94,7 +94,10 @@ fn run(src: &str) -> (bool, String, String) {
 #[test]
 fn prefix_all_lists_matches() {
     // tclsh (both): -> "apple apricot"
-    assert_eq!(run("tcl::prefix all {apple apricot banana} ap").1, "apple apricot");
+    assert_eq!(
+        run("tcl::prefix all {apple apricot banana} ap").1,
+        "apple apricot"
+    );
     // tclsh (both): no match -> empty list.
     assert_eq!(run("tcl::prefix all {apple apricot} z").1, "");
     // tclsh (both): empty string matches everything.
@@ -107,7 +110,10 @@ fn prefix_all_wrong_args() {
     // tclsh (both): wrong # args: should be "tcl::prefix all table string"
     let (ok, msg, _) = run("tcl::prefix all a");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix all table string""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix all table string""#
+    );
 }
 
 /// `tcl::prefix all` over a malformed table surfaces the list parse error.
@@ -140,7 +146,10 @@ fn prefix_longest_wrong_args() {
     // tclsh (both): wrong # args: should be "tcl::prefix longest table string"
     let (ok, msg, _) = run("tcl::prefix longest a");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix longest table string""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix longest table string""#
+    );
 }
 
 /// `tcl::prefix match` — a unique prefix matches; an exact table entry always
@@ -148,7 +157,10 @@ fn prefix_longest_wrong_args() {
 #[test]
 fn prefix_match_unique_and_exact_entry() {
     // tclsh (both): unique prefix -> "banana"
-    assert_eq!(run("tcl::prefix match {apple apricot banana} b").1, "banana");
+    assert_eq!(
+        run("tcl::prefix match {apple apricot banana} b").1,
+        "banana"
+    );
     // tclsh (both): exact entry `apple` wins over the longer `applet`.
     assert_eq!(run("tcl::prefix match {apple applet} apple").1, "apple");
 }
@@ -160,7 +172,10 @@ fn prefix_match_ambiguous_and_bad() {
     // tclsh (both): ambiguous prefix over 3 entries (Oxford comma).
     let (ok, msg, _) = run("tcl::prefix match {apple apricot banana} ap");
     assert!(!ok);
-    assert_eq!(msg, r#"ambiguous option "ap": must be apple, apricot, or banana"#);
+    assert_eq!(
+        msg,
+        r#"ambiguous option "ap": must be apple, apricot, or banana"#
+    );
     // tclsh (both): no match -> bad option, 3-entry list.
     let (ok, msg, _) = run("tcl::prefix match {apple apricot banana} z");
     assert!(!ok);
@@ -183,7 +198,10 @@ fn prefix_match_ambiguous_and_bad() {
 #[test]
 fn prefix_match_exact_option() {
     // tclsh (both): exact match succeeds.
-    assert_eq!(run("tcl::prefix match -exact {apple apricot} apple").1, "apple");
+    assert_eq!(
+        run("tcl::prefix match -exact {apple apricot} apple").1,
+        "apple"
+    );
     // tclsh (both): a prefix fails under -exact.
     let (ok, msg, _) = run("tcl::prefix match -exact {apple apricot} app");
     assert!(!ok);
@@ -214,7 +232,8 @@ fn prefix_match_error_option() {
     assert!(ok, "got: {res}");
     assert_eq!(res, "");
     // tclsh (both): -error with return-opts re-raises the bad-option message.
-    let (ok, msg, _) = run("catch {tcl::prefix match -error {-level 0 -code error} {a b} z} m; set m\nset m");
+    let (ok, msg, _) =
+        run("catch {tcl::prefix match -error {-level 0 -code error} {a b} z} m; set m\nset m");
     assert!(ok);
     assert_eq!(msg, r#"bad option "z": must be a or b"#);
     // tclsh (both): an odd-length -error list is rejected.
@@ -233,16 +252,25 @@ fn prefix_match_arg_and_option_errors() {
     // tclsh (both): too few args.
     let (ok, msg, _) = run("tcl::prefix match");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix match ?options? table string""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix match ?options? table string""#
+    );
     // tclsh (both): a `-message` with no value lands as the `table` word, so the
     // remaining count is short -> wrong # args (NOT "missing value").
     let (ok, msg, _) = run("tcl::prefix match -message");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix match ?options? table string""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix match ?options? table string""#
+    );
     // tclsh (both): an unknown option in the option region.
     let (ok, msg, _) = run("tcl::prefix match -bogus {a b} a");
     assert!(!ok);
-    assert_eq!(msg, r#"bad option "-bogus": must be -error, -exact, or -message"#);
+    assert_eq!(
+        msg,
+        r#"bad option "-bogus": must be -error, -exact, or -message"#
+    );
 }
 
 /// `tcl::prefix` dispatch: missing subcommand, and an unknown subcommand.
@@ -251,11 +279,17 @@ fn prefix_dispatch_errors() {
     // tclsh (both): no subcommand.
     let (ok, msg, _) = run("tcl::prefix");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix subcommand ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix subcommand ?arg ...?""#
+    );
     // tclsh (both): unknown subcommand.
     let (ok, msg, _) = run("tcl::prefix frobnicate a b");
     assert!(!ok);
-    assert_eq!(msg, r#"unknown or ambiguous subcommand "frobnicate": must be all, longest, or match"#);
+    assert_eq!(
+        msg,
+        r#"unknown or ambiguous subcommand "frobnicate": must be all, longest, or match"#
+    );
 }
 
 // ===========================================================================
@@ -266,7 +300,10 @@ fn prefix_dispatch_errors() {
 #[test]
 fn info_exists_scalar_array_element() {
     // tclsh (both): set x 1 -> exists x = 1, exists y = 0.
-    assert_eq!(run("set x 1; list [info exists x] [info exists y]").1, "1 0");
+    assert_eq!(
+        run("set x 1; list [info exists x] [info exists y]").1,
+        "1 0"
+    );
     // tclsh (both): array, present element, absent element -> 1 1 0.
     assert_eq!(
         run("set a(k) 1; list [info exists a] [info exists a(k)] [info exists a(z)]").1,
@@ -293,7 +330,10 @@ fn info_complete_cases() {
 fn info_level_depth_and_errors() {
     assert_eq!(run("info level").1, "0"); // tclsh (both): top-level depth 0
     // tclsh (both): inside f -> level 1, and `info level 1` is the call argv.
-    assert_eq!(run("proc f {} {list [info level] [info level 1]}; f").1, "1 f");
+    assert_eq!(
+        run("proc f {} {list [info level] [info level 1]}; f").1,
+        "1 f"
+    );
     // tclsh (both): negative absolute level.
     let (ok, msg, _) = run("info level -5");
     assert!(!ok);
@@ -313,7 +353,10 @@ fn info_commands_pattern() {
     // tclsh (both): a known builtin appears in the unfiltered list.
     assert_eq!(run("expr {\"set\" in [info commands]}").1, "1");
     // tclsh (both): a qualified pattern resolves the child-namespace proc.
-    assert_eq!(run("namespace eval foo {proc bar {} {}}; info commands foo::bar").1, "::foo::bar");
+    assert_eq!(
+        run("namespace eval foo {proc bar {} {}}; info commands foo::bar").1,
+        "::foo::bar"
+    );
 }
 
 /// `info procs ?pattern?` — only user procs, glob-filtered.
@@ -321,7 +364,10 @@ fn info_commands_pattern() {
 fn info_procs_pattern() {
     assert_eq!(run("proc foo {} {}; info procs foo").1, "foo"); // tclsh (both): foo
     // tclsh (both): glob over two procs.
-    assert_eq!(run("proc abc {} {}; proc abd {} {}; lsort [info procs ab*]").1, "abc abd");
+    assert_eq!(
+        run("proc abc {} {}; proc abd {} {}; lsort [info procs ab*]").1,
+        "abc abd"
+    );
     // tclsh (both): a builtin is not a proc.
     assert_eq!(run("info procs set").1, "");
 }
@@ -334,7 +380,10 @@ fn info_vars_globals_locals() {
     assert_eq!(run("set abc 1; info vars abc").1, "abc"); // tclsh (both): abc
     assert_eq!(run("set ::gv1 1; info globals gv1").1, "gv1"); // tclsh (both): gv1
     // tclsh (both): inside a proc, info vars lists only the local (no globals).
-    assert_eq!(run("set ::gg 1; proc f {} {set loc 1; lsort [info vars]}; f").1, "loc");
+    assert_eq!(
+        run("set ::gg 1; proc f {} {set loc 1; lsort [info vars]}; f").1,
+        "loc"
+    );
     // tclsh (both): info locals lists only locals.
     assert_eq!(run("proc f {} {set loc 1; info locals}; f").1, "loc");
 }
@@ -346,9 +395,15 @@ fn info_args_body_default() {
     assert_eq!(run("proc f {a b} {}; info args f").1, "a b"); // tclsh (both): a b
     assert_eq!(run("proc f {} {set x 1}; info body f").1, "set x 1"); // tclsh (both)
     // tclsh (both): info default writes the default into the named var, returns 1.
-    assert_eq!(run("proc f {a {b 5}} {}; list [info default f b v] $v").1, "1 5");
+    assert_eq!(
+        run("proc f {a {b 5}} {}; list [info default f b v] $v").1,
+        "1 5"
+    );
     // tclsh (both): an arg with no default -> 0, var set to empty.
-    assert_eq!(run("proc f {a} {}; list [info default f a v] <$v>").1, "0 <>");
+    assert_eq!(
+        run("proc f {a} {}; list [info default f a v] <$v>").1,
+        "0 <>"
+    );
     // tclsh (both): info args/body of a non-proc command.
     let (ok, msg, _) = run("info args set");
     assert!(!ok);
@@ -417,7 +472,10 @@ fn info_dispatch_and_abbreviation() {
     // tclsh (both): no subcommand.
     let (ok, msg, _) = run("info");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "info subcommand ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "info subcommand ?arg ...?""#
+    );
     // tclsh (both): unambiguous prefixes resolve.
     assert_eq!(run("info comm set").1, "set"); // commands
     assert_eq!(run("set x 1; info ex x").1, "1"); // exists
@@ -434,7 +492,14 @@ fn info_dispatch_and_abbreviation() {
 /// input): asserting the VM's actual error so the gap is pinned and visible.
 #[test]
 fn info_unimplemented_subcommands_error() {
-    for sub in ["cmdcount", "hostname", "coroutine", "frame", "object", "class"] {
+    for sub in [
+        "cmdcount",
+        "hostname",
+        "coroutine",
+        "frame",
+        "object",
+        "class",
+    ] {
         let (ok, msg, _) = run(&format!("info {sub}"));
         assert!(!ok, "VM unexpectedly implemented `info {sub}`: {msg}");
         assert_eq!(
@@ -457,7 +522,10 @@ fn namespace_eval_current_return() {
     assert_eq!(run("namespace current").1, "::"); // tclsh (both): global is ::
     assert_eq!(run("namespace eval foo {namespace current}").1, "::foo"); // tclsh (both)
     // tclsh (both): nested eval reports the nested namespace.
-    assert_eq!(run("namespace eval a {namespace eval b {namespace current}}").1, "::a::b");
+    assert_eq!(
+        run("namespace eval a {namespace eval b {namespace current}}").1,
+        "::a::b"
+    );
     // tclsh (both): a `return` in the body is the eval's result.
     assert_eq!(run("namespace eval foo {return 42}").1, "42");
     // tclsh (both): multiple body words are joined as one script (`set z 5`).
@@ -470,7 +538,10 @@ fn namespace_eval_wrong_args() {
     // tclsh (both): no body.
     let (ok, msg, _) = run("namespace eval foo");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace eval name arg ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace eval name arg ?arg ...?""#
+    );
 }
 
 /// `namespace parent` — of the current namespace and of a named one; the global
@@ -480,7 +551,10 @@ fn namespace_parent() {
     // tclsh (both): inside ::a::b -> ::a .
     assert_eq!(run("namespace eval a::b {namespace parent}").1, "::a");
     // tclsh (both): of a named namespace.
-    assert_eq!(run("namespace eval a::b {}; namespace parent ::a::b").1, "::a");
+    assert_eq!(
+        run("namespace eval a::b {}; namespace parent ::a::b").1,
+        "::a"
+    );
     // tclsh (both): parent of :: is "" .
     assert_eq!(run("namespace parent ::").1, "");
 }
@@ -490,9 +564,15 @@ fn namespace_parent() {
 #[test]
 fn namespace_children() {
     // tclsh (both): the created child appears in ::'s children.
-    assert_eq!(run("namespace eval zzq {}; expr {\"::zzq\" in [namespace children ::]}").1, "1");
+    assert_eq!(
+        run("namespace eval zzq {}; expr {\"::zzq\" in [namespace children ::]}").1,
+        "1"
+    );
     // tclsh (both): a pattern selects a single child.
-    assert_eq!(run("namespace eval aq {}; namespace eval bq {}; lsort [namespace children :: aq]").1, "::aq");
+    assert_eq!(
+        run("namespace eval aq {}; namespace eval bq {}; lsort [namespace children :: aq]").1,
+        "::aq"
+    );
 }
 
 /// `namespace qualifiers` / `tail` — pure text ops over `::`-runs (a run of 3+
@@ -511,7 +591,10 @@ fn namespace_qualifiers_tail() {
 #[test]
 fn namespace_exists() {
     // tclsh (both): present -> 1, absent -> 0.
-    assert_eq!(run("namespace eval foo {}; list [namespace exists ::foo] [namespace exists ::bar]").1, "1 0");
+    assert_eq!(
+        run("namespace eval foo {}; list [namespace exists ::foo] [namespace exists ::bar]").1,
+        "1 0"
+    );
 }
 
 /// `namespace delete` — destroys the namespace; an unknown namespace errors
@@ -519,11 +602,17 @@ fn namespace_exists() {
 #[test]
 fn namespace_delete() {
     // tclsh (both): after delete the namespace no longer exists.
-    assert_eq!(run("namespace eval foo {}; namespace delete foo; namespace exists ::foo").1, "0");
+    assert_eq!(
+        run("namespace eval foo {}; namespace delete foo; namespace exists ::foo").1,
+        "0"
+    );
     // tclsh (both): deleting an unknown namespace errors.
     let (ok, msg, _) = run("namespace delete nope");
     assert!(!ok);
-    assert_eq!(msg, r#"unknown namespace "nope" in namespace delete command"#);
+    assert_eq!(
+        msg,
+        r#"unknown namespace "nope" in namespace delete command"#
+    );
 }
 
 /// `namespace which -command name` — the resolved fully-qualified command name
@@ -576,11 +665,17 @@ fn namespace_code() {
 #[test]
 fn namespace_inscope() {
     // tclsh (both): the body sees foo's variable.
-    assert_eq!(run("namespace eval foo {variable v hi}; namespace inscope foo {set v}").1, "hi");
+    assert_eq!(
+        run("namespace eval foo {variable v hi}; namespace inscope foo {set v}").1,
+        "hi"
+    );
     // tclsh (both): missing script.
     let (ok, msg, _) = run("namespace inscope foo");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#
+    );
 }
 
 /// `namespace export` + `namespace import` — an exported proc becomes callable
@@ -621,7 +716,10 @@ fn namespace_dispatch_unknown_subcommand() {
     // tclsh (both): no subcommand.
     let (ok, msg, _) = run("namespace");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace subcommand ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace subcommand ?arg ...?""#
+    );
     // VM's unknown-subcommand message (subset list — see doc comment).
     let (ok, msg, _) = run("namespace frob");
     assert!(!ok);
@@ -688,7 +786,10 @@ fn namespace_upvar_unimplemented() {
 #[test]
 fn info_constant_and_consts() {
     // tclsh9.0: const c 5 -> info constant c = 1, info constant x = 0.
-    assert_eq!(run("const c 5; list [info constant c] [info constant x]").1, "1 0");
+    assert_eq!(
+        run("const c 5; list [info constant c] [info constant x]").1,
+        "1 0"
+    );
     // tclsh9.0: info consts c* -> the constant name.
     assert_eq!(run("const c 5; info consts c*").1, "c");
     // wrong # args on `info constant`.
@@ -804,15 +905,39 @@ fn namespace_path_set_errors() {
 #[test]
 fn info_subcommand_wrong_args() {
     for (script, want) in [
-        ("info complete a b", r#"wrong # args: should be "info complete command""#),
-        ("info level 1 2", r#"wrong # args: should be "info level ?number?""#),
-        ("info body", r#"wrong # args: should be "info body procname""#),
-        ("info args", r#"wrong # args: should be "info args procname""#),
-        ("info default f a", r#"wrong # args: should be "info default procname arg varname""#),
-        ("info functions a b", r#"wrong # args: should be "info functions ?pattern?""#),
+        (
+            "info complete a b",
+            r#"wrong # args: should be "info complete command""#,
+        ),
+        (
+            "info level 1 2",
+            r#"wrong # args: should be "info level ?number?""#,
+        ),
+        (
+            "info body",
+            r#"wrong # args: should be "info body procname""#,
+        ),
+        (
+            "info args",
+            r#"wrong # args: should be "info args procname""#,
+        ),
+        (
+            "info default f a",
+            r#"wrong # args: should be "info default procname arg varname""#,
+        ),
+        (
+            "info functions a b",
+            r#"wrong # args: should be "info functions ?pattern?""#,
+        ),
         // tclsh9.0 wording (8.6 says just `?interp?`); the VM targets 9.0.
-        ("info loaded a b c", r#"wrong # args: should be "info loaded ?interp? ?prefix?""#),
-        ("info cmdtype", r#"wrong # args: should be "info cmdtype commandName""#),
+        (
+            "info loaded a b c",
+            r#"wrong # args: should be "info loaded ?interp? ?prefix?""#,
+        ),
+        (
+            "info cmdtype",
+            r#"wrong # args: should be "info cmdtype commandName""#,
+        ),
     ] {
         let (ok, msg, _) = run(script);
         assert!(!ok, "`{script}` should error");
@@ -867,10 +992,16 @@ fn namespace_eval_global_and_body_parse_error() {
 fn namespace_inscope_eval_bare_wrong_args() {
     let (ok, msg, _) = run("namespace inscope foo");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#
+    );
     let (ok, msg, _) = run("namespace eval");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace eval name arg ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace eval name arg ?arg ...?""#
+    );
 }
 
 /// `tcl::prefix match` with a single positional (one short of `table string`),
@@ -880,7 +1011,10 @@ fn prefix_match_one_arg_and_bad_table() {
     // tclsh (both): one positional is still too few.
     let (ok, msg, _) = run("tcl::prefix match x");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "tcl::prefix match ?options? table string""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "tcl::prefix match ?options? table string""#
+    );
     // tclsh (both): a malformed table surfaces the list parse error.
     let (ok, msg, _) = run("tcl::prefix match \"\\{\" z");
     assert!(!ok);
@@ -892,7 +1026,10 @@ fn prefix_match_one_arg_and_bad_table() {
 #[test]
 fn namespace_code_at_global_scope() {
     // tclsh (both): -> "::namespace inscope :: {x y}"
-    assert_eq!(run("namespace code {x y}").1, "::namespace inscope :: {x y}");
+    assert_eq!(
+        run("namespace code {x y}").1,
+        "::namespace inscope :: {x y}"
+    );
 }
 
 /// Bare `namespace inscope` (zero args) hits the `split_first` empty arm. (Same
@@ -902,7 +1039,10 @@ fn namespace_code_at_global_scope() {
 fn namespace_inscope_zero_args() {
     let (ok, msg, _) = run("namespace inscope");
     assert!(!ok);
-    assert_eq!(msg, r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#);
+    assert_eq!(
+        msg,
+        r#"wrong # args: should be "namespace inscope namespace arg ?arg ...?""#
+    );
 }
 
 /// An empty `info` subcommand is rejected (the `canonical_info_sub` empty-input

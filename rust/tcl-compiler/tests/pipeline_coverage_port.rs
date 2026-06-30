@@ -23,7 +23,7 @@
 //!     `decode_param_constants` round-trip.
 //!   * `src/connection_scope.rs` — iRules cross-event variable scope. Multi-`when`
 //!     scripts drive `cross_event_defs` / `cross_event_imports`, the
-//!     `info exists` literal-name scan, the `unset` tracking, the RULE_INIT
+//!     `info exists` literal-name scan, the `unset` tracking, the `RULE_INIT`
 //!     non-racy carve-out, and the duplicate-event summary merge.
 //!
 //! ## C-Tcl proof split
@@ -48,13 +48,13 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
-use tcl_compiler::compilation_unit::{decode_param_constants, CompilationUnit};
+use tcl_compiler::compilation_unit::{CompilationUnit, decode_param_constants};
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::expr_parser::parse_expr;
 use tcl_compiler::ir::{Script, Statement};
 use tcl_compiler::ir_helpers::{defs_from_expr, defs_from_ir_script, expr_has_command};
 use tcl_lexer::Span;
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// Default dialect — 8.6 and 9.0 agree on every Tcl fact exercised here.
 const D: &str = "tcl8.6";
@@ -153,8 +153,7 @@ mod negative_index_classify {
         // A loop counting *down* below 0: j ∈ [-3, -1] after the body — the whole
         // interval is negative, so the `hi < 0` branch proves OOR every iteration.
         // tclsh: `lindex {a b} -1` → "" (out of range).
-        let src =
-            "proc f {} { for {set j -1} {$j > -4} {incr j -1} { set x [lindex {a b} $j] } }";
+        let src = "proc f {} { for {set j -1} {$j > -4} {incr j -1} { set x [lindex {a b} $j] } }";
         assert_eq!(count(src, "W230"), 1);
     }
 }
@@ -221,7 +220,10 @@ mod divide_by_zero_corners {
         // always-evaluated spine. tclsh: `expr {1 ? (1 ? 1/0 : 2) : 3}` → divide
         // by zero.
         assert_eq!(
-            count("proc f {} { return [expr {1 ? (1 ? 1/0 : 2) : 3}] }", "W233"),
+            count(
+                "proc f {} { return [expr {1 ? (1 ? 1/0 : 2) : 3}] }",
+                "W233"
+            ),
             1
         );
     }
@@ -248,7 +250,10 @@ mod divide_by_zero_corners {
         // The outer guard is constant-false, so the inner `1/0` arm never runs.
         // tclsh: `expr {0 ? (1 ? 1/0 : 2) : 9}` → 9 (no error).
         assert_eq!(
-            count("proc f {} { return [expr {0 ? (1 ? 1/0 : 2) : 9}] }", "W233"),
+            count(
+                "proc f {} { return [expr {0 ? (1 ? 1/0 : 2) : 9}] }",
+                "W233"
+            ),
             0
         );
     }
@@ -656,7 +661,8 @@ mod compilation_unit_build {
 
     #[test]
     fn nested_namespace_procedures() {
-        let cu = build("namespace eval ::a { namespace eval ::a::b { proc deep {} { return 1 } } }");
+        let cu =
+            build("namespace eval ::a { namespace eval ::a::b { proc deep {} { return 1 } } }");
         assert!(
             cu.function("::a::b::deep").is_some(),
             "procedures: {:?}",
@@ -680,7 +686,10 @@ mod compilation_unit_build {
         let proc_names: Vec<&str> = names[1..].to_vec();
         let mut sorted = proc_names.clone();
         sorted.sort_unstable();
-        assert_eq!(proc_names, sorted, "procedures must be qualified-name-sorted");
+        assert_eq!(
+            proc_names, sorted,
+            "procedures must be qualified-name-sorted"
+        );
         assert!(proc_names.contains(&"::alpha") && proc_names.contains(&"::zeta"));
     }
 
@@ -691,7 +700,10 @@ mod compilation_unit_build {
         let big = "A".repeat(270_000);
         let src = format!("proc big {{}} {{ set x \"{big}\" }}\nproc small {{}} {{ set y 1 }}");
         let cu = build(&src);
-        let analysable: Vec<&str> = cu.analysable_functions().map(|fu| fu.name.as_str()).collect();
+        let analysable: Vec<&str> = cu
+            .analysable_functions()
+            .map(|fu| fu.name.as_str())
+            .collect();
         assert!(analysable.contains(&"::small"));
         assert!(
             !analysable.contains(&"::big"),
@@ -705,7 +717,10 @@ mod compilation_unit_build {
         // unit; the unit must still be well-formed afterwards.
         let cu = build("proc src {} { return [exec cat /etc/passwd] }\nproc f {} { set x [src] }")
             .with_interprocedural(registry_for_dialect(D), Some(D));
-        assert!(cu.interproc.is_some(), "interproc summary must be populated");
+        assert!(
+            cu.interproc.is_some(),
+            "interproc summary must be populated"
+        );
         // Procedures survive the re-run.
         assert!(cu.function("::f").is_some());
         assert!(cu.function("::src").is_some());
@@ -724,7 +739,11 @@ mod compilation_unit_build {
         // `procedures`.
         let src = "oo::class create C {\n method m {} { return 1 }\n}\n";
         let cu = build(src);
-        assert!(cu.methods.contains_key("::C::m"), "methods: {:?}", cu.methods.keys().collect::<Vec<_>>());
+        assert!(
+            cu.methods.contains_key("::C::m"),
+            "methods: {:?}",
+            cu.methods.keys().collect::<Vec<_>>()
+        );
         assert!(!cu.procedures.contains_key("::C::m"));
     }
 
@@ -872,8 +891,15 @@ mod connection_scope_cross_event {
         ";
         let cu = build_irules(src);
         let cs = cu.connection_scope.expect("connection scope present");
-        let s = cs.summaries.get("CLIENT_ACCEPTED").expect("CLIENT_ACCEPTED summary");
-        assert!(s.defs.contains("a") && s.defs.contains("b"), "defs: {:?}", s.defs);
+        let s = cs
+            .summaries
+            .get("CLIENT_ACCEPTED")
+            .expect("CLIENT_ACCEPTED summary");
+        assert!(
+            s.defs.contains("a") && s.defs.contains("b"),
+            "defs: {:?}",
+            s.defs
+        );
     }
 
     #[test]
@@ -886,7 +912,10 @@ mod connection_scope_cross_event {
         ";
         let cu = build_irules(src);
         let cs = cu.connection_scope.expect("connection scope present");
-        let s = cs.summaries.get("CLIENT_CLOSED").expect("CLIENT_CLOSED summary");
+        let s = cs
+            .summaries
+            .get("CLIENT_CLOSED")
+            .expect("CLIENT_CLOSED summary");
         assert!(s.unsets.contains("v"), "unsets: {:?}", s.unsets);
     }
 

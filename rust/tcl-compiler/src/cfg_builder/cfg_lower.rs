@@ -14,6 +14,16 @@ use crate::ir_helpers::{condition_command_out_vars, expr_has_command};
 
 use super::CfgBuilder;
 
+/// The enclosing loop's escape targets for an opaque `switch` whose arms may
+/// `break` / `continue`. Bundled to keep [`CfgBuilder::wire_opaque_switch_jumps`]
+/// within the argument limit.
+struct SwitchEscape<'a> {
+    can_break: bool,
+    can_continue: bool,
+    break_target: &'a str,
+    continue_target: &'a str,
+}
+
 /// A foldable always-true literal condition (`1`) for a rotated loop's
 /// synthetic entry-guard branch.  Span-less offsets (`0`) keep it distinct
 /// from any real source condition; SCCP folds it so the zero-iteration
@@ -454,15 +464,13 @@ impl CfgBuilder {
         if let Some((break_target, continue_target)) = self.loop_stack.last().cloned() {
             let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps(stmt);
             if can_break || can_continue {
-                return self.wire_opaque_switch_jumps(
-                    stmt,
-                    block_name,
-                    completion,
+                let escape = SwitchEscape {
                     can_break,
                     can_continue,
-                    &break_target,
-                    &continue_target,
-                );
+                    break_target: &break_target,
+                    continue_target: &continue_target,
+                };
+                return self.wire_opaque_switch_jumps(stmt, block_name, completion, &escape);
             }
         }
         block_name.to_owned()
@@ -476,16 +484,12 @@ impl CfgBuilder {
     /// (we can't tell which arm runs), and return the block subsequent
     /// statements continue in: the fall-through continuation when one exists,
     /// else an unreachable orphan (every path jumped, so following code is dead).
-    #[allow(clippy::too_many_arguments)]
     fn wire_opaque_switch_jumps(
         &mut self,
         stmt: &Statement,
         block_name: &str,
         completion: crate::cfg_builder::Completion,
-        can_break: bool,
-        can_continue: bool,
-        break_target: &str,
-        continue_target: &str,
+        escape: &SwitchEscape<'_>,
     ) -> String {
         use crate::cfg_builder::Completion;
         let mut targets: Vec<String> = Vec::new();
@@ -495,11 +499,11 @@ impl CfgBuilder {
             continuation = Some(cont.clone());
             targets.push(cont);
         }
-        if can_break {
-            targets.push(break_target.to_owned());
+        if escape.can_break {
+            targets.push(escape.break_target.to_owned());
         }
-        if can_continue {
-            targets.push(continue_target.to_owned());
+        if escape.can_continue {
+            targets.push(escape.continue_target.to_owned());
         }
         self.branch_to_any(block_name, &targets, Some(stmt.span()));
         continuation.unwrap_or_else(|| self.new_block("switch_jump_dead"))

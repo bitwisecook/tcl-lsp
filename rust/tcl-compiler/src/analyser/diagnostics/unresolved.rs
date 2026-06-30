@@ -16,6 +16,20 @@ use rustc_hash::FxHashSet;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 
+/// The "known command name" sets consulted by the W123 unresolved-command
+/// pass: registry names enabled in the active dialect, the simple-name tails
+/// of user procs / classes / aliases / ensemble commands, inline-stub names,
+/// and the deduplicated candidate list for "did you mean…?" suggestions.
+struct W123KnownNames {
+    registry_names: HashSet<String>,
+    proc_tail_names: HashSet<String>,
+    class_tail_names: HashSet<String>,
+    alias_names: HashSet<String>,
+    ensemble_cmds: HashSet<String>,
+    stub_names: HashSet<String>,
+    candidates: Vec<String>,
+}
+
 impl Analyser {
     /// W123 — unknown / unresolved command head.
     ///
@@ -43,8 +57,6 @@ impl Analyser {
     /// **Not yet implemented:** ``has_dynamic_providers`` early-return;
     /// the CONSTSET-driven interpolation suppression for
     /// ``$``-bearing command names.
-    // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
-    #[allow(clippy::too_many_lines)]
     pub fn emit_unresolved_command_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
@@ -91,6 +103,15 @@ impl Analyser {
             }
         }
 
+        let known = self.build_w123_known_names(registry);
+        self.emit_w123_for_invocations(&known, emit_w123);
+    }
+
+    /// Build the [`W123KnownNames`] sets consulted by the unresolved-command
+    /// pass: registry names enabled in the active dialect, user proc / class /
+    /// alias / ensemble simple-name tails, inline-stub names, and the
+    /// suggestion candidate list.
+    fn build_w123_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W123KnownNames {
         // Only commands
         // *enabled in the active dialect* count as "known" for W123.  The
         // registry's `command_names()` returns every loaded spec —
@@ -152,12 +173,29 @@ impl Analyser {
         candidates.extend(alias_names.iter().cloned());
         candidates.extend(ensemble_cmds.iter().cloned());
         candidates.extend(stub_names.iter().cloned());
+        // User-declared extra commands (`tclLsp.extraCommands`) are known.
+        candidates.extend(self.extra_commands.iter().cloned());
         if let Some(info) = self.result.unknown_proc_info.as_ref() {
             for t in &info.dispatch_targets {
                 candidates.push(t.clone());
             }
         }
 
+        W123KnownNames {
+            registry_names,
+            proc_tail_names,
+            class_tail_names,
+            alias_names,
+            ensemble_cmds,
+            stub_names,
+            candidates,
+        }
+    }
+
+    /// Walk every recorded command invocation, record the unresolved ones as
+    /// call sites, and (when `emit_w123`) push a W123 with a "did you mean…?"
+    /// suggestion.  Restores `command_invocations` on exit.
+    fn emit_w123_for_invocations(&mut self, known: &W123KnownNames, emit_w123: bool) {
         // Pre-compute the deduplicated ``Vec<&str>`` over the
         // candidate set once, instead of rebuilding it per
         // unresolved invocation.  ``candidates`` may carry
@@ -167,7 +205,8 @@ impl Analyser {
         // independently — dedupe via a ``HashSet`` filter
         // while preserving stable iteration order.
         let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
-        let candidate_strs: Vec<&str> = candidates
+        let candidate_strs: Vec<&str> = known
+            .candidates
             .iter()
             .map(String::as_str)
             .filter(|candidate| seen_candidate_strs.insert(*candidate))
@@ -179,7 +218,7 @@ impl Analyser {
         let invocations = std::mem::take(&mut self.result.command_invocations);
         for inv in &invocations {
             let name = &inv.name;
-            if registry_names.contains(name) {
+            if known.registry_names.contains(name) {
                 continue;
             }
             if name.contains("::") {
@@ -188,19 +227,23 @@ impl Analyser {
             if name.starts_with('$') || name.starts_with('[') {
                 continue;
             }
-            if proc_tail_names.contains(name) {
+            if known.proc_tail_names.contains(name) {
                 continue;
             }
-            if class_tail_names.contains(name) {
+            if known.class_tail_names.contains(name) {
                 continue;
             }
-            if alias_names.contains(name) {
+            if known.alias_names.contains(name) {
                 continue;
             }
-            if ensemble_cmds.contains(name) {
+            if known.ensemble_cmds.contains(name) {
                 continue;
             }
-            if stub_names.contains(name) {
+            if known.stub_names.contains(name) {
+                continue;
+            }
+            // User-declared extra commands (`tclLsp.extraCommands`) are known.
+            if self.extra_commands.contains(name) {
                 continue;
             }
             if let Some(info) = self.result.unknown_proc_info.as_ref()
@@ -291,6 +334,19 @@ impl Analyser {
         if self.result.has_dynamic_providers {
             return;
         }
+
+        // This is the **single-file** W120: it knows only the packages
+        // required / provided *in this document*.  Workspace-level
+        // refinement — resolving a `package require X` through the
+        // project's `pkgIndex.tcl` files to learn what `X` (transitively)
+        // pulls in, e.g. a wrapper package whose body does `package
+        // require Tk` (#723) — is layered on top by the LSP server, which
+        // owns the `tcl-lsp-core::package_resolver` package database and
+        // the workspace/`auto_path` it was scanned from.  Keeping the
+        // analyser single-file mirrors C Tcl, where the set of available
+        // commands is only known after the `auto_path` is searched and the
+        // `ifneeded` scripts run — knowledge the document text alone does
+        // not carry.
 
         // Packages already available in this file: every
         // `package require` name plus every `package provide`

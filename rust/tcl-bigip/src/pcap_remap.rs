@@ -205,16 +205,25 @@ fn is_ipv4_fragment(packet: &[u8], ip_off: usize) -> bool {
     mf == 1 || frag_off != 0
 }
 
-#[allow(clippy::too_many_arguments)]
-fn l4_checksum(
-    packet: &mut [u8],
+/// IP/L4 layer descriptor for [`l4_checksum`], bundled to keep the arg count low.
+struct L4Ctx {
     ip_off: usize,
     ihl_bytes: usize,
     proto: u8,
     is_v6: bool,
     v6_l4_off: Option<usize>,
     v6_l4_len: Option<usize>,
-) -> Option<u16> {
+}
+
+fn l4_checksum(packet: &mut [u8], ctx: &L4Ctx) -> Option<u16> {
+    let &L4Ctx {
+        ip_off,
+        ihl_bytes,
+        proto,
+        is_v6,
+        v6_l4_off,
+        v6_l4_len,
+    } = ctx;
     if !matches!(proto, 6 | 17 | 1 | 58) {
         return None;
     }
@@ -490,7 +499,15 @@ fn rewrite_ip_layer(
             set_u16(packet, ip_off + 10, new_cksum);
         }
         if let Some(new_l4) = l4_checksum(
-            packet, ip_off, ihl_bytes, proto, is_v6, v6_l4_off, v6_l4_len,
+            packet,
+            &L4Ctx {
+                ip_off,
+                ihl_bytes,
+                proto,
+                is_v6,
+                v6_l4_off,
+                v6_l4_len,
+            },
         ) {
             let l4_base = if is_v6 {
                 v6_l4_off.unwrap_or(ip_off + ihl_bytes)

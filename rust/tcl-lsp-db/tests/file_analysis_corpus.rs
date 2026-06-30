@@ -73,6 +73,8 @@ fn file_analysis_incremental_matches_full_over_corpus() {
                 &db,
                 Vec::new(),
                 tcl_compiler::analyser::NonAsciiMode::Default,
+                Vec::new(),
+                None,
             );
             let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
             let inc = file_analysis_incremental(&db, file, cfg);

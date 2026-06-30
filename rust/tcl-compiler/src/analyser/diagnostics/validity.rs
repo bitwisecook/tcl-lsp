@@ -13,10 +13,23 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 
-use super::helpers::is_ident_continue;
+use super::helpers::{is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::expr_ast::{BinOp, ExprNode};
+
+/// The argument words of one command invocation, scoped to the prefix the
+/// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
+/// slices *after* that prefix (the command name for the simple path; the
+/// command name + subcommand word for the subcommand path), and `cmd_tok`
+/// anchors the diagnostic span.  Bundled to keep [`Analyser::check_simple_arity`]
+/// under the argument limit.
+struct ArityWords<'a> {
+    args: &'a [String],
+    arg_tokens: &'a [tcl_lexer::Token],
+    arg_expand: &'a [bool],
+    cmd_tok: tcl_lexer::Token,
+}
 
 impl Analyser {
     /// **W001.** Emit "Unknown subcommand" warning for commands
@@ -145,6 +158,14 @@ impl Analyser {
         if sig.allow_unknown {
             return;
         }
+        // `after` dispatches on `cancel` / `idle` / `info`, but its first word
+        // may instead be a millisecond delay (`after 200 {…}`).  An integer
+        // first word is a valid time argument, not an unknown subcommand, so
+        // it must not trip W001.  (Non-integer, non-subcommand words such as
+        // `after foo` remain genuine errors and still fire.)
+        if cmd_name == "after" && is_integer_word(first_arg) {
+            return;
+        }
         // Tk geometry managers accept `manager pathName ?args?` as a shortcut
         // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
         // A window path starts with `.`, which is not a valid subcommand-name
@@ -255,7 +276,16 @@ impl Analyser {
         match signature_for_command(registry, cmd_name, dialect) {
             Some(CommandSignature::Simple(sig)) => {
                 self.check_simple_arity(
-                    cmd_name, cmd_name, &sig, args, arg_tokens, arg_expand, cmd_tok, scope_path,
+                    cmd_name,
+                    cmd_name,
+                    &sig,
+                    &ArityWords {
+                        args,
+                        arg_tokens,
+                        arg_expand,
+                        cmd_tok,
+                    },
+                    scope_path,
                 );
             }
             Some(CommandSignature::WithSubcommands(sig)) => {
@@ -303,10 +333,12 @@ impl Analyser {
                     cmd_name,
                     &display_name,
                     sub_sig,
-                    &args[1..],
-                    arg_tokens.get(1..).unwrap_or(&[]),
-                    arg_expand.get(1..).unwrap_or(&[]),
-                    cmd_tok,
+                    &ArityWords {
+                        args: &args[1..],
+                        arg_tokens: arg_tokens.get(1..).unwrap_or(&[]),
+                        arg_expand: arg_expand.get(1..).unwrap_or(&[]),
+                        cmd_tok,
+                    },
                     scope_path,
                 );
             }
@@ -331,18 +363,20 @@ impl Analyser {
     /// for the subcommand path), so the leading-option scan and
     /// positional count operate on the same coordinate system as
     /// `sig`.
-    #[allow(clippy::too_many_arguments)]
     fn check_simple_arity(
         &mut self,
         resolution_name: &str,
         display_name: &str,
         sig: &super::dispatch::CommandSig,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_expand: &[bool],
-        cmd_tok: tcl_lexer::Token,
+        words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
+        let ArityWords {
+            args,
+            arg_tokens,
+            arg_expand,
+            cmd_tok,
+        } = *words;
         let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
 
         // Skip leading declared option flags.  Stop at the first

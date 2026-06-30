@@ -1036,9 +1036,6 @@ pub fn irules_command_specs() -> Vec<CommandSpec> {
 /// ([`crate::registry::taint_source_index`]) as a `const` table rather
 /// than at runtime. `irules_command_specs` simply clones it into the
 /// owned `Vec` the registry loader expects.
-// Flat declarative array over the ~1000 per-command modules — splitting
-// by category adds ceremony without improving readability.
-#[allow(clippy::too_many_lines)]
 pub const IRULES_SPECS: &[CommandSpec] = &[
     aaa__acct_result::spec(),
     aaa__acct_send::spec(),

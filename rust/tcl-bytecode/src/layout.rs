@@ -4,6 +4,7 @@
 //! to concrete offsets.
 
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 
 use crate::{Instruction, Op, Operand};
 
@@ -12,11 +13,11 @@ use crate::{Instruction, Op, Operand};
 /// Iterates up to `max_iters` times until no more replacements are
 /// possible (each replacement may change offsets enough to enable
 /// further replacements).
-///
-/// `implicit_hasher`: call sites always pass a default `HashMap`; threading a
-/// hasher type parameter through the layout pass is noise for no win.
-#[allow(clippy::implicit_hasher)]
-pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize>, max_iters: u32) {
+pub fn optimise_jumps<S: BuildHasher>(
+    instrs: &mut [Instruction],
+    labels: &HashMap<String, usize, S>,
+    max_iters: u32,
+) {
     let jump4_to_jump1: &[(Op, Op)] = &[
         (Op::JUMP4, Op::JUMP1),
         (Op::JUMP_TRUE4, Op::JUMP_TRUE1),
@@ -83,14 +84,9 @@ pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize
 }
 
 /// Assign final byte offsets and return label→offset mapping.
-///
-/// `implicit_hasher` is allowed because call sites always construct a
-/// default `HashMap`; plumbing a hasher parameter through the whole
-/// layout pass is noise for no measurable win.
-#[allow(clippy::implicit_hasher)]
-pub fn resolve_layout(
+pub fn resolve_layout<S: BuildHasher>(
     instrs: &mut [Instruction],
-    labels: &HashMap<String, usize>,
+    labels: &HashMap<String, usize, S>,
 ) -> HashMap<String, usize> {
     let mut offset: i32 = 0;
     for instr in instrs.iter_mut() {

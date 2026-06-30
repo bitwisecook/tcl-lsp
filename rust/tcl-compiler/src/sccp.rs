@@ -5,8 +5,6 @@
 //! using CFG reachability so unreachable branches never drag their
 //! targets down to `Overdefined`.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
@@ -211,7 +209,12 @@ pub struct SccpResult {
 /// and `None` to decline folding such ambiguous operands (the safe default
 /// for callers without dialect context).
 #[must_use]
-#[allow(clippy::too_many_lines)]
+// `implicit_hasher`: `param_constants` is an `Option<&HashMap>` that almost
+// every caller passes as `None` (only the interprocedural seed passes `Some`).
+// Generalising over `BuildHasher` makes `S` un-inferable at every `None` call
+// site — including out-of-subsystem callers (shimmer, dataflow tests) that
+// cannot be annotated from here — so the concrete default hasher is required.
+#[allow(clippy::implicit_hasher)]
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -244,7 +247,6 @@ pub fn sccp(
     // consults the whole-function (flow-insensitive) view of the
     // `var_observability` alias/trace lattice.
     let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
-    let is_externally_mutable = |name: &str| name.starts_with("::") || escaping.contains(name);
 
     let mut executable_blocks: HashSet<BlockId> = HashSet::new();
     let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
@@ -283,69 +285,25 @@ pub fn sccp(
 
                 // Phi nodes (not at entry, only when some predecessor is
                 // executable).
-                for phi in &ssa_block.phis {
-                    if bn == &cfg.entry {
-                        continue;
-                    }
-                    if incoming_exec.is_empty() {
-                        continue;
-                    }
-                    let mut phi_val = LatticeValue::Unknown;
-                    for pred in &incoming_exec {
-                        let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                        if incoming_ver == 0 {
-                            continue;
-                        }
-                        let key: ValueKey = (phi.name, incoming_ver);
-                        let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
-                        phi_val = join(&phi_val, &candidate);
-                    }
-                    if set_value(&mut values, (phi.name, phi.version), &phi_val) {
-                        changed = true;
-                    }
+                if bn != &cfg.entry {
+                    changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
                 }
 
                 // Statements.
-                for stmt_ssa in &ssa_block.statements {
-                    if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
-                        // Barriers widen all currently-tracked values — EXCEPT
-                        // version-0 (parameter) seeds, which hold the caller's
-                        // literal and are immutable across the barrier (a barrier
-                        // that mutates the var produces a fresh version), so a
-                        // callee `dict with $param` still sees the interproc
-                        // literal.
-                        let keys: Vec<ValueKey> = values.keys().copied().collect();
-                        for k in keys {
-                            if k.1 == 0 {
-                                continue;
-                            }
-                            if set_value(&mut values, k, &LatticeValue::Overdefined) {
-                                changed = true;
-                            }
-                        }
-                        continue;
-                    }
-                    for (&var, ver) in &stmt_ssa.defs {
-                        let val = if is_externally_mutable(ssa.var_name(var)) {
-                            LatticeValue::Overdefined
-                        } else {
-                            evaluate_def(stmt_ssa, &values, ssa)
-                        };
-                        if set_value(&mut values, (var, *ver), &val) {
-                            changed = true;
-                        }
-                    }
-                }
+                changed |= sccp_process_statements(&mut values, ssa_block, ssa, &escaping);
 
                 // Terminator.
-                if sccp_process_terminator(
-                    *bn,
+                let inputs = TerminatorInputs {
                     cfg,
                     ssa,
-                    &values,
+                    values: &values,
+                    octal,
+                };
+                if sccp_process_terminator(
+                    *bn,
+                    &inputs,
                     &mut executable_blocks,
                     &mut executable_edges,
-                    octal,
                     finalizing,
                 ) {
                     changed = true;
@@ -456,20 +414,107 @@ fn branch_deferrable(
     any_operand && any_unknown
 }
 
+/// A name is externally mutable (and so never a constant) when it is global /
+/// namespace-qualified or escapes via alias / trace.
+fn is_externally_mutable(name: &str, escaping: &HashSet<String>) -> bool {
+    name.starts_with("::") || escaping.contains(name)
+}
+
+/// Join phi values from edge-executable predecessors for one block. Returns
+/// `true` if any lattice value changed. Extracted from [`sccp`].
+fn sccp_process_phis(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    ssa_block: &crate::ssa::SsaBlock,
+    incoming_exec: &[BlockId],
+) -> bool {
+    if incoming_exec.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for phi in &ssa_block.phis {
+        let mut phi_val = LatticeValue::Unknown;
+        for pred in incoming_exec {
+            let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
+            if incoming_ver == 0 {
+                continue;
+            }
+            let key: ValueKey = (phi.name, incoming_ver);
+            let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
+            phi_val = join(&phi_val, &candidate);
+        }
+        if set_value(values, (phi.name, phi.version), &phi_val) {
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Evaluate each statement's defs for one block, widening across barriers.
+/// Returns `true` if any lattice value changed. Extracted from [`sccp`].
+fn sccp_process_statements(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    ssa_block: &crate::ssa::SsaBlock,
+    ssa: &SsaFunction,
+    escaping: &HashSet<String>,
+) -> bool {
+    let mut changed = false;
+    for stmt_ssa in &ssa_block.statements {
+        if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
+            // Barriers widen all currently-tracked values — EXCEPT
+            // version-0 (parameter) seeds, which hold the caller's
+            // literal and are immutable across the barrier (a barrier
+            // that mutates the var produces a fresh version), so a
+            // callee `dict with $param` still sees the interproc
+            // literal.
+            let keys: Vec<ValueKey> = values.keys().copied().collect();
+            for k in keys {
+                if k.1 == 0 {
+                    continue;
+                }
+                if set_value(values, k, &LatticeValue::Overdefined) {
+                    changed = true;
+                }
+            }
+            continue;
+        }
+        for (&var, ver) in &stmt_ssa.defs {
+            let val = if is_externally_mutable(ssa.var_name(var), escaping) {
+                LatticeValue::Overdefined
+            } else {
+                evaluate_def(stmt_ssa, &*values, ssa)
+            };
+            if set_value(values, (var, *ver), &val) {
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// Read-only inputs shared by [`sccp_process_terminator`].
+struct TerminatorInputs<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    octal: Option<bool>,
+}
+
 /// Process a block's terminator: mark the matching outgoing edges
 /// as executable.  Returns `true` when any new edge / block was
 /// added.  Extracted from [`sccp`].
-#[allow(clippy::too_many_arguments)]
 fn sccp_process_terminator(
     bn: BlockId,
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue>,
+    inputs: &TerminatorInputs<'_>,
     executable_blocks: &mut HashSet<BlockId>,
     executable_edges: &mut HashSet<(BlockId, BlockId)>,
-    octal: Option<bool>,
     finalizing: bool,
 ) -> bool {
+    let TerminatorInputs {
+        cfg,
+        ssa,
+        values,
+        octal,
+    } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
         return false;
@@ -618,9 +663,9 @@ fn collect_constant_branches(
 /// names are folded, and only in functions free of opaque barriers (an
 /// unknown command could `unset` or `upvar`-define the variable).
 #[must_use]
-pub fn existence_constant_branches(
+pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
-    params: &HashSet<&str>,
+    params: &HashSet<&str, S>,
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
@@ -719,9 +764,9 @@ pub fn existence_constant_branches(
 /// the expression evaluator, and a conservative `Overdefined` fallback
 /// for everything else.
 #[must_use]
-pub fn evaluate_def(
+pub fn evaluate_def<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
-    values: &HashMap<ValueKey, LatticeValue>,
+    values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
@@ -824,10 +869,10 @@ pub fn evaluate_def(
 /// Resolve `$var` / `${var}` to a lattice value by looking up the
 /// SSA version in `uses` and indexing `values`. Returns None when
 /// the text isn't a simple var reference.
-fn resolve_simple_var_ref(
+fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     text: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Option<LatticeValue> {
     let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
@@ -922,10 +967,10 @@ fn loop_summary_decision(
 /// Returns `Some(true)` / `Some(false)` when the condition folds to
 /// a constant under the current lattice; `None` otherwise.
 #[must_use]
-pub fn evaluate_branch(
+pub fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
-    values: &HashMap<ValueKey, LatticeValue>,
+    values: &HashMap<ValueKey, LatticeValue, S>,
     octal: Option<bool>,
     ssa: &SsaFunction,
 ) -> Option<bool> {
@@ -955,9 +1000,9 @@ pub fn evaluate_branch(
 /// and the current lattice. Only entries whose lattice value is
 /// a single [`LatticeValue::Const`] are bound; anything else
 /// leaves the variable unbound so the evaluator returns `None`.
-fn env_from_uses(
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Env {
     let mut env = Env::new();
@@ -974,9 +1019,9 @@ fn env_from_uses(
 /// `expr "…"`, where Tcl substitutes the variable's value textually before
 /// parsing: a non-numeric value becomes an invalid bareword, so leaving it
 /// unbound makes the fold bail (matching Tcl's runtime error).
-fn env_from_uses_numeric(
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+fn env_from_uses_numeric<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Env {
     let mut env = Env::new();
@@ -1042,12 +1087,16 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
 /// simple var reference or its lattice value is not a
 /// Const(String).
 #[must_use]
-pub fn resolve_foreach_list_via_lattice(
+pub fn resolve_foreach_list_via_lattice<S1, S2>(
     list_text: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
-) -> Option<Vec<String>> {
+) -> Option<Vec<String>>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
     let stripped = list_text.trim();
     let name = if let Some(name) = stripped
         .strip_prefix("${")
@@ -1087,10 +1136,10 @@ pub fn resolve_foreach_list_via_lattice(
 ///    [`try_fold_cmd_subst`].
 ///
 /// Anything else widens to `Overdefined`.
-fn fold_assign_value(
+fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> LatticeValue {
     let stripped = value.trim();
@@ -1128,10 +1177,10 @@ fn fold_assign_value(
 /// SCCP lattice value is a constant. Returns `None` for anything that isn't a
 /// compile-time constant (array refs, command substitutions, unknown vars),
 /// so the caller skips folding.
-fn resolve_const_string(
+fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     arg: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Option<String> {
     let arg = arg.trim();
@@ -1166,10 +1215,10 @@ fn resolve_const_string(
     None
 }
 
-fn try_fold_cmd_subst(
+fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
 ) -> Option<LatticeValue> {
     // `[list ...]` — reuse the codegen fold.

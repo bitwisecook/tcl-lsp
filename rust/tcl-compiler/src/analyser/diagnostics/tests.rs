@@ -375,10 +375,29 @@ fn w114_ignores_non_expr_context_and_plain_expr() {
 }
 
 #[test]
+fn w114_ignores_expr_nested_in_command_substitution() {
+    // Issue #726: the `[expr {1+1}]` is an argument to `myCmd` (a fresh command
+    // context), not a top-level command substitution in the `if` condition, so
+    // it is NOT redundant and must not be flagged.
+    assert_eq!(
+        w114_codes("proc myCmd {a} {return $a}\nif {[myCmd [expr {1 + 1}]]} {puts hi}\n"),
+        0,
+    );
+    // A top-level `[expr]` in the same condition position IS redundant.
+    assert_eq!(w114_codes("if {[expr {1 + 1}]} {puts hi}\n"), 1);
+    // And one mixed at top level alongside other operands still fires.
+    assert_eq!(w114_codes("if {$x + [expr {1 + 1}]} {puts hi}\n"), 1);
+}
+
+#[test]
 fn first_nested_expr_finds_bracketed_expr() {
     assert_eq!(first_nested_expr("{[expr {$x}]}"), Some((1, 11)));
     assert_eq!(first_nested_expr("{$x + 1}"), None);
     assert_eq!(first_nested_expr("[express]"), None); // not `expr` + ws
+    // Nested inside another command substitution → not a top-level expr.
+    assert_eq!(first_nested_expr("{[myCmd [expr {1+1}]]}"), None);
+    // Top-level expr alongside another bracket sub is still found.
+    assert_eq!(first_nested_expr("{[a] + [expr {$x}]}"), Some((7, 17)));
 }
 
 #[test]
@@ -656,6 +675,30 @@ fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
             result.diagnostics
         );
     }
+}
+
+#[test]
+fn after_integer_ms_is_not_unknown_subcommand() {
+    // Regression for #720: ``after`` dispatches on cancel/idle/info, but its
+    // first word may instead be a millisecond delay. An integer first word is
+    // a valid time argument, not an unknown subcommand, so no W001 fires.
+    for snippet in ["after 200 {puts \"Hello world!\"}", "after 0", "after 1000"] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?}: {:?}",
+            result.diagnostics
+        );
+    }
+    // A non-integer, non-subcommand first word is still a genuine error.
+    let mut a = Analyser::new();
+    let result = a.analyse("after bogus {puts hi}", "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+        "W001 expected for `after bogus`: {:?}",
+        result.diagnostics
+    );
 }
 
 #[test]
@@ -1827,6 +1870,23 @@ fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
 }
 
 #[test]
+fn w210_not_fired_for_qualified_global_read() {
+    // Regression for #725: ``$::myVar`` is an explicit global read; its
+    // definition may live in another proc, namespace, or file, so it must
+    // never be flagged read-before-set even when this unit never sets it.
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics("proc foo {} { puts $::myVar }");
+    assert!(
+        !a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
+        "W210 must not fire on a fully-qualified global read; got {:?}",
+        a.result.diagnostics,
+    );
+}
+
+#[test]
 fn opaque_switch_recovers_exhaustive_arm_defs() {
     // A glob/regexp/fall-through switch is kept opaque, but it still
     // definitely-defines a variable assigned on *every* path. An exhaustive
@@ -2780,6 +2840,31 @@ foo$suffix
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn extra_commands_suppress_w123() {
+    // `tclLsp.extraCommands` names are treated as known commands.
+    let src = "mylibsend foo bar\n";
+    // Baseline: an unknown bare command fires W123.
+    let mut base = Analyser::new();
+    let baseline = base.analyse(src, "tcl8.6");
+    assert!(
+        baseline
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123),
+        "baseline W123 expected for unknown command; got {:?}",
+        baseline.diagnostics,
+    );
+    // With the command declared extra, W123 is suppressed.
+    let mut a = Analyser::new().with_extra_commands(["mylibsend".to_owned()].into_iter().collect());
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "extraCommands should suppress W123; got {:?}",
         r.diagnostics,
     );
 }
@@ -3958,6 +4043,12 @@ fn w120_fix_inserts_after_existing_require() {
     assert_eq!(&src[..off], "package require Tcl 8.6\n");
 }
 
+// NB: the workspace-level #723 behaviour — suppressing W120 when a required
+// package (transitively) provides the gated package — is the LSP server's
+// `package_resolver`-backed post-filter, tested in `tcl-lsp-server`. The
+// analyser's single-file W120 here intentionally fires whenever the gated
+// package is not required/provided *in this document*.
+
 #[test]
 fn w120_emitted_once_per_command_name() {
     let src = "tcl::idna decode a\ntcl::idna encode b\n";
@@ -4431,4 +4522,19 @@ fn issue_703_backslash_escaped_dash_no_false_w210() {
     let src =
         "proc p {} {\n    try {set v ok} on ok x \\- on error y {\n        return $x\n    }\n}\n";
     assert_eq!(count_code(src, "W210"), 0);
+}
+
+#[test]
+fn scratch_dup_e003_per_item() {
+    let mut a = Analyser::new();
+    let r = a.analyse_per_item("set var 10 10\n", "tcl8.6");
+    let e003: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
+    eprintln!("per_item E003 count = {}", e003.len());
+    for d in &e003 {
+        eprintln!("  span={:?} msg={}", d.span, d.message);
+    }
 }

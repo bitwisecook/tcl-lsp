@@ -9,7 +9,7 @@
 //! is incomplete (`info complete` → 0), which is what `is_partial` marks.
 
 use std::collections::HashSet;
-use tcl_compiler::segmenter::{segment_commands, segment_commands_with_recovery, SegmentedCommand};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands, segment_commands_with_recovery};
 
 fn names(cmds: &[SegmentedCommand]) -> Vec<&str> {
     cmds.iter().map(SegmentedCommand::name).collect()
@@ -112,7 +112,9 @@ fn unclosed_source() -> String {
 
 #[test]
 fn recovery_finds_known_command_and_marks_partial() {
-    let known: HashSet<&str> = ["proc", "set", "puts", "return", "if"].into_iter().collect();
+    let known: HashSet<&str> = ["proc", "set", "puts", "return", "if"]
+        .into_iter()
+        .collect();
     let src = unclosed_source();
     let cmds = segment_commands_with_recovery(&src, &known);
     let partial = cmds.iter().filter(|c| c.is_partial).count();

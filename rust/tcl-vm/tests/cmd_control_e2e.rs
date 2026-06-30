@@ -459,7 +459,10 @@ fn if_runtime_condition_error() {
 #[test]
 fn while_runtime_loops() {
     // tclsh: `3`
-    assert_eq!(run("set c while; set i 0; $c {$i<3} {incr i}; set i").1, "3");
+    assert_eq!(
+        run("set c while; set i 0; $c {$i<3} {incr i}; set i").1,
+        "3"
+    );
 }
 
 /// `while` arity is exactly 2.
@@ -1015,7 +1018,10 @@ fn try_exit_skips_handlers_and_finally() {
     let (ok, _msg, out) =
         run("set t try; $t { exit 3 } on error {} { set r h } finally { puts FIN }");
     assert!(!ok, "exit should propagate as a non-ok completion");
-    assert_eq!(out, "", "neither the handler nor finally should run on exit");
+    assert_eq!(
+        out, "",
+        "neither the handler nor finally should run on exit"
+    );
 }
 
 /// `throw` whose `type` is not a well-formed list errors (the `ty.as_list()` Err

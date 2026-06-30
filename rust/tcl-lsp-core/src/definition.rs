@@ -569,6 +569,53 @@ mod tests {
         assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
     }
 
+    /// Issue #727: go-to-definition of a formal-parameter use must resolve to
+    /// the parameter *name* in the declaration, not the proc name (proc) or the
+    /// whole method/constructor body (`TclOO`). The returned range must be a
+    /// single-line, name-sized span over `arg1`.
+    #[test]
+    fn param_definition_points_at_the_name_not_the_body() {
+        let cases = [
+            // (source, usage line, usage char, expected decl line, decl start col)
+            (
+                "proc greet {arg1 arg2} {\n    puts $arg1\n}\n",
+                1,
+                11,
+                0,
+                12,
+            ),
+            (
+                "oo::class create C {\n    method m {arg1 arg2} {\n        puts $arg1\n    }\n}\n",
+                2,
+                15,
+                1,
+                14,
+            ),
+            (
+                "oo::class create C {\n    constructor {arg1 arg2} {\n        puts $arg1\n    }\n}\n",
+                2,
+                15,
+                1,
+                17,
+            ),
+        ];
+        for (src, ul, uc, dl, dc) in cases {
+            let analysis = analyse(src);
+            let locs = definition(src, ul, uc, &analysis);
+            assert_eq!(locs.len(), 1, "one def for {src:?}: {locs:?}");
+            let r = locs[0];
+            assert_eq!(r.start_line, dl, "decl line for {src:?}: {r:?}");
+            assert_eq!(r.start_character, dc, "decl col for {src:?}: {r:?}");
+            // Name-sized: same line, spans the 4-char `arg1`.
+            assert_eq!(r.end_line, dl, "decl is single-line for {src:?}: {r:?}");
+            assert_eq!(
+                r.end_character - r.start_character,
+                4,
+                "decl spans `arg1` (4 chars) for {src:?}: {r:?}",
+            );
+        }
+    }
+
     #[test]
     fn no_definition_for_unknown_word() {
         let src = "puts hello\n";

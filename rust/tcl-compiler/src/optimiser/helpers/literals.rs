@@ -93,9 +93,12 @@ pub fn render_folded_literal(value: &Literal) -> Option<String> {
         Literal::Int(i) => Some(i.to_string()),
         Literal::Float(f) => {
             if f.fract() == 0.0 && f.is_finite() && f.abs() < 1e16 {
-                #[allow(clippy::cast_possible_truncation)]
-                let as_int = *f as i64;
-                Some(as_int.to_string())
+                // Integral float within +/-1e16 is exactly representable and
+                // fits `i64`; render its exact integer decimal (no lossy
+                // `as` cast — `{:.0}` of an integral float is exact here).
+                // `+ 0.0` normalises `-0.0` to `0.0` so it renders as "0",
+                // matching the previous `as i64` cast.
+                Some(format!("{:.0}", f + 0.0))
             } else {
                 None
             }
@@ -250,6 +253,16 @@ mod tests {
         assert_eq!(
             render_folded_literal(&Literal::Float(3.0)).as_deref(),
             Some("3"),
+        );
+        // Negative integer-valued float renders as a signed integer.
+        assert_eq!(
+            render_folded_literal(&Literal::Float(-7.0)).as_deref(),
+            Some("-7"),
+        );
+        // `-0.0` normalises to "0" (not "-0"): tclsh `int(-0.0)` == 0.
+        assert_eq!(
+            render_folded_literal(&Literal::Float(-0.0)).as_deref(),
+            Some("0"),
         );
         // Fractional float refused.
         assert!(render_folded_literal(&Literal::Float(3.5)).is_none());

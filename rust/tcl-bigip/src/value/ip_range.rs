@@ -138,8 +138,8 @@ impl IPRange {
         let last = addr_int(self.last);
         let family_max: u32 = if self.is_ipv4() { 32 } else { 128 };
         for prefix in (0..=family_max).rev() {
-            #[allow(clippy::cast_possible_truncation)]
-            let p = prefix as u8;
+            // `family_max` is 32 or 128, so every prefix fits in a u8.
+            let p = u8::try_from(prefix).expect("prefix <= 128");
             let (net_lo, net_hi) = net_bounds(first, p, self.is_ipv4());
             if net_lo <= first && net_hi >= last {
                 return make_cidr(net_lo, p, self.is_ipv4());
@@ -185,9 +185,11 @@ fn parse_ip(text: &str) -> Result<IpAddr, ValueError> {
 
 fn make_cidr(network_int: u128, prefix: u8, is_v4: bool) -> Cidr {
     if is_v4 {
-        #[allow(clippy::cast_possible_truncation)]
+        // The v4 path only ever receives network ints masked to 32 bits.
         Cidr::V4 {
-            network: Ipv4Addr::from_bits(network_int as u32),
+            network: Ipv4Addr::from_bits(
+                u32::try_from(network_int).expect("v4 network masked to 32 bits"),
+            ),
             prefix,
         }
     } else {
@@ -244,8 +246,8 @@ fn summarize(first: u128, last: u128, is_v4: bool) -> Vec<Cidr> {
         let span = last_int - first_int + 1;
         let span_bits = (128 - span.leading_zeros()).saturating_sub(1);
         let nbits = count_righthand_zero_bits(first_int, ip_bits).min(span_bits);
-        #[allow(clippy::cast_possible_truncation)]
-        let prefix = (ip_bits - nbits) as u8;
+        // `ip_bits` is 32 or 128 and `nbits <= ip_bits`, so the prefix fits in a u8.
+        let prefix = u8::try_from(ip_bits - nbits).expect("prefix <= 128");
         out.push(make_cidr(first_int, prefix, is_v4));
         // ``first_int += 1 << nbits``; break when we've consumed the whole
         // address space (the ``first_int - 1 == _ALL_ONES`` all-ones guard).

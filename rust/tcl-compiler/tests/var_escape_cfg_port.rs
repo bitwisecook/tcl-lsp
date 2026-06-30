@@ -39,13 +39,13 @@ use std::collections::HashMap;
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::ssa::{build_ssa, Version};
+use tcl_compiler::ssa::{Version, build_ssa};
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
-    analyse_cfg_function, analyse_var_escape, analyse_var_escape_cu, cfg_result_to_summary,
-    EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME,
+    EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_cfg_function, analyse_var_escape,
+    analyse_var_escape_cu, cfg_result_to_summary,
 };
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -124,7 +124,11 @@ fn cu_upvar_on_one_if_branch_still_escapes() {
         "proc ::p {flag} { if {$flag} { upvar 1 caller_v v\n set v 1 } else { set w 2 } }",
     );
     let p = summary(&s, "::p");
-    assert_eq!(p.tag("v"), EscapeTag::Frame, "conditional upvar alias is Frame");
+    assert_eq!(
+        p.tag("v"),
+        EscapeTag::Frame,
+        "conditional upvar alias is Frame"
+    );
     assert!(p.is_frame("caller_v"), "named upvar source is Frame");
     assert!(
         p.upvar_source_names.contains("caller_v"),
@@ -132,9 +136,16 @@ fn cu_upvar_on_one_if_branch_still_escapes() {
         p.upvar_source_names
     );
     // The else-branch local never crosses a frame — it stays Local.
-    assert_eq!(p.tag("w"), EscapeTag::Local, "else-branch local stays Local");
+    assert_eq!(
+        p.tag("w"),
+        EscapeTag::Local,
+        "else-branch local stays Local"
+    );
     assert!(p.frame_needed);
-    assert!(!p.dynamic_barrier(), "a conditional upvar is not a whole-proc barrier");
+    assert!(
+        !p.dynamic_barrier(),
+        "a conditional upvar is not a whole-proc barrier"
+    );
     // The flow-sensitive path tags a concrete SSA version of the alias.
     assert!(
         ssa_frame(p, "v", 1),
@@ -149,11 +160,13 @@ fn cu_namespace_upvar_on_one_if_branch_escapes_alias() {
     //   namespace eval ::ns {variable counter 5}
     //   proc readit {} { namespace upvar ::ns counter c; return $c } -> 5
     // Reached conditionally, `c` must still be Frame.
-    let s = escape_cu(
-        "proc ::p {flag} { if {$flag} { namespace upvar ::ns counter c\n set c 1 } }",
-    );
+    let s =
+        escape_cu("proc ::p {flag} { if {$flag} { namespace upvar ::ns counter c\n set c 1 } }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("c"), "conditional namespace-upvar alias is Frame");
+    assert!(
+        p.is_frame("c"),
+        "conditional namespace-upvar alias is Frame"
+    );
     assert!(p.frame_needed);
     assert!(!p.dynamic_barrier());
 }
@@ -187,7 +200,11 @@ fn cu_global_inside_while_loop_escapes() {
     assert!(p.is_frame("g"), "global-linked var inside a loop is Frame");
     assert_eq!(p.tag("i"), EscapeTag::Local, "the loop counter stays Local");
     assert!(p.frame_needed);
-    assert!(ssa_frame(p, "g", 1), "g#1 tagged on the CFG path: {:?}", p.ssa_tags);
+    assert!(
+        ssa_frame(p, "g", 1),
+        "g#1 tagged on the CFG path: {:?}",
+        p.ssa_tags
+    );
 }
 
 #[test]
@@ -234,7 +251,10 @@ fn cu_variable_inside_switch_arm_escapes() {
          b { set local 2 } } }",
     );
     let p = summary(&s, "::p");
-    assert!(p.is_frame("counter"), "variable inside a switch arm is Frame");
+    assert!(
+        p.is_frame("counter"),
+        "variable inside a switch arm is Frame"
+    );
     assert_eq!(
         p.tag("local"),
         EscapeTag::Local,
@@ -304,7 +324,10 @@ fn ir_upvar_inside_catch_body_escapes() {
     // upvar. (The CU/CFG path does NOT — see the BUG note above.)
     let s = escape_ir("proc ::p {} { catch { upvar 1 cv v\n set v 1 } }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("v"), "upvar alias inside catch is Frame on the IR walk");
+    assert!(
+        p.is_frame("v"),
+        "upvar alias inside catch is Frame on the IR walk"
+    );
     assert!(p.upvar_source_names.contains("cv"));
     assert!(p.frame_needed);
 }
@@ -416,10 +439,17 @@ fn cu_dynamic_set_name_spills_all_known_locals() {
     //   f a -> "99 2" ;  f b -> "1 99"
     let s = escape_cu("proc ::p {n} { set a 1\n set b 2\n set $n 99 }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "an unresolved dynamic set-name is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "an unresolved dynamic set-name is pessimistic"
+    );
     assert!(p.is_frame("a"), "a spilled by the dynamic set-name");
     assert!(p.is_frame("b"), "b spilled by the dynamic set-name");
-    assert!(ssa_frame(p, "a", 1), "a spilled at its current version: {:?}", p.ssa_tags);
+    assert!(
+        ssa_frame(p, "a", 1),
+        "a spilled at its current version: {:?}",
+        p.ssa_tags
+    );
     assert!(ssa_frame(p, "b", 1));
 }
 
@@ -491,7 +521,10 @@ fn cu_expand_word_in_unknown_call_is_a_barrier() {
     // can't tell where a name argument landed), so the proc goes pessimistic.
     let s = escape_cu("proc ::p {args} { set x 1\n some_cmd {*}$args }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "{{*}}-expansion in an unknown call is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "{{*}}-expansion in an unknown call is pessimistic"
+    );
     assert!(p.is_frame("x"), "the barrier forces every local to Frame");
 }
 
@@ -514,7 +547,10 @@ fn cu_caller_inherits_unbounded_upvar_pessimism() {
          proc ::wrap {} { set x 5\n setit x 1 }",
     );
     let setit = summary(&s, "::setit");
-    assert!(setit.unbounded_upvar_source(), "dynamic upvar source is unbounded");
+    assert!(
+        setit.unbounded_upvar_source(),
+        "dynamic upvar source is unbounded"
+    );
     assert!(setit.dynamic_barrier());
     let wrap = summary(&s, "::wrap");
     assert!(
@@ -543,7 +579,10 @@ fn cu_named_upvar_source_flows_to_caller() {
         "the named upvar source reaches the caller on the CU path: {:?}",
         host.upvar_source_names
     );
-    assert!(host.is_frame("x"), "the caller's matching local becomes Frame");
+    assert!(
+        host.is_frame("x"),
+        "the caller's matching local becomes Frame"
+    );
 }
 
 #[test]
@@ -578,17 +617,22 @@ fn cu_interprocedural_off_keeps_raw_per_proc_result() {
 fn cu_nested_proc_gets_its_own_escape_summary() {
     // tclsh: the inner proc's upvar reaches *its* caller's frame independently
     // of the outer proc.
-    let s = escape_cu(
-        "proc ::outer {} { proc ::inner {} { upvar 1 cv v\n set v 1 }\n set x 1 }",
-    );
+    let s = escape_cu("proc ::outer {} { proc ::inner {} { upvar 1 cv v\n set v 1 }\n set x 1 }");
     // The inner proc is a separate summary and is the one that escapes.
     let inner = summary(&s, "::inner");
-    assert!(inner.is_frame("v"), "the nested proc's upvar alias is Frame");
+    assert!(
+        inner.is_frame("v"),
+        "the nested proc's upvar alias is Frame"
+    );
     assert!(inner.upvar_source_names.contains("cv"));
     assert!(inner.frame_needed);
     // The outer proc's own local `x` does not escape.
     let outer = summary(&s, "::outer");
-    assert_eq!(outer.tag("x"), EscapeTag::Local, "the outer proc's local stays Local");
+    assert_eq!(
+        outer.tag("x"),
+        EscapeTag::Local,
+        "the outer proc's local stays Local"
+    );
     assert!(!outer.frame_needed);
 }
 
@@ -605,9 +649,16 @@ fn cu_namespace_eval_proc_is_lifted_and_escapes_variable() {
          proc bump {} { variable shared\n incr shared } }",
     );
     let bump = summary(&s, "::ns::bump");
-    assert!(bump.is_frame("shared"), "the lifted proc's namespace var is Frame");
+    assert!(
+        bump.is_frame("shared"),
+        "the lifted proc's namespace var is Frame"
+    );
     assert!(bump.frame_needed);
-    assert!(ssa_frame(bump, "shared", 1), "shared#1 tagged: {:?}", bump.ssa_tags);
+    assert!(
+        ssa_frame(bump, "shared", 1),
+        "shared#1 tagged: {:?}",
+        bump.ssa_tags
+    );
 }
 
 #[test]
@@ -618,7 +669,10 @@ fn cu_apply_body_with_upvar_is_pessimistic() {
     // pessimistic (frame is needed).
     let s = escape_cu("proc ::p {} { apply {{x} { upvar 1 cv v\n set v $x }} 5 }");
     let p = summary(&s, "::p");
-    assert!(p.frame_needed, "an apply-with-upvar enclosing proc needs a frame");
+    assert!(
+        p.frame_needed,
+        "an apply-with-upvar enclosing proc needs a frame"
+    );
     assert!(p.dynamic_barrier());
 }
 
@@ -641,9 +695,15 @@ fn ir_eval_literal_body_escapes_names_it_writes() {
     let s = escape_ir("proc ::p {} { set x 1\n eval {set x 2\n set fresh 3} }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("x"), "a name the eval body writes is Frame");
-    assert!(p.is_frame("fresh"), "a fresh name introduced in the eval body is Frame");
+    assert!(
+        p.is_frame("fresh"),
+        "a fresh name introduced in the eval body is Frame"
+    );
     assert!(p.has_fallback(), "an eval is a barrier-shaped fallback");
-    assert!(!p.dynamic_barrier(), "a literal eval body is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal eval body is not pessimistic"
+    );
 }
 
 #[test]
@@ -668,8 +728,14 @@ fn ir_eval_literal_body_recurses_into_nested_if() {
     // `if` inside the literal body have their names escaped.
     let s = escape_ir("proc ::p {} { eval {if {1} {set a 1} else {set b 2}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("a"), "the true-branch name inside the eval body is Frame");
-    assert!(p.is_frame("b"), "the else-branch name inside the eval body is Frame");
+    assert!(
+        p.is_frame("a"),
+        "the true-branch name inside the eval body is Frame"
+    );
+    assert!(
+        p.is_frame("b"),
+        "the else-branch name inside the eval body is Frame"
+    );
 }
 
 #[test]
@@ -679,7 +745,10 @@ fn ir_eval_dynamic_body_is_pessimistic() {
     use tcl_compiler::var_escape::BarrierKind;
     let s = escape_ir("proc ::p {} { set q 1\n eval {puts $q} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a $-referencing eval body is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "a $-referencing eval body is pessimistic"
+    );
     assert!(
         p.barriers.iter().any(|b| b.kind == BarrierKind::Eval),
         "an Eval barrier is recorded: {:?}",
@@ -694,7 +763,10 @@ fn ir_uplevel_global_zero_literal_body_escapes_touched_names() {
     // safe global-scope eval — it needs the fallback but is not pessimistic.
     let s = escape_ir("proc ::p {} { uplevel #0 {set glob 1} }");
     let p = summary(&s, "::p");
-    assert!(!p.dynamic_barrier(), "uplevel #0 literal body is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "uplevel #0 literal body is not pessimistic"
+    );
     assert!(p.has_fallback());
 }
 
@@ -723,7 +795,8 @@ fn ir_variable_in_for_body_escapes() {
     // A `variable` declaration inside a `for` body is found by the IR walk's
     // `For` arm. tclsh: a namespace variable touched in a loop is observable
     // on the namespace var (same mechanism as the switch-arm case).
-    let s = escape_ir("proc ::p {} { for {set i 0} {$i < 2} {incr i} { variable nsv\n set nsv 1 } }");
+    let s =
+        escape_ir("proc ::p {} { for {set i 0} {$i < 2} {incr i} { variable nsv\n set nsv 1 } }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("nsv"), "variable inside a for-body is Frame");
     assert_eq!(p.tag("i"), EscapeTag::Local);
@@ -741,9 +814,7 @@ fn ir_global_in_switch_arm_escapes() {
 #[test]
 fn ir_upvar_in_try_handler_escapes() {
     // The IR walk descends a `try ... on error {...}` handler body.
-    let s = escape_ir(
-        "proc ::p {} { try { set ok 1 } on error {e} { upvar 1 cv v\n set v 1 } }",
-    );
+    let s = escape_ir("proc ::p {} { try { set ok 1 } on error {e} { upvar 1 cv v\n set v 1 } }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("v"), "upvar inside a try handler is Frame");
     assert!(p.upvar_source_names.contains("cv"));
@@ -764,10 +835,16 @@ fn cfg_result_collapses_versions_to_name_tags() {
     // raw result must (a) tag at least one version Frame and (b) collapse to a
     // single `name_tags[y] = Frame`.
     let r = cfg_result("upvar 1 cy y\nset y 1\nset y 2");
-    assert_eq!(r.name_tags.get("y"), Some(&EscapeTag::Frame), "name collapse");
+    assert_eq!(
+        r.name_tags.get("y"),
+        Some(&EscapeTag::Frame),
+        "name collapse"
+    );
     assert!(r.upvar_source_names.contains("cy"));
     assert!(
-        r.ssa_tags.iter().any(|((n, _), t)| n == "y" && *t == EscapeTag::Frame),
+        r.ssa_tags
+            .iter()
+            .any(|((n, _), t)| n == "y" && *t == EscapeTag::Frame),
         "at least one y version is tagged Frame: {:?}",
         r.ssa_tags
     );

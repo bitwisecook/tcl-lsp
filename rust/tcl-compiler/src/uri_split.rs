@@ -958,17 +958,17 @@ fn check_branch_terminator(
 /// `"f5-irules"` / `"irules"`. Also no-ops when the registry has no
 /// `*::uri` family (i.e. no `HTTP::path` / `HTTP::query` siblings).
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn find_uri_split_suggestions<S>(
+pub fn find_uri_split_suggestions<S, B>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    executable_blocks: &HashSet<BlockId>,
+    executable_blocks: &HashSet<BlockId, B>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning>
 where
     S: std::hash::BuildHasher,
+    B: std::hash::BuildHasher,
 {
     if !is_irules_dialect(dialect) {
         return Vec::new();

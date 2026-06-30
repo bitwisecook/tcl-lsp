@@ -35,8 +35,50 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
+/// A boolean switch (`-flag`) — takes no value, available in all dialects.
+const fn flag(name: &'static str) -> OptionSpec {
+    OptionSpec {
+        name,
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    }
+}
+
+/// The 11 `regexp` switches. `-start` takes an `index` value; the rest are
+/// boolean flags (`--` terminates option parsing).
+const REGEXP_OPTIONS: &[OptionSpec] = &[
+    flag("-nocase"),
+    flag("-expanded"),
+    flag("-line"),
+    flag("-linestop"),
+    flag("-lineanchor"),
+    flag("-all"),
+    flag("-inline"),
+    flag("-indices"),
+    OptionSpec {
+        name: "-start",
+        takes_value: true,
+        value_hint: "index",
+        detail: "",
+        dialects: None,
+    },
+    flag("-about"),
+    flag("--"),
+];
+
+/// Hover documentation for `regexp`.
+const REGEXP_HOVER: HoverSnippet = HoverSnippet {
+    summary: "Match a regular expression against a string.",
+    synopsis: &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
+    snippet: "Returns 1 if *exp* matches part of *string*, 0 otherwise. Matching substrings are stored in *matchVar* and *subMatchVar*.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. Avoid nested quantifiers like `(a+)+` which can cause catastrophic backtracking (ReDoS) on crafted input.",
+    source: "Tcl regexp(1)",
+    examples: "",
+    return_value: "1 if the pattern matches, 0 otherwise.",
+};
+
 /// Command spec for `regexp`.
-#[allow(clippy::too_many_lines)] // data-heavy: full hover + 11 options
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
@@ -51,93 +93,8 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        options: &[
-            OptionSpec {
-                name: "-nocase",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-expanded",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-line",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-linestop",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-lineanchor",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-all",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-inline",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-indices",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-start",
-                takes_value: true,
-                value_hint: "index",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-about",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "--",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-        ],
-        hover: Some(HoverSnippet {
-            summary: "Match a regular expression against a string.",
-            synopsis: &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
-            snippet: "Returns 1 if *exp* matches part of *string*, 0 otherwise. Matching substrings are stored in *matchVar* and *subMatchVar*.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. Avoid nested quantifiers like `(a+)+` which can cause catastrophic backtracking (ReDoS) on crafted input.",
-            source: "Tcl regexp(1)",
-            examples: "",
-            return_value: "1 if the pattern matches, 0 otherwise.",
-        }),
+        options: REGEXP_OPTIONS,
+        hover: Some(REGEXP_HOVER),
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
         pattern_type: Some(PatternType::Regex),

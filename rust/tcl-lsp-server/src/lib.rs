@@ -12,7 +12,10 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod config_ini;
+
 use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -39,6 +42,7 @@ use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
+use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -47,6 +51,7 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+use tcl_lsp_core::tcl_install as core_tcl_install;
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_index as core_workspace_index;
@@ -234,6 +239,24 @@ struct DiagSlot {
     running: bool,
 }
 
+/// The per-run analyser feature toggles for a diagnostics run, grouped so the
+/// owned [`DiagInputs`] doesn't accumulate a flat row of `bool` fields.  Each is
+/// resolved per folder in [`Backend::diag_inputs`].  (The client-capability
+/// `client_supports_pull` is kept separate — it is a transport choice, not an
+/// analyser feature.)
+#[derive(Clone, Copy)]
+struct DiagToggles {
+    /// Master diagnostics switch (`tclLsp.features.diagnostics`). When `false`
+    /// the pipeline publishes an empty set (clearing squiggles) instead of
+    /// analysing, mirroring the Python `diagnostics_enabled` gate.
+    diagnostics_enabled: bool,
+    /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
+    optimiser_enabled: bool,
+    /// Whether the opt-in XC100-301 translatability diagnostics are enabled for
+    /// this document.  Only takes effect on `f5-irules` documents.
+    xc_diagnostics: bool,
+}
+
 /// Owned inputs for a detached diagnostics run — the document-independent
 /// handles [`run_diagnostics_core`] (and the worker's per-drain [`DiagJob`]
 /// capture) need without borrowing `Backend`, so the work can run on a
@@ -244,11 +267,23 @@ struct DiagInputs {
     client: Client,
     registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
+    /// `tclLsp.extraCommands` — names treated as known by W123.
+    extra_commands: HashSet<String>,
+    /// `tclLsp.diagnostics.genericVariablePatterns` — IRULE4002 generic-name
+    /// patterns (`None` → default set, `Some` → replace). Only consulted on the
+    /// no-salsa-input uncached fallback; the memoised path reads them off the
+    /// salsa `AnalyserConfig`.
+    generic_variable_patterns: Option<Vec<String>>,
+    /// Resolved `tclLsp.style.lineLength` (W111 max line length) for this
+    /// document's folder; fed to the source-style checks. Distinct from the
+    /// formatter's `tclLsp.formatting.lineLength`.
+    style_line_length: u32,
     non_ascii_mode: NonAsciiMode,
-    optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    /// Package database for the W120 workspace-refinement post-filter (#723).
+    package_resolver: Arc<RwLock<PackageResolver>>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -268,10 +303,14 @@ struct DiagInputs {
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
-    /// Whether the opt-in XC100-301 translatability diagnostics are enabled
-    /// for this document (resolved per folder in [`Backend::diag_inputs`]).
-    /// Only takes effect on `f5-irules` documents.
-    xc_diagnostics: bool,
+    /// Per-run analyser feature toggles (diagnostics master switch, optimiser,
+    /// `xcDiagnostics`), grouped to keep this owned struct's flat `bool` count
+    /// low.
+    toggles: DiagToggles,
+    /// Snapshot of [`Backend::client_supports_pull_diagnostics`].  When `true`
+    /// the worker keeps the pull cache current and asks the client to re-pull
+    /// instead of pushing — see that field for the rationale (#721).
+    client_supports_pull: bool,
 }
 
 impl DiagInputs {
@@ -324,98 +363,165 @@ impl DiagInputs {
 /// `set_text` cancels an in-flight read at a per-item query boundary, so the
 /// diagnostics path no longer needs the uncancellable direct-`analyse` detour
 /// that previously decoupled it from salsa to avoid write-contention stalls.
-#[allow(clippy::too_many_lines)]
-async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
-    // Returns whether this version is **settled** (published, intentionally
-    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
-    // cancelled mid-flight and the caller should retry the document's latest
-    // state.
-    let DiagInputs {
-        client,
-        registry,
-        disabled,
-        non_ascii_mode,
-        optimiser_enabled,
-        opt_disabled,
-        documents,
-        workspace_index,
-        db,
-        db_project,
-        pull_diag_cache,
-        xc_diagnostics,
-        // The worker captures the job from these before calling us; unused here.
-        db_files: _,
-        db_config: _,
-        folder_db_configs: _,
-    } = inputs;
-    let DiagJob {
+/// Deliver a freshly-computed diagnostic set to the client.
+///
+/// The pull cache is always updated by the caller *before* this runs, so a
+/// `textDocument/diagnostic` request reflects the latest set either way. How
+/// the client is *notified* then depends on what it supports:
+///
+/// - **Pull-capable client** (`client_supports_pull`): don't push. Ask the
+///   client to re-pull via `workspace/diagnostic/refresh`; it then issues a
+///   `textDocument/diagnostic` and reads the cache we just primed. Pushing
+///   *and* pulling the same set makes such clients show every diagnostic
+///   twice (#721); a refresh also covers cross-file (`xcDiagnostics`) updates
+///   the client would otherwise not know to re-pull.
+/// - **Push-only client**: publish as before, the only channel it has.
+async fn deliver_diagnostics(
+    client: &Client,
+    uri: &Uri,
+    diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    version: Option<i32>,
+    client_supports_pull: bool,
+) {
+    if client_supports_pull {
+        // Best-effort: a client that advertised pull support is expected to
+        // honour the refresh, but a transport error here must not abort the
+        // worker (the primed cache still serves the next manual pull).
+        let _ = client.workspace_diagnostic_refresh().await;
+    } else {
+        client
+            .publish_diagnostics(uri.clone(), diags, version)
+            .await;
+    }
+}
+
+/// The publish-side handles + per-edit identity shared by every settled
+/// `run_diagnostics_core` path (master-off, F5, the analyser tail).  Borrows for
+/// one call so the early-return paths and the final publish all deliver through
+/// the same currency-guarded channel.
+struct DeliveryCtx<'a> {
+    client: &'a Client,
+    documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    uri: &'a Uri,
+    revision: u64,
+    version: Option<i32>,
+    client_supports_pull: bool,
+}
+
+impl DeliveryCtx<'_> {
+    /// Whether the document is still at this run's `revision` (not superseded by
+    /// a newer edit).
+    async fn is_current(&self) -> bool {
+        self.documents
+            .lock()
+            .await
+            .get(self.uri)
+            .is_some_and(|doc| doc.revision == self.revision)
+    }
+
+    /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
+    /// `revision`, with a fresh `result_id`, then notify the client (push or
+    /// refresh) — the publish half shared by every settled path.
+    async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+        self.pull_diag_cache.lock().await.insert(
+            self.uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: self.revision,
+                diagnostics: diags.clone(),
+            },
+        );
+        deliver_diagnostics(
+            self.client,
+            self.uri,
+            diags,
+            self.version,
+            self.client_supports_pull,
+        )
+        .await;
+    }
+}
+
+/// Master switch (`tclLsp.features.diagnostics = false`): publish an empty set
+/// so any existing squiggles clear, then settle — the analyser, compiler
+/// checks, and F5 validators are all skipped.  Mirrors the Python pipeline's
+/// empty-publish when `diagnostics_enabled` is off.  Always settled (`true`).
+async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
+    if delivery.is_current().await {
+        delivery.cache_and_deliver(Vec::new()).await;
+    }
+    true
+}
+
+/// F5 dialect dispatch: BIG-IP config and iApp APL presentation documents are
+/// not Tcl source — they have model-level validators (`BIGIP6001`-`6011`,
+/// `IAPP7001`-`7003`) rather than the Tcl analyser.  Compute and publish their
+/// diagnostics here, before the analyser.  Returns `Some(true)` (settled) when
+/// the document is an F5 model dialect; `None` to continue to the Tcl analyser.
+async fn run_diagnostics_f5_dialect(
+    delivery: &DeliveryCtx<'_>,
+    disabled: &HashSet<String>,
+    text: &str,
+    dialect: &str,
+    language_id: &str,
+) -> Option<bool> {
+    let diags = f5_dialect_diagnostics(
+        delivery.uri,
         text,
         dialect,
         language_id,
-        revision,
-        version,
+        disabled,
+        delivery.documents,
+    )
+    .await?;
+    // Publish only when this version is still current (the same revision
+    // guard the analyser path applies before publishing), and keep the
+    // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
+    // returns the same set.
+    if delivery.is_current().await {
+        delivery.cache_and_deliver(diags).await;
+    }
+    Some(true)
+}
+
+/// The salsa handles + per-edit identity shared by the two cancellable analysis
+/// passes ([`compute_base_analysis`], [`compute_compiler_diags`]).  Borrows for
+/// the duration of one `run_diagnostics_core` call.
+struct SalsaAnalysisCtx<'a> {
+    db: &'a Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    uri: &'a Uri,
+    file: Option<tcl_lsp_db::SourceFile>,
+    config: tcl_lsp_db::AnalyserConfig,
+    text: &'a str,
+    dialect: &'a str,
+}
+
+/// Base analysis: the cancellable salsa `file_analysis_incremental` query
+/// (slice 5), off the LSP event loop, plus the cross-file `project_diagnostics`
+/// pass when `project` is `Some`.  `ctx.file` is `None` only if the salsa input
+/// is somehow absent; then fall back to a direct (uncached) analyse.
+///
+/// `Continue((analysis, analyser_diags))` carries the result; `Break(settled)`
+/// is the early return for `run_diagnostics_core` — `Break(false)` on a genuine
+/// salsa cancellation (retry the latest state), `Break(true)` on a deterministic
+/// worker panic (settle rather than livelock the debounce loop).
+async fn compute_base_analysis(
+    ctx: &SalsaAnalysisCtx<'_>,
+    project: Option<tcl_lsp_db::Project>,
+    disabled: &HashSet<String>,
+    extra_commands: &HashSet<String>,
+    non_ascii_mode: NonAsciiMode,
+) -> ControlFlow<bool, (Arc<AnalysisResult>, Vec<tcl_compiler::analyser::Diagnostic>)> {
+    let &SalsaAnalysisCtx {
+        db,
+        uri,
         file,
         config,
-    } = job;
-
-    // F5 dialect dispatch: BIG-IP config and iApp APL
-    // presentation documents are not Tcl source — they have model-level
-    // validators (`BIGIP6001`-`6011`, `IAPP7001`-`7003`) rather than the Tcl
-    // analyser.  Compute and publish their diagnostics here, before the
-    // analyser.
-    if let Some(diags) =
-        f5_dialect_diagnostics(uri, &text, &dialect, &language_id, &disabled, &documents).await
-    {
-        // Publish only when this version is still current (the same revision
-        // guard the analyser path applies before publishing), and keep the
-        // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
-        // returns the same set.
-        let is_current = documents
-            .lock()
-            .await
-            .get(uri)
-            .is_some_and(|doc| doc.revision == revision);
-        if is_current {
-            pull_diag_cache.lock().await.insert(
-                uri.clone(),
-                PullDiagEntry {
-                    result_id: next_pull_diag_result_id(),
-                    revision,
-                    diagnostics: diags.clone(),
-                },
-            );
-            client
-                .publish_diagnostics(uri.clone(), diags, version)
-                .await;
-        }
-        return true;
-    }
-
-    let started = std::time::Instant::now();
-    let uri_str = uri.to_string();
-    let line_count = text.lines().count();
-
-    // Base analysis: the cancellable salsa `file_analysis_incremental` query
-    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
-    // detour: the per-item walk is memoised (a body edit recomputes one body +
-    // the cheap shell + tail, not the whole file), and a concurrent edit's
-    // `set_text` cancels this read at a per-item query boundary instead of
-    // stalling behind an uncancellable analyse.  On cancellation we drop the
-    // run — the superseding edit schedules a fresh one.  `file` is `None` only
-    // if the salsa input is somehow absent; then fall back to a direct analyse.
-    // Cross-file: when `xcDiagnostics` is enabled, the
-    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
-    // with W123 (unknown command) suppressed for commands defined as procs
-    // elsewhere in the workspace.  Read the current `Project` handle now (it is
-    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
-    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
-    // pass reuses the analyser read (a cache hit, not a second analysis).
-    let project = if xc_diagnostics {
-        *db_project.lock().await
-    } else {
-        None
-    };
-    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = if let Some(file) = file {
+        text,
+        dialect,
+    } = ctx;
+    if let Some(file) = file {
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
@@ -435,11 +541,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         })
         .await
         {
-            Ok(Some(pair)) => pair,
+            Ok(Some(pair)) => ControlFlow::Continue(pair),
             // A genuine salsa cancellation (a concurrent `set_text` on the
             // shared db) — don't publish; signal a retry of the document's
             // latest state.
-            Ok(None) => return false,
+            Ok(None) => ControlFlow::Break(false),
             // The worker PANICKED. A panic in the analysis pipeline is
             // deterministic for this document, so retrying it livelocks the
             // debounce loop (~20 failed analyses/second, diagnostics never
@@ -453,14 +559,16 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     uri.as_str(),
                     e.is_panic(),
                 );
-                return true;
+                ControlFlow::Break(true)
             }
         }
     } else {
-        let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        let (a_text, a_dialect, a_disabled) =
+            (text.to_owned(), dialect.to_owned(), disabled.clone());
+        let a_extra = extra_commands.clone();
         let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
-                Backend::configured_analyser(a_disabled, non_ascii_mode)
+                Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
                     .analyse(&a_text, &a_dialect)
                     .clone(),
             )
@@ -468,25 +576,44 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         .await
         .unwrap_or_default();
         let diags = analysis.diagnostics.clone();
-        (analysis, diags)
-    };
+        ControlFlow::Continue((analysis, diags))
+    }
+}
 
-    // Optimiser / compiler-checks diagnostics, also off the event loop via the
-    // cancellable salsa `compiler_check_diagnostics` query: the unit's
-    // per-procedure lattices are memoised by `function_lattice` and shared with
-    // the analyser tail above.  On cancellation, drop the run like the base
-    // analysis (the superseding edit reschedules a fresh one).  `file` is `None`
-    // only if the salsa input is absent; then build directly (uncached).
-    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = if let Some(file) = file {
+/// Optimiser / compiler-checks diagnostics, also off the event loop via the
+/// cancellable salsa `compiler_check_diagnostics` query: the unit's
+/// per-procedure lattices are memoised by `function_lattice` and shared with
+/// the analyser tail.  `file` is `None` only if the salsa input is absent; then
+/// build directly (uncached).
+///
+/// `Break(false)` on cancellation (retry), `Break(true)` on a deterministic
+/// worker panic (settle) — matching [`compute_base_analysis`].
+async fn compute_compiler_diags(
+    ctx: &SalsaAnalysisCtx<'_>,
+    registry: &Arc<CommandRegistry>,
+    generic_variable_patterns: Option<&[String]>,
+) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
+    let &SalsaAnalysisCtx {
+        db,
+        uri,
+        file,
+        config,
+        text,
+        dialect,
+    } = ctx;
+    if let Some(file) = file {
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::compiler_check_diagnostics(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+            })
+            .ok()
         })
         .await
         {
-            Ok(Some(d)) => d,
+            Ok(Some(d)) => ControlFlow::Continue(d),
             // Genuine cancellation — retry the latest state.
-            Ok(None) => return false,
+            Ok(None) => ControlFlow::Break(false),
             // Deterministic worker panic — settle instead of livelocking.
             Err(e) => {
                 eprintln!(
@@ -495,35 +622,267 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     uri.as_str(),
                     e.is_panic(),
                 );
-                return true;
+                ControlFlow::Break(true)
             }
         }
     } else {
-        let (c_text, c_dialect) = (text.clone(), dialect.clone());
-        let c_registry = Arc::clone(&registry);
-        tokio::task::spawn_blocking(move || {
-            Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
-                &c_text,
-                &c_registry,
-                &c_dialect,
-            ))
-        })
-        .await
-        .unwrap_or_else(|_| {
-            Arc::new(tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
+        let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
+        let c_registry = Arc::clone(registry);
+        let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
+        ControlFlow::Continue(
+            tokio::task::spawn_blocking(move || {
+                Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &c_text,
+                    &c_registry,
+                    &c_dialect,
+                    c_generic.as_deref(),
+                ))
             })
-        })
+            .await
+            .unwrap_or_else(|_| {
+                Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                    checks: Vec::new(),
+                    optimisations: Vec::new(),
+                })
+            }),
+        )
+    }
+}
+
+async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
+    // Returns whether this version is **settled** (published, intentionally
+    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
+    // cancelled mid-flight and the caller should retry the document's latest
+    // state.
+    let DiagInputs {
+        client,
+        registry,
+        disabled,
+        extra_commands,
+        generic_variable_patterns,
+        style_line_length,
+        non_ascii_mode,
+        opt_disabled,
+        documents,
+        workspace_index,
+        package_resolver,
+        db,
+        db_project,
+        pull_diag_cache,
+        toggles,
+        client_supports_pull,
+        // The worker captures the job from these before calling us; unused here.
+        db_files: _,
+        db_config: _,
+        folder_db_configs: _,
+    } = inputs;
+    let DiagToggles {
+        diagnostics_enabled,
+        optimiser_enabled,
+        xc_diagnostics,
+    } = toggles;
+    let DiagJob {
+        text,
+        dialect,
+        language_id,
+        revision,
+        version,
+        file,
+        config,
+    } = job;
+
+    let delivery = DeliveryCtx {
+        client: &client,
+        documents: &documents,
+        pull_diag_cache: &pull_diag_cache,
+        uri,
+        revision,
+        version,
+        client_supports_pull,
     };
 
-    let analysis_lifts = Arc::clone(&analysis);
-    let lift_text = text.clone();
-    let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
-    let result = tokio::task::spawn_blocking(move || {
+    if !diagnostics_enabled {
+        return run_diagnostics_master_off(&delivery).await;
+    }
+
+    if let Some(settled) =
+        run_diagnostics_f5_dialect(&delivery, &disabled, &text, &dialect, &language_id).await
+    {
+        return settled;
+    }
+
+    let salsa_ctx = SalsaAnalysisCtx {
+        db: &db,
+        uri,
+        file,
+        config,
+        text: &text,
+        dialect: &dialect,
+    };
+    let lift_inputs = LiftInputs {
+        text: &text,
+        dialect: &dialect,
+        disabled: &disabled,
+        opt_disabled: &opt_disabled,
+        optimiser_enabled,
+        style_line_length,
+        xc_diagnostics,
+    };
+    run_diagnostics_analyser_path(
+        &delivery,
+        &salsa_ctx,
+        &lift_inputs,
+        &AnalyserPathInputs {
+            registry: &registry,
+            extra_commands: &extra_commands,
+            generic_variable_patterns: generic_variable_patterns.as_deref(),
+            non_ascii_mode,
+            db_project: &db_project,
+            workspace_index: &workspace_index,
+            package_resolver: &package_resolver,
+            xc_diagnostics,
+        },
+    )
+    .await
+}
+
+/// The non-document-buffer handles the analyser/compiler/publish path needs.
+struct AnalyserPathInputs<'a> {
+    registry: &'a Arc<CommandRegistry>,
+    extra_commands: &'a HashSet<String>,
+    generic_variable_patterns: Option<&'a [String]>,
+    non_ascii_mode: NonAsciiMode,
+    db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    xc_diagnostics: bool,
+}
+
+/// The Tcl analyser path: base analysis + compiler checks (both cancellable,
+/// off the event loop), the W120 workspace refinement, the diagnostic lifts,
+/// and the final currency-guarded publish.  Returns `false` only on a genuine
+/// salsa cancellation (the caller retries the document's latest state).
+async fn run_diagnostics_analyser_path(
+    delivery: &DeliveryCtx<'_>,
+    salsa_ctx: &SalsaAnalysisCtx<'_>,
+    lift_inputs: &LiftInputs<'_>,
+    inputs: &AnalyserPathInputs<'_>,
+) -> bool {
+    let started = std::time::Instant::now();
+    let uri_str = delivery.uri.to_string();
+    let line_count = salsa_ctx.text.lines().count();
+
+    // Base analysis: the cancellable salsa `file_analysis_incremental` query
+    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
+    // detour: the per-item walk is memoised (a body edit recomputes one body +
+    // the cheap shell + tail, not the whole file), and a concurrent edit's
+    // `set_text` cancels this read at a per-item query boundary instead of
+    // stalling behind an uncancellable analyse.  On cancellation we drop the
+    // run — the superseding edit schedules a fresh one.
+    // Cross-file: when `xcDiagnostics` is enabled, the
+    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
+    // with W123 (unknown command) suppressed for commands defined as procs
+    // elsewhere in the workspace.  Read the current `Project` handle now (it is
+    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
+    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
+    // pass reuses the analyser read (a cache hit, not a second analysis).
+    let project = if inputs.xc_diagnostics {
+        *inputs.db_project.lock().await
+    } else {
+        None
+    };
+    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = match compute_base_analysis(
+        salsa_ctx,
+        project,
+        lift_inputs.disabled,
+        inputs.extra_commands,
+        inputs.non_ascii_mode,
+    )
+    .await
+    {
+        ControlFlow::Continue(pair) => pair,
+        ControlFlow::Break(settled) => return settled,
+    };
+
+    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> =
+        match compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns)
+            .await
+        {
+            ControlFlow::Continue(d) => d,
+            ControlFlow::Break(settled) => return settled,
+        };
+
+    let result = refine_and_lift_diagnostics(
+        &analysis,
+        analyser_diags,
+        &compiler_diags,
+        inputs.package_resolver,
+        inputs.registry,
+        lift_inputs,
+    )
+    .await;
+
+    publish_diagnostics_result(
+        delivery,
+        inputs.workspace_index,
+        &analysis,
+        result,
+        PublishTiming {
+            started,
+            uri_str: &uri_str,
+            line_count,
+        },
+    )
+    .await
+}
+
+/// The document-style toggles + buffer the diagnostic lifts read; borrows for
+/// one `run_diagnostics_core` call.
+struct LiftInputs<'a> {
+    text: &'a str,
+    dialect: &'a str,
+    disabled: &'a HashSet<String>,
+    opt_disabled: &'a HashSet<String>,
+    optimiser_enabled: bool,
+    style_line_length: u32,
+    xc_diagnostics: bool,
+}
+
+/// Refine the analyser's single-file W120 against the workspace package
+/// database (#723), then lift the analyser / compiler / source-style / XC
+/// diagnostics into LSP diagnostics on a `spawn_blocking` worker.  Returns the
+/// join result so the caller distinguishes a worker panic from a clean set.
+async fn refine_and_lift_diagnostics(
+    analysis: &Arc<AnalysisResult>,
+    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+    registry: &Arc<CommandRegistry>,
+    inputs: &LiftInputs<'_>,
+) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
+    // #723: refine the analyser's single-file W120 against the workspace
+    // package database (shared with the pull path via `refine_workspace_w120`).
+    let analyser_diags = refine_workspace_w120(
+        analyser_diags,
+        analysis.as_ref(),
+        package_resolver,
+        registry,
+    )
+    .await;
+
+    let analysis_lifts = Arc::clone(analysis);
+    let lift_text = inputs.text.to_owned();
+    let disabled = inputs.disabled.clone();
+    let opt_disabled = inputs.opt_disabled.clone();
+    let optimiser_enabled = inputs.optimiser_enabled;
+    let style_line_length = inputs.style_line_length;
+    let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
+    let compiler_diags = Arc::clone(compiler_diags);
+    tokio::task::spawn_blocking(move || {
         // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
         // on (else identical to `analysis_lifts.diagnostics`).
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
+        append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
             &compiler_diags,
@@ -535,6 +894,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             &lift_text,
             &analysis_lifts.suppressed_lines,
             &disabled,
+            style_line_length as usize,
         ));
         // Opt-in: append the XC100-301 translatability diagnostics
         // for `f5-irules` documents when `xcDiagnostics` is enabled.
@@ -547,67 +907,81 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         }
         diagnostics
     })
-    .await;
+    .await
+}
 
-    match result {
-        Ok(diags) => {
-            {
-                // Hold the `documents` lock across the currency re-check and the
-                // workspace-index update so a concurrent `did_change`/`did_close`
-                // (which also take `documents`) cannot interleave between them
-                // and leave a stale index entry — the role the former global
-                // `document_analysis_gate` served, now via the natural
-                // `documents` → `workspace_index` lock order.
-                let docs = documents.lock().await;
-                let is_current = docs.get(uri).is_some_and(|doc| doc.revision == revision);
-                if !is_current {
-                    // Superseded by a newer edit, which has marked the document
-                    // dirty — settled for this version; the worker will process
-                    // the newer state.
-                    return true;
-                }
-                let mut index = workspace_index.write().await;
-                index.remove_document(uri.as_str());
-                index.add_document(uri.as_str(), &analysis);
-            }
-            let diag_count = diags.len();
-            // Keep the pull-diagnostic cache in lock-step with the push: a
-            // `textDocument/diagnostic` request now returns this exact set with
-            // a fresh `result_id`, and an editor that already holds it gets a
-            // cheap `Unchanged` report.
-            pull_diag_cache.lock().await.insert(
-                uri.clone(),
-                PullDiagEntry {
-                    result_id: next_pull_diag_result_id(),
-                    revision,
-                    diagnostics: diags.clone(),
-                },
-            );
-            client
-                .publish_diagnostics(uri.clone(), diags, version)
-                .await;
-            let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
-            client
-                .log_message(
-                    MessageType::LOG,
-                    format!(
-                        "[timing] workspace_state.update {elapsed_ms:.0}ms \
-                         (uri={uri_str}, lines={line_count}, diags={diag_count})"
-                    ),
-                )
-                .await;
-            true
-        }
+/// Timing for the `[timing] workspace_state.update` log line.
+struct PublishTiming<'a> {
+    started: std::time::Instant,
+    uri_str: &'a str,
+    line_count: usize,
+}
+
+/// Publish the lifted diagnostics: re-check currency, refresh the workspace
+/// index, prime the pull cache, deliver to the client, and log timing.  Always
+/// settled (`true`) — a stale revision or a lift-worker panic both keep the
+/// prior diagnostics rather than retrying.
+async fn publish_diagnostics_result(
+    delivery: &DeliveryCtx<'_>,
+    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    analysis: &Arc<AnalysisResult>,
+    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError>,
+    timing: PublishTiming<'_>,
+) -> bool {
+    let diags = match result {
+        Ok(diags) => diags,
         Err(err) => {
-            client
+            delivery
+                .client
                 .log_message(
                     MessageType::WARNING,
                     format!("diagnostics worker panicked: {err}"),
                 )
                 .await;
-            true
+            return true;
         }
+    };
+    {
+        // Hold the `documents` lock across the currency re-check and the
+        // workspace-index update so a concurrent `did_change`/`did_close`
+        // (which also take `documents`) cannot interleave between them
+        // and leave a stale index entry — the role the former global
+        // `document_analysis_gate` served, now via the natural
+        // `documents` → `workspace_index` lock order.
+        let docs = delivery.documents.lock().await;
+        let is_current = docs
+            .get(delivery.uri)
+            .is_some_and(|doc| doc.revision == delivery.revision);
+        if !is_current {
+            // Superseded by a newer edit, which has marked the document
+            // dirty — settled for this version; the worker will process
+            // the newer state.
+            return true;
+        }
+        let mut index = workspace_index.write().await;
+        index.remove_document(delivery.uri.as_str());
+        index.add_document(delivery.uri.as_str(), analysis);
     }
+    let diag_count = diags.len();
+    // Keep the pull-diagnostic cache in lock-step with the push: a
+    // `textDocument/diagnostic` request now returns this exact set with
+    // a fresh `result_id`, and an editor that already holds it gets a
+    // cheap `Unchanged` report.
+    delivery.cache_and_deliver(diags).await;
+    let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
+    delivery
+        .client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] workspace_state.update {elapsed_ms:.0}ms \
+                 (uri={uri_str}, lines={line_count}, diags={diag_count})",
+                uri_str = timing.uri_str,
+                line_count = timing.line_count,
+            ),
+        )
+        .await;
+    true
 }
 
 /// LSP server backend.
@@ -684,6 +1058,38 @@ pub struct Backend {
     /// completion enumerate procs from sibling files.
     /// `Arc` so the detached diagnostics task can update it off the event loop.
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    /// Tcl package database scanned from the workspace + `TCLLIBPATH`: the
+    /// `pkgIndex.tcl` / `tclIndex` index used to resolve a `package require`
+    /// to the files it loads (and transitively what *they* require). The
+    /// diagnostics worker consults it to refine W120 — e.g. to see that a
+    /// `package require myTkPackage` (transitively) pulls in Tk (#723).
+    /// Rebuilt by `scan_workspace_folders`.
+    package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Tcl installations discovered by scanning common install locations on
+    /// disk (never by executing `tclsh`). Cached once per session. The package
+    /// database scans these (plus configured `libraryPaths`) so it can see
+    /// system-installed packages (Tk, tcllib, …), not just workspace ones.
+    discovered_tcl: Arc<std::sync::OnceLock<Vec<core_tcl_install::TclInstallation>>>,
+    /// Editor-provided `tclLsp.libraryPaths` (the `auto_path` the user picked /
+    /// typed). Merged with the config-file layers (`config.ini [global]`,
+    /// `.tcl-lsp.ini [project]`) and discovery when building the package
+    /// database. Mirrors the Python server's `libraryPaths` setting.
+    editor_library_paths: Mutex<Vec<String>>,
+    /// User-declared extra command names (`tclLsp.extraCommands`) treated as
+    /// known by the unknown-command (W123) check. Mirrors the Python
+    /// `extra_commands` setting; mirrored onto the salsa `AnalyserConfig`.
+    extra_commands: Mutex<Vec<String>>,
+    /// Generic `static::` variable-name patterns for IRULE4002
+    /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
+    /// default set; `Some(list)` replaces it (an empty list disables the check).
+    /// Mirrors the Python `generic_variable_patterns` setting; mirrored onto the
+    /// salsa `AnalyserConfig`.
+    generic_variable_patterns: Mutex<Option<Vec<String>>>,
+    /// Resolved `tclLsp.formatting` settings object (the whole section), used
+    /// to build the formatter `FormatterConfig` for the document-formatting
+    /// handlers. `Null`/absent keys keep the formatter defaults. Mirrors the
+    /// Python formatter-settings passthrough.
+    formatting_settings: Mutex<serde_json::Value>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -693,6 +1099,10 @@ pub struct Backend {
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
     optimiser_enabled: Mutex<bool>,
+    /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
+    /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
+    /// on. Mirrors the Python `shimmer_enabled` setting.
+    shimmer_enabled: Mutex<bool>,
     /// Optimisation profile (`tclLsp.optimiser.profile`) controlling which
     /// O-code categories surface as diagnostics. Default
     /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
@@ -706,6 +1116,11 @@ pub struct Backend {
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
+    /// Resolved source-style line length (`tclLsp.style.lineLength`) — the W111
+    /// "line too long" threshold, distinct from the formatter width above.
+    /// Default 120, matching the Python `line_length` style setting and
+    /// [`tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH`].
+    style_line_length: Mutex<u32>,
     /// Incremental query database (salsa 0.26) — the single memoised store of
     /// derived facts that is replacing the hand-maintained caches above.  The
     /// `db` handle is the write side (set inputs); reads clone it onto a
@@ -729,6 +1144,17 @@ pub struct Backend {
     /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
     /// `did_close`.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    /// Whether the client advertised pull-diagnostic support
+    /// (`textDocument.diagnostic` client capability) at `initialize`.
+    ///
+    /// When `true` the worker stops *pushing* diagnostics via
+    /// `publish_diagnostics` and instead keeps the pull cache current and asks
+    /// the client to re-pull (`workspace/diagnostic/refresh`).  A client that
+    /// supports both — `vscode-languageclient` does — otherwise routes the
+    /// server's push **and** its own pull into two separate diagnostic
+    /// collections and renders every diagnostic twice (#721).  Editors that
+    /// only understand push (no pull capability) keep receiving the push.
+    client_supports_pull_diagnostics: std::sync::atomic::AtomicBool,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -769,6 +1195,7 @@ impl FeatureToggles {
         "selectionRange",
         "documentHighlight",
         "codeLens",
+        "workspaceFileOps",
         "implementation",
         "typeDefinition",
         "declaration",
@@ -853,6 +1280,26 @@ impl FeatureToggles {
     }
 }
 
+/// A folder's `tclLsp.diagnostics.genericVariablePatterns` override (IRULE4002).
+///
+/// A 3-state resolution, distinguishing "the folder said nothing" from "the
+/// folder explicitly asked for the built-in defaults" from "the folder supplied
+/// its own list".  Replaces a former `Option<Option<Vec<String>>>`, preserving
+/// its exact semantics.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum FolderGenericPatterns {
+    /// The folder did not set the value (former outer `None`): inherit the
+    /// process-global `genericVariablePatterns`.
+    #[default]
+    Inherit,
+    /// The folder set the value to the built-in default patterns (former
+    /// `Some(None)`): the analyser uses its built-in generic-name set.
+    BuiltinDefaults,
+    /// The folder supplied its own list (former `Some(Some(list))`): replace the
+    /// built-in patterns with this list.
+    Replace(Vec<String>),
+}
+
 /// One workspace folder's editor configuration overrides.
 ///
 /// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
@@ -869,6 +1316,23 @@ struct FolderConfig {
     optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
     optimiser_code_overrides: HashMap<String, bool>,
     line_length: Option<u32>,
+    /// `tclLsp.formatting` section override for the formatter; `None` inherits
+    /// the global formatting settings.
+    formatting: Option<serde_json::Value>,
+    /// `tclLsp.style.lineLength` override (W111 threshold); `None` inherits the
+    /// global value.
+    style_line_length: Option<u32>,
+    /// `tclLsp.shimmer.enabled` override; `None` inherits the global value.
+    shimmer_enabled: Option<bool>,
+    /// `tclLsp.extraCommands` override; `None` inherits the global set.
+    extra_commands: Option<Vec<String>>,
+    /// `tclLsp.diagnostics.genericVariablePatterns` override. See
+    /// [`FolderGenericPatterns`]: `Inherit` falls back to the global value,
+    /// `BuiltinDefaults` selects the analyser's built-in set, and `Replace`
+    /// supplies the folder's own list.
+    generic_variable_patterns: FolderGenericPatterns,
+    /// `tclLsp.libraryPaths` override; `None` inherits the global set.
+    library_paths: Option<Vec<String>>,
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -906,7 +1370,13 @@ impl Backend {
     #[must_use]
     pub fn new(client: Client) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let db_config = tcl_lsp_db::AnalyserConfig::new(
+            &db,
+            default_disabled_set().into_iter().collect(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+        );
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -917,18 +1387,27 @@ impl Backend {
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(HashSet::new()),
+            disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
+            editor_library_paths: Mutex::new(Vec::new()),
+            extra_commands: Mutex::new(Vec::new()),
+            generic_variable_patterns: Mutex::new(None),
+            formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -1094,10 +1573,14 @@ impl Backend {
             .collect();
         disabled.sort();
         let mode = *self.non_ascii_mode.lock().await;
+        let extra = self.extra_commands.lock().await.clone();
+        let generic = self.generic_variable_patterns.lock().await.clone();
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
+        config.set_extra_commands(&mut *db).to(extra);
+        config.set_generic_variable_patterns(&mut *db).to(generic);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -1200,15 +1683,16 @@ impl Backend {
         // fresh with the same per-folder config the cached path would have used,
         // so the on-demand result still honours folder-scoped suppression.
         let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode) = {
+        let (disabled, na_mode, extra) = {
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).iter().cloned().collect(),
                 config.non_ascii_mode(&*db),
+                config.extra_commands(&*db).iter().cloned().collect(),
             )
         };
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled, na_mode);
+            let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
             Arc::new(analyser.analyse(&text, &dialect).clone())
         })
         .await
@@ -1535,6 +2019,20 @@ impl Backend {
         }
     }
 
+    /// Re-run diagnostics for every open document — used after a config change
+    /// (any `tclLsp.*` knob may have shifted, not just the cross-file ones).
+    async fn reschedule_all_open_documents(&self) {
+        let snapshot: Vec<(Uri, String)> = {
+            let docs = self.documents.lock().await;
+            docs.iter()
+                .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
+                .collect()
+        };
+        for (uri, dialect) in snapshot {
+            self.schedule_diagnostics(uri, dialect).await;
+        }
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -1745,6 +2243,50 @@ impl Backend {
             t
         };
         self.resolve_target_locations(targets).await
+    }
+
+    /// Resolve the call-site reference [`Location`]s for the symbol whose name
+    /// starts at `position` — the locations the code-lens peek
+    /// (`tcl-lsp.showReferences`) opens.  Mirrors the [`Self::references`]
+    /// handler (local hits + cross-document call sites, deduped) but never
+    /// includes the declaration, matching the lens's "N references" call-site
+    /// count.
+    async fn reference_locations_at(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        analysis: &AnalysisResult,
+        position: Position,
+    ) -> Vec<Location> {
+        let owned_text = text.to_owned();
+        let owned_dialect = dialect.to_owned();
+        let analysis_for_worker = analysis.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_references::references(
+                &owned_text,
+                &owned_dialect,
+                position.line,
+                position.character,
+                &analysis_for_worker,
+                false,
+            )
+        })
+        .await
+        .unwrap_or_default();
+        let mut locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        let cross = self
+            .cross_document_references(uri, text, analysis, position, false)
+            .await;
+        locations.extend(cross);
+        dedup_locations(&mut locations);
+        locations
     }
 
     /// Add cross-document rename edits for the proc / class at
@@ -2267,13 +2809,15 @@ impl Backend {
             return Ok(None);
         };
         let (disabled, na_mode) = self.analyser_config().await;
+        let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let dialect = doc.dialect.clone();
         let mut source = doc.text.clone();
         let value = tokio::task::spawn_blocking(move || {
             const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..4 {
-                let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
+                let mut analyser =
+                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
                 let analysis = analyser.analyse(&source, &dialect).clone();
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
@@ -2406,12 +2950,50 @@ impl Backend {
         let Some(cfg) = values.into_iter().next() else {
             return;
         };
-        self.apply_global_config(&cfg).await;
+        // Accept nested / flat-dotted / unwrapped payload shapes (some clients,
+        // e.g. JetBrains, don't send the nested `tclLsp` object).
+        let cfg = normalize_config_payload(&cfg);
+        // Full config parity with the Python server: layer the editor's pulled
+        // `tclLsp` settings between the user `config.ini` `[global]` (lowest)
+        // and the project `.tcl-lsp.ini` `[project]` (highest). Same precedence
+        // and merge rules as `server/settings.py`.
+        let global_ini = read_ini_layer(
+            core_tcl_install::user_config_path(),
+            config_ini::Layer::Global,
+        );
+        let folders = self.workspace_folder_urls().await;
+        // Session-level apply uses the primary root's project file (the whole
+        // story for a single-root workspace; per-folder applies below refine
+        // the analyser knobs for multi-root).
+        let primary_project = read_ini_layer(
+            folders
+                .first()
+                .and_then(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+                .map(|root| core_tcl_install::project_config_path(&root)),
+            config_ini::Layer::Project,
+        );
+        // Collapse the retired `features.inlayHints` alias to `inlayTypeHints`
+        // *within each layer* before merging. The alias must be resolved
+        // per-layer because `merge_settings` is layer-agnostic: a lower layer
+        // (the global `config.ini`) carrying an explicit `inlayTypeHints` would
+        // otherwise win over a higher layer (the editor) that only sets the
+        // `inlayHints` alias, inverting precedence (#728).
+        let mut global_ini = global_ini;
+        let mut cfg = cfg;
+        let mut primary_project = primary_project;
+        collapse_inlay_alias(&mut global_ini);
+        collapse_inlay_alias(&mut cfg);
+        collapse_inlay_alias(&mut primary_project);
+        let merged = config_ini::merge_settings(
+            &config_ini::merge_settings(&global_ini, &cfg),
+            &primary_project,
+        );
+        self.apply_global_config(&merged).await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
-        // per scope, so pull each folder's resolved config and store it for
+        // per scope, so pull each folder's resolved config, layer it between the
+        // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
-        let folders = self.workspace_folder_urls().await;
         if !folders.is_empty() {
             let items: Vec<ConfigurationItem> = folders
                 .iter()
@@ -2424,7 +3006,20 @@ impl Backend {
                 let parsed: Vec<(Uri, FolderConfig)> = folders
                     .into_iter()
                     .zip(values)
-                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .filter_map(|(folder, editor_cfg)| {
+                        let project = read_ini_layer(
+                            folder
+                                .to_file_path()
+                                .map(std::borrow::Cow::into_owned)
+                                .map(|root| core_tcl_install::project_config_path(&root)),
+                            config_ini::Layer::Project,
+                        );
+                        let merged = config_ini::merge_settings(
+                            &config_ini::merge_settings(&global_ini, &editor_cfg),
+                            &project,
+                        );
+                        parse_folder_config(&merged).map(|fc| (folder, fc))
+                    })
                     .collect();
                 self.apply_folder_configs(parsed).await;
             }
@@ -2441,6 +3036,7 @@ impl Backend {
     /// Split out of [`Self::pull_and_apply_config`] (which fetches `cfg` from
     /// the client and then handles per-folder configs) so the apply logic is
     /// unit-testable without a live editor client.
+    // A long but flat sequence of independent `tclLsp.*` knob applications.
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
         if !cfg.is_object() {
             return;
@@ -2448,6 +3044,48 @@ impl Backend {
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
+        self.apply_global_library_paths(cfg).await;
+        self.apply_global_toggles(cfg).await;
+        self.apply_global_formatting(cfg).await;
+        self.apply_global_analyser_knobs(cfg).await;
+        // Mirror the applied analyser knobs onto the salsa config input so the
+        // query graph recomputes against the latest settings.
+        self.sync_db_config().await;
+    }
+
+    /// `tclLsp.libraryPaths` — the editor layer of the package database's
+    /// `auto_path` (the user's picked installation / hand-entered paths).
+    /// Mirrors the Python server's `libraryPaths` setting. A change rebuilds
+    /// the database so the new paths take effect immediately.
+    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) {
+        if let Some(paths) = cfg
+            .get("libraryPaths")
+            .and_then(serde_json::Value::as_array)
+        {
+            let libs: Vec<String> = paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect();
+            let changed = {
+                let mut guard = self.editor_library_paths.lock().await;
+                if *guard == libs {
+                    false
+                } else {
+                    *guard = libs;
+                    true
+                }
+            };
+            if changed {
+                self.scan_workspace_folders().await;
+            }
+        }
+    }
+
+    /// The boolean / enum feature switches: `xcDiagnostics`, optimiser
+    /// enable/profile/per-code overrides, and the `shimmer` master switch.
+    async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -2468,6 +3106,14 @@ impl Backend {
             .and_then(serde_json::Value::as_bool)
         {
             *self.optimiser_enabled.lock().await = flag;
+        }
+        // `tclLsp.shimmer.enabled` — master switch for the Shimmer family.
+        if let Some(flag) = cfg
+            .get("shimmer")
+            .and_then(|s| s.get("enabled"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            *self.shimmer_enabled.lock().await = flag;
         }
         if let Some(profile) = cfg
             .get("optimiser")
@@ -2491,16 +3137,71 @@ impl Backend {
                 }
             }
         }
+    }
+
+    /// The formatter / style-width / default-dialect knobs.
+    async fn apply_global_formatting(&self, cfg: &serde_json::Value) {
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
+            .or_else(|| cfg.get("formatting").and_then(|f| f.get("maxLineLength")))
             .or_else(|| cfg.get("lineLength"))
             .and_then(serde_json::Value::as_u64)
         {
             *self.line_length.lock().await = u32::try_from(len).unwrap_or(80);
         }
+        // The whole `tclLsp.formatting` section drives the formatter config
+        // (indent size/style, brace/line-length, blank-line policy, …).
+        if let Some(formatting) = cfg.get("formatting") {
+            *self.formatting_settings.lock().await = formatting.clone();
+        }
+        // `tclLsp.style.lineLength` — the W111 threshold (distinct from the
+        // formatter width above). A positive value replaces the default 120.
+        if let Some(len) = cfg
+            .get("style")
+            .and_then(|s| s.get("lineLength"))
+            .and_then(serde_json::Value::as_u64)
+            .filter(|&len| len > 0)
+        {
+            *self.style_line_length.lock().await = u32::try_from(len).unwrap_or(120);
+        }
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
+        }
+    }
+
+    /// The analyser inputs: `extraCommands`, `genericVariablePatterns`, the
+    /// non-ASCII (W108) mode, and the disabled-diagnostics set.
+    async fn apply_global_analyser_knobs(&self, cfg: &serde_json::Value) {
+        // `tclLsp.extraCommands` — names treated as known commands (no W123).
+        if let Some(cmds) = cfg
+            .get("extraCommands")
+            .and_then(serde_json::Value::as_array)
+        {
+            let extra: Vec<String> = cmds
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect();
+            *self.extra_commands.lock().await = extra;
+        }
+        // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
+        // IRULE4002 generic-name set (an explicit empty list disables the
+        // check; an absent key leaves the default). Mirrors the Python
+        // `genericVariablePatterns` handling in `server/settings.py`.
+        if let Some(patterns) = cfg
+            .get("diagnostics")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|d| d.get("genericVariablePatterns"))
+            .and_then(serde_json::Value::as_array)
+        {
+            let patterns: Vec<String> = patterns
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            *self.generic_variable_patterns.lock().await = Some(patterns);
         }
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
@@ -2512,9 +3213,6 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
-        // Mirror the applied analyser knobs onto the salsa config input so the
-        // query graph recomputes against the latest settings.
-        self.sync_db_config().await;
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
@@ -2534,11 +3232,21 @@ impl Backend {
                 .collect();
             global_disabled.sort();
             let global_mode = *self.non_ascii_mode.lock().await;
+            // Per-folder `extraCommands` / `genericVariablePatterns` override the
+            // process-global value when set; otherwise the folder inherits it.
+            let global_extra = self.extra_commands.lock().await.clone();
+            let global_generic = self.generic_variable_patterns.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
-                if fc.disabled_diagnostics.is_none() && fc.non_ascii_mode.is_none() {
+                // A handle is only needed when the folder overrides one of the
+                // analyser-config inputs.
+                if fc.disabled_diagnostics.is_none()
+                    && fc.non_ascii_mode.is_none()
+                    && fc.extra_commands.is_none()
+                    && matches!(fc.generic_variable_patterns, FolderGenericPatterns::Inherit)
+                {
                     continue;
                 }
                 let mut disabled: Vec<String> = match &fc.disabled_diagnostics {
@@ -2547,12 +3255,24 @@ impl Backend {
                 };
                 disabled.sort();
                 let mode = fc.non_ascii_mode.unwrap_or(global_mode);
+                let extra = fc
+                    .extra_commands
+                    .clone()
+                    .unwrap_or_else(|| global_extra.clone());
+                let generic = match &fc.generic_variable_patterns {
+                    FolderGenericPatterns::Inherit => global_generic.clone(),
+                    FolderGenericPatterns::BuiltinDefaults => None,
+                    FolderGenericPatterns::Replace(list) => Some(list.clone()),
+                };
                 if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
+                    handle.set_extra_commands(&mut *db).to(extra);
+                    handle.set_generic_variable_patterns(&mut *db).to(generic);
                     next.push((folder.clone(), *handle));
                 } else {
-                    let handle = tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode);
+                    let handle =
+                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic);
                     next.push((folder.clone(), handle));
                 }
             }
@@ -2683,6 +3403,46 @@ impl Backend {
         serde_json::json!({ "packages": serde_json::Value::Array(vec![]) })
     }
 
+    /// `tcl-lsp.listTclInstallations` — report the Tcl installations discovered
+    /// on disk (for the editor's "select a Tcl installation" picker) plus the
+    /// `auto_path` currently feeding the package database. The editor writes
+    /// the chosen `tcl_library` (or a custom path) back to
+    /// `tclLsp.libraryPaths`.
+    async fn list_tcl_installations_command(&self) -> serde_json::Value {
+        let discovered = Arc::clone(&self.discovered_tcl);
+        let editor_paths = self.editor_library_paths.lock().await.clone();
+        let roots: Vec<PathBuf> = self
+            .workspace_folder_urls()
+            .await
+            .iter()
+            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect();
+        tokio::task::spawn_blocking(move || {
+            let installs = discovered.get_or_init(|| {
+                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+            });
+            let active = effective_auto_path(&roots, &editor_paths, installs);
+            serde_json::json!({
+                "installations": installs
+                    .iter()
+                    .map(|i| serde_json::json!({
+                        "version": i.version,
+                        "tclLibrary": i.tcl_library.to_string_lossy(),
+                        "autoPath": i.auto_path.iter()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .collect::<Vec<_>>(),
+                    }))
+                    .collect::<Vec<_>>(),
+                "activeAutoPath": active.iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                "editorLibraryPaths": editor_paths,
+            })
+        })
+        .await
+        .unwrap_or(serde_json::Value::Null)
+    }
+
     /// Handle `tcl-lsp.suggestPackagesForSymbol`.  Echoes the symbol and an
     /// (empty, pending the package resolver) suggestion list.
     fn suggest_packages_for_symbol_command(args: &[serde_json::Value]) -> serde_json::Value {
@@ -2776,10 +3536,22 @@ impl Backend {
             let configs = self.folder_configs.lock().await;
             longest_folder_match(&configs, uri).cloned()
         };
-        let disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
+        let mut disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
             Some(d) => d,
             None => self.disabled_diagnostics.lock().await.clone(),
         };
+        // `tclLsp.shimmer.enabled = false` suppresses the whole Shimmer family
+        // (S100–S110); fold those codes into the effective disabled set so the
+        // compiler-check lift drops them (the analyser never emits them).
+        let shimmer_enabled = match folder.as_ref().and_then(|f| f.shimmer_enabled) {
+            Some(b) => b,
+            None => *self.shimmer_enabled.lock().await,
+        };
+        if !shimmer_enabled {
+            for code in ["S100", "S101", "S102", "S110"] {
+                disabled.insert(code.to_owned());
+            }
+        }
         let non_ascii_mode = match folder.as_ref().and_then(|f| f.non_ascii_mode) {
             Some(m) => m,
             None => *self.non_ascii_mode.lock().await,
@@ -2830,10 +3602,74 @@ impl Backend {
         }
     }
 
+    /// The resolved `tclLsp.extraCommands` for `uri`: a folder override wins,
+    /// else the process-global set.
+    async fn resolved_extra_commands(&self, uri: &Uri) -> Vec<String> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.extra_commands.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.extra_commands.lock().await.clone(),
+        }
+    }
+
+    /// The resolved `tclLsp.diagnostics.genericVariablePatterns` for `uri`: a
+    /// folder override wins, else the process-global value.
+    async fn resolved_generic_variable_patterns(&self, uri: &Uri) -> Option<Vec<String>> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).map(|f| f.generic_variable_patterns.clone())
+        };
+        match folder {
+            // `Replace`/`BuiltinDefaults` are the folder's own override; only
+            // `Inherit` (or no matching folder) falls back to the global value.
+            Some(FolderGenericPatterns::Replace(list)) => Some(list),
+            Some(FolderGenericPatterns::BuiltinDefaults) => None,
+            Some(FolderGenericPatterns::Inherit) | None => {
+                self.generic_variable_patterns.lock().await.clone()
+            }
+        }
+    }
+
+    /// The resolved `tclLsp.formatting` settings object for `uri`: a folder
+    /// override wins, else the process-global section (or `Null`).
+    async fn resolved_formatting(&self, uri: &Uri) -> serde_json::Value {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.formatting.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.formatting_settings.lock().await.clone(),
+        }
+    }
+
+    /// The resolved W111 source-style line length (`tclLsp.style.lineLength`)
+    /// for `uri`: a folder override wins, else the process-global value.
+    /// Distinct from [`Self::resolved_line_length`] (the formatter width).
+    async fn resolved_style_line_length(&self, uri: &Uri) -> u32 {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.style_line_length)
+        };
+        match folder {
+            Some(len) => len,
+            None => *self.style_line_length.lock().await,
+        }
+    }
+
     /// Build an `Analyser` carrying the configured disabled-diagnostics
     /// set and W108 mode.
-    fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
-        Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(mode)
+    fn configured_analyser(
+        disabled: HashSet<String>,
+        mode: NonAsciiMode,
+        extra_commands: HashSet<String>,
+    ) -> Analyser {
+        Analyser::with_disabled_diagnostics(disabled)
+            .with_non_ascii_mode(mode)
+            .with_extra_commands(extra_commands)
     }
 
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
@@ -2866,22 +3702,40 @@ impl Backend {
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
+        let extra_commands = self
+            .resolved_extra_commands(uri)
+            .await
+            .into_iter()
+            .collect();
+        let generic_variable_patterns = self.resolved_generic_variable_patterns(uri).await;
+        let style_line_length = self.resolved_style_line_length(uri).await;
+        let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         DiagInputs {
             client: self.client.clone(),
             registry,
             disabled,
+            extra_commands,
+            generic_variable_patterns,
+            style_line_length,
             non_ascii_mode,
-            optimiser_enabled,
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
+            package_resolver: Arc::clone(&self.package_resolver),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project: Arc::clone(&self.db_project),
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
-            xc_diagnostics,
+            toggles: DiagToggles {
+                diagnostics_enabled,
+                optimiser_enabled,
+                xc_diagnostics,
+            },
+            client_supports_pull: self
+                .client_supports_pull_diagnostics
+                .load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 
@@ -2904,6 +3758,12 @@ impl Backend {
         dialect: String,
         language_id: &str,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        // Master switch off (`tclLsp.features.diagnostics = false`): the pull
+        // path returns an empty report, matching the push path's empty-publish
+        // and the Python `diagnostics_enabled` gate.
+        if !self.feature_enabled("diagnostics", uri).await {
+            return Vec::new();
+        }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // F5 dialect dispatch: BIG-IP config / iApp APL
@@ -2951,8 +3811,17 @@ impl Backend {
         let compiler_diags = {
             let (c_text, c_dialect, c_registry) =
                 (text.clone(), dialect.clone(), Arc::clone(&registry));
+            // URI-scoped (folder/project override aware), matching the push
+            // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
+            // honours a folder's `diagnostics.genericVariablePatterns` override.
+            let c_generic = self.resolved_generic_variable_patterns(uri).await;
             tokio::task::spawn_blocking(move || {
-                tcl_lsp_db::compiler_check_diagnostics_uncached(&c_text, &c_registry, &c_dialect)
+                tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &c_text,
+                    &c_registry,
+                    &c_dialect,
+                    c_generic.as_deref(),
+                )
             })
             .await
             .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
@@ -2976,8 +3845,21 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        // #723: refine the single-file W120 against the workspace package
+        // database, mirroring the push path's `refine_and_lift_diagnostics`, so a
+        // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
+        // transitively provides the flagged package suppresses the false W120.
+        let analyser_diags = refine_workspace_w120(
+            analyser_diags,
+            analysis.as_ref(),
+            &self.package_resolver,
+            &registry,
+        )
+        .await;
+        let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
+            append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
                 &text,
                 &compiler_diags,
@@ -2989,6 +3871,7 @@ impl Backend {
                 &text,
                 &analysis.suppressed_lines,
                 &disabled,
+                style_line_length as usize,
             ));
             // Opt-in: XC100-301 translatability diagnostics for
             // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
@@ -3177,17 +4060,56 @@ impl Backend {
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
-        if roots.is_empty() {
-            return;
-        }
+        // Note: we deliberately do NOT early-return when `roots.is_empty()`.
+        // The package resolver must still be (re)built from the editor library
+        // paths + `TCLLIBPATH` + discovered installations so single-file /
+        // no-folder sessions resolve `package require` against the user's picked
+        // "Select Tcl Installation" library paths.  Only the per-folder
+        // workspace *indexing* (collecting/analysing on-disk files) is skipped
+        // below when there are no roots.
         // Snapshot the dialect-resolution inputs and the set of
         // open documents so the blocking worker can run without
         // touching any async mutex.
         let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
         let folder_dialects = self.folder_dialects.lock().await.clone();
         let default_dialect = self.default_dialect.lock().await.clone();
+        // Inputs for the package-database `auto_path`: the editor's
+        // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
+        // disk in the worker) and the discovered-installation cache.  Per-folder
+        // `libraryPaths` overrides are unioned in so a folder's configured
+        // package directories contribute to the shared package database (the
+        // database is additive — more known packages only refines W120).
+        let mut editor_library_paths = self.editor_library_paths.lock().await.clone();
+        {
+            let folder_configs = self.folder_configs.lock().await;
+            for (_, fc) in folder_configs.iter() {
+                if let Some(paths) = &fc.library_paths {
+                    for p in paths {
+                        if !editor_library_paths.contains(p) {
+                            editor_library_paths.push(p.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let discovered_cell = Arc::clone(&self.discovered_tcl);
 
+        let resolver_roots = roots.clone();
         let analysed = tokio::task::spawn_blocking(move || {
+            // Build the package database: the workspace trees plus the resolved
+            // `auto_path` (editor + config-file `libraryPaths`, discovered Tcl
+            // installations, and `TCLLIBPATH`). Discovery is cached for the
+            // session.
+            let discovered = discovered_cell.get_or_init(|| {
+                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+            });
+            let resolver = build_package_resolver(
+                &resolver_roots,
+                &editor_library_paths,
+                discovered,
+                WORKSPACE_SCAN_DIR_CAP,
+            );
+
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
@@ -3211,11 +4133,15 @@ impl Backend {
                 let analysis = analyser.analyse(&text, &dialect).clone();
                 out.push((uri, text, dialect, analysis));
             }
-            out
+            (resolver, out)
         })
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
+        let (resolver, analysed) = analysed;
 
+        // Publish the freshly-scanned package database for the diagnostics
+        // worker, then merge the per-file analysis into the index + salsa db.
+        *self.package_resolver.write().await = resolver;
         self.merge_workspace_scan_results(&analysed).await;
     }
 
@@ -3261,6 +4187,14 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
+        // Record whether the client will *pull* diagnostics
+        // (`textDocument/diagnostic`).  If it does, the worker stops pushing
+        // them — pushing and pulling the same set makes such clients render
+        // every diagnostic twice (#721).
+        self.client_supports_pull_diagnostics.store(
+            client_supports_pull_diagnostics(&params),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let position_encoding = negotiate_position_encoding(&params);
         if client_lacks_utf16_support(&params) {
             // The client advertised position encodings without UTF-16. The
@@ -3535,7 +4469,15 @@ impl LanguageServer for Backend {
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
         let mut domain_changed = false;
+        let mut config_changed = false;
         for change in params.changes {
+            // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
+            // layered config — same live-reload the Python server gives these
+            // files.
+            if is_config_file(&change.uri) {
+                config_changed = true;
+                continue;
+            }
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
             // `reindex_index_from_disk` re-checks this under the lock as well.
@@ -3565,6 +4507,14 @@ impl LanguageServer for Backend {
         // enabled so their cross-file pass re-runs against the new domain.
         if domain_changed {
             self.reschedule_xc_open_documents().await;
+        }
+        // Re-read config.ini / .tcl-lsp.ini and re-apply with full precedence,
+        // then rebuild the package database (libraryPaths may have changed) and
+        // re-run open documents so the new settings take effect immediately.
+        if config_changed {
+            self.pull_and_apply_config().await;
+            self.scan_workspace_folders().await;
+            self.reschedule_all_open_documents().await;
         }
     }
 
@@ -3783,6 +4733,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDeclarationParams,
     ) -> jsonrpc::Result<Option<GotoDeclarationResponse>> {
+        if !self
+            .feature_enabled(
+                "declaration",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // For a `$var`, go-to-declaration resolves the
         // visible `global` / `variable` / `upvar` scoping statement that
         // declares the name; for any other symbol it defers to plain
@@ -3842,6 +4801,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoTypeDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoTypeDefinitionResponse>> {
+        if !self
+            .feature_enabled(
+                "typeDefinition",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // Type-definition jumps to the class that types
         // the symbol (a `$obj` instance's class, or a method's owning
         // class) — not the plain definition site it used to alias.
@@ -3884,6 +4852,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoImplementationParams,
     ) -> jsonrpc::Result<Option<GotoImplementationResponse>> {
+        if !self
+            .feature_enabled(
+                "implementation",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // Go-to-implementation is the TclOO subclass /
         // method-override fan-out, not the plain definition site it used
         // to alias.  Resolve in-document via `core_implementation`.
@@ -4013,6 +4990,15 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentHighlightParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+        if !self
+            .feature_enabled(
+                "documentHighlight",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -4065,6 +5051,15 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyPrepareParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyItem>>> {
+        if !self
+            .feature_enabled(
+                "callHierarchy",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -4109,6 +5104,12 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyIncomingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
+        if !self
+            .feature_enabled("callHierarchy", &params.item.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let item = params.item;
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
@@ -4181,6 +5182,12 @@ impl LanguageServer for Backend {
         &self,
         params: CallHierarchyOutgoingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
+        if !self
+            .feature_enabled("callHierarchy", &params.item.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let item = params.item;
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
@@ -4311,6 +5318,15 @@ impl LanguageServer for Backend {
         &self,
         params: LinkedEditingRangeParams,
     ) -> jsonrpc::Result<Option<LinkedEditingRanges>> {
+        if !self
+            .feature_enabled(
+                "linkedEditingRange",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
+            return Ok(None);
+        }
         // `S-linked-editing-range-rich`: when the cursor sits
         // on a proc declaration's name or inside the proc's
         // body, return every range that should be edited in
@@ -4510,6 +5526,12 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensParams,
     ) -> jsonrpc::Result<Option<SemanticTokensResult>> {
+        if !self
+            .feature_enabled("semanticTokens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -4546,6 +5568,12 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensDeltaParams,
     ) -> jsonrpc::Result<Option<SemanticTokensFullDeltaResult>> {
+        if !self
+            .feature_enabled("semanticTokens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -4618,6 +5646,16 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceSymbolParams,
     ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
+        // Workspace-wide query (no document URI): gate on the process-global
+        // toggle, as the Python server does with `workspace_symbols_enabled`.
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceSymbols")
+        {
+            return Ok(None);
+        }
         // Walk every cached document and collect matching
         // symbols.  This iterates the document
         // store on the LSP loop (acquiring the mutex briefly).
@@ -4833,6 +5871,12 @@ impl LanguageServer for Backend {
     }
 
     async fn code_lens(&self, params: CodeLensParams) -> jsonrpc::Result<Option<Vec<CodeLens>>> {
+        if !self
+            .feature_enabled("codeLens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -4926,12 +5970,15 @@ impl LanguageServer for Backend {
         // rather than a private copy.
         let workspace_index = Arc::clone(&self.workspace_index);
         let uri_str = uri.to_string();
+        let analysis_for_count = Arc::clone(&analysis);
+        let count_text = doc.text.clone();
+        let count_dialect = doc.dialect.clone();
         let lenses = tokio::task::spawn_blocking(move || {
             let workspace = workspace_index.blocking_read();
             core_code_lens::code_lenses(
-                &doc.text,
-                &doc.dialect,
-                Some(&analysis),
+                &count_text,
+                &count_dialect,
+                Some(&analysis_for_count),
                 Some(&*workspace),
                 &uri_str,
             )
@@ -4944,20 +5991,40 @@ impl LanguageServer for Backend {
         })?;
         let mut lens = lens;
         if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
+            // Resolve the actual reference locations so clicking the lens opens
+            // a peek (the lens title alone is informational — a bare title with
+            // no command is rendered but inert, the "reference is not active"
+            // regression of #724).  The locations feed the client-side
+            // `tcl-lsp.showReferences` wrapper, which converts them and
+            // delegates to the built-in `editor.action.showReferences`.
+            let position = lens.range.start;
+            let locations = self
+                .reference_locations_at(&uri, &doc.text, &doc.dialect, &analysis, position)
+                .await;
+            let arguments = vec![
+                serde_json::Value::String(uri.to_string()),
+                serde_json::to_value(position).unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(&locations).unwrap_or(serde_json::Value::Null),
+            ];
             lens.command = Some(tower_lsp_server::ls_types::Command {
                 title: matching.command_title,
-                command: matching.command,
-                arguments: None,
+                command: "tcl-lsp.showReferences".to_owned(),
+                arguments: Some(arguments),
             });
         }
         Ok(lens)
     }
 
-    #[allow(clippy::too_many_lines)]
     async fn code_action(
         &self,
         params: CodeActionParams,
     ) -> jsonrpc::Result<Option<Vec<CodeActionOrCommand>>> {
+        if !self
+            .feature_enabled("codeActions", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -4984,29 +6051,12 @@ impl LanguageServer for Backend {
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
         // didn't re-emit them.
-        let context_diags: Vec<core_code_actions::ContextDiagnostic> = params
-            .context
-            .diagnostics
-            .iter()
-            .filter_map(|d| {
-                let code = match d.code.as_ref()? {
-                    tower_lsp_server::ls_types::NumberOrString::String(s) => s.clone(),
-                    tower_lsp_server::ls_types::NumberOrString::Number(n) => n.to_string(),
-                };
-                Some(core_code_actions::ContextDiagnostic {
-                    code,
-                    message: d.message.clone(),
-                    range: CoreLspRange {
-                        start_line: d.range.start.line,
-                        start_character: d.range.start.character,
-                        end_line: d.range.end.line,
-                        end_character: d.range.end.character,
-                    },
-                })
-            })
-            .collect();
+        let context_diags = lift_context_diagnostics(&params.context.diagnostics);
         let dialect = doc.dialect.clone();
         let uri_str = uri.as_str().to_string();
+        // IRULE4002 generic-name patterns for the iRules-only compiler-checks
+        // code-action lowering below (uncached, off the salsa path).
+        let generic_patterns = self.generic_variable_patterns.lock().await.clone();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -5036,8 +6086,12 @@ impl LanguageServer for Backend {
                 {
                     actions.push(a);
                 }
-                let checks =
-                    tcl_lsp_db::compiler_check_diagnostics_uncached(&doc.text, &registry, &dialect);
+                let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &doc.text,
+                    &registry,
+                    &dialect,
+                    generic_patterns.as_deref(),
+                );
                 actions.extend(core_code_actions::check_diagnostic_actions(
                     &doc.text,
                     range,
@@ -5056,69 +6110,7 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
-        // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
-        // action is kept when its kind prefix-matches a requested kind in
-        // either direction (`refactor` matches `refactor.extract` and vice
-        // versa).
-        let only: Option<Vec<String>> = params.context.only.as_ref().map(|kinds| {
-            kinds
-                .iter()
-                .map(|k| k.as_str().to_owned())
-                .collect::<Vec<_>>()
-        });
-        let lifted: Vec<CodeActionOrCommand> = actions
-            .into_iter()
-            .filter(|a| {
-                only.as_ref().is_none_or(|wanted| {
-                    let k = a.kind.as_str();
-                    // Keep an action when its kind exactly matches a requested
-                    // kind, or is a *subtype* of one (`refactor.extract`
-                    // satisfies a `refactor` request). A requested
-                    // `refactor.extract` must NOT pull in a generic `refactor`
-                    // action — the requested kind is not a parent of the
-                    // action's kind in that direction (LSP CodeActionKind
-                    // matching is prefix-on-the-action-side only).
-                    wanted
-                        .iter()
-                        .any(|w| k == w || k.starts_with(&format!("{w}.")))
-                })
-            })
-            .map(|a| {
-                let mut changes = std::collections::HashMap::new();
-                let lifted_edits: Vec<TextEdit> = a
-                    .edits
-                    .into_iter()
-                    .map(|e| TextEdit {
-                        range: lift_lsp_range(e.range),
-                        new_text: e.new_text,
-                    })
-                    .collect();
-                changes.insert(uri.clone(), lifted_edits);
-                let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
-                // Surface the rendered tmsh data-group definition (the
-                // extract-to-datagroup refactor) as the action's `data`
-                // payload.
-                let data = a
-                    .data_group_definition
-                    .map(|def| serde_json::json!({ "data_group_definition": def }));
-                CodeActionOrCommand::CodeAction(CodeAction {
-                    title: a.title,
-                    kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
-                        a.kind.as_str(),
-                    )),
-                    diagnostics: None,
-                    edit: Some(WorkspaceEdit {
-                        changes: Some(changes),
-                        document_changes: None,
-                        change_annotations: None,
-                    }),
-                    command,
-                    is_preferred: None,
-                    disabled: None,
-                    data,
-                })
-            })
-            .collect();
+        let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
         if lifted.is_empty() {
             return Ok(None);
         }
@@ -5151,6 +6143,7 @@ impl LanguageServer for Backend {
                 Self::suggest_packages_for_symbol_command(&params.arguments),
             )),
             "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
+            "tcl-lsp.listTclInstallations" => Ok(Some(self.list_tcl_installations_command().await)),
             _ => Ok(None),
         }
     }
@@ -5163,9 +6156,11 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // An explicit client `FormattingOptions.tabSize` / `insertSpaces`
-        // overrides the server's indentation by LSP contract.
-        let config = formatter_config_from_options(&params.options);
+        // Build from the resolved `tclLsp.formatting` settings; the client's
+        // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
+        // LSP contract.
+        let formatting = self.resolved_formatting(&params.text_document.uri).await;
+        let config = formatter_config_from(&formatting, &params.options);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
@@ -5206,16 +6201,13 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let formatting = self.resolved_formatting(&params.text_document.uri).await;
+        let config = formatter_config_from(&formatting, &params.options);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::range_formatting(
-                &text,
-                range,
-                &core_formatting::FormatterConfig::default(),
-                &registry,
-            )
+            core_formatting::range_formatting(&text, range, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -5286,6 +6278,12 @@ impl LanguageServer for Backend {
         &self,
         params: TextDocumentPositionParams,
     ) -> jsonrpc::Result<Option<PrepareRenameResponse>> {
+        if !self
+            .feature_enabled("rename", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -5313,6 +6311,12 @@ impl LanguageServer for Backend {
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        if !self
+            .feature_enabled("rename", &params.text_document_position.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let new_name = params.new_name;
@@ -5407,6 +6411,16 @@ impl LanguageServer for Backend {
         &self,
         params: RenameFilesParams,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        // Workspace-wide file operation: gate on the process-global toggle,
+        // as the Python server does with `workspace_file_ops_enabled`.
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceFileOps")
+        {
+            return Ok(None);
+        }
         // Collect the byte-span edits for every rename in the batch.
         let roots: Vec<String> = self
             .workspace_folder_urls()
@@ -5465,6 +6479,16 @@ impl LanguageServer for Backend {
     /// entries and re-index the renamed file from its new path so
     /// cross-document features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
+        // Same workspace-file-ops gate as `will_rename_files` (mirrors the
+        // Python `workspace_file_ops_enabled` handler guard).
+        if !self
+            .feature_toggles
+            .lock()
+            .await
+            .is_enabled("workspaceFileOps")
+        {
+            return;
+        }
         for f in &params.files {
             if let Ok(old_url) = Uri::from_str(&f.old_uri) {
                 self.workspace_index
@@ -5683,6 +6707,106 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
     }
 }
 
+/// Lift the editor's request-context diagnostics (the ones it currently shows)
+/// into the core's [`core_code_actions::ContextDiagnostic`] shape so
+/// context-driven quick-fixes can act on them even when the analyser did not
+/// re-emit them.
+fn lift_context_diagnostics(
+    diagnostics: &[tower_lsp_server::ls_types::Diagnostic],
+) -> Vec<core_code_actions::ContextDiagnostic> {
+    diagnostics
+        .iter()
+        .filter_map(|d| {
+            let code = match d.code.as_ref()? {
+                tower_lsp_server::ls_types::NumberOrString::String(s) => s.clone(),
+                tower_lsp_server::ls_types::NumberOrString::Number(n) => n.to_string(),
+            };
+            Some(core_code_actions::ContextDiagnostic {
+                code,
+                message: d.message.clone(),
+                range: CoreLspRange {
+                    start_line: d.range.start.line,
+                    start_character: d.range.start.character,
+                    end_line: d.range.end.line,
+                    end_character: d.range.end.character,
+                },
+            })
+        })
+        .collect()
+}
+
+/// Filter the computed actions by the client's `only` kinds and lift each into
+/// an LSP [`CodeActionOrCommand`] for document `uri`.
+fn lift_code_actions(
+    actions: Vec<core_code_actions::CodeAction>,
+    uri: &Uri,
+    only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
+) -> Vec<CodeActionOrCommand> {
+    // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
+    // action is kept when its kind prefix-matches a requested kind in
+    // either direction (`refactor` matches `refactor.extract` and vice
+    // versa).
+    let only: Option<Vec<String>> = only.map(|kinds| {
+        kinds
+            .iter()
+            .map(|k| k.as_str().to_owned())
+            .collect::<Vec<_>>()
+    });
+    actions
+        .into_iter()
+        .filter(|a| {
+            only.as_ref().is_none_or(|wanted| {
+                let k = a.kind.as_str();
+                // Keep an action when its kind exactly matches a requested
+                // kind, or is a *subtype* of one (`refactor.extract`
+                // satisfies a `refactor` request). A requested
+                // `refactor.extract` must NOT pull in a generic `refactor`
+                // action — the requested kind is not a parent of the
+                // action's kind in that direction (LSP CodeActionKind
+                // matching is prefix-on-the-action-side only).
+                wanted
+                    .iter()
+                    .any(|w| k == w || k.starts_with(&format!("{w}.")))
+            })
+        })
+        .map(|a| {
+            let mut changes = std::collections::HashMap::new();
+            let lifted_edits: Vec<TextEdit> = a
+                .edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect();
+            changes.insert(uri.clone(), lifted_edits);
+            let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
+            // Surface the rendered tmsh data-group definition (the
+            // extract-to-datagroup refactor) as the action's `data`
+            // payload.
+            let data = a
+                .data_group_definition
+                .map(|def| serde_json::json!({ "data_group_definition": def }));
+            CodeActionOrCommand::CodeAction(CodeAction {
+                title: a.title,
+                kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
+                    a.kind.as_str(),
+                )),
+                diagnostics: None,
+                edit: Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    document_changes: None,
+                    change_annotations: None,
+                }),
+                command,
+                is_preferred: None,
+                disabled: None,
+                data,
+            })
+        })
+        .collect()
+}
+
 /// Lift a [`tcl_bigip::Range`] (UTF-16 columns, **inclusive** end — the last
 /// covered code unit) to an LSP [`Range`] (exclusive end). BIG-IP object
 /// stanzas and reference spans are single-line tokens, so the exclusive end
@@ -5785,25 +6909,214 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
     }
 }
 
-/// Build a [`core_formatting::FormatterConfig`] from an LSP request's
-/// [`FormattingOptions`].  An explicit client `tabSize` / `insertSpaces`
-/// overrides the server's default indentation by LSP contract; every
-/// other formatter knob keeps its default.
-fn formatter_config_from_options(
+/// Build a [`core_formatting::FormatterConfig`] from the resolved
+/// `tclLsp.formatting` settings object, then apply the request's LSP
+/// `FormattingOptions` (`tabSize` / `insertSpaces`) as the indentation override
+/// (the editor's per-request indentation wins, per the LSP contract). Mirrors
+/// Python's `_normalise_formatter_settings` field mapping so editor- and
+/// config-file-set formatter options actually take effect.
+/// Apply the `tclLsp.formatting.*` JSON object (camelCase keys) onto `cfg`,
+/// coercing each key per its type. Split out of [`formatter_config_from`] so
+/// the per-key mapping stays a single flat block without tripping the
+/// `too_many_lines` lint on the caller.
+fn apply_formatting_object(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    cfg: &mut core_formatting::FormatterConfig,
+) {
+    use core_formatting::IndentStyle;
+    let as_usize = |v: &serde_json::Value| v.as_u64().map(|n| usize::try_from(n).unwrap_or(0));
+    if let Some(n) = obj.get("indentSize").and_then(as_usize) {
+        cfg.indent_size = n.max(1);
+    }
+    if let Some(s) = obj.get("indentStyle").and_then(serde_json::Value::as_str) {
+        cfg.indent_style = match s.to_ascii_lowercase().as_str() {
+            "tabs" | "tab" => IndentStyle::Tabs,
+            _ => IndentStyle::Spaces,
+        };
+    }
+    if let Some(n) = obj.get("continuationIndent").and_then(as_usize) {
+        cfg.continuation_indent = n;
+    }
+    // `braceStyle` is accepted but only K&R is implemented, so it stays the
+    // default (a no-op rather than an error).
+    if let Some(b) = obj
+        .get("spaceBetweenBraces")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.space_between_braces = b;
+    }
+    // Both `maxLineLength` and the legacy `lineLength` map to the hard limit.
+    if let Some(n) = obj
+        .get("maxLineLength")
+        .or_else(|| obj.get("lineLength"))
+        .and_then(as_usize)
+    {
+        cfg.max_line_length = n.max(1);
+    }
+    if let Some(n) = obj.get("goalLineLength").and_then(as_usize) {
+        cfg.goal_line_length = n.max(1);
+    }
+    if let Some(b) = obj
+        .get("spaceAfterCommentHash")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.space_after_comment_hash = b;
+    }
+    if let Some(b) = obj
+        .get("trimTrailingWhitespace")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.trim_trailing_whitespace = b;
+    }
+    if let Some(b) = obj
+        .get("enforceBracedVariables")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.enforce_braced_variables = b;
+    }
+    if let Some(s) = obj.get("lineEnding").and_then(serde_json::Value::as_str) {
+        cfg.line_ending = match s.to_ascii_lowercase().as_str() {
+            "crlf" => "\r\n".to_owned(),
+            "cr" => "\r".to_owned(),
+            "lf" => "\n".to_owned(),
+            other => other.to_owned(),
+        };
+    }
+    if let Some(b) = obj
+        .get("ensureFinalNewline")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.ensure_final_newline = b;
+    }
+    if let Some(b) = obj
+        .get("expandSingleLineBodies")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.expand_single_line_bodies = b;
+    }
+    if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
+        cfg.blank_lines_between_procs = n;
+    }
+    if let Some(n) = obj.get("blankLinesBetweenBlocks").and_then(as_usize) {
+        cfg.blank_lines_between_blocks = n;
+    }
+    if let Some(n) = obj.get("maxConsecutiveBlankLines").and_then(as_usize) {
+        cfg.max_consecutive_blank_lines = n;
+    }
+}
+
+fn formatter_config_from(
+    formatting: &serde_json::Value,
     options: &tower_lsp_server::ls_types::FormattingOptions,
 ) -> core_formatting::FormatterConfig {
-    let indent_size = usize::try_from(options.tab_size).unwrap_or(4).max(1);
-    let indent_style = if options.insert_spaces {
-        core_formatting::IndentStyle::Spaces
-    } else {
-        core_formatting::IndentStyle::Tabs
-    };
-    core_formatting::FormatterConfig {
-        indent_size,
-        indent_style,
-        continuation_indent: indent_size,
-        ..core_formatting::FormatterConfig::default()
+    use core_formatting::IndentStyle;
+    let mut cfg = core_formatting::FormatterConfig::default();
+    if let Some(obj) = formatting.as_object() {
+        apply_formatting_object(obj, &mut cfg);
     }
+    // LSP `FormattingOptions` indentation overrides the config (per contract);
+    // a real editor always sends `tabSize >= 1`, so a degenerate 0 falls back to
+    // the configured indent size rather than clamping it away.
+    if options.tab_size >= 1 {
+        cfg.indent_size = usize::try_from(options.tab_size).unwrap_or(cfg.indent_size);
+        cfg.indent_style = if options.insert_spaces {
+            IndentStyle::Spaces
+        } else {
+            IndentStyle::Tabs
+        };
+    }
+    cfg.indent_size = cfg.indent_size.max(1);
+    cfg
+}
+
+/// Whether `uri` names a tcl-lsp config file (`.tcl-lsp.ini` project config or
+/// the user `config.ini`) — a watched-file change to one triggers a config
+/// re-apply.
+fn is_config_file(uri: &Uri) -> bool {
+    let s = uri.as_str();
+    s.ends_with("/.tcl-lsp.ini")
+        || s.ends_with("\\.tcl-lsp.ini")
+        || s.ends_with("/tcl-lsp/config.ini")
+        || s.ends_with("\\tcl-lsp\\config.ini")
+}
+
+/// Read an INI config file at `path` (if present/readable) into the
+/// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
+/// files yield an empty object, so a layer simply contributes nothing.
+fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json::Value {
+    path.and_then(|p| std::fs::read_to_string(p).ok())
+        .map_or_else(
+            || serde_json::json!({}),
+            |content| config_ini::settings_from_ini(&content, layer),
+        )
+}
+
+/// Normalise a pulled configuration payload into the unwrapped `tclLsp`-content
+/// object [`Backend::apply_global_config`] expects, accepting the three shapes
+/// Python's `_extract_tcl_lsp_settings` handles:
+///
+/// 1. **Nested** — `{ "tclLsp": { "optimiser": { "O109": false } } }`.
+/// 2. **Flat dotted** — `{ "tclLsp.optimiser.O109": false }` (or without the
+///    `tclLsp.` prefix), folded into nested objects.
+/// 3. **Unwrapped** — `{ "optimiser": { "O109": false }, "dialect": "tcl8.6" }`
+///    (e.g. a `JetBrains` pull-model response with no `tclLsp` prefix).
+///
+/// The shapes compose: a nested `tclLsp` object is merged with any flat dotted
+/// keys and any unwrapped top-level sections.
+/// Collapse the retired `features.inlayHints` boolean into `inlayTypeHints`
+/// in-place, for one settings layer. `inlayHints` is the backward-compatible
+/// alias for `inlayTypeHints`; an explicit `inlayTypeHints` in the *same* layer
+/// still wins (`or_insert` keeps it). Done per-layer before [`merge_settings`]
+/// so cross-layer precedence stays correct — see the call site in
+/// [`Backend::pull_and_apply_config`].
+fn collapse_inlay_alias(settings: &mut serde_json::Value) {
+    if let Some(features) = settings
+        .get_mut("features")
+        .and_then(serde_json::Value::as_object_mut)
+        && let Some(alias) = features.remove("inlayHints")
+    {
+        features.entry("inlayTypeHints").or_insert(alias);
+    }
+}
+
+fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
+    use serde_json::{Map, Value};
+    let mut out = Map::new();
+    let Some(obj) = payload.as_object() else {
+        return Value::Object(out);
+    };
+    // 1. A nested `tclLsp` object contributes its keys directly.
+    if let Some(nested) = obj.get("tclLsp").and_then(Value::as_object) {
+        for (k, v) in nested {
+            out.insert(k.clone(), v.clone());
+        }
+    }
+    for (key, value) in obj {
+        if key == "tclLsp" {
+            continue;
+        }
+        // 2. Flat dotted keys (`tclLsp.a.b` or `a.b`) → nested objects.
+        let path = key.strip_prefix("tclLsp.").unwrap_or(key);
+        if path.contains('.') {
+            let segments: Vec<&str> = path.split('.').collect();
+            let mut cursor = &mut out;
+            for seg in &segments[..segments.len() - 1] {
+                cursor = cursor
+                    .entry((*seg).to_owned())
+                    .or_insert_with(|| Value::Object(Map::new()))
+                    .as_object_mut()
+                    .expect("nested config segment is an object");
+            }
+            cursor.insert(segments[segments.len() - 1].to_owned(), value.clone());
+        } else if key.starts_with("tclLsp.") {
+            // `tclLsp.dialect` with no further nesting → top-level key.
+            out.insert(path.to_owned(), value.clone());
+        } else {
+            // 3. Unwrapped top-level section/scalar.
+            out.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(out)
 }
 
 /// Resolve the user config-file path for `tcl-lsp.exportConfig`:
@@ -5855,26 +7168,44 @@ fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode>
 /// `None` when no diagnostics config is present (so the caller leaves the
 /// current set untouched).
 fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet<String>> {
+    // Every resolution starts from the opt-in default-off set; a `false` value
+    // disables a code and a `true` value *enables* one (removing it from the
+    // set, so a default-off code like W242 can be turned on). Mirrors
+    // `server/settings.py`'s `new_disabled = set(default_disabled())` + per-code
+    // add/discard.
     if let Some(map) = settings
         .get("tclLsp")
         .and_then(|v| v.get("diagnostics"))
         .and_then(serde_json::Value::as_object)
     {
-        return Some(
-            map.iter()
-                .filter(|(_, v)| v.as_bool() == Some(false))
-                .map(|(k, _)| k.clone())
-                .collect(),
-        );
+        let mut set = default_disabled_set();
+        for (code, v) in map {
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.clone());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
+            }
+        }
+        return Some(set);
     }
     let obj = settings.as_object()?;
-    let mut set = HashSet::new();
+    let mut set = default_disabled_set();
     let mut found = false;
     for (k, v) in obj {
         if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
             found = true;
-            if v.as_bool() == Some(false) {
-                set.insert(code.to_owned());
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.to_owned());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
             }
         }
     }
@@ -5886,6 +7217,57 @@ fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet
 /// resolver inherits the process-global value.  Returns `None` when `cfg` is
 /// not a JSON object (the folder pull returned nothing usable).  Mirrors the
 /// key handling of [`Backend::pull_and_apply_config`]'s global pull.
+/// Parse the `optimiser` section of a folder config: enable flag, profile, and
+/// the per-`O-code` boolean overrides.
+fn parse_folder_optimiser(obj: &serde_json::Map<String, serde_json::Value>, fc: &mut FolderConfig) {
+    let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) else {
+        return;
+    };
+    if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
+        fc.optimiser_enabled = Some(b);
+    }
+    if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
+        fc.optimiser_profile =
+            Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
+    }
+    for (key, val) in opt {
+        if key == "enabled" || key == "profile" {
+            continue;
+        }
+        if let Some(b) = val.as_bool() {
+            fc.optimiser_code_overrides.insert(key.clone(), b);
+        }
+    }
+}
+
+/// Parse the formatter line length, the whole `formatting` section, and the
+/// `style.lineLength` (W111) threshold of a folder config.
+fn parse_folder_formatting(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    fc: &mut FolderConfig,
+) {
+    if let Some(len) = obj
+        .get("formatting")
+        .and_then(|f| f.get("lineLength"))
+        .or_else(|| obj.get("formatting").and_then(|f| f.get("maxLineLength")))
+        .or_else(|| obj.get("lineLength"))
+        .and_then(serde_json::Value::as_u64)
+    {
+        fc.line_length = Some(u32::try_from(len).unwrap_or(80));
+    }
+    if let Some(formatting) = obj.get("formatting") {
+        fc.formatting = Some(formatting.clone());
+    }
+    if let Some(len) = obj
+        .get("style")
+        .and_then(|s| s.get("lineLength"))
+        .and_then(serde_json::Value::as_u64)
+        .filter(|&len| len > 0)
+    {
+        fc.style_line_length = Some(u32::try_from(len).unwrap_or(120));
+    }
+}
+
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
@@ -5901,30 +7283,62 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     {
         fc.feature_toggles.set_flag("xcDiagnostics", flag);
     }
-    if let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) {
-        if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
-            fc.optimiser_enabled = Some(b);
-        }
-        if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
-            fc.optimiser_profile =
-                Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
-        }
-        for (key, val) in opt {
-            if key == "enabled" || key == "profile" {
-                continue;
-            }
-            if let Some(b) = val.as_bool() {
-                fc.optimiser_code_overrides.insert(key.clone(), b);
-            }
+    parse_folder_optimiser(obj, &mut fc);
+    if let Some(b) = obj
+        .get("shimmer")
+        .and_then(|s| s.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        fc.shimmer_enabled = Some(b);
+    }
+    parse_folder_formatting(obj, &mut fc);
+    // `tclLsp.extraCommands` per-folder override.
+    if let Some(cmds) = obj
+        .get("extraCommands")
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.extra_commands = Some(
+            cmds.iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
+    // `tclLsp.diagnostics.genericVariablePatterns` per-folder override. A present
+    // array replaces the patterns (`Replace`); an explicit `null` requests the
+    // analyser's built-in defaults (`BuiltinDefaults`); an absent key leaves the
+    // value inheriting the global (`Inherit`, the default).
+    if let Some(value) = obj
+        .get("diagnostics")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|d| d.get("genericVariablePatterns"))
+    {
+        if let Some(patterns) = value.as_array() {
+            fc.generic_variable_patterns = FolderGenericPatterns::Replace(
+                patterns
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+            );
+        } else if value.is_null() {
+            fc.generic_variable_patterns = FolderGenericPatterns::BuiltinDefaults;
         }
     }
-    if let Some(len) = obj
-        .get("formatting")
-        .and_then(|f| f.get("lineLength"))
-        .or_else(|| obj.get("lineLength"))
-        .and_then(serde_json::Value::as_u64)
+    // `tclLsp.libraryPaths` per-folder override.
+    if let Some(paths) = obj
+        .get("libraryPaths")
+        .and_then(serde_json::Value::as_array)
     {
-        fc.line_length = Some(u32::try_from(len).unwrap_or(80));
+        fc.library_paths = Some(
+            paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
     }
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
@@ -6005,12 +7419,19 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
     }
 }
 
-/// Diagnostic codes that are *default-off* in the editor catalogue —
-/// the analyser emits them but
-/// the LSP layer is the consuming filter, so they are dropped from the
-/// published set unless explicitly enabled.  The Rust server has no per-code
-/// enable config, so these are simply never published.
+/// Diagnostic codes that are *default-off* (opt-in) in the editor catalogue.
+/// They are seeded into the resolved disabled-diagnostics set so the analyser
+/// suppresses them by default, and `tclLsp.diagnostics.<CODE>: true` removes a
+/// code from the disabled set to enable it — mirroring Python's
+/// `default_disabled_diagnostics()` + per-code enable in `server/settings.py`.
 const DEFAULT_OFF_CODES: &[&str] = &["W242"];
+
+/// A fresh disabled-diagnostics set seeded with the opt-in [`DEFAULT_OFF_CODES`]
+/// — the starting point every resolution builds on (Python's
+/// `set(default_disabled_diagnostics())`).
+fn default_disabled_set() -> HashSet<String> {
+    DEFAULT_OFF_CODES.iter().map(|c| (*c).to_owned()).collect()
+}
 
 /// Default BIG-IP partition assumed when a config carries no explicit
 /// one.
@@ -6284,14 +7705,111 @@ async fn f5_dialect_diagnostics(
     None
 }
 
+/// Workspace-level refinement of the analyser's single-file W120
+/// (missing-`package require`) diagnostics, using the scanned package database.
+///
+/// This is where #723 is resolved precisely. The analyser only knows the
+/// packages required/provided *in the document*; here we additionally know,
+/// from the workspace + `TCLLIBPATH` `pkgIndex.tcl` files, what each
+/// `package require` (transitively) pulls in — exactly the knowledge C Tcl
+/// gains by running the `ifneeded` scripts.
+///
+/// Two rules, mirroring C Tcl's reality that a package's load script can
+/// register arbitrary commands:
+///
+/// 1. **Conservative.** If any required package is *unknowable* — neither the
+///    command registry nor the scanned database can resolve it, and it isn't
+///    the core `Tcl` version pseudo-package — it may load anything, so every
+///    W120 is dropped. (A wrapper package not present in the workspace /
+///    `auto_path` lands here, keeping #723 fixed even with an empty database.)
+/// 2. **Precise.** Otherwise a W120 for package `P` is a false positive exactly
+///    when `P` is in the transitive closure of what the document's requires
+///    pull in — e.g. `package require myTkPackage`, whose implementation does
+///    `package require Tk`, makes `Tk` available and suppresses its W120, while
+///    a required package that does *not* pull in `Tk` leaves the W120 standing.
+fn refine_w120_diagnostics(
+    diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    package_requires: &[String],
+    resolver: &PackageResolver,
+    registry: &CommandRegistry,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let unknowable = package_requires
+        .iter()
+        .any(|p| p != "Tcl" && !registry.provides_package(p) && !resolver.provides(p));
+    if unknowable {
+        return diags
+            .into_iter()
+            .filter(|d| d.code != DiagCode::W120)
+            .collect();
+    }
+    let available = resolver
+        .transitive_available_packages(package_requires, &|p| std::fs::read_to_string(p).ok());
+    diags
+        .into_iter()
+        .filter(|d| {
+            if d.code != DiagCode::W120 {
+                return true;
+            }
+            match w120_required_package(d) {
+                Some(pkg) => !available.contains(pkg),
+                None => true,
+            }
+        })
+        .collect()
+}
+
+/// Apply the #723 workspace W120 refinement to `analyser_diags`: resolve the
+/// document's `package require`s through the shared package database and drop
+/// any W120 whose flagged package is transitively available. Shared by the push
+/// path (`refine_and_lift_diagnostics`) and the pull path
+/// (`Backend::full_diagnostics_for`) so both stay behavior-identical.
+///
+/// The common case (no W120, or no `package require`) skips the resolver lock
+/// entirely; otherwise the (bounded) transitive scan reads only the required
+/// packages' implementation files.
+async fn refine_workspace_w120(
+    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    analysis: &AnalysisResult,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+    registry: &CommandRegistry,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+        return analyser_diags;
+    }
+    let pkg_requires: Vec<String> = analysis
+        .package_requires
+        .iter()
+        .map(|pr| pr.name.clone())
+        .collect();
+    if pkg_requires.is_empty() {
+        return analyser_diags;
+    }
+    let resolver = package_resolver.read().await;
+    refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
+}
+
+/// The package name a W120 says is missing, read from its quick-fix
+/// (`package require {pkg}\n`) — the structured, deterministic carrier the
+/// analyser emits.
+fn w120_required_package(d: &tcl_compiler::analyser::Diagnostic) -> Option<&str> {
+    let fix = d.fixes.first()?;
+    fix.new_text
+        .trim()
+        .strip_prefix("package require ")
+        .map(str::trim)
+}
+
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let line_index = tcl_lexer::LineIndex::new(text);
+    // Default-off codes are suppressed at the analyser via the seeded disabled
+    // set (see `default_disabled_set` / `settings_disabled_diagnostics`), so no
+    // publish-time filter is needed here — and removing it is what lets
+    // `tclLsp.diagnostics.<CODE>: true` actually enable an opt-in code.
     diagnostics
         .iter()
-        .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
         .map(|d| tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
@@ -6323,6 +7841,41 @@ fn lift_analyser_diagnostics(
         .collect()
 }
 
+/// Append the O111 "brace expression performance" hint next to every W100
+/// (unbraced-expression) diagnostic, mirroring the Python publish pipeline
+/// (`server/features/diagnostics.py`): when the optimiser is enabled and O111
+/// is not disabled, each W100 gets a paired `Information` hint at the same
+/// range suggesting the user brace the expression for bytecode compilation.
+fn append_brace_expr_perf_hints(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    optimiser_enabled: bool,
+    opt_disabled: &std::collections::HashSet<String>,
+) {
+    use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+    if !optimiser_enabled || opt_disabled.contains("O111") {
+        return;
+    }
+    let hints: Vec<Diagnostic> = diagnostics
+        .iter()
+        .filter(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "W100"))
+        .map(|w100| Diagnostic {
+            range: w100.range,
+            severity: Some(DiagnosticSeverity::INFORMATION),
+            code: Some(NumberOrString::String("O111".to_string())),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: "Brace expression text (for example, `expr {...}` / `if {...}`) to pass \
+                      a single static argument, enabling bytecode compilation and avoiding \
+                      per-evaluation substitution/parsing overhead."
+                .to_string(),
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect();
+    diagnostics.extend(hints);
+}
+
 /// Lift the source-style pass (W111 line length,
 /// W112 trailing whitespace, W115 comment continuation, W118 line
 /// endings) into LSP diagnostics.  These are pure source-text
@@ -6340,10 +7893,9 @@ fn lift_source_style_diagnostics(
     text: &str,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
     user_disabled: &std::collections::HashSet<String>,
+    line_length: usize,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::{
-        DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
-    };
+    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, StyleSeverity, style_diagnostics};
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
     // The file-level (`-1`) directive bucket doubles as a per-code
@@ -6357,7 +7909,7 @@ fn lift_source_style_diagnostics(
 
     style_diagnostics(
         text,
-        DEFAULT_LINE_LENGTH,
+        line_length,
         DEFAULT_LINE_ENDING,
         &disabled,
         suppressed,
@@ -6549,6 +8101,79 @@ fn folder_dialect_for(uri: &Uri, folders: &[(Uri, String)]) -> Option<String> {
 /// this cap (they flow through `publish_analyser_diagnostics`).
 const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
 
+/// Upper bound on the number of directories the package-database tree scan
+/// visits per workspace root, so a huge tree can't stall the package scan.
+const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
+
+/// Build the package database (`pkgIndex.tcl` / `tclIndex`) the W120 refinement
+/// consults: the workspace trees (recursive — an IDE nests packages
+/// arbitrarily) plus the resolved `auto_path` ([`effective_auto_path`]) scanned
+/// with C Tcl's immediate-subdir rule. Pure filesystem work, so it runs on the
+/// scan worker.
+fn build_package_resolver(
+    roots: &[PathBuf],
+    editor_library_paths: &[String],
+    discovered: &[core_tcl_install::TclInstallation],
+    dir_cap: usize,
+) -> PackageResolver {
+    let mut resolver = PackageResolver::new();
+    for root in roots {
+        resolver.scan_tree(root, dir_cap);
+    }
+    for dir in effective_auto_path(roots, editor_library_paths, discovered) {
+        resolver.scan_path(&dir);
+    }
+    resolver
+}
+
+/// The effective `auto_path` for the package database, layering the sources the
+/// Python server honoured plus on-disk discovery (deduped, in priority order):
+///
+/// 1. editor `tclLsp.libraryPaths`,
+/// 2. user config `config.ini` `[global] libraryPaths`,
+/// 3. per-workspace `.tcl-lsp.ini` `[project] libraryPaths`,
+/// 4. discovered Tcl installations' `auto_path`,
+/// 5. `TCLLIBPATH`.
+fn effective_auto_path(
+    roots: &[PathBuf],
+    editor_library_paths: &[String],
+    discovered: &[core_tcl_install::TclInstallation],
+) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    let push = |p: PathBuf, out: &mut Vec<PathBuf>| {
+        if !out.contains(&p) {
+            out.push(p);
+        }
+    };
+    for p in editor_library_paths {
+        push(PathBuf::from(p), &mut out);
+    }
+    if let Some(cfg) = core_tcl_install::user_config_path()
+        && let Ok(content) = std::fs::read_to_string(&cfg)
+    {
+        for p in core_tcl_install::library_paths_from_ini(&content, "global") {
+            push(PathBuf::from(p), &mut out);
+        }
+    }
+    for root in roots {
+        let proj = core_tcl_install::project_config_path(root);
+        if let Ok(content) = std::fs::read_to_string(&proj) {
+            for p in core_tcl_install::library_paths_from_ini(&content, "project") {
+                push(PathBuf::from(p), &mut out);
+            }
+        }
+    }
+    for inst in discovered {
+        for p in &inst.auto_path {
+            push(p.clone(), &mut out);
+        }
+    }
+    for p in core_tcl_install::tcllibpath_dirs() {
+        push(p, &mut out);
+    }
+    out
+}
+
 /// `true` when `path` names a directory the workspace scan should
 /// not descend into: hidden directories (dot-prefixed) and the
 /// common vendor / build / scratch trees that never hold
@@ -6688,6 +8313,20 @@ fn client_lacks_utf16_support(params: &InitializeParams) -> bool {
         .is_some_and(|encs| !encs.is_empty() && !encs.contains(&PositionEncodingKind::UTF16))
 }
 
+/// Whether the client advertised pull-diagnostic support
+/// (`textDocument.diagnostic`).  Such a client (e.g. `vscode-languageclient`)
+/// issues `textDocument/diagnostic` requests itself, so the server must not
+/// *also* push diagnostics — pushing and pulling the same set lands them in
+/// two diagnostic collections and shows each one twice (#721).
+fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|td| td.diagnostic.as_ref())
+        .is_some()
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
@@ -6787,6 +8426,7 @@ fn build_server_capabilities(
                 "tcl-lsp.listKnownPackages".to_owned(),
                 "tcl-lsp.suggestPackagesForSymbol".to_owned(),
                 "tcl-lsp.exportConfig".to_owned(),
+                "tcl-lsp.listTclInstallations".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -6994,28 +8634,425 @@ mod tests {
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
 
+    // ---- #723 W120 workspace-refinement helpers ----------------------------
+
+    /// A throwaway directory under the system temp dir, removed on drop.
+    struct TmpWs(PathBuf);
+    impl TmpWs {
+        fn new(tag: &str) -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static C: AtomicUsize = AtomicUsize::new(0);
+            let n = C.fetch_add(1, Ordering::Relaxed);
+            let mut p = std::env::temp_dir();
+            p.push(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
+            std::fs::create_dir_all(&p).unwrap();
+            Self(p)
+        }
+        fn write(&self, rel: &str, content: &str) {
+            let path = self.0.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, content).unwrap();
+        }
+    }
+    impl Drop for TmpWs {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn w120_diag(pkg: &str) -> tcl_compiler::analyser::Diagnostic {
+        use tcl_compiler::analyser::types::{CodeFix, Severity};
+        tcl_compiler::analyser::Diagnostic {
+            code: DiagCode::W120,
+            span: tcl_lexer::Span::new(0, 1),
+            message: format!("\"cmd\" requires `package require {pkg}`"),
+            severity: Severity::Warning,
+            fixes: vec![CodeFix {
+                span: tcl_lexer::Span::new(0, 0),
+                new_text: format!("package require {pkg}\n"),
+                description: format!("Add 'package require {pkg}'"),
+            }],
+        }
+    }
+
+    fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
+        diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
     #[test]
-    fn default_off_w242_is_not_published() {
-        // `while {$x < 10} {puts hi}` emits the default-off W242 hint
-        // from the analyser, which the lift layer must drop (no consuming
-        // config exists in the Rust server) while keeping other codes.
-        let src = "while {$x < 10} {puts hi}\n";
-        let mut a = Analyser::new();
-        let analysis = a.analyse(src, "tcl8.6").clone();
-        assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .any(|d| d.code == DiagCode::W242),
-            "analyser should still emit W242"
+    fn is_config_file_recognises_project_and_user_config() {
+        assert!(is_config_file(
+            &Uri::from_str("file:///ws/.tcl-lsp.ini").unwrap()
+        ));
+        assert!(is_config_file(
+            &Uri::from_str("file:///home/me/.config/tcl-lsp/config.ini").unwrap()
+        ));
+        assert!(!is_config_file(
+            &Uri::from_str("file:///ws/foo.tcl").unwrap()
+        ));
+        assert!(!is_config_file(
+            &Uri::from_str("file:///ws/settings.ini").unwrap()
+        ));
+    }
+
+    #[tokio::test]
+    async fn shimmer_disabled_folds_shimmer_family_into_disabled() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///s.tcl").unwrap();
+        // Default (shimmer on): no S-codes forced into the disabled set.
+        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
+        assert!(!disabled.contains("S100"));
+        // `tclLsp.shimmer.enabled = false` applies and forces the family off.
+        backend
+            .apply_global_config(&serde_json::json!({ "shimmer": { "enabled": false } }))
+            .await;
+        assert!(!*backend.shimmer_enabled.lock().await);
+        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
+        for code in ["S100", "S101", "S102", "S110"] {
+            assert!(disabled.contains(code), "{code} should be suppressed");
+        }
+    }
+
+    #[test]
+    fn collapse_inlay_alias_resolves_per_layer() {
+        // Alias-only: `inlayHints` becomes `inlayTypeHints`.
+        let mut alias_only = serde_json::json!({ "features": { "inlayHints": true } });
+        collapse_inlay_alias(&mut alias_only);
+        assert_eq!(
+            alias_only["features"]["inlayTypeHints"],
+            serde_json::json!(true)
         );
-        let lifted = lift_analyser_diagnostics(src, &analysis.diagnostics);
+        assert!(alias_only["features"].get("inlayHints").is_none());
+
+        // Both present in one layer: the explicit `inlayTypeHints` wins.
+        let mut both = serde_json::json!({
+            "features": { "inlayHints": true, "inlayTypeHints": false }
+        });
+        collapse_inlay_alias(&mut both);
+        assert_eq!(both["features"]["inlayTypeHints"], serde_json::json!(false));
+        assert!(both["features"].get("inlayHints").is_none());
+
+        // Neither: untouched (negative case).
+        let mut neither = serde_json::json!({ "features": { "codeActions": true } });
+        collapse_inlay_alias(&mut neither);
+        assert!(neither["features"].get("inlayTypeHints").is_none());
+    }
+
+    #[test]
+    fn inlay_alias_in_editor_layer_beats_global_inlay_type_hints() {
+        // Regression (#728): the global `config.ini` layer (e.g. written by
+        // `exportConfig`) carries an explicit `inlayTypeHints: false`, while the
+        // higher-precedence editor layer sets only the legacy `inlayHints`
+        // alias. After per-layer collapse the editor must win → type hints on.
+        let mut global = serde_json::json!({
+            "features": { "inlayTypeHints": false, "inlayParameterHints": false, "codeActions": true }
+        });
+        let mut editor = serde_json::json!({ "features": { "inlayHints": true } });
+        collapse_inlay_alias(&mut global);
+        collapse_inlay_alias(&mut editor);
+        let merged = config_ini::merge_settings(&global, &editor);
+        assert_eq!(
+            merged["features"]["inlayTypeHints"],
+            serde_json::json!(true),
+            "editor inlayHints alias must beat global inlayTypeHints:false",
+        );
+        // Parameter hints (only in the global layer) stay off; no stray alias key.
+        assert_eq!(
+            merged["features"]["inlayParameterHints"],
+            serde_json::json!(false)
+        );
+        assert!(merged["features"].get("inlayHints").is_none());
+    }
+
+    #[test]
+    fn normalize_config_payload_handles_nested_flat_and_unwrapped() {
+        // Nested `tclLsp` object.
+        let nested = serde_json::json!({ "tclLsp": { "optimiser": { "O109": false } } });
+        assert_eq!(
+            normalize_config_payload(&nested),
+            serde_json::json!({ "optimiser": { "O109": false } }),
+        );
+        // Flat dotted keys (with and without the `tclLsp.` prefix).
+        let flat = serde_json::json!({
+            "tclLsp.optimiser.O109": false,
+            "tclLsp.dialect": "tcl8.6",
+        });
+        assert_eq!(
+            normalize_config_payload(&flat),
+            serde_json::json!({ "optimiser": { "O109": false }, "dialect": "tcl8.6" }),
+        );
+        // Unwrapped top-level sections (e.g. JetBrains).
+        let unwrapped =
+            serde_json::json!({ "optimiser": { "enabled": false }, "dialect": "tcl9.0" });
+        assert_eq!(
+            normalize_config_payload(&unwrapped),
+            serde_json::json!({ "optimiser": { "enabled": false }, "dialect": "tcl9.0" }),
+        );
+        // Composed: nested + flat merge key-by-key.
+        let composed = serde_json::json!({
+            "tclLsp": { "optimiser": { "O109": false } },
+            "tclLsp.optimiser.O110": false,
+        });
+        assert_eq!(
+            normalize_config_payload(&composed),
+            serde_json::json!({ "optimiser": { "O109": false, "O110": false } }),
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_variable_patterns_apply_through_global_config() {
+        let backend = test_backend();
+        // Default: unset (built-in IRULE4002 pattern set).
+        assert!(backend.generic_variable_patterns.lock().await.is_none());
+        // `tclLsp.diagnostics.genericVariablePatterns` replaces the default set.
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "genericVariablePatterns": ["^myapp_"] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.generic_variable_patterns.lock().await,
+            Some(vec!["^myapp_".to_owned()]),
+        );
+        // The salsa `AnalyserConfig` input mirrors the value.
+        {
+            let db = backend.db.lock().await;
+            let cfg = *backend.db_config.lock().await;
+            assert_eq!(
+                cfg.generic_variable_patterns(&*db).as_deref(),
+                Some(["^myapp_".to_owned()].as_slice()),
+            );
+        }
+        // An explicit empty list disables the check (Some(empty), not None).
+        backend
+            .apply_global_config(&serde_json::json!({
+                "diagnostics": { "genericVariablePatterns": [] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.generic_variable_patterns.lock().await,
+            Some(Vec::new()),
+        );
+    }
+
+    #[tokio::test]
+    async fn config_file_settings_apply_through_global_config() {
+        // A `config.ini`-shaped file, read and applied through the same path as
+        // editor settings, takes effect.
+        let backend = test_backend();
+        let ws = TmpWs::new("cfgfile");
+        let path = ws.0.join("config.ini");
+        std::fs::write(
+            &path,
+            "[global]\ndialect = tcl9.0\n[optimiser]\nenabled = false\n",
+        )
+        .unwrap();
+        let global = read_ini_layer(Some(path), config_ini::Layer::Global);
+        backend.apply_global_config(&global).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+        assert!(!*backend.optimiser_enabled.lock().await);
+    }
+
+    #[tokio::test]
+    async fn config_precedence_project_over_editor_over_global() {
+        // global config.ini < editor < project .tcl-lsp.ini.
+        let backend = test_backend();
+        let global = config_ini::settings_from_ini(
+            "[global]\ndialect = tcl8.5\n",
+            config_ini::Layer::Global,
+        );
+        let editor = serde_json::json!({ "dialect": "tcl8.6" });
+        let project = config_ini::settings_from_ini(
+            "[project]\ndialect = tcl9.0\n",
+            config_ini::Layer::Project,
+        );
+        let merged =
+            config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
+        backend.apply_global_config(&merged).await;
+        assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+    }
+
+    #[test]
+    fn effective_auto_path_layers_editor_project_and_discovery() {
+        // editor libraryPaths → global → project .tcl-lsp.ini → discovered →
+        // TCLLIBPATH, deduped and in priority order.
+        let ws = TmpWs::new("ap");
+        ws.write(".tcl-lsp.ini", "[project]\nlibraryPaths = /proj/lib\n");
+        let editor = vec!["/editor/lib".to_owned()];
+        let discovered = vec![core_tcl_install::TclInstallation {
+            version: "8.6".to_owned(),
+            tcl_library: PathBuf::from("/sys/lib/tcl8.6"),
+            auto_path: vec![PathBuf::from("/sys/lib"), PathBuf::from("/sys/lib/tcl8.6")],
+        }];
+        let ap = effective_auto_path(std::slice::from_ref(&ws.0), &editor, &discovered);
+        assert!(ap.contains(&PathBuf::from("/editor/lib")));
+        assert!(ap.contains(&PathBuf::from("/proj/lib")));
+        assert!(ap.contains(&PathBuf::from("/sys/lib")));
+        let pos = |p: &str| ap.iter().position(|x| x == &PathBuf::from(p)).unwrap();
+        assert!(pos("/editor/lib") < pos("/proj/lib"));
+        assert!(pos("/proj/lib") < pos("/sys/lib"));
+    }
+
+    #[test]
+    fn build_package_resolver_picks_up_a_discovered_installation_package() {
+        // A discovered installation whose `auto_path` holds a package's
+        // pkgIndex.tcl is scanned, so the database can resolve it — the
+        // mechanism that lets W120 refinement see system-installed Tk.
+        let sys = TmpWs::new("sys");
+        sys.write(
+            "lib/tk8.6/pkgIndex.tcl",
+            "package ifneeded Tk 8.6 [list load [file join $dir libtk8.6.so] Tk]\n",
+        );
+        // The package has no source file (a C extension loaded via `load`); the
+        // fallback lists the dir's *.tcl — none here, so give it a marker .tcl.
+        sys.write("lib/tk8.6/tk.tcl", "# tk\n");
+        let lib_root = sys.0.join("lib");
+        let discovered = vec![core_tcl_install::TclInstallation {
+            version: "8.6".to_owned(),
+            tcl_library: lib_root.join("tcl8.6"),
+            auto_path: vec![lib_root.clone()],
+        }];
+        let resolver = build_package_resolver(&[], &[], &discovered, 100);
         assert!(
-            !lifted.iter().any(|d| matches!(
+            resolver.provides("Tk"),
+            "discovered install's Tk package should be in the database"
+        );
+    }
+
+    #[test]
+    fn refine_w120_conservative_drops_all_for_unknowable_require() {
+        // `package require myTkPackage` is unknown to both the registry and an
+        // empty package database, so it may load anything — drop the W120.
+        let registry = CommandRegistry::build_default();
+        let resolver = PackageResolver::new();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["myTkPackage".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            !has_w120(&out),
+            "unknowable require ⇒ W120 dropped: {out:?}"
+        );
+    }
+
+    #[test]
+    fn refine_w120_suppressed_when_wrapper_transitively_requires_tk() {
+        // The precise #723 case: a workspace package whose implementation does
+        // `package require Tk` makes Tk available, so the Tk W120 is a false
+        // positive.
+        let ws = TmpWs::new("wrap");
+        ws.write(
+            "mytk/mytk.tcl",
+            "package provide myTkPackage 1.0\npackage require Tk\nproc mytk::go {} {}\n",
+        );
+        ws.write(
+            "mytk/pkgIndex.tcl",
+            "package ifneeded myTkPackage 1.0 [list source [file join $dir mytk.tcl]]\n",
+        );
+        let mut resolver = PackageResolver::new();
+        resolver.scan_tree(&ws.0, 100);
+        let registry = CommandRegistry::build_default();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["myTkPackage".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            !has_w120(&out),
+            "wrapper transitively requires Tk ⇒ W120 suppressed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn refine_w120_kept_when_resolvable_require_does_not_provide_tk() {
+        // A resolvable package that does NOT pull in Tk leaves the Tk W120
+        // standing — the refinement is precise, not a blanket suppression.
+        let ws = TmpWs::new("plain");
+        ws.write(
+            "plain/plain.tcl",
+            "package provide plain 1.0\nproc plain::p {} {}\n",
+        );
+        ws.write(
+            "plain/pkgIndex.tcl",
+            "package ifneeded plain 1.0 [list source [file join $dir plain.tcl]]\n",
+        );
+        let mut resolver = PackageResolver::new();
+        resolver.scan_tree(&ws.0, 100);
+        let registry = CommandRegistry::build_default();
+        let out = refine_w120_diagnostics(
+            vec![w120_diag("Tk")],
+            &["plain".to_owned()],
+            &resolver,
+            &registry,
+        );
+        assert!(
+            has_w120(&out),
+            "plain doesn't provide Tk ⇒ W120 kept: {out:?}"
+        );
+    }
+
+    #[test]
+    fn default_off_codes_are_seeded_into_the_disabled_set() {
+        // The opt-in default-off codes (e.g. W242) start in the resolved
+        // disabled set, so the analyser suppresses them by default.
+        assert!(default_disabled_set().contains("W242"));
+        // An empty config keeps the default-off seed.
+        let none = settings_disabled_diagnostics(&serde_json::json!({}));
+        assert!(none.is_none(), "no diagnostics section ⇒ inherit default");
+        // A `false` for some other code keeps W242 disabled too.
+        let with_false = settings_disabled_diagnostics(
+            &serde_json::json!({ "tclLsp": { "diagnostics": { "W111": false } } }),
+        )
+        .expect("set");
+        assert!(with_false.contains("W242"), "W242 stays default-off");
+        assert!(with_false.contains("W111"));
+        // `tclLsp.diagnostics.W242: true` enables it (removes from disabled).
+        let enabled = settings_disabled_diagnostics(
+            &serde_json::json!({ "tclLsp": { "diagnostics": { "W242": true } } }),
+        )
+        .expect("set");
+        assert!(
+            !enabled.contains("W242"),
+            "W242 enabled via config: {enabled:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn default_off_w242_hidden_by_default_enableable_via_config() {
+        // End-to-end: a default-off W242 is not published by default, but
+        // `tclLsp.diagnostics.W242: true` turns it on (the Rust server now has a
+        // per-code enable path, matching Python).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w242.tcl").unwrap();
+        let src = "while {$x < 10} {puts hi}\n"; // emits W242 from the analyser
+        register(&backend, &uri, src).await;
+
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !off.iter().any(|d| matches!(
                 &d.code,
                 Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W242"
             )),
-            "W242 must be filtered from the published set"
+            "W242 hidden by default: {off:?}",
+        );
+
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W242": true } }))
+            .await;
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            on.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W242"
+            )),
+            "W242 should appear once enabled: {on:?}",
         );
     }
 
@@ -7030,7 +9067,7 @@ mod tests {
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let diags = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -7055,7 +9092,7 @@ mod tests {
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
         let off = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             false,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
@@ -7070,7 +9107,7 @@ mod tests {
         disabled.insert("O100".to_string());
         let per_code = lift_compiler_diagnostics(
             src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
             true,
             &disabled,
             &std::collections::HashSet::new(),
@@ -7090,7 +9127,8 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let cdiags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
         let diags = lift_compiler_diagnostics(
             src,
             &cdiags,
@@ -7118,7 +9156,8 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let cdiags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
         let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
@@ -7238,6 +9277,30 @@ mod tests {
         ]))));
         assert!(!client_lacks_utf16_support(&params_with(Some(vec![]))));
         assert!(!client_lacks_utf16_support(&InitializeParams::default()));
+    }
+
+    #[test]
+    fn pull_diagnostic_capability_detection() {
+        use tower_lsp_server::ls_types::{
+            ClientCapabilities, DiagnosticClientCapabilities, TextDocumentClientCapabilities,
+        };
+        // No `textDocument.diagnostic` → push-only client (no pull).
+        assert!(!client_supports_pull_diagnostics(
+            &InitializeParams::default()
+        ));
+        // A client advertising `textDocument/diagnostic` support → pull-capable,
+        // so the worker must stop pushing to avoid the #721 double-display.
+        let pull_params = InitializeParams {
+            capabilities: ClientCapabilities {
+                text_document: Some(TextDocumentClientCapabilities {
+                    diagnostic: Some(DiagnosticClientCapabilities::default()),
+                    ..TextDocumentClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+        assert!(client_supports_pull_diagnostics(&pull_params));
     }
 
     #[test]
@@ -7687,29 +9750,89 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from_options(&opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
-        // A zero tabSize is clamped to a usable minimum.
+        // A degenerate zero tabSize is ignored (editors always send >= 1), so
+        // the configured / default indent size stands (4 here).
         opts.tab_size = 0;
-        assert_eq!(formatter_config_from_options(&opts).indent_size, 1);
+        assert_eq!(
+            formatter_config_from(&serde_json::Value::Null, &opts).indent_size,
+            4
+        );
         // insertSpaces=false selects tab indentation.
         opts.tab_size = 4;
         opts.insert_spaces = false;
-        let cfg = formatter_config_from_options(&opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
+    }
+
+    #[test]
+    fn formatter_config_from_consumes_formatting_settings() {
+        // `tclLsp.formatting.*` settings flow into the FormatterConfig, while
+        // the request's LSP indentation options override indent size/style.
+        let formatting = serde_json::json!({
+            "maxLineLength": 100,
+            "goalLineLength": 90,
+            "indentSize": 8,
+            "indentStyle": "tabs",
+            "spaceBetweenBraces": false,
+            "lineEnding": "crlf",
+            "blankLinesBetweenProcs": 2,
+        });
+        let opts = tower_lsp_server::ls_types::FormattingOptions {
+            tab_size: 2,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        let cfg = formatter_config_from(&formatting, &opts);
+        assert_eq!(cfg.max_line_length, 100);
+        assert_eq!(cfg.goal_line_length, 90);
+        assert!(!cfg.space_between_braces);
+        assert_eq!(cfg.line_ending, "\r\n");
+        assert_eq!(cfg.blank_lines_between_procs, 2);
+        // LSP options win for indentation (tabSize=2, insertSpaces=true).
+        assert_eq!(cfg.indent_size, 2);
+        assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
+        // A null formatting object falls back to defaults + LSP options.
+        let dflt = formatter_config_from(&serde_json::Value::Null, &opts);
+        assert_eq!(dflt.max_line_length, 120);
+    }
+
+    #[tokio::test]
+    async fn resolved_formatting_applies_through_global_config() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///f.tcl").unwrap();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "formatting": { "indentSize": 8, "maxLineLength": 70 }
+            }))
+            .await;
+        let formatting = backend.resolved_formatting(&uri).await;
+        assert_eq!(formatting["indentSize"], serde_json::json!(8));
+        // With insertSpaces and no explicit tabSize override (tab_size: 0 → the
+        // config's indentSize is used since LSP clamps 0 away).
+        let opts = tower_lsp_server::ls_types::FormattingOptions {
+            tab_size: 0,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        let cfg = formatter_config_from(&formatting, &opts);
+        assert_eq!(cfg.max_line_length, 70);
+        // tab_size 0 → unwrap_or(cfg.indent_size=8).max(1) = 8.
+        assert_eq!(cfg.indent_size, 8);
     }
 
     #[test]
     fn configured_analyser_threads_mode_and_disabled() {
         // `Off` mode suppresses W108 entirely.
-        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
+        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new());
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
         // A disabled code is filtered from the analyser's output.
         let mut disabled = HashSet::new();
         disabled.insert("W108".to_string());
-        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict);
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new());
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
     }
@@ -7796,11 +9919,10 @@ mod tests {
     /// edits must stay byte-identical to a rebuild from the final text — the
     /// invariant `DocumentState` relies on for its persisted index.
     #[test]
-    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn apply_content_change_indexed_keeps_line_index_consistent() {
         let line_starts = |idx: &tcl_lexer::LineIndex| {
             (0..idx.line_count())
-                .map(|l| idx.line_start(l as u32))
+                .map(|l| idx.line_start(u32::try_from(l).unwrap_or(u32::MAX)))
                 .collect::<Vec<_>>()
         };
         let mut text = "abc\ndef\nghi\n".to_string();
@@ -7853,6 +9975,7 @@ mod tests {
             &src,
             &std::collections::HashMap::new(),
             &std::collections::HashSet::new(),
+            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
         );
         let codes: Vec<String> = diags
             .iter()
@@ -7881,8 +10004,12 @@ mod tests {
         let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
             std::collections::HashMap::new();
         suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
-        let diags =
-            lift_source_style_diagnostics(&src, &suppressed, &std::collections::HashSet::new());
+        let diags = lift_source_style_diagnostics(
+            &src,
+            &suppressed,
+            &std::collections::HashSet::new(),
+            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+        );
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
@@ -8131,6 +10258,206 @@ mod tests {
         );
     }
 
+    /// Fix #1: the pull path (`full_diagnostics_for`) must feed the IRULE4002
+    /// compiler check the *URI-scoped* generic-variable patterns, so a folder's
+    /// `diagnostics.genericVariablePatterns` override applies on the pull path
+    /// exactly as it does on the push path.  POSITIVE: a folder that disables the
+    /// check (empty pattern list) suppresses IRULE4002.  NEGATIVE: a doc outside
+    /// that folder keeps the default-pattern IRULE4002.
+    #[tokio::test]
+    async fn pull_path_honours_folder_generic_variable_patterns() {
+        let backend = test_backend();
+        let folder = Uri::from_str("file:///proj").unwrap();
+        let inside = Uri::from_str("file:///proj/rule.tcl").unwrap();
+        let outside = Uri::from_str("file:///other/rule.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        // `static::debug` matches the built-in generic set ⇒ IRULE4002 by default.
+        let src = "when RULE_INIT { set static::debug 1 }\n";
+
+        // NEGATIVE (no folder override anywhere): IRULE4002 fires with defaults.
+        let baseline = backend
+            .full_diagnostics_for(
+                &outside,
+                src.to_owned(),
+                "f5-irules".to_owned(),
+                "tcl-irule",
+            )
+            .await;
+        assert!(
+            diag_codes(&baseline).iter().any(|c| c == "IRULE4002"),
+            "IRULE4002 should fire with the default generic patterns, got: {:?}",
+            diag_codes(&baseline),
+        );
+
+        // The folder explicitly empties the generic-pattern set (disables the
+        // check).  On the push path this is `resolved_generic_variable_patterns`
+        // returning `Some(vec![])`; the pull path must consult the same resolver.
+        let fc = FolderConfig {
+            generic_variable_patterns: FolderGenericPatterns::Replace(Vec::new()),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder.clone(), fc)])
+            .await;
+
+        // POSITIVE: a doc *inside* the folder no longer reports IRULE4002.
+        let suppressed = backend
+            .full_diagnostics_for(&inside, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .await;
+        assert!(
+            !diag_codes(&suppressed).iter().any(|c| c == "IRULE4002"),
+            "folder's empty genericVariablePatterns must disable IRULE4002 on the \
+             pull path, got: {:?}",
+            diag_codes(&suppressed),
+        );
+
+        // NEGATIVE: a doc *outside* the folder still gets the default IRULE4002,
+        // proving the override is folder-scoped, not process-global.
+        let still_fires = backend
+            .full_diagnostics_for(
+                &outside,
+                src.to_owned(),
+                "f5-irules".to_owned(),
+                "tcl-irule",
+            )
+            .await;
+        assert!(
+            diag_codes(&still_fires).iter().any(|c| c == "IRULE4002"),
+            "a doc outside the folder must keep the default IRULE4002, got: {:?}",
+            diag_codes(&still_fires),
+        );
+    }
+
+    /// Fix #2: the pull path must apply the #723 W120 package refinement that the
+    /// push path applies, so a workspace whose package database proves a required
+    /// package transitively provides the flagged package suppresses the false
+    /// W120.  POSITIVE: with a resolver proving `http` is transitively available,
+    /// the W120 is refined away.  NEGATIVE: with the default empty resolver, the
+    /// (genuine) W120 still publishes.
+    #[tokio::test]
+    async fn pull_path_applies_w120_package_refinement() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w120.tcl").unwrap();
+        // `package require mywrap` (so `package_requires` is non-empty) plus a
+        // call to `http::register`, which the registry marks as requiring the
+        // `http` package ⇒ single-file W120 for `http`.
+        let src = "package require mywrap\nhttp::register foo 80 bar\n";
+
+        // NEGATIVE: empty resolver can't prove `mywrap` provides `http`.  The
+        // require is *unknowable* (unknown to registry + empty database), so the
+        // conservative refinement drops W120 — to assert the *unrefined* W120 we
+        // need a resolver that knows `mywrap` but where `mywrap` does NOT pull in
+        // `http`.  Build that first.
+        let plain_ws = TmpWs::new("w120-plain");
+        plain_ws.write(
+            "mywrap/mywrap.tcl",
+            "package provide mywrap 1.0\nproc mywrap::go {} {}\n",
+        );
+        plain_ws.write(
+            "mywrap/pkgIndex.tcl",
+            "package ifneeded mywrap 1.0 [list source [file join $dir mywrap.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&plain_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let unrefined = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&unrefined).iter().any(|c| c == "W120"),
+            "a resolvable wrapper that does NOT provide http must keep the W120, \
+             got: {:?}",
+            diag_codes(&unrefined),
+        );
+
+        // POSITIVE: a wrapper whose implementation does `package require http`
+        // makes `http` transitively available ⇒ the W120 is refined away.
+        let wrap_ws = TmpWs::new("w120-wrap");
+        wrap_ws.write(
+            "mywrap/mywrap.tcl",
+            "package provide mywrap 1.0\npackage require http\nproc mywrap::go {} {}\n",
+        );
+        wrap_ws.write(
+            "mywrap/pkgIndex.tcl",
+            "package ifneeded mywrap 1.0 [list source [file join $dir mywrap.tcl]]\n",
+        );
+        // Also provide an `http` package so it is resolvable in the database.
+        wrap_ws.write(
+            "http/http.tcl",
+            "package provide http 2.9\nproc http::register {a b c} {}\n",
+        );
+        wrap_ws.write(
+            "http/pkgIndex.tcl",
+            "package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&wrap_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let refined = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&refined).iter().any(|c| c == "W120"),
+            "the pull path must refine away the W120 once the workspace proves \
+             http is transitively available, got: {:?}",
+            diag_codes(&refined),
+        );
+    }
+
+    /// Fix #3: `scan_workspace_folders` must (re)build the package resolver from
+    /// the editor library paths / discovered installations EVEN with no workspace
+    /// roots, so a single-file / no-folder session's W120 refinement sees the
+    /// user's "Select Tcl Installation" library paths.  POSITIVE: with no roots
+    /// but a library path that provides a package, the resolver is populated.
+    /// NEGATIVE (control): with roots and no library paths, it scans the tree.
+    #[tokio::test]
+    async fn scan_workspace_folders_builds_resolver_with_no_roots() {
+        // POSITIVE: no workspace folders, but a `tclLsp.libraryPaths` directory
+        // containing a package.  Before the fix `scan_workspace_folders`
+        // early-returned and left the resolver empty.
+        let lib_ws = TmpWs::new("noroots-lib");
+        lib_ws.write(
+            "mypkg/pkgIndex.tcl",
+            "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        );
+        lib_ws.write("mypkg/mypkg.tcl", "package provide mypkg 1.0\n");
+
+        let backend = test_backend();
+        // No workspace folders at all (single-file / no-folder session).
+        assert!(backend.workspace_folders.lock().await.is_empty());
+        *backend.editor_library_paths.lock().await = vec![lib_ws.0.to_string_lossy().into_owned()];
+
+        backend.scan_workspace_folders().await;
+
+        assert!(
+            backend.package_resolver.read().await.provides("mypkg"),
+            "with no roots, the resolver must still be built from the editor \
+             library paths so single-file sessions resolve packages",
+        );
+
+        // NEGATIVE / control: a fresh backend with a root tree and no library
+        // paths still scans the workspace tree (the indexing path is unaffected).
+        let root_ws = TmpWs::new("withroot");
+        root_ws.write(
+            "pkgIndex.tcl",
+            "package ifneeded rootpkg 1.0 [list source [file join $dir r.tcl]]\n",
+        );
+        root_ws.write("r.tcl", "package provide rootpkg 1.0\n");
+        let backend2 = test_backend();
+        let root_uri = Uri::from_file_path(&root_ws.0).unwrap();
+        *backend2.workspace_folders.lock().await = vec![root_uri];
+        backend2.scan_workspace_folders().await;
+        assert!(
+            backend2.package_resolver.read().await.provides("rootpkg"),
+            "with a root and no library paths, the tree scan must still populate \
+             the resolver",
+        );
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -8318,7 +10645,13 @@ mod tests {
     fn test_backend() -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let db_config = tcl_lsp_db::AnalyserConfig::new(
+            &db,
+            default_disabled_set().into_iter().collect(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+        );
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -8329,18 +10662,27 @@ mod tests {
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(HashSet::new()),
+            disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
+            package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
+            editor_library_paths: Mutex::new(Vec::new()),
+            extra_commands: Mutex::new(Vec::new()),
+            generic_variable_patterns: Mutex::new(None),
+            formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            style_line_length: Mutex::new(120),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -8551,6 +10893,64 @@ mod tests {
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
         assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
+    }
+
+    /// Fix #4 regression guard: the retired `features.inlayHints` alias must
+    /// survive the *whole* config-apply → effective-config wiring, not just the
+    /// `FeatureToggles::apply` unit. This mirrors the `lsp-e2e`
+    /// `test_legacy_inlay_hints_alias_enables_type_only` flow without a live
+    /// editor: apply `{"features": {"inlayHints": true}}` through
+    /// `apply_global_config` (the same call `pull_and_apply_config` makes after a
+    /// `didChangeConfiguration` re-pull), then read it back through
+    /// `get_effective_config_command` (the `getEffectiveConfig` handler). The
+    /// alias must resolve to `inlayTypeHints: true` while `inlayParameterHints`
+    /// stays off.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_inlay_alias_reaches_effective_config() {
+        let backend = test_backend();
+        // Default-off before any config: both inlay families report disabled.
+        let before = backend
+            .get_effective_config_command(&[serde_json::json!("file:///inlay.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            before["features"]["inlayTypeHints"],
+            serde_json::Value::Bool(false),
+            "type hints default off before any config: {before}",
+        );
+
+        backend
+            .apply_global_config(&serde_json::json!({ "features": { "inlayHints": true } }))
+            .await;
+
+        let after = backend
+            .get_effective_config_command(&[serde_json::json!("file:///inlay.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            after["features"]["inlayTypeHints"],
+            serde_json::Value::Bool(true),
+            "the `inlayHints` alias must enable `inlayTypeHints` end-to-end: {after}",
+        );
+        assert_eq!(
+            after["features"]["inlayParameterHints"],
+            serde_json::Value::Bool(false),
+            "the alias enables type hints only; parameter hints stay off: {after}",
+        );
+        // And the gate the inlay handler reads agrees with the reported config.
+        let uri = Uri::from_str("file:///inlay.tcl").unwrap();
+        assert!(
+            backend.inlay_family_enabled(&uri, "inlayTypeHints").await,
+            "the inlay-type gate must see the alias-enabled toggle",
+        );
+        assert!(
+            !backend
+                .inlay_family_enabled(&uri, "inlayParameterHints")
+                .await,
+            "parameter hints must stay gated off",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -8959,6 +11359,192 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle",
+        );
+    }
+
+    #[test]
+    fn parse_folder_config_reads_extra_library_and_generic_patterns() {
+        let cfg = serde_json::json!({
+            "extraCommands": ["mylib::send", "mylib::recv"],
+            "libraryPaths": ["/proj/lib"],
+            "diagnostics": { "genericVariablePatterns": ["^proj_"] },
+        });
+        let fc = parse_folder_config(&cfg).expect("folder config");
+        assert_eq!(
+            fc.extra_commands.as_deref(),
+            Some(["mylib::send".to_owned(), "mylib::recv".to_owned()].as_slice()),
+        );
+        assert_eq!(
+            fc.library_paths.as_deref(),
+            Some(["/proj/lib".to_owned()].as_slice())
+        );
+        assert_eq!(
+            fc.generic_variable_patterns,
+            FolderGenericPatterns::Replace(vec!["^proj_".to_owned()]),
+        );
+    }
+
+    /// An explicit `genericVariablePatterns: null` selects the analyser's
+    /// built-in defaults (`BuiltinDefaults`), distinct from an absent key
+    /// (`Inherit`) and from a present array (`Replace`). Pins the third state.
+    #[test]
+    fn parse_folder_config_generic_patterns_null_is_builtin_defaults() {
+        let with_null = serde_json::json!({
+            "diagnostics": { "genericVariablePatterns": null },
+        });
+        let fc = parse_folder_config(&with_null).expect("folder config");
+        assert_eq!(
+            fc.generic_variable_patterns,
+            FolderGenericPatterns::BuiltinDefaults,
+            "null requests the built-in defaults",
+        );
+
+        // Negative: an absent key leaves the default `Inherit` (no override).
+        let absent = serde_json::json!({ "extraCommands": ["x"] });
+        let fc_absent = parse_folder_config(&absent).expect("folder config");
+        assert_eq!(
+            fc_absent.generic_variable_patterns,
+            FolderGenericPatterns::Inherit,
+            "an absent key inherits the global value",
+        );
+    }
+
+    #[tokio::test]
+    async fn per_folder_extra_commands_and_patterns_are_isolated() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let inside = Uri::from_str("file:///proj-a/sub/file.tcl").unwrap();
+        let outside = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        // Global sets one extra command; proj-a overrides with its own.
+        *backend.extra_commands.lock().await = vec!["globalcmd".to_owned()];
+        let fc = FolderConfig {
+            extra_commands: Some(vec!["projacmd".to_owned()]),
+            generic_variable_patterns: FolderGenericPatterns::Replace(vec!["^proja_".to_owned()]),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder_a.clone(), fc)])
+            .await;
+
+        // extraCommands resolve per folder.
+        assert_eq!(
+            backend.resolved_extra_commands(&inside).await,
+            vec!["projacmd".to_owned()],
+            "proj-a uses its own extraCommands",
+        );
+        assert_eq!(
+            backend.resolved_extra_commands(&outside).await,
+            vec!["globalcmd".to_owned()],
+            "proj-b inherits the global extraCommands",
+        );
+        // genericVariablePatterns resolve per folder.
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&inside).await,
+            Some(vec!["^proja_".to_owned()]),
+        );
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&outside).await,
+            None,
+            "proj-b inherits the global (default) patterns",
+        );
+        // proj-a gets a salsa handle (it overrides analyser-config inputs).
+        assert!(
+            backend
+                .folder_db_configs
+                .lock()
+                .await
+                .iter()
+                .any(|(u, _)| u == &folder_a),
+            "proj-a must have a per-folder AnalyserConfig handle for extraCommands",
+        );
+    }
+
+    /// The three `FolderGenericPatterns` states each resolve as documented, and
+    /// a doc outside every folder falls back to the global value. Pins the
+    /// 3-state replacement for the former `Option<Option<Vec<String>>>`.
+    #[tokio::test]
+    async fn resolved_generic_variable_patterns_three_state() {
+        let backend = test_backend();
+        let folder_replace = Uri::from_str("file:///replace").unwrap();
+        let folder_builtin = Uri::from_str("file:///builtin").unwrap();
+        let folder_inherit = Uri::from_str("file:///inherit").unwrap();
+        *backend.workspace_folders.lock().await = vec![
+            folder_replace.clone(),
+            folder_builtin.clone(),
+            folder_inherit.clone(),
+        ];
+        // Global supplies a list, so an inheriting folder (and a doc outside any
+        // folder) must observe it — distinguishing `Inherit` from
+        // `BuiltinDefaults` (which forces the built-in set, i.e. `None`).
+        *backend.generic_variable_patterns.lock().await = Some(vec!["^global_".to_owned()]);
+
+        backend
+            .apply_folder_configs(vec![
+                (
+                    folder_replace.clone(),
+                    FolderConfig {
+                        generic_variable_patterns: FolderGenericPatterns::Replace(vec![
+                            "^repl_".to_owned(),
+                        ]),
+                        ..FolderConfig::default()
+                    },
+                ),
+                (
+                    folder_builtin.clone(),
+                    FolderConfig {
+                        generic_variable_patterns: FolderGenericPatterns::BuiltinDefaults,
+                        ..FolderConfig::default()
+                    },
+                ),
+                (
+                    folder_inherit.clone(),
+                    FolderConfig {
+                        // `Inherit` is the default; set another field so the
+                        // folder still parses as a real (non-empty) override.
+                        optimiser_enabled: Some(true),
+                        ..FolderConfig::default()
+                    },
+                ),
+            ])
+            .await;
+
+        // Positive: a folder that replaces the patterns gets exactly its list.
+        let in_replace = Uri::from_str("file:///replace/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_replace)
+                .await,
+            Some(vec!["^repl_".to_owned()]),
+            "Replace yields the folder's own list",
+        );
+        // Negative (vs Inherit): BuiltinDefaults forces the analyser built-ins
+        // (`None`) even though the global is set.
+        let in_builtin = Uri::from_str("file:///builtin/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_builtin)
+                .await,
+            None,
+            "BuiltinDefaults forces the built-in set, ignoring the global list",
+        );
+        // Inherit folder observes the global list.
+        let in_inherit = Uri::from_str("file:///inherit/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_inherit)
+                .await,
+            Some(vec!["^global_".to_owned()]),
+            "Inherit falls back to the global patterns",
+        );
+        // A doc under no folder also inherits the global.
+        let outside = Uri::from_str("file:///elsewhere/a.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&outside).await,
+            Some(vec!["^global_".to_owned()]),
+            "a doc outside every folder inherits the global patterns",
         );
     }
 
@@ -9994,6 +12580,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command() {
+        // Regression for #724: the proc reference-count lens must resolve to a
+        // *clickable* `tcl-lsp.showReferences` command carrying the URI,
+        // anchor position, and reference locations — not a bare, inert title.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///refs.tcl").unwrap();
+        // `helper` defined once and called twice → 2 references.
+        register(&backend, &uri, "proc helper {} {}\nhelper\nhelper\n").await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        let lens = lenses
+            .into_iter()
+            .find(|l| {
+                l.data
+                    .as_ref()
+                    .and_then(serde_json::Value::as_object)
+                    .and_then(|d| d.get("qname"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("::helper")
+            })
+            .expect("a lens for ::helper");
+        let resolved = backend.code_lens_resolve(lens).await.expect("resolve ok");
+        let command = resolved.command.expect("resolved lens carries a command");
+        assert_eq!(
+            command.command, "tcl-lsp.showReferences",
+            "lens must invoke the show-references wrapper, got {command:?}",
+        );
+        assert!(
+            command.title.contains("references"),
+            "title should show the count: {command:?}",
+        );
+        let args = command.arguments.expect("showReferences needs arguments");
+        // [uriString, position, locations]
+        assert_eq!(args.len(), 3, "{args:?}");
+        assert_eq!(args[0], serde_json::Value::String(uri.to_string()));
+        let locations = args[2].as_array().expect("locations array");
+        assert_eq!(locations.len(), 2, "two call sites: {locations:?}");
+    }
+
+    #[tokio::test]
     async fn references_handler_merges_local_and_cross_document() {
         let backend = test_backend();
         let lib = Uri::from_str("file:///lib.tcl").unwrap();
@@ -10148,6 +12782,303 @@ mod tests {
         let consumer_edits = &changes[&consumer];
         assert_eq!(consumer_edits.len(), 2, "{consumer_edits:?}");
         assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
+    }
+
+    /// Build a backend with one document registered, then disable the named
+    /// `tclLsp.features.*` toggle.  Returns the backend plus the document
+    /// identifier and a cursor-position params for the request handlers.
+    async fn backend_with_feature_disabled(
+        feature: &str,
+    ) -> (Backend, TextDocumentIdentifier, TextDocumentPositionParams) {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///g.tcl").unwrap();
+        register(&backend, &uri, "proc helper {} {}\nhelper\n").await;
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .apply(serde_json::json!({ feature: false }).as_object().unwrap());
+        let td = TextDocumentIdentifier { uri };
+        let pos_params = TextDocumentPositionParams {
+            text_document: td.clone(),
+            position: Position::new(0, 5),
+        };
+        (backend, td, pos_params)
+    }
+
+    #[tokio::test]
+    async fn disabled_semantic_tokens_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("semanticTokens").await;
+        assert!(
+            backend
+                .semantic_tokens_full(SemanticTokensParams {
+                    text_document: td,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "semanticTokens disabled must yield None",
+        );
+    }
+
+    /// Negative: with the `semanticTokens` toggle left at its default (enabled),
+    /// the same handler returns a token set — proving the gate, not the handler,
+    /// is what suppresses the result above.
+    #[tokio::test]
+    async fn enabled_semantic_tokens_toggle_yields_some() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///g.tcl").unwrap();
+        register(&backend, &uri, "proc helper {} {}\nhelper\n").await;
+        assert!(
+            backend
+                .semantic_tokens_full(SemanticTokensParams {
+                    text_document: TextDocumentIdentifier { uri },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_some(),
+            "semanticTokens enabled must yield a token set",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_code_actions_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("codeActions").await;
+        assert!(
+            backend
+                .code_action(CodeActionParams {
+                    text_document: td,
+                    range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                    context: tower_lsp_server::ls_types::CodeActionContext::default(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "codeActions disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_rename_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("rename").await;
+        assert!(
+            backend
+                .rename(RenameParams {
+                    text_document_position: pos_params,
+                    new_name: "do_it".to_owned(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "rename disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_document_highlight_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("documentHighlight").await;
+        assert!(
+            backend
+                .document_highlight(DocumentHighlightParams {
+                    text_document_position_params: pos_params,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "documentHighlight disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_code_lens_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("codeLens").await;
+        assert!(
+            backend
+                .code_lens(CodeLensParams {
+                    text_document: td,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "codeLens disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_linked_editing_range_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("linkedEditingRange").await;
+        assert!(
+            backend
+                .linked_editing_range(LinkedEditingRangeParams {
+                    text_document_position_params: pos_params,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "linkedEditingRange disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_call_hierarchy_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("callHierarchy").await;
+        assert!(
+            backend
+                .prepare_call_hierarchy(CallHierarchyPrepareParams {
+                    text_document_position_params: pos_params,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "callHierarchy disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_workspace_symbols_toggle_yields_none() {
+        let (backend, _, _) = backend_with_feature_disabled("workspaceSymbols").await;
+        assert!(
+            backend
+                .symbol(WorkspaceSymbolParams {
+                    query: "helper".to_owned(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_none(),
+            "workspaceSymbols disabled must yield None",
+        );
+    }
+
+    #[tokio::test]
+    async fn diagnostics_master_switch_clears_the_report() {
+        // `tclLsp.features.diagnostics = false` yields an empty diagnostic
+        // report (clearing squiggles), mirroring the Python pipeline.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///d.tcl").unwrap();
+        // Trailing whitespace → W112 (a source-style hint, on by default and
+        // not opt-in) gives a guaranteed diagnostic to suppress.
+        let src = "set x 1  \n";
+        register(&backend, &uri, src).await;
+
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !on.is_empty(),
+            "expected at least one diagnostic with the feature on: {on:?}",
+        );
+
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            off.is_empty(),
+            "diagnostics disabled must yield an empty report: {off:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn o111_brace_expr_hint_pairs_with_w100() {
+        // Python pairs an O111 "brace your expression" Information hint with
+        // every W100; the pairing is gated on the optimiser being enabled and
+        // O111 not being disabled.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o111.tcl").unwrap();
+        let src = "set y [expr $a + $b]\n"; // unbraced expr → W100
+        register(&backend, &uri, src).await;
+
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let codes = |ds: &[tower_lsp_server::ls_types::Diagnostic]| -> Vec<String> {
+            ds.iter()
+                .filter_map(|d| match &d.code {
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let on_codes = codes(&on);
+        assert!(
+            on_codes.iter().any(|c| c == "W100"),
+            "expected W100: {on_codes:?}"
+        );
+        assert!(
+            on_codes.iter().any(|c| c == "O111"),
+            "expected the paired O111 hint: {on_codes:?}",
+        );
+
+        // Disabling the optimiser drops the O111 hint but keeps W100.
+        backend
+            .apply_global_config(&serde_json::json!({ "optimiser": { "enabled": false } }))
+            .await;
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let off_codes = codes(&off);
+        assert!(
+            off_codes.iter().any(|c| c == "W100"),
+            "W100 still expected: {off_codes:?}"
+        );
+        assert!(
+            !off_codes.iter().any(|c| c == "O111"),
+            "O111 must be gated off when the optimiser is disabled: {off_codes:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn style_line_length_setting_drives_w111() {
+        // `tclLsp.style.lineLength` is the W111 threshold, distinct from the
+        // formatter width. A short threshold makes an otherwise-fine line long.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w111.tcl").unwrap();
+        let src = "set x 1234567890\n"; // 16 chars on line 0
+        register(&backend, &uri, src).await;
+
+        // Default (120): no W111.
+        let none = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !none
+                .iter()
+                .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
+            "no W111 at the default threshold: {none:?}",
+        );
+
+        // Lower the style threshold to 8 → the 16-char line now trips W111.
+        backend
+            .apply_global_config(&serde_json::json!({ "style": { "lineLength": 8 } }))
+            .await;
+        assert_eq!(*backend.style_line_length.lock().await, 8);
+        let some = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            some.iter()
+                .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
+            "W111 should fire once the style line length is lowered: {some:?}",
+        );
     }
 
     #[tokio::test]

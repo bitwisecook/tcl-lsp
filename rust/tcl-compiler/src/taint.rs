@@ -415,10 +415,10 @@ pub(crate) struct TaintCtx<'a> {
 ///
 /// Handles pure variable references (`$x`), bracketed command
 /// substitutions (`[cmd ...]`), and interpolated strings.
-pub(crate) fn word_taint(
+pub(crate) fn word_taint<S: std::hash::BuildHasher>(
     word: &str,
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
     let stripped = word.trim();
@@ -636,11 +636,11 @@ fn literal_contains_crlf(value: &str) -> bool {
 /// `return_passthrough_param`, return the taint of the corresponding
 /// actual argument. Returns `None` when interprocedural summaries are
 /// not available or the call doesn't resolve.
-fn interproc_call_taint(
+fn interproc_call_taint<S: std::hash::BuildHasher>(
     command: &str,
     args: &[String],
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
 ) -> Option<TaintLattice> {
     let known = ctx.known_procs?;
@@ -676,10 +676,10 @@ fn interproc_call_taint(
 
 /// Look up taint for a named variable at its current SSA version. A name not
 /// interned in `ssa` is not a tracked SSA variable, so it is clean.
-fn var_taint(
+fn var_taint<S: std::hash::BuildHasher>(
     name: &str,
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     ssa: &SsaFunction,
 ) -> TaintLattice {
     let Some(sym) = ssa.var_symbol(name) else {
@@ -694,10 +694,10 @@ fn var_taint(
 }
 
 /// Determine the taint produced by a statement's definition(s).
-fn evaluate_taint_def(
+fn evaluate_taint_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
     ssa: &SsaFunction,
 ) -> TaintLattice {
@@ -801,9 +801,9 @@ fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
 /// present in the taint map. The Rust-only
 /// global-write seeding (`::` names at version 0) is excluded so it does
 /// not over-propagate into expression results.
-fn join_uses(
+fn join_uses<S: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     ssa: &SsaFunction,
 ) -> TaintLattice {
     let mut t = TaintLattice::clean();
@@ -941,7 +941,11 @@ fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
 ///   full return-summary transfer (`apply_proc_return_summary`)
 ///   instead of the conservative single-passthrough rule.
 #[must_use]
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+// `too_many_arguments`: the call sites live in `compilation_unit.rs` (another
+// subsystem) and pass these analyses positionally; bundling would require
+// editing those out-of-scope callers. The grouping is already minimal —
+// each argument is an independent analysis input.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn propagate_taints(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -976,7 +980,35 @@ pub(crate) fn propagate_taints(
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
+    seed_entry_taints(&mut taints, ssa, cfg, interproc, param_taints);
 
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for bn in &order {
+            if !sccp.executable_blocks.contains(bn) {
+                continue;
+            }
+            let Some(ssa_block) = ssa.blocks.get(bn) else {
+                continue;
+            };
+            changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, &preds, sccp);
+            changed |= propagate_statement_taints(&mut taints, ssa_block, ctx, ssa, rendered_props);
+        }
+    }
+
+    taints
+}
+
+/// Seed the initial taint map: tainted interprocedural parameters, plus
+/// version-0 global reads when a reachable callee writes globals.
+fn seed_entry_taints(
+    taints: &mut HashMap<ValueKey, TaintLattice>,
+    ssa: &SsaFunction,
+    cfg: &CfgFunction,
+    interproc: Option<&InterproceduralAnalysis>,
+    param_taints: Option<&HashMap<String, TaintLattice>>,
+) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
     // slot absent (implicitly clean).
@@ -1013,96 +1045,104 @@ pub(crate) fn propagate_taints(
             }
         }
     }
+}
 
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for bn in &order {
-            if !sccp.executable_blocks.contains(bn) {
-                continue;
+/// Join phi taints from edge-executable predecessors into `taints` for one
+/// block. Returns `true` if any lattice value changed.
+fn propagate_phi_taints(
+    taints: &mut HashMap<ValueKey, TaintLattice>,
+    ssa_block: &crate::ssa::SsaBlock,
+    bn: BlockId,
+    preds: &HashMap<BlockId, HashSet<BlockId>>,
+    sccp: &SccpResult,
+) -> bool {
+    let mut changed = false;
+    // Phi nodes: join taint from edge-executable predecessors only.
+    // Using executable_edges (not just executable_blocks) ensures
+    // taint does not flow through SCCP-proven dead branches.
+    for phi in &ssa_block.phis {
+        let exec_preds = preds
+            .get(&bn)
+            .map(|ps| {
+                ps.iter()
+                    .filter(|p| sccp.executable_edges.contains(&(**p, bn)))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        if exec_preds.is_empty() {
+            continue;
+        }
+
+        // Use `Option` to distinguish "no predecessor seen yet"
+        // from "clean with no mitigations". The join's intersect
+        // semantics for mitigations needs an identity of
+        // "all mitigations set" that we don't have a sentinel
+        // for; instead, the first incoming value becomes the
+        // accumulator directly and subsequent ones join into it.
+        let mut phi_taint: Option<TaintLattice> = None;
+        for pred in exec_preds {
+            let ver = phi.incoming.get(pred).copied().unwrap_or(0);
+            // Include version-0 incomings: they represent
+            // enclosing-scope reads (possibly pre-seeded with
+            // taint when a reachable callee writes globals).
+            let incoming = taints
+                .get(&(phi.name, ver))
+                .copied()
+                .unwrap_or(TaintLattice::clean());
+            phi_taint = Some(match phi_taint {
+                Some(existing) => existing.join(incoming),
+                None => incoming,
+            });
+        }
+
+        let Some(phi_taint) = phi_taint else { continue };
+        let key = (phi.name, phi.version);
+        let merged = match taints.get(&key) {
+            Some(&old) => old.join(phi_taint),
+            None => phi_taint,
+        };
+        if taints.get(&key) != Some(&merged) {
+            taints.insert(key, merged);
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Apply the per-statement taint transfer for one block's statements,
+/// merging results into `taints`. Returns `true` if any value changed.
+fn propagate_statement_taints(
+    taints: &mut HashMap<ValueKey, TaintLattice>,
+    ssa_block: &crate::ssa::SsaBlock,
+    ctx: TaintCtx<'_>,
+    ssa: &SsaFunction,
+    rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
+) -> bool {
+    let mut changed = false;
+    for ssa_stmt in &ssa_block.statements {
+        let stmt = &ssa_stmt.statement;
+        for (&var, &ver) in &ssa_stmt.defs {
+            let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &*taints, ctx, ssa);
+            // Enrich the inferred taint with rendered-property
+            // colours when available.
+            if let Some(rp) = rendered_props
+                && let Some(p) = rp.get(&(var, ver))
+            {
+                inferred = colour_from_rendered(inferred, *p);
             }
-            let Some(ssa_block) = ssa.blocks.get(bn) else {
-                continue;
+            let key = (var, ver);
+            let merged = match taints.get(&key) {
+                Some(&old) => old.join(inferred),
+                None => inferred,
             };
-
-            // Phi nodes: join taint from edge-executable predecessors only.
-            // Using executable_edges (not just executable_blocks) ensures
-            // taint does not flow through SCCP-proven dead branches.
-            for phi in &ssa_block.phis {
-                let exec_preds = preds
-                    .get(bn)
-                    .map(|ps| {
-                        ps.iter()
-                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-
-                if exec_preds.is_empty() {
-                    continue;
-                }
-
-                // Use `Option` to distinguish "no predecessor seen yet"
-                // from "clean with no mitigations". The join's intersect
-                // semantics for mitigations needs an identity of
-                // "all mitigations set" that we don't have a sentinel
-                // for; instead, the first incoming value becomes the
-                // accumulator directly and subsequent ones join into it.
-                let mut phi_taint: Option<TaintLattice> = None;
-                for pred in exec_preds {
-                    let ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                    // Include version-0 incomings: they represent
-                    // enclosing-scope reads (possibly pre-seeded with
-                    // taint when a reachable callee writes globals).
-                    let incoming = taints
-                        .get(&(phi.name, ver))
-                        .copied()
-                        .unwrap_or(TaintLattice::clean());
-                    phi_taint = Some(match phi_taint {
-                        Some(existing) => existing.join(incoming),
-                        None => incoming,
-                    });
-                }
-
-                let Some(phi_taint) = phi_taint else { continue };
-                let key = (phi.name, phi.version);
-                let merged = match taints.get(&key) {
-                    Some(&old) => old.join(phi_taint),
-                    None => phi_taint,
-                };
-                if taints.get(&key) != Some(&merged) {
-                    taints.insert(key, merged);
-                    changed = true;
-                }
-            }
-
-            // Statements.
-            for ssa_stmt in &ssa_block.statements {
-                let stmt = &ssa_stmt.statement;
-                for (&var, &ver) in &ssa_stmt.defs {
-                    let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx, ssa);
-                    // Enrich the inferred taint with rendered-property
-                    // colours when available.
-                    if let Some(rp) = rendered_props
-                        && let Some(p) = rp.get(&(var, ver))
-                    {
-                        inferred = colour_from_rendered(inferred, *p);
-                    }
-                    let key = (var, ver);
-                    let merged = match taints.get(&key) {
-                        Some(&old) => old.join(inferred),
-                        None => inferred,
-                    };
-                    if taints.get(&key) != Some(&merged) {
-                        taints.insert(key, merged);
-                        changed = true;
-                    }
-                }
+            if taints.get(&key) != Some(&merged) {
+                taints.insert(key, merged);
+                changed = true;
             }
         }
     }
-
-    taints
+    changed
 }
 
 // Sink detection
@@ -1223,12 +1263,11 @@ fn classify_network_interp_sinks(
 /// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
 /// normalised-but-unguarded path.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn find_destructive_file_warnings(
+pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
 ) -> Vec<TaintWarning> {
     let destructive = destructive_file_subs(registry);
@@ -1581,11 +1620,11 @@ fn propagate_guard(
 /// already carries a command's `taint_double_encode_colour` is passed
 /// through that command again (e.g. `uri::encode [uri::encode $x]`).
 /// Emit T106 (double-encode) warnings — one warning per variable.
-fn emit_double_encode_warnings(
+fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     command: &str,
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     span: Span,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
@@ -1722,12 +1761,11 @@ pub fn find_taint_warnings_for_cu(
 /// aggregation calls it over the top level and every procedure unit. The
 /// other warning kinds (setter-constraint / uri-split / path-concat /
 /// destructive-file) are not emitted here yet.
-#[allow(clippy::implicit_hasher)]
-pub fn find_taint_warnings(
+pub fn find_taint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
@@ -1756,9 +1794,9 @@ pub fn find_taint_warnings(
 /// - `Call` / `Barrier` / `AssignValue` with `[cmd ...]`: classify as a
 ///   sink via the registry and emit T100/T101 per tainted use.
 /// - `Call`: additionally emits T102 option-injection warnings.
-fn emit_statement_warnings(
+fn emit_statement_warnings<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
@@ -1802,17 +1840,14 @@ fn emit_statement_warnings(
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop
     // (T100/output/log, then T102, then T104/T105).
 
-    // T103: tainted data in a regexp/regsub pattern position.
-    emit_regexp_pattern_warnings(
-        command,
-        call_args,
-        &ssa_stmt.uses,
+    let env = TaintScan {
+        uses: &ssa_stmt.uses,
         taints,
-        span,
-        registry,
-        warnings,
         ssa,
-    );
+    };
+
+    // T103: tainted data in a regexp/regsub pattern position.
+    emit_regexp_pattern_warnings(command, call_args, &env, span, registry, warnings);
 
     // T106: re-encoding an already-encoded tainted value.
     emit_double_encode_warnings(
@@ -1832,47 +1867,19 @@ fn emit_statement_warnings(
     };
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
-        emit_sink_warnings(
-            &ssa_stmt.uses,
-            taints,
-            span,
-            code,
-            &sink_label,
-            &sink_call,
-            warnings,
-            ssa,
-        );
+        emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
 
     // T102: option injection — only for Call statements, after the primary
     // sink (T100/output/log).
     if let Statement::Call { args, .. } = stmt {
-        emit_option_injection(
-            command,
-            args,
-            &ssa_stmt.uses,
-            taints,
-            span,
-            registry,
-            dialect,
-            warnings,
-            ssa,
-        );
+        emit_option_injection(command, args, &env, span, registry, dialect, warnings);
     }
 
     // Additional registry-driven SSRF / cross-interp sinks (T104 / T105),
     // which can co-occur with the primary classification.
     for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
-        emit_sink_warnings(
-            &ssa_stmt.uses,
-            taints,
-            span,
-            code,
-            &sink_label,
-            &sink_call,
-            warnings,
-            ssa,
-        );
+        emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
 }
 
@@ -1899,21 +1906,29 @@ fn regexp_pattern_index(args: &[String]) -> Option<usize> {
     (i < args.len()).then_some(i)
 }
 
+/// Per-statement read context for the taint-warning emitters: the SSA
+/// versions reaching the statement (`uses`), the taint lattice, and the SSA
+/// function they resolve against. Bundled so the emitters stay within the
+/// argument limit.
+struct TaintScan<'a, S> {
+    uses: &'a HashMap<Symbol, u32>,
+    taints: &'a HashMap<ValueKey, TaintLattice, S>,
+    ssa: &'a SsaFunction,
+}
+
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
 /// the regex-pattern argument of a regex command (`regexp` / `regsub` —
 /// gated on `pattern_type == Regex`). Suppressed when the
 /// value carries the `REGEX_LITERAL` colour.
-#[allow(clippy::too_many_arguments)]
-fn emit_regexp_pattern_warnings(
+fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
     command: &str,
     args: &[String],
-    uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    env: &TaintScan<'_, S>,
     span: Span,
     registry: &CommandRegistry,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
 ) {
+    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let is_regex = registry
         .get(command)
         .is_some_and(|s| s.pattern_type == Some(tcl_registry::patterns::PatternType::Regex));
@@ -1962,9 +1977,9 @@ fn emit_regexp_pattern_warnings(
 }
 
 /// Emit T100 warnings for every tainted use in an expression context.
-fn emit_expr_warnings(
+fn emit_expr_warnings<S: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
     span: Span,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
@@ -2168,7 +2183,7 @@ fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
 /// clean — e.g. `puts [string length $x]` outputs the integer length, never
 /// `$x`'s content (tclsh-verified). Conservative: a bare `$name` outside any
 /// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
-/// taint reaches the sink). Mirrors the carve-out the `expr`/word_taint path
+/// taint reaches the sink). Mirrors the carve-out the `expr`/`word_taint` path
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
 fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: &str) -> bool {
     let mut seen = false;
@@ -2200,17 +2215,15 @@ fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: 
     seen
 }
 
-#[allow(clippy::too_many_arguments)]
-fn emit_sink_warnings(
-    uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+fn emit_sink_warnings<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
     span: Span,
     code: DiagCode,
     sink_label: &str,
     call: &SinkCall<'_>,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
 ) {
+    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for (&sym, &ver) in uses {
         let name = ssa.var_name(sym);
@@ -2395,18 +2408,16 @@ fn option_scan_region(
 /// (`resolve_option_terminator`) supplies the subcommand-aware command
 /// label and the scan start, `option_scan_region` filters positions, and
 /// the `T102_SAFE` colour set mitigates.
-#[allow(clippy::too_many_arguments)]
-fn emit_option_injection(
+fn emit_option_injection<S: std::hash::BuildHasher>(
     command: &str,
     args: &[String],
-    uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice>,
+    env: &TaintScan<'_, S>,
     span: Span,
     registry: &CommandRegistry,
     dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
 ) {
+    let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(profile) =
         registry.resolve_option_terminator(command, &args_str, dialect_to_set(dialect))
@@ -2495,13 +2506,12 @@ fn emit_option_injection(
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn find_setter_constraint_warnings(
+pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
     let mut out: Vec<TaintWarning> = Vec::new();

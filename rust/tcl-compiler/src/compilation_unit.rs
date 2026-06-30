@@ -28,6 +28,14 @@ use crate::taint::{TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
+/// Module-wide CFG-determining context (upvar summaries + proc params) shared
+/// by every procedure/method build so each rebuilt CFG matches the whole-module
+/// build.  Produced by [`crate::cfg_builder::prepare_cfg_context`].
+type CfgContext = (
+    HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
+    HashMap<String, Vec<String>>,
+);
+
 /// One procedure's **offset-0** baseline-lattice build request, handed to the
 /// [`ProcLatticeCache`] callback by [`CompilationUnit::build_for_memoized`].
 ///
@@ -324,8 +332,11 @@ impl FunctionUnit {
         }
         let s = (i64::from(span.start()) + self.base_offset).max(0);
         let e = (i64::from(span.end()) + self.base_offset).max(0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        tcl_lexer::Span::new(s as u32, e as u32)
+        // `s`/`e` are clamped to `>= 0`; a value past `u32::MAX` is a degenerate
+        // out-of-range offset, so saturate rather than wrap.
+        let s = u32::try_from(s).unwrap_or(u32::MAX);
+        let e = u32::try_from(e).unwrap_or(u32::MAX);
+        tcl_lexer::Span::new(s, e)
     }
 
     /// Recover the absolute byte position of `pos` by adding
@@ -335,10 +346,8 @@ impl FunctionUnit {
         if self.base_offset == 0 {
             return pos;
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
-            (i64::from(pos) + self.base_offset).max(0) as u32
-        }
+        // Clamped to `>= 0`; saturate a degenerate out-of-range offset.
+        u32::try_from((i64::from(pos) + self.base_offset).max(0)).unwrap_or(u32::MAX)
     }
 
     /// Populate memory-SSA on demand. Returns `self` for chaining.
@@ -486,7 +495,6 @@ impl CompilationUnit {
         )
     }
 
-    #[allow(clippy::too_many_lines)]
     fn build_for_inner(
         source: &str,
         registry: &CommandRegistry,
@@ -613,53 +621,8 @@ impl CompilationUnit {
             });
             procedures.insert(qname.clone(), fu);
         }
-        // Lower TclOO method bodies (populated in
-        // `ir_module.methods` by lowering) to per-method
-        // `FunctionUnit`s, using the same CFG → SSA → analysis
-        // pipeline as procs. Kept in a separate map so the per-proc
-        // diagnostic passes (which iterate `procedures`) are
-        // unaffected — only the interproc purity summary and the O126
-        // optimiser gate consume methods. Gated on a non-empty method
-        // set so non-OO sources skip the upvar-context scan entirely.
-        let methods: HashMap<String, FunctionUnit> = if ir_module.methods.is_empty() {
-            HashMap::new()
-        } else {
-            let (upvar_procs, proc_params) = cfg_context
-                .as_ref()
-                .expect("cfg_context computed when methods are present");
-            ir_module
-                .methods
-                .iter()
-                .map(|(mqname, method)| {
-                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
-                        mqname,
-                        &method.body,
-                        true,
-                        upvar_procs.clone(),
-                        proc_params.clone(),
-                    );
-                    // Body-byte half of the complexity guard (the block-count
-                    // half is applied inside `build`); skip an oversized
-                    // generated method body the same way as a procedure.
-                    let body_bytes = method
-                        .span
-                        .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
-                    let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
-                        FunctionUnit::trivial_guarded(mqname, cfg)
-                    } else {
-                        FunctionUnit::build_with_param_constants_and_classes(
-                            mqname,
-                            cfg,
-                            &method.params,
-                            registry,
-                            None,
-                            &known_class_set,
-                        )
-                    };
-                    (mqname.clone(), fu)
-                })
-                .collect()
-        };
+        let methods =
+            Self::build_method_units(&ir_module, cfg_context.as_ref(), &known_class_set, registry);
         // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
         // ``when`` block is present so non-iRules consumers
@@ -676,35 +639,7 @@ impl CompilationUnit {
                 Some(crate::connection_scope::build_connection_scope(&when_procs))
             }
         };
-        // Cross-event existence post-pass: `existence_constant_branches` ran per
-        // function (before the connection scope existed) and folded
-        // `[info exists VAR]` → false for any VAR not defined *in that event*.
-        // That is unsound for an iRules cross-event variable (set in another
-        // `when` handler), so drop those folds from `::when::*` procs now that
-        // the connection scope is known — otherwise O101 rewrites
-        // `if {[info exists ans_cleared]}` to `if {0}` even though a sibling
-        // event set it (a miscompile).
-        if let Some(cs) = &connection_scope {
-            let cross: std::collections::HashSet<&str> = cs
-                .cross_event_defs
-                .iter()
-                .chain(cs.cross_event_imports.iter())
-                .map(String::as_str)
-                .collect();
-            if !cross.is_empty() {
-                for (qn, fu) in procedures.iter_mut() {
-                    if !qn.starts_with("::when::") {
-                        continue;
-                    }
-                    fu.sccp.constant_branches.retain(|cb| {
-                        let mut vars = std::collections::HashSet::new();
-                        crate::connection_scope::scan_info_exists(&cb.condition, &mut vars);
-                        // Keep the fold only if it does not query a cross-event var.
-                        !vars.iter().any(|v| cross.contains(v.as_str()))
-                    });
-                }
-            }
-        }
+        Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
             source: source.to_owned(),
             ir_module,
@@ -714,6 +649,94 @@ impl CompilationUnit {
             methods,
             interproc: None,
             connection_scope,
+        }
+    }
+
+    /// Lower `TclOO` method bodies (populated in `ir_module.methods` by
+    /// lowering) to per-method [`FunctionUnit`]s, using the same CFG → SSA →
+    /// analysis pipeline as procs.  Kept in a separate map so the per-proc
+    /// diagnostic passes (which iterate `procedures`) are unaffected — only the
+    /// interproc purity summary and the O126 optimiser gate consume methods.
+    /// Returns an empty map for non-OO sources (skipping the upvar-context scan).
+    fn build_method_units(
+        ir_module: &IrModule,
+        cfg_context: Option<&CfgContext>,
+        known_class_set: &HashSet<String>,
+        registry: &CommandRegistry,
+    ) -> HashMap<String, FunctionUnit> {
+        if ir_module.methods.is_empty() {
+            return HashMap::new();
+        }
+        let (upvar_procs, proc_params) =
+            cfg_context.expect("cfg_context computed when methods are present");
+        ir_module
+            .methods
+            .iter()
+            .map(|(mqname, method)| {
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                    mqname,
+                    &method.body,
+                    true,
+                    upvar_procs.clone(),
+                    proc_params.clone(),
+                );
+                // Body-byte half of the complexity guard (the block-count
+                // half is applied inside `build`); skip an oversized
+                // generated method body the same way as a procedure.
+                let body_bytes = method
+                    .span
+                    .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
+                let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+                    FunctionUnit::trivial_guarded(mqname, cfg)
+                } else {
+                    FunctionUnit::build_with_param_constants_and_classes(
+                        mqname,
+                        cfg,
+                        &method.params,
+                        registry,
+                        None,
+                        known_class_set,
+                    )
+                };
+                (mqname.clone(), fu)
+            })
+            .collect()
+    }
+
+    /// Cross-event existence post-pass: `existence_constant_branches` ran per
+    /// function (before the connection scope existed) and folded
+    /// `[info exists VAR]` → false for any VAR not defined *in that event*.
+    /// That is unsound for an iRules cross-event variable (set in another
+    /// `when` handler), so drop those folds from `::when::*` procs now that the
+    /// connection scope is known — otherwise O101 rewrites
+    /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
+    /// set it (a miscompile).
+    fn drop_cross_event_existence_folds(
+        procedures: &mut HashMap<String, FunctionUnit>,
+        connection_scope: Option<&crate::connection_scope::ConnectionScope>,
+    ) {
+        let Some(cs) = connection_scope else {
+            return;
+        };
+        let cross: HashSet<&str> = cs
+            .cross_event_defs
+            .iter()
+            .chain(cs.cross_event_imports.iter())
+            .map(String::as_str)
+            .collect();
+        if cross.is_empty() {
+            return;
+        }
+        for (qn, fu) in procedures.iter_mut() {
+            if !qn.starts_with("::when::") {
+                continue;
+            }
+            fu.sccp.constant_branches.retain(|cb| {
+                let mut vars = HashSet::new();
+                crate::connection_scope::scan_info_exists(&cb.condition, &mut vars);
+                // Keep the fold only if it does not query a cross-event var.
+                !vars.iter().any(|v| cross.contains(v.as_str()))
+            });
         }
     }
 

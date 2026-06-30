@@ -54,13 +54,13 @@ use std::collections::HashMap;
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::ssa::{build_ssa, Version};
+use tcl_compiler::ssa::{Version, build_ssa};
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
-    analyse_cfg_function, analyse_var_escape, analyse_var_escape_cu, BarrierKind, EscapeReasonKind,
-    EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME,
+    BarrierKind, EscapeReasonKind, EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME,
+    analyse_cfg_function, analyse_var_escape, analyse_var_escape_cu,
 };
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -134,9 +134,15 @@ fn cu_eval_if_body_global_escapes() {
     // The `If` clause-body inside the eval is walked by tree_structural's If arm.
     let s = escape_cu("proc ::p {} { eval {if 1 {global gg\n incr gg}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gg"), "global inside a literal eval if-body is Frame");
+    assert!(
+        p.is_frame("gg"),
+        "global inside a literal eval if-body is Frame"
+    );
     assert!(p.frame_needed);
-    assert!(!p.dynamic_barrier(), "a literal eval body is not whole-proc pessimism");
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal eval body is not whole-proc pessimism"
+    );
 }
 
 #[test]
@@ -169,8 +175,15 @@ fn cu_eval_for_body_and_init_escape() {
     // scope-crossing name surfaces, which is the precise verdict here.)
     let s = escape_cu("proc ::p {} { eval {for {global gi\n set gi 0} {1} {incr gi} {set lb 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gi"), "global in the eval-body for-init is Frame");
-    assert_eq!(p.tag("lb"), EscapeTag::Local, "the relaxed for-body local stays Local on the CFG path");
+    assert!(
+        p.is_frame("gi"),
+        "global in the eval-body for-init is Frame"
+    );
+    assert_eq!(
+        p.tag("lb"),
+        EscapeTag::Local,
+        "the relaxed for-body local stays Local on the CFG path"
+    );
     assert!(p.frame_needed);
 }
 
@@ -210,9 +223,16 @@ fn cu_eval_switch_default_arm_global_escapes() {
         "proc ::p {} { eval {switch x { a {set la 1} default {global gd\n set gd 1} }} }",
     );
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gd"), "global in the eval switch default arm is Frame");
+    assert!(
+        p.is_frame("gd"),
+        "global in the eval switch default arm is Frame"
+    );
     // The non-default arm's pure local stays Local on the CFG path.
-    assert_eq!(p.tag("la"), EscapeTag::Local, "the other switch arm's local stays Local");
+    assert_eq!(
+        p.tag("la"),
+        EscapeTag::Local,
+        "the other switch arm's local stays Local"
+    );
     assert!(p.frame_needed);
 }
 
@@ -243,7 +263,10 @@ fn cu_eval_catch_stmt_body_global_escapes() {
     // tree_structural's Catch arm walks the catch body.
     let s = escape_cu("proc ::p {} { eval {catch {global gcc\n set gcc 1} msg} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gcc"), "global inside an eval catch-body is Frame");
+    assert!(
+        p.is_frame("gcc"),
+        "global inside an eval catch-body is Frame"
+    );
     assert!(p.frame_needed);
 }
 
@@ -272,7 +295,10 @@ fn cu_eval_assignvalue_info_exists_escapes_target() {
     // the hazard and escapes the named target.
     let s = escape_cu("proc ::p {} { eval {if 1 {set rq [info exists rvv]}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("rvv"), "info-exists target in an eval-body assigned value is Frame");
+    assert!(
+        p.is_frame("rvv"),
+        "info-exists target in an eval-body assigned value is Frame"
+    );
 }
 
 #[test]
@@ -281,7 +307,10 @@ fn cu_eval_expr_eval_info_exists_escapes_target() {
     // expression scanned by tree_call_or_barrier's ExprEval arm.
     let s = escape_cu("proc ::p {} { eval {if 1 {expr {[info exists eev]}}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("eev"), "info-exists in an eval expr statement is Frame");
+    assert!(
+        p.is_frame("eev"),
+        "info-exists in an eval expr statement is Frame"
+    );
 }
 
 #[test]
@@ -292,7 +321,11 @@ fn cu_eval_incr_amount_does_not_escape_name() {
     // the eval-block relaxation, not the every-name-touched tree walk, handled it.
     let s = escape_cu("proc ::p {} { eval {incr counter 5} }");
     let p = summary(&s, "::p");
-    assert_eq!(p.tag("counter"), EscapeTag::Local, "relaxed single-stmt eval incr stays Local");
+    assert_eq!(
+        p.tag("counter"),
+        EscapeTag::Local,
+        "relaxed single-stmt eval incr stays Local"
+    );
     assert!(!p.dynamic_barrier());
 }
 
@@ -314,9 +347,15 @@ fn cu_eval_multiarg_literal_escapes_name() {
     // the eval body's `set fresh 3` escapes `fresh`.
     let s = escape_cu("proc ::p {} { eval set fresh 3 }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("fresh"), "multi-arg eval body escapes the name it writes");
+    assert!(
+        p.is_frame("fresh"),
+        "multi-arg eval body escapes the name it writes"
+    );
     assert!(p.has_fallback(), "an eval is a barrier-shaped fallback");
-    assert!(!p.dynamic_barrier(), "a literal multi-arg eval body is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal multi-arg eval body is not pessimistic"
+    );
 }
 
 #[test]
@@ -325,7 +364,10 @@ fn cu_eval_multiarg_dynamic_join_is_pessimistic() {
     // dynamic token, so handle_eval marks the proc pessimistic (is_dynamic_token).
     let s = escape_cu("proc ::p {x} { eval set y $x }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a dynamic multi-arg eval body is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "a dynamic multi-arg eval body is pessimistic"
+    );
     assert!(p.frame_needed);
 }
 
@@ -336,7 +378,10 @@ fn cu_eval_multiarg_body_info_level_is_pessimistic() {
     // escape_every_name_touched_tree).
     let s = escape_cu("proc ::p {} { eval if 1 {set l [info level]} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "info level reached through a multi-arg eval is a barrier");
+    assert!(
+        p.dynamic_barrier(),
+        "info level reached through a multi-arg eval is a barrier"
+    );
 }
 
 #[test]
@@ -362,7 +407,10 @@ fn cu_uplevel_zero_dynamic_body_is_pessimistic() {
     // scanned).
     let s = escape_cu("proc ::p {x} { uplevel #0 {set glob $x} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a dynamic uplevel #0 body is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "a dynamic uplevel #0 body is pessimistic"
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -384,8 +432,15 @@ fn cu_catch_dynamic_body_arg_is_pessimistic() {
     // is_dynamic_token guard means no specific inner name is escaped.
     let s = escape_cu("proc ::p {body} { catch $body }");
     let p = summary(&s, "::p");
-    assert!(p.tags.is_empty(), "no specific name is escaped from a dynamic catch body: {:?}", p.tags);
-    assert!(p.dynamic_barrier(), "a `catch $body` defeats the analysis → pessimistic");
+    assert!(
+        p.tags.is_empty(),
+        "no specific name is escaped from a dynamic catch body: {:?}",
+        p.tags
+    );
+    assert!(
+        p.dynamic_barrier(),
+        "a `catch $body` defeats the analysis → pessimistic"
+    );
     assert!(p.has_fallback(), "the catch call records the eval fallback");
 }
 
@@ -399,7 +454,11 @@ fn cu_catch_literal_body_with_dynamic_value_early_returns() {
     // proc keeps a frame; the precise upvar source is simply not threaded.)
     let s = escape_cu("proc ::p {} { catch {upvar 1 cv v\n set v $w} }");
     let p = summary(&s, "::p");
-    assert_eq!(p.tag("v"), EscapeTag::Local, "dynamic-body catch leaves v Local");
+    assert_eq!(
+        p.tag("v"),
+        EscapeTag::Local,
+        "dynamic-body catch leaves v Local"
+    );
     assert!(
         p.upvar_source_names.is_empty(),
         "no upvar source threaded from a dynamic catch body: {:?}",
@@ -429,8 +488,14 @@ fn ir_eval_for_body_global_escapes_and_escapes_locals() {
     // escapes (gi via global, lb as a plain touched local).
     let s = escape_ir("proc ::p {} { eval {for {global gi\n set gi 0} {1} {incr gi} {set lb 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gi"), "global in the eval for-init is Frame on the IR walk");
-    assert!(p.is_frame("lb"), "the for-body local also escapes in a literal eval");
+    assert!(
+        p.is_frame("gi"),
+        "global in the eval for-init is Frame on the IR walk"
+    );
+    assert!(
+        p.is_frame("lb"),
+        "the for-body local also escapes in a literal eval"
+    );
 }
 
 #[test]
@@ -440,7 +505,10 @@ fn ir_eval_while_body_variable_escapes() {
     // mechanism as the CU while case).
     let s = escape_ir("proc ::p {} { eval {while {1} {variable wv\n set wv 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("wv"), "variable in an eval while-body is Frame on the IR walk");
+    assert!(
+        p.is_frame("wv"),
+        "variable in an eval while-body is Frame on the IR walk"
+    );
 }
 
 #[test]
@@ -448,16 +516,24 @@ fn ir_eval_foreach_body_global_escapes() {
     // escape_structural's Foreach arm. tclsh: `foreach`-body global accumulates.
     let s = escape_ir("proc ::p {} { eval {foreach n {a b} {global gf\n set gf 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gf"), "global in an eval foreach-body is Frame on the IR walk");
+    assert!(
+        p.is_frame("gf"),
+        "global in an eval foreach-body is Frame on the IR walk"
+    );
 }
 
 #[test]
 fn ir_eval_switch_arms_variable_and_local_escape() {
     // escape_structural's Switch arm walks each non-default arm + default_body;
     // every touched name escapes.
-    let s = escape_ir("proc ::p {} { eval {switch m { a {variable va\n set va 1} default {set ld 1} }} }");
+    let s = escape_ir(
+        "proc ::p {} { eval {switch m { a {variable va\n set va 1} default {set ld 1} }} }",
+    );
     let p = summary(&s, "::p");
-    assert!(p.is_frame("va"), "variable in an eval switch arm is Frame on the IR walk");
+    assert!(
+        p.is_frame("va"),
+        "variable in an eval switch arm is Frame on the IR walk"
+    );
     assert!(p.is_frame("ld"), "the default-arm local also escapes");
 }
 
@@ -481,7 +557,10 @@ fn ir_eval_catch_body_global_escapes() {
     // escape_structural's Catch arm walks the catch body.
     let s = escape_ir("proc ::p {} { eval {catch {global gc\n set gc 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("gc"), "global in an eval catch-body is Frame on the IR walk");
+    assert!(
+        p.is_frame("gc"),
+        "global in an eval catch-body is Frame on the IR walk"
+    );
 }
 
 #[test]
@@ -491,7 +570,10 @@ fn ir_eval_nested_eval_block_escapes() {
     // the same frame (a doubly-nested `set`/`global` persists in the proc frame).
     let s = escape_ir("proc ::p {} { eval {eval {global ge\n set ge 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("ge"), "global in a nested eval is Frame on the IR walk");
+    assert!(
+        p.is_frame("ge"),
+        "global in a nested eval is Frame on the IR walk"
+    );
     assert!(p.has_fallback(), "the nested eval keeps the fallback");
 }
 
@@ -504,7 +586,10 @@ fn ir_eval_namespace_eval_block_is_pessimistic() {
     // not the proc frame — the analysis conservatively bars rather than model it.)
     let s = escape_ir("proc ::p {} { eval {namespace eval ::nn {global gn\n set gn 1}} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a nested namespace-eval block bars on the IR walk");
+    assert!(
+        p.dynamic_barrier(),
+        "a nested namespace-eval block bars on the IR walk"
+    );
 }
 
 #[test]
@@ -516,7 +601,10 @@ fn ir_eval_uplevel_zero_block_inside_needs_fallback_only() {
     // `#0` literal body is a safe global-scope eval — fallback, not pessimistic.
     let s = escape_ir("proc ::p {} { eval {uplevel #0 {set gg 1}} }");
     let p = summary(&s, "::p");
-    assert!(!p.dynamic_barrier(), "uplevel #0 literal body nested in eval is not pessimistic");
+    assert!(
+        !p.dynamic_barrier(),
+        "uplevel #0 literal body nested in eval is not pessimistic"
+    );
     assert!(p.has_fallback());
 }
 
@@ -535,7 +623,10 @@ fn ir_eval_body_dynamic_assign_name_is_pessimistic() {
     // eval body hits escape_assign_or_incr's mark_pessimistic branch.
     let s = escape_ir("proc ::p {} { eval {set $dyn 1\n set $dyn 2} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a dynamic assign-name in an eval body is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "a dynamic assign-name in an eval body is pessimistic"
+    );
 }
 
 #[test]
@@ -545,7 +636,10 @@ fn ir_eval_body_dynamic_incr_name_is_pessimistic() {
     // proc pessimistic.
     let s = escape_ir("proc ::p {} { eval {if 1 {incr $dyn}} }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "a dynamic incr-name in an eval body is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "a dynamic incr-name in an eval body is pessimistic"
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -594,7 +688,11 @@ fn ir_uplevel_one_no_body_is_safe() {
     let s = escape_ir("proc ::p {} { uplevel 1 }");
     let p = summary(&s, "::p");
     // No body to run ⇒ no caller-name effect the walker can see.
-    assert!(!p.dynamic_barrier(), "bodyless uplevel 1 records no barrier here: {:?}", p.barriers);
+    assert!(
+        !p.dynamic_barrier(),
+        "bodyless uplevel 1 records no barrier here: {:?}",
+        p.barriers
+    );
 }
 
 #[test]
@@ -605,8 +703,15 @@ fn ir_uplevel_zero_no_body_needs_fallback_only() {
     // fallback only, leaving the proc non-pessimistic. Assert the observed shape.
     let s = escape_ir("proc ::p {} { uplevel #0 }");
     let p = summary(&s, "::p");
-    assert!(!p.dynamic_barrier(), "bodyless uplevel #0 is not pessimistic: {:?}", p.barriers);
-    assert!(p.has_fallback(), "but the barrier-shaped uplevel records the fallback");
+    assert!(
+        !p.dynamic_barrier(),
+        "bodyless uplevel #0 is not pessimistic: {:?}",
+        p.barriers
+    );
+    assert!(
+        p.has_fallback(),
+        "but the barrier-shaped uplevel records the fallback"
+    );
 }
 
 #[test]
@@ -642,7 +747,10 @@ fn ir_generic_barrier_records_unknown_barrier() {
     } else {
         // If the lowering relaxed subst to a plain call, it at least records a
         // fallback (subst is not a frameless-runtime command).
-        assert!(p.has_fallback() || p.has_call_fallback(), "subst records some fallback: {p:?}");
+        assert!(
+            p.has_fallback() || p.has_call_fallback(),
+            "subst records some fallback: {p:?}"
+        );
     }
 }
 
@@ -666,7 +774,10 @@ fn cu_value_with_info_level_marks_pessimistic() {
     // frame, so the proc genuinely cannot be frame-elided.
     let s = escape_cu("proc ::p {} { set x \"a[info level]b\" }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "an embedded [info level] in a value is pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "an embedded [info level] in a value is pessimistic"
+    );
 }
 
 #[test]
@@ -674,7 +785,10 @@ fn ir_value_with_info_level_marks_pessimistic() {
     // The IR-walk twin of the above (walker.rs::apply_value_scan).
     let s = escape_ir("proc ::p {} { set x \"a[info level]b\" }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "embedded [info level] is pessimistic on the IR walk");
+    assert!(
+        p.dynamic_barrier(),
+        "embedded [info level] is pessimistic on the IR walk"
+    );
 }
 
 #[test]
@@ -688,7 +802,10 @@ fn cu_eval_body_value_nonframeless_head_records_fallback_via_cfg_result() {
         r.has_fallback(),
         "a non-frameless subst head inside an eval-body value records a fallback"
     );
-    assert!(!r.dynamic_barrier(), "the head fallback is not whole-proc pessimism");
+    assert!(
+        !r.dynamic_barrier(),
+        "the head fallback is not whole-proc pessimism"
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -706,7 +823,11 @@ fn cfg_result_eval_body_global_collapses_and_records_callee() {
     // A top-level `eval {if 1 {global gg; incr gg}}` — the tree walk escapes gg
     // (via handle_global) and records `global` as a direct callee.
     let r = cfg_result("eval {if 1 {global gg\n incr gg}}");
-    assert_eq!(r.name_tags.get("gg"), Some(&EscapeTag::Frame), "gg collapses to Frame");
+    assert_eq!(
+        r.name_tags.get("gg"),
+        Some(&EscapeTag::Frame),
+        "gg collapses to Frame"
+    );
     assert!(
         r.direct_callees.contains("global"),
         "the eval-body global call is recorded as a callee: {:?}",
@@ -721,10 +842,16 @@ fn cfg_result_eval_body_upvar_records_source_and_reason() {
     // caller source cv, and attaches an UpvarSource reason to v.
     let r = cfg_result("eval {if 1 {upvar 1 cv v\n set v 1}}");
     assert_eq!(r.name_tags.get("v"), Some(&EscapeTag::Frame));
-    assert!(r.upvar_source_names.contains("cv"), "cv recorded: {:?}", r.upvar_source_names);
+    assert!(
+        r.upvar_source_names.contains("cv"),
+        "cv recorded: {:?}",
+        r.upvar_source_names
+    );
     let reasons = r.tag_reasons.get("v").expect("v has reasons");
     assert!(
-        reasons.iter().any(|x| x.kind == EscapeReasonKind::UpvarSource),
+        reasons
+            .iter()
+            .any(|x| x.kind == EscapeReasonKind::UpvarSource),
         "expected an UpvarSource reason on v, got {reasons:?}"
     );
 }
@@ -748,8 +875,14 @@ fn cu_dynamic_assignexpr_name_spills_all_known() {
     // escape_all_known (the name `$n` resolves to no literal).
     let s = escape_cu("proc ::p {n} { set a 1\n set $n [expr {1+1}] }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "an unresolved dynamic AssignExpr name is pessimistic");
-    assert!(p.is_frame("a"), "a is spilled by the dynamic AssignExpr name");
+    assert!(
+        p.dynamic_barrier(),
+        "an unresolved dynamic AssignExpr name is pessimistic"
+    );
+    assert!(
+        p.is_frame("a"),
+        "a is spilled by the dynamic AssignExpr name"
+    );
     assert!(p.is_frame("n"));
 }
 
@@ -771,7 +904,10 @@ fn cu_dynamic_incr_name_spills_all_known() {
         !p.dynamic_barrier(),
         "the Incr dynamic-name spill is name-precise, not a whole-proc barrier"
     );
-    assert!(p.frame_needed, "but the proc still needs a frame for the spilled locals");
+    assert!(
+        p.frame_needed,
+        "but the proc still needs a frame for the spilled locals"
+    );
 }
 
 #[test]
@@ -782,7 +918,10 @@ fn cu_assignexpr_literal_name_invalidates_then_dynamic_spills() {
     // literal-name (non-dynamic) branch then the dynamic-name spill in one proc.
     let s = escape_cu("proc ::p {} { set x [expr {1+1}]\n set $x 9 }");
     let p = summary(&s, "::p");
-    assert!(p.dynamic_barrier(), "the unresolved $x spills the proc pessimistic");
+    assert!(
+        p.dynamic_barrier(),
+        "the unresolved $x spills the proc pessimistic"
+    );
     assert!(p.is_frame("x"), "x is spilled");
 }
 
@@ -810,9 +949,19 @@ fn cu_assignvalue_info_exists_escapes_via_value_scan() {
     // is NOT recorded as a direct callee; the escape verdict is the carrier.)
     let s = escape_cu("proc ::p {} { set rv 1\n set q [info exists rv] }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("rv"), "info-exists target escapes via the AssignValue value scan");
-    assert_eq!(p.tag("q"), EscapeTag::Local, "the result-holding local stays Local");
-    assert!(!p.dynamic_barrier(), "a literal info-exists in a value is not pessimistic");
+    assert!(
+        p.is_frame("rv"),
+        "info-exists target escapes via the AssignValue value scan"
+    );
+    assert_eq!(
+        p.tag("q"),
+        EscapeTag::Local,
+        "the result-holding local stays Local"
+    );
+    assert!(
+        !p.dynamic_barrier(),
+        "a literal info-exists in a value is not pessimistic"
+    );
 }
 
 #[test]
@@ -867,7 +1016,9 @@ fn cu_eval_body_global_tags_concrete_ssa_version() {
         p.ssa_tags
     );
     assert!(
-        p.ssa_tags.iter().any(|((n, _), t)| n == "gg" && *t == EscapeTag::Frame),
+        p.ssa_tags
+            .iter()
+            .any(|((n, _), t)| n == "gg" && *t == EscapeTag::Frame),
         "the per-version map carries the eval-body global tag: {:?}",
         p.ssa_tags
     );
@@ -877,10 +1028,18 @@ fn cu_eval_body_global_tags_concrete_ssa_version() {
 fn cu_top_level_eval_body_escapes_via_cu_map() {
     // The whole-CU map keys the top-level eval body under TOP_LEVEL_QNAME and the
     // proc under its qname; both eval bodies escape independently.
-    let s = escape_cu("eval {if 1 {global tg\n incr tg}}\nproc ::p {} { eval {if 1 {global pg\n incr pg}} }");
+    let s = escape_cu(
+        "eval {if 1 {global tg\n incr tg}}\nproc ::p {} { eval {if 1 {global pg\n incr pg}} }",
+    );
     assert!(s.contains_key(TOP_LEVEL_QNAME), "top-level key present");
-    assert!(summary(&s, TOP_LEVEL_QNAME).is_frame("tg"), "top-level eval global escapes");
-    assert!(summary(&s, "::p").is_frame("pg"), "proc eval global escapes");
+    assert!(
+        summary(&s, TOP_LEVEL_QNAME).is_frame("tg"),
+        "top-level eval global escapes"
+    );
+    assert!(
+        summary(&s, "::p").is_frame("pg"),
+        "proc eval global escapes"
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -902,14 +1061,21 @@ fn cu_eval_body_named_upvar_source_flows_to_caller() {
          proc ::host {} { set x 1\n leaf }",
     );
     let leaf = summary(&s, "::leaf");
-    assert!(leaf.upvar_source_names.contains("x"), "leaf records source x: {:?}", leaf.upvar_source_names);
+    assert!(
+        leaf.upvar_source_names.contains("x"),
+        "leaf records source x: {:?}",
+        leaf.upvar_source_names
+    );
     let host = summary(&s, "::host");
     assert!(
         host.upvar_source_names.contains("x"),
         "the eval-body upvar source reaches the caller: {:?}",
         host.upvar_source_names
     );
-    assert!(host.is_frame("x"), "the caller's matching local becomes Frame");
+    assert!(
+        host.is_frame("x"),
+        "the caller's matching local becomes Frame"
+    );
 }
 
 #[test]

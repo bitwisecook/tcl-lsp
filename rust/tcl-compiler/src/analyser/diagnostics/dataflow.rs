@@ -24,6 +24,30 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
+/// The read-only name/guard/suppression context for the `return`-value
+/// phi-from-undef W210 pass ([`Analyser::emit_return_phi_undef_w210`]):
+/// the proc parameters, dominating existence guards, scope aliases, the
+/// caller-supplied known-defined / defined-var sets, the executable block
+/// set, and the undef-suppression model.  Bundled to keep the emitter under
+/// the argument limit.
+/// The phi-from-undef indices ([`build_phi_undef_index`] output) borrowed for
+/// one W210 pass, so the per-read check can be split into its own helper.
+struct PhiUndefIndex<'a> {
+    phi_def: &'a super::helpers::PhiDefMap,
+    phi_block: &'a super::helpers::PhiBlockMap,
+    killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+}
+
+pub(super) struct ReturnUndefCtx<'a> {
+    pub params: &'a HashSet<&'a str>,
+    pub exists_guards: &'a [(String, crate::cfg::BlockId)],
+    pub scope_aliases: &'a HashSet<String>,
+    pub extra_known_defined: &'a HashSet<String>,
+    pub defined_vars: &'a HashSet<String>,
+    pub considered: &'a HashSet<crate::cfg::BlockId>,
+    pub supp: &'a UndefSuppression,
+}
+
 impl Analyser {
     /// **W128.** Flag a call to a command that was
     /// renamed or deleted earlier in the same file — it falls through to
@@ -774,7 +798,6 @@ file; this call falls through to the 'unknown' handler."
     /// - Everything else emits W210 with the canonical
     ///   "read before set" message + optional "did you mean…?"
     ///   suggestion.
-    #[allow(clippy::too_many_lines)]
     pub(super) fn emit_read_before_set_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -784,8 +807,7 @@ file; this call falls through to the 'unknown' handler."
         extra_known_defined: &HashSet<String>,
         supp: &UndefSuppression,
     ) {
-        use crate::def_use::{DefKind, UseKind};
-        use crate::ir::Statement;
+        use crate::def_use::DefKind;
         use std::fmt::Write as _;
 
         // Top-level RBS uses the ``extra_known_defined`` set
@@ -829,6 +851,16 @@ file; this call falls through to the 'unknown' handler."
             if params.contains(var.as_str()) {
                 continue;
             }
+            // A fully-qualified read (`$::myVar`, `$ns::var`) explicitly
+            // targets the global / a named namespace scope, whose definition
+            // may live in another proc, another namespace, or — for a
+            // multi-file project — another file entirely.  Single-unit
+            // dataflow can't see those writers, so a qualified read must never
+            // be flagged read-before-set (matches the phi-undef emitter and
+            // the dead-store pass, which already exempt `::`-qualified names).
+            if var.contains("::") {
+                continue;
+            }
             // A dynamic-target upvar local is possibly-unset, so its
             // scope-alias status must not suppress the read-before-set (an
             // unconditional `$local` read still fires; an `[info exists local]`
@@ -849,94 +881,7 @@ file; this call falls through to the 'unknown' handler."
             if supp.suppresses(var) {
                 continue;
             }
-            for use_site in &chain.uses {
-                if matches!(use_site.kind, UseKind::PhiIncoming) {
-                    continue;
-                }
-                let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
-                    continue;
-                };
-                let (span, stmt_opt): (tcl_lexer::Span, Option<&Statement>) =
-                    if use_site.statement_index == -1 {
-                        let Some(span) = block
-                            .terminator
-                            .as_ref()
-                            .and_then(crate::cfg::Terminator::span)
-                        else {
-                            continue;
-                        };
-                        (fu.abs_span(span), None)
-                    } else {
-                        let Ok(idx) = usize::try_from(use_site.statement_index) else {
-                            continue;
-                        };
-                        let Some(stmt) = block.statements.get(idx) else {
-                            continue;
-                        };
-                        (fu.abs_span(stmt.span()), Some(stmt))
-                    };
-                if span.is_empty() {
-                    continue;
-                }
-                // A read-modify-write command (`lappend` / `append`) that
-                // auto-creates its target is not a read-before-set: it both
-                // reads and defines the variable, creating it from an empty
-                // default when absent. `unset` also carries
-                // `reads_own_defs` but is destructive, not auto-creating — its
-                // missing-variable case is exactly the W213 handled just below,
-                // so it must not be skipped here.
-                if let Some(Statement::Call {
-                    reads_own_defs: true,
-                    command,
-                    defs,
-                    ..
-                }) = stmt_opt
-                    && command != "unset"
-                    && defs.iter().any(|d| d == var)
-                {
-                    continue;
-                }
-                // Skip the existence-query word itself and
-                // reads narrowed by an enclosing `[info exists X]` guard.
-                if existence_exempt(stmt_opt, var, &exists_guards, &fu.ssa, &use_site.block) {
-                    continue;
-                }
-                // ``unset`` without ``-nocomplain`` → W213.
-                if let Some(Statement::Call { command, args, .. }) = stmt_opt
-                    && command == "unset"
-                    && !args.iter().any(|a| a == "-nocomplain")
-                {
-                    let message = format!(
-                        "Variable '{var}' may not exist; \
-                             use 'unset -nocomplain' to suppress the error",
-                    );
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W213,
-                        span,
-                        message,
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
-                    continue;
-                }
-                // A use site that itself safely initialises the variable
-                // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
-                // `incr` of its own target) is not read-before-set.
-                if use_site_safe_initialises(stmt_opt, var) {
-                    continue;
-                }
-                // Anchor at the `$var` read token; fall back to the command
-                // span when the read is nested inside a quoted/compound word.
-                let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
-                w210_min
-                    .entry(var.clone())
-                    .and_modify(|s| {
-                        if read_span.start() < s.start() {
-                            *s = read_span;
-                        }
-                    })
-                    .or_insert(read_span);
-            }
+            self.record_chain_w210_uses(fu, chain, &exists_guards, &mut w210_min);
         }
 
         let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
@@ -956,31 +901,140 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// Record the earliest read-before-set span for one undef def-use chain
+    /// (and emit any W213 `unset`-without-`-nocomplain`).  Walks the chain's
+    /// uses, skipping phi-incoming pseudo-uses, auto-creating read-modify-write
+    /// targets, existence-guarded reads, and use sites that safely initialise
+    /// the variable; survivors update `w210_min` with the earliest read span.
+    fn record_chain_w210_uses(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        chain: &crate::def_use::DefUseChain,
+        exists_guards: &[(String, crate::cfg::BlockId)],
+        w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
+    ) {
+        use crate::def_use::UseKind;
+        use crate::ir::Statement;
+
+        let (var, _version) = &chain.key;
+        for use_site in &chain.uses {
+            if matches!(use_site.kind, UseKind::PhiIncoming) {
+                continue;
+            }
+            let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
+                continue;
+            };
+            let (span, stmt_opt): (tcl_lexer::Span, Option<&Statement>) =
+                if use_site.statement_index == -1 {
+                    let Some(span) = block
+                        .terminator
+                        .as_ref()
+                        .and_then(crate::cfg::Terminator::span)
+                    else {
+                        continue;
+                    };
+                    (fu.abs_span(span), None)
+                } else {
+                    let Ok(idx) = usize::try_from(use_site.statement_index) else {
+                        continue;
+                    };
+                    let Some(stmt) = block.statements.get(idx) else {
+                        continue;
+                    };
+                    (fu.abs_span(stmt.span()), Some(stmt))
+                };
+            if span.is_empty() {
+                continue;
+            }
+            // A read-modify-write command (`lappend` / `append`) that
+            // auto-creates its target is not a read-before-set: it both
+            // reads and defines the variable, creating it from an empty
+            // default when absent. `unset` also carries
+            // `reads_own_defs` but is destructive, not auto-creating — its
+            // missing-variable case is exactly the W213 handled just below,
+            // so it must not be skipped here.
+            if let Some(Statement::Call {
+                reads_own_defs: true,
+                command,
+                defs,
+                ..
+            }) = stmt_opt
+                && command != "unset"
+                && defs.iter().any(|d| d == var)
+            {
+                continue;
+            }
+            // Skip the existence-query word itself and
+            // reads narrowed by an enclosing `[info exists X]` guard.
+            if existence_exempt(stmt_opt, var, exists_guards, &fu.ssa, &use_site.block) {
+                continue;
+            }
+            // ``unset`` without ``-nocomplain`` → W213.
+            if let Some(Statement::Call { command, args, .. }) = stmt_opt
+                && command == "unset"
+                && !args.iter().any(|a| a == "-nocomplain")
+            {
+                let message = format!(
+                    "Variable '{var}' may not exist; \
+                         use 'unset -nocomplain' to suppress the error",
+                );
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W213,
+                    span,
+                    message,
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                continue;
+            }
+            // A use site that itself safely initialises the variable
+            // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
+            // `incr` of its own target) is not read-before-set.
+            if use_site_safe_initialises(stmt_opt, var) {
+                continue;
+            }
+            // Anchor at the `$var` read token; fall back to the command
+            // span when the read is nested inside a quoted/compound word.
+            let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
+            w210_min
+                .entry(var.clone())
+                .and_modify(|s| {
+                    if read_span.start() < s.start() {
+                        *s = read_span;
+                    }
+                })
+                .or_insert(read_span);
+        }
+    }
+
     /// W210 on `return $v` reads where `v`'s reaching version can be
     /// undefined on some executable path (phi-from-undef / `unset`-killed).
     /// Companion to [`Self::emit_read_before_set_diagnostics`]; see its
     /// trailing call site for why the def-use-chain pass cannot catch
     /// these (return values are terminator reads, not recorded uses).
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn emit_return_phi_undef_w210(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        params: &HashSet<&str>,
-        exists_guards: &[(String, crate::cfg::BlockId)],
-        scope_aliases: &HashSet<String>,
-        extra_known_defined: &HashSet<String>,
-        defined_vars: &HashSet<String>,
-        considered: &HashSet<crate::cfg::BlockId>,
-        supp: &UndefSuppression,
+        ctx: &ReturnUndefCtx<'_>,
     ) {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
         use std::fmt::Write as _;
+
+        // `defined_vars` / `considered` are used directly here; the remaining
+        // sets are consulted by `return_read_fires_w210` through `ctx`.
+        let defined_vars = ctx.defined_vars;
+        let considered = ctx.considered;
 
         let Some(registry) = self.registry.as_ref() else {
             return;
         };
 
         let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
+        let phi_idx = PhiUndefIndex {
+            phi_def: &phi_def,
+            phi_block: &phi_block,
+            killed: &killed,
+        };
 
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
@@ -1037,43 +1091,7 @@ file; this call falls through to the 'unknown' handler."
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
-                // Version-0 return reads are now recorded in def_use, so the
-                // version-0 (`DefKind::Parameter`) emitter handles them with
-                // the full suppression set — this pass only covers the
-                // phi-from-undef / `unset`-killed (version > 0) cases, which
-                // def-use can't express.  Skipping ver 0 avoids double-firing.
-                if ver == 0 {
-                    continue;
-                }
-                let mut seen = FxHashSet::default();
-                if !phi_can_undef(
-                    &name,
-                    ver,
-                    &phi_def,
-                    &phi_block,
-                    &killed,
-                    considered,
-                    &fu.sccp.executable_edges,
-                    exists_guards,
-                    &fu.ssa,
-                    &mut seen,
-                ) {
-                    continue;
-                }
-                if params.contains(name.as_str())
-                    || scope_aliases.contains(&name)
-                    || extra_known_defined.contains(&name)
-                    || is_implicit_var(&name)
-                    || name.contains("::")
-                    || supp.suppresses(&name)
-                {
-                    continue;
-                }
-                // A dominating existence guard proves the var exists here.
-                if exists_guards
-                    .iter()
-                    .any(|(gv, gblk)| *gv == name && block_dominated_by(&fu.ssa, bn, *gblk))
-                {
+                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx) {
                     continue;
                 }
                 reported.insert(name.clone());
@@ -1090,6 +1108,61 @@ file; this call falls through to the 'unknown' handler."
                 });
             }
         }
+    }
+
+    /// Decide whether a single `return`-value read of `(name, ver)` in block
+    /// `bn` is a W210 phi-from-undef read: its reaching version must be able to
+    /// reach an undef origin, and it must not be a parameter / scope alias /
+    /// known-defined / implicit / qualified / suppressed name or be proven
+    /// defined by a dominating existence guard.  Version-0 reads are handled by
+    /// the def-use `DefKind::Parameter` emitter, so they never fire here.
+    fn return_read_fires_w210(
+        fu: &crate::compilation_unit::FunctionUnit,
+        name: &str,
+        ver: crate::ssa::Version,
+        bn: crate::cfg::BlockId,
+        phi_idx: &PhiUndefIndex<'_>,
+        ctx: &ReturnUndefCtx<'_>,
+    ) -> bool {
+        // Version-0 return reads are now recorded in def_use, so the version-0
+        // (`DefKind::Parameter`) emitter handles them with the full suppression
+        // set — this pass only covers the phi-from-undef / `unset`-killed
+        // (version > 0) cases, which def-use can't express.  Skipping ver 0
+        // avoids double-firing.
+        if ver == 0 {
+            return false;
+        }
+        let mut seen = FxHashSet::default();
+        let undef_ctx = super::helpers::PhiUndefCtx {
+            phi_def: phi_idx.phi_def,
+            phi_block: phi_idx.phi_block,
+            killed: phi_idx.killed,
+            considered: ctx.considered,
+            executable_edges: &fu.sccp.executable_edges,
+            exists_guards: ctx.exists_guards,
+            ssa: &fu.ssa,
+        };
+        if !phi_can_undef(name, ver, &undef_ctx, &mut seen) {
+            return false;
+        }
+        if ctx.params.contains(name)
+            || ctx.scope_aliases.contains(name)
+            || ctx.extra_known_defined.contains(name)
+            || is_implicit_var(name)
+            || name.contains("::")
+            || ctx.supp.suppresses(name)
+        {
+            return false;
+        }
+        // A dominating existence guard proves the var exists here.
+        if ctx
+            .exists_guards
+            .iter()
+            .any(|(gv, gblk)| gv == name && block_dominated_by(&fu.ssa, bn, *gblk))
+        {
+            return false;
+        }
+        true
     }
 
     /// **W210 (provably-unset regexp / scan output).** A `regexp` / `scan`

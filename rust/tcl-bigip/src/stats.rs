@@ -213,15 +213,15 @@ pub fn compute_stats(
     let irule_event_histogram = irule_events.most_common();
     let total_objects: usize = object_counts.iter().map(|(_, c)| c).sum();
 
-    let text_report = format_text(
-        &object_counts,
-        &partition_counts,
-        &irule_loc,
-        &irule_events,
-        &top_referenced,
-        orphan_count,
-        total_objects,
-    );
+    let text_report = format_text(&TextView {
+        object_counts: &object_counts,
+        partition_counts: &partition_counts,
+        irule_loc: &irule_loc,
+        irule_events: &irule_events,
+        top: &top_referenced,
+        orphans: orphan_count,
+        total: total_objects,
+    });
 
     StatsReport {
         object_counts,
@@ -242,16 +242,27 @@ fn all_nodes(graph: &ObjectGraph) -> impl Iterator<Item = &ObjectNode> {
         .flat_map(|(_uri, nodes)| nodes.iter())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn format_text(
-    object_counts: &[(String, usize)],
-    partition_counts: &[(String, usize)],
-    irule_loc: &[(String, usize)],
-    irule_events: &OrderedCounter,
-    top: &[(String, usize)],
+/// Borrowed inputs for [`format_text`]; bundled to keep the arg count low.
+struct TextView<'a> {
+    object_counts: &'a [(String, usize)],
+    partition_counts: &'a [(String, usize)],
+    irule_loc: &'a [(String, usize)],
+    irule_events: &'a OrderedCounter,
+    top: &'a [(String, usize)],
     orphans: usize,
     total: usize,
-) -> String {
+}
+
+fn format_text(view: &TextView) -> String {
+    let &TextView {
+        object_counts,
+        partition_counts,
+        irule_loc,
+        irule_events,
+        top,
+        orphans,
+        total,
+    } = view;
     let mut lines = vec![format!("objects: {total} total")];
     let mut oc = object_counts.to_vec();
     oc.sort_by(|a, b| a.0.cmp(&b.0));

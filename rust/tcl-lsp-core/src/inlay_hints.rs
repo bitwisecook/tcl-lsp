@@ -320,7 +320,6 @@ fn sprintf_short(c: char) -> Option<&'static str> {
 }
 
 /// Short label for a `clock` field letter.
-#[allow(clippy::too_many_lines)]
 fn clock_short(c: char) -> Option<&'static str> {
     Some(match c {
         'Y' => "year",

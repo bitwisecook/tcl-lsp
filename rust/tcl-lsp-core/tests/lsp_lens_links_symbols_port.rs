@@ -26,6 +26,7 @@
 //!     argument is the path / package name the link surfaces;
 //!   * the `catch {body} resultVar` semantics behind the W302 quick-fix
 //!     (a result variable captures the body's result/error).
+//!
 //! Each such test cites the corresponding `tclsh:` observation. Facts verified
 //! identically on tclsh8.6 AND tclsh9.0 unless noted.
 //!
@@ -391,7 +392,7 @@ fn lens_count(lens: &CodeLens) -> usize {
 }
 
 /// Lens whose anchor starts on `line`.
-fn lens_on_line<'a>(lenses: &'a [CodeLens], line: u32) -> &'a CodeLens {
+fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
     lenses
         .iter()
         .find(|l| l.range.start_line == line)

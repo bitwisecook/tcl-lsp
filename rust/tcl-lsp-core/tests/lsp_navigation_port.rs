@@ -17,7 +17,7 @@
 //! declared at the asserted site and is genuinely referenced at the cursor:
 //!
 //!   * the *fact that the target exists at that site* is proved structurally
-//!     against C-Tcl — `info procs`, `info commands`, and the TclOO
+//!     against C-Tcl — `info procs`, `info commands`, and the `TclOO`
 //!     introspectors `info class superclasses` / `info class subclasses` /
 //!     `info class methods` / `info class mixins` (all 8.6+).
 //!   * the *editor location* (which line/column the range covers) is a parse-
@@ -31,29 +31,29 @@
 //!   * `proc greet {} {return hi}; info procs greet`            -> greet
 //!   * `set greeting hi; puts $greeting`                        -> hi
 //!   * namespace: `namespace eval ::myns {proc greet {} {…}}`;
-//!     `info procs ::myns::greet`                               -> ::myns::greet
+//!     `info procs ::myns::greet`                               -> `::myns::greet`
 //!   * `set counter 0; proc bump {} {global counter; incr counter}`;
 //!     bump; bump; `puts $counter`                              -> 2
 //!   * `namespace eval ns {variable config 1; proc get {} {variable config;
 //!     return $config}}; ns::get`                               -> 1
 //!   * `proc wrap {n} {upvar 1 $n local; return $local}; set outer 42;
 //!     wrap outer`                                              -> 42
-//!   * TclOO `oo::class create Greeter {method greet {} {…}}`;
+//!   * `TclOO` `oo::class create Greeter {method greet {} {…}}`;
 //!     `info class methods Greeter`                             -> greet
 //!   * `oo::class create Base {}; oo::class create Derived {superclass Base}`;
-//!     `info class superclasses Derived`                        -> ::Base
-//!     `info class subclasses Base`                             -> ::Derived
-//!   * 3-level `A<-B<-C`: `info class subclasses A`             -> ::B  (direct
+//!     `info class superclasses Derived`                        -> `::Base`
+//!     `info class subclasses Base`                             -> `::Derived`
+//!   * 3-level `A<-B<-C`: `info class subclasses A`             -> `::B`  (direct
 //!     subclasses only — C is NOT listed)
 //!   * override: `Base{method greet…hi}`, `Sub{superclass Base; method
 //!     greet…yo}`; `[Base new] greet`/`[Sub new] greet`         -> hi / yo
 //!   * mixin: `oo::class create M {method m…}; oo::class create User {mixin M}`;
-//!     `info class mixins User`                                 -> ::M
+//!     `info class mixins User`                                 -> `::M`
 //!   * instance dispatch: `oo::class create Dog {method bark…woof}`;
 //!     `set d [Dog new]; $d bark`                               -> woof
 //!
-//! TclOO note: `oo::class` / `oo::define` and the introspectors used here are
-//! Tcl 8.6+; TclOO is ABSENT in 8.4 and 8.5, so the class/hierarchy tests model
+//! `TclOO` note: `oo::class` / `oo::define` and the introspectors used here are
+//! Tcl 8.6+; `TclOO` is ABSENT in 8.4 and 8.5, so the class/hierarchy tests model
 //! 8.6+ behaviour only. One form differs across the supported range:
 //! `classmethod NAME …` (the keyword the Rust analyser keys `class_methods`
 //! off) is a real runnable command only on tclsh9.0 — on tclsh8.6 the runnable
@@ -66,13 +66,6 @@
 //! Locations are `definition::LspRange` (`start_line` / `start_character` in
 //! 0-based UTF-16 units). `declaration` additionally needs a `CommandRegistry`
 //! (`build_default`) and a dialect string.
-
-// The module doc-comment above is a prose proof narrative dense with Tcl
-// command spellings (`info procs`, `oo::class`, `::myns::greet`, …) that
-// clippy's `doc_markdown` lint reads as un-backticked Rust items; backticking
-// each one would obscure the runnable-snippet narrative, so the lint is allowed
-// for this test file only.
-#![allow(clippy::doc_markdown)]
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::declaration::declaration;

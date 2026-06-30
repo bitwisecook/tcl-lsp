@@ -471,7 +471,6 @@ fn push_regsub_subtokens(
 ///   `pattern_type == Regex`, option-skipped first positional) →
 ///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
-#[allow(clippy::too_many_lines)]
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -488,37 +487,74 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    // Regex pattern argument of a `pattern_type == Regex` command.
-    if registry
+    insert_regex_overrides(seg, registry, &mut overrides);
+    insert_format_overrides(seg, &mut overrides);
+
+    // `proc NAME …` — the name argument is a function definition.
+    if head == "proc"
+        && let Some(tok) = seg.argv.get(1)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::ProcNameDef);
+    }
+
+    insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
+    insert_switch_regexp_override(seg, &mut overrides);
+    insert_role_overrides(seg, registry, &mut overrides);
+
+    overrides
+}
+
+/// Regex pattern / regsub-replacement overrides for a `pattern_type ==
+/// Regex` command (option-skipped first positional, and — for `regsub` —
+/// the replacement spec two words later).
+fn insert_regex_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    if !registry
         .get(head)
         .and_then(|s| s.pattern_type)
         .is_some_and(|p| p == tcl_registry::patterns::PatternType::Regex)
     {
-        let args = &seg.texts[1..];
-        let mut idx = 0;
-        while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-            if args[idx] == "-start" && idx + 1 < args.len() {
-                idx += 2;
-            } else {
-                idx += 1;
-            }
-        }
-        if idx < args.len() && args[idx] == "--" {
+        return;
+    }
+    let args = &seg.texts[1..];
+    let mut idx = 0;
+    while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
+        if args[idx] == "-start" && idx + 1 < args.len() {
+            idx += 2;
+        } else {
             idx += 1;
         }
-        // `args[idx]` is the pattern; its representative token is
-        // `seg.argv[idx + 1]` (argv[0] is the command head).
-        if let Some(tok) = seg.argv.get(idx + 1) {
-            overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
-        }
-        // `regsub … exp string subSpec …` — the replacement spec sits two
-        // words after the pattern.
-        if head == "regsub"
-            && let Some(tok) = seg.argv.get(idx + 3)
-        {
-            overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
-        }
     }
+    if idx < args.len() && args[idx] == "--" {
+        idx += 1;
+    }
+    // `args[idx]` is the pattern; its representative token is
+    // `seg.argv[idx + 1]` (argv[0] is the command head).
+    if let Some(tok) = seg.argv.get(idx + 1) {
+        overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
+    }
+    // `regsub … exp string subSpec …` — the replacement spec sits two
+    // words after the pattern.
+    if head == "regsub"
+        && let Some(tok) = seg.argv.get(idx + 3)
+    {
+        overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
+    }
+}
+
+/// Conversion-string overrides for the format families: `format`/`scan`
+/// (sprintf), `clock format/scan -format`, and `binary format/scan`.
+fn insert_format_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
 
     // `format FMT …` (arg 1) / `scan STR FMT …` (arg 2) — the conversion
     // string.  Command-name gated (the registry's `format_string_type`
@@ -557,80 +593,93 @@ fn special_arg_kinds(
             overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
         }
     }
+}
 
-    // `proc NAME …` — the name argument is a function definition.
-    if head == "proc"
+/// Known `-option` switches → `Decorator` (only real options, so `puts
+/// -foo` stays a string); subcommand word at arg index 1 → keyword carrying
+/// `defaultLibrary`.  Both consult the command's registry spec.
+fn insert_option_and_subcommand_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let Some(spec) = registry.get(head) else {
+        return;
+    };
+    for (i, text) in seg.texts.iter().enumerate().skip(1) {
+        if text.starts_with('-')
+            && spec.options.iter().any(|o| o.name == text.as_str())
+            && let Some(tok) = seg.argv.get(i)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+    }
+    if let Some(sub_text) = seg.texts.get(1)
+        && spec.subcommand(sub_text).is_some()
         && let Some(tok) = seg.argv.get(1)
     {
         overrides
             .entry(tok.span.start())
-            .or_insert(ArgOverride::ProcNameDef);
+            .or_insert(ArgOverride::SubcommandKeyword);
     }
+}
 
-    // Known `-option` switches → `Decorator` (only real options, so `puts
-    // -foo` stays a string); subcommand word at arg index 1 → keyword carrying
-    // `defaultLibrary`.  Both consult the command's registry spec.
-    if let Some(spec) = registry.get(head) {
-        for (i, text) in seg.texts.iter().enumerate().skip(1) {
-            if text.starts_with('-')
-                && spec.options.iter().any(|o| o.name == text.as_str())
-                && let Some(tok) = seg.argv.get(i)
-            {
-                overrides
-                    .entry(tok.span.start())
-                    .or_insert(ArgOverride::Decorator);
-            }
-        }
-        if let Some(sub_text) = seg.texts.get(1)
-            && spec.subcommand(sub_text).is_some()
-            && let Some(tok) = seg.argv.get(1)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::SubcommandKeyword);
-        }
+/// `switch -regexp … { pat body … }` — the braced case list (the final
+/// word, when option-skipped past `-regexp`/`--`) carries regex patterns.
+/// Tag it so `collect_script` sub-tokenises the patterns as regexes and
+/// recurses the bodies, rather than treating the whole list as one opaque
+/// body.
+fn insert_switch_regexp_override(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if seg.texts[0] != "switch" {
+        return;
     }
-
-    // `switch -regexp … { pat body … }` — the braced case list (the final
-    // word, when option-skipped past `-regexp`/`--`) carries regex patterns.
-    // Tag it so `collect_script` sub-tokenises the patterns as regexes and
-    // recurses the bodies, rather than treating the whole list as one opaque
-    // body.
-    if head == "switch" {
-        let mut i = 1;
-        let mut is_regexp = false;
-        while i < seg.texts.len() && seg.texts[i].starts_with('-') {
-            if seg.texts[i] == "-regexp" {
-                is_regexp = true;
-            }
-            if seg.texts[i] == "--" {
-                i += 1;
-                break;
-            }
+    let mut i = 1;
+    let mut is_regexp = false;
+    while i < seg.texts.len() && seg.texts[i].starts_with('-') {
+        if seg.texts[i] == "-regexp" {
+            is_regexp = true;
+        }
+        if seg.texts[i] == "--" {
             i += 1;
+            break;
         }
-        // Skip the switch value/string argument; the case list is the last
-        // word (braced-list form only — the inline `pat body …` form has
-        // more than one trailing word).
-        let case_idx = i + 1;
-        if is_regexp
-            && case_idx == seg.texts.len() - 1
-            && seg
-                .argv
-                .get(case_idx)
-                .is_some_and(|t| matches!(t.kind, TokenType::Str))
-            && let Some(tok) = seg.argv.get(case_idx)
-        {
-            overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
-        }
+        i += 1;
     }
+    // Skip the switch value/string argument; the case list is the last
+    // word (braced-list form only — the inline `pat body …` form has
+    // more than one trailing word).
+    let case_idx = i + 1;
+    if is_regexp
+        && case_idx == seg.texts.len() - 1
+        && seg
+            .argv
+            .get(case_idx)
+            .is_some_and(|t| matches!(t.kind, TokenType::Str))
+        && let Some(tok) = seg.argv.get(case_idx)
+    {
+        overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
+    }
+}
 
-    // Registry-driven body / expr roles — `if {expr} {body}`, `proc n a {body}`,
-    // `while {expr} {body}`, `expr {expr}`, … — so the braced argument is
-    // recursed into rather than emitted as one opaque `string`.  Keyed on each
-    // word's representative token (`argv[i + 1]`; `argv[0]` is the head).  Only
-    // braced (`Str`) words recurse; non-literal words fall through.  Added last
-    // with `or_insert` so the more specific regex/format overrides win.
+/// Registry-driven role overrides: body / expr braced arguments (recursed
+/// into rather than emitted opaque) and structural keyword words.  Added
+/// last with `or_insert` so the more specific regex/format overrides win.
+fn insert_role_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    // `if {expr} {body}`, `proc n a {body}`, `while {expr} {body}`,
+    // `expr {expr}`, … — keyed on each word's representative token
+    // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
+    // recurse; non-literal words fall through.
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for (role, ov) in [
         (tcl_registry::ArgRole::Body, ArgOverride::BodyScript),
@@ -660,8 +709,6 @@ fn special_arg_kinds(
                 .or_insert(ArgOverride::KeywordArg);
         }
     }
-
-    overrides
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -1350,19 +1397,29 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// are insignificant whitespace.  Pattern words (except the literal
 /// `default`) are sub-tokenised as regexes; body words are recursed as
 /// scripts.
-#[allow(clippy::too_many_arguments)]
+/// Immutable context threaded through the recursive script-tokenisation
+/// walk.  Bundling these read-only borrows keeps each recursive helper to a
+/// small, focused signature (the mutable `entries` sink and the `depth`
+/// guard stay explicit parameters).
+#[derive(Clone, Copy)]
+struct ScriptCtx<'a> {
+    full_source: &'a str,
+    dialect: &'a str,
+    registry: &'a CommandRegistry,
+    line_index: &'a LineIndex,
+}
+
 fn collect_switch_regexp_case_list(
-    full_source: &str,
+    ctx: ScriptCtx<'_>,
     tok: Token,
-    dialect: &str,
-    registry: &CommandRegistry,
-    line_index: &LineIndex,
     entries: &mut Vec<Entry>,
     depth: u32,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
     }
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
@@ -1371,7 +1428,7 @@ fn collect_switch_regexp_case_list(
     for seg in segment_commands_with_offset_and_config(
         inner,
         u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
     ) {
         for (i, t) in seg.argv.iter().enumerate() {
             let text = seg.texts.get(i).cloned().unwrap_or_default();
@@ -1398,12 +1455,9 @@ fn collect_switch_regexp_case_list(
         } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
             // Body element — recurse as a script.
             collect_script(
-                full_source,
+                ctx,
                 body,
                 u32::try_from(bstart).unwrap_or(0),
-                dialect,
-                registry,
-                line_index,
                 entries,
                 depth + 1,
             );
@@ -1487,24 +1541,23 @@ fn emit_command_head(
 /// (`ArgRole::Expr`), and `[…]` command substitutions.  Token spans are
 /// already absolute (the segmenter shifts them by `base_offset`), so positions
 /// and text are resolved against `full_source` + `line_index`.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn collect_script(
-    full_source: &str,
+    ctx: ScriptCtx<'_>,
     text: &str,
     base_offset: u32,
-    dialect: &str,
-    registry: &CommandRegistry,
-    line_index: &LineIndex,
     entries: &mut Vec<Entry>,
     depth: u32,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
     }
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let registry = ctx.registry;
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
     ) {
         if seg.argv.is_empty() {
             continue;
@@ -1528,147 +1581,148 @@ fn collect_script(
             if tok.span == head_tok.span {
                 continue;
             }
-            match overrides.get(&tok.span.start()) {
-                Some(ArgOverride::RegexPattern) => {
-                    if !push_regex_subtokens(line_index, full_source, *tok, entries) {
-                        push_token(line_index, full_source, *tok, TokenKind::Regexp, 0, entries);
-                    }
-                }
-                Some(ArgOverride::SprintfFormat) => {
-                    if !push_sprintf_subtokens(line_index, full_source, *tok, entries)
-                        && let Some(kind) = classify_arg_token(*tok, full_source)
-                    {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
-                    }
-                }
-                Some(ArgOverride::ClockFormat) => {
-                    if !push_clock_subtokens(line_index, full_source, *tok, entries)
-                        && let Some(kind) = classify_arg_token(*tok, full_source)
-                    {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
-                    }
-                }
-                Some(ArgOverride::BinaryFormat) => {
-                    if !push_binary_subtokens(line_index, full_source, *tok, dialect, entries)
-                        && let Some(kind) = classify_arg_token(*tok, full_source)
-                    {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
-                    }
-                }
-                Some(ArgOverride::RegsubReplace) => {
-                    if !push_regsub_subtokens(line_index, full_source, *tok, entries)
-                        && let Some(kind) = classify_arg_token(*tok, full_source)
-                    {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
-                    }
-                }
-                Some(ArgOverride::Kind(kind)) => {
-                    push_token(line_index, full_source, *tok, *kind, 0, entries);
-                }
-                Some(ArgOverride::Decorator) => {
-                    push_token(
-                        line_index,
-                        full_source,
-                        *tok,
-                        TokenKind::Decorator,
-                        0,
-                        entries,
-                    );
-                }
-                Some(ArgOverride::SubcommandKeyword) => {
-                    push_token(
-                        line_index,
-                        full_source,
-                        *tok,
-                        TokenKind::Keyword,
-                        MOD_DEFAULT_LIBRARY,
-                        entries,
-                    );
-                }
-                Some(ArgOverride::ProcNameDef) => {
-                    push_token(
-                        line_index,
-                        full_source,
-                        *tok,
-                        TokenKind::Function,
-                        MOD_DEFINITION,
-                        entries,
-                    );
-                }
-                Some(ArgOverride::BodyScript) => {
-                    if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
-                        collect_script(
-                            full_source,
-                            inner,
-                            u32::try_from(cstart).unwrap_or(0),
-                            dialect,
-                            registry,
-                            line_index,
-                            entries,
-                            depth + 1,
-                        );
-                    } else if let Some(kind) = classify_arg_token(*tok, full_source) {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
-                    }
-                }
-                Some(ArgOverride::ExprScript) => {
-                    collect_expr(
-                        full_source,
-                        *tok,
-                        dialect,
-                        registry,
-                        line_index,
-                        entries,
-                        depth + 1,
-                    );
-                }
-                Some(ArgOverride::SwitchRegexpCaseList) => {
-                    collect_switch_regexp_case_list(
-                        full_source,
-                        *tok,
-                        dialect,
-                        registry,
-                        line_index,
-                        entries,
-                        depth + 1,
-                    );
-                }
-                Some(ArgOverride::KeywordArg) => {
-                    push_keyword_arg(line_index, full_source, *tok, entries);
-                }
-                None => {
-                    if matches!(tok.kind, TokenType::Cmd) {
-                        // Command substitution `[…]` — recurse into the inner
-                        // script (delimiters stripped via `content_offset`).
-                        let cstart = tok.span.start() as usize + tok.content_offset as usize;
-                        let cend = (tok.span.end() as usize).min(full_source.len());
-                        if cend > cstart
-                            && let Some(inner) = full_source.get(cstart..cend)
-                        {
-                            collect_script(
-                                full_source,
-                                inner,
-                                u32::try_from(cstart).unwrap_or(0),
-                                dialect,
-                                registry,
-                                line_index,
-                                entries,
-                                depth + 1,
-                            );
-                        }
-                    } else if let Some(kind) = classify_arg_token(*tok, full_source) {
-                        // String / bareword args with backslash escapes split
-                        // into literal `String` runs + `Escape` sub-tokens.
-                        if kind == TokenKind::String
-                            && push_escape_subtokens(line_index, full_source, *tok, entries)
-                        {
-                            // emitted as sub-tokens
-                        } else {
-                            push_token(line_index, full_source, *tok, kind, 0, entries);
-                        }
-                    }
-                }
+            emit_arg_token(ctx, *tok, overrides.get(&tok.span.start()), entries, depth);
+        }
+    }
+}
+
+/// Emit semantic-token entries for a single non-head argument token,
+/// dispatching on its [`ArgOverride`] (or falling back to default
+/// classification) and recursing into braced bodies / expressions /
+/// command substitutions.  Extracted from [`collect_script`] to keep that
+/// function's body small.
+/// When `cond` holds, classify `tok` with [`classify_arg_token`] and, if it
+/// yields a kind, push a plain token.  Used as the fallback for the
+/// sub-tokenising format overrides (sprintf / clock / binary / regsub) when
+/// the specialised sub-lexer declined to emit anything.
+fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    if cond && let Some(kind) = classify_arg_token(tok, ctx.full_source) {
+        push_token(ctx.line_index, ctx.full_source, tok, kind, 0, entries);
+    }
+}
+
+fn emit_arg_token(
+    ctx: ScriptCtx<'_>,
+    tok: Token,
+    override_kind: Option<&ArgOverride>,
+    entries: &mut Vec<Entry>,
+    depth: u32,
+) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let tok = &tok;
+    match override_kind {
+        Some(ArgOverride::RegexPattern) => {
+            if !push_regex_subtokens(line_index, full_source, *tok, entries) {
+                push_token(line_index, full_source, *tok, TokenKind::Regexp, 0, entries);
             }
+        }
+        Some(ArgOverride::SprintfFormat) => {
+            let emitted = push_sprintf_subtokens(line_index, full_source, *tok, entries);
+            classify_and_push_if(!emitted, ctx, *tok, entries);
+        }
+        Some(ArgOverride::ClockFormat) => {
+            let emitted = push_clock_subtokens(line_index, full_source, *tok, entries);
+            classify_and_push_if(!emitted, ctx, *tok, entries);
+        }
+        Some(ArgOverride::BinaryFormat) => {
+            let emitted =
+                push_binary_subtokens(line_index, full_source, *tok, ctx.dialect, entries);
+            classify_and_push_if(!emitted, ctx, *tok, entries);
+        }
+        Some(ArgOverride::RegsubReplace) => {
+            let emitted = push_regsub_subtokens(line_index, full_source, *tok, entries);
+            classify_and_push_if(!emitted, ctx, *tok, entries);
+        }
+        Some(ArgOverride::Kind(kind)) => {
+            push_token(line_index, full_source, *tok, *kind, 0, entries);
+        }
+        Some(ArgOverride::Decorator) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Decorator,
+                0,
+                entries,
+            );
+        }
+        Some(ArgOverride::SubcommandKeyword) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Keyword,
+                MOD_DEFAULT_LIBRARY,
+                entries,
+            );
+        }
+        Some(ArgOverride::ProcNameDef) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Function,
+                MOD_DEFINITION,
+                entries,
+            );
+        }
+        Some(ArgOverride::BodyScript) => {
+            if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
+                collect_script(
+                    ctx,
+                    inner,
+                    u32::try_from(cstart).unwrap_or(0),
+                    entries,
+                    depth + 1,
+                );
+            } else if let Some(kind) = classify_arg_token(*tok, full_source) {
+                push_token(line_index, full_source, *tok, kind, 0, entries);
+            }
+        }
+        Some(ArgOverride::ExprScript) => {
+            collect_expr(ctx, *tok, entries, depth + 1);
+        }
+        Some(ArgOverride::SwitchRegexpCaseList) => {
+            collect_switch_regexp_case_list(ctx, *tok, entries, depth + 1);
+        }
+        Some(ArgOverride::KeywordArg) => {
+            push_keyword_arg(line_index, full_source, *tok, entries);
+        }
+        None => emit_default_arg_token(ctx, *tok, entries, depth),
+    }
+}
+
+/// Handle an argument token with no [`ArgOverride`]: recurse into a `[…]`
+/// command substitution, or classify a plain word (splitting backslash
+/// escapes out of string literals).  Extracted from [`emit_arg_token`].
+fn emit_default_arg_token(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    if matches!(tok.kind, TokenType::Cmd) {
+        // Command substitution `[…]` — recurse into the inner
+        // script (delimiters stripped via `content_offset`).
+        let cstart = tok.span.start() as usize + tok.content_offset as usize;
+        let cend = (tok.span.end() as usize).min(full_source.len());
+        if cend > cstart
+            && let Some(inner) = full_source.get(cstart..cend)
+        {
+            collect_script(
+                ctx,
+                inner,
+                u32::try_from(cstart).unwrap_or(0),
+                entries,
+                depth + 1,
+            );
+        }
+    } else if let Some(kind) = classify_arg_token(tok, full_source) {
+        // String / bareword args with backslash escapes split
+        // into literal `String` runs + `Escape` sub-tokens.
+        if kind == TokenKind::String && push_escape_subtokens(line_index, full_source, tok, entries)
+        {
+            // emitted as sub-tokens
+        } else {
+            push_token(line_index, full_source, tok, kind, 0, entries);
         }
     }
 }
@@ -1677,15 +1731,9 @@ fn collect_script(
 /// emitting variable / number / operator / function / string / boolean
 /// sub-tokens (math functions carry `defaultLibrary`) and recursing into
 /// nested `[cmd]` substitutions.
-fn collect_expr(
-    full_source: &str,
-    tok: Token,
-    dialect: &str,
-    registry: &CommandRegistry,
-    line_index: &LineIndex,
-    entries: &mut Vec<Entry>,
-    depth: u32,
-) {
+fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         if let Some(kind) = classify_arg_token(tok, full_source) {
             push_token(line_index, full_source, tok, kind, 0, entries);
@@ -1693,7 +1741,7 @@ fn collect_expr(
         return;
     };
     let math = tcl_lexer::expr_math_functions();
-    for et in tcl_lexer::tokenise_expr(inner, Some(dialect)) {
+    for et in tcl_lexer::tokenise_expr(inner, Some(ctx.dialect)) {
         use tcl_lexer::ExprTokenType as E;
         let abs_start = cstart + et.start as usize;
         match et.kind {
@@ -1703,12 +1751,9 @@ fn collect_expr(
                 let has_open = et.text.starts_with('[');
                 let body = et.text.trim_start_matches('[').trim_end_matches(']');
                 collect_script(
-                    full_source,
+                    ctx,
                     body,
                     u32::try_from(abs_start + usize::from(has_open)).unwrap_or(0),
-                    dialect,
-                    registry,
-                    line_index,
                     entries,
                     depth + 1,
                 );
@@ -1792,16 +1837,13 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
-    collect_script(
-        source,
-        source,
-        0,
+    let ctx = ScriptCtx {
+        full_source: source,
         dialect,
         registry,
-        &line_index,
-        &mut entries,
-        0,
-    );
+        line_index: &line_index,
+    };
+    collect_script(ctx, source, 0, &mut entries, 0);
 
     // Comments aren't in the segmenter's command stream
     // (it strips them).  Scan the source for `#` comments

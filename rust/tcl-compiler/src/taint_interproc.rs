@@ -345,6 +345,15 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 /// real inference inside its memoised `proc_summary_cascade` query and (b) keep
 /// the debug fixpoint guard validating against the *genuine* result.
 #[must_use]
+// Both lints are forced by the public callback contract and the shared
+// `TaintCtx` type, not code smell:
+// * `too_many_arguments`: the list mirrors `InferProcSummaryFn` plus the
+//   closure-captured `(registry, interproc, dialect)`, and `tcl-lsp-db` calls
+//   this exact signature across the crate boundary — bundling breaks it.
+// * `implicit_hasher`: `known` / `summaries` are stored verbatim into
+//   `TaintCtx` (whose fields fix the default hasher) and the value is reached
+//   via `InferProcSummaryFn`'s concrete signature, so generalising over the
+//   hasher is impossible without making `TaintCtx` generic crate-wide.
 #[allow(clippy::too_many_arguments, clippy::implicit_hasher)]
 pub fn infer_proc_summary(
     qname: &str,

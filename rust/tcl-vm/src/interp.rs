@@ -295,13 +295,16 @@ impl Vm {
     pub(crate) fn rand_seed_set(&mut self, value: i64) {
         let mut s = value & 0x7fff_ffff;
         if s == 0 || s == 2_147_483_647 {
-            s ^= 123_459_876;
+            s ^= 0x075b_d924;
         }
         self.rand_seed = s;
     }
 
     /// Advance the Park–Miller minimal-standard generator one step and return a
     /// double in `[0, 1)` (`expr rand()`), using Schrage's overflow-safe form.
+    // `rand_seed` is kept in `[1, 2^31 - 1]` and `IP` is `2^31 - 1`; both are
+    // well under `f64`'s 2^53 exact-integer range, so the casts are lossless.
+    #[allow(clippy::cast_precision_loss)]
     pub(crate) fn rand_next(&mut self) -> f64 {
         const IA: i64 = 16807;
         const IP: i64 = 2_147_483_647;
