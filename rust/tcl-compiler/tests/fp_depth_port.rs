@@ -8,10 +8,8 @@
 //!
 //!   * `src/analyser/diagnostics/fp/rch.rs`     reachability (O107 / W210 fallout)
 //!   * `src/analyser/diagnostics/helpers.rs`    shared `UndefSuppression` /
-//!                                              dict-with-update / alias-tail /
-//!                                              cmd-sub-write / dynamic-upvar /
-//!                                              killed-version + phi-undef /
-//!                                              globals-written-by-procs
+//!     dict-with-update / alias-tail / cmd-sub-write / dynamic-upvar /
+//!     killed-version + phi-undef / globals-written-by-procs
 //!   * `src/analyser/diagnostics/fp/ds.rs`      dead-store (W211 / W220)
 //!   * `src/analyser/diagnostics/fp/inj.rs`     injection / taint (W301 / W101 / T102)
 //!   * `src/analyser/diagnostics/fp/opt.rs`     optimiser quick-fix (O110 / O126 / O120 …)

@@ -70,24 +70,38 @@ pub(crate) fn find_use_site_shimmers(
         // later use to the *same* target in the same block is not a second
         // shimmer.
         let mut already_coerced: HashSet<(String, u32, TclType)> = HashSet::new();
+        let mut ctx = UseSiteCtx {
+            types,
+            registry,
+            def_map: &def_map,
+            values,
+            loop_facts: &loop_facts,
+            ssa,
+            in_loop,
+            already_coerced: &mut already_coerced,
+            out: &mut out,
+        };
         for ss in &ssa_block.statements {
-            check_statement(
-                &ss.statement,
-                &ss.uses,
-                types,
-                registry,
-                in_loop,
-                &def_map,
-                values,
-                &loop_facts,
-                ssa,
-                &mut already_coerced,
-                &mut out,
-            );
+            check_statement(&mut ctx, &ss.statement, &ss.uses);
         }
     }
 
     out
+}
+
+/// Function-wide read-only context + per-block warning sinks threaded
+/// through the use-site shimmer walk.  `in_loop` / `already_coerced` are
+/// per-block; `out` accumulates across the whole function.
+struct UseSiteCtx<'a> {
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    registry: &'a CommandRegistry,
+    def_map: &'a HashMap<ValueKey, Span>,
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    loop_facts: &'a LoopFacts,
+    ssa: &'a SsaFunction,
+    in_loop: bool,
+    already_coerced: &'a mut HashSet<(String, u32, TclType)>,
+    out: &'a mut Vec<ShimmerWarning>,
 }
 
 /// Loop-invariance facts used to refine the in-loop shimmer classification.
@@ -212,24 +226,16 @@ fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
 /// against the variables' known types. Used for both a top-level
 /// [`Statement::Call`] and a `[cmd …]` substitution lifted out of a
 /// [`Statement::AssignValue`] value (`set b [lindex $x 0]`).
-#[allow(clippy::too_many_arguments)]
 fn check_invocation(
+    ctx: &mut UseSiteCtx<'_>,
     command: &str,
     args: &[String],
     span: Span,
     uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
-    in_loop: bool,
-    def_map: &HashMap<ValueKey, Span>,
-    loop_facts: &LoopFacts,
-    ssa: &SsaFunction,
-    already_coerced: &mut HashSet<(String, u32, TclType)>,
-    out: &mut Vec<ShimmerWarning>,
 ) {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for (i, word) in args.iter().enumerate() {
-        let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) else {
+        let Some(expected) = arg_shimmer_type(ctx.registry, command, &arg_refs, i) else {
             continue;
         };
         // Only flag pure variable references — complex words may produce
@@ -239,14 +245,15 @@ fn check_invocation(
             continue;
         }
         let var = normalise_var_name(stripped).to_owned();
-        let Some(sym) = ssa.var_symbol(&var) else {
+        let Some(sym) = ctx.ssa.var_symbol(&var) else {
             continue;
         };
         let Some(&ver) = uses.get(&sym) else { continue };
         if ver == 0 {
             continue;
         }
-        let lattice = types
+        let lattice = ctx
+            .types
             .get(&(sym, ver))
             .cloned()
             .unwrap_or_else(TypeLattice::unknown);
@@ -263,28 +270,29 @@ fn check_invocation(
         // intrep — the runtime representation has already changed, so this
         // is not a second shimmer.
         let coercion_key = (var.clone(), ver, expected);
-        if !already_coerced.insert(coercion_key) {
+        if !ctx.already_coerced.insert(coercion_key) {
             continue;
         }
-        let related: Vec<(Span, String)> = def_map
+        let related: Vec<(Span, String)> = ctx
+            .def_map
             .get(&(sym, ver))
             .map(|&sp| vec![(sp, "value defined here".to_owned())])
             .unwrap_or_default();
         // A loop-invariant variable coerced to a single intrep inside the
         // loop converts once and is cached → S100, not the per-iteration
         // S101.
-        let code = if loop_facts.effective_in_loop(&var, in_loop) {
+        let code = if ctx.loop_facts.effective_in_loop(&var, ctx.in_loop) {
             DiagCode::S101
         } else {
             DiagCode::S100
         };
-        out.push(ShimmerWarning {
+        ctx.out.push(ShimmerWarning {
             span,
             variable: var.clone(),
             from_type: current,
             to_type: expected,
             command: command.to_owned(),
-            in_loop,
+            in_loop: ctx.in_loop,
             code,
             message: format!(
                 "{code}: variable '{var}' has {from} intrep \
@@ -298,36 +306,10 @@ fn check_invocation(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn check_statement(
-    stmt: &Statement,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
-    in_loop: bool,
-    def_map: &HashMap<ValueKey, Span>,
-    values: &HashMap<ValueKey, LatticeValue>,
-    loop_facts: &LoopFacts,
-    ssa: &SsaFunction,
-    already_coerced: &mut HashSet<(String, u32, TclType)>,
-    out: &mut Vec<ShimmerWarning>,
-) {
+fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
     match stmt {
         Statement::Call { command, args, .. } => {
-            check_invocation(
-                command,
-                args,
-                stmt.span(),
-                uses,
-                types,
-                registry,
-                in_loop,
-                def_map,
-                loop_facts,
-                ssa,
-                already_coerced,
-                out,
-            );
+            check_invocation(ctx, command, args, stmt.span(), uses);
         }
 
         // A command substitution lifted into an assignment value
@@ -337,20 +319,7 @@ fn check_statement(
             if let Some((command, args)) =
                 crate::value_shapes::parse_command_substitution(value.trim())
             {
-                check_invocation(
-                    &command,
-                    &args,
-                    stmt.span(),
-                    uses,
-                    types,
-                    registry,
-                    in_loop,
-                    def_map,
-                    loop_facts,
-                    ssa,
-                    already_coerced,
-                    out,
-                );
+                check_invocation(ctx, &command, &args, stmt.span(), uses);
             }
         }
 
@@ -359,31 +328,11 @@ fn check_statement(
             // increment argument as Int.  The two checks are independent —
             // an Int target with a String `$amount` still shimmers on the
             // amount — so neither must short-circuit the other.
-            check_incr_var(
-                normalise_var_name(name),
-                stmt.span(),
-                uses,
-                types,
-                values,
-                in_loop,
-                def_map,
-                ssa,
-                out,
-            );
+            check_incr_var(ctx, normalise_var_name(name), stmt.span(), uses);
             if let Some(amt) = amount.as_deref().map(str::trim)
                 && amt.starts_with('$')
             {
-                check_incr_var(
-                    normalise_var_name(amt),
-                    stmt.span(),
-                    uses,
-                    types,
-                    values,
-                    in_loop,
-                    def_map,
-                    ssa,
-                    out,
-                );
+                check_incr_var(ctx, normalise_var_name(amt), stmt.span(), uses);
             }
         }
 
@@ -397,26 +346,16 @@ fn check_statement(
 /// `var` is the normalised variable name. Fires when its known intrep is a
 /// non-int, non-numeric type that is not a clean hex/octal/binary integer
 /// literal string (that spelling promotes cleanly to int).
-#[allow(clippy::too_many_arguments)]
-fn check_incr_var(
-    var: &str,
-    span: Span,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    values: &HashMap<ValueKey, LatticeValue>,
-    in_loop: bool,
-    def_map: &HashMap<ValueKey, Span>,
-    ssa: &SsaFunction,
-    out: &mut Vec<ShimmerWarning>,
-) {
-    let Some(sym) = ssa.var_symbol(var) else {
+fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMap<Symbol, u32>) {
+    let Some(sym) = ctx.ssa.var_symbol(var) else {
         return;
     };
     let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
     }
-    let lattice = types
+    let lattice = ctx
+        .types
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
@@ -429,25 +368,26 @@ fn check_incr_var(
     if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
         return;
     }
-    if value_is_int_literal_string(values.get(&(sym, ver))) {
+    if value_is_int_literal_string(ctx.values.get(&(sym, ver))) {
         return;
     }
-    let related: Vec<(Span, String)> = def_map
+    let related: Vec<(Span, String)> = ctx
+        .def_map
         .get(&(sym, ver))
         .map(|&sp| vec![(sp, "value defined here".to_owned())])
         .unwrap_or_default();
-    let code = if in_loop {
+    let code = if ctx.in_loop {
         DiagCode::S101
     } else {
         DiagCode::S100
     };
-    out.push(ShimmerWarning {
+    ctx.out.push(ShimmerWarning {
         span,
         variable: var.to_owned(),
         from_type: current,
         to_type: TclType::Int,
         command: "incr".to_owned(),
-        in_loop,
+        in_loop: ctx.in_loop,
         code,
         message: format!(
             "{code}: variable '{var}' has {from} intrep but 'incr' expects int",

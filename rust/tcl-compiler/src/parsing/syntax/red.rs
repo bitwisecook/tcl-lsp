@@ -361,7 +361,7 @@ fn first_leading_width(green: &GreenNode) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::green::{GreenTrivia, SyntaxKind, TriviaKind};
+    use super::super::green::{GreenTrivia, SyntaxKind, TokenTrivia, TriviaKind};
     use super::*;
     use tcl_lexer::{Lexer, SourceMap};
 
@@ -392,8 +392,7 @@ mod tests {
                 4,
                 0,
                 false,
-                Vec::new(),
-                Vec::new(),
+                TokenTrivia::default(),
             ))],
             Vec::new(),
         );
@@ -430,8 +429,7 @@ mod tests {
             2,
             0,
             false,
-            vec![ws("  ")],
-            Vec::new(),
+            TokenTrivia::leading(vec![ws("  ")]),
         );
         let tree = SyntaxTree::new(GreenNode::document(vec![word(tok)], Vec::new()));
         let root = tree.root();
@@ -480,8 +478,7 @@ mod tests {
             end_rel,
             content_offset,
             lex_tok.in_quote,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let tree = SyntaxTree::new(GreenNode::document(vec![word(green)], Vec::new()));
         let red = tree.root().tokens()[0];
@@ -539,8 +536,7 @@ mod tests {
             4,
             1,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let tree = SyntaxTree::new(GreenNode::document(vec![word(green)], Vec::new()));
         let red = tree.root().tokens()[0];
@@ -604,8 +600,7 @@ mod tests {
             0,
             0,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let var = GreenToken::new(
             TokenType::Var,
@@ -614,8 +609,7 @@ mod tests {
             1,
             1,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let word_node = GreenNode::word(vec![GreenElement::Token(var)], vec![marker]);
         let cmd = GreenNode::command(vec![GreenElement::Node(word_node)], None, None);
@@ -645,8 +639,10 @@ mod tests {
             3,
             0,
             false,
-            vec![ws(" ")],
-            vec![ws(" ")],
+            TokenTrivia {
+                leading: vec![ws(" ")],
+                trailing: vec![ws(" ")],
+            },
         );
         let hi = GreenToken::new(
             TokenType::Esc,
@@ -655,8 +651,7 @@ mod tests {
             1,
             0,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let cmd = GreenNode::command(
             vec![
@@ -696,8 +691,10 @@ mod tests {
             3,
             0,
             false,
-            Vec::new(),
-            vec![ws(" ")],
+            TokenTrivia {
+                leading: Vec::new(),
+                trailing: vec![ws(" ")],
+            },
         );
         let hi = GreenToken::new(
             TokenType::Esc,
@@ -706,8 +703,10 @@ mod tests {
             1,
             0,
             false,
-            Vec::new(),
-            vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            TokenTrivia {
+                leading: Vec::new(),
+                trailing: vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            },
         );
         let cmd = GreenNode::command(
             vec![

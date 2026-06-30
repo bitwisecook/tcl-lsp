@@ -125,10 +125,10 @@ fn function_namespace(qname: &str) -> String {
 /// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
 /// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
 /// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
-fn constructor_object_type(
+fn constructor_object_type<S: std::hash::BuildHasher>(
     command: &str,
     args: &[&str],
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
     namespace: &str,
 ) -> TypeLattice {
     let is_ctor_spelling = args
@@ -165,11 +165,11 @@ fn constructor_object_type(
 /// stays an internal API surface — only the analyser-side
 /// W307 / W308 emitter consumes it today.
 #[must_use]
-pub(crate) fn return_type_for_command(
+pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
     namespace: &str,
 ) -> TypeLattice {
     let Some(spec) = registry.get(command) else {
@@ -398,12 +398,12 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
 
 /// Infer the type produced by `stmt` under the current `types` map.
 #[must_use]
-fn evaluate_type_def(
+fn evaluate_type_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
     uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
     namespace: &str,
     ssa: &SsaFunction,
 ) -> TypeLattice {
@@ -487,13 +487,12 @@ fn evaluate_type_def(
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
 #[must_use]
-#[allow(clippy::implicit_hasher)] // `known_classes` is always the default-hasher set built by the CU.
-pub fn propagate_types(
+pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp: &SccpResult,
     registry: &CommandRegistry,
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
@@ -629,12 +628,12 @@ pub fn propagate_types(
 /// Returns `Unknown` only when the function has no executable exit at
 /// all.
 #[must_use]
-pub(crate) fn infer_function_return_type(
+pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     sccp: &SccpResult,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
     ssa: &SsaFunction,
 ) -> TypeLattice {
     let namespace = function_namespace(&cfg.name);
@@ -681,11 +680,11 @@ pub(crate) fn infer_function_return_type(
 /// Infer the type of a `return`'s textual value, following the
 /// `Statement::AssignValue` arm of [`evaluate_type_def`] but keyed on
 /// the version-collapsed `var_types` map.
-fn infer_return_value_type(
+fn infer_return_value_type<S: std::hash::BuildHasher>(
     value: &str,
     var_types: &HashMap<String, TypeLattice>,
     registry: &CommandRegistry,
-    known_classes: &HashSet<String>,
+    known_classes: &HashSet<String, S>,
     namespace: &str,
 ) -> TypeLattice {
     let stripped = value.trim();

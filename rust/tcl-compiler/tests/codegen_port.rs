@@ -5,7 +5,7 @@
 //! Python's):
 //!   * `tests/test_codegen.py`          (the bytecode-assembly backend basics)
 //!   * `tests/test_complex_codegen.py`  (nested control flow, expr edge cases,
-//!                                       switch/loop/proc/try, CFG structure)
+//!     switch/loop/proc/try, CFG structure)
 //!
 //! Rust pipeline used throughout: `lower_to_ir` → `build_cfg_codegen` /
 //! `build_cfg` → `codegen_module` / `codegen_function`, then inspect the
@@ -1692,7 +1692,11 @@ fn catch_inside_loop() {
 
 #[test]
 fn large_literal_table() {
-    let assigns: String = (0..50).map(|i| format!("    set v{i} {i}\n")).collect();
+    let mut assigns = String::new();
+    for i in 0..50 {
+        use std::fmt::Write as _;
+        let _ = writeln!(assigns, "    set v{i} {i}");
+    }
     let src = format!("proc many_lits {{}} {{\n{assigns}}}\n");
     let fa = proc_asm(&src, "::many_lits");
     assert!(fa.literals.len() >= 50);

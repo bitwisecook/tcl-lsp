@@ -14,7 +14,7 @@
 //!   `result.all_procs`              -> result.procs
 //!   `result.all_classes`            -> result.classes
 //!   pd.params[i].`default_value=="2`" -> `Some("2".to_string())`
-//!   `command_aliases`["`::x`"]=(t,e)  -> `SignatureCommandAlias`{ target, extras }
+//!   `command_aliases` entry `::x` =(t,e) -> `SignatureCommandAlias`{ target, extras }
 //!
 //! GAPs (Python assertions with no Rust equivalent) are flagged with
 //! `// GAP:` comments where they would otherwise appear.

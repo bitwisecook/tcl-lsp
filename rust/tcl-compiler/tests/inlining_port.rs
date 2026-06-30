@@ -90,6 +90,16 @@ fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
 }
 
+/// Build a proc body of `n` distinct `set vN N` assignments.
+fn assign_body(n: usize) -> String {
+    use std::fmt::Write as _;
+    let mut body = String::new();
+    for i in 0..n {
+        let _ = writeln!(body, "  set v{i} {i}");
+    }
+    body
+}
+
 /// Run the whole-module inline transform (the Rust `inline_module` runs its
 /// own `analyse_var_escape` internally, so no summaries argument).
 fn inlined(source: &str) -> Module {
@@ -183,9 +193,7 @@ fn static_call_count_drives_large_proc_decision() {
     // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. This is the observable
     // content of Python's test_uncalled_proc_zero / *_one_caller / *_two
     // trio (the raw count helper is internal).
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -232,9 +240,7 @@ fn classify_non_pure_leaf_is_never() {
 #[test]
 fn classify_large_pure_leaf_one_caller_is_if_single_call() {
     // Python TestClassify::test_large_pure_leaf_with_one_caller_is_if_single_call.
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -247,9 +253,7 @@ fn classify_large_pure_leaf_one_caller_is_if_single_call() {
 #[test]
 fn classify_large_pure_leaf_two_callers_is_never() {
     // Python TestClassify::test_large_pure_leaf_with_two_callers_is_never.
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -263,9 +267,7 @@ fn classify_large_pure_leaf_two_callers_is_never() {
 fn classify_threshold_boundary_is_always() {
     // Edge case driving the `body_size <= SMALL_BODY_THRESHOLD` branch: a
     // pure-leaf body of *exactly* the threshold size is still ALWAYS.
-    let body: String = (0..SMALL_BODY_THRESHOLD)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD);
     let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::edge"];

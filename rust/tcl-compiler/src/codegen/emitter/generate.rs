@@ -4,7 +4,7 @@
 //! delegates per-block work to handlers. Runs peephole passes and
 //! the layout pass to produce the final [`FunctionAsm`].
 
-#![allow(clippy::if_not_else, dead_code)]
+#![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -15,11 +15,16 @@ use crate::ir::Statement;
 use super::super::CodegenCtx;
 use super::super::layout::{optimise_jumps, resolve_layout};
 use super::super::{FunctionAsm, Op, Operand};
+use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, detect_foreach};
 use super::ordering::{
     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
 };
 use super::proc_defs::is_static_proc;
 use super::try_blocks::{TryFinallyInfo, detect_try_finally};
+
+/// Per-block `(continue, break)` loop-target labels, innermost-first.
+/// Continue is `None` for a `for`-step block (continue propagates out).
+type LoopContext = HashMap<String, (Option<String>, String)>;
 
 /// The `errorInfo` body-frame label for an inlined block, from its enclosing
 /// command's surface text — `Some("eval")` for an `eval {…}` body, `None` for an
@@ -80,28 +85,33 @@ impl GenerateState {
     }
 }
 
-/// Generate bytecode for one CFG function.
-///
-/// Handles: straight-line code, if/else, switch jump tables, proc
-/// returns with dead-code jumps, foreach loops (simple and
-/// complex-body variants) with native `foreach_start`/`step`/`end`
-/// opcodes, for-init / while `startCommand` wrapping with deferred
-/// end labels at the loop-end pop, try/finally CFG patterns,
-/// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
-// Sequential codegen pipeline; phases share emitter state.
-#[allow(clippy::too_many_lines)]
-pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
-    use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, detect_foreach};
+/// Read-only foreach detection results, bundled so the per-block
+/// emission helpers can borrow them without a long argument list.
+struct ForeachData {
+    /// Simple foreach loops keyed by their header block.
+    info: HashMap<String, ForeachInfo>,
+    /// Body blocks of simple foreach loops.
+    bodies: HashSet<String>,
+    /// Complex foreach loops (bodies with a Branch terminator) keyed by header.
+    complex: HashMap<String, ComplexForeach>,
+    /// `foreach_end` block name → its header block name (complex only).
+    end_to_header: HashMap<String, String>,
+    /// Body blocks belonging to a complex foreach loop.
+    complex_body_blocks: HashSet<String>,
+}
 
-    let block_order = linearise(cfg);
-    let mut loop_ctx = ordering::build_loop_context(cfg);
-    let mut state = GenerateState::new(proc_defs);
-    state.try_finally_info = detect_try_finally(cfg, &block_order);
-
+/// Detect simple and complex foreach loops, allocate their synthetic
+/// step/break labels on `ctx`, and redirect `loop_ctx` so complex body
+/// blocks route continue/break through those labels.
+fn setup_foreach(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    loop_ctx: &mut LoopContext,
+) -> ForeachData {
     // Detect foreach loops; bodies are marked so we can append
     // foreach_step/foreach_end after their statements.
-    let foreach_info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
-    let foreach_bodies: HashSet<String> = foreach_info.values().map(|i| i.body.clone()).collect();
+    let info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
+    let bodies: HashSet<String> = info.values().map(|i| i.body.clone()).collect();
 
     // Detect complex foreach loops (bodies with Branch terminator).
     // For these, foreach_step/foreach_end are emitted at the foreach_end
@@ -109,417 +119,506 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     // synthetic step/break labels. Allocate labels directly on ctx so
     // they share the main label-counter pool.
     let mut tmp_counter: u32 = 0;
-    let complex_foreach: HashMap<String, ComplexForeach> =
-        detect_complex_foreach(cfg, &foreach_info, &mut tmp_counter)
+    let complex: HashMap<String, ComplexForeach> =
+        detect_complex_foreach(cfg, &info, &mut tmp_counter)
             .into_iter()
-            .map(|(hdr, mut info)| {
-                info.step_label = ctx.fresh_label("foreach_continue");
-                info.break_label = ctx.fresh_label("foreach_break");
-                (hdr, info)
+            .map(|(hdr, mut ci)| {
+                ci.step_label = ctx.fresh_label("foreach_continue");
+                ci.break_label = ctx.fresh_label("foreach_break");
+                (hdr, ci)
             })
             .collect();
-    let foreach_end_to_header: HashMap<String, String> = complex_foreach
+    let end_to_header: HashMap<String, String> = complex
         .iter()
         .map(|(h, ci)| (ci.end.clone(), h.clone()))
         .collect();
     // Redirect loop context: body blocks of a complex foreach route
     // continue → step_label, break → break_label.
     let mut complex_body_blocks: HashSet<String> = HashSet::new();
-    for (hdr, info) in &complex_foreach {
-        for bb in &info.body_blocks {
+    for (hdr, ci) in &complex {
+        for bb in &ci.body_blocks {
             if let Some((cont, _brk)) = loop_ctx.get(bb)
                 && cont.as_deref() == Some(hdr.as_str())
             {
                 loop_ctx.insert(
                     bb.clone(),
-                    (Some(info.step_label.clone()), info.break_label.clone()),
+                    (Some(ci.step_label.clone()), ci.break_label.clone()),
                 );
                 complex_body_blocks.insert(bb.clone());
             }
         }
     }
-    // Mark try_end/try_finally/try_after_finally as skipped — they
-    // are emitted as part of the try_body block's inline sequence.
-    for info in state.try_finally_info.values() {
-        state.skip_blocks.insert(info.try_end.clone());
-        state.skip_blocks.insert(info.try_finally.clone());
-        state.skip_blocks.insert(info.try_after.clone());
+
+    ForeachData {
+        info,
+        bodies,
+        complex,
+        end_to_header,
+        complex_body_blocks,
+    }
+}
+
+/// Emit proc defs that appear before the first statement (for cases
+/// where the entry block has no statements).
+fn pre_emit_proc_defs(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
+    if state.pending_proc_defs.is_empty() {
+        return;
+    }
+    let first_stmt_offset: Option<u32> = cfg
+        .blocks
+        .values()
+        .flat_map(|blk| blk.statements.iter())
+        .map(|s| s.span().start())
+        .min();
+    if let Some(off) = first_stmt_offset {
+        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, off);
+    }
+}
+
+/// Emit the synthetic per-block prologue: complex-foreach step/end at the
+/// loop bottom, the loop-end result push, deferred loop end labels, and the
+/// empty-loop-body NOPs. Returns whether `bname` is a loop-end block (its
+/// result push must not be re-pushed by the arm-value handling).
+fn emit_block_prologue(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    fe: &ForeachData,
+    bname: &str,
+    blk: &crate::cfg::Block,
+) -> bool {
+    // Complex foreach: emit foreach_step + foreach_end at the
+    // bottom of the loop body, before the loop-result push/pop.
+    if let Some(header) = fe.end_to_header.get(bname)
+        && let Some(info) = fe.complex.get(header)
+    {
+        ctx.place_label(&info.step_label);
+        ctx.emit(Op::FOREACH_STEP, vec![]);
+        ctx.place_label(&info.break_label);
+        ctx.emit(Op::FOREACH_END, vec![]);
     }
 
-    // Emit proc defs that appear before the first statement (for cases
-    // where the entry block has no statements).
-    if !state.pending_proc_defs.is_empty() {
-        let first_stmt_offset: Option<u32> = cfg
-            .blocks
-            .values()
-            .flat_map(|blk| blk.statements.iter())
-            .map(|s| s.span().start())
-            .min();
-        if let Some(off) = first_stmt_offset {
-            ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, off);
-        }
-    }
-
-    for (i, bname) in block_order.iter().enumerate() {
-        if state.skip_blocks.contains(bname) {
-            ctx.place_label(bname);
-            continue;
-        }
-        let blk = cfg.block_by_name(bname).expect("layout block exists");
-        ctx.place_label(bname);
-
-        // Synthetic per-block instructions (loop-result pushes, padding
-        // NOPs, startCommand boundary markers emitted before any statement)
-        // carry no direct source span; statement / terminator emission
-        // sets a real span below.
-        ctx.current_span = None;
-
-        // try/finally inline compilation at try_body block.
-        if let Some(info) = state.try_finally_info.get(bname).cloned() {
-            ctx.emit_try_finally_inline(cfg, bname, &info.try_finally);
-            continue;
-        }
-
-        // Update loop context for break/continue compilation. The continue
-        // target is `None` for a `for`-step block (continue propagates out).
-        if let Some((cont, brk)) = loop_ctx.get(bname) {
-            ctx.continue_target.clone_from(cont);
-            ctx.break_target = Some(brk.clone());
-        }
-
-        // Complex foreach: emit foreach_step + foreach_end at the
-        // bottom of the loop body, before the loop-result push/pop.
-        if let Some(header) = foreach_end_to_header.get(bname)
-            && let Some(info) = complex_foreach.get(header)
-        {
-            ctx.place_label(&info.step_label);
-            ctx.emit(Op::FOREACH_STEP, vec![]);
-            ctx.place_label(&info.break_label);
-            ctx.emit(Op::FOREACH_END, vec![]);
-        }
-
-        // Loop-end blocks push "" as the loop command's result.
-        let is_loop_end = starts_with_any(bname, LOOP_END_PREFIXES);
-        if is_loop_end && blk.statements.is_empty() {
-            let target = match &blk.terminator {
-                Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
-                _ => None,
-            };
-            if let Some(t) = &target {
-                if !t.starts_with("exit_") {
-                    ctx.literals.intern("");
-                    ctx.emit(Op::NOP, vec![]);
-                    ctx.emit(Op::NOP, vec![]);
-                    ctx.emit(Op::NOP, vec![]);
-                } else {
-                    ctx.push_lit("");
-                }
-            } else {
+    // Loop-end blocks push "" as the loop command's result.
+    let is_loop_end = starts_with_any(bname, LOOP_END_PREFIXES);
+    if is_loop_end && blk.statements.is_empty() {
+        let target = match &blk.terminator {
+            Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
+            _ => None,
+        };
+        if let Some(t) = &target {
+            if t.starts_with("exit_") {
                 ctx.push_lit("");
+            } else {
+                ctx.literals.intern("");
+                ctx.emit(Op::NOP, vec![]);
+                ctx.emit(Op::NOP, vec![]);
+                ctx.emit(Op::NOP, vec![]);
             }
+        } else {
+            ctx.push_lit("");
         }
+    }
 
-        // Place deferred for-init / while-loop / foreach startCommand
-        // end labels at the loop-end block's pop.
-        if let Some(lbl) = state.for_init_end_labels.remove(bname) {
-            place_label_before_trailing_pop(ctx, &lbl);
-        }
-        if let Some(lbl) = state.while_end_labels.remove(bname) {
-            place_label_before_trailing_pop(ctx, &lbl);
-        }
-        if let Some(lbl) = state.foreach_end_labels.remove(bname) {
-            place_label_before_trailing_pop(ctx, &lbl);
-        }
+    // Place deferred for-init / while-loop / foreach startCommand
+    // end labels at the loop-end block's pop.
+    if let Some(lbl) = state.for_init_end_labels.remove(bname) {
+        place_label_before_trailing_pop(ctx, &lbl);
+    }
+    if let Some(lbl) = state.while_end_labels.remove(bname) {
+        place_label_before_trailing_pop(ctx, &lbl);
+    }
+    if let Some(lbl) = state.foreach_end_labels.remove(bname) {
+        place_label_before_trailing_pop(ctx, &lbl);
+    }
 
-        // Empty loop body: emit 3 nops.
-        if starts_with_any(bname, LOOP_BODY_PREFIXES)
-            && blk.statements.is_empty()
-            && matches!(blk.terminator, Some(Terminator::Goto { .. }))
+    // Empty loop body: emit 3 nops.
+    if starts_with_any(bname, LOOP_BODY_PREFIXES)
+        && blk.statements.is_empty()
+        && matches!(blk.terminator, Some(Terminator::Goto { .. }))
+    {
+        ctx.literals.intern("");
+        ctx.emit(Op::NOP, vec![]);
+        ctx.emit(Op::NOP, vec![]);
+        ctx.emit(Op::NOP, vec![]);
+    }
+
+    is_loop_end
+}
+
+/// Emit the per-block startCommand markers for for-body and complex-foreach
+/// if-condition blocks, deferring their end labels to the relevant join pop,
+/// then place any pending for-body end label and pop the incoming arm value
+/// at join blocks with work.
+fn emit_block_start_cmds(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    fe: &ForeachData,
+    bname: &str,
+    blk: &crate::cfg::Block,
+) {
+    // For-body startCommand: a `for_body_*` block
+    // whose terminator is a Branch (the first statement is an
+    // `if`) gets a startCommand that spans from here to the
+    // `if_end_*` join pop. The end label is deferred into
+    // `for_body_end_labels` keyed by the join block name.
+    if bname.starts_with("for_body_")
+        && matches!(blk.terminator, Some(Terminator::Branch { .. }))
+        && ctx.cmd_index > 0
+    {
+        let fb_end_label = ctx.fresh_label("for_body_end");
+        ctx.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(fb_end_label.clone()), Operand::Imm(1)],
+            "",
+        );
+        // Find the convergence point by following the true branch.
+        if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
+            && let Some(tt_blk) = cfg.blocks.get(true_target)
+            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+            && cfg.block_name(*join).starts_with("if_end_")
         {
-            ctx.literals.intern("");
-            ctx.emit(Op::NOP, vec![]);
-            ctx.emit(Op::NOP, vec![]);
-            ctx.emit(Op::NOP, vec![]);
+            state
+                .for_body_end_labels
+                .insert(cfg.block_name(*join).to_owned(), fb_end_label);
         }
+    }
 
-        // For-body startCommand: a `for_body_*` block
-        // whose terminator is a Branch (the first statement is an
-        // `if`) gets a startCommand that spans from here to the
-        // `if_end_*` join pop. The end label is deferred into
-        // `for_body_end_labels` keyed by the join block name.
-        if bname.starts_with("for_body_")
-            && matches!(blk.terminator, Some(Terminator::Branch { .. }))
-            && ctx.cmd_index > 0
+    // Complex-foreach if-condition startCommand:
+    // body blocks inside a complex foreach whose terminator is a
+    // Branch (the first element is an `if`) also get a per-body
+    // startCommand, with the end label deferred to the `if_end_*`
+    // or `if_next_*` join pop.
+    if fe.complex_body_blocks.contains(bname)
+        && matches!(blk.terminator, Some(Terminator::Branch { .. }))
+        && ctx.cmd_index > 0
+        && !bname.starts_with("foreach_header_")
+    {
+        let fif_end_label = ctx.fresh_label("foreach_if_end");
+        ctx.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(fif_end_label.clone()), Operand::Imm(1)],
+            "",
+        );
+        ctx.seen_generic_invoke = true;
+        if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
+            && let Some(tt_blk) = cfg.blocks.get(true_target)
+            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+            && {
+                let j = cfg.block_name(*join);
+                j.starts_with("if_end_") || j.starts_with("if_next_")
+            }
         {
-            let fb_end_label = ctx.fresh_label("for_body_end");
-            ctx.emit_comment(
-                Op::START_CMD,
-                vec![Operand::Label(fb_end_label.clone()), Operand::Imm(1)],
-                "",
-            );
-            // Find the convergence point by following the true branch.
-            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
-                && let Some(tt_blk) = cfg.blocks.get(true_target)
-                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && cfg.block_name(*join).starts_with("if_end_")
+            state
+                .for_body_end_labels
+                .insert(cfg.block_name(*join).to_owned(), fif_end_label);
+        }
+    }
+
+    // Defer for-body end label to the join block's pop.
+    if let Some(lbl) = state.for_body_end_labels.remove(bname) {
+        state.pending_join_labels.insert(bname.to_owned(), lbl);
+    }
+
+    // Pop incoming arm value at join blocks with work. Place any
+    // pending startCommand end label *before* the pop so the
+    // startCommand covers only the arm body, not the result
+    // cleanup.
+    if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(cfg, blk, ctx.is_proc) {
+        if let Some(lbl) = state.pending_join_labels.remove(bname) {
+            ctx.place_label(&lbl);
+        }
+        ctx.emit(Op::POP, vec![]);
+    }
+}
+
+/// Emit a `foreach_header` block's list loads + `FOREACH_START` opcode.
+/// Returns `true` if the block was a foreach header (caller should
+/// `return` past normal statement/terminator emission).
+fn emit_foreach_header(
+    ctx: &mut CodegenCtx,
+    state: &mut GenerateState,
+    fe: &ForeachData,
+    bname: &str,
+) -> bool {
+    let Some(fi) = fe.info.get(bname) else {
+        return false;
+    };
+    if ctx.cmd_index > 0 {
+        let fe_lbl = ctx.fresh_label("cmd_end");
+        ctx.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(fe_lbl.clone()), Operand::Imm(1)],
+            "",
+        );
+        ctx.seen_generic_invoke = true;
+        state.foreach_end_labels.insert(fi.end.clone(), fe_lbl);
+    }
+    for la in &fi.list_args {
+        ctx.emit_value(la, false);
+    }
+    let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
+    // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so
+    // the VM can bind them; not rendered in disassembly.
+    ctx.instructions[fs_idx].foreach_vars = Some(fi.var_groups.clone());
+    ctx.cmd_index += 1;
+    true
+}
+
+/// Emit a simple `foreach_body` block: its statements followed by
+/// `foreach_step` + `foreach_end`. Returns `true` if the block was a simple
+/// foreach body (caller should `return`).
+fn emit_foreach_body(
+    ctx: &mut CodegenCtx,
+    state: &mut GenerateState,
+    fe: &ForeachData,
+    bname: &str,
+    blk: &crate::cfg::Block,
+) -> bool {
+    if !fe.bodies.contains(bname) || fe.complex_body_blocks.contains(bname) {
+        return false;
+    }
+    for stmt in &blk.statements {
+        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+        ctx.emit_stmt_with_start_cmd(stmt, None, None);
+    }
+    // foreach_step/foreach_end are synthetic loop machinery with no
+    // source construct; clear the sticky statement span so they
+    // serialise as null rather than inheriting the last body
+    // statement's range.
+    ctx.current_span = None;
+    ctx.emit(Op::FOREACH_STEP, vec![]);
+    ctx.emit(Op::FOREACH_END, vec![]);
+    true
+}
+
+/// Emit the statements of a normal (non-foreach) block, including for-init
+/// and `<cond>` startCommand wrapping.
+fn emit_block_statements(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    blk: &crate::cfg::Block,
+) {
+    // For-init blocks: the last statement before a Goto to a
+    // for_header_N block is the for command's init clause. Wrap
+    // it with a count=2 startCommand spanning the whole for loop.
+    let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
+
+    for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
+        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+        if Some(stmt_idx) == for_init_last_idx {
+            // For-init: emit startCommand with deferred end label
+            // and count=2 (for + init both start at this offset).
+            if let Some(Terminator::Goto {
+                target: fi_header, ..
+            }) = &blk.terminator
+                && let Some(fi_header_blk) = cfg.blocks.get(fi_header)
+                && let Some(Terminator::Branch {
+                    false_target: for_end,
+                    ..
+                }) = &fi_header_blk.terminator
             {
+                let fi_label = ctx.fresh_label("for_cmd_end");
                 state
-                    .for_body_end_labels
-                    .insert(cfg.block_name(*join).to_owned(), fb_end_label);
-            }
-        }
-
-        // Complex-foreach if-condition startCommand:
-        // body blocks inside a complex foreach whose terminator is a
-        // Branch (the first element is an `if`) also get a per-body
-        // startCommand, with the end label deferred to the `if_end_*`
-        // or `if_next_*` join pop.
-        if complex_body_blocks.contains(bname)
-            && matches!(blk.terminator, Some(Terminator::Branch { .. }))
-            && ctx.cmd_index > 0
-            && !bname.starts_with("foreach_header_")
-        {
-            let fif_end_label = ctx.fresh_label("foreach_if_end");
-            ctx.emit_comment(
-                Op::START_CMD,
-                vec![Operand::Label(fif_end_label.clone()), Operand::Imm(1)],
-                "",
-            );
-            ctx.seen_generic_invoke = true;
-            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
-                && let Some(tt_blk) = cfg.blocks.get(true_target)
-                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && {
-                    let j = cfg.block_name(*join);
-                    j.starts_with("if_end_") || j.starts_with("if_next_")
-                }
-            {
-                state
-                    .for_body_end_labels
-                    .insert(cfg.block_name(*join).to_owned(), fif_end_label);
-            }
-        }
-
-        // Defer for-body end label to the join block's pop.
-        if let Some(lbl) = state.for_body_end_labels.remove(bname) {
-            state.pending_join_labels.insert(bname.clone(), lbl);
-        }
-
-        // Pop incoming arm value at join blocks with work. Place any
-        // pending startCommand end label *before* the pop so the
-        // startCommand covers only the arm body, not the result
-        // cleanup.
-        if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(cfg, blk, ctx.is_proc) {
-            if let Some(lbl) = state.pending_join_labels.remove(bname) {
-                ctx.place_label(&lbl);
-            }
-            ctx.emit(Op::POP, vec![]);
-        }
-
-        // foreach_header: emit list loads + foreach_start opcode, skip
-        // the normal Branch terminator (the opcode replaces it). When
-        // this foreach is not the first command in its script, wrap it
-        // with a startCommand whose end label is deferred to the
-        // foreach_end block's trailing pop.
-        if let Some(fi) = foreach_info.get(bname) {
-            if ctx.cmd_index > 0 {
-                let fe_lbl = ctx.fresh_label("cmd_end");
-                ctx.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(fe_lbl.clone()), Operand::Imm(1)],
-                    "",
-                );
-                ctx.seen_generic_invoke = true;
-                state.foreach_end_labels.insert(fi.end.clone(), fe_lbl);
-            }
-            for la in &fi.list_args {
-                ctx.emit_value(la, false);
-            }
-            let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
-            // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so
-            // the VM can bind them; not rendered in disassembly.
-            ctx.instructions[fs_idx].foreach_vars = Some(fi.var_groups.clone());
-            ctx.cmd_index += 1;
-            continue;
-        }
-
-        // foreach_body (simple only): emit body then
-        // foreach_step + foreach_end. Complex foreach bodies fall
-        // through to normal block processing; their step/end is
-        // emitted at the foreach_end block (see above).
-        if foreach_bodies.contains(bname) && !complex_body_blocks.contains(bname) {
-            for stmt in &blk.statements {
-                ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
-                ctx.emit_stmt_with_start_cmd(stmt, None, None);
-            }
-            // foreach_step/foreach_end are synthetic loop machinery with no
-            // source construct; clear the sticky statement span so they
-            // serialise as null rather than inheriting the last body
-            // statement's range.
-            ctx.current_span = None;
-            ctx.emit(Op::FOREACH_STEP, vec![]);
-            ctx.emit(Op::FOREACH_END, vec![]);
-            continue;
-        }
-
-        // For-init blocks: the last statement before a Goto to a
-        // for_header_N block is the for command's init clause. Wrap
-        // it with a count=2 startCommand spanning the whole for loop.
-        let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
-
-        // Emit statements.
-        for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
-            ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
-            if Some(stmt_idx) == for_init_last_idx {
-                // For-init: emit startCommand with deferred end label
-                // and count=2 (for + init both start at this offset).
-                if let Some(Terminator::Goto {
-                    target: fi_header, ..
-                }) = &blk.terminator
-                    && let Some(fi_header_blk) = cfg.blocks.get(fi_header)
-                    && let Some(Terminator::Branch {
-                        false_target: for_end,
-                        ..
-                    }) = &fi_header_blk.terminator
-                {
-                    let fi_label = ctx.fresh_label("for_cmd_end");
-                    state
-                        .for_init_end_labels
-                        .insert(cfg.block_name(*for_end).to_owned(), fi_label.clone());
-                    ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
-                    continue;
-                }
-            }
-            // Synthetic `<cond>` placeholders get a
-            // startCommand whose end label is deferred until the
-            // ExprCommand in the branch condition has been emitted.
-            // The label is placed by `emit_expr` in expressions.rs.
-            if let Statement::Call { command, .. } = stmt
-                && command == "<cond>"
-            {
-                let cond_label = ctx.fresh_label("cmd_end");
-                ctx.pending_cond_end_label = Some(cond_label.clone());
-                ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
+                    .for_init_end_labels
+                    .insert(cfg.block_name(*for_end).to_owned(), fi_label.clone());
+                ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
                 continue;
             }
-            ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
-
-        // If/switch arms: keep last statement value on TOS instead of
-        // popping — the value is the arm's result.
-        if let Some(Terminator::Goto { target, .. }) = &blk.terminator
-            && starts_with_any(cfg.block_name(*target), VALUE_JOIN_PREFIXES)
+        // Synthetic `<cond>` placeholders get a
+        // startCommand whose end label is deferred until the
+        // ExprCommand in the branch condition has been emitted.
+        // The label is placed by `emit_expr` in expressions.rs.
+        if let Statement::Call { command, .. } = stmt
+            && command == "<cond>"
         {
-            if !blk.statements.is_empty()
-                && ctx.instructions.last().is_some_and(|i| i.op == Op::POP)
-            {
-                ctx.instructions.pop();
-            } else if blk.statements.is_empty() && !is_loop_end {
-                // Else-less if: false path needs an empty-string result.
-                ctx.push_lit("");
-            }
-        }
-
-        // Complex foreach: suppress back-edge Gotos from body blocks
-        // to the foreach header. Fall through to foreach_step/foreach_end
-        // at the foreach_end block, or jump to step label if not adjacent.
-        let mut foreach_backedge = false;
-        if complex_body_blocks.contains(bname)
-            && let Some(Terminator::Goto { target, .. }) = &blk.terminator
-            && let Some(info) = complex_foreach.get(cfg.block_name(*target))
-        {
-            let next_peek = block_order.get(i + 1).map(String::as_str);
-            if next_peek != Some(info.end.as_str()) {
-                ctx.emit_comment(
-                    Op::JUMP4,
-                    vec![Operand::Label(info.step_label.clone())],
-                    "foreach continue",
-                );
-            }
-            foreach_backedge = true;
-        }
-
-        // While-loop startCommand: emit before the jump to while_header.
-        if ctx.is_proc
-            && ctx.cmd_index > 0
-            && let Some(Terminator::Goto {
-                target: wh_header, ..
-            }) = &blk.terminator
-        {
-            let is_while_entry = cfg.block_name(*wh_header).starts_with("while_header_")
-                && !bname.starts_with("while_body_")
-                && !bname.starts_with("while_step_");
-            if is_while_entry
-                && let Some(wh_blk) = cfg.blocks.get(wh_header)
-                && let Some(Terminator::Branch {
-                    false_target: wh_end,
-                    ..
-                }) = &wh_blk.terminator
-            {
-                let wh_label = ctx.fresh_label("while_cmd_end");
-                ctx.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
-                    "",
-                );
-                state
-                    .while_end_labels
-                    .insert(cfg.block_name(*wh_end).to_owned(), wh_label);
-                ctx.cmd_index += 1;
-            }
-        }
-
-        let next_block = block_order.get(i + 1).map(String::as_str);
-        if foreach_backedge {
-            // Back-edge already handled above.
+            let cond_label = ctx.fresh_label("cmd_end");
+            ctx.pending_cond_end_label = Some(cond_label.clone());
+            ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
             continue;
         }
-        if let Some(term) = &blk.terminator {
-            // Constant-folded `if {1}` startCommand in
-            // non-proc scripts. tclsh preserves a command boundary for
-            // the `if` even when the condition is dead — the
-            // startCommand's end label is placed before the join pop.
-            if !ctx.is_proc
-                && let Terminator::Branch {
-                    condition,
-                    true_target,
-                    ..
-                } = term
-                && super::ordering::fold_const_branch(condition) == Some(true)
-                && let Some(tt_blk) = cfg.blocks.get(true_target)
-                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && cfg.block_name(*join).starts_with("if_end_")
-            {
-                let end_label = ctx.fresh_label("cmd_end");
-                ctx.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
-                    "",
-                );
-                ctx.cmd_index += 1;
-                ctx.seen_generic_invoke = true;
-                state
-                    .pending_join_labels
-                    .insert(cfg.block_name(*join).to_owned(), end_label);
-            }
+        ctx.emit_stmt_with_start_cmd(stmt, None, None);
+    }
+}
 
-            // Try switch-dispatch jump-table emission first.
-            if ctx.try_emit_jump_table(cfg, blk, next_block, &mut state.skip_blocks) {
-                // Switch dispatch counts as a command so the first arm
-                // body gets its own startCommand.
-                ctx.cmd_index += 1;
-            } else if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
-                ctx.emit_proc_return(term, bname, next_block, &block_order, i, cfg);
-            } else {
-                ctx.emit_term(cfg, term, next_block);
-            }
-        } else if next_block.is_some() {
-            // Terminal block not last in layout — emit done to prevent
-            // fallthrough into successor blocks.
-            ctx.emit(Op::DONE, vec![]);
+/// Emit a block's terminator: constant-folded `if {1}` startCommand,
+/// switch jump tables, proc returns, or the generic terminator.
+fn emit_block_terminator(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    bname: &str,
+    blk: &crate::cfg::Block,
+    block_order: &[String],
+    i: usize,
+) {
+    let next_block = block_order.get(i + 1).map(String::as_str);
+    if let Some(term) = &blk.terminator {
+        // Constant-folded `if {1}` startCommand in
+        // non-proc scripts. tclsh preserves a command boundary for
+        // the `if` even when the condition is dead — the
+        // startCommand's end label is placed before the join pop.
+        if !ctx.is_proc
+            && let Terminator::Branch {
+                condition,
+                true_target,
+                ..
+            } = term
+            && super::ordering::fold_const_branch(condition) == Some(true)
+            && let Some(tt_blk) = cfg.blocks.get(true_target)
+            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+            && cfg.block_name(*join).starts_with("if_end_")
+        {
+            let end_label = ctx.fresh_label("cmd_end");
+            ctx.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+                "",
+            );
+            ctx.cmd_index += 1;
+            ctx.seen_generic_invoke = true;
+            state
+                .pending_join_labels
+                .insert(cfg.block_name(*join).to_owned(), end_label);
+        }
+
+        // Try switch-dispatch jump-table emission first.
+        if ctx.try_emit_jump_table(cfg, blk, next_block, &mut state.skip_blocks) {
+            // Switch dispatch counts as a command so the first arm
+            // body gets its own startCommand.
+            ctx.cmd_index += 1;
+        } else if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
+            ctx.emit_proc_return(term, bname, next_block, block_order, i, cfg);
+        } else {
+            ctx.emit_term(cfg, term, next_block);
+        }
+    } else if next_block.is_some() {
+        // Terminal block not last in layout — emit done to prevent
+        // fallthrough into successor blocks.
+        ctx.emit(Op::DONE, vec![]);
+    }
+}
+
+/// Emit one CFG block (the body of the main block-order loop). Skips
+/// try/finally-consumed blocks, dispatches foreach headers/bodies, emits
+/// statements, and finishes with the block's terminator.
+fn emit_block(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    fe: &ForeachData,
+    loop_ctx: &LoopContext,
+    block_order: &[String],
+    i: usize,
+) {
+    let bname = &block_order[i];
+    if state.skip_blocks.contains(bname) {
+        ctx.place_label(bname);
+        return;
+    }
+    let blk = cfg.block_by_name(bname).expect("layout block exists");
+    ctx.place_label(bname);
+
+    // Synthetic per-block instructions (loop-result pushes, padding
+    // NOPs, startCommand boundary markers emitted before any statement)
+    // carry no direct source span; statement / terminator emission
+    // sets a real span below.
+    ctx.current_span = None;
+
+    // try/finally inline compilation at try_body block.
+    if let Some(info) = state.try_finally_info.get(bname).cloned() {
+        ctx.emit_try_finally_inline(cfg, bname, &info.try_finally);
+        return;
+    }
+
+    // Update loop context for break/continue compilation. The continue
+    // target is `None` for a `for`-step block (continue propagates out).
+    if let Some((cont, brk)) = loop_ctx.get(bname) {
+        ctx.continue_target.clone_from(cont);
+        ctx.break_target = Some(brk.clone());
+    }
+
+    let is_loop_end = emit_block_prologue(ctx, cfg, state, fe, bname, blk);
+    emit_block_start_cmds(ctx, cfg, state, fe, bname, blk);
+
+    if emit_foreach_header(ctx, state, fe, bname) {
+        return;
+    }
+    if emit_foreach_body(ctx, state, fe, bname, blk) {
+        return;
+    }
+
+    emit_block_statements(ctx, cfg, state, blk);
+
+    // If/switch arms: keep last statement value on TOS instead of
+    // popping — the value is the arm's result.
+    if let Some(Terminator::Goto { target, .. }) = &blk.terminator
+        && starts_with_any(cfg.block_name(*target), VALUE_JOIN_PREFIXES)
+    {
+        if !blk.statements.is_empty() && ctx.instructions.last().is_some_and(|i| i.op == Op::POP) {
+            ctx.instructions.pop();
+        } else if blk.statements.is_empty() && !is_loop_end {
+            // Else-less if: false path needs an empty-string result.
+            ctx.push_lit("");
         }
     }
 
+    // Complex foreach: suppress back-edge Gotos from body blocks
+    // to the foreach header. Fall through to foreach_step/foreach_end
+    // at the foreach_end block, or jump to step label if not adjacent.
+    if fe.complex_body_blocks.contains(bname)
+        && let Some(Terminator::Goto { target, .. }) = &blk.terminator
+        && let Some(info) = fe.complex.get(cfg.block_name(*target))
+    {
+        let next_peek = block_order.get(i + 1).map(String::as_str);
+        if next_peek != Some(info.end.as_str()) {
+            ctx.emit_comment(
+                Op::JUMP4,
+                vec![Operand::Label(info.step_label.clone())],
+                "foreach continue",
+            );
+        }
+        // Back-edge handled; skip terminator emission.
+        return;
+    }
+
+    // While-loop startCommand: emit before the jump to while_header.
+    if ctx.is_proc
+        && ctx.cmd_index > 0
+        && let Some(Terminator::Goto {
+            target: wh_header, ..
+        }) = &blk.terminator
+    {
+        let is_while_entry = cfg.block_name(*wh_header).starts_with("while_header_")
+            && !bname.starts_with("while_body_")
+            && !bname.starts_with("while_step_");
+        if is_while_entry
+            && let Some(wh_blk) = cfg.blocks.get(wh_header)
+            && let Some(Terminator::Branch {
+                false_target: wh_end,
+                ..
+            }) = &wh_blk.terminator
+        {
+            let wh_label = ctx.fresh_label("while_cmd_end");
+            ctx.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
+                "",
+            );
+            state
+                .while_end_labels
+                .insert(cfg.block_name(*wh_end).to_owned(), wh_label);
+            ctx.cmd_index += 1;
+        }
+    }
+
+    emit_block_terminator(ctx, cfg, state, bname, blk, block_order, i);
+}
+
+/// Emit the trailing `DONE` / proc-exit machinery after all blocks.
+fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
     // Flush any remaining proc defs.
     ctx.flush_proc_defs(&mut state.pending_proc_defs);
 
@@ -545,7 +644,16 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     {
         ctx.emit(Op::DONE, vec![]);
     }
+}
 
+/// Run the peephole passes and layout pass, then assemble the final
+/// [`FunctionAsm`] (loop-target table + inline-body error regions).
+fn finalize_function(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    block_order: &[String],
+    loop_ctx: &LoopContext,
+) -> FunctionAsm {
     // Peephole passes.
     ctx.remove_trailing_pop();
     ctx.fold_tail_return_to_done();
@@ -565,8 +673,8 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     // `loop_ctx` block targets + the final block index ranges. `label_positions`
     // is maintained through the peephole removals, so the indices are final.
     let loop_targets = build_loop_targets(
-        &block_order,
-        &loop_ctx,
+        block_order,
+        loop_ctx,
         &ctx.label_positions,
         &labels,
         ctx.instructions.len(),
@@ -607,6 +715,40 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         body_base_line: 0,
         error_regions,
     }
+}
+
+/// Generate bytecode for one CFG function.
+///
+/// Handles: straight-line code, if/else, switch jump tables, proc
+/// returns with dead-code jumps, foreach loops (simple and
+/// complex-body variants) with native `foreach_start`/`step`/`end`
+/// opcodes, for-init / while `startCommand` wrapping with deferred
+/// end labels at the loop-end pop, try/finally CFG patterns,
+/// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
+pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
+    let block_order = linearise(cfg);
+    let mut loop_ctx = ordering::build_loop_context(cfg);
+    let mut state = GenerateState::new(proc_defs);
+    state.try_finally_info = detect_try_finally(cfg, &block_order);
+
+    let fe = setup_foreach(ctx, cfg, &mut loop_ctx);
+
+    // Mark try_end/try_finally/try_after_finally as skipped — they
+    // are emitted as part of the try_body block's inline sequence.
+    for info in state.try_finally_info.values() {
+        state.skip_blocks.insert(info.try_end.clone());
+        state.skip_blocks.insert(info.try_finally.clone());
+        state.skip_blocks.insert(info.try_after.clone());
+    }
+
+    pre_emit_proc_defs(ctx, cfg, &mut state);
+
+    for i in 0..block_order.len() {
+        emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
+    }
+
+    emit_function_tail(ctx, cfg, &mut state);
+    finalize_function(ctx, cfg, &block_order, &loop_ctx)
 }
 
 /// Build the per-instruction loop-target table (see `FunctionAsm::loop_targets`).

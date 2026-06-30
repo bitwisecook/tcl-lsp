@@ -3,16 +3,16 @@
 //! LEB128 for integers and length-prefixed UTF-8 for strings: the input
 //! side of every byte the module serialiser writes.
 //!
-//! The `& 0x7F` masking makes the `as u8` truncations exact, and lengths
-//! are bounded by source size, so the cast lints are noise here.
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+//! The `& 0x7F` masking makes the low-byte extraction exact, and lengths
+//! are bounded by source size.
 
 /// Encode an unsigned integer as unsigned LEB128.
 #[must_use]
 pub fn leb128_unsigned(mut value: u64) -> Vec<u8> {
     let mut out = Vec::new();
     loop {
-        let mut byte = (value & 0x7F) as u8;
+        // `& 0x7F` keeps only the low 7 bits, so the value always fits in `u8`.
+        let mut byte = u8::try_from(value & 0x7F).expect("7-bit value fits u8");
         value >>= 7;
         if value != 0 {
             byte |= 0x80;
@@ -30,7 +30,8 @@ pub fn leb128_unsigned(mut value: u64) -> Vec<u8> {
 pub fn leb128_signed(mut value: i64) -> Vec<u8> {
     let mut out = Vec::new();
     loop {
-        let byte = (value & 0x7F) as u8;
+        // `& 0x7F` masks to the low 7 bits (0..=127), so it fits in `u8`.
+        let byte = u8::try_from(value & 0x7F).expect("7-bit value fits u8");
         // Arithmetic shift keeps the sign bit.
         value >>= 7;
         let sign_bit_set = byte & 0x40 != 0;

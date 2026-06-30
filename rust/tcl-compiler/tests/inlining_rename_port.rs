@@ -43,6 +43,7 @@
 //!     the renamer's own in-module unit tests, not here.
 //!   * `append` / `lappend` lower to a `Call` with a non-empty `defs`, which
 //!     `stmt_is_splice_eligible` rejects (see `append_lappend_block_inline`).
+//!
 //! These exclusions are pinned by tests so the boundary is explicit.
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -898,8 +899,11 @@ fn callee_local_colliding_with_caller_local_is_freshened() {
     // The callee's `t` is freshened to a mangled slot somewhere in the body
     // (it lives inside the one-shot while-wrap the non-terminal return uses).
     let all_names = all_assign_names(body);
-    let callee_t = mangled_ending(&all_names, "__t");
-    assert_ne!(callee_t, "t", "the callee local is a distinct fresh name");
+    let callee_mangled = mangled_ending(&all_names, "__t");
+    assert_ne!(
+        callee_mangled, "t",
+        "the callee local is a distinct fresh name"
+    );
 
     // No mangled slot is literally `t` — i.e. the freshening never produces a
     // name equal to a caller local (the structural anti-capture invariant).
@@ -980,14 +984,14 @@ fn callee_local_shadowing_caller_param_is_freshened() {
     // The caller's `puts $sum` (param read) must reference the bare `sum`,
     // never the callee's freshened slot.
     let puts_args = all_call_args(body, "puts");
-    let reads_caller_sum = puts_args.iter().any(|a| a == "${sum}" || a == "$sum");
-    let reads_callee_sum = puts_args.iter().any(|a| a.contains(&callee_sum));
+    let bare_sum_read = puts_args.iter().any(|a| a == "${sum}" || a == "$sum");
+    let mangled_sum_read = puts_args.iter().any(|a| a.contains(&callee_sum));
     assert!(
-        reads_caller_sum,
+        bare_sum_read,
         "caller's param read stays bare `sum`, got {puts_args:?}"
     );
     assert!(
-        reads_callee_sum,
+        mangled_sum_read,
         "callee's own read uses its freshened slot {callee_sum}, got {puts_args:?}"
     );
 }
@@ -1002,15 +1006,15 @@ fn append_lappend_block_inline_so_renamer_not_reached() {
     // the splice-eligibility gate rejects — so the proc is never inlined and
     // the renamer is never asked to rewrite them. Pin that boundary: the call
     // to `f` survives. (Declining is always semantics-safe.)
-    let out_append = inlined("proc f {} { set s a\nappend s b }\nf\n");
+    let after_append = inlined("proc f {} { set s a\nappend s b }\nf\n");
     assert_eq!(
-        calls_to(&out_append.top_level.statements, "f"),
+        calls_to(&after_append.top_level.statements, "f"),
         1,
         "append in body blocks inlining; renamer not invoked"
     );
-    let out_lappend = inlined("proc f {} { set l x\nlappend l y }\nf\n");
+    let lafter_append = inlined("proc f {} { set l x\nlappend l y }\nf\n");
     assert_eq!(
-        calls_to(&out_lappend.top_level.statements, "f"),
+        calls_to(&lafter_append.top_level.statements, "f"),
         1,
         "lappend in body blocks inlining; renamer not invoked"
     );

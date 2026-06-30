@@ -18,7 +18,7 @@ use tcl_registry::TclType;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::loop_body_blocks;
@@ -31,8 +31,115 @@ use super::{ShimmerWarning, type_name};
 /// Walks every phi node in every SCCP-executable block.  If the phi's
 /// `TypeLattice` is `Shimmered`, the variable will require an intrep
 /// conversion on the first use after the merge point.
+/// Shared, read-only context threaded through the per-phi classifier.
+struct PhiCtx<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    empty_by_name: &'a HashMap<Symbol, HashSet<Version>>,
+    loop_blocks: &'a HashSet<String>,
+    loop_body_types: &'a HashMap<Symbol, HashSet<TclType>>,
+    def_map: &'a HashMap<ValueKey, tcl_lexer::Span>,
+}
+
+/// Decide whether one phi node is a genuine merge-point shimmer, returning
+/// the warning when it is (the per-phi body of [`find_phi_shimmers`]).
+fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<ShimmerWarning> {
+    let lattice = ctx.types.get(&(phi.name, phi.version))?;
+    if lattice.kind != TypeKind::Shimmered {
+        return None;
+    }
+    let from = lattice.from_type?;
+    let to = lattice.tcl_type?;
+
+    // Refine the SHIMMERED-phi verdict.
+    // A loop-header phi is SHIMMERED on any entry-vs-body type change,
+    // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
+    // and a branch merge whose only shimmer comes from an empty literal
+    // are not real per-use intrep conversions.
+    let empty_vers = ctx.empty_by_name.get(&phi.name);
+    let mut entry_types: HashSet<TclType> = HashSet::new();
+    let mut body_types: HashSet<TclType> = HashSet::new();
+    let mut nonempty_known: HashSet<TclType> = HashSet::new();
+    let mut has_shimmered_incoming = false;
+    for (pred, &inc_ver) in &phi.incoming {
+        if inc_ver == 0 {
+            continue;
+        }
+        let Some(inc_type) = ctx.types.get(&(phi.name, inc_ver)) else {
+            continue;
+        };
+        if inc_type.kind == TypeKind::Unknown {
+            continue;
+        }
+        let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
+        if inc_type.kind == TypeKind::Known && !is_empty {
+            if let Some(t) = inc_type.tcl_type {
+                if ctx.loop_blocks.contains(ctx.cfg.block_name(*pred)) {
+                    body_types.insert(t);
+                } else {
+                    entry_types.insert(t);
+                }
+                nonempty_known.insert(t);
+            }
+        } else if inc_type.kind == TypeKind::Shimmered {
+            has_shimmered_incoming = true;
+        }
+    }
+    if in_loop {
+        let mut all_body = body_types;
+        if let Some(pl) = ctx.loop_body_types.get(&phi.name) {
+            all_body.extend(pl.iter().copied());
+        }
+        let oscillates =
+            entry_types.intersection(&all_body).next().is_some() || all_body.len() >= 2;
+        if !oscillates {
+            return None;
+        }
+    } else if !has_shimmered_incoming && nonempty_known.len() <= 1 {
+        return None;
+    }
+
+    let span = phi_span(phi, ctx.ssa, ctx.def_map);
+    let related: Vec<_> = phi
+        .incoming
+        .iter()
+        .filter_map(|(pred_block, &ver)| {
+            ctx.def_map.get(&(phi.name, ver)).copied().map(|sp| {
+                (
+                    sp,
+                    format!("version from '{}'", ctx.cfg.block_name(*pred_block)),
+                )
+            })
+        })
+        .collect();
+
+    // A merge inside a loop body re-shimmers every iteration (S101);
+    // an out-of-loop branch merge is a one-time conversion (S100).
+    let code = if in_loop {
+        DiagCode::S101
+    } else {
+        DiagCode::S100
+    };
+    let var = ctx.ssa.var_name(phi.name);
+    Some(ShimmerWarning {
+        span,
+        variable: var.to_owned(),
+        from_type: from,
+        to_type: to,
+        command: "<phi>".to_owned(),
+        in_loop,
+        code,
+        message: format!(
+            "{code}: '{var}' merges {from} and {to} at control-flow join",
+            from = type_name(from),
+            to = type_name(to),
+        ),
+        related,
+    })
+}
+
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -47,6 +154,15 @@ pub(crate) fn find_phi_shimmers(
     // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
         per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
+    let ctx = PhiCtx {
+        cfg,
+        ssa,
+        types,
+        empty_by_name: &empty_by_name,
+        loop_blocks: &loop_blocks,
+        loop_body_types: &loop_body_types,
+        def_map: &def_map,
+    };
     let mut out = Vec::new();
 
     for block_id in cfg_order(cfg) {
@@ -59,105 +175,9 @@ pub(crate) fn find_phi_shimmers(
         let in_loop = loop_blocks.contains(cfg.block_name(block_id));
 
         for phi in &ssa_block.phis {
-            let key = (phi.name, phi.version);
-            let Some(lattice) = types.get(&key) else {
-                continue;
-            };
-            if lattice.kind != TypeKind::Shimmered {
-                continue;
+            if let Some(warning) = classify_phi_shimmer(&ctx, phi, in_loop) {
+                out.push(warning);
             }
-            let Some(from) = lattice.from_type else {
-                continue;
-            };
-            let Some(to) = lattice.tcl_type else {
-                continue;
-            };
-
-            // Refine the SHIMMERED-phi verdict.
-            // A loop-header phi is SHIMMERED on any entry-vs-body type change,
-            // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
-            // and a branch merge whose only shimmer comes from an empty literal
-            // are not real per-use intrep conversions.
-            let empty_vers = empty_by_name.get(&phi.name);
-            let mut entry_types: HashSet<TclType> = HashSet::new();
-            let mut body_types: HashSet<TclType> = HashSet::new();
-            let mut nonempty_known: HashSet<TclType> = HashSet::new();
-            let mut has_shimmered_incoming = false;
-            for (pred, &inc_ver) in &phi.incoming {
-                if inc_ver == 0 {
-                    continue;
-                }
-                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
-                    continue;
-                };
-                if inc_type.kind == TypeKind::Unknown {
-                    continue;
-                }
-                let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
-                if inc_type.kind == TypeKind::Known && !is_empty {
-                    if let Some(t) = inc_type.tcl_type {
-                        if loop_blocks.contains(cfg.block_name(*pred)) {
-                            body_types.insert(t);
-                        } else {
-                            entry_types.insert(t);
-                        }
-                        nonempty_known.insert(t);
-                    }
-                } else if inc_type.kind == TypeKind::Shimmered {
-                    has_shimmered_incoming = true;
-                }
-            }
-            if in_loop {
-                let mut all_body = body_types;
-                if let Some(pl) = loop_body_types.get(&phi.name) {
-                    all_body.extend(pl.iter().copied());
-                }
-                let oscillates =
-                    entry_types.intersection(&all_body).next().is_some() || all_body.len() >= 2;
-                if !oscillates {
-                    continue;
-                }
-            } else if !has_shimmered_incoming && nonempty_known.len() <= 1 {
-                continue;
-            }
-
-            let span = phi_span(phi, ssa, &def_map);
-            let related: Vec<_> = phi
-                .incoming
-                .iter()
-                .filter_map(|(pred_block, &ver)| {
-                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
-                        (
-                            sp,
-                            format!("version from '{}'", cfg.block_name(*pred_block)),
-                        )
-                    })
-                })
-                .collect();
-
-            // A merge inside a loop body re-shimmers every iteration (S101);
-            // an out-of-loop branch merge is a one-time conversion (S100).
-            let code = if in_loop {
-                DiagCode::S101
-            } else {
-                DiagCode::S100
-            };
-            let var = ssa.var_name(phi.name);
-            out.push(ShimmerWarning {
-                span,
-                variable: var.to_owned(),
-                from_type: from,
-                to_type: to,
-                command: "<phi>".to_owned(),
-                in_loop,
-                code,
-                message: format!(
-                    "{code}: '{var}' merges {from} and {to} at control-flow join",
-                    from = type_name(from),
-                    to = type_name(to),
-                ),
-                related,
-            });
         }
     }
 

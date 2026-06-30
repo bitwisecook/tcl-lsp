@@ -24,7 +24,7 @@
 
 use tcl_lexer::{LexWarning, Lexer, LexerConfig, SourceMap, Token, TokenType};
 
-use super::green::{GreenElement, GreenNode, GreenToken, GreenTrivia, TriviaKind};
+use super::green::{GreenElement, GreenNode, GreenToken, GreenTrivia, TokenTrivia, TriviaKind};
 
 /// `Sep` / `Eol` — the two trivia types the `word_boundary` rule treats
 /// as a word break.
@@ -303,8 +303,7 @@ impl<'a> Builder<'a> {
             end_region - region,
             tok.content_offset,
             tok.in_quote,
-            std::mem::take(&mut self.pending),
-            Vec::new(),
+            TokenTrivia::leading(std::mem::take(&mut self.pending)),
         );
         if self.first_region.is_none() {
             self.first_region = Some(region);

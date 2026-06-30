@@ -7,9 +7,9 @@
 //!   * `inlining_rename_port.rs`  (the α-renamer descent),
 //!   * `compiler_analysis_residual_port.rs` (a first slice of
 //!     `classify_proc` / `inline_module` / `count_statements` declines),
-//! — cover the *common* inlining paths.  This suite deliberately targets the
-//! **remaining** uncovered branches, enumerated by walking every match arm /
-//! if-branch / early-return the three ports do not reach:
+//!     — cover the *common* inlining paths.  This suite deliberately targets
+//!     the **remaining** uncovered branches, enumerated by walking every match
+//!     arm / if-branch / early-return the three ports do not reach:
 //!
 //!   inlining/mod.rs
 //!     * `count_one` over `Block` / `UpFrame` / `For` / `While` / `If`-with-else
@@ -62,13 +62,13 @@
 //! no execution proof beyond the tclsh fact that the un-inlined program's value
 //! is unchanged.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inlining::{count_statements, inline_module};
 use tcl_compiler::interprocedural::{
-    Arity, ConstantReturn, InterproceduralAnalysis, ProcArgTrait, build_interprocedural_analysis,
-    build_proc_index_from_summaries, collect_call_by_name_reads,
+    Arity, ConstantReturn, InterproceduralAnalysis, ProcArgTrait, ProcIndex,
+    build_interprocedural_analysis, build_proc_index_from_summaries, collect_call_by_name_reads,
 };
 use tcl_compiler::ir::{Module, Statement};
 use tcl_compiler::side_effects::EffectRegion;
@@ -874,8 +874,7 @@ fn call_by_name_empty_index_short_circuits() {
     let r = reg();
     let cu = CompilationUnit::build_for("proc f {} { setvar y 1 }\n", &r, false);
     let fu = cu.function("::f").expect("proc f");
-    let empty: HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)> =
-        HashMap::new();
+    let empty = ProcIndex::new();
     assert!(
         collect_call_by_name_reads(&fu.cfg, &empty).is_empty(),
         "an empty proc index yields no call-by-name reads"

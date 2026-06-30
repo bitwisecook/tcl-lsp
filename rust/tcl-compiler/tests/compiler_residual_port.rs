@@ -778,8 +778,8 @@ fn emit_stamps_source_cmd_text_with_quoted_word_widen() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     let src = "set x 1\nputs \"hello world\"";
     ctx.set_source(src);
-    let start = src.find("puts").unwrap() as u32;
-    let inner_end = src.rfind('"').unwrap() as u32; // points AT the closing quote
+    let start = u32::try_from(src.find("puts").unwrap()).unwrap();
+    let inner_end = u32::try_from(src.rfind('"').unwrap()).unwrap(); // points AT the closing quote
     ctx.current_span = Some(Span::new(start, inner_end));
     let idx = ctx.emit(Op::INVOKE_STK1, vec![]);
     let instr = &ctx.instructions[idx];
@@ -837,7 +837,7 @@ fn emit_comment_stamps_text_line_and_comment() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     let src = "set a 1\nset b 2\nincr a";
     ctx.set_source(src);
-    let start = src.rfind("incr").unwrap() as u32;
+    let start = u32::try_from(src.rfind("incr").unwrap()).unwrap();
     ctx.current_span = Some(Span::new(start, start + 6)); // "incr a"
     let idx = ctx.emit_comment(Op::INCR_STK_IMM, vec![Operand::Imm(1)], "the comment");
     let instr = &ctx.instructions[idx];
@@ -854,8 +854,8 @@ fn span_text_quoted_widen_only_when_quote_follows() {
     let mut ctx = CodegenCtx::new(false, &[], &reg);
     let src = "set name value";
     ctx.set_source(src);
-    let start = src.find("set").unwrap() as u32;
-    let end = src.find(" value").unwrap() as u32; // ends right after "set name"
+    let start = u32::try_from(src.find("set").unwrap()).unwrap();
+    let end = u32::try_from(src.find(" value").unwrap()).unwrap(); // ends right after "set name"
     ctx.current_span = Some(Span::new(start, end));
     let idx = ctx.emit(Op::STORE_STK, vec![]);
     assert_eq!(

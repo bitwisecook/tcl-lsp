@@ -724,7 +724,6 @@ fn rewrite_script(
 /// body. Recursion into nested control flow uses
 /// `parent_is_terminal = false` (terminality applies only at a body's
 /// direct top level).
-#[allow(clippy::too_many_lines)] // one arm per control-flow IR variant
 fn rewrite_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -739,118 +738,194 @@ fn rewrite_stmt(
             let spec = inlinable.get(&target)?;
             splice_call_site(stmt, spec, counter, is_terminal)
         }
-        Statement::Block {
-            span,
-            body,
-            namespace,
-            tokens,
-        } => {
-            let inner_caller = if !namespace.is_empty() && namespace != "::" {
-                format!("{namespace}::__inblock__")
-            } else {
-                caller_qname.to_owned()
-            };
-            let (new_body, changed) =
-                rewrite_script(body, &inner_caller, inlinable, summaries, counter, false);
-            changed.then(|| {
-                vec![Statement::Block {
-                    span: *span,
-                    body: new_body,
-                    namespace: namespace.clone(),
-                    tokens: tokens.clone(),
-                }]
-            })
+        Statement::Block { .. } => {
+            rewrite_block_stmt(stmt, caller_qname, inlinable, summaries, counter)
         }
-        Statement::If {
-            span,
-            clauses,
-            else_body,
-            else_span,
-        } => {
-            // When the `if` itself is in terminal position, exactly one of
-            // its branches runs and that branch's last statement supplies the
-            // enclosing script's result — so each branch body is itself a tail
-            // position. Propagate `is_terminal` so a v3 inline with a trailing
-            // `return` in the taken branch forwards its value instead of being
-            // wrapped (and dropping it).
-            let mut new_clauses = Vec::with_capacity(clauses.len());
-            let mut changed = false;
-            for c in clauses {
-                let (body, ch) = rewrite_script(
-                    &c.body,
-                    caller_qname,
-                    inlinable,
-                    summaries,
-                    counter,
-                    is_terminal,
-                );
-                if ch {
-                    changed = true;
-                    new_clauses.push(IfClause {
-                        condition: c.condition.clone(),
-                        condition_span: c.condition_span,
-                        body,
-                        body_span: c.body_span,
-                    });
-                } else {
-                    new_clauses.push(c.clone());
-                }
+        Statement::If { .. } => rewrite_if_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            is_terminal,
+        ),
+        Statement::For { .. } => {
+            rewrite_for_stmt(stmt, caller_qname, inlinable, summaries, counter)
+        }
+        Statement::While { .. }
+        | Statement::Foreach { .. }
+        | Statement::UpFrame { .. }
+        | Statement::Catch { .. } => {
+            rewrite_single_body_stmt(stmt, caller_qname, inlinable, summaries, counter)
+        }
+        Statement::Try { .. } => {
+            rewrite_try_stmt(stmt, caller_qname, inlinable, summaries, counter)
+        }
+        Statement::Switch { .. } => rewrite_switch_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            is_terminal,
+        ),
+        _ => None,
+    }
+}
+
+/// `Block`: recurse into the body under the block's (possibly namespaced)
+/// caller name.
+fn rewrite_block_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+) -> Option<Vec<Statement>> {
+    let Statement::Block {
+        span,
+        body,
+        namespace,
+        tokens,
+    } = stmt
+    else {
+        return None;
+    };
+    let inner_caller = if !namespace.is_empty() && namespace != "::" {
+        format!("{namespace}::__inblock__")
+    } else {
+        caller_qname.to_owned()
+    };
+    let (new_body, changed) =
+        rewrite_script(body, &inner_caller, inlinable, summaries, counter, false);
+    changed.then(|| {
+        vec![Statement::Block {
+            span: *span,
+            body: new_body,
+            namespace: namespace.clone(),
+            tokens: tokens.clone(),
+        }]
+    })
+}
+
+/// `If`: recurse into each clause body and the else body, propagating
+/// `is_terminal` (a taken branch is itself a tail position).
+fn rewrite_if_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+    is_terminal: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::If {
+        span,
+        clauses,
+        else_body,
+        else_span,
+    } = stmt
+    else {
+        return None;
+    };
+    let mut new_clauses = Vec::with_capacity(clauses.len());
+    let mut changed = false;
+    for c in clauses {
+        let (body, ch) = rewrite_script(
+            &c.body,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            is_terminal,
+        );
+        if ch {
+            changed = true;
+            new_clauses.push(IfClause {
+                condition: c.condition.clone(),
+                condition_span: c.condition_span,
+                body,
+                body_span: c.body_span,
+            });
+        } else {
+            new_clauses.push(c.clone());
+        }
+    }
+    let new_else = match else_body {
+        Some(b) => {
+            let (s, ch) =
+                rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
+            if ch {
+                changed = true;
             }
-            let new_else = match else_body {
-                Some(b) => {
-                    let (s, ch) =
-                        rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
-                    if ch {
-                        changed = true;
-                    }
-                    Some(s)
-                }
-                None => None,
-            };
-            changed.then(|| {
-                vec![Statement::If {
-                    span: *span,
-                    clauses: new_clauses,
-                    else_body: new_else,
-                    else_span: *else_span,
-                }]
-            })
+            Some(s)
         }
-        Statement::For {
-            span,
-            init,
-            init_span,
-            condition,
-            condition_span,
-            next,
-            next_span,
-            body,
-            body_span,
-            raw_args,
-            raw_tokens,
-        } => {
-            let (new_init, c1) =
-                rewrite_script(init, caller_qname, inlinable, summaries, counter, false);
-            let (new_next, c2) =
-                rewrite_script(next, caller_qname, inlinable, summaries, counter, false);
-            let (new_body, c3) =
-                rewrite_script(body, caller_qname, inlinable, summaries, counter, false);
-            (c1 || c2 || c3).then(|| {
-                vec![Statement::For {
-                    span: *span,
-                    init: new_init,
-                    init_span: *init_span,
-                    condition: condition.clone(),
-                    condition_span: *condition_span,
-                    next: new_next,
-                    next_span: *next_span,
-                    body: new_body,
-                    body_span: *body_span,
-                    raw_args: raw_args.clone(),
-                    raw_tokens: raw_tokens.clone(),
-                }]
-            })
-        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::If {
+            span: *span,
+            clauses: new_clauses,
+            else_body: new_else,
+            else_span: *else_span,
+        }]
+    })
+}
+
+/// `For`: recurse into the init / next / body sub-scripts (none is a tail
+/// position).
+fn rewrite_for_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+) -> Option<Vec<Statement>> {
+    let Statement::For {
+        span,
+        init,
+        init_span,
+        condition,
+        condition_span,
+        next,
+        next_span,
+        body,
+        body_span,
+        raw_args,
+        raw_tokens,
+    } = stmt
+    else {
+        return None;
+    };
+    let (new_init, c1) = rewrite_script(init, caller_qname, inlinable, summaries, counter, false);
+    let (new_next, c2) = rewrite_script(next, caller_qname, inlinable, summaries, counter, false);
+    let (new_body, c3) = rewrite_script(body, caller_qname, inlinable, summaries, counter, false);
+    (c1 || c2 || c3).then(|| {
+        vec![Statement::For {
+            span: *span,
+            init: new_init,
+            init_span: *init_span,
+            condition: condition.clone(),
+            condition_span: *condition_span,
+            next: new_next,
+            next_span: *next_span,
+            body: new_body,
+            body_span: *body_span,
+            raw_args: raw_args.clone(),
+            raw_tokens: raw_tokens.clone(),
+        }]
+    })
+}
+
+/// `While` / `Foreach` / `Catch` / `UpFrame`: recurse into the single
+/// (non-tail) body, rebuilding the statement when it changed.
+fn rewrite_single_body_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+) -> Option<Vec<Statement>> {
+    match stmt {
         Statement::While {
             span,
             condition,
@@ -939,131 +1014,148 @@ fn rewrite_stmt(
                 }]
             })
         }
-        Statement::Try {
-            span,
-            body,
-            body_span,
-            handlers,
-            finally_body,
-            finally_span,
-            raw_args,
-        } => {
-            let (new_body, mut changed) =
-                rewrite_script(body, caller_qname, inlinable, summaries, counter, false);
-            let mut new_handlers = Vec::with_capacity(handlers.len());
-            for h in handlers {
-                let (hbody, ch) =
-                    rewrite_script(&h.body, caller_qname, inlinable, summaries, counter, false);
-                if ch {
-                    changed = true;
-                    new_handlers.push(TryHandler {
-                        kind: h.kind.clone(),
-                        match_arg: h.match_arg.clone(),
-                        var_name: h.var_name.clone(),
-                        options_var: h.options_var.clone(),
-                        body: hbody,
-                        body_span: h.body_span,
-                        fallthrough: h.fallthrough,
-                    });
-                } else {
-                    new_handlers.push(h.clone());
-                }
-            }
-            let new_finally = match finally_body {
-                Some(b) => {
-                    let (s, ch) =
-                        rewrite_script(b, caller_qname, inlinable, summaries, counter, false);
-                    if ch {
-                        changed = true;
-                    }
-                    Some(s)
-                }
-                None => None,
-            };
-            changed.then(|| {
-                vec![Statement::Try {
-                    span: *span,
-                    body: new_body,
-                    body_span: *body_span,
-                    handlers: new_handlers,
-                    finally_body: new_finally,
-                    finally_span: *finally_span,
-                    raw_args: raw_args.clone(),
-                }]
-            })
-        }
-        Statement::Switch {
-            span,
-            subject,
-            subject_span,
-            arms,
-            default_body,
-            default_span,
-            mode,
-            nocase,
-            raw_args,
-            patterns_braced,
-        } => {
-            // Like `if`, a terminal `switch`'s matched arm (or default) is a
-            // tail position — its last statement is the enclosing result —
-            // so propagate `is_terminal` into each arm / default body.
-            let mut new_arms = Vec::with_capacity(arms.len());
-            let mut changed = false;
-            for a in arms {
-                match &a.body {
-                    Some(b) => {
-                        let (body, ch) = rewrite_script(
-                            b,
-                            caller_qname,
-                            inlinable,
-                            summaries,
-                            counter,
-                            is_terminal,
-                        );
-                        if ch {
-                            changed = true;
-                            new_arms.push(SwitchArm {
-                                pattern: a.pattern.clone(),
-                                pattern_span: a.pattern_span,
-                                body: Some(body),
-                                body_span: a.body_span,
-                                fallthrough: a.fallthrough,
-                            });
-                        } else {
-                            new_arms.push(a.clone());
-                        }
-                    }
-                    None => new_arms.push(a.clone()),
-                }
-            }
-            let new_default = match default_body {
-                Some(b) => {
-                    let (s, ch) =
-                        rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
-                    if ch {
-                        changed = true;
-                    }
-                    Some(s)
-                }
-                None => None,
-            };
-            changed.then(|| {
-                vec![Statement::Switch {
-                    span: *span,
-                    subject: subject.clone(),
-                    subject_span: *subject_span,
-                    arms: new_arms,
-                    default_body: new_default,
-                    default_span: *default_span,
-                    mode: *mode,
-                    nocase: *nocase,
-                    raw_args: raw_args.clone(),
-                    patterns_braced: *patterns_braced,
-                }]
-            })
-        }
         _ => None,
     }
+}
+
+/// `Try`: recurse into the body, each handler body, and the finally body
+/// (none is a tail position).
+fn rewrite_try_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+) -> Option<Vec<Statement>> {
+    let Statement::Try {
+        span,
+        body,
+        body_span,
+        handlers,
+        finally_body,
+        finally_span,
+        raw_args,
+    } = stmt
+    else {
+        return None;
+    };
+    let (new_body, mut changed) =
+        rewrite_script(body, caller_qname, inlinable, summaries, counter, false);
+    let mut new_handlers = Vec::with_capacity(handlers.len());
+    for h in handlers {
+        let (hbody, ch) =
+            rewrite_script(&h.body, caller_qname, inlinable, summaries, counter, false);
+        if ch {
+            changed = true;
+            new_handlers.push(TryHandler {
+                kind: h.kind.clone(),
+                match_arg: h.match_arg.clone(),
+                var_name: h.var_name.clone(),
+                options_var: h.options_var.clone(),
+                body: hbody,
+                body_span: h.body_span,
+                fallthrough: h.fallthrough,
+            });
+        } else {
+            new_handlers.push(h.clone());
+        }
+    }
+    let new_finally = match finally_body {
+        Some(b) => {
+            let (s, ch) = rewrite_script(b, caller_qname, inlinable, summaries, counter, false);
+            if ch {
+                changed = true;
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::Try {
+            span: *span,
+            body: new_body,
+            body_span: *body_span,
+            handlers: new_handlers,
+            finally_body: new_finally,
+            finally_span: *finally_span,
+            raw_args: raw_args.clone(),
+        }]
+    })
+}
+
+/// `Switch`: recurse into each arm / default body, propagating
+/// `is_terminal` (the matched arm is a tail position, like `if`).
+fn rewrite_switch_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+    is_terminal: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Switch {
+        span,
+        subject,
+        subject_span,
+        arms,
+        default_body,
+        default_span,
+        mode,
+        nocase,
+        raw_args,
+        patterns_braced,
+    } = stmt
+    else {
+        return None;
+    };
+    let mut new_arms = Vec::with_capacity(arms.len());
+    let mut changed = false;
+    for a in arms {
+        match &a.body {
+            Some(b) => {
+                let (body, ch) =
+                    rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
+                if ch {
+                    changed = true;
+                    new_arms.push(SwitchArm {
+                        pattern: a.pattern.clone(),
+                        pattern_span: a.pattern_span,
+                        body: Some(body),
+                        body_span: a.body_span,
+                        fallthrough: a.fallthrough,
+                    });
+                } else {
+                    new_arms.push(a.clone());
+                }
+            }
+            None => new_arms.push(a.clone()),
+        }
+    }
+    let new_default = match default_body {
+        Some(b) => {
+            let (s, ch) =
+                rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
+            if ch {
+                changed = true;
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::Switch {
+            span: *span,
+            subject: subject.clone(),
+            subject_span: *subject_span,
+            arms: new_arms,
+            default_body: new_default,
+            default_span: *default_span,
+            mode: *mode,
+            nocase: *nocase,
+            raw_args: raw_args.clone(),
+            patterns_braced: *patterns_braced,
+        }]
+    })
 }
 
 // per-call-site splice

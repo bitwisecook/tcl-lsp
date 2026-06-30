@@ -163,10 +163,30 @@ pub struct GreenToken {
     full_width: u32,
 }
 
+/// The leading / trailing trivia attached to a [`GreenToken`], bundled so the
+/// constructor stays within a small argument count.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TokenTrivia {
+    /// Trivia before the token's `raw` slice (e.g. inter-word whitespace).
+    pub leading: Vec<GreenTrivia>,
+    /// Trivia after the token's `raw` slice (e.g. a command terminator).
+    pub trailing: Vec<GreenTrivia>,
+}
+
+impl TokenTrivia {
+    /// Trivia with the given `leading` run and no trailing run.
+    #[must_use]
+    pub fn leading(leading: Vec<GreenTrivia>) -> Self {
+        Self {
+            leading,
+            trailing: Vec::new(),
+        }
+    }
+}
+
 impl GreenToken {
     /// Construct a green token, caching its full width.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         token_type: TokenType,
         text: impl Into<String>,
@@ -174,10 +194,10 @@ impl GreenToken {
         end_rel: u32,
         content_offset: u8,
         in_quote: bool,
-        leading: Vec<GreenTrivia>,
-        trailing: Vec<GreenTrivia>,
+        trivia: TokenTrivia,
     ) -> Self {
         let raw = raw.into();
+        let TokenTrivia { leading, trailing } = trivia;
         let full_width = token_full_width(&raw, &leading, &trailing);
         Self {
             token_type,
@@ -485,8 +505,7 @@ mod tests {
             end_rel,
             0, // bare word: no leading delimiter
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         )
     }
 
@@ -508,8 +527,10 @@ mod tests {
             3, // end_rel: inner end (the `c`) relative to start
             1, // content_offset: the `{`
             false,
-            vec![ws(" ")],
-            vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            TokenTrivia {
+                leading: vec![ws(" ")],
+                trailing: vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            },
         );
         assert_eq!(tok.width(), 5);
         assert_eq!(tok.leading_width(), 1);
@@ -529,8 +550,7 @@ mod tests {
             1,
             1,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         assert_eq!(tok.text, "");
         assert_eq!(tok.raw, "{}");
@@ -549,8 +569,7 @@ mod tests {
             1,
             1,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let frag_b = bare("b");
         let word = GreenNode::word(
@@ -573,8 +592,7 @@ mod tests {
             0, // EXPAND lexes to a zero-width ghost token (end_rel 0)
             0,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let frag = GreenToken::new(
             TokenType::Var,
@@ -583,8 +601,7 @@ mod tests {
             1,
             1,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let word = GreenNode::word(vec![GreenElement::Token(frag)], vec![marker]);
         assert!(word.is_expand());
@@ -620,8 +637,10 @@ mod tests {
             3,
             0,
             false,
-            Vec::new(),
-            vec![ws(" ")],
+            TokenTrivia {
+                leading: Vec::new(),
+                trailing: vec![ws(" ")],
+            },
         );
         let hi = GreenToken::new(
             TokenType::Esc,
@@ -630,8 +649,10 @@ mod tests {
             1,
             0,
             false,
-            Vec::new(),
-            vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            TokenTrivia {
+                leading: Vec::new(),
+                trailing: vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
+            },
         );
         let cmd = GreenNode::command(
             vec![
@@ -657,8 +678,10 @@ mod tests {
             3,
             0,
             false,
-            Vec::new(),
-            vec![ws(" ")],
+            TokenTrivia {
+                leading: Vec::new(),
+                trailing: vec![ws(" ")],
+            },
         );
         let hi = GreenToken::new(
             TokenType::Esc,
@@ -667,8 +690,7 @@ mod tests {
             1,
             0,
             false,
-            Vec::new(),
-            Vec::new(),
+            TokenTrivia::default(),
         );
         let cmd = GreenNode::command(
             vec![
@@ -701,8 +723,7 @@ mod tests {
                 1,
                 1,
                 false,
-                Vec::new(),
-                Vec::new(),
+                TokenTrivia::default(),
             ))],
             Vec::new(),
         );
@@ -714,8 +735,7 @@ mod tests {
                 1,
                 1,
                 false,
-                Vec::new(),
-                Vec::new(),
+                TokenTrivia::default(),
             ))],
             Vec::new(),
         );
