@@ -147,14 +147,18 @@ pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
 /// Blocks are traversed in `cfg_order` for deterministic output and
 /// skipped when not in `executable_blocks`.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn find_path_concat_warnings(
+pub fn find_path_concat_warnings<S1, S2, S3>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    rendered_props: &HashMap<ValueKey, RenderedValueProps>,
-    taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<BlockId>,
-) -> Vec<PathConcatWarning> {
+    rendered_props: &HashMap<ValueKey, RenderedValueProps, S1>,
+    taints: &HashMap<ValueKey, TaintLattice, S2>,
+    executable_blocks: &HashSet<BlockId, S3>,
+) -> Vec<PathConcatWarning>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
+{
     let mut out: Vec<PathConcatWarning> = Vec::new();
     let path_sep_bits = RenderedProperties::HAS_FORWARD_SLASH | RenderedProperties::HAS_BACKSLASH;
     // Only `PATH_NORMALISED`. It is not currently assigned by the taint

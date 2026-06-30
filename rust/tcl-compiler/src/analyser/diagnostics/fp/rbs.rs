@@ -1,7 +1,7 @@
 //! RBS family — read-before-set / unused param / unused var (W210/W213/W214).
 //! Pairs to `tests/test_fp_rbs.py` and the §RBS entries in `docs/design/compiler/FP.md`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-RBS-01 — info exists / array exists is the test-before-use idiom
@@ -341,13 +341,12 @@ proc caller {} {
 }
 ";
     let cs = codes(src, D);
-    let fires_any = cs.iter().any(|c| {
-        c == "W211" || c == "W220" || c == "O126" || c == "O109"
-    });
+    let fires_any = cs
+        .iter()
+        .any(|c| c == "W211" || c == "W220" || c == "O126" || c == "O109");
     assert!(
         fires_any,
-        "caller's $x set-but-never-used must fire W211/W220/O126/O109; emitted: {:?}",
-        cs
+        "caller's $x set-but-never-used must fire W211/W220/O126/O109; emitted: {cs:?}"
     );
 }
 
@@ -609,13 +608,12 @@ proc f {name} {
 fn fp_rbs_08_dynamic_upvar_target_silent() {
     // FP-RBS-08: `upvar 1 $name var` is a real alias-def even with dynamic target.
     let cs = codes(FP_RBS_08_REPRO, D);
-    let rbs_or_ds = cs.iter().any(|c| {
-        matches!(c.as_str(), "W210" | "W213" | "W214" | "W220" | "W211")
-    });
+    let rbs_or_ds = cs
+        .iter()
+        .any(|c| matches!(c.as_str(), "W210" | "W213" | "W214" | "W220" | "W211"));
     assert!(
         !rbs_or_ds,
-        "FP-RBS-08: dynamic-target upvar alias use must NOT fire any RBS/dead-store/unused code; emitted: {:?}",
-        cs
+        "FP-RBS-08: dynamic-target upvar alias use must NOT fire any RBS/dead-store/unused code; emitted: {cs:?}"
     );
 }
 
@@ -684,7 +682,7 @@ fn fp_rbs_09_regexp_capture_in_switch_arm_silent() {
 #[test]
 fn fp_rbs_09_genuine_unset_in_arm_still_fires() {
     // TP control: $missing (never written anywhere) still fires W210 even inside a switch arm.
-    let src = r#"
+    let src = r"
 proc f {n} {
     switch -- $n {
         a {
@@ -692,7 +690,7 @@ proc f {n} {
         }
     }
 }
-"#;
+";
     assert!(
         fires(src, D, "W210"),
         "FP-RBS-09 TP: $missing (never written anywhere) must fire W210; emitted: {:?}",
@@ -828,8 +826,7 @@ proc f {dict} {
 // FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
 // ---------------------------------------------------------------------------
 
-const FP_RBS_12_REPRO: &str =
-    "proc f {} { regexp {x} y -> v; if {1} { puts $v } }\n";
+const FP_RBS_12_REPRO: &str = "proc f {} { regexp {x} y -> v; if {1} { puts $v } }\n";
 
 #[test]
 fn fp_rbs_12_regexp_unconditional_read_after_no_match_fires() {
@@ -968,7 +965,8 @@ fn fp_rbs_14_omitting_arm_still_fires() {
 #[test]
 fn fp_rbs_14_break_arm_escaping_loop_still_fires() {
     // TP (Codex P1): break in opaque-switch arm does NOT define var on the path escaping the loop.
-    let src = "proc f {} { foreach x {a} { switch -glob $x {a* {break} default {set y 1}} }; puts $y }\n";
+    let src =
+        "proc f {} { foreach x {a} { switch -glob $x {a* {break} default {set y 1}} }; puts $y }\n";
     assert!(
         fires(src, D, "W210"),
         "FP-RBS-14 TP: break-arm escaping the loop leaves 'y' unset; W210 must fire; emitted: {:?}",
@@ -1016,7 +1014,8 @@ fn fp_rbs_15_all_arms_error_or_tailcall_silent() {
 #[test]
 fn fp_rbs_15_no_default_falls_through_fires() {
     // TP control: without a default an unmatched subject falls through; W210 must fire.
-    let src = "proc f {x} {\n    switch -glob $x { a* { return 1 } b* { return 2 } }\n    puts $y\n}\n";
+    let src =
+        "proc f {x} {\n    switch -glob $x { a* { return 1 } b* { return 2 } }\n    puts $y\n}\n";
     assert!(
         fires(src, D, "W210"),
         "FP-RBS-15 TP: no-default switch falls through; W210 must fire; emitted: {:?}",
@@ -1238,7 +1237,8 @@ fn fp_rbs_18_unknown_bound_still_fires() {
 #[test]
 fn fp_rbs_18_break_before_set_still_fires() {
     // TP control: break before def exits with y unset.
-    let src = "proc f {} { for {set i 0} {$i < 3} {incr i} { if {$i==0} break; set y $i } ; puts $y }\n";
+    let src =
+        "proc f {} { for {set i 0} {$i < 3} {incr i} { if {$i==0} break; set y $i } ; puts $y }\n";
     assert!(
         fires(src, D, "W210"),
         "FP-RBS-18 TP: break-before-set exits with 'y' unset; W210 must fire; emitted: {:?}",
@@ -1279,20 +1279,19 @@ fn fp_rbs_callbyname_scan_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "scan $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "scan $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
 #[test]
 fn fp_rbs_callbyname_regexp_target_not_caller_alias() {
     // TP: regexp $target uses value as local dynamic name; caller's x must still fire W211/W220.
-    let src = "proc maybe {target} { regexp {(.)} a -> $target }\nproc caller {} { set x 1; maybe x }";
+    let src =
+        "proc maybe {target} { regexp {(.)} a -> $target }\nproc caller {} { set x 1; maybe x }";
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "regexp $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "regexp $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1303,8 +1302,7 @@ fn fp_rbs_callbyname_regsub_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "regsub $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "regsub $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1315,8 +1313,7 @@ fn fp_rbs_callbyname_lassign_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "lassign $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "lassign $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1328,7 +1325,6 @@ fn fp_rbs_callbyname_upvar_alias_still_suppresses() {
     let fires_any = cs.iter().any(|c| c == "W211" || c == "W220");
     assert!(
         !fires_any,
-        "upvar-aliased callee write must continue to suppress caller W211/W220; emitted: {:?}",
-        cs
+        "upvar-aliased callee write must continue to suppress caller W211/W220; emitted: {cs:?}"
     );
 }

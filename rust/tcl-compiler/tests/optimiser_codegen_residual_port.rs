@@ -245,24 +245,37 @@ fn prop_recurses_into_while_foreach_catch_switch_try_bodies() {
     // `while` body — note the loop never runs here (`while {0}`), but the
     // propagation walk still descends and folds the body's `$c` read.
     // tclsh: c=9 ⇒ `puts $c` would print 9; `puts 9` is identical.
-    assert!(repls("set c 9\nwhile {0} { puts $c }", "O100").iter().any(|s| s == "9"));
+    assert!(
+        repls("set c 9\nwhile {0} { puts $c }", "O100")
+            .iter()
+            .any(|s| s == "9")
+    );
 
     // `foreach` body.
     // tclsh: m=7 ⇒ body `puts $m` prints 7 per element; `puts 7` identical.
     assert!(
-        repls("set m 7\nforeach e {a b} { puts $m }", "O100").iter().any(|s| s == "7"),
+        repls("set m 7\nforeach e {a b} { puts $m }", "O100")
+            .iter()
+            .any(|s| s == "7"),
     );
 
     // `catch` body.
     // tclsh: n=4 ⇒ `puts $n` inside catch prints 4; `puts 4` identical.
-    assert!(repls("set n 4\ncatch { puts $n }", "O100").iter().any(|s| s == "4"));
+    assert!(
+        repls("set n 4\ncatch { puts $n }", "O100")
+            .iter()
+            .any(|s| s == "4")
+    );
 
     // `switch` arm body + default body.
     // tclsh: t=3 ⇒ the matched arm `puts $t` prints 3; `puts 3` identical.
     assert!(
-        repls("set t 3\nswitch x { x { puts $t } default { puts $t } }", "O100")
-            .iter()
-            .any(|s| s == "3"),
+        repls(
+            "set t 3\nswitch x { x { puts $t } default { puts $t } }",
+            "O100"
+        )
+        .iter()
+        .any(|s| s == "3"),
     );
 
     // `try` body + `on error` handler body.
@@ -290,9 +303,12 @@ fn sink_into_switch_arm_and_default() {
     // var is read in exactly one arm sinks the def into that arm. Sinking a
     // side-effect-free `set` into the only branch that reads it is
     // semantics-preserving (the value is unobservable elsewhere).
-    let into_arm = sink_only("proc ::sw {flag} { set x 1; switch $flag { a { puts $x } b { puts no } } }");
+    let into_arm =
+        sink_only("proc ::sw {flag} { set x 1; switch $flag { a { puts $x } b { puts no } } }");
     assert!(
-        into_arm.iter().any(|(hint, r)| !hint && r == "set x 1; puts $x"),
+        into_arm
+            .iter()
+            .any(|(hint, r)| !hint && r == "set x 1; puts $x"),
         "expected sink into the matching switch arm, got {into_arm:?}",
     );
     assert!(
@@ -301,10 +317,13 @@ fn sink_into_switch_arm_and_default() {
     );
 
     // The `default` arm is a sink target too.
-    let into_default =
-        sink_only("proc ::sd {flag} { set x 1; switch $flag { a { puts no } default { puts $x } } }");
+    let into_default = sink_only(
+        "proc ::sd {flag} { set x 1; switch $flag { a { puts no } default { puts $x } } }",
+    );
     assert!(
-        into_default.iter().any(|(hint, r)| !hint && r == "set x 1; puts $x"),
+        into_default
+            .iter()
+            .any(|(hint, r)| !hint && r == "set x 1; puts $x"),
         "expected sink into the switch default, got {into_default:?}",
     );
 }
@@ -314,9 +333,12 @@ fn sink_descends_to_deepest_nested_decision_target() {
     // `find_deepest_targets` descends when a branch's sole using statement is
     // itself a decision: `$x` used only inside an inner `if` sinks all the way
     // into that inner branch's first using statement.
-    let deep = sink_only("proc ::deep {a b} { set x 1; if {$a} { if {$b} { puts $x } } else { puts no } }");
+    let deep = sink_only(
+        "proc ::deep {a b} { set x 1; if {$a} { if {$b} { puts $x } } else { puts no } }",
+    );
     assert!(
-        deep.iter().any(|(hint, r)| !hint && r == "set x 1; puts $x"),
+        deep.iter()
+            .any(|(hint, r)| !hint && r == "set x 1; puts $x"),
         "expected a deep sink into the inner branch, got {deep:?}",
     );
 }
@@ -327,8 +349,9 @@ fn sink_stops_when_inner_condition_reads_var() {
     // decision's *condition* reads `$x`, descending past it would be unsound
     // (the condition needs the value), so the sink anchors at the outer body's
     // first statement — the inner `if` — instead of descending into its branch.
-    let anchored =
-        sink_only("proc ::cb {a} { set x 1; if {$a} { if {$x > 0} { puts hi } } else { puts no } }");
+    let anchored = sink_only(
+        "proc ::cb {a} { set x 1; if {$a} { if {$x > 0} { puts hi } } else { puts no } }",
+    );
     assert!(
         anchored
             .iter()
@@ -353,7 +376,10 @@ fn sink_duplicates_into_both_using_branches() {
         .filter(|(hint, r)| !hint && r == "set x 1; puts $x")
         .count();
     assert_eq!(inserts, 2, "expected a sink into each branch, got {both:?}");
-    let deletes = both.iter().filter(|(hint, r)| !hint && r.is_empty()).count();
+    let deletes = both
+        .iter()
+        .filter(|(hint, r)| !hint && r.is_empty())
+        .count();
     assert_eq!(deletes, 1, "expected exactly one delete, got {both:?}");
 }
 
@@ -364,15 +390,21 @@ fn sink_multi_use_in_one_branch_anchors_at_first() {
     // The prepend target is that first statement's span, so the inserted text
     // is `set x 1; <first using statement>` (the second `puts $x` is left in
     // place — the sunk def still precedes it, so both reads see `x`).
-    let multi = sink_only("proc ::multi {a} { set x 1; if {$a} { puts $x; puts $x } else { puts no } }");
+    let multi =
+        sink_only("proc ::multi {a} { set x 1; if {$a} { puts $x; puts $x } else { puts no } }");
     assert!(
-        multi.iter().any(|(hint, r)| !hint && r == "set x 1; puts $x"),
+        multi
+            .iter()
+            .any(|(hint, r)| !hint && r == "set x 1; puts $x"),
         "expected the set prepended before the first using statement, got {multi:?}",
     );
     // Exactly one delete of the original (the def is sunk to a single anchor,
     // not duplicated — only one branch uses the var).
     assert_eq!(
-        multi.iter().filter(|(hint, r)| !hint && r.is_empty()).count(),
+        multi
+            .iter()
+            .filter(|(hint, r)| !hint && r.is_empty())
+            .count(),
         1,
         "expected one grouped delete, got {multi:?}",
     );
@@ -387,17 +419,22 @@ fn sink_recognises_var_use_in_foreach_catch_while_bodies() {
         "proc ::fe {flag lst} { set x 1; if {$flag} { foreach e $lst { puts $x } } else { puts no } }",
     );
     assert!(
-        fe.iter().any(|(_, r)| r == "set x 1; foreach e $lst { puts $x }"),
+        fe.iter()
+            .any(|(_, r)| r == "set x 1; foreach e $lst { puts $x }"),
         "foreach-body use must drive the sink, got {fe:?}",
     );
 
-    let ca = sink_only("proc ::ca {flag} { set x 1; if {$flag} { catch { puts $x } } else { puts no } }");
+    let ca = sink_only(
+        "proc ::ca {flag} { set x 1; if {$flag} { catch { puts $x } } else { puts no } }",
+    );
     assert!(
         ca.iter().any(|(_, r)| r == "set x 1; catch { puts $x }"),
         "catch-body use must drive the sink, got {ca:?}",
     );
 
-    let wh = sink_only("proc ::wh {flag} { set x 1; if {$flag} { while {$x} { break } } else { puts no } }");
+    let wh = sink_only(
+        "proc ::wh {flag} { set x 1; if {$flag} { while {$x} { break } } else { puts no } }",
+    );
     assert!(
         wh.iter().any(|(_, r)| r == "set x 1; while {$x} { break }"),
         "while-condition use must drive the sink, got {wh:?}",
@@ -410,8 +447,9 @@ fn sink_for_condition_use_after_decision_suppresses() {
     // `for {…} {$i < $x} {…}` *after* the decision reads `$x`, so the var is
     // live past the decision and the sink is suppressed (sinking it into a
     // branch that may not run would lose the value the loop condition needs).
-    let suppressed =
-        sink_only("proc ::lu {flag} { set x 1; if {$flag} { puts $x }; for {set i 0} {$i < $x} {incr i} { puts hi } }");
+    let suppressed = sink_only(
+        "proc ::lu {flag} { set x 1; if {$flag} { puts $x }; for {set i 0} {$i < $x} {incr i} { puts hi } }",
+    );
     assert!(
         suppressed.is_empty(),
         "a later for-condition use must suppress the sink, got {suppressed:?}",
@@ -423,13 +461,17 @@ fn sink_assign_expr_and_assign_value_shapes_are_sinkable() {
     // `sinkable_assignment`'s `AssignExpr` (no cmd-sub) and `AssignValue` (no
     // `[`) arms: both side-effect-free RHS shapes are sinkable. Isolated so the
     // expr-fold / DSE passes don't rewrite the `set` first.
-    let ae = sink_only("proc ::ae {flag y} { set x [expr {$y + 2}]; if {$flag} { puts $x } else { puts no } }");
+    let ae = sink_only(
+        "proc ::ae {flag y} { set x [expr {$y + 2}]; if {$flag} { puts $x } else { puts no } }",
+    );
     assert!(
-        ae.iter().any(|(_, r)| r == "set x [expr {$y + 2}]; puts $x"),
+        ae.iter()
+            .any(|(_, r)| r == "set x [expr {$y + 2}]; puts $x"),
         "AssignExpr RHS must be sinkable, got {ae:?}",
     );
 
-    let av = sink_only("proc ::av {flag y} { set x \"v$y\"; if {$flag} { puts $x } else { puts no } }");
+    let av =
+        sink_only("proc ::av {flag y} { set x \"v$y\"; if {$flag} { puts $x } else { puts no } }");
     assert!(
         av.iter().any(|(_, r)| r == "set x \"v$y\"; puts $x"),
         "AssignValue RHS must be sinkable, got {av:?}",
@@ -437,7 +479,8 @@ fn sink_assign_expr_and_assign_value_shapes_are_sinkable() {
 
     // A command-substitution RHS (`set x [foo]`) is NOT side-effect-free and
     // must not sink (control: `sinkable_assignment` returns None).
-    let cmd = sink_only("proc ::cs {flag} { set x [foo]; if {$flag} { puts $x } else { puts no } }");
+    let cmd =
+        sink_only("proc ::cs {flag} { set x [foo]; if {$flag} { puts $x } else { puts no } }");
     assert!(cmd.is_empty(), "cmd-subst RHS must not sink, got {cmd:?}");
 }
 
@@ -480,7 +523,9 @@ fn cmd_subst_string_is_integer_strict_and_nonstrict() {
     // `JUMP_FALSE1`, `LE`-3 sequence with no `STR_EQ`.
     let strict = inline_ops(true, &["x"], "[string is integer -strict $x]");
     assert!(
-        strict.contains(&Op::NUMERIC_TYPE) && strict.contains(&Op::LE) && !strict.contains(&Op::STR_EQ),
+        strict.contains(&Op::NUMERIC_TYPE)
+            && strict.contains(&Op::LE)
+            && !strict.contains(&Op::STR_EQ),
         "strict integer omits the empty-string accept: {strict:?}",
     );
     // tclsh: string is integer -strict "" → 0  (8.6 + 9.0) — the strict form's
@@ -554,11 +599,13 @@ fn cmd_subst_string_equal_compare_invoke_replace_forms() {
         "string equal -nocase → invokeReplace",
     );
     assert!(
-        inline_ops(true, &["a", "b"], "[string compare -nocase $a $b]").contains(&Op::INVOKE_REPLACE),
+        inline_ops(true, &["a", "b"], "[string compare -nocase $a $b]")
+            .contains(&Op::INVOKE_REPLACE),
         "string compare -nocase → invokeReplace",
     );
     assert!(
-        inline_ops(true, &["a", "b"], "[string compare -length 3 $a $b]").contains(&Op::INVOKE_REPLACE),
+        inline_ops(true, &["a", "b"], "[string compare -length 3 $a $b]")
+            .contains(&Op::INVOKE_REPLACE),
         "string compare -length → invokeReplace",
     );
     // The bare 2-arg forms stay on the dedicated fast opcodes (control).
@@ -577,7 +624,10 @@ fn cmd_subst_array_names_size_and_exists() {
         "array names → fqn invoke: {names:?}",
     );
     let size = inline_ops(true, &["a"], "[array size a]");
-    assert!(size.contains(&Op::INVOKE_STK1), "array size → fqn invoke: {size:?}");
+    assert!(
+        size.contains(&Op::INVOKE_STK1),
+        "array size → fqn invoke: {size:?}"
+    );
 
     let exists = inline_ops(true, &["a"], "[array exists a]");
     assert!(
@@ -666,7 +716,12 @@ fn cmd_subst_unroll_nested_set_chain() {
     // A bare-word triple chain with a deeper nest.
     assert_eq!(
         unroll_nested_set("[set a [set b [set c 1]]]"),
-        Some(vec!["a".to_string(), "b".to_string(), "c".to_string(), "1".to_string()]),
+        Some(vec![
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+            "1".to_string()
+        ]),
     );
 }
 
@@ -718,7 +773,10 @@ fn cmd_subst_multi_command_body_falls_back_to_eval_stk() {
     // with an internal `;` is two commands and falls back to runtime `EVAL_STK`
     // over the braced script rather than inlining a single call.
     let ops = inline_ops(true, &[], "[set a 1; set b 2]");
-    assert!(ops.contains(&Op::EVAL_STK), "multi-command → EVAL_STK: {ops:?}");
+    assert!(
+        ops.contains(&Op::EVAL_STK),
+        "multi-command → EVAL_STK: {ops:?}"
+    );
 }
 
 #[test]
@@ -752,7 +810,10 @@ fn emit_value_list_expand_concat_and_folds() {
     );
     // tclsh: dict create k v → "k v"  (8.6 + 9.0) — the folded dict literal.
     //   * `[format {%s} hi]` constant-folds to a single literal push.
-    assert_eq!(value_ops(false, &[], "[format {%s} hi]", false), vec![Op::PUSH1]);
+    assert_eq!(
+        value_ops(false, &[], "[format {%s} hi]", false),
+        vec![Op::PUSH1]
+    );
     // tclsh: format {%s} hi → hi  (8.6 + 9.0)
 }
 

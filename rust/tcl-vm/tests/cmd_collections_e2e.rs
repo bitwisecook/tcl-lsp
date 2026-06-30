@@ -83,7 +83,10 @@ fn run(src: &str) -> (bool, String, String) {
 #[test]
 fn array_set_get_names_size_exists() {
     // tclsh: `array set a {x 1 y 2}` then `lsort [array get a]` → `1 2 x y`.
-    assert_eq!(run("array set a {x 1 y 2}\nlsort [array get a]").1, "1 2 x y");
+    assert_eq!(
+        run("array set a {x 1 y 2}\nlsort [array get a]").1,
+        "1 2 x y"
+    );
     // tclsh: `lsort [array names a]` → `x y`.
     assert_eq!(run("array set a {x 1 y 2}\nlsort [array names a]").1, "x y");
     // tclsh: `array size a` → `2`.
@@ -164,7 +167,10 @@ fn array_arity_errors() {
     // tclsh: bare `array` → wrong # args: should be "array subcommand ?arg ...?".
     let (ok, msg, _) = run("array");
     assert!(!ok);
-    assert_eq!(msg, "wrong # args: should be \"array subcommand ?arg ...?\"");
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"array subcommand ?arg ...?\""
+    );
 }
 
 /// An unknown `array` subcommand reports the VM's bad-subcommand message (the
@@ -257,7 +263,10 @@ fn dict_pure_reads() {
     assert_eq!(run("dict exists {a 1} a").1, "1");
     assert_eq!(run("dict exists {a 1} z").1, "0");
     // tclsh: glob-filtered keys/values.
-    assert_eq!(run("dict keys {apple 1 avocado 2 banana 3} a*").1, "apple avocado");
+    assert_eq!(
+        run("dict keys {apple 1 avocado 2 banana 3} a*").1,
+        "apple avocado"
+    );
     assert_eq!(run("dict values {a 1 b 2 c 1} 1").1, "1 1");
 }
 
@@ -275,7 +284,10 @@ fn dict_create_merge_remove_replace() {
     // tclsh: remove a key.
     assert_eq!(run("dict remove {a 1 b 2} a").1, "b 2");
     // tclsh: replace existing + add new.
-    assert_eq!(run("dict replace {a 1 b 2 c 3} a 9 d 4").1, "a 9 b 2 c 3 d 4");
+    assert_eq!(
+        run("dict replace {a 1 b 2 c 3} a 9 d 4").1,
+        "a 9 b 2 c 3 d 4"
+    );
 }
 
 /// `dict getdef`/`getwithdefault` return the default for a missing key, else the
@@ -310,7 +322,10 @@ fn dict_read_errors() {
     // tclsh: dict create odd args.
     let (ok, msg, _) = run("dict create a");
     assert!(!ok);
-    assert_eq!(msg, "wrong # args: should be \"dict create ?key value ...?\"");
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"dict create ?key value ...?\""
+    );
 }
 
 /// BUG: `dict get` with NO keys does not validate that its argument is a
@@ -324,7 +339,10 @@ fn dict_read_errors() {
 #[test]
 fn dict_get_no_keys_validates_dict_bug() {
     let (ok, msg, _) = run("dict get {a 1 b}");
-    assert!(!ok, "malformed dict must error even with no keys, got ok: {msg}");
+    assert!(
+        !ok,
+        "malformed dict must error even with no keys, got ok: {msg}"
+    );
     assert_eq!(msg, "missing value to go with key");
 }
 
@@ -337,7 +355,10 @@ fn dict_get_no_keys_validates_dict_bug() {
 #[test]
 fn dict_set() {
     // tclsh: append a new key.
-    assert_eq!(run("set d {a 1 b 2}\ndict set d c 3\nset d").1, "a 1 b 2 c 3");
+    assert_eq!(
+        run("set d {a 1 b 2}\ndict set d c 3\nset d").1,
+        "a 1 b 2 c 3"
+    );
     // tclsh: a key path creates the intermediate dict.
     assert_eq!(run("set d {a 1}\ndict set d x y z\nset d").1, "a 1 x {y z}");
     // arity.
@@ -391,7 +412,10 @@ fn dict_append_lappend() {
     // tclsh: append to a missing key starts empty.
     assert_eq!(run("set d {}\ndict append d k ab cd\nset d").1, "k abcd");
     // tclsh: lappend list elements.
-    assert_eq!(run("set d {a 1}\ndict lappend d a 2 3\nset d").1, "a {1 2 3}");
+    assert_eq!(
+        run("set d {a 1}\ndict lappend d a 2 3\nset d").1,
+        "a {1 2 3}"
+    );
     // tclsh: lappend to a missing key starts an empty list.
     assert_eq!(run("set d {}\ndict lappend d k a b\nset d").1, "k {a b}");
 }
@@ -448,7 +472,10 @@ fn dict_map_indirect_path_works() {
     );
     // tclsh: a body that rewrites the key var re-keys the output.
     assert_eq!(
-        run("set c dict\nset d {a 1 b 2}\n$c map {k v} $d {set k [string toupper $k]; expr {$v*10}}").1,
+        run(
+            "set c dict\nset d {a 1 b 2}\n$c map {k v} $d {set k [string toupper $k]; expr {$v*10}}"
+        )
+        .1,
         "A 10 B 20"
     );
 }
@@ -489,7 +516,10 @@ fn dict_filter() {
     // tclsh: bad filterType.
     let (ok, msg, _) = run("dict filter {a 1} bogus");
     assert!(!ok);
-    assert_eq!(msg, "bad filterType \"bogus\": must be key, script, or value");
+    assert_eq!(
+        msg,
+        "bad filterType \"bogus\": must be key, script, or value"
+    );
 }
 
 /// `dict update dictVar key var ?...? body` binds keys to vars, runs the body,
@@ -521,7 +551,10 @@ fn dict_update() {
 #[test]
 fn dict_with() {
     // tclsh: modify a mapped local.
-    assert_eq!(run("set d {a 1 b 2}\ndict with d {set a 100}\nset d").1, "a 100 b 2");
+    assert_eq!(
+        run("set d {a 1 b 2}\ndict with d {set a 100}\nset d").1,
+        "a 100 b 2"
+    );
     // tclsh: nested key path.
     assert_eq!(
         run("set d {p {a 1 b 2}}\ndict with d p {set a 9}\nset d").1,
@@ -592,7 +625,10 @@ fn list_lappend() {
     // arity.
     let (ok, msg, _) = run("lappend");
     assert!(!ok);
-    assert_eq!(msg, "wrong # args: should be \"lappend varName ?value ...?\"");
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"lappend varName ?value ...?\""
+    );
 }
 
 /// `lassign` binds list elements to variables and returns the unassigned tail.
@@ -722,7 +758,10 @@ fn lsort_modes() {
     // tclsh.
     assert_eq!(run("lsort -integer {3 1 2}").1, "1 2 3");
     assert_eq!(run("lsort -decreasing -integer {3 1 2}").1, "3 2 1");
-    assert_eq!(run("lsort -real -decreasing {1.5 2.5 0.5}").1, "2.5 1.5 0.5");
+    assert_eq!(
+        run("lsort -real -decreasing {1.5 2.5 0.5}").1,
+        "2.5 1.5 0.5"
+    );
     assert_eq!(run("lsort -dictionary {x10 x2 x1}").1, "x1 x2 x10");
     assert_eq!(run("lsort -ascii {B a C}").1, "B C a");
     assert_eq!(run("lsort -unique {a b a c b}").1, "a b c");
@@ -802,7 +841,10 @@ fn lset_runtime_builtin() {
 #[test]
 fn lpop_runtime_builtin() {
     // tclsh9.0: default removes the last element.
-    assert_eq!(run("set l {a b c d}\nset g [lpop l]\nlist $g $l").1, "d {a b c}");
+    assert_eq!(
+        run("set l {a b c d}\nset g [lpop l]\nlist $g $l").1,
+        "d {a b c}"
+    );
     // tclsh9.0: a nested index path removes the deepest element.
     assert_eq!(
         run("set l {{a b} {c d}}\nset g [lpop l 0 1]\nlist $g $l").1,
@@ -834,7 +876,10 @@ fn lpop_runtime_builtin() {
 #[test]
 fn ledit_runtime_builtin() {
     // tclsh9.0: replace the 1..1 range with two elements.
-    assert_eq!(run("set l {1 2 3 4 5}\nledit l 1 1 a b\nset l").1, "1 a b 3 4 5");
+    assert_eq!(
+        run("set l {1 2 3 4 5}\nledit l 1 1 a b\nset l").1,
+        "1 a b 3 4 5"
+    );
     // tclsh9.0: a missing variable errors.
     let (ok, msg, _) = run("ledit nope 0 0 x");
     assert!(!ok);
@@ -867,7 +912,10 @@ fn lsort_error_paths() {
     // tclsh: arity.
     let (ok, msg, _) = run("lsort");
     assert!(!ok);
-    assert_eq!(msg, "wrong # args: should be \"lsort ?-option value ...? list\"");
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"lsort ?-option value ...? list\""
+    );
     // tclsh: a non-integer element under -integer.
     let (ok, msg, _) = run("lsort -integer {a b}");
     assert!(!ok);
@@ -924,7 +972,8 @@ fn dict_with_reflects_unset_and_ignores_new() {
 #[test]
 fn dict_with_body_error_writes_back_then_propagates() {
     // tclsh: the variable update survives the error; the error propagates.
-    let (ok, msg, _) = run("set d {a 1 b 2}\ncatch {dict with d {set a 9; error boom}}\ndict get $d a");
+    let (ok, msg, _) =
+        run("set d {a 1 b 2}\ncatch {dict with d {set a 9; error boom}}\ndict get $d a");
     assert!(ok, "script should complete: {msg}");
     assert_eq!(msg, "9");
     let (ok, msg, _) = run("set d {a 1}\ndict with d {error boom}");
@@ -1047,7 +1096,8 @@ fn dict_loop_control_and_errors() {
     assert!(!ok);
     assert_eq!(msg, "boom");
     // dict update: a body error writes back the binding, then propagates.
-    let (ok, msg, _) = run("set d {a 1 b 2}\ncatch {dict update d a x {error boom}}\ndict get $d a");
+    let (ok, msg, _) =
+        run("set d {a 1 b 2}\ncatch {dict update d a x {error boom}}\ndict get $d a");
     assert!(ok, "{msg}");
     assert_eq!(msg, "1");
     let (ok, msg, _) = run("set d {a 1 b 2}\ndict update d a x {error boom}");

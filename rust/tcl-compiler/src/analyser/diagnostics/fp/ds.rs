@@ -1,7 +1,7 @@
 //! DS family — dead-store / unused (W220/W211).
 //! Pairs to `tests/test_fp_ds.py` and the §DS entries in `docs/design/compiler/FP.md`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-DS-01 — incr/append/lappend inside cmd-sub keeps the init live
@@ -297,8 +297,7 @@ fn fp_ds_07_plain_eval_body_read_is_caller_use_silent() {
 // FP-DS-08 — dict with key-aware suppression on the return-terminator path
 // ---------------------------------------------------------------------------
 
-const FP_DS_08_REPRO: &str =
-    "proc f {} { set d {}; dict with d {}; return $missing }\n";
+const FP_DS_08_REPRO: &str = "proc f {} { set d {}; dict with d {}; return $missing }\n";
 
 #[test]
 fn fp_ds_08_empty_dict_with_return_missing_fires() {
@@ -337,8 +336,7 @@ fn fp_ds_08_unknown_dict_with_return_var_silent() {
 // FP-DS-09 — interproc literal-dict propagation feeds the dict-with key check
 // ---------------------------------------------------------------------------
 
-const FP_DS_09_REPRO: &str =
-    "proc f {d} { dict with d { return $missing } }\nf {}\n";
+const FP_DS_09_REPRO: &str = "proc f {d} { dict with d { return $missing } }\nf {}\n";
 
 #[test]
 fn fp_ds_09_interproc_empty_dict_fires() {
@@ -365,8 +363,7 @@ fn fp_ds_09_interproc_key_present_silent() {
 #[test]
 fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
     // TN control: callers disagree on literal; collector falls back conservative; W210 must NOT fire.
-    let src =
-        "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n";
+    let src = "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n";
     assert!(
         !fires(src, D, "W210"),
         "FP-DS-09: mixed callers must NOT fire W210 (conservative); emitted: {:?}",

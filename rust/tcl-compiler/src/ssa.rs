@@ -911,7 +911,6 @@ pub(crate) fn structural_body_indices(
 ///
 /// Returns sorted variable names, excluding variables that are defined
 /// by this statement (unless they exhibit read-before-write semantics).
-#[allow(clippy::too_many_lines)]
 pub fn uses_of(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -925,52 +924,11 @@ pub fn uses_of(
             vars_found.extend(vars_in_expr(expr));
         }
 
-        // An assignment to a *dynamic* target name (`set $p …`) reads the
-        // name-bearing variable(s) — the genuine read the dead-store / unused
-        // checks need (`defs_of` already withholds the static def).
-        Statement::AssignConst { name, .. } => {
-            if is_dynamic_write_target(name) {
-                vars_found.extend(scanner.scan_word(name, registry));
-            }
-        }
-
-        Statement::AssignExpr { name, expr, .. } => {
-            vars_found.extend(vars_in_expr(expr));
-            if is_dynamic_write_target(name) {
-                vars_found.extend(scanner.scan_word(name, registry));
-            } else {
-                let norm = normalise_var_name(name);
-                if !norm.is_empty() && vars_found.contains(norm) {
-                    reads_own_def.insert(norm.to_owned());
-                }
-            }
-        }
-
-        Statement::AssignValue { name, value, .. } => {
-            vars_found.extend(scanner.scan_word(value, registry));
-            if is_dynamic_write_target(name) {
-                vars_found.extend(scanner.scan_word(name, registry));
-            } else {
-                let norm = normalise_var_name(name);
-                if !norm.is_empty() && vars_found.contains(norm) {
-                    reads_own_def.insert(norm.to_owned());
-                }
-            }
-        }
-
-        Statement::Incr { name, amount, .. } => {
-            if is_dynamic_write_target(name) {
-                vars_found.extend(scanner.scan_word(name, registry));
-            } else {
-                let norm = normalise_var_name(name);
-                if !norm.is_empty() {
-                    vars_found.insert(norm.to_owned());
-                    reads_own_def.insert(norm.to_owned());
-                }
-            }
-            if let Some(amt) = amount {
-                vars_found.extend(scanner.scan_word(amt, registry));
-            }
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. } => {
+            uses_in_assignment(stmt, scanner, registry, &mut vars_found, &mut reads_own_def);
         }
 
         Statement::Call {
@@ -982,14 +940,14 @@ pub fn uses_of(
             tokens,
             ..
         } => {
-            vars_found.extend(scanner.scan_word(command, registry));
-            let body_indices = structural_body_indices(command, args, tokens.as_ref(), registry);
-            for (idx, arg) in args.iter().enumerate() {
-                if body_indices.contains(&idx) {
-                    continue;
-                }
-                vars_found.extend(scanner.scan_word(arg, registry));
-            }
+            scan_command_words(
+                command,
+                args,
+                tokens.as_ref(),
+                scanner,
+                registry,
+                &mut vars_found,
+            );
             for name in reads {
                 if !name.is_empty() {
                     vars_found.insert(name.clone());
@@ -1018,14 +976,14 @@ pub fn uses_of(
             tokens,
             ..
         } => {
-            vars_found.extend(scanner.scan_word(command, registry));
-            let body_indices = structural_body_indices(command, args, tokens.as_ref(), registry);
-            for (idx, arg) in args.iter().enumerate() {
-                if body_indices.contains(&idx) {
-                    continue;
-                }
-                vars_found.extend(scanner.scan_word(arg, registry));
-            }
+            scan_command_words(
+                command,
+                args,
+                tokens.as_ref(),
+                scanner,
+                registry,
+                &mut vars_found,
+            );
             // dict with/update: the dict variable name is a plain string,
             // not a $-substitution, so scan_word misses it.
             //
@@ -1090,6 +1048,85 @@ pub fn uses_of(
         .into_iter()
         .filter(|v| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
         .collect()
+}
+
+/// Variable reads of an assignment-style statement (`set` / `set =expr` /
+/// `set =value` / `incr`). A *dynamic* target name (`set $p …`) reads its
+/// name-bearing variable(s) (the genuine read the dead-store / unused checks
+/// need — `defs_of` withholds the static def); a static target that the RHS
+/// also reads is recorded as read-before-write. Extracted from [`uses_of`].
+fn uses_in_assignment(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+    vars_found: &mut BTreeSet<String>,
+    reads_own_def: &mut BTreeSet<String>,
+) {
+    let note_reads_own = |name: &str, vars_found: &BTreeSet<String>, rod: &mut BTreeSet<String>| {
+        let norm = normalise_var_name(name);
+        if !norm.is_empty() && vars_found.contains(norm) {
+            rod.insert(norm.to_owned());
+        }
+    };
+    match stmt {
+        Statement::AssignConst { name, .. } => {
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            }
+        }
+        Statement::AssignExpr { name, expr, .. } => {
+            vars_found.extend(vars_in_expr(expr));
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                note_reads_own(name, vars_found, reads_own_def);
+            }
+        }
+        Statement::AssignValue { name, value, .. } => {
+            vars_found.extend(scanner.scan_word(value, registry));
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                note_reads_own(name, vars_found, reads_own_def);
+            }
+        }
+        Statement::Incr { name, amount, .. } => {
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                let norm = normalise_var_name(name);
+                if !norm.is_empty() {
+                    vars_found.insert(norm.to_owned());
+                    reads_own_def.insert(norm.to_owned());
+                }
+            }
+            if let Some(amt) = amount {
+                vars_found.extend(scanner.scan_word(amt, registry));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Scan a `Call` / `Barrier` head word plus its non-body argument words into
+/// `vars_found`. `Body`-role args (loop / `if` / `catch` scripts) are skipped —
+/// they are lowered into their own CFG blocks. Extracted from [`uses_of`].
+fn scan_command_words(
+    command: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+    vars_found: &mut BTreeSet<String>,
+) {
+    vars_found.extend(scanner.scan_word(command, registry));
+    let body_indices = structural_body_indices(command, args, tokens, registry);
+    for (idx, arg) in args.iter().enumerate() {
+        if body_indices.contains(&idx) {
+            continue;
+        }
+        vars_found.extend(scanner.scan_word(arg, registry));
+    }
 }
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
@@ -1294,11 +1331,6 @@ fn collapsed_extra_defs(
     extra
 }
 
-/// Build SSA with dominator-based phi placement and renaming.
-///
-/// Computes dominators, places phi nodes, then walks the dominator
-/// tree to assign SSA version numbers to every variable definition
-/// and use.
 /// Frame for the iterative rename walk (avoids deep recursion).
 struct RenameFrame {
     block: BlockId,
@@ -1315,6 +1347,18 @@ enum RenamePhase {
     ProcessChildren,
 }
 
+/// Name-keyed per-block state produced by the rename walk and consumed when
+/// assembling the final SSA blocks. Bundled so the walk and the assembly step
+/// share one value instead of threading five parallel maps.
+#[derive(Default)]
+struct RenameOutputs {
+    phi_versions: HashMap<BlockId, HashMap<String, Version>>,
+    phi_incoming: HashMap<BlockId, HashMap<String, HashMap<BlockId, Version>>>,
+    entry_versions: HashMap<BlockId, HashMap<String, Version>>,
+    exit_versions: HashMap<BlockId, HashMap<String, Version>>,
+    stmt_infos: HashMap<BlockId, Vec<SsaStatement>>,
+}
+
 /// Build SSA with dominator-based phi placement and renaming.
 ///
 /// Computes dominators, places phi nodes, then walks the dominator
@@ -1326,274 +1370,20 @@ enum RenamePhase {
 /// per-statement use/def maps — splitting it would just scatter the
 /// state across many parameters.
 // Long renumbering pass with sequential block-walk phases.
-#[must_use]
-#[allow(clippy::too_many_lines)]
-pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
-    // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
-    // for a pathologically large (usually generated) body. Returns a trivial
-    // SSA; the compilation-unit builder likewise produces a trivial analysis
-    // and flags the function so per-proc diagnostic passes skip it.
-    if is_complexity_guarded(func) {
-        return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
-    }
-
-    // 1. Compute dominance information.  Use the Cooper-Harvey-
-    //    Kennedy immediate-dominator algorithm directly — it is
-    //    O(N) memory, where the set-based `compute_dominators` is
-    //    O(N²) and exhausts memory on a single huge generated proc
-    //    (tens of thousands of CFG blocks).
-    let idom = compute_idom_fast(func);
-    let df = compute_dominance_frontier(func, &idom);
-    let tree = build_dom_tree(&idom);
-    let phi_vars = compute_phi_vars(func, &df, registry);
-
-    // 2. Set up rename state.
-    let mut version_counter: HashMap<String, Version> = HashMap::new();
-    let mut stacks: HashMap<String, Vec<Version>> = HashMap::new();
-
-    let top = |stacks: &HashMap<String, Vec<Version>>, var: &str| -> Version {
-        stacks.get(var).and_then(|s| s.last().copied()).unwrap_or(0)
-    };
-
-    let push_new = |version_counter: &mut HashMap<String, Version>,
-                    stacks: &mut HashMap<String, Vec<Version>>,
-                    var: &str|
-     -> Version {
-        let vn = version_counter.get(var).copied().unwrap_or(0) + 1;
-        version_counter.insert(var.to_owned(), vn);
-        stacks.entry(var.to_owned()).or_default().push(vn);
-        vn
-    };
-
-    // Per-block state collected during the rename walk. The outer key is the
-    // block; inner maps stay keyed by variable name / version.
-    let mut phi_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
-    let mut phi_incoming: HashMap<BlockId, HashMap<String, HashMap<BlockId, Version>>> =
-        HashMap::new();
-    let mut entry_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
-    let mut exit_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
-    let mut stmt_infos: HashMap<BlockId, Vec<SsaStatement>> = HashMap::new();
-
-    for id in func.blocks.keys() {
-        phi_versions.insert(*id, HashMap::new());
-        phi_incoming.insert(*id, HashMap::new());
-        entry_versions.insert(*id, HashMap::new());
-        exit_versions.insert(*id, HashMap::new());
-        stmt_infos.insert(*id, Vec::new());
-    }
-
-    // Create a scanner for variable-use extraction.
-    let mut scanner = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-    });
-
-    // Variable-name interner. The rename walk keeps its transient state
-    // (`stacks`, `version_counter`, …) keyed by name; the persisted
-    // per-statement maps and phi names key on the interned [`Symbol`].
-    let mut interner = VarInterner::default();
-
-    // 3. Rename walk — iterative using an explicit stack to avoid
-    //    deep recursion on large dominator trees.
-    let mut stack: Vec<RenameFrame> = Vec::new();
-
-    if func.blocks.contains_key(&func.entry) {
-        stack.push(RenameFrame {
-            block: func.entry,
-            child_index: 0,
-            pushed_vars: Vec::new(),
-            phase: RenamePhase::Enter,
-        });
-    }
-
-    while let Some(frame) = stack.last_mut() {
-        match frame.phase {
-            RenamePhase::Enter => {
-                let bn = frame.block;
-
-                // Process phi nodes — push new versions.
-                let mut phi_var_list: Vec<String> = phi_vars
-                    .get(&bn)
-                    .map(|s| s.iter().cloned().collect())
-                    .unwrap_or_default();
-                phi_var_list.sort();
-
-                for var in &phi_var_list {
-                    let ver = push_new(&mut version_counter, &mut stacks, var);
-                    frame.pushed_vars.push(var.clone());
-                    phi_versions.get_mut(&bn).unwrap().insert(var.clone(), ver);
-                    phi_incoming
-                        .get_mut(&bn)
-                        .unwrap()
-                        .entry(var.clone())
-                        .or_default();
-                }
-
-                // Record entry versions.
-                let mut visible_vars: BTreeSet<String> = stacks.keys().cloned().collect();
-                visible_vars.extend(phi_versions[&bn].keys().cloned());
-                let ev: HashMap<String, Version> = visible_vars
-                    .iter()
-                    .filter_map(|v| {
-                        let t = top(&stacks, v);
-                        if t > 0 { Some((v.clone(), t)) } else { None }
-                    })
-                    .collect();
-                *entry_versions.get_mut(&bn).unwrap() = ev;
-
-                // Process statements.
-                if let Some(block) = func.blocks.get(&bn) {
-                    let stmts: Vec<Statement> = block.statements.clone();
-                    for stmt in &stmts {
-                        let uses_list = uses_of(stmt, &mut scanner, registry);
-                        let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
-                        for var in &uses_list {
-                            uses_map.insert(interner.intern(var), top(&stacks, var));
-                        }
-
-                        let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
-                        for var in defs_of_with_registry(stmt, Some(registry)) {
-                            let ver = push_new(&mut version_counter, &mut stacks, &var);
-                            frame.pushed_vars.push(var.clone());
-                            defs_map.insert(interner.intern(&var), ver);
-                        }
-
-                        stmt_infos.get_mut(&bn).unwrap().push(SsaStatement {
-                            statement: stmt.clone(),
-                            uses: uses_map,
-                            defs: defs_map,
-                        });
-                    }
-                }
-
-                // Record exit versions.
-                let mut visible_vars: BTreeSet<String> = stacks.keys().cloned().collect();
-                visible_vars.extend(phi_versions[&bn].keys().cloned());
-                let xv: HashMap<String, Version> = visible_vars
-                    .iter()
-                    .filter_map(|v| {
-                        let t = top(&stacks, v);
-                        if t > 0 { Some((v.clone(), t)) } else { None }
-                    })
-                    .collect();
-                *exit_versions.get_mut(&bn).unwrap() = xv;
-
-                // Fill in phi incoming edges for successors — the terminator's
-                // successors plus any `try` exception-edge handler targets, so
-                // a handler block's phis see this block's versions.
-                for succ in func.block_successors(bn) {
-                    if !func.blocks.contains_key(&succ) {
-                        continue;
-                    }
-                    let succ_phis: Vec<String> = phi_vars
-                        .get(&succ)
-                        .map(|s| {
-                            let mut v: Vec<String> = s.iter().cloned().collect();
-                            v.sort();
-                            v
-                        })
-                        .unwrap_or_default();
-                    for var in &succ_phis {
-                        phi_incoming
-                            .get_mut(&succ)
-                            .unwrap()
-                            .entry(var.clone())
-                            .or_default()
-                            .insert(bn, top(&stacks, var));
-                    }
-                }
-
-                frame.phase = RenamePhase::ProcessChildren;
-            }
-
-            RenamePhase::ProcessChildren => {
-                let bn = frame.block;
-                let children = tree.get(&bn).cloned().unwrap_or_default();
-                let idx = frame.child_index;
-
-                if idx < children.len() {
-                    frame.child_index += 1;
-                    let child = children[idx];
-                    stack.push(RenameFrame {
-                        block: child,
-                        child_index: 0,
-                        pushed_vars: Vec::new(),
-                        phase: RenamePhase::Enter,
-                    });
-                } else {
-                    // Pop versions pushed in this block.
-                    let pushed = frame.pushed_vars.clone();
-                    for var in pushed.iter().rev() {
-                        if let Some(s) = stacks.get_mut(var) {
-                            s.pop();
-                            if s.is_empty() {
-                                stacks.remove(var);
-                            }
-                        }
-                    }
-                    stack.pop();
-                }
-            }
-        }
-    }
-
-    // 4. Assemble SSA blocks.
-    let mut ssa_blocks: HashMap<BlockId, SsaBlock> = HashMap::new();
-    for (bn, block) in &func.blocks {
-        let mut phis: Vec<Phi> = Vec::new();
-        let mut phi_var_list: Vec<String> = phi_vars
-            .get(bn)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
-        phi_var_list.sort();
-
-        for var in &phi_var_list {
-            phis.push(Phi {
-                name: interner.intern(var),
-                version: phi_versions
-                    .get(bn)
-                    .and_then(|m| m.get(var))
-                    .copied()
-                    .unwrap_or(0),
-                incoming: phi_incoming
-                    .get(bn)
-                    .and_then(|m| m.get(var))
-                    .cloned()
-                    .unwrap_or_default(),
-            });
-        }
-
-        // Intern the entry / exit version maps (built name-keyed during the
-        // walk) onto the persisted [`Symbol`]-keyed block.
-        let intern_versions = |interner: &mut VarInterner, m: HashMap<String, Version>| {
-            m.into_iter()
-                .map(|(name, ver)| (interner.intern(&name), ver))
-                .collect::<HashMap<Symbol, Version>>()
-        };
-        let entry_v = intern_versions(&mut interner, entry_versions.remove(bn).unwrap_or_default());
-        let exit_v = intern_versions(&mut interner, exit_versions.remove(bn).unwrap_or_default());
-
-        ssa_blocks.insert(
-            *bn,
-            SsaBlock {
-                name: block.name.clone(),
-                phis,
-                statements: stmt_infos.remove(bn).unwrap_or_default(),
-                entry_versions: entry_v,
-                exit_versions: exit_v,
-            },
-        );
-    }
-
-    // Intern names that appear *only* in a terminator (a `return $x` value /
-    // expr, or a branch condition). The rename walk interns statement and phi
-    // names but not terminator reads, so a parameter read solely in the return
-    // (`proc p {x} { return $x }`) would otherwise be absent from the interner —
-    // leaving `var_symbol` unable to resolve it, which breaks any consumer that
-    // resolves such a name (e.g. the interprocedural O103 seed for an
-    // argument-sensitive passthrough). Interning is map-membership only; no SSA
-    // statement / version map changes, so every analysis result is unaffected.
+/// Intern names that appear *only* in a terminator (a `return $x` value /
+/// expr, or a branch condition). The rename walk interns statement and phi
+/// names but not terminator reads, so a parameter read solely in the return
+/// (`proc p {x} { return $x }`) would otherwise be absent from the interner —
+/// leaving `var_symbol` unable to resolve it, which breaks any consumer that
+/// resolves such a name (e.g. the interprocedural O103 seed for an
+/// argument-sensitive passthrough). Interning is map-membership only; no SSA
+/// statement / version map changes, so every analysis result is unaffected.
+fn intern_terminator_reads(
+    func: &cfg::Function,
+    interner: &mut VarInterner,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) {
     for block in func.blocks.values() {
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
@@ -1616,6 +1406,316 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
             _ => {}
         }
     }
+}
+
+/// Assemble the final [`SsaBlock`] map from the rename walk's outputs: build
+/// each block's phi list and intern its name-keyed entry / exit version maps
+/// onto the persisted [`Symbol`]-keyed form. Extracted from [`build_ssa`].
+fn assemble_ssa_blocks(
+    func: &cfg::Function,
+    phi_vars: &HashMap<BlockId, HashSet<String>>,
+    interner: &mut VarInterner,
+    out: &mut RenameOutputs,
+) -> HashMap<BlockId, SsaBlock> {
+    let mut ssa_blocks: HashMap<BlockId, SsaBlock> = HashMap::new();
+    for (bn, block) in &func.blocks {
+        let mut phis: Vec<Phi> = Vec::new();
+        let mut phi_var_list: Vec<String> = phi_vars
+            .get(bn)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
+        phi_var_list.sort();
+
+        for var in &phi_var_list {
+            phis.push(Phi {
+                name: interner.intern(var),
+                version: out
+                    .phi_versions
+                    .get(bn)
+                    .and_then(|m| m.get(var))
+                    .copied()
+                    .unwrap_or(0),
+                incoming: out
+                    .phi_incoming
+                    .get(bn)
+                    .and_then(|m| m.get(var))
+                    .cloned()
+                    .unwrap_or_default(),
+            });
+        }
+
+        // Intern the entry / exit version maps (built name-keyed during the
+        // walk) onto the persisted [`Symbol`]-keyed block.
+        let intern_versions = |interner: &mut VarInterner, m: HashMap<String, Version>| {
+            m.into_iter()
+                .map(|(name, ver)| (interner.intern(&name), ver))
+                .collect::<HashMap<Symbol, Version>>()
+        };
+        let entry_v = intern_versions(interner, out.entry_versions.remove(bn).unwrap_or_default());
+        let exit_v = intern_versions(interner, out.exit_versions.remove(bn).unwrap_or_default());
+
+        ssa_blocks.insert(
+            *bn,
+            SsaBlock {
+                name: block.name.clone(),
+                phis,
+                statements: out.stmt_infos.remove(bn).unwrap_or_default(),
+                entry_versions: entry_v,
+                exit_versions: exit_v,
+            },
+        );
+    }
+    ssa_blocks
+}
+
+/// Mutable state threaded through the dominator-tree rename walk: the live
+/// version stacks / counters keyed by variable name, the use-scanner and
+/// name interner, and the accumulated per-block [`RenameOutputs`].
+struct RenameWalk {
+    version_counter: HashMap<String, Version>,
+    stacks: HashMap<String, Vec<Version>>,
+    scanner: VarReferenceScanner,
+    interner: VarInterner,
+    out: RenameOutputs,
+}
+
+impl RenameWalk {
+    fn new(func: &cfg::Function) -> Self {
+        let mut out = RenameOutputs::default();
+        for id in func.blocks.keys() {
+            out.phi_versions.insert(*id, HashMap::new());
+            out.phi_incoming.insert(*id, HashMap::new());
+            out.entry_versions.insert(*id, HashMap::new());
+            out.exit_versions.insert(*id, HashMap::new());
+            out.stmt_infos.insert(*id, Vec::new());
+        }
+        Self {
+            version_counter: HashMap::new(),
+            stacks: HashMap::new(),
+            scanner: VarReferenceScanner::new(VarScanOptions {
+                include_var_read_roles: true,
+                recurse_cmd_substitutions: true,
+                include_reads_before_write: false,
+            }),
+            interner: VarInterner::default(),
+            out,
+        }
+    }
+
+    /// Top (current) version of `var`, or `0` when none is live.
+    fn top(&self, var: &str) -> Version {
+        self.stacks
+            .get(var)
+            .and_then(|s| s.last().copied())
+            .unwrap_or(0)
+    }
+
+    /// Allocate a fresh version for `var` and push it onto its live stack.
+    fn push_new(&mut self, var: &str) -> Version {
+        let vn = self.version_counter.get(var).copied().unwrap_or(0) + 1;
+        self.version_counter.insert(var.to_owned(), vn);
+        self.stacks.entry(var.to_owned()).or_default().push(vn);
+        vn
+    }
+
+    /// Snapshot the currently-visible (var, version) pairs (those with a live
+    /// version > 0), including this block's phi targets.
+    fn visible_versions(&self, bn: BlockId) -> HashMap<String, Version> {
+        let mut visible_vars: BTreeSet<String> = self.stacks.keys().cloned().collect();
+        visible_vars.extend(self.out.phi_versions[&bn].keys().cloned());
+        visible_vars
+            .iter()
+            .filter_map(|v| {
+                let t = self.top(v);
+                (t > 0).then(|| (v.clone(), t))
+            })
+            .collect()
+    }
+
+    /// Process one block on first visit: assign phi versions, record entry /
+    /// exit versions, rename statement uses/defs, and seed successors' phi
+    /// incoming edges. Extracted from [`build_ssa`]'s rename walk.
+    fn enter_block(
+        &mut self,
+        frame: &mut RenameFrame,
+        func: &cfg::Function,
+        phi_vars: &HashMap<BlockId, HashSet<String>>,
+        registry: &CommandRegistry,
+    ) {
+        let bn = frame.block;
+
+        // Process phi nodes — push new versions.
+        let mut phi_var_list: Vec<String> = phi_vars
+            .get(&bn)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
+        phi_var_list.sort();
+
+        for var in &phi_var_list {
+            let ver = self.push_new(var);
+            frame.pushed_vars.push(var.clone());
+            self.out
+                .phi_versions
+                .get_mut(&bn)
+                .unwrap()
+                .insert(var.clone(), ver);
+            self.out
+                .phi_incoming
+                .get_mut(&bn)
+                .unwrap()
+                .entry(var.clone())
+                .or_default();
+        }
+
+        // Record entry versions.
+        let ev = self.visible_versions(bn);
+        *self.out.entry_versions.get_mut(&bn).unwrap() = ev;
+
+        // Process statements.
+        if let Some(block) = func.blocks.get(&bn) {
+            let stmts: Vec<Statement> = block.statements.clone();
+            for stmt in &stmts {
+                let uses_list = uses_of(stmt, &mut self.scanner, registry);
+                let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
+                for var in &uses_list {
+                    let v = self.top(var);
+                    uses_map.insert(self.interner.intern(var), v);
+                }
+
+                let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
+                for var in defs_of_with_registry(stmt, Some(registry)) {
+                    let ver = self.push_new(&var);
+                    frame.pushed_vars.push(var.clone());
+                    defs_map.insert(self.interner.intern(&var), ver);
+                }
+
+                self.out
+                    .stmt_infos
+                    .get_mut(&bn)
+                    .unwrap()
+                    .push(SsaStatement {
+                        statement: stmt.clone(),
+                        uses: uses_map,
+                        defs: defs_map,
+                    });
+            }
+        }
+
+        // Record exit versions.
+        let xv = self.visible_versions(bn);
+        *self.out.exit_versions.get_mut(&bn).unwrap() = xv;
+
+        // Fill in phi incoming edges for successors — the terminator's
+        // successors plus any `try` exception-edge handler targets, so
+        // a handler block's phis see this block's versions.
+        for succ in func.block_successors(bn) {
+            if !func.blocks.contains_key(&succ) {
+                continue;
+            }
+            let mut succ_phis: Vec<String> = phi_vars
+                .get(&succ)
+                .map(|s| s.iter().cloned().collect())
+                .unwrap_or_default();
+            succ_phis.sort();
+            for var in &succ_phis {
+                let v = self.top(var);
+                self.out
+                    .phi_incoming
+                    .get_mut(&succ)
+                    .unwrap()
+                    .entry(var.clone())
+                    .or_default()
+                    .insert(bn, v);
+            }
+        }
+    }
+}
+
+/// Build SSA with dominator-based phi placement and renaming.
+///
+/// Computes dominators, places phi nodes, then walks the dominator
+/// tree to assign SSA version numbers to every variable definition
+/// and use.
+#[must_use]
+pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
+    // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
+    // for a pathologically large (usually generated) body. Returns a trivial
+    // SSA; the compilation-unit builder likewise produces a trivial analysis
+    // and flags the function so per-proc diagnostic passes skip it.
+    if is_complexity_guarded(func) {
+        return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
+    }
+
+    // 1. Compute dominance information.  Use the Cooper-Harvey-
+    //    Kennedy immediate-dominator algorithm directly — it is
+    //    O(N) memory, where the set-based `compute_dominators` is
+    //    O(N²) and exhausts memory on a single huge generated proc
+    //    (tens of thousands of CFG blocks).
+    let idom = compute_idom_fast(func);
+    let df = compute_dominance_frontier(func, &idom);
+    let tree = build_dom_tree(&idom);
+    let phi_vars = compute_phi_vars(func, &df, registry);
+
+    // 2. Set up rename state: the transient version stacks / counters, the
+    // use-scanner, name interner, and per-block outputs (keyed by variable
+    // name / version, interned to `Symbol` when blocks are assembled).
+    let mut walk = RenameWalk::new(func);
+
+    // 3. Rename walk — iterative using an explicit stack to avoid
+    //    deep recursion on large dominator trees.
+    let mut stack: Vec<RenameFrame> = Vec::new();
+
+    if func.blocks.contains_key(&func.entry) {
+        stack.push(RenameFrame {
+            block: func.entry,
+            child_index: 0,
+            pushed_vars: Vec::new(),
+            phase: RenamePhase::Enter,
+        });
+    }
+
+    while let Some(frame) = stack.last_mut() {
+        match frame.phase {
+            RenamePhase::Enter => {
+                walk.enter_block(frame, func, &phi_vars, registry);
+                frame.phase = RenamePhase::ProcessChildren;
+            }
+
+            RenamePhase::ProcessChildren => {
+                let bn = frame.block;
+                let children = tree.get(&bn).cloned().unwrap_or_default();
+                let idx = frame.child_index;
+
+                if idx < children.len() {
+                    frame.child_index += 1;
+                    let child = children[idx];
+                    stack.push(RenameFrame {
+                        block: child,
+                        child_index: 0,
+                        pushed_vars: Vec::new(),
+                        phase: RenamePhase::Enter,
+                    });
+                } else {
+                    // Pop versions pushed in this block.
+                    let pushed = frame.pushed_vars.clone();
+                    for var in pushed.iter().rev() {
+                        if let Some(s) = walk.stacks.get_mut(var) {
+                            s.pop();
+                            if s.is_empty() {
+                                walk.stacks.remove(var);
+                            }
+                        }
+                    }
+                    stack.pop();
+                }
+            }
+        }
+    }
+
+    // 4. Assemble SSA blocks.
+    let ssa_blocks = assemble_ssa_blocks(func, &phi_vars, &mut walk.interner, &mut walk.out);
+
+    intern_terminator_reads(func, &mut walk.interner, &mut walk.scanner, registry);
 
     SsaFunction {
         name: func.name.clone(),
@@ -1632,8 +1732,8 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
             .collect(),
         dominator_tree: tree,
         block_names: func.block_names().to_vec(),
-        var_names: interner.names,
-        var_to_symbol: interner.to_symbol,
+        var_names: walk.interner.names,
+        var_to_symbol: walk.interner.to_symbol,
     }
 }
 

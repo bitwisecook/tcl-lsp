@@ -269,20 +269,12 @@ fn evaluate_condition(cond: &BigipPolicyCondition, state: &RequestState) -> Cond
 }
 
 /// Return `(observed_value, present, note, unevaluable)`.
-#[allow(clippy::too_many_lines)]
 fn extract_actual(
     cond: &BigipPolicyCondition,
     state: &RequestState,
 ) -> (String, bool, String, bool) {
     let op = cond.operand.as_str();
     let sel = cond.selector.as_str();
-    let note_for = |present: bool, msg: &str| -> String {
-        if present {
-            String::new()
-        } else {
-            msg.to_owned()
-        }
-    };
     match op {
         "http-host" => {
             let present = !state.host.is_empty();
@@ -293,44 +285,7 @@ fn extract_actual(
                 false,
             )
         }
-        "http-uri" => match sel {
-            "path" => {
-                let present = !state.path.is_empty();
-                (
-                    state.path.clone(),
-                    present,
-                    note_for(present, "no URI captured"),
-                    false,
-                )
-            }
-            "query" => {
-                let present = !state.query.is_empty();
-                (
-                    state.query.clone(),
-                    present,
-                    note_for(present, "no query string captured"),
-                    false,
-                )
-            }
-            "host" => {
-                let present = !state.host.is_empty();
-                (
-                    state.host.clone(),
-                    present,
-                    note_for(present, "no Host captured"),
-                    false,
-                )
-            }
-            _ => {
-                let present = !state.uri.is_empty();
-                (
-                    state.uri.clone(),
-                    present,
-                    note_for(present, "no URI captured"),
-                    false,
-                )
-            }
-        },
+        "http-uri" => extract_http_uri(sel, state),
         "http-method" => {
             let present = !state.method.is_empty();
             (
@@ -340,65 +295,128 @@ fn extract_actual(
                 false,
             )
         }
-        "http-header" => {
-            if cond.name.is_empty() {
-                return (
-                    String::new(),
-                    false,
-                    "http-header condition has no `name` — cannot evaluate".to_owned(),
-                    true,
-                );
-            }
-            let key = cond.name.to_lowercase();
-            let present = state.header(&key).is_some();
-            let value = state.header(&key).unwrap_or("").to_owned();
-            let note = if present {
-                String::new()
-            } else {
-                format!("header {} not seen in capture", py_repr(&cond.name))
-            };
-            (value, present, note, false)
-        }
-        "ssl-extension" => {
-            if !cond.name.is_empty() && cond.name.to_lowercase() != "server-name" {
-                return (
-                    String::new(),
-                    false,
-                    format!("ssl-extension {} not supported in v1", py_repr(&cond.name)),
-                    true,
-                );
-            }
-            let present = !state.sni.is_empty();
-            (
-                state.sni.clone(),
-                present,
-                note_for(present, "no SNI captured"),
-                false,
-            )
-        }
-        "tcp" => {
-            if sel == "address" {
-                (
-                    state.client_addr.clone(),
-                    !state.client_addr.is_empty(),
-                    String::new(),
-                    false,
-                )
-            } else {
-                (
-                    String::new(),
-                    false,
-                    format!("tcp selector {} not supported in v1", py_repr(sel)),
-                    true,
-                )
-            }
-        }
+        "http-header" => extract_http_header(cond, state),
+        "ssl-extension" => extract_ssl_extension(cond, state),
+        "tcp" => extract_tcp(sel, state),
         _ => (
             String::new(),
             false,
             format!("operand {} not supported in v1", py_repr(op)),
             true,
         ),
+    }
+}
+
+/// Empty when `present`, else the message — shared note helper for
+/// [`extract_actual`].
+fn note_for(present: bool, msg: &str) -> String {
+    if present {
+        String::new()
+    } else {
+        msg.to_owned()
+    }
+}
+
+fn extract_http_uri(sel: &str, state: &RequestState) -> (String, bool, String, bool) {
+    match sel {
+        "path" => {
+            let present = !state.path.is_empty();
+            (
+                state.path.clone(),
+                present,
+                note_for(present, "no URI captured"),
+                false,
+            )
+        }
+        "query" => {
+            let present = !state.query.is_empty();
+            (
+                state.query.clone(),
+                present,
+                note_for(present, "no query string captured"),
+                false,
+            )
+        }
+        "host" => {
+            let present = !state.host.is_empty();
+            (
+                state.host.clone(),
+                present,
+                note_for(present, "no Host captured"),
+                false,
+            )
+        }
+        _ => {
+            let present = !state.uri.is_empty();
+            (
+                state.uri.clone(),
+                present,
+                note_for(present, "no URI captured"),
+                false,
+            )
+        }
+    }
+}
+
+fn extract_http_header(
+    cond: &BigipPolicyCondition,
+    state: &RequestState,
+) -> (String, bool, String, bool) {
+    if cond.name.is_empty() {
+        return (
+            String::new(),
+            false,
+            "http-header condition has no `name` — cannot evaluate".to_owned(),
+            true,
+        );
+    }
+    let key = cond.name.to_lowercase();
+    let present = state.header(&key).is_some();
+    let value = state.header(&key).unwrap_or("").to_owned();
+    let note = if present {
+        String::new()
+    } else {
+        format!("header {} not seen in capture", py_repr(&cond.name))
+    };
+    (value, present, note, false)
+}
+
+fn extract_ssl_extension(
+    cond: &BigipPolicyCondition,
+    state: &RequestState,
+) -> (String, bool, String, bool) {
+    if !cond.name.is_empty() && cond.name.to_lowercase() != "server-name" {
+        return (
+            String::new(),
+            false,
+            format!("ssl-extension {} not supported in v1", py_repr(&cond.name)),
+            true,
+        );
+    }
+    let present = !state.sni.is_empty();
+    (
+        state.sni.clone(),
+        present,
+        note_for(present, "no SNI captured"),
+        false,
+    )
+}
+
+fn extract_tcp(sel: &str, state: &RequestState) -> (String, bool, String, bool) {
+    if sel == "address" {
+        (
+            state.client_addr.clone(),
+            !state.client_addr.is_empty(),
+            String::new(),
+            false,
+        )
+    } else {
+        (
+            String::new(),
+            false,
+            format!("tcp selector {} not supported in v1", py_repr(sel)),
+            true,
+        )
     }
 }
 

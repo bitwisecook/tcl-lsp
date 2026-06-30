@@ -216,7 +216,10 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
         if rest.len() < KEY.len() || !rest[..KEY.len()].eq_ignore_ascii_case(KEY) {
             continue;
         }
-        let candidate = rest[KEY.len()..].split_whitespace().next().unwrap_or_default();
+        let candidate = rest[KEY.len()..]
+            .split_whitespace()
+            .next()
+            .unwrap_or_default();
         return KNOWN_DIALECTS.iter().copied().find(|&d| d == candidate);
     }
     None
@@ -236,24 +239,24 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
     if let Some(d) = detect_dialect_directive(source) {
         return Some(d);
     }
-    if let Some(first) = source.lines().next() {
-        if first.starts_with("#!") {
-            let lower = first.to_ascii_lowercase();
-            if has_word(&lower, "expect") {
-                return Some("expect");
-            }
-            if let Some(ver) = shebang_tclsh_version(&lower) {
-                if let Some(d) = tcl_version_dialect(&ver) {
-                    return Some(d);
-                }
-            }
+    if let Some(first) = source.lines().next()
+        && first.starts_with("#!")
+    {
+        let lower = first.to_ascii_lowercase();
+        if has_word(&lower, "expect") {
+            return Some("expect");
+        }
+        if let Some(ver) = shebang_tclsh_version(&lower)
+            && let Some(d) = tcl_version_dialect(&ver)
+        {
+            return Some(d);
         }
     }
     for line in source.lines().take(PKG_REQUIRE_SCAN_LINES) {
-        if let Some(ver) = package_require_tcl_version(line) {
-            if let Some(d) = tcl_version_dialect(&ver) {
-                return Some(d);
-            }
+        if let Some(ver) = package_require_tcl_version(line)
+            && let Some(d) = tcl_version_dialect(&ver)
+        {
+            return Some(d);
         }
     }
     None

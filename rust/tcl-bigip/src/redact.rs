@@ -981,7 +981,6 @@ pub struct BuildMapOptions<'a> {
 /// # Errors
 /// Returns [`BigipError::Redact`] when a target CIDR cannot be allocated, or on
 /// an unknown mode / malformed CIDR.
-#[allow(clippy::too_many_lines)]
 pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
     let BuildMapOptions {
         text,
@@ -1000,26 +999,13 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
         return Err(BigipError::redact(format!("unknown mode '{mode}'")));
     }
 
-    let (mut rm, pool_v4, pool_v6) = if let Some(ex) = existing {
-        // Inherit every setting from the prior map (the existing map's settings
-        // win over any conflicting arguments).
-        mode.clone_from(&ex.mode);
-        seed.clone_from(&ex.seed);
-        let pool_v4 = ex.target_pool_v4.clone();
-        let pool_v6 = ex.target_pool_v6.clone();
-        (ex, pool_v4, pool_v6)
-    } else {
-        let rm = RedactionMap {
-            cidr_assignments: Vec::new(),
-            forward: HashMap::new(),
-            reverse: HashMap::new(),
-            target_pool_v4: target_pool_v4.clone(),
-            target_pool_v6: target_pool_v6.clone(),
-            mode: mode.clone(),
-            seed: seed.clone(),
-        };
-        (rm, target_pool_v4, target_pool_v6)
-    };
+    let (mut rm, pool_v4, pool_v6) = init_map(
+        existing,
+        &target_pool_v4,
+        &target_pool_v6,
+        &mut mode,
+        &mut seed,
+    );
 
     let mut allocator = Allocator::new(&pool_v4, &pool_v6);
 
@@ -1038,22 +1024,12 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
         .collect::<Result<_, _>>()?;
 
     let source_cidr_for = |addr: Addr| -> Net {
-        for net in &explicit {
-            match (net, addr) {
-                (Net::V4(_), Addr::V4(_)) | (Net::V6(_), Addr::V6(_))
-                    if net.contains_addr(addr) =>
-                {
-                    return *net;
-                }
-                _ => {}
-            }
-        }
-        let prefix = if addr.version() == 4 {
-            source_cidr_v4_prefix
-        } else {
-            source_cidr_v6_prefix
-        };
-        enclosing_cidr(addr, prefix)
+        enclosing_source_cidr(
+            addr,
+            &explicit,
+            source_cidr_v4_prefix,
+            source_cidr_v6_prefix,
+        )
     };
 
     let (addrs_v4, addrs_v6) = collect_addresses(text, remap_private);
@@ -1077,50 +1053,124 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
 
     for &addr in &all_addrs {
         let source_net = source_cidr_for(addr);
-        if let std::collections::hash_map::Entry::Vacant(slot) = cidr_for.entry(source_net) {
-            let target_net = allocator
-                .allocate(source_net.prefixlen(), addr.version())
-                .map_err(|e| BigipError::redact(e.0))?;
-            let shuffle_key = if mode == "shuffle" {
-                Some(hex_encode(&derive_key(&seed, &source_net.to_string_py())))
-            } else {
-                None
-            };
-            rm.cidr_assignments.push(CidrAssignment {
-                source: source_net.to_string_py(),
-                target: target_net.to_string_py(),
-                shuffle_key,
-            });
-            slot.insert(target_net);
-        }
-
-        let target_net = cidr_for[&source_net];
-        let mapped = if mode == "shuffle" {
-            shuffle_host(
-                addr,
-                source_net,
-                target_net,
-                &derive_key(&seed, &source_net.to_string_py()),
-                false,
-            )
-        } else {
-            let host_width = addr.max_prefixlen() - source_net.prefixlen();
-            let mask = if host_width >= 128 {
-                u128::MAX
-            } else {
-                (1u128 << host_width) - 1
-            };
-            let host_bits = addr.to_int() & mask;
-            direct_host(host_bits, source_net, target_net)
-        };
-
-        rm.forward
-            .insert(addr.to_string_py(), mapped.to_string_py());
-        rm.reverse
-            .insert(mapped.to_string_py(), addr.to_string_py());
+        map_one_address(
+            &mut rm,
+            &mut allocator,
+            &mut cidr_for,
+            addr,
+            source_net,
+            &mode,
+            &seed,
+        )?;
     }
 
     Ok(rm)
+}
+
+/// Build the working [`RedactionMap`] plus its v4/v6 target pools. When an
+/// `existing` map is supplied its settings win over the arguments (and overwrite
+/// `mode`/`seed`).
+fn init_map(
+    existing: Option<RedactionMap>,
+    target_pool_v4: &[String],
+    target_pool_v6: &[String],
+    mode: &mut String,
+    seed: &mut String,
+) -> (RedactionMap, Vec<String>, Vec<String>) {
+    if let Some(ex) = existing {
+        // Inherit every setting from the prior map (the existing map's settings
+        // win over any conflicting arguments).
+        mode.clone_from(&ex.mode);
+        seed.clone_from(&ex.seed);
+        let pool_v4 = ex.target_pool_v4.clone();
+        let pool_v6 = ex.target_pool_v6.clone();
+        (ex, pool_v4, pool_v6)
+    } else {
+        let rm = RedactionMap {
+            cidr_assignments: Vec::new(),
+            forward: HashMap::new(),
+            reverse: HashMap::new(),
+            target_pool_v4: target_pool_v4.to_vec(),
+            target_pool_v6: target_pool_v6.to_vec(),
+            mode: mode.clone(),
+            seed: seed.clone(),
+        };
+        (rm, target_pool_v4.to_vec(), target_pool_v6.to_vec())
+    }
+}
+
+/// The source CIDR enclosing `addr`: an explicit CIDR if one contains it, else
+/// the prefix-derived enclosing block.
+fn enclosing_source_cidr(addr: Addr, explicit: &[Net], v4_prefix: u32, v6_prefix: u32) -> Net {
+    for net in explicit {
+        match (net, addr) {
+            (Net::V4(_), Addr::V4(_)) | (Net::V6(_), Addr::V6(_)) if net.contains_addr(addr) => {
+                return *net;
+            }
+            _ => {}
+        }
+    }
+    let prefix = if addr.version() == 4 {
+        v4_prefix
+    } else {
+        v6_prefix
+    };
+    enclosing_cidr(addr, prefix)
+}
+
+/// Allocate (once) the target CIDR for `addr`'s source net, then record the
+/// forward/reverse host mapping into `rm`.
+fn map_one_address(
+    rm: &mut RedactionMap,
+    allocator: &mut Allocator,
+    cidr_for: &mut HashMap<Net, Net>,
+    addr: Addr,
+    source_net: Net,
+    mode: &str,
+    seed: &str,
+) -> Result<(), BigipError> {
+    if let std::collections::hash_map::Entry::Vacant(slot) = cidr_for.entry(source_net) {
+        let target_net = allocator
+            .allocate(source_net.prefixlen(), addr.version())
+            .map_err(|e| BigipError::redact(e.0))?;
+        let shuffle_key = if mode == "shuffle" {
+            Some(hex_encode(&derive_key(seed, &source_net.to_string_py())))
+        } else {
+            None
+        };
+        rm.cidr_assignments.push(CidrAssignment {
+            source: source_net.to_string_py(),
+            target: target_net.to_string_py(),
+            shuffle_key,
+        });
+        slot.insert(target_net);
+    }
+
+    let target_net = cidr_for[&source_net];
+    let mapped = if mode == "shuffle" {
+        shuffle_host(
+            addr,
+            source_net,
+            target_net,
+            &derive_key(seed, &source_net.to_string_py()),
+            false,
+        )
+    } else {
+        let host_width = addr.max_prefixlen() - source_net.prefixlen();
+        let mask = if host_width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << host_width) - 1
+        };
+        let host_bits = addr.to_int() & mask;
+        direct_host(host_bits, source_net, target_net)
+    };
+
+    rm.forward
+        .insert(addr.to_string_py(), mapped.to_string_py());
+    rm.reverse
+        .insert(mapped.to_string_py(), addr.to_string_py());
+    Ok(())
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

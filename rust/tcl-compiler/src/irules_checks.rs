@@ -382,9 +382,11 @@ pub fn find_unguarded_drop_warnings(
         let finals = walk_flow(
             &proc.body,
             &[DropFlowState::default()],
-            &mut out,
-            &leaf,
-            &dedupe_drop_states,
+            &mut FlowDispatch {
+                out: &mut out,
+                leaf: &leaf,
+                dedupe: &dedupe_drop_states,
+            },
             None,
         );
         for st in finals {
@@ -545,10 +547,15 @@ fn classify_stmt_for_collect_flow(
         if base_offset == 0 {
             return sp;
         }
+        // Spans are `u32`; the absolutised offset is clamped to `0`, and a
+        // source larger than 4 GiB is not representable, so saturate to
+        // `u32::MAX` on the (impossible-in-practice) overflow.
         let s = (i64::from(sp.start()) + base_offset).max(0);
         let e = (i64::from(sp.end()) + base_offset).max(0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Span::new(s as u32, e as u32)
+        Span::new(
+            u32::try_from(s).unwrap_or(u32::MAX),
+            u32::try_from(e).unwrap_or(u32::MAX),
+        )
     };
     match stmt {
         Statement::Call {
@@ -814,9 +821,11 @@ pub fn find_http_flow_warnings(
                 responded: false,
                 respond_at: None,
             }],
-            &mut out,
-            &leaf,
-            &dedupe_flow_states,
+            &mut FlowDispatch {
+                out: &mut out,
+                leaf: &leaf,
+                dedupe: &dedupe_flow_states,
+            },
             None,
         );
     }
@@ -911,12 +920,19 @@ fn apply_http_flow_command(
 /// `return` terminates the path.
 ///
 /// [`Catch`]: Statement::Catch
+/// The fixed dispatch state threaded through the flow walk: the warning sink
+/// `out`, the per-leaf transfer `leaf`, and the state-set `dedupe`.  Bundled so
+/// the mutually-recursive walk helpers stay under the argument limit.
+struct FlowDispatch<'a, L, D> {
+    out: &'a mut Vec<IrulesCheckWarning>,
+    leaf: &'a L,
+    dedupe: &'a D,
+}
+
 fn walk_flow<S, L, D>(
     script: &Script,
     in_states: &[S],
-    out: &mut Vec<IrulesCheckWarning>,
-    leaf: &L,
-    dedupe: &D,
+    fd: &mut FlowDispatch<'_, L, D>,
     mut return_sink: Option<&mut Vec<S>>,
 ) -> Vec<S>
 where
@@ -927,7 +943,7 @@ where
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
         // `None` ⇒ the statement terminates every current path (`return`).
-        match flow_step(stmt, &states, out, leaf, dedupe, return_sink.as_deref_mut()) {
+        match flow_step(stmt, &states, fd, return_sink.as_deref_mut()) {
             None => {
                 // Hand the at-return states to the enclosing catch (if any) so
                 // flow resumes past it, then terminate this script's path.
@@ -945,16 +961,10 @@ where
 /// Transfer one structured statement over the flow-state set, or `None` when
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
 /// through [`walk_flow`]; leaf statements go through `leaf`.
-// One cohesive `match` dispatcher over the statement kinds — splitting the arms
-// into separate generic helpers would only scatter the shared `<S, L, D>`
-// signature without aiding readability.
-#[allow(clippy::too_many_lines)]
 fn flow_step<S, L, D>(
     stmt: &Statement,
     states: &[S],
-    out: &mut Vec<IrulesCheckWarning>,
-    leaf: &L,
-    dedupe: &D,
+    fd: &mut FlowDispatch<'_, L, D>,
     mut return_sink: Option<&mut Vec<S>>,
 ) -> Option<Vec<S>>
 where
@@ -974,76 +984,31 @@ where
                     next.extend(walk_flow(
                         &clause.body,
                         one(st),
-                        out,
-                        leaf,
-                        dedupe,
+                        fd,
                         return_sink.as_deref_mut(),
                     ));
                 }
                 if let Some(eb) = else_body {
-                    next.extend(walk_flow(
-                        eb,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
+                    next.extend(walk_flow(eb, one(st), fd, return_sink.as_deref_mut()));
                 } else {
                     // condition-false path keeps the incoming state.
                     next.push(st.clone());
                 }
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Switch {
             arms, default_body, ..
-        } => {
-            let mut next = Vec::new();
-            for st in states {
-                // no-match fall-through path.
-                next.push(st.clone());
-                for arm in arms {
-                    if let Some(body) = &arm.body {
-                        next.extend(walk_flow(
-                            body,
-                            one(st),
-                            out,
-                            leaf,
-                            dedupe,
-                            return_sink.as_deref_mut(),
-                        ));
-                    }
-                }
-                if let Some(db) = default_body {
-                    next.extend(walk_flow(
-                        db,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
-                }
-            }
-            dedupe(next)
-        }
+        } => flow_step_switch(arms, default_body.as_ref(), states, fd, return_sink),
         Statement::For { body, .. }
         | Statement::While { body, .. }
         | Statement::Foreach { body, .. } => {
             let mut next = Vec::new();
             for st in states {
                 next.push(st.clone()); // zero iterations
-                next.extend(walk_flow(
-                    body,
-                    one(st),
-                    out,
-                    leaf,
-                    dedupe,
-                    return_sink.as_deref_mut(),
-                ));
+                next.extend(walk_flow(body, one(st), fd, return_sink.as_deref_mut()));
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Catch { body, .. } => {
             let mut next = Vec::new();
@@ -1052,8 +1017,7 @@ where
                 // any at-return states continue past the catch.  Fall back to
                 // the incoming state if the body yields nothing.
                 let mut catch_returns = Vec::new();
-                let mut body_out =
-                    walk_flow(body, one(st), out, leaf, dedupe, Some(&mut catch_returns));
+                let mut body_out = walk_flow(body, one(st), fd, Some(&mut catch_returns));
                 body_out.append(&mut catch_returns);
                 if body_out.is_empty() {
                     next.push(st.clone());
@@ -1061,60 +1025,107 @@ where
                     next.extend(body_out);
                 }
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
-        } => {
-            let mut next = Vec::new();
-            for st in states {
-                let mut branch =
-                    walk_flow(body, one(st), out, leaf, dedupe, return_sink.as_deref_mut());
-                for handler in handlers {
-                    branch.extend(walk_flow(
-                        &handler.body,
-                        one(st),
-                        out,
-                        leaf,
-                        dedupe,
-                        return_sink.as_deref_mut(),
-                    ));
-                }
-                if let Some(fb) = finally_body {
-                    let mut final_out = Vec::new();
-                    for mid in &branch {
-                        final_out.extend(walk_flow(
-                            fb,
-                            one(mid),
-                            out,
-                            leaf,
-                            dedupe,
-                            return_sink.as_deref_mut(),
-                        ));
-                    }
-                    branch = final_out;
-                }
-                if branch.is_empty() {
-                    next.push(st.clone());
-                } else {
-                    next.extend(branch);
-                }
-            }
-            dedupe(next)
-        }
+        } => flow_step_try(
+            body,
+            handlers,
+            finally_body.as_ref(),
+            states,
+            fd,
+            return_sink,
+        ),
         // A grouping block (namespace/uplevel body) runs in sequence.
-        Statement::Block { body, .. } => walk_flow(body, states, out, leaf, dedupe, return_sink),
+        Statement::Block { body, .. } => walk_flow(body, states, fd, return_sink),
         _ => {
             let mut next = Vec::with_capacity(states.len());
             for st in states {
-                next.push(leaf(st, stmt, out));
+                next.push((fd.leaf)(st, stmt, fd.out));
             }
-            dedupe(next)
+            (fd.dedupe)(next)
         }
     })
+}
+
+/// The `switch` arm of [`flow_step`]: every arm body (and the default body) is
+/// a feasible path, plus the no-match fall-through that keeps the incoming
+/// state.
+fn flow_step_switch<S, L, D>(
+    arms: &[crate::ir::SwitchArm],
+    default_body: Option<&Script>,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let one = std::slice::from_ref;
+    let mut next = Vec::new();
+    for st in states {
+        // no-match fall-through path.
+        next.push(st.clone());
+        for arm in arms {
+            if let Some(body) = &arm.body {
+                next.extend(walk_flow(body, one(st), fd, return_sink.as_deref_mut()));
+            }
+        }
+        if let Some(db) = default_body {
+            next.extend(walk_flow(db, one(st), fd, return_sink.as_deref_mut()));
+        }
+    }
+    (fd.dedupe)(next)
+}
+
+/// The `try` arm of [`flow_step`]: the body and each handler are feasible
+/// paths; a `finally` body runs in sequence after each; an empty result keeps
+/// the incoming state.
+fn flow_step_try<S, L, D>(
+    body: &Script,
+    handlers: &[crate::ir::TryHandler],
+    finally_body: Option<&Script>,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let one = std::slice::from_ref;
+    let mut next = Vec::new();
+    for st in states {
+        let mut branch = walk_flow(body, one(st), fd, return_sink.as_deref_mut());
+        for handler in handlers {
+            branch.extend(walk_flow(
+                &handler.body,
+                one(st),
+                fd,
+                return_sink.as_deref_mut(),
+            ));
+        }
+        if let Some(fb) = finally_body {
+            let mut final_out = Vec::new();
+            for mid in &branch {
+                final_out.extend(walk_flow(fb, one(mid), fd, return_sink.as_deref_mut()));
+            }
+            branch = final_out;
+        }
+        if branch.is_empty() {
+            next.push(st.clone());
+        } else {
+            next.extend(branch);
+        }
+    }
+    (fd.dedupe)(next)
 }
 
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
@@ -1207,81 +1218,86 @@ pub fn find_hoistable_set_warnings(
 // IRULE4002 — generic `static::` variable name that will collide
 //
 // Walks every `::when::` CFG body for statements that define a
-// `static::` variable and flags bare names matching a fixed set of
-// generic patterns. Deduplicated across events — the first occurrence's
-// span wins. Custom user patterns are not plumbed here (the analyser
-// uses the default set).
+// `static::` variable and flags bare names matching a set of generic
+// regex patterns. Deduplicated across events — the first occurrence's
+// span wins. The pattern set is configurable (`tclLsp.diagnostics.
+// genericVariablePatterns`): pass `None` for the built-in default set,
+// `Some(&[])` to disable the check, or `Some(custom)` to replace the
+// defaults — a faithful port of Python's `genericVariablePatterns`.
 
-/// Lowercased bare names considered generic. Every generic-name pattern
-/// is fully `^…$`-anchored over a finite alternation, so the regex
-/// `search` over the lowercased bare name is equivalent to exact
-/// membership in this set.
-const GENERIC_STATIC_NAMES: &[&str] = &[
+/// Default generic `static::` variable-name patterns — a faithful port of
+/// Python's `DEFAULT_GENERIC_VARIABLE_PATTERNS`
+/// (`compiler/irules_static_names.py`). Each is matched case-insensitively
+/// (the bare name is lowercased) against the part after the `static::`
+/// prefix. A user-supplied list replaces this set wholesale.
+pub const DEFAULT_GENERIC_VARIABLE_PATTERNS: &[&str] = &[
     // Debug / logging
-    "debug",
-    "debug_level",
-    "debug_enabled",
-    "dbg",
-    "log_level",
-    "log_server",
-    "log_enabled",
-    "logging",
-    "verbose",
-    "trace",
+    r"^debug(_level|_enabled)?$",
+    r"^dbg$",
+    r"^log_(level|server|enabled)$",
+    r"^logging$",
+    r"^verbose$",
+    r"^trace$",
     // Configuration
-    "timeout",
-    "response_timeout",
-    "retry",
-    "retries",
-    "max_retry",
-    "max_retries",
-    "config",
-    "enabled",
-    "disabled",
-    "active",
-    "mode",
-    "port",
-    "host",
-    "server",
-    "pool",
+    r"^(response_)?timeout$",
+    r"^(max_)?retr(y|ies)$",
+    r"^config$",
+    r"^(enabled|disabled|active)$",
+    r"^mode$",
+    r"^(port|host|server|pool)$",
     // Counters / limits
-    "count",
-    "counter",
-    "limit",
-    "max_connections",
-    "threshold",
-    "rate",
-    "interval",
+    r"^count(er)?$",
+    r"^(limit|max_connections|threshold|rate|interval)$",
     // Generic state
-    "flag",
-    "level",
-    "status",
-    "state",
-    "version",
-    "name",
-    "value",
-    "data",
-    "result",
-    "test",
-    "init",
-    "default",
+    r"^(flag|level|status|state|version|name|value|data|result|test|init|default)$",
 ];
 
-/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
-/// generic when its lowercased bare name is in [`GENERIC_STATIC_NAMES`].
-fn is_generic_static_name(var_name: &str) -> bool {
-    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
-    GENERIC_STATIC_NAMES.contains(&bare.to_ascii_lowercase().as_str())
+/// Compile the generic-name patterns for IRULE4002. `None` selects the
+/// built-in [`DEFAULT_GENERIC_VARIABLE_PATTERNS`]; `Some(custom)` uses the
+/// caller's list verbatim (an empty slice compiles to no patterns, which
+/// disables the check). Invalid regexes are skipped — matching Python's
+/// `re.error` swallow in `get_generic_patterns`.
+fn compile_generic_patterns(patterns: Option<&[String]>) -> Vec<regex::Regex> {
+    let build = |src: &str| {
+        regex::RegexBuilder::new(src)
+            .case_insensitive(true)
+            .build()
+            .ok()
+    };
+    match patterns {
+        None => DEFAULT_GENERIC_VARIABLE_PATTERNS
+            .iter()
+            .filter_map(|p| build(p))
+            .collect(),
+        Some(pats) => pats.iter().filter_map(|p| build(p)).collect(),
+    }
 }
 
-/// Generic-static-name warnings for IRULE4002.
+/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
+/// generic when its lowercased bare name matches any `compiled` pattern.
+fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
+    let bare = var_name
+        .strip_prefix("static::")
+        .unwrap_or(var_name)
+        .to_ascii_lowercase();
+    compiled.iter().any(|re| re.is_match(&bare))
+}
+
+/// Generic-static-name warnings for IRULE4002. `generic_patterns` follows the
+/// [`compile_generic_patterns`] convention (`None` → default set, `Some(&[])`
+/// → disabled, `Some(custom)` → replace defaults).
 #[must_use]
 pub fn find_generic_static_name_warnings(
     cu: &CompilationUnit,
     dialect: Option<&str>,
+    generic_patterns: Option<&[String]>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
     if !is_irules_dialect(dialect) {
+        return out;
+    }
+    let compiled = compile_generic_patterns(generic_patterns);
+    if compiled.is_empty() {
         return out;
     }
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -1299,11 +1315,11 @@ pub fn find_generic_static_name_warnings(
                     Statement::AssignConst { name, .. }
                     | Statement::AssignValue { name, .. }
                     | Statement::Incr { name, .. } => {
-                        check_generic_static(name, span, &mut seen, &mut out);
+                        check_generic_static(name, span, &compiled, &mut seen, &mut out);
                     }
                     Statement::Call { defs, .. } => {
                         for name in defs {
-                            check_generic_static(name, span, &mut seen, &mut out);
+                            check_generic_static(name, span, &compiled, &mut seen, &mut out);
                         }
                     }
                     _ => {}
@@ -1317,6 +1333,7 @@ pub fn find_generic_static_name_warnings(
 fn check_generic_static(
     var_name: &str,
     span: Span,
+    compiled: &[regex::Regex],
     seen: &mut std::collections::HashSet<String>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
@@ -1326,7 +1343,7 @@ fn check_generic_static(
     if seen.contains(var_name) {
         return;
     }
-    if !is_generic_static_name(var_name) {
+    if !is_generic_static_name(var_name, compiled) {
         return;
     }
     seen.insert(var_name.to_owned());
@@ -2115,7 +2132,12 @@ mod tests {
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some("f5-irules"))
+        find_generic_static_name_warnings(&cu, Some("f5-irules"), None)
+    }
+
+    fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_generic_static_name_warnings(&cu, Some("f5-irules"), Some(patterns))
     }
 
     #[test]
@@ -2156,15 +2178,43 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(find_generic_static_name_warnings(&cu, None).is_empty());
+        assert!(find_generic_static_name_warnings(&cu, None, None).is_empty());
     }
 
     #[test]
     fn is_generic_static_name_matches_default_set() {
-        assert!(is_generic_static_name("static::debug"));
-        assert!(is_generic_static_name("static::DEBUG"));
-        assert!(is_generic_static_name("static::max_retries"));
-        assert!(!is_generic_static_name("static::myapp_token"));
-        assert!(!is_generic_static_name("static::debugger"));
+        let compiled = compile_generic_patterns(None);
+        assert!(is_generic_static_name("static::debug", &compiled));
+        assert!(is_generic_static_name("static::DEBUG", &compiled));
+        assert!(is_generic_static_name("static::max_retries", &compiled));
+        assert!(!is_generic_static_name("static::myapp_token", &compiled));
+        assert!(!is_generic_static_name("static::debugger", &compiled));
+    }
+
+    #[test]
+    fn irule4002_custom_patterns_replace_defaults() {
+        // A custom pattern set replaces the defaults wholesale: `myapp_token`
+        // now fires, while the previously-generic `debug` goes quiet.
+        let patterns = vec![r"^myapp_".to_owned()];
+        let ws = generic_warnings_with("when RULE_INIT { set static::myapp_token 1 }", &patterns);
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule4002),
+            "expected IRULE4002 for static::myapp_token under custom patterns, got {ws:?}",
+        );
+        let quiet = generic_warnings_with("when RULE_INIT { set static::debug 1 }", &patterns);
+        assert!(
+            !quiet.iter().any(|w| w.code == DiagCode::Irule4002),
+            "static::debug should be quiet once defaults are replaced, got {quiet:?}",
+        );
+    }
+
+    #[test]
+    fn irule4002_empty_patterns_disable_check() {
+        // An explicit empty pattern list disables IRULE4002 entirely.
+        let ws = generic_warnings_with("when RULE_INIT { set static::debug 1 }", &[]);
+        assert!(
+            ws.iter().all(|w| w.code != DiagCode::Irule4002),
+            "empty pattern list should disable IRULE4002, got {ws:?}",
+        );
     }
 }

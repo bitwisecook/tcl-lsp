@@ -110,15 +110,13 @@ pub fn infer_param_traits_with_config(
         params.iter().map(|p| (*p, HashSet::new())).collect();
     let mut upvar_aliases: HashMap<String, &str> = HashMap::new();
 
-    scan_commands(
-        body_source,
-        &param_set,
-        &mut traits,
-        &mut upvar_aliases,
+    let ctx = ScanCtx {
+        param_set: &param_set,
         registry,
         stub_overlay,
         config,
-    );
+    };
+    scan_commands(body_source, &ctx, &mut traits, &mut upvar_aliases);
 
     finalise_traits(traits)
 }
@@ -177,16 +175,13 @@ pub fn infer_param_traits_deep_with_config(
         params.iter().map(|p| (*p, HashSet::new())).collect();
     let mut upvar_aliases: HashMap<String, &str> = HashMap::new();
 
-    scan_deep(
-        body_source,
-        &param_set,
-        &mut traits,
-        &mut upvar_aliases,
-        0,
+    let ctx = ScanCtx {
+        param_set: &param_set,
         registry,
         stub_overlay,
         config,
-    );
+    };
+    scan_deep(body_source, &ctx, &mut traits, &mut upvar_aliases, 0);
 
     finalise_traits(traits)
 }
@@ -195,19 +190,18 @@ pub fn infer_param_traits_deep_with_config(
 /// when callers want to run the shallow pass synchronously for
 /// an initial result and then upgrade with the deep pass once it
 /// completes.
-//
-// `implicit_hasher` allowed: this helper is paired with
-// [`infer_param_traits`] / [`infer_param_traits_deep`], both
-// of which return the default-hasher [`HashMap`].  Generalising
-// the hasher here would force every caller (today and future)
-// to declare the same type parameter for no practical gain —
-// the call sites unconditionally feed the helper their results.
-#[allow(clippy::implicit_hasher)]
+///
+/// Generic over the hasher so it composes with whatever
+/// [`infer_param_traits`] / [`infer_param_traits_deep`] return.
 #[must_use]
-pub fn merge_traits(
-    shallow: HashMap<String, HashSet<ProcArgTrait>>,
-    deep: HashMap<String, HashSet<ProcArgTrait>>,
-) -> HashMap<String, HashSet<ProcArgTrait>> {
+pub fn merge_traits<S, H>(
+    shallow: HashMap<String, HashSet<ProcArgTrait, H>, S>,
+    deep: HashMap<String, HashSet<ProcArgTrait, H>, S>,
+) -> HashMap<String, HashSet<ProcArgTrait, H>, S>
+where
+    S: std::hash::BuildHasher,
+    H: std::hash::BuildHasher + Default,
+{
     let mut merged = shallow;
     for (param, deep_traits) in deep {
         merged.entry(param).or_default().extend(deep_traits);
@@ -229,34 +223,37 @@ fn finalise_traits(
         .collect()
 }
 
+/// Read-only inference state threaded unchanged through the
+/// shallow and deep scan family (`scan_commands` / `scan_command`
+/// / `scan_deep`).  Bundling these into one borrowing context
+/// keeps each scan helper at or under the 7-argument limit.
+///
+/// `'p` is the params' lifetime (the param-name slices borrowed
+/// from the caller's `params` argument); `'r` borrows the
+/// registry / overlay / param-set for the duration of a scan.
+struct ScanCtx<'p, 'r> {
+    param_set: &'r HashSet<&'p str>,
+    registry: &'r CommandRegistry,
+    stub_overlay: Option<&'r StubOverlay>,
+    config: LexerConfig,
+}
+
 /// Single-level command scan shared by both passes.  Extracts
 /// segmented commands from `source` and dispatches each through
 /// [`scan_command`].
 ///
-/// `'p` is the params' lifetime (the param-name slices borrowed
-/// from the caller's `params` argument); `source` has an
-/// independent lifetime so callers can re-enter with body-arg
-/// slices that don't outlive the enclosing source.
+/// `source` has a lifetime independent of `'p` so callers can
+/// re-enter with body-arg slices that don't outlive the
+/// enclosing source.
 fn scan_commands<'p>(
     source: &str,
-    param_set: &HashSet<&'p str>,
+    ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-    config: LexerConfig,
 ) {
-    let commands = extract_commands(source, config);
+    let commands = extract_commands(source, ctx.config);
     for (cmd_name, cmd_args) in &commands {
-        scan_command(
-            cmd_name,
-            cmd_args,
-            param_set,
-            traits,
-            upvar_aliases,
-            registry,
-            stub_overlay,
-        );
+        scan_command(cmd_name, cmd_args, ctx, traits, upvar_aliases);
     }
 }
 
@@ -269,42 +266,24 @@ fn scan_commands<'p>(
 /// braced bodies, and any `Eval` trait they carry is recorded
 /// at the top level by the same call-site's role scan.
 //
-// `too_many_arguments` allowed: the recursion threads the same
-// read-only inference state (`param_set` / `traits` / `upvar_aliases`
-// / `registry` / `stub_overlay` / `config`) that the sibling
-// `scan_commands` / `scan_command` / `handle_*` helpers also take by
-// value.  Bundling them into a context struct would ripple through that
-// whole family — a separate cleanup, out of scope here.
-#[allow(clippy::too_many_arguments)]
 fn scan_deep<'p>(
     source: &str,
-    param_set: &HashSet<&'p str>,
+    ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
     depth: u8,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-    config: LexerConfig,
 ) {
     if depth > MAX_DEPTH {
         return;
     }
 
-    scan_commands(
-        source,
-        param_set,
-        traits,
-        upvar_aliases,
-        registry,
-        stub_overlay,
-        config,
-    );
+    scan_commands(source, ctx, traits, upvar_aliases);
 
     // The recursion only walks braced bodies, so we re-segment
     // here rather than threading the segmented commands through
     // `scan_commands`.  The segmented slices have a lifetime
     // tied to this stack frame; each recursion needs its own.
-    let segments = segment_commands_with_offset_and_config(source, 0, config);
+    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
     for seg in segments {
         if seg.texts.is_empty() {
             continue;
@@ -315,11 +294,12 @@ fn scan_deep<'p>(
         // commands) and the stub overlay (for user-declared
         // `# tcl-lsp: stub` commands).  Union so a stub-defined
         // body arg recurses just like a registry-defined one.
-        let mut body_indices: HashSet<usize> = registry
+        let mut body_indices: HashSet<usize> = ctx
+            .registry
             .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body)
             .into_iter()
             .collect();
-        if let Some(overlay) = stub_overlay {
+        if let Some(overlay) = ctx.stub_overlay {
             body_indices.extend(overlay.arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body));
         }
         for idx in body_indices {
@@ -342,16 +322,7 @@ fn scan_deep<'p>(
             if head.len() >= 2 && (head[1] == b'$' || head[1] == b'[') {
                 continue;
             }
-            scan_deep(
-                body_text,
-                param_set,
-                traits,
-                upvar_aliases,
-                depth + 1,
-                registry,
-                stub_overlay,
-                config,
-            );
+            scan_deep(body_text, ctx, traits, upvar_aliases, depth + 1);
         }
     }
 }
@@ -449,20 +420,19 @@ fn resolve_arg_roles(
 fn scan_command<'p>(
     cmd_name: &str,
     cmd_args: &[String],
-    param_set: &HashSet<&'p str>,
+    ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
 ) {
+    let param_set = ctx.param_set;
     apply_arg_role_traits(
         cmd_name,
         cmd_args,
         param_set,
         traits,
         upvar_aliases,
-        registry,
-        stub_overlay,
+        ctx.registry,
+        ctx.stub_overlay,
     );
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 

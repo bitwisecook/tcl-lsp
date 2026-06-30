@@ -32,7 +32,7 @@
 use std::collections::HashSet;
 
 use tcl_syntax::expr::ast::render_expr;
-use tcl_syntax::expr::{parse_expr, BinOp, ExprNode, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp, parse_expr};
 
 // -- Harness ----------------------------------------------------------------
 
@@ -1084,11 +1084,61 @@ fn parser_never_panics_on_fuzzy_inputs() {
     // A broad smoke screen: none of these may panic; each is either a valid
     // tree or Raw. This exercises a wide spread of error branches at once.
     for s in [
-        "", " ", "(", ")", "()", "((", "))", "?", ":", ",", "+", "-", "*", "/", "**", "==", "!",
-        "~", "&&", "||", "1 +", "+ 1", "1 ? 2", "1 : 2", "sin", "sin(", "sin()", "max(,)",
-        "$", "${", "[", "]", "[]", "1 2 3", "@#$%^&", "\\", "1 \\ 2", "{", "}", "{}",
-        "1.2.3", "0x", "0xG", "1e", "1e+", ".", "..", "...", "$a $b $c",
-        "1 ? 2 : 3 : 4", "(((", ")))", "a(b(c(", "* * *", "~ ~ ~ ~",
+        "",
+        " ",
+        "(",
+        ")",
+        "()",
+        "((",
+        "))",
+        "?",
+        ":",
+        ",",
+        "+",
+        "-",
+        "*",
+        "/",
+        "**",
+        "==",
+        "!",
+        "~",
+        "&&",
+        "||",
+        "1 +",
+        "+ 1",
+        "1 ? 2",
+        "1 : 2",
+        "sin",
+        "sin(",
+        "sin()",
+        "max(,)",
+        "$",
+        "${",
+        "[",
+        "]",
+        "[]",
+        "1 2 3",
+        "@#$%^&",
+        "\\",
+        "1 \\ 2",
+        "{",
+        "}",
+        "{}",
+        "1.2.3",
+        "0x",
+        "0xG",
+        "1e",
+        "1e+",
+        ".",
+        "..",
+        "...",
+        "$a $b $c",
+        "1 ? 2 : 3 : 4",
+        "(((",
+        ")))",
+        "a(b(c(",
+        "* * *",
+        "~ ~ ~ ~",
     ] {
         let n = parse_expr(s, None);
         // Any node kind is acceptable; the contract is "did not panic".

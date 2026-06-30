@@ -5,7 +5,7 @@
 //! Snapshots are F5/registry-internal canonical JSON with no core-tclsh
 //! analogue, so the proof is structural: the dump is well-formed,
 //! deterministic (byte-identical across two builds → sorted keys, no
-//! HashMap iteration), and contains exactly the core commands tclsh reports
+//! `HashMap` iteration), and contains exactly the core commands tclsh reports
 //! via `info commands`. The per-dialect registry is loaded via
 //! `registry_for_dialect` so the f5-irules `validEvents` cross-product path
 //! is exercised, not just the empty-list Tcl path.
@@ -21,10 +21,19 @@ fn command_registry_snapshot_is_wellformed_and_deterministic() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"] {
         let reg = registry_for_dialect(dialect);
         let out = command_registry_snapshot(reg, dialect).dumps_indent2();
-        assert!(out.starts_with('{'), "{dialect}: snapshot must be a JSON object");
+        assert!(
+            out.starts_with('{'),
+            "{dialect}: snapshot must be a JSON object"
+        );
         assert!(out.contains("\"dialect\""), "{dialect}: has dialect field");
-        assert!(out.contains("\"commandCount\""), "{dialect}: has commandCount");
-        assert!(out.contains("\"commands\""), "{dialect}: has commands array");
+        assert!(
+            out.contains("\"commandCount\""),
+            "{dialect}: has commandCount"
+        );
+        assert!(
+            out.contains("\"commands\""),
+            "{dialect}: has commands array"
+        );
         assert!(
             out.contains(&format!("\"{dialect}\"")),
             "{dialect}: snapshot names its own dialect"
@@ -44,8 +53,13 @@ fn tcl_snapshot_contains_core_commands() {
     // command snapshot must list them.
     let reg = registry_for_dialect("tcl8.6");
     let out = command_registry_snapshot(reg, "tcl8.6").dumps_indent2();
-    for cmd in ["puts", "set", "expr", "string", "lindex", "proc", "if", "foreach", "lsort"] {
-        assert!(out.contains(&format!("\"{cmd}\"")), "8.6 snapshot missing {cmd}");
+    for cmd in [
+        "puts", "set", "expr", "string", "lindex", "proc", "if", "foreach", "lsort",
+    ] {
+        assert!(
+            out.contains(&format!("\"{cmd}\"")),
+            "8.6 snapshot missing {cmd}"
+        );
     }
 }
 
@@ -54,11 +68,17 @@ fn multi_dialect_snapshot_has_schema_and_all_dialects() {
     let reg = registry_for_dialect("tcl9.0");
     let dialects = ["tcl8.6", "tcl9.0"];
     let out = command_registry_snapshots(reg, &dialects).dumps_indent2();
-    assert!(out.contains("tcl-lsp/registry/commands/v1"), "has schema id");
+    assert!(
+        out.contains("tcl-lsp/registry/commands/v1"),
+        "has schema id"
+    );
     for d in dialects {
         assert!(out.contains(&format!("\"{d}\"")), "missing dialect {d}");
     }
-    assert_eq!(out, command_registry_snapshots(reg, &dialects).dumps_indent2());
+    assert_eq!(
+        out,
+        command_registry_snapshots(reg, &dialects).dumps_indent2()
+    );
 }
 
 #[test]

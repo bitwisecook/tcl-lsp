@@ -5,7 +5,7 @@
 //! Python's):
 //!   * `tests/test_codegen.py`          (the bytecode-assembly backend basics)
 //!   * `tests/test_complex_codegen.py`  (nested control flow, expr edge cases,
-//!                                       switch/loop/proc/try, CFG structure)
+//!     switch/loop/proc/try, CFG structure)
 //!
 //! Rust pipeline used throughout: `lower_to_ir` → `build_cfg_codegen` /
 //! `build_cfg` → `codegen_module` / `codegen_function`, then inspect the
@@ -25,11 +25,11 @@
 //!
 //! ── Python codegen surface with NO clean Rust analogue (documented, not ported) ─
 //!  1. SPECIALISED string/dict-subcommand opcodes. The Python emitter lowers
-//!     `string length` → STR_LEN, `string index` → STR_INDEX, `string toupper`
-//!     → STR_UPPER, `string trim*` → STR_TRIM*, `string match` → STR_MATCH,
-//!     `string equal/compare` → STR_EQ/STR_CMP, `string range/first/last/
-//!     replace/map`, `lindex` → LIST_INDEX_IMM, `dict get/exists` → DICT_GET/
-//!     DICT_EXISTS, etc. The Rust emitter (verified by probing
+//!     `string length` → `STR_LEN`, `string index` → `STR_INDEX`, `string toupper`
+//!     → `STR_UPPER`, `string trim*` → `STR_TRIM`*, `string match` → `STR_MATCH`,
+//!     `string equal/compare` → `STR_EQ/STR_CMP`, `string range/first/last/
+//!     replace/map`, `lindex` → `LIST_INDEX_IMM`, `dict get/exists` → `DICT_GET`/
+//!     `DICT_EXISTS`, etc. The Rust emitter (verified by probing
 //!     `codegen_module`) routes ALL of these through a generic `invokeStk1`
 //!     both at top level AND in proc bodies — the dedicated string/dict
 //!     opcodes exist in `Op` but the bytecode emitter does not select them for
@@ -41,8 +41,8 @@
 //!     emitter DOES specialise — llength/lrange/linsert/lassign/lreplace — are
 //!     ported with their real opcodes.)
 //!  2. `LiteralTable.entries()` returns `&[String]` (ordered, deduped) and
-//!     `LocalVarTable` likewise — ported directly (TestLiteralTable /
-//!     TestLocalVarTable).
+//!     `LocalVarTable` likewise — ported directly (`TestLiteralTable` /
+//!     `TestLocalVarTable`).
 //!  3. `_esc` escaping. The Rust `format::esc` matches C-Tcl's disassembler
 //!     BYTE-WISE over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of
 //!     each raw UTF-8 byte (so `ÿ` U+00FF → `Ã¿`, an astral char →
@@ -91,7 +91,7 @@ fn sp() -> Span {
     Span::new(0, 0)
 }
 
-/// Lower `source` → IR → CFG (codegen flavour, defer top-level) → ModuleAsm.
+/// Lower `source` → IR → CFG (codegen flavour, defer top-level) → `ModuleAsm`.
 fn asm_for(source: &str) -> tcl_compiler::codegen::ModuleAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
@@ -301,7 +301,10 @@ fn quoted_close_brace_is_string_literal_issue_130() {
     // bare `}` character as a literal (not treat it as a delimiter).
     let fa = top_asm("append x \"}\"");
     let lits = fa.literals.entries();
-    assert!(lits.iter().any(|l| l == "}"), "expected '}}' literal, got {lits:?}");
+    assert!(
+        lits.iter().any(|l| l == "}"),
+        "expected '}}' literal, got {lits:?}"
+    );
     // Rust emits PUSH + generic invoke for top-level `append` (no APPEND_STK
     // specialisation at script scope) — assert the literal push path, not a
     // stray syntax-error path.
@@ -313,7 +316,10 @@ fn quoted_close_bracket_is_string_literal() {
     // Mirror: `puts "]"` must intern `]` as a literal.
     let fa = top_asm("puts \"]\"");
     let lits = fa.literals.entries();
-    assert!(lits.iter().any(|l| l == "]"), "expected ']' literal, got {lits:?}");
+    assert!(
+        lits.iter().any(|l| l == "]"),
+        "expected ']' literal, got {lits:?}"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -509,8 +515,14 @@ fn string_subcommands_route_through_generic_invoke() {
     ] {
         let fa = top_asm(src);
         let ops = opcodes(&fa);
-        assert!(ops.contains(&Op::INVOKE_STK1), "{src}: expected generic invoke");
-        assert!(!ops.contains(&Op::STR_LEN), "{src}: Rust does not specialise STR_LEN");
+        assert!(
+            ops.contains(&Op::INVOKE_STK1),
+            "{src}: expected generic invoke"
+        );
+        assert!(
+            !ops.contains(&Op::STR_LEN),
+            "{src}: Rust does not specialise STR_LEN"
+        );
         assert!(
             fa.literals.entries().iter().any(|l| l == "string"),
             "{src}: 'string' literal present"
@@ -574,7 +586,12 @@ fn format_module() {
 #[test]
 fn format_instruction_offsets_monotonic() {
     let fa = top_asm("set x 1; set y 2; set z [expr {$x + $y}]");
-    let offsets: Vec<i32> = fa.instructions.iter().map(|i| i.offset).filter(|&o| o >= 0).collect();
+    let offsets: Vec<i32> = fa
+        .instructions
+        .iter()
+        .map(|i| i.offset)
+        .filter(|&o| o >= 0)
+        .collect();
     for w in offsets.windows(2) {
         assert!(w[1] >= w[0], "offsets must be monotonic: {offsets:?}");
     }
@@ -591,7 +608,8 @@ fn format_proc_has_local_variables() {
 
 #[test]
 fn format_done_always_at_end() {
-    let ma = asm_for("proc add {a b} { expr {$a + $b} }\nproc sub {a b} { expr {$a - $b} }\nset x 1");
+    let ma =
+        asm_for("proc add {a b} { expr {$a + $b} }\nproc sub {a b} { expr {$a - $b} }\nset x 1");
     assert_eq!(ma.top_level.instructions.last().unwrap().op, Op::DONE);
     for (name, fa) in &ma.procedures {
         assert_eq!(
@@ -658,12 +676,16 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
     // Literals: section — no raw control byte reaches the formatter output.
     let mut cfg = CfgFunction::new("::top", "entry_0");
     let entry = cfg.entry;
-    cfg.blocks.get_mut(&entry).unwrap().statements.push(Statement::AssignConst {
-        span: sp(),
-        name: "x".into(),
-        name_braced: false,
-        value: "\x00\x02-".into(),
-    });
+    cfg.blocks
+        .get_mut(&entry)
+        .unwrap()
+        .statements
+        .push(Statement::AssignConst {
+            span: sp(),
+            name: "x".into(),
+            name_braced: false,
+            value: "\x00\x02-".into(),
+        });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
@@ -720,7 +742,10 @@ fn proc_with_many_params() {
         "proc many {a b c d e f g h} { return [expr {$a + $b + $c + $d + $e + $f + $g + $h}] }",
         "::many",
     );
-    assert_eq!(&fa.lvt.entries()[..8], &["a", "b", "c", "d", "e", "f", "g", "h"]);
+    assert_eq!(
+        &fa.lvt.entries()[..8],
+        &["a", "b", "c", "d", "e", "f", "g", "h"]
+    );
 }
 
 #[test]
@@ -765,7 +790,10 @@ fn if_inside_for() {
     let src = "proc f {n} { set total 0; for {set i 0} {$i < $n} {incr i} { if {$i % 2 == 0} { set total [expr {$total + $i}] } else { set total [expr {$total - $i}] } }; return $total }";
     // tclsh: f 5  →  2   (0-1+2-3+4)   (9.0)
     let ops = opcodes(&proc_asm(src, "::f"));
-    assert!(has_cond_jump(&ops), "for header + if branch need conditional jumps");
+    assert!(
+        has_cond_jump(&ops),
+        "for header + if branch need conditional jumps"
+    );
     assert!(ops.contains(&Op::ADD));
     assert!(ops.contains(&Op::SUB));
     assert!(ops.contains(&Op::MOD));
@@ -830,7 +858,8 @@ fn foreach_inside_for() {
 
 #[test]
 fn ternary_in_expr() {
-    let src = "proc clamp {x lo hi} { set r [expr {$x < $lo ? $lo : ($x > $hi ? $hi : $x)}]; return $r }";
+    let src =
+        "proc clamp {x lo hi} { set r [expr {$x < $lo ? $lo : ($x > $hi ? $hi : $x)}]; return $r }";
     let ops = opcodes(&proc_asm(src, "::clamp"));
     assert!(ops.contains(&Op::LT));
     assert!(ops.contains(&Op::GT));
@@ -945,7 +974,10 @@ fn switch_fallthrough_stays_irswitch() {
         .flat_map(|b| &b.statements)
         .filter(|s| matches!(s, Statement::Switch { .. }))
         .count();
-    assert_eq!(irswitch_count, 1, "fallthrough switch should stay as IRSwitch");
+    assert_eq!(
+        irswitch_count, 1,
+        "fallthrough switch should stay as IRSwitch"
+    );
     // Codegen still works.
     assert!(opcodes(&proc_asm(src, "::classify")).contains(&Op::DONE));
 }
@@ -957,15 +989,16 @@ fn switch_glob_stays_as_irswitch() {
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::ext"];
     let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements.iter().any(|s| {
-            matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -glob"))
-        })
+        b.statements.iter().any(
+            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -glob")),
+        )
     });
     assert!(!has_barrier, "-glob should not lower to a Barrier");
-    let has_switch = proc_cfg
-        .blocks
-        .values()
-        .any(|b| b.statements.iter().any(|s| matches!(s, Statement::Switch { .. })));
+    let has_switch = proc_cfg.blocks.values().any(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Switch { .. }))
+    });
     assert!(has_switch, "-glob should keep IRSwitch for inline codegen");
 }
 
@@ -976,22 +1009,31 @@ fn switch_regexp_stays_switch() {
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::match"];
     let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements.iter().any(|s| {
-            matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -regexp"))
-        })
+        b.statements.iter().any(
+            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -regexp")),
+        )
     });
     assert!(!has_barrier, "-regexp should not lower to a Barrier");
-    let has_switch = proc_cfg
-        .blocks
-        .values()
-        .any(|b| b.statements.iter().any(|s| matches!(s, Statement::Switch { .. })));
-    assert!(has_switch, "-regexp should keep IRSwitch for inline codegen");
+    let has_switch = proc_cfg.blocks.values().any(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Switch { .. }))
+    });
+    assert!(
+        has_switch,
+        "-regexp should keep IRSwitch for inline codegen"
+    );
 }
 
 #[test]
 fn switch_many_arms() {
-    let arms: String = (0..10).map(|i| format!("v{i} {{ set r {i} }}")).collect::<Vec<_>>().join(" ");
-    let src = format!("proc big_switch {{x}} {{ switch -exact $x {{ {arms} default {{ set r -1 }} }}; return $r }}");
+    let arms: String = (0..10)
+        .map(|i| format!("v{i} {{ set r {i} }}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let src = format!(
+        "proc big_switch {{x}} {{ switch -exact $x {{ {arms} default {{ set r -1 }} }}; return $r }}"
+    );
     let ops = opcodes(&proc_asm(&src, "::big_switch"));
     assert!(ops.contains(&Op::DONE));
     let cond = count(&ops, Op::JUMP_TRUE1)
@@ -999,7 +1041,10 @@ fn switch_many_arms() {
         + count(&ops, Op::JUMP_FALSE1)
         + count(&ops, Op::JUMP_FALSE4);
     let has_jump_table = ops.contains(&Op::JUMP_TABLE);
-    assert!(cond >= 10 || has_jump_table, "10 arms → conditional branches or a jump table");
+    assert!(
+        cond >= 10 || has_jump_table,
+        "10 arms → conditional branches or a jump table"
+    );
 }
 
 #[test]
@@ -1018,7 +1063,10 @@ fn break_in_while() {
     let src = "proc find_first {lst target} { set i 0; while {$i < 100} { if {$i == $target} { break }; incr i }; return $i }";
     let ops = opcodes(&proc_asm(src, "::find_first"));
     assert!(has_cond_jump(&ops));
-    assert!(ops.contains(&Op::JUMP4), "break compiles to JUMP4 to loop end");
+    assert!(
+        ops.contains(&Op::JUMP4),
+        "break compiles to JUMP4 to loop end"
+    );
 }
 
 #[test]
@@ -1115,7 +1163,11 @@ fn for_loop_registered_in_loop_nodes() {
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::loop"];
-    assert_eq!(proc_cfg.loop_nodes.len(), 1, "the single for loop registers one loop node");
+    assert_eq!(
+        proc_cfg.loop_nodes.len(),
+        1,
+        "the single for loop registers one loop node"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1180,7 +1232,8 @@ fn dict_for_becomes_barrier() {
 
 #[test]
 fn proc_array_ref() {
-    let src = "proc array_op {key} { set arr(key1) \"val1\"; set arr($key) \"val2\"; return $arr(key1) }";
+    let src =
+        "proc array_op {key} { set arr(key1) \"val1\"; set arr($key) \"val2\"; return $arr(key1) }";
     let ops = opcodes(&proc_asm(src, "::array_op"));
     assert!(ops.contains(&Op::STORE_ARRAY1));
     assert!(ops.contains(&Op::LOAD_ARRAY1));
@@ -1205,8 +1258,14 @@ fn qualified_var_in_proc() {
 fn incr_in_proc_vs_top_level() {
     let proc_fa = proc_asm("proc inc {x} { incr x; return $x }", "::inc");
     let top = ops_of("set x 0; incr x");
-    assert!(opcodes(&proc_fa).contains(&Op::INCR_SCALAR1_IMM), "proc uses INCR_SCALAR1_IMM");
-    assert!(top.contains(&Op::INCR_STK_IMM), "top-level uses INCR_STK_IMM");
+    assert!(
+        opcodes(&proc_fa).contains(&Op::INCR_SCALAR1_IMM),
+        "proc uses INCR_SCALAR1_IMM"
+    );
+    assert!(
+        top.contains(&Op::INCR_STK_IMM),
+        "top-level uses INCR_STK_IMM"
+    );
 }
 
 #[test]
@@ -1286,7 +1345,10 @@ fn dict_get_path() {
     let fa = top_asm("set d [dict create a 1 b 2]; dict get $d a");
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(!ops.contains(&Op::DICT_GET), "Rust does not select DICT_GET here");
+    assert!(
+        !ops.contains(&Op::DICT_GET),
+        "Rust does not select DICT_GET here"
+    );
     assert!(fa.literals.entries().iter().any(|l| l == "dict"));
 }
 
@@ -1295,7 +1357,10 @@ fn dict_exists_path() {
     let fa = top_asm("set d [dict create a 1]; dict exists $d a");
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(!ops.contains(&Op::DICT_EXISTS), "Rust does not select DICT_EXISTS here");
+    assert!(
+        !ops.contains(&Op::DICT_EXISTS),
+        "Rust does not select DICT_EXISTS here"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1328,7 +1393,11 @@ fn if_else_merge_block() {
                 .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "b"))
         })
         .collect();
-    assert_eq!(merge_blocks.len(), 1, "`set b 3` lands in exactly one merge block");
+    assert_eq!(
+        merge_blocks.len(),
+        1,
+        "`set b 3` lands in exactly one merge block"
+    );
 }
 
 #[test]
@@ -1345,7 +1414,11 @@ fn for_loop_back_edge() {
         .expect("for_header block");
     let block = proc_cfg.block_by_name(&header).unwrap();
     match &block.terminator {
-        Some(Terminator::Branch { true_target, false_target, .. }) => {
+        Some(Terminator::Branch {
+            true_target,
+            false_target,
+            ..
+        }) => {
             assert!(proc_cfg.blocks.contains_key(true_target));
             assert!(proc_cfg.blocks.contains_key(false_target));
         }
@@ -1373,7 +1446,10 @@ fn return_terminates_block() {
                 .iter()
                 .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "b"))
     });
-    assert!(!in_live_block, "dead `set b 2` must not be in a reachable block");
+    assert!(
+        !in_live_block,
+        "dead `set b 2` must not be in a reachable block"
+    );
 }
 
 #[test]
@@ -1389,10 +1465,10 @@ fn all_blocks_reachable() {
         if !visited.insert(id) {
             continue;
         }
-        if let Some(block) = proc_cfg.blocks.get(&id) {
-            if let Some(t) = &block.terminator {
-                queue.extend(t.successors());
-            }
+        if let Some(block) = proc_cfg.blocks.get(&id)
+            && let Some(t) = &block.terminator
+        {
+            queue.extend(t.successors());
         }
     }
     // Every block reached from entry must be a real block in the CFG (no
@@ -1401,7 +1477,10 @@ fn all_blocks_reachable() {
     // reachable set to equal *all* blocks (Python's CFG shape did). Instead,
     // assert the reachable set covers the real then/else/merge blocks.
     for id in &visited {
-        assert!(proc_cfg.blocks.contains_key(id), "dangling successor {id:?}");
+        assert!(
+            proc_cfg.blocks.contains_key(id),
+            "dangling successor {id:?}"
+        );
     }
     let reachable_names: std::collections::HashSet<&str> =
         visited.iter().map(|&id| proc_cfg.block_name(id)).collect();
@@ -1435,21 +1514,23 @@ fn set_integer_becomes_assign_const() {
 #[test]
 fn set_expr_becomes_assign_expr() {
     let ir = ir_for("set r [expr {1 + 2}]");
-    assert!(ir
-        .top_level
-        .statements
-        .iter()
-        .any(|s| matches!(s, Statement::AssignExpr { name, .. } if name == "r")));
+    assert!(
+        ir.top_level
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::AssignExpr { name, .. } if name == "r"))
+    );
 }
 
 #[test]
 fn set_value_becomes_assign_value() {
     let ir = ir_for("set x $y");
-    assert!(ir
-        .top_level
-        .statements
-        .iter()
-        .any(|s| matches!(s, Statement::AssignValue { name, .. } if name == "x")));
+    assert!(
+        ir.top_level
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::AssignValue { name, .. } if name == "x"))
+    );
 }
 
 #[test]
@@ -1472,13 +1553,23 @@ fn incr_with_amount() {
 fn return_with_options_becomes_barrier() {
     let ir = ir_for("proc fail {} { return -code error \"oops\" }");
     let proc = &ir.procedures["::fail"];
-    assert!(proc.body.statements.iter().any(|s| matches!(s, Statement::Barrier { .. })));
+    assert!(
+        proc.body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::Barrier { .. }))
+    );
 }
 
 #[test]
 fn standalone_expr_becomes_expr_eval() {
     let ir = ir_for("expr {1 + 2}");
-    assert!(ir.top_level.statements.iter().any(|s| matches!(s, Statement::ExprEval { .. })));
+    assert!(
+        ir.top_level
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::ExprEval { .. }))
+    );
 }
 
 #[test]
@@ -1486,9 +1577,12 @@ fn if_without_braces_fallback() {
     let ir = ir_for("if $x {puts ok}");
     let stmts = &ir.top_level.statements;
     assert!(!stmts.is_empty());
-    let has_expected = stmts
-        .iter()
-        .any(|s| matches!(s, Statement::If { .. } | Statement::Barrier { .. } | Statement::Call { .. }));
+    let has_expected = stmts.iter().any(|s| {
+        matches!(
+            s,
+            Statement::If { .. } | Statement::Barrier { .. } | Statement::Call { .. }
+        )
+    });
     assert!(
         has_expected,
         "expected If/Barrier/Call, got {:?}",
@@ -1548,7 +1642,8 @@ fn state_machine() {
 
 #[test]
 fn multiproc_module_format() {
-    let src = "proc add {a b} { expr {$a + $b} }\nproc mul {a b} { expr {$a * $b} }\nadd 1 2\nmul 3 4";
+    let src =
+        "proc add {a b} { expr {$a + $b} }\nproc mul {a b} { expr {$a * $b} }\nadd 1 2\nmul 3 4";
     let text = format_module_asm(&asm_for(src));
     assert!(text.contains("ByteCode ::top"));
     assert!(text.contains("ByteCode ::add"));
@@ -1562,7 +1657,10 @@ fn complex_value_interpolation_in_proc() {
     // literal (runtime word-substitution resolves the `$name`/`$age` markers),
     // then storeScalar1 — no compile-time STR_CONCAT1. Assert the store path +
     // the interpolated literal is interned verbatim.
-    let fa = proc_asm("proc greet {name age} { set msg \"Hello, $name! You are $age years old.\"; return $msg }", "::greet");
+    let fa = proc_asm(
+        "proc greet {name age} { set msg \"Hello, $name! You are $age years old.\"; return $msg }",
+        "::greet",
+    );
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::STORE_SCALAR1));
     assert!(
@@ -1594,7 +1692,11 @@ fn catch_inside_loop() {
 
 #[test]
 fn large_literal_table() {
-    let assigns: String = (0..50).map(|i| format!("    set v{i} {i}\n")).collect();
+    let mut assigns = String::new();
+    for i in 0..50 {
+        use std::fmt::Write as _;
+        let _ = writeln!(assigns, "    set v{i} {i}");
+    }
     let src = format!("proc many_lits {{}} {{\n{assigns}}}\n");
     let fa = proc_asm(&src, "::many_lits");
     assert!(fa.literals.len() >= 50);
@@ -1618,8 +1720,15 @@ fn labels_point_to_valid_offsets() {
         // `usize` offset is inherently >= 0; assert it is within the byte span
         // and the label is non-empty so the table is meaningful.
         assert!(!label.is_empty());
-        let total_bytes: usize = fa.instructions.iter().map(|i| usize::from(i.op.size())).sum();
-        assert!(off <= total_bytes + 16, "label {label} offset {off} absurdly large");
+        let total_bytes: usize = fa
+            .instructions
+            .iter()
+            .map(|i| usize::from(i.op.size()))
+            .sum();
+        assert!(
+            off <= total_bytes + 16,
+            "label {label} offset {off} absurdly large"
+        );
     }
     assert!(fa.labels.len() >= 2, "if/else needs at least 2 labels");
 }
@@ -1630,7 +1739,8 @@ fn labels_point_to_valid_offsets() {
 
 #[test]
 fn catch_in_if_condition() {
-    let src = "proc safe_check {} { if {[catch {expr {1/0}} result]} { return $result }; return \"ok\" }";
+    let src =
+        "proc safe_check {} { if {[catch {expr {1/0}} result]} { return $result }; return \"ok\" }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::safe_check"];
@@ -1701,14 +1811,21 @@ fn foreach_three_lists() {
 
 #[test]
 fn foreach_multi_var_per_group() {
-    let src = "proc pairs {lst} { set r {}; foreach {k v} $lst { lappend r \"$k=$v\" }; return $r }";
+    let src =
+        "proc pairs {lst} { set r {}; foreach {k v} $lst { lappend r \"$k=$v\" }; return $r }";
     let ir = ir_for(src);
     let p = &ir.procedures["::pairs"];
     let fe = p
         .body
         .statements
         .iter()
-        .find_map(|s| if let Statement::Foreach { iterators, .. } = s { Some(iterators) } else { None })
+        .find_map(|s| {
+            if let Statement::Foreach { iterators, .. } = s {
+                Some(iterators)
+            } else {
+                None
+            }
+        })
         .expect("foreach");
     let var_list = &fe[0].vars;
     assert_eq!(var_list.len(), 2);
@@ -1736,10 +1853,15 @@ fn top_level_foreach_deferred_is_generic_call() {
                 || matches!(s, Statement::Barrier { command, .. } if command == "foreach")
         })
     });
-    assert!(has_foreach_call, "deferred foreach should be a generic call/barrier");
+    assert!(
+        has_foreach_call,
+        "deferred foreach should be a generic call/barrier"
+    );
     // And it must NOT have been inlined into foreach_* blocks.
     assert!(
-        !top.block_names().iter().any(|n| n.contains("foreach_header")),
+        !top.block_names()
+            .iter()
+            .any(|n| n.contains("foreach_header")),
         "deferred foreach must not be inlined"
     );
 }
@@ -1750,7 +1872,11 @@ fn top_level_foreach_inlined() {
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false); // defer_top_level = false
     let top = &cfg.top_level;
-    assert!(top.block_names().iter().any(|n| n.contains("foreach_header")));
+    assert!(
+        top.block_names()
+            .iter()
+            .any(|n| n.contains("foreach_header"))
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1764,9 +1890,9 @@ fn frozen_for_cmd_subst_condition() {
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::frozen"];
     let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen for")))
+        b.statements.iter().any(
+            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen for")),
+        )
     });
     assert!(has_barrier);
 }
@@ -1778,9 +1904,9 @@ fn frozen_while_cmd_subst_condition() {
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::frozen_while"];
     let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen while")))
+        b.statements.iter().any(
+            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen while")),
+        )
     });
     assert!(has_barrier);
 }

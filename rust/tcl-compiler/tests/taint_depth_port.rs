@@ -26,8 +26,8 @@
 //! cited in a `// tclsh:` comment. The headline facts proven while authoring
 //! this file (all agree on 8.6 and 9.0):
 //!   * `file join /base sub ../etc` → `/base/sub/../etc` — a portable *concat*
-//!     that does NOT canonicalise away `..` (so `[file join]` earns PATH_JOINED,
-//!     not PATH_NORMALISED, and does not clear W313).
+//!     that does NOT canonicalise away `..` (so `[file join]` earns `PATH_JOINED`,
+//!     not `PATH_NORMALISED`, and does not clear W313).
 //!   * `regsub -all a banana X` → `bXnXnX` — `regsub` returns the substituted
 //!     *string* (a content value, not a count), so a tainted pattern is a live
 //!     regex-injection vector (T103).
@@ -91,7 +91,9 @@ fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
 
 /// True when any warning of `code` names `var`.
 fn has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
-    of_code(src, dialect, code).iter().any(|w| w.variable == var)
+    of_code(src, dialect, code)
+        .iter()
+        .any(|w| w.variable == var)
 }
 
 // ===========================================================================
@@ -127,7 +129,10 @@ mod colour_masks {
             TaintColour::REGEX_LITERAL,
             TaintColour::SHELL_ATOM,
         ] {
-            assert!(!TaintColour::T102_SAFE.contains(c), "{c:?} must not be T102_SAFE");
+            assert!(
+                !TaintColour::T102_SAFE.contains(c),
+                "{c:?} must not be T102_SAFE"
+            );
         }
     }
 
@@ -390,7 +395,11 @@ mod t100_sink_family {
     #[test]
     fn two_distinct_tainted_vars_in_eval_each_warn() {
         // Dedup is per-variable, not per-statement: `eval "$a $b"` flags both.
-        let ws = of_code("set a [read $f1]\nset b [read $f2]\neval \"$a $b\"", D, "T100");
+        let ws = of_code(
+            "set a [read $f1]\nset b [read $f2]\neval \"$a $b\"",
+            D,
+            "T100",
+        );
         let mut vars: Vec<String> = ws.iter().map(|w| w.variable.clone()).collect();
         vars.sort();
         vars.dedup();
@@ -462,7 +471,11 @@ mod puts_position_filter {
     fn puts_two_arg_channel_then_content_flags_content() {
         // `puts $chan $msg` — slot 0 ($chan) is the destination, slot 1 ($msg)
         // is content. Only $msg trips T101.
-        let ws = of_code("set ch [read $f1]\nset msg [read $f2]\nputs $ch $msg", D, "T101");
+        let ws = of_code(
+            "set ch [read $f1]\nset msg [read $f2]\nputs $ch $msg",
+            D,
+            "T101",
+        );
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "msg");
     }
@@ -736,7 +749,14 @@ mod t105_cross_interp {
         // `interp eval child [list puts $x]` — the constructed list's command
         // word is the literal known command `puts`, so the tainted `$x` is a
         // quoted argument, not the command word. No T105.
-        assert!(of_code("set x [read $fd]\ninterp eval child [list puts $x]", D, "T105").is_empty());
+        assert!(
+            of_code(
+                "set x [read $fd]\ninterp eval child [list puts $x]",
+                D,
+                "T105"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -846,14 +866,7 @@ mod t106_double_encode_breadth {
     fn single_encode_is_not_double() {
         // f5-dialect: one pass through the encoder is fine — T106 needs the
         // colour already present on the input.
-        assert!(
-            of_code(
-                "set x [HTTP::query]\nset a [URI::encode $x]",
-                IR,
-                "T106",
-            )
-            .is_empty()
-        );
+        assert!(of_code("set x [HTTP::query]\nset a [URI::encode $x]", IR, "T106",).is_empty());
     }
 
     #[test]
@@ -912,8 +925,10 @@ mod irule3001_depth {
             "IRULE3001",
         );
         assert!(!ws.is_empty());
-        assert!(ws[0].message.to_lowercase().contains("xss")
-            || ws[0].message.to_lowercase().contains("content injection"));
+        assert!(
+            ws[0].message.to_lowercase().contains("xss")
+                || ws[0].message.to_lowercase().contains("content injection")
+        );
     }
 }
 
@@ -1075,10 +1090,16 @@ mod irule3003_depth {
     #[test]
     fn log_message_mentions_log_injection() {
         // f5-dialect.
-        let ws = of_code("set x [HTTP::header User-Agent]\nlog local0. $x", IR, "IRULE3003");
+        let ws = of_code(
+            "set x [HTTP::header User-Agent]\nlog local0. $x",
+            IR,
+            "IRULE3003",
+        );
         assert!(!ws.is_empty());
-        assert!(ws[0].message.to_lowercase().contains("log injection")
-            || ws[0].message.to_lowercase().contains("log forging"));
+        assert!(
+            ws[0].message.to_lowercase().contains("log injection")
+                || ws[0].message.to_lowercase().contains("log forging")
+        );
     }
 }
 
@@ -1122,22 +1143,17 @@ mod irule3004_depth {
             "IRULE3004",
         );
         assert!(!ws.is_empty());
-        assert!(ws[0].message.to_lowercase().contains("open redirect")
-            || ws[0].message.to_lowercase().contains("redirect"));
+        assert!(
+            ws[0].message.to_lowercase().contains("open redirect")
+                || ws[0].message.to_lowercase().contains("redirect")
+        );
     }
 
     #[test]
     fn redirect_not_classified_under_plain_tcl() {
         // Under tcl8.6 the HTTP::redirect sink is not classified → no IRULE3004
         // even though `read` taints `$loc`.
-        assert!(
-            of_code(
-                "set loc [read $fd]\nHTTP::redirect $loc",
-                D,
-                "IRULE3004",
-            )
-            .is_empty()
-        );
+        assert!(of_code("set loc [read $fd]\nHTTP::redirect $loc", D, "IRULE3004",).is_empty());
     }
 }
 
@@ -1180,7 +1196,11 @@ mod irule3101_depth {
 
     #[test]
     fn http_path_dynamic_target_warns() {
-        let ws = of_code("set seg [read $fd]\nHTTP::path \"api/${seg}\"", IR, "IRULE3101");
+        let ws = of_code(
+            "set seg [read $fd]\nHTTP::path \"api/${seg}\"",
+            IR,
+            "IRULE3101",
+        );
         assert_eq!(ws.len(), 1);
     }
 
@@ -1253,7 +1273,11 @@ mod w313_destructive_file {
         // `file rename $a $b` — one W313 per statement on the FIRST offending
         // path variable in source order (the `arg_var_names_ordered` determinism
         // guard). `$a` precedes `$b`.
-        let ws = of_code("set a [read $f1]\nset b [read $f2]\nfile rename $a $b", D, "W313");
+        let ws = of_code(
+            "set a [read $f1]\nset b [read $f2]\nfile rename $a $b",
+            D,
+            "W313",
+        );
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "a");
     }
@@ -1403,20 +1427,18 @@ mod sanitiser_breadth {
     #[test]
     fn string_match_sanitises() {
         // tclsh: `string match pat str` → boolean.
-        assert!(
-            codes(
-                "set x [read $fd]\nset m [string match a* $x]\nexpr $m",
-                D,
-            )
-            .is_empty()
-        );
+        assert!(codes("set x [read $fd]\nset m [string match a* $x]\nexpr $m", D,).is_empty());
     }
 
     #[test]
     fn string_toupper_does_not_sanitise() {
         // tclsh: `string toupper "abc-def"` → `ABC-DEF` (content string, same
         // shape) — NOT a fixed-numeric return, so taint flows through to eval.
-        let ws = of_code("set x [read $fd]\nset u [string toupper $x]\neval $u", D, "T100");
+        let ws = of_code(
+            "set x [read $fd]\nset u [string toupper $x]\neval $u",
+            D,
+            "T100",
+        );
         assert!(ws.iter().any(|w| w.variable == "u"));
     }
 
@@ -1524,7 +1546,8 @@ mod interproc_depth {
         // matches taint_port.rs `helper_passthrough_generic_taint_fires_t102`;
         // it is pinned here for the *coloured*-source case (HTTP::uri, which is
         // T102-safe when copied directly but not when passed through `wrap`).
-        let src = "proc wrap {x} { return $x }\nset uri [HTTP::uri]\nset w [wrap $uri]\nregexp $w test";
+        let src =
+            "proc wrap {x} { return $x }\nset uri [HTTP::uri]\nset w [wrap $uri]\nregexp $w test";
         assert!(!of_code(src, D, "T102").is_empty());
     }
 
@@ -1535,8 +1558,7 @@ mod interproc_depth {
         // is T101-clean. (The embedded form `puts [len $raw]` hits the
         // emit_sink_warnings false positive documented in w313/sanitiser_breadth
         // — avoided here by binding the result to a variable.)
-        let src =
-            "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $n";
+        let src = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $n";
         assert!(of_code(src, D, "T101").is_empty());
     }
 

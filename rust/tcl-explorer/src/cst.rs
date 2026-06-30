@@ -15,8 +15,10 @@ use tcl_compiler::parsing::syntax::green::SyntaxKind;
 use tcl_compiler::parsing::syntax::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
-/// Maximum descent depth, matching `depth < 24` guard.
-const MAX_DEPTH: u32 = 24;
+/// Maximum CST descent depth — a defensive stack-overflow bound, lifted to
+/// match the analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
+/// still renders fully in the explorer. Real source never nests near this.
+const MAX_DEPTH: u32 = 256;
 
 /// Token-type name in uppercase enum-member form
 /// (`Str` → `"STR"`, `Cmd` → `"CMD"`, …).

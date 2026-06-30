@@ -69,12 +69,12 @@ use tcl_compiler::cfg_builder::build_cfg;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::memory_ssa::{build_memory_ssa, MemorySsaFunction};
+use tcl_compiler::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
@@ -98,13 +98,15 @@ fn mem(source: &str, proc: &str) -> MemorySsaFunction {
         .procedures
         .iter()
         .find(|(qname, _)| qname.contains(proc))
-        .map(|(_, f)| f)
-        .unwrap_or_else(|| {
-            panic!(
-                "proc {proc:?} not found in {:?}",
-                module.procedures.keys().collect::<Vec<_>>()
-            )
-        });
+        .map_or_else(
+            || {
+                panic!(
+                    "proc {proc:?} not found in {:?}",
+                    module.procedures.keys().collect::<Vec<_>>()
+                )
+            },
+            |(_, f)| f,
+        );
     build_memory_ssa(&build_ssa(f, registry()))
 }
 
@@ -153,7 +155,10 @@ mod alias_lattice_merge {
         // through `b`, so they must be one alias set. Regression for the
         // caller-node-keyed-on-local bug that split them. (Structural; the
         // observable binding is proven in `aliased_write_visible_through_alias`.)
-        let m = mem("proc f {} { upvar 1 x a\n upvar 1 x b\n set a 1\n set b 2 }", "f");
+        let m = mem(
+            "proc f {} { upvar 1 x a\n upvar 1 x b\n set a 1\n set b 2 }",
+            "f",
+        );
         assert_eq!(m.alias_sets.len(), 1);
         let names = m.alias_sets[0].names();
         for n in ["a", "b", "x"] {
@@ -182,7 +187,10 @@ mod alias_lattice_merge {
         // independent: writing through `a` leaves `y` (read via `b`) untouched.
         // tclsh: `set x 0; set y 0; proc f {} { upvar 1 x a; upvar 1 y b;
         //         set a 1; return $b }; puts [f]` ⇒ `0`  (8.6 and 9.0).
-        let m = mem("proc f {} { upvar 1 x a\n upvar 1 y b\n set a 1\n set b 2 }", "f");
+        let m = mem(
+            "proc f {} { upvar 1 x a\n upvar 1 y b\n set a 1\n set b 2 }",
+            "f",
+        );
         assert!(!m.may_alias("a", "b"));
         assert_eq!(m.alias_sets.len(), 2);
     }
@@ -194,7 +202,10 @@ mod alias_lattice_merge {
         // `b`. This is *why* `a` and `b` merge into one alias set above.
         // tclsh: `set caller 0; proc f {} { upvar 1 caller a; upvar 1 caller b;
         //         set a 42; return $b }; puts [f]` ⇒ `42`  (8.6 and 9.0).
-        let m = mem("proc f {} { upvar 1 caller a\n upvar 1 caller b\n set a 42\n return $b }", "f");
+        let m = mem(
+            "proc f {} { upvar 1 caller a\n upvar 1 caller b\n set a 42\n return $b }",
+            "f",
+        );
         assert!(m.may_alias("a", "b"), "shared-caller upvars alias");
         assert_eq!(m.alias_sets.len(), 1);
     }
@@ -248,8 +259,14 @@ mod alias_escapes_lifecycle {
         // tclsh: `namespace eval ns { variable src 0 }; proc f {} {
         //         namespace upvar ::ns src dst; set dst 55 }; f; puts $::ns::src`
         //         ⇒ `55`  (8.6 and 9.0): the aliased write escapes to `::ns::src`.
-        assert!(!fires("proc f {} { namespace upvar ::ns src dst\n set dst 5 }", "W211"));
-        assert!(!fires("proc f {} { namespace upvar ::ns src dst\n set dst 5 }", "W220"));
+        assert!(!fires(
+            "proc f {} { namespace upvar ::ns src dst\n set dst 5 }",
+            "W211"
+        ));
+        assert!(!fires(
+            "proc f {} { namespace upvar ::ns src dst\n set dst 5 }",
+            "W220"
+        ));
     }
 
     #[test]
@@ -269,7 +286,10 @@ mod alias_escapes_lifecycle {
         // tclsh: `set c 0; proc f {} { upvar 1 c a; upvar 1 c b; set a 1;
         //         return $b }; puts [f]` ⇒ `1`  (8.6 and 9.0): the store is live
         //         because it is observed through the alias `b`.
-        assert!(!fires("proc f {} { upvar 1 c a\n upvar 1 c b\n set a 1\n return $b }", "W220"));
+        assert!(!fires(
+            "proc f {} { upvar 1 c a\n upvar 1 c b\n set a 1\n return $b }",
+            "W220"
+        ));
     }
 
     #[test]
@@ -333,7 +353,10 @@ mod global_declaration_indices_tests {
 
     #[test]
     fn multiple_names() {
-        assert_eq!(global_declaration_indices(&v(&["a", "b", "c"])), vec![0, 1, 2]);
+        assert_eq!(
+            global_declaration_indices(&v(&["a", "b", "c"])),
+            vec![0, 1, 2]
+        );
     }
 
     #[test]
@@ -395,7 +418,10 @@ mod upvar_local_declaration_indices_tests {
     #[test]
     fn default_level() {
         // upvar other local           → pair (other, local); local at index 1.
-        assert_eq!(upvar_local_declaration_indices("upvar", &v(&["other", "local"])), vec![1]);
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &v(&["other", "local"])),
+            vec![1]
+        );
     }
 
     #[test]
@@ -418,7 +444,10 @@ mod upvar_local_declaration_indices_tests {
 
     #[test]
     fn hash_zero_level() {
-        assert_eq!(upvar_local_declaration_indices("upvar", &v(&["#0", "g", "l"])), vec![2]);
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &v(&["#0", "g", "l"])),
+            vec![2]
+        );
     }
 
     #[test]

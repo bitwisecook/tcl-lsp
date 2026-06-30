@@ -154,6 +154,12 @@ struct OrderedMap<T> {
     seen: HashSet<String>,
 }
 
+impl<T> Default for OrderedMap<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> OrderedMap<T> {
     fn new() -> Self {
         Self {
@@ -378,7 +384,6 @@ fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
 /// pass `None` to skip slicing. `registry` is the iRules command registry used
 /// by the object-reference walker.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn build_irule_context(
     rule: &BigipRule,
     merged: &BigipConfig,
@@ -387,43 +392,10 @@ pub fn build_irule_context(
     registry: &CommandRegistry,
 ) -> IruleContextBundle {
     let view = ConfigView::build(merged);
-
-    let mut pools: OrderedMap<BigipPool> = OrderedMap::new();
-    let mut data_groups: OrderedMap<BigipDataGroup> = OrderedMap::new();
-    let mut persistence: OrderedMap<BigipPersistence> = OrderedMap::new();
-    let mut snat_pools: OrderedMap<BigipSnatPool> = OrderedMap::new();
-    let mut profiles: OrderedMap<BigipProfile> = OrderedMap::new();
-    let mut monitors: OrderedMap<BigipMonitor> = OrderedMap::new();
-    let mut nodes: OrderedMap<BigipNode> = OrderedMap::new();
-    let mut rules: OrderedMap<BigipRule> = OrderedMap::new();
-    let mut unresolved: OrderedMap<Vec<String>> = OrderedMap::new();
-    let mut source_slices: Vec<(String, String)> = Vec::new();
-    let mut slice_seen: HashSet<String> = HashSet::new();
-
-    let mut record_slice = |full_path: &str, range: Option<&Range>| {
-        if src_text.is_none() {
-            return;
-        }
-        if full_path.is_empty() {
-            return;
-        }
-        if let Some(chunk) = slice_for(range, src_text)
-            && slice_seen.insert(full_path.to_owned())
-        {
-            source_slices.push((full_path.to_owned(), chunk));
-        }
-    };
+    let mut builder = ContextBuilder::new(src_text);
 
     // The rule's own slice.
-    record_slice(&rule.full_path, rule.range.as_ref());
-
-    let mut push_unresolved = |kind: &str, name: &str| {
-        if let Some((_, names)) = unresolved.entries.iter_mut().find(|(k, _)| k == kind) {
-            names.push(name.to_owned());
-        } else {
-            unresolved.insert(kind.to_owned(), vec![name.to_owned()]);
-        }
-    };
+    builder.record_slice(&rule.full_path, rule.range.as_ref());
 
     let mut seen: HashSet<(&str, String)> = HashSet::new();
     for reference in extract_irules_object_references(&rule.source, None, registry) {
@@ -433,128 +405,223 @@ pub fn build_irule_context(
         if !seen.insert((kind, reference.name.clone())) {
             continue;
         }
-        let name = reference.name.as_str();
-        match kind {
-            "pool" => {
-                if let Some(i) = resolve_in(name, &view.pools, view.default_partition) {
-                    let (path, obj) = view.pools[i];
-                    pools.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "data-group" => {
-                if let Some(i) = resolve_in(name, &view.data_groups, view.default_partition) {
-                    let (path, obj) = view.data_groups[i];
-                    data_groups.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "persistence" => {
-                if let Some(i) = resolve_in(name, &view.persistence, view.default_partition) {
-                    let (path, obj) = view.persistence[i];
-                    persistence.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "snat-pool" => {
-                if let Some(i) = resolve_in(name, &view.snat_pools, view.default_partition) {
-                    let (path, obj) = view.snat_pools[i];
-                    snat_pools.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "profile" => {
-                if let Some(i) = resolve_in(name, &view.profiles, view.default_partition) {
-                    let (path, obj) = view.profiles[i];
-                    profiles.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "monitor" => {
-                if let Some(i) = resolve_in(name, &view.monitors, view.default_partition) {
-                    let (path, obj) = view.monitors[i];
-                    monitors.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "node" => {
-                if let Some(i) = resolve_in(name, &view.nodes, view.default_partition) {
-                    let (path, obj) = view.nodes[i];
-                    nodes.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            "rule" => {
-                if let Some(i) = resolve_in(name, &view.rules, view.default_partition) {
-                    let (path, obj) = view.rules[i];
-                    // Recursive / self-reference: the rule body is already part
-                    // of the bundle; don't record it (and don't mark unresolved).
-                    if path == rule.full_path {
-                        continue;
-                    }
-                    rules.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                } else {
-                    push_unresolved(kind, name);
-                }
-            }
-            _ => {}
-        }
+        builder.collect_reference(kind, reference.name.as_str(), &view, rule);
     }
 
     if transitive {
-        // Pool members → nodes; pool monitor → monitor object.
+        builder.collect_transitive(&view);
+    }
+
+    builder.finish(rule)
+}
+
+/// Anything carrying an optional source `Range`, so [`ContextBuilder`] can
+/// record a slice for it generically.
+trait HasRange {
+    fn range(&self) -> Option<&Range>;
+}
+
+macro_rules! impl_has_range {
+    ($($ty:ty),* $(,)?) => {
+        $(impl HasRange for $ty {
+            fn range(&self) -> Option<&Range> {
+                self.range.as_ref()
+            }
+        })*
+    };
+}
+impl_has_range!(
+    BigipPool,
+    BigipDataGroup,
+    BigipPersistence,
+    BigipSnatPool,
+    BigipProfile,
+    BigipMonitor,
+    BigipNode,
+    BigipRule,
+);
+
+/// Accumulates the resolved per-kind object maps, unresolved names, and source
+/// slices while [`build_irule_context`] walks a rule's references.
+struct ContextBuilder<'a> {
+    src_text: Option<&'a str>,
+    pools: OrderedMap<BigipPool>,
+    data_groups: OrderedMap<BigipDataGroup>,
+    persistence: OrderedMap<BigipPersistence>,
+    snat_pools: OrderedMap<BigipSnatPool>,
+    profiles: OrderedMap<BigipProfile>,
+    monitors: OrderedMap<BigipMonitor>,
+    nodes: OrderedMap<BigipNode>,
+    rules: OrderedMap<BigipRule>,
+    unresolved: OrderedMap<Vec<String>>,
+    source_slices: Vec<(String, String)>,
+    slice_seen: HashSet<String>,
+}
+
+impl<'a> ContextBuilder<'a> {
+    fn new(src_text: Option<&'a str>) -> Self {
+        Self {
+            src_text,
+            pools: OrderedMap::new(),
+            data_groups: OrderedMap::new(),
+            persistence: OrderedMap::new(),
+            snat_pools: OrderedMap::new(),
+            profiles: OrderedMap::new(),
+            monitors: OrderedMap::new(),
+            nodes: OrderedMap::new(),
+            rules: OrderedMap::new(),
+            unresolved: OrderedMap::new(),
+            source_slices: Vec::new(),
+            slice_seen: HashSet::new(),
+        }
+    }
+
+    fn record_slice(&mut self, full_path: &str, range: Option<&Range>) {
+        if self.src_text.is_none() || full_path.is_empty() {
+            return;
+        }
+        if let Some(chunk) = slice_for(range, self.src_text)
+            && self.slice_seen.insert(full_path.to_owned())
+        {
+            self.source_slices.push((full_path.to_owned(), chunk));
+        }
+    }
+
+    fn push_unresolved(&mut self, kind: &str, name: &str) {
+        if let Some((_, names)) = self.unresolved.entries.iter_mut().find(|(k, _)| k == kind) {
+            names.push(name.to_owned());
+        } else {
+            self.unresolved
+                .insert(kind.to_owned(), vec![name.to_owned()]);
+        }
+    }
+
+    /// Resolve `name` in `list`; on hit insert a clone into `map` and record its
+    /// slice, returning the matched full-path. On miss, return `None`.
+    fn resolve_into<T: Clone + HasRange>(
+        &mut self,
+        map: &mut OrderedMap<T>,
+        list: &[(&str, &T)],
+        name: &str,
+        partition: &str,
+    ) -> Option<String> {
+        let i = resolve_in(name, list, partition)?;
+        let (path, obj) = list[i];
+        map.insert(path.to_owned(), obj.clone());
+        let range = obj.range().copied();
+        self.record_slice(path, range.as_ref());
+        Some(path.to_owned())
+    }
+
+    /// Resolve a single classified reference into the matching kind map (or mark
+    /// it unresolved). `rule` is the rule being built, used to skip self-refs.
+    fn collect_reference(&mut self, kind: &str, name: &str, view: &ConfigView, rule: &BigipRule) {
+        let part = view.default_partition;
+        let hit = match kind {
+            "pool" => {
+                let mut m = std::mem::take(&mut self.pools);
+                let r = self.resolve_into(&mut m, &view.pools, name, part);
+                self.pools = m;
+                r
+            }
+            "data-group" => {
+                let mut m = std::mem::take(&mut self.data_groups);
+                let r = self.resolve_into(&mut m, &view.data_groups, name, part);
+                self.data_groups = m;
+                r
+            }
+            "persistence" => {
+                let mut m = std::mem::take(&mut self.persistence);
+                let r = self.resolve_into(&mut m, &view.persistence, name, part);
+                self.persistence = m;
+                r
+            }
+            "snat-pool" => {
+                let mut m = std::mem::take(&mut self.snat_pools);
+                let r = self.resolve_into(&mut m, &view.snat_pools, name, part);
+                self.snat_pools = m;
+                r
+            }
+            "profile" => {
+                let mut m = std::mem::take(&mut self.profiles);
+                let r = self.resolve_into(&mut m, &view.profiles, name, part);
+                self.profiles = m;
+                r
+            }
+            "monitor" => {
+                let mut m = std::mem::take(&mut self.monitors);
+                let r = self.resolve_into(&mut m, &view.monitors, name, part);
+                self.monitors = m;
+                r
+            }
+            "node" => {
+                let mut m = std::mem::take(&mut self.nodes);
+                let r = self.resolve_into(&mut m, &view.nodes, name, part);
+                self.nodes = m;
+                r
+            }
+            "rule" => return self.collect_rule_reference(name, view, rule),
+            _ => return,
+        };
+        if hit.is_none() {
+            self.push_unresolved(kind, name);
+        }
+    }
+
+    /// Rule references need a self-reference guard before insertion.
+    fn collect_rule_reference(&mut self, name: &str, view: &ConfigView, rule: &BigipRule) {
+        let Some(i) = resolve_in(name, &view.rules, view.default_partition) else {
+            self.push_unresolved("rule", name);
+            return;
+        };
+        let (path, obj) = view.rules[i];
+        // Recursive / self-reference: the rule body is already part of the
+        // bundle; don't record it (and don't mark unresolved).
+        if path == rule.full_path {
+            return;
+        }
+        self.rules.insert(path.to_owned(), obj.clone());
+        self.record_slice(path, obj.range.as_ref());
+    }
+
+    /// Expand one level deeper: pool members → nodes; pool monitor → monitor.
+    fn collect_transitive(&mut self, view: &ConfigView) {
         let referenced_pools: Vec<BigipPool> =
-            pools.entries.iter().map(|(_, p)| p.clone()).collect();
+            self.pools.entries.iter().map(|(_, p)| p.clone()).collect();
+        let part = view.default_partition;
         for pool in &referenced_pools {
             for member in member_iter(pool) {
                 let node_name = member
                     .name
                     .rsplit_once(':')
                     .map_or(member.name.as_str(), |(n, _)| n);
-                if let Some(i) = resolve_in(node_name, &view.nodes, view.default_partition) {
-                    let (path, obj) = view.nodes[i];
-                    nodes.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                }
+                let mut m = std::mem::take(&mut self.nodes);
+                let _ = self.resolve_into(&mut m, &view.nodes, node_name, part);
+                self.nodes = m;
             }
             if !pool.monitor.is_empty() {
                 let first = pool.monitor.split(' ').next().unwrap_or("");
-                if let Some(i) = resolve_in(first, &view.monitors, view.default_partition) {
-                    let (path, obj) = view.monitors[i];
-                    monitors.insert(path.to_owned(), obj.clone());
-                    record_slice(path, obj.range.as_ref());
-                }
+                let mut m = std::mem::take(&mut self.monitors);
+                let _ = self.resolve_into(&mut m, &view.monitors, first, part);
+                self.monitors = m;
             }
         }
     }
 
-    IruleContextBundle {
-        rule: rule.clone(),
-        pools: pools.into_values(),
-        data_groups: data_groups.into_values(),
-        persistence: persistence.into_values(),
-        snat_pools: snat_pools.into_values(),
-        profiles: profiles.into_values(),
-        monitors: monitors.into_values(),
-        nodes: nodes.into_values(),
-        rules: rules.into_values(),
-        unresolved: unresolved.entries,
-        source_slices,
+    fn finish(self, rule: &BigipRule) -> IruleContextBundle {
+        IruleContextBundle {
+            rule: rule.clone(),
+            pools: self.pools.into_values(),
+            data_groups: self.data_groups.into_values(),
+            persistence: self.persistence.into_values(),
+            snat_pools: self.snat_pools.into_values(),
+            profiles: self.profiles.into_values(),
+            monitors: self.monitors.into_values(),
+            nodes: self.nodes.into_values(),
+            rules: self.rules.into_values(),
+            unresolved: self.unresolved.entries,
+            source_slices: self.source_slices,
+        }
     }
 }
 
@@ -880,6 +947,27 @@ fn render_node_text(n: &BigipNode) -> String {
     format!("ltm node {} {{ address {addr} }}\n", n.full_path)
 }
 
+/// Build the `(full_path, rendered_text)` entries for one referenced-object
+/// section: each object prefers its real source slice, falling back to the
+/// synthetic stanza produced by `fallback`.
+fn section_entries<T>(
+    bundle: &IruleContextBundle,
+    objects: &[T],
+    full_path: impl Fn(&T) -> &str,
+    fallback: impl Fn(&T) -> String,
+) -> Vec<(String, String)> {
+    objects
+        .iter()
+        .map(|obj| {
+            let path = full_path(obj);
+            (
+                path.to_owned(),
+                render_object_text(bundle, path, fallback(obj)),
+            )
+        })
+        .collect()
+}
+
 /// Prefer a real source slice; fall back to the synthetic stanza.
 fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: String) -> String {
     bundle
@@ -891,7 +979,6 @@ fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: St
 
 /// Render `bundle` as a single Tcl-flavoured text block.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
     let mut parts: Vec<String> = Vec::new();
 
@@ -909,115 +996,7 @@ pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
     }
 
     // (kind label, entries) in the fixed order.
-    let mut sections: Vec<(&str, Vec<(String, String)>)> = Vec::new();
-    sections.push((
-        "pool",
-        bundle
-            .pools
-            .iter()
-            .map(|p| {
-                (
-                    p.full_path.clone(),
-                    render_object_text(bundle, &p.full_path, render_pool_text(p)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "data-group",
-        bundle
-            .data_groups
-            .iter()
-            .map(|d| {
-                (
-                    d.full_path.clone(),
-                    render_object_text(bundle, &d.full_path, render_data_group_text(d)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "persistence",
-        bundle
-            .persistence
-            .iter()
-            .map(|p| {
-                (
-                    p.full_path.clone(),
-                    render_object_text(bundle, &p.full_path, render_persistence_text(p)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "snat-pool",
-        bundle
-            .snat_pools
-            .iter()
-            .map(|s| {
-                (
-                    s.full_path.clone(),
-                    render_object_text(bundle, &s.full_path, render_snat_pool_text(s)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "profile",
-        bundle
-            .profiles
-            .iter()
-            .map(|p| {
-                (
-                    p.full_path.clone(),
-                    render_object_text(bundle, &p.full_path, render_profile_text(p)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "monitor",
-        bundle
-            .monitors
-            .iter()
-            .map(|m| {
-                (
-                    m.full_path.clone(),
-                    render_object_text(bundle, &m.full_path, render_monitor_text(m)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "node",
-        bundle
-            .nodes
-            .iter()
-            .map(|n| {
-                (
-                    n.full_path.clone(),
-                    render_object_text(bundle, &n.full_path, render_node_text(n)),
-                )
-            })
-            .collect(),
-    ));
-    sections.push((
-        "rule",
-        bundle
-            .rules
-            .iter()
-            .map(|r| {
-                let fallback =
-                    format!("ltm rule {} {{\n{}\n}}\n", r.full_path, r.source.trim_end());
-                (
-                    r.full_path.clone(),
-                    render_object_text(bundle, &r.full_path, fallback),
-                )
-            })
-            .collect(),
-    ));
-
-    for (kind, entries) in &sections {
+    for (kind, entries) in &referenced_sections(bundle) {
         for (full_path, text) in entries {
             parts.push(format!("\n# ===== referenced {kind} {full_path} ====="));
             parts.push(text.trim_end().to_owned());
@@ -1025,20 +1004,103 @@ pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
     }
 
     if !bundle.unresolved.is_empty() {
-        parts.push("\n# ===== unresolved =====".to_owned());
-        let mut kinds: Vec<&String> = bundle.unresolved.iter().map(|(k, _)| k).collect();
-        kinds.sort();
-        for kind in kinds {
-            let names = bundle
-                .unresolved
-                .iter()
-                .find(|(k, _)| k == kind)
-                .map_or(&[][..], |(_, n)| n.as_slice());
-            for name in sorted_unique(names) {
-                parts.push(format!("# {kind}: {name}"));
-            }
-        }
+        push_unresolved_section(bundle, &mut parts);
     }
 
     format!("{}\n", parts.join("\n"))
+}
+
+/// The `(kind label, entries)` referenced-object sections in fixed order.
+fn referenced_sections(bundle: &IruleContextBundle) -> Vec<(&'static str, Vec<(String, String)>)> {
+    vec![
+        (
+            "pool",
+            section_entries(
+                bundle,
+                &bundle.pools,
+                |p| p.full_path.as_str(),
+                render_pool_text,
+            ),
+        ),
+        (
+            "data-group",
+            section_entries(
+                bundle,
+                &bundle.data_groups,
+                |d| d.full_path.as_str(),
+                render_data_group_text,
+            ),
+        ),
+        (
+            "persistence",
+            section_entries(
+                bundle,
+                &bundle.persistence,
+                |p| p.full_path.as_str(),
+                render_persistence_text,
+            ),
+        ),
+        (
+            "snat-pool",
+            section_entries(
+                bundle,
+                &bundle.snat_pools,
+                |s| s.full_path.as_str(),
+                render_snat_pool_text,
+            ),
+        ),
+        (
+            "profile",
+            section_entries(
+                bundle,
+                &bundle.profiles,
+                |p| p.full_path.as_str(),
+                render_profile_text,
+            ),
+        ),
+        (
+            "monitor",
+            section_entries(
+                bundle,
+                &bundle.monitors,
+                |m| m.full_path.as_str(),
+                render_monitor_text,
+            ),
+        ),
+        (
+            "node",
+            section_entries(
+                bundle,
+                &bundle.nodes,
+                |n| n.full_path.as_str(),
+                render_node_text,
+            ),
+        ),
+        (
+            "rule",
+            section_entries(
+                bundle,
+                &bundle.rules,
+                |r| r.full_path.as_str(),
+                |r| format!("ltm rule {} {{\n{}\n}}\n", r.full_path, r.source.trim_end()),
+            ),
+        ),
+    ]
+}
+
+/// Append the `# ===== unresolved =====` block (kinds sorted, names unique).
+fn push_unresolved_section(bundle: &IruleContextBundle, parts: &mut Vec<String>) {
+    parts.push("\n# ===== unresolved =====".to_owned());
+    let mut kinds: Vec<&String> = bundle.unresolved.iter().map(|(k, _)| k).collect();
+    kinds.sort();
+    for kind in kinds {
+        let names = bundle
+            .unresolved
+            .iter()
+            .find(|(k, _)| k == kind)
+            .map_or(&[][..], |(_, n)| n.as_slice());
+        for name in sorted_unique(names) {
+            parts.push(format!("# {kind}: {name}"));
+        }
+    }
 }

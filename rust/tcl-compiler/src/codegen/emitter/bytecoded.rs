@@ -242,7 +242,6 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// - `dict incr var key ?amount?` — `DICT_INCR_IMM amt slot`.
 /// - `dict append var key value` — `DICT_APPEND slot`.
 /// - `dict lappend var key value` — `DICT_LAPPEND slot`.
-#[allow(clippy::too_many_lines)] // per-subcommand dispatcher: one arm per dict sub
 fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
@@ -268,92 +267,107 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
 
     match sub {
-        "set" if rest.len() >= 3 => {
-            let keys = &rest[1..rest.len() - 1];
-            let value = rest.last().unwrap();
-            let slot = ctx.lvt.intern(var_name);
-            for k in keys {
-                ctx.emit_value_interpolated(k);
-            }
-            ctx.emit_value_interpolated(value);
-            ctx.emit_comment(
-                Op::DICT_SET,
-                vec![
-                    Operand::Imm(bytecode_imm(keys.len())),
-                    Operand::Imm(bytecode_imm(slot)),
-                ],
-                &format!("var \"{var_name}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-            true
-        }
-        "unset" if rest.len() >= 2 => {
-            let keys = &rest[1..];
-            let slot = ctx.lvt.intern(var_name);
-            for k in keys {
-                ctx.emit_value_interpolated(k);
-            }
-            ctx.emit_comment(
-                Op::DICT_UNSET,
-                vec![
-                    Operand::Imm(bytecode_imm(keys.len())),
-                    Operand::Imm(bytecode_imm(slot)),
-                ],
-                &format!("var \"{var_name}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-            true
-        }
-        "incr" if matches!(rest.len(), 2 | 3) => {
-            let key = &rest[1];
-            let amount: i32 = if rest.len() == 3 {
-                match rest[2].parse::<i32>() {
-                    Ok(v) => v,
-                    Err(_) => return false,
-                }
-            } else {
-                1
-            };
-            let slot = ctx.lvt.intern(var_name);
-            ctx.emit_value_interpolated(key);
-            ctx.emit_comment(
-                Op::DICT_INCR_IMM,
-                vec![Operand::Imm(amount), Operand::Imm(bytecode_imm(slot))],
-                &format!("var \"{var_name}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-            true
-        }
-        "append" if rest.len() == 3 => {
-            let key = &rest[1];
-            let value = &rest[2];
-            let slot = ctx.lvt.intern(var_name);
-            ctx.emit_value_interpolated(key);
-            ctx.emit_value_interpolated(value);
-            ctx.emit_comment(
-                Op::DICT_APPEND,
-                vec![Operand::Imm(bytecode_imm(slot))],
-                &format!("var \"{var_name}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-            true
-        }
-        "lappend" if rest.len() == 3 => {
-            let key = &rest[1];
-            let value = &rest[2];
-            let slot = ctx.lvt.intern(var_name);
-            ctx.emit_value_interpolated(key);
-            ctx.emit_value_interpolated(value);
-            ctx.emit_comment(
-                Op::DICT_LAPPEND,
-                vec![Operand::Imm(bytecode_imm(slot))],
-                &format!("var \"{var_name}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-            true
-        }
+        "set" if rest.len() >= 3 => dict_set(ctx, var_name, rest),
+        "unset" if rest.len() >= 2 => dict_unset(ctx, var_name, rest),
+        "incr" if matches!(rest.len(), 2 | 3) => dict_incr(ctx, var_name, rest),
+        "append" if rest.len() == 3 => dict_append(ctx, var_name, rest),
+        "lappend" if rest.len() == 3 => dict_lappend(ctx, var_name, rest),
         _ => false,
     }
+}
+
+/// `dict set var k1 ?k2 …? value` → `DICT_SET N slot`.
+fn dict_set(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
+    let keys = &rest[1..rest.len() - 1];
+    let value = rest.last().unwrap();
+    let slot = ctx.lvt.intern(var_name);
+    for k in keys {
+        ctx.emit_value_interpolated(k);
+    }
+    ctx.emit_value_interpolated(value);
+    ctx.emit_comment(
+        Op::DICT_SET,
+        vec![
+            Operand::Imm(bytecode_imm(keys.len())),
+            Operand::Imm(bytecode_imm(slot)),
+        ],
+        &format!("var \"{var_name}\""),
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `dict unset var k1 ?k2 …?` → `DICT_UNSET N slot`.
+fn dict_unset(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
+    let keys = &rest[1..];
+    let slot = ctx.lvt.intern(var_name);
+    for k in keys {
+        ctx.emit_value_interpolated(k);
+    }
+    ctx.emit_comment(
+        Op::DICT_UNSET,
+        vec![
+            Operand::Imm(bytecode_imm(keys.len())),
+            Operand::Imm(bytecode_imm(slot)),
+        ],
+        &format!("var \"{var_name}\""),
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `dict incr var key ?amount?` → `DICT_INCR_IMM amt slot`.
+fn dict_incr(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
+    let key = &rest[1];
+    let amount: i32 = if rest.len() == 3 {
+        match rest[2].parse::<i32>() {
+            Ok(v) => v,
+            Err(_) => return false,
+        }
+    } else {
+        1
+    };
+    let slot = ctx.lvt.intern(var_name);
+    ctx.emit_value_interpolated(key);
+    ctx.emit_comment(
+        Op::DICT_INCR_IMM,
+        vec![Operand::Imm(amount), Operand::Imm(bytecode_imm(slot))],
+        &format!("var \"{var_name}\""),
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `dict append var key value` → `DICT_APPEND slot`.
+fn dict_append(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
+    let key = &rest[1];
+    let value = &rest[2];
+    let slot = ctx.lvt.intern(var_name);
+    ctx.emit_value_interpolated(key);
+    ctx.emit_value_interpolated(value);
+    ctx.emit_comment(
+        Op::DICT_APPEND,
+        vec![Operand::Imm(bytecode_imm(slot))],
+        &format!("var \"{var_name}\""),
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `dict lappend var key value` → `DICT_LAPPEND slot`.
+fn dict_lappend(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
+    let key = &rest[1];
+    let value = &rest[2];
+    let slot = ctx.lvt.intern(var_name);
+    ctx.emit_value_interpolated(key);
+    ctx.emit_value_interpolated(value);
+    ctx.emit_comment(
+        Op::DICT_LAPPEND,
+        vec![Operand::Imm(bytecode_imm(slot))],
+        &format!("var \"{var_name}\""),
+    );
+    ctx.emit(Op::POP, vec![]);
+    true
 }
 
 /// Emit a top-level mutating `dict <sub> …` as the ensemble-rewrite

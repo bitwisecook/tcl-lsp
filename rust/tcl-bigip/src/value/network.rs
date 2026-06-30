@@ -388,8 +388,8 @@ fn parse_v4_prefix(spec: &str) -> Option<u8> {
         u32::MAX << (32 - ones)
     };
     if bits == expected {
-        #[allow(clippy::cast_possible_truncation)]
-        return Some(ones as u8);
+        // `leading_ones()` on a u32 is in 0..=32, which always fits in a u8.
+        return Some(u8::try_from(ones).expect("leading_ones <= 32"));
     }
     None
 }

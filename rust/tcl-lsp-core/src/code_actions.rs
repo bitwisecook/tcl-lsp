@@ -1244,7 +1244,7 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
         .get(bspan.start() as usize..bspan.end() as usize)
         .unwrap_or("")
         .trim();
-    let inner = raw.strip_prefix('{').map(str::trim_start).unwrap_or(raw);
+    let inner = raw.strip_prefix('{').map_or(raw, str::trim_start);
     let body_raw = if inner.matches('}').count() > inner.matches('{').count() {
         let t = inner.trim_end();
         t.strip_suffix('}').unwrap_or(t).trim()

@@ -9,7 +9,7 @@
 //! Python suite does — precedence cases assert the operator *sequence* and
 //! lexeme cases assert token classification, both matching Tcl's grammar.
 
-use tcl_lexer::{tokenise_expr, ExprToken, ExprTokenType};
+use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr};
 
 /// All non-whitespace tokens (the Rust lexer emits no trailing EOF token).
 fn toks(source: &str) -> Vec<ExprToken> {
@@ -86,8 +86,18 @@ fn t2_4_ternary_components() {
 #[test]
 fn t2_6_minimal_ternary() {
     let t = toks("1 ? 2 : 3");
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::TernaryQ).count(), 1);
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::TernaryC).count(), 1);
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryQ)
+            .count(),
+        1
+    );
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryC)
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -98,8 +108,18 @@ fn t2_9_nested_ternary_logical_else() {
 #[test]
 fn t2_nested_ternary() {
     let t = toks("$a ? $b ? 1 : 2 : 3");
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::TernaryQ).count(), 2);
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::TernaryC).count(), 2);
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryQ)
+            .count(),
+        2
+    );
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryC)
+            .count(),
+        2
+    );
 }
 
 // Groups 3-13: operator sequences (precedence as token order)
@@ -189,7 +209,12 @@ fn t14_unary_ops() {
 #[test]
 fn t14_7_nested_unary() {
     let t = toks("--$x");
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::Operator).count(), 2);
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::Operator)
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -254,7 +279,10 @@ fn t15_22_26_29_functions() {
     assert!(ops("pow(2, 3 * 4)").contains(&"*".to_string()));
     assert!(funcs("atan2($y, $x)").contains(&"atan2".to_string()));
     assert_eq!(
-        toks("atan2($y, $x)").iter().filter(|t| t.kind == ExprTokenType::Comma).count(),
+        toks("atan2($y, $x)")
+            .iter()
+            .filter(|t| t.kind == ExprTokenType::Comma)
+            .count(),
         1
     );
 }
@@ -284,7 +312,10 @@ fn t16_brackets_braces_parens() {
 #[test]
 fn t16_19_comma() {
     assert_eq!(
-        toks("pow(2, 3)").iter().filter(|t| t.kind == ExprTokenType::Comma).count(),
+        toks("pow(2, 3)")
+            .iter()
+            .filter(|t| t.kind == ExprTokenType::Comma)
+            .count(),
         1
     );
 }
@@ -336,8 +367,18 @@ fn t17_1_many_subexpressions() {
     let parts: Vec<String> = (0..30).map(|i| format!("$v{i}")).collect();
     let src = parts.join(" + ");
     let t = toks(&src);
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::Variable).count(), 30);
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::Operator).count(), 29);
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::Variable)
+            .count(),
+        30
+    );
+    assert_eq!(
+        t.iter()
+            .filter(|x| x.kind == ExprTokenType::Operator)
+            .count(),
+        29
+    );
 }
 
 // Groups 19-20, 22: integer/number parsing edge cases
@@ -412,7 +453,10 @@ fn boolean_literals() {
     assert_eq!(toks("yes")[0].kind, ExprTokenType::Bool);
     assert_eq!(toks("no")[0].kind, ExprTokenType::Bool);
     let t = toks("true && false");
-    assert_eq!(t.iter().filter(|x| x.kind == ExprTokenType::Bool).count(), 2);
+    assert_eq!(
+        t.iter().filter(|x| x.kind == ExprTokenType::Bool).count(),
+        2
+    );
 }
 
 // Math functions (the documented `::tcl::mathfunc` set)
@@ -464,8 +508,18 @@ fn complex_expressions() {
     assert!(ops(s).contains(&"||".to_string()));
 
     let ct = toks("$x > 0 ? ($x > 100 ? 100 : $x) : 0");
-    assert_eq!(ct.iter().filter(|x| x.kind == ExprTokenType::TernaryQ).count(), 2);
-    assert_eq!(ct.iter().filter(|x| x.kind == ExprTokenType::TernaryC).count(), 2);
+    assert_eq!(
+        ct.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryQ)
+            .count(),
+        2
+    );
+    assert_eq!(
+        ct.iter()
+            .filter(|x| x.kind == ExprTokenType::TernaryC)
+            .count(),
+        2
+    );
 
     assert!(funcs("wide(0xDEADBEEF)").contains(&"wide".to_string()));
     assert!(nums("wide(0xDEADBEEF)").contains(&"0xDEADBEEF".to_string()));

@@ -6,10 +6,6 @@
 //! per-interface link-layer type) and EPB (the packet); every other block is
 //! round-tripped byte-for-byte.
 
-// PCAPNG block lengths are 32-bit on the wire; the usize<->u32 conversions are
-// bounded by file size and width-checked by construction.
-#![allow(clippy::cast_possible_truncation)]
-
 use crate::error::BigipError;
 
 /// Section Header Block.
@@ -165,12 +161,13 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, BigipError> {
             data[cursor + 2],
             data[cursor + 3],
         ]);
-        let block_total_len = endian.u32([
+        let block_total_len = usize::try_from(endian.u32([
             data[cursor + 4],
             data[cursor + 5],
             data[cursor + 6],
             data[cursor + 7],
-        ]) as usize;
+        ]))
+        .expect("usize is at least 32 bits");
         if block_total_len < 12 || !block_total_len.is_multiple_of(4) {
             return Err(BigipError::pcapng(format!(
                 "pcapng: invalid block_total_length {block_total_len} for type 0x{block_type:08x}"
@@ -180,12 +177,13 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, BigipError> {
             return Err(BigipError::pcapng("pcapng: truncated block body"));
         }
         let body = data[cursor + 8..cursor + block_total_len - 4].to_vec();
-        let trailing = endian.u32([
+        let trailing = usize::try_from(endian.u32([
             data[cursor + block_total_len - 4],
             data[cursor + block_total_len - 3],
             data[cursor + block_total_len - 2],
             data[cursor + block_total_len - 1],
-        ]) as usize;
+        ]))
+        .expect("usize is at least 32 bits");
         if trailing != block_total_len {
             return Err(BigipError::pcapng(format!(
                 "pcapng: trailing length 0x{trailing:x} != header 0x{block_total_len:x}"
@@ -220,7 +218,8 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, BigipError> {
             let cap_len = endian.u32([body[12], body[13], body[14], body[15]]);
             let orig_len = endian.u32([body[16], body[17], body[18], body[19]]);
             let packet_off = 20usize;
-            let packet_end = packet_off + cap_len as usize;
+            let packet_end =
+                packet_off + usize::try_from(cap_len).expect("usize is at least 32 bits");
             let packet_data = body[packet_off..packet_end].to_vec();
             let options = body[pad32(packet_end)..].to_vec();
             let mut b = block(block_type, body, endian);
@@ -269,7 +268,9 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), BigipEr
         && let Some(options) = block.options.as_ref()
     {
         let cap_len = packet.len();
-        if cap_len as u32 != captured {
+        // A length that does not fit in a u32 cannot match the stored
+        // captured length and is reported as a (non-length-preserving) change.
+        if u32::try_from(cap_len) != Ok(captured) {
             return Err(BigipError::pcapng(format!(
                 "pcapng: EPB packet length changed ({cap_len} != {captured}); \
                  the rewriter must be length-preserving"
@@ -279,7 +280,8 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), BigipEr
         b.extend_from_slice(&endian.u32_bytes(block.interface_id.unwrap_or(0)));
         b.extend_from_slice(&endian.u32_bytes(block.timestamp_high.unwrap_or(0)));
         b.extend_from_slice(&endian.u32_bytes(block.timestamp_low.unwrap_or(0)));
-        b.extend_from_slice(&endian.u32_bytes(cap_len as u32));
+        // Equal to `captured` (a u32) by the length-preserving check above.
+        b.extend_from_slice(&endian.u32_bytes(captured));
         b.extend_from_slice(&endian.u32_bytes(original));
         b.extend_from_slice(packet);
         b.resize(b.len() + (pad32(cap_len) - cap_len), 0);
@@ -290,7 +292,9 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), BigipEr
     };
     let body: Vec<u8> = rebuilt_epb.unwrap_or_else(|| block.body.clone());
 
-    let block_total_len = (12 + body.len()) as u32;
+    // PCAPNG block_total_length is a 32-bit field; a single block never
+    // approaches 4 GiB in our remap workloads.
+    let block_total_len = u32::try_from(12 + body.len()).expect("pcapng block fits in u32 length");
     out.extend_from_slice(&endian.u32_bytes(block.block_type));
     out.extend_from_slice(&endian.u32_bytes(block_total_len));
     out.extend_from_slice(&body);
@@ -332,7 +336,9 @@ pub fn build_nrb_block(
         value.extend_from_slice(addr);
         value.extend_from_slice(&names_blob);
         body.extend_from_slice(&endian.u16_bytes(rec_type));
-        body.extend_from_slice(&endian.u16_bytes(value.len() as u16));
+        // An NRB record value (packed address + name blob) fits a 16-bit length.
+        let value_len = u16::try_from(value.len()).expect("nrb record fits in u16 length");
+        body.extend_from_slice(&endian.u16_bytes(value_len));
         body.extend_from_slice(&value);
         let pad = value.len().wrapping_neg() & 3;
         body.resize(body.len() + pad, 0);
@@ -357,7 +363,9 @@ pub fn build_nrb_block(
 pub fn build_dsb_block(endian: Endian, secrets_type: u32, secrets_data: &[u8]) -> PcapngBlock {
     let mut body: Vec<u8> = Vec::new();
     body.extend_from_slice(&endian.u32_bytes(secrets_type));
-    body.extend_from_slice(&endian.u32_bytes(secrets_data.len() as u32));
+    // DSB secrets length is a 32-bit field; key-log payloads are far smaller.
+    let secrets_len = u32::try_from(secrets_data.len()).expect("dsb secrets fit in u32 length");
+    body.extend_from_slice(&endian.u32_bytes(secrets_len));
     body.extend_from_slice(secrets_data);
     let pad = secrets_data.len().wrapping_neg() & 3;
     body.resize(body.len() + pad, 0);

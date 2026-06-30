@@ -59,23 +59,20 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
         if spec.verb != b'%' {
             // Commit the format to positional or sequential mode and reject a mix
             // (`format {%2$d %d} …` is a Tcl error, not arg-2-then-arg-1).
-            match spec.arg_index {
-                Some(_) => {
-                    if saw_sequential {
-                        return Err(CmdError::new(
-                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
-                        ));
-                    }
-                    saw_positional = true;
+            if spec.arg_index.is_some() {
+                if saw_sequential {
+                    return Err(CmdError::new(
+                        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    ));
                 }
-                None => {
-                    if saw_positional {
-                        return Err(CmdError::new(
-                            "cannot mix \"%\" and \"%n$\" conversion specifiers",
-                        ));
-                    }
-                    saw_sequential = true;
+                saw_positional = true;
+            } else {
+                if saw_positional {
+                    return Err(CmdError::new(
+                        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    ));
                 }
+                saw_sequential = true;
             }
             // A positional `%n$` spec consumes consecutively starting at `n-1`
             // (the `*` width, then the `.*` precision, then the value), leaving
@@ -287,7 +284,7 @@ fn float_digits(x: f64, spec: &Spec) -> String {
                 if upper { out.replace('e', "E") } else { out }
             } else {
                 let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
-                let body = format!("{m:.*}", fprec);
+                let body = format!("{m:.fprec$}");
                 if keep_zeros || !body.contains('.') {
                     body
                 } else {

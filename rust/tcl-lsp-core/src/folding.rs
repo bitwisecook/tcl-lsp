@@ -212,18 +212,14 @@ fn is_inner_oo_definition_command(name: &str) -> bool {
 /// body of an `oo::class create … { … }` / `oo::define … { … }`
 /// block. Outside that context these commands are treated as
 /// regular calls (a user proc named `method` shadows nothing).
-//
-// `match_same_arms`: keeping each command word on its own arm
-// reads as a lookup table, which is the point of the function.
-#[allow(clippy::match_same_arms)]
 fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
     let n = args.len();
     match command {
         "constructor" if n >= 2 => vec![1],
-        "destructor" if n >= 1 => vec![0],
+        // `destructor`/`initialise`/`initialize`/`private` all take a
+        // single body argument at index 0.
+        "destructor" | "initialise" | "initialize" | "private" if n >= 1 => vec![0],
         "method" | "classmethod" if n >= 3 => vec![n - 1],
-        "initialise" | "initialize" if n >= 1 => vec![0],
-        "private" if n >= 1 => vec![0],
         "self" if n >= 1 => match args[0] {
             "constructor" if n >= 3 => vec![2],
             "destructor" if n >= 2 => vec![1],
@@ -402,6 +398,11 @@ struct FoldCtx<'a> {
 }
 
 /// Recursion depth is capped at 20.
+/// Defensive recursion bound for nested-body fold collection, set to match the
+/// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
+/// keeps full folding support. Real source never nests anywhere near this.
+const MAX_FOLD_DEPTH: u32 = 256;
+
 fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
@@ -409,7 +410,7 @@ fn collect_body_folds(
     inside_oo_body: bool,
     ctx: &mut FoldCtx<'_>,
 ) {
-    if depth > 20 {
+    if depth > MAX_FOLD_DEPTH {
         return;
     }
     let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);
@@ -773,6 +774,31 @@ mod tests {
     }
 
     #[test]
+    fn deeply_nested_bodies_fold_past_the_old_depth_cap() {
+        // Regression for the lifted `MAX_FOLD_DEPTH` (was 20): 40 nested `while`
+        // bodies — each on its own line — must all yield a region fold, so the
+        // innermost levels are no longer dropped by the descent guard.
+        const LEVELS: usize = 40;
+        let mut source = String::new();
+        for i in 0..LEVELS {
+            source.push_str(&"    ".repeat(i));
+            source.push_str("while {1} {\n");
+        }
+        source.push_str(&"    ".repeat(LEVELS));
+        source.push_str("puts deep\n");
+        for i in (0..LEVELS).rev() {
+            source.push_str(&"    ".repeat(i));
+            source.push_str("}\n");
+        }
+        let ranges = folding_ranges_default(&source, "tcl8.6");
+        let regions = fold_lines(&ranges, FoldKind::Region).len();
+        assert!(
+            regions >= LEVELS - 1,
+            "expected ~{LEVELS} nested region folds, got {regions} (depth cap too low?)",
+        );
+    }
+
+    #[test]
     fn if_else_bodies_are_disjoint() {
         // `} else {` must not put body1 and body2 on the same line.
         let source = concat!(
@@ -928,6 +954,18 @@ mod tests {
             vec![1]
         );
         assert_eq!(inner_oo_body_indices("destructor", &["body"]), vec![0]);
+        // The `destructor | initialise | initialize | private` arm shares a
+        // single body argument at index 0 — pin every member so the merged
+        // match arm keeps mapping each one (positive cases).
+        assert_eq!(inner_oo_body_indices("initialise", &["body"]), vec![0]);
+        assert_eq!(inner_oo_body_indices("initialize", &["body"]), vec![0]);
+        assert_eq!(inner_oo_body_indices("private", &["body"]), vec![0]);
+        // Negative: the `n >= 1` guard fails with no args, so the merged
+        // arm yields no body indices (falls through to the catch-all).
+        assert!(inner_oo_body_indices("initialise", &[]).is_empty());
+        assert!(inner_oo_body_indices("initialize", &[]).is_empty());
+        assert!(inner_oo_body_indices("private", &[]).is_empty());
+        assert!(inner_oo_body_indices("destructor", &[]).is_empty());
         assert_eq!(
             inner_oo_body_indices("method", &["name", "{}", "body"]),
             vec![2],

@@ -2,7 +2,7 @@
 //! W201/W210/W212/W214/W216/W302/W306).
 //! Pairs to `tests/test_fp_sty.py` and the §STY entries in `docs/design/compiler/FP.md`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-STY-01 — W001 Tk geometry-manager shortcut form (grid/pack/place pathName)
@@ -308,8 +308,7 @@ fn fp_sty_08_non_empty_body_unused_param_still_fires() {
     // check W214 fires at all (param b is unused).
     assert!(
         w214_b,
-        "FP-STY-08 TP: non-empty body with unused 'b' must still fire W214; emitted: {:?}",
-        all
+        "FP-STY-08 TP: non-empty body with unused 'b' must still fire W214; emitted: {all:?}"
     );
 }
 
@@ -361,9 +360,7 @@ fn fp_sty_09_arity_incompatible_dispatcher_does_not_suppress() {
     assert!(
         w214_count >= 3,
         "FP-STY-09 TP: W214 must fire on 'token' in all three peers (a/b/c); the 1-arg \
-         unrelated dispatcher is arity-incompatible. Got {} W214: {:?}",
-        w214_count,
-        all
+         unrelated dispatcher is arity-incompatible. Got {w214_count} W214: {all:?}"
     );
 }
 
@@ -466,7 +463,8 @@ fn fp_sty_11_scan_20_vars_no_false_w210() {
 fn fp_sty_11_lassign_many_vars_no_false_w210() {
     // FP-STY-11: same fix for `lassign` — all positional args after the list arg
     // are classified VAR_WRITE.
-    let src = "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n";
+    let src =
+        "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n";
     assert!(
         !fires(src, D, "W210"),
         "FP-STY-11: lassign with many vars must NOT fire W210; emitted: {:?}",
@@ -784,18 +782,15 @@ fn fp_sty_15_regsub_dollar_anchor_no_errors() {
     let all = codes(src, D);
     assert!(
         !all.iter().any(|c| c == "E002"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire E002; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire E002; emitted: {all:?}"
     );
     assert!(
         !all.iter().any(|c| c == "E205"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire E205; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire E205; emitted: {all:?}"
     );
     assert!(
         !all.iter().any(|c| c == "W306"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire W306; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire W306; emitted: {all:?}"
     );
 }
 

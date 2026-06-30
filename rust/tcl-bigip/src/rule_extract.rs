@@ -121,8 +121,12 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
             .unwrap_or("")
             .to_owned();
 
-        let range =
-            Range::from_offsets(source, &line_index, header_start, block_end_offset.saturating_sub(1));
+        let range = Range::from_offsets(
+            source,
+            &line_index,
+            header_start,
+            block_end_offset.saturating_sub(1),
+        );
 
         rules.push(EmbeddedRule {
             full_path,

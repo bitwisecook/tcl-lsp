@@ -63,7 +63,11 @@ puts $l
 
 #[test]
 fn fp_nab_01_append_slot_silent() {
-    assert!(!fires(FP_NAB_01_REPRO, D, "W231"), "FP-NAB-01: append slot must NOT fire W231; {:?}", diags(FP_NAB_01_REPRO, D));
+    assert!(
+        !fires(FP_NAB_01_REPRO, D, "W231"),
+        "FP-NAB-01: append slot must NOT fire W231; {:?}",
+        diags(FP_NAB_01_REPRO, D)
+    );
 }
 
 #[test]
@@ -84,12 +88,20 @@ return $x
 
 #[test]
 fn fp_nab_02_lindex_oor_smell_fires() {
-    assert!(fires(FP_NAB_02_REPRO, D, "W230"), "FP-NAB-02 TP: oor lindex must fire W230; {:?}", diags(FP_NAB_02_REPRO, D));
+    assert!(
+        fires(FP_NAB_02_REPRO, D, "W230"),
+        "FP-NAB-02 TP: oor lindex must fire W230; {:?}",
+        diags(FP_NAB_02_REPRO, D)
+    );
 }
 
 #[test]
 fn fp_nab_02_lindex_oor_not_w231() {
-    assert!(!fires(FP_NAB_02_REPRO, D, "W231"), "FP-NAB-02: lindex oor must NOT escalate to W231; {:?}", diags(FP_NAB_02_REPRO, D));
+    assert!(
+        !fires(FP_NAB_02_REPRO, D, "W231"),
+        "FP-NAB-02: lindex oor must NOT escalate to W231; {:?}",
+        diags(FP_NAB_02_REPRO, D)
+    );
 }
 
 #[test]
@@ -117,20 +129,32 @@ fn fp_nab_04_string_eq_fires_w110_o120() {
 #[test]
 fn fp_nab_05_file_delete_missing_dash_dash_fires_w304() {
     let src = "proc f {f} { file delete $f }";
-    assert!(fires(src, D, "W304"), "FP-NAB-05 TP: file delete $f must fire W304; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W304"),
+        "FP-NAB-05 TP: file delete $f must fire W304; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_nab_05_switch_split_form_missing_dash_dash_fires_w304() {
     let src = "switch $x -nocase {puts hit1} default {puts hit2}";
-    assert!(fires(src, D, "W304"), "FP-NAB-05 TP: split switch form must fire W304; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W304"),
+        "FP-NAB-05 TP: split switch form must fire W304; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_nab_05_braced_switch_form_should_not_fire_w304() {
     // FP: braced pattern-list switch form is unambiguous — W304 must NOT fire.
     let src = "proc f {x} { switch $x { -nocase {puts a} default {puts b} } }";
-    assert!(!fires(src, D, "W304"), "FP-NAB-05: braced switch must NOT fire W304; {:?}", diags(src, D));
+    assert!(
+        !fires(src, D, "W304"),
+        "FP-NAB-05: braced switch must NOT fire W304; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
@@ -141,63 +165,103 @@ fn fp_nab_05_w304_lexical_does_not_cross_proc_boundary() {
     let misattributed = diags(src, D)
         .into_iter()
         .any(|(c, m)| c == "W304" && m.contains("-force"));
-    assert!(!misattributed, "FP-NAB-05: W304 must not attribute outer 'path=-force' to inner param; {:?}", diags(src, D));
+    assert!(
+        !misattributed,
+        "FP-NAB-05: W304 must not attribute outer 'path=-force' to inner param; {:?}",
+        diags(src, D)
+    );
 }
 
 // FP-NAB-06 — `open "|$cmd"` pipe (W103, TP).
 #[test]
 fn fp_nab_06_open_variable_pipe_fires_w103() {
     let src = "proc f {cmd} { set fh [open \"|$cmd\" r] }";
-    assert!(fires(src, D, "W103"), "FP-NAB-06 TP: open |$cmd must fire W103; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W103"),
+        "FP-NAB-06 TP: open |$cmd must fire W103; {:?}",
+        diags(src, D)
+    );
 }
 
 // FP-NAB-07 — destructive op with variable path (W313, TP).
 #[test]
 fn fp_nab_07_destructive_variable_path_fires_w313() {
     let src = "proc f {p} { file delete $p }";
-    assert!(fires(src, D, "W313"), "FP-NAB-07 TP: file delete $p must fire W313; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W313"),
+        "FP-NAB-07 TP: file delete $p must fire W313; {:?}",
+        diags(src, D)
+    );
 }
 
 // FP-NAB-08 — substitution where var-name expected (W212, TP).
 #[test]
 fn fp_nab_08_set_substituted_name_fires_w212() {
     let src = "proc f {name v} { set $name $v }";
-    assert!(fires(src, D, "W212"), "FP-NAB-08 TP: set $name must fire W212; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W212"),
+        "FP-NAB-08 TP: set $name must fire W212; {:?}",
+        diags(src, D)
+    );
 }
 
 #[test]
 fn fp_nab_08_incr_substituted_name_fires_w212() {
     let src = "proc f {x} { incr $x }";
-    assert!(fires(src, D, "W212"), "FP-NAB-08 TP: incr $x must fire W212; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W212"),
+        "FP-NAB-08 TP: incr $x must fire W212; {:?}",
+        diags(src, D)
+    );
 }
 
 // FP-NAB-09 — uplevel multi-arg concatenation (W301, TP).
 #[test]
 fn fp_nab_09_uplevel_multiarg_fires_w301() {
     let src = "proc f {a b} { uplevel 1 puts $a $b }";
-    assert!(fires(src, D, "W301"), "FP-NAB-09 TP: multi-arg uplevel must fire W301; {:?}", diags(src, D));
+    assert!(
+        fires(src, D, "W301"),
+        "FP-NAB-09 TP: multi-arg uplevel must fire W301; {:?}",
+        diags(src, D)
+    );
 }
 
 // FP-NAB-10 — dialect-aware W002 (dict disabled in tcl8.4, enabled in 9.0).
 #[test]
 fn fp_nab_10_dict_disabled_in_tcl_8_4_fires_w002() {
-    assert!(fires("dict create a 1", "tcl8.4", "W002"), "FP-NAB-10 TP: dict in tcl8.4 must fire W002; {:?}", diags("dict create a 1", "tcl8.4"));
+    assert!(
+        fires("dict create a 1", "tcl8.4", "W002"),
+        "FP-NAB-10 TP: dict in tcl8.4 must fire W002; {:?}",
+        diags("dict create a 1", "tcl8.4")
+    );
 }
 
 #[test]
 fn fp_nab_10_dict_enabled_in_tcl_9_0_silent() {
-    assert!(!fires("dict create a 1", "tcl9.0", "W002"), "FP-NAB-10: dict in tcl9.0 must NOT fire W002; {:?}", diags("dict create a 1", "tcl9.0"));
+    assert!(
+        !fires("dict create a 1", "tcl9.0", "W002"),
+        "FP-NAB-10: dict in tcl9.0 must NOT fire W002; {:?}",
+        diags("dict create a 1", "tcl9.0")
+    );
 }
 
 // FP-NAB-11 — unresolved command (W123, TP).
 #[test]
 fn fp_nab_11_unresolved_argparse_fires_w123() {
-    assert!(fires("argparse {x y}", D, "W123"), "FP-NAB-11 TP: argparse must fire W123; {:?}", diags("argparse {x y}", D));
+    assert!(
+        fires("argparse {x y}", D, "W123"),
+        "FP-NAB-11 TP: argparse must fire W123; {:?}",
+        diags("argparse {x y}", D)
+    );
 }
 
 #[test]
 fn fp_nab_11_stub_registered_command_silent() {
-    assert!(!fires("puts hi", D, "W123"), "FP-NAB-11: puts must NOT fire W123; {:?}", diags("puts hi", D));
+    assert!(
+        !fires("puts hi", D, "W123"),
+        "FP-NAB-11: puts must NOT fire W123; {:?}",
+        diags("puts hi", D)
+    );
 }
 
 // FP-NAB-03 control — an impure proc using puts comes out pure=False. Covered

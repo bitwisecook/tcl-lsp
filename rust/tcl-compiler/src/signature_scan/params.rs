@@ -83,6 +83,77 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
     params
 }
 
+/// Source spans of each parameter *name*, in declaration order, within the
+/// **raw** param-list literal `raw` (exactly as it appears in source, e.g.
+/// `{a b}` or `{a {b 1}}` — one optional outer brace layer is stripped). Each
+/// returned [`tcl_lexer::Span`] is offset by `base` (the literal's start byte
+/// offset in the document), so the spans point at the parameter names in the
+/// original source. The order matches [`parse_param_list`], so the two can be
+/// zipped.
+///
+/// This exists so go-to-definition / references / rename on a formal parameter
+/// resolve to the parameter *name* in the declaration, not the proc name or the
+/// whole method body (issue #727).
+#[must_use]
+pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
+    let bytes = raw.as_bytes();
+    let n = bytes.len();
+    // Strip exactly one outer `{…}` brace layer if the whole literal is braced.
+    let (lo, hi) = if n >= 2 && bytes[0] == b'{' && bytes[n - 1] == b'}' {
+        (1, n - 1)
+    } else {
+        (0, n)
+    };
+    // Absolute source offset of a byte index within `raw`.
+    let abs = |off: usize| base.saturating_add(u32::try_from(off).unwrap_or(u32::MAX));
+    let mut out = Vec::new();
+    let mut i = lo;
+    while i < hi {
+        while i < hi && is_whitespace_byte(bytes[i]) {
+            i += 1;
+        }
+        if i >= hi {
+            break;
+        }
+        if bytes[i] == b'{' {
+            // `{name default}` — the name is the first word inside the braces.
+            let inner_start = i + 1;
+            let mut level: u32 = 1;
+            let mut j = inner_start;
+            while j < hi && level > 0 {
+                match bytes[j] {
+                    b'{' => level += 1,
+                    b'}' => level -= 1,
+                    _ => {}
+                }
+                j += 1;
+            }
+            let inner_end = if level == 0 { j - 1 } else { j };
+            let mut ns = inner_start;
+            while ns < inner_end && is_whitespace_byte(bytes[ns]) {
+                ns += 1;
+            }
+            let mut ne = ns;
+            while ne < inner_end && !is_whitespace_byte(bytes[ne]) {
+                ne += 1;
+            }
+            if ne > ns {
+                out.push(tcl_lexer::Span::new(abs(ns), abs(ne)));
+            }
+            i = j;
+        } else {
+            let start = i;
+            while i < hi && !is_whitespace_byte(bytes[i]) {
+                i += 1;
+            }
+            if i > start {
+                out.push(tcl_lexer::Span::new(abs(start), abs(i)));
+            }
+        }
+    }
+    out
+}
+
 #[inline]
 fn is_whitespace_byte(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
@@ -126,6 +197,27 @@ mod tests {
         assert_eq!(params[0].name, "a");
         assert!(params[0].has_default);
         assert_eq!(params[0].default_value.as_deref(), Some("default"));
+    }
+
+    #[test]
+    fn param_name_spans_match_names_in_raw_literal() {
+        use tcl_lexer::Span;
+        // Outer braces stripped; spans are offset by `base` and point at names.
+        let raw = "{arg1 arg2}";
+        let spans = param_name_spans(raw, 100);
+        assert_eq!(spans, vec![Span::new(101, 105), Span::new(106, 110)]);
+        // `{name default}` → the name only.
+        let raw2 = "{a {b 1} c}";
+        let spans2 = param_name_spans(raw2, 0);
+        // a @1..2, b @4..5 (inside inner braces), c @9..10
+        assert_eq!(
+            spans2,
+            vec![Span::new(1, 2), Span::new(4, 5), Span::new(9, 10)]
+        );
+        // Empty list.
+        assert!(param_name_spans("{}", 0).is_empty());
+        // Unbraced single word.
+        assert_eq!(param_name_spans("args", 5), vec![Span::new(5, 9)]);
     }
 
     #[test]

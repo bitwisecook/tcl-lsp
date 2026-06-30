@@ -9,7 +9,7 @@
 //! single-document Rust API and are noted as out-of-surface.
 
 use tcl_compiler::analyser::Analyser;
-use tcl_lsp_core::call_hierarchy::{incoming_calls, outgoing_calls, prepare, CallHierarchyItem};
+use tcl_lsp_core::call_hierarchy::{CallHierarchyItem, incoming_calls, outgoing_calls, prepare};
 
 fn items(source: &str, line: u32, character: u32) -> Vec<CallHierarchyItem> {
     let mut a = Analyser::new();
@@ -70,7 +70,9 @@ fn incoming_calls_find_callers() {
     assert_eq!(it.len(), 1);
     let names = incoming_names(src, &it[0]);
     assert!(
-        names.iter().any(|n| n.contains("main") || n.contains("top")),
+        names
+            .iter()
+            .any(|n| n.contains("main") || n.contains("top")),
         "expected a `main` / top-level caller; got {names:?}"
     );
 }
@@ -91,9 +93,13 @@ fn outgoing_calls_find_callees() {
 #[test]
 fn recursive_proc_calls_itself() {
     // tclsh: `fact` calls itself — outgoing includes greet-of-self.
-    let src = "proc fact {n} { if {$n <= 1} { return 1 }\n return [expr {$n * [fact [expr {$n-1}]]}] }\n";
+    let src =
+        "proc fact {n} { if {$n <= 1} { return 1 }\n return [expr {$n * [fact [expr {$n-1}]]}] }\n";
     let it = items(src, 0, 6);
     assert_eq!(it.len(), 1);
     let callees = outgoing_names(src, &it[0]);
-    assert!(callees.iter().any(|n| n.contains("fact")), "self-call expected: {callees:?}");
+    assert!(
+        callees.iter().any(|n| n.contains("fact")),
+        "self-call expected: {callees:?}"
+    );
 }

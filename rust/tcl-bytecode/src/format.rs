@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::hash::BuildHasher;
 
 use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
 
@@ -60,11 +61,11 @@ pub fn esc(text: &str, limit: usize) -> String {
 /// Format a single operand into its disassembly representation.
 /// Returns `(part, jump_comment)`.  Extracted from
 /// [`format_function_asm`] to keep the dispatcher under threshold.
-fn format_operand(
+fn format_operand<S: BuildHasher>(
     operand: &Operand,
     instr: &Instruction,
     j: usize,
-    labels: &HashMap<String, usize>,
+    labels: &HashMap<String, usize, S>,
 ) -> (String, String) {
     match operand {
         Operand::Label(label) if instr.op.is_jump() => {
@@ -163,8 +164,10 @@ fn format_operand(
 /// flat disassembler does — reused by the compiler explorer's structured
 /// `asm` view so it does not re-implement the per-`Op` operand decoding.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn instruction_operand_text(instr: &Instruction, labels: &HashMap<String, usize>) -> String {
+pub fn instruction_operand_text<S: BuildHasher>(
+    instr: &Instruction,
+    labels: &HashMap<String, usize, S>,
+) -> String {
     instr
         .operands
         .iter()

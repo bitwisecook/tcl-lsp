@@ -52,7 +52,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_compiler::analyser::{AnalysisResult, Analyser};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
 use tcl_lsp_core::snippets::SnippetContext;
 use tcl_lsp_core::snippets::snippet_completions;
@@ -100,7 +100,7 @@ fn no_suppress() -> HashMap<i32, HashSet<String>> {
 // editor-presentation, asserted structurally.
 // ===========================================================================
 
-/// A document with a top-level proc, a namespaced proc, and a TclOO class
+/// A document with a top-level proc, a namespaced proc, and a `TclOO` class
 /// (with a method + a constructor). Reused by several symbol tests.
 const SYMBOL_DOC: &str = "proc alpha {} { return 1 }\n\
                           namespace eval ::ns {\n\
@@ -144,7 +144,10 @@ fn workspace_symbols_kinds_and_containers_are_structural() {
     // members carry the class's qualified name.
     assert_eq!(map["beta"].container_name.as_deref(), Some("::ns"));
     assert_eq!(map["draw"].container_name.as_deref(), Some("::Widget"));
-    assert_eq!(map["constructor"].container_name.as_deref(), Some("::Widget"));
+    assert_eq!(
+        map["constructor"].container_name.as_deref(),
+        Some("::Widget")
+    );
     // The definition range points at the declaring line (structural).
     assert_eq!(map["alpha"].range.start_line, 0);
     assert_eq!(map["draw"].range.start_line, 5);
@@ -242,7 +245,10 @@ fn minify_preserves_foreach_accumulator_result() {
                }\n\
                puts $total\n";
     let out = minify_tcl(src, "tcl8.6", registry());
-    assert_eq!(out, "set total 0;foreach x {1 2 3 4 5} {incr total $x};puts $total");
+    assert_eq!(
+        out,
+        "set total 0;foreach x {1 2 3 4 5} {incr total $x};puts $total"
+    );
 }
 
 #[test]
@@ -252,7 +258,10 @@ fn minify_preserves_string_and_expr_results() {
                puts [string toupper $s]\n\
                puts [expr {3 + 4 * 2}]\n";
     let out = minify_tcl(src, "tcl8.6", registry());
-    assert_eq!(out, "set s \"hello world\";puts [string toupper $s];puts [expr {3+4*2}]");
+    assert_eq!(
+        out,
+        "set s \"hello world\";puts [string toupper $s];puts [expr {3+4*2}]"
+    );
     // The quoted literal is preserved verbatim (no semantic change).
     assert!(out.contains("\"hello world\""), "{out:?}");
 }
@@ -315,7 +324,8 @@ fn minify_compact_renames_local_var_at_def_and_read() {
     // (verified identical). `sum`->`c` is rewritten at BOTH the `set`
     // definition and the `$sum` read, so the value is preserved. (The
     // params `a`/`b` are already 1 char, so they are left alone.)
-    let src = "proc add {a b} {\n    set sum [expr {$a + $b}]\n    return $sum\n}\nputs [add 2 3]\n";
+    let src =
+        "proc add {a b} {\n    set sum [expr {$a + $b}]\n    return $sum\n}\nputs [add 2 3]\n";
     let (out, map) = minify_tcl_compact(src, "tcl8.6", false, registry());
     assert_eq!(
         out,
@@ -324,7 +334,9 @@ fn minify_compact_renames_local_var_at_def_and_read() {
     // proc renamed `add`->`a`, local `sum`->`c` recorded under the proc scope.
     assert_eq!(map.procs.get("add").map(String::as_str), Some("a"));
     assert!(
-        map.variables.values().any(|m| m.get("sum").map(String::as_str) == Some("c")),
+        map.variables
+            .values()
+            .any(|m| m.get("sum").map(String::as_str) == Some("c")),
         "sum->c must be in the symbol map: {map:?}",
     );
     // The `$sum` read became `$c`; no stray `sum` survives.
@@ -363,8 +375,10 @@ fn minify_aggressive_reports_consistent_length_bookkeeping() {
     // independent of the rename bug.
     assert_eq!(res.original_length, src.len());
     assert_eq!(res.minified_length(), res.source.len());
-    let expected_pct =
-        (1.0 - res.source.len() as f64 / src.len() as f64) * 100.0;
+    // Lengths are small known values; convert losslessly via u32.
+    let min_len = f64::from(u32::try_from(res.source.len()).unwrap());
+    let orig_len = f64::from(u32::try_from(src.len()).unwrap());
+    let expected_pct = (1.0 - min_len / orig_len) * 100.0;
     assert!(
         (res.savings_pct() - expected_pct).abs() < 1e-9,
         "savings_pct must equal 1 - min/orig: got {} want {expected_pct}",
@@ -376,7 +390,12 @@ fn minify_aggressive_reports_consistent_length_bookkeeping() {
 fn minify_aggressive_empty_source_has_zero_savings() {
     let res = minify_tcl_aggressive("", "tcl8.6", true, registry());
     assert_eq!(res.original_length, 0);
-    assert_eq!(res.savings_pct(), 0.0, "0/0 guard returns 0.0, not NaN");
+    // The 0/0 guard returns an exact 0.0 (not NaN); compare bit patterns.
+    assert_eq!(
+        res.savings_pct().to_bits(),
+        0.0_f64.to_bits(),
+        "0/0 guard returns 0.0, not NaN"
+    );
 }
 
 // --- BUG: compact/aggressive minify corrupts `incr`/`append`/`lappend` -----
@@ -454,15 +473,17 @@ fn snippets_emit_only_snippet_kind_items() {
     let items = snippet_completions(&tcl_ctx("", &[]));
     assert!(!items.is_empty(), "the tcl dialect offers core templates");
     assert!(
-        items.iter().all(|i| i.is_snippet
-            && i.kind == tcl_lsp_core::completion::CompletionKind::Snippet),
+        items
+            .iter()
+            .all(|i| i.is_snippet && i.kind == tcl_lsp_core::completion::CompletionKind::Snippet),
         "every item is a Snippet-kind snippet",
     );
     // Each carries a `tcl-…` filter prefix and a non-empty body.
-    assert!(items.iter().all(|i| i
-        .filter_text
-        .as_deref()
-        .is_some_and(|f| f.starts_with("tcl-"))));
+    assert!(items.iter().all(|i| {
+        i.filter_text
+            .as_deref()
+            .is_some_and(|f| f.starts_with("tcl-"))
+    }));
     assert!(items.iter().all(|i| !i.insert_text.is_empty()));
 }
 
@@ -582,7 +603,10 @@ fn style_w112_flags_trailing_whitespace_with_remove_fix() {
     // The flagged span covers exactly the trailing run (cols 7..=9).
     assert_eq!(d.range.start_character, 7);
     assert_eq!(d.range.end_character, 9);
-    let fix = d.fix.as_ref().expect("W112 carries a remove-whitespace fix");
+    let fix = d
+        .fix
+        .as_ref()
+        .expect("W112 carries a remove-whitespace fix");
     assert_eq!(fix.new_text, "");
     assert_eq!(fix.description, "Remove trailing whitespace");
 }
@@ -599,7 +623,10 @@ fn style_w118_flags_unexpected_line_endings() {
     let diags = check_line_endings("a\r\nb\r\n", "\n");
     assert_eq!(diags.len(), 1, "{diags:?}");
     assert_eq!(diags[0].code, "W118");
-    assert_eq!(diags[0].message, "File uses CRLF line endings (2); expected LF");
+    assert_eq!(
+        diags[0].message,
+        "File uses CRLF line endings (2); expected LF"
+    );
     // A file that already uses the expected ending is clean.
     assert!(check_line_endings("a\nb\nc\n", "\n").is_empty());
 }
@@ -650,7 +677,10 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         &no_suppress(),
     );
     assert!(filtered.iter().all(|d| d.code != "W112"), "{filtered:?}");
-    assert!(filtered.iter().any(|d| d.code == "W111"), "W111 still fires");
+    assert!(
+        filtered.iter().any(|d| d.code == "W111"),
+        "W111 still fires"
+    );
 }
 
 #[test]
@@ -666,8 +696,14 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
         &no_disable(),
         &suppressed,
     );
-    assert!(diags.iter().all(|d| d.code != "W112"), "line W112 suppressed: {diags:?}");
-    assert!(diags.iter().any(|d| d.code == "W118"), "file-level W118 not line-suppressed: {diags:?}");
+    assert!(
+        diags.iter().all(|d| d.code != "W112"),
+        "line W112 suppressed: {diags:?}"
+    );
+    assert!(
+        diags.iter().any(|d| d.code == "W118"),
+        "file-level W118 not line-suppressed: {diags:?}"
+    );
 }
 
 // ===========================================================================
@@ -703,7 +739,7 @@ fn linked_editing_links_namespace_relative_self_call() {
     let an = analyse(src);
     // Cursor on the `countdown` declaration name (line 1).
     let line1 = "proc countdown {n} {";
-    let col = line1.find("countdown").expect("name present") as u32;
+    let col = u32::try_from(line1.find("countdown").expect("name present")).unwrap();
     let result = linked_editing_ranges(src, 1, col, &an)
         .expect("namespace-relative self-call should link to the declaration");
     // Structural: at least the declaration + the relative self-call.
@@ -729,7 +765,7 @@ fn linked_editing_does_not_link_across_two_mutually_recursive_procs() {
                }\n";
     let an = analyse(src);
     // Cursor on `is_even`'s declaration name (line 0).
-    let col = "proc ".len() as u32;
+    let col = u32::try_from("proc ".len()).unwrap();
     // `is_even` is only *called* from is_odd's body (a cross-proc call, not a
     // self-call), so from its own declaration there is no second linkable
     // range -> None. This proves the provider does not mistake a mutual call

@@ -275,6 +275,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.selectTclInstallation",
+        "title": "Select Tcl Installation",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.exportConfig",
         "title": "Export Settings to Config File",
         "category": "Tcl"

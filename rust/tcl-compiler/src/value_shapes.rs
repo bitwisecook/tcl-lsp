@@ -104,8 +104,8 @@ pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
 fn split_top_level_words(s: &str) -> Vec<String> {
     let mut words = Vec::new();
     let mut cur = String::new();
-    let mut brack = 0i32;
-    let mut brace = 0i32;
+    let mut brackets = 0i32;
+    let mut braces = 0i32;
     let mut in_quote = false;
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
@@ -116,27 +116,27 @@ fn split_top_level_words(s: &str) -> Vec<String> {
                     cur.push(n);
                 }
             }
-            '"' if brack <= 0 && brace <= 0 => {
+            '"' if brackets <= 0 && braces <= 0 => {
                 in_quote = !in_quote;
                 cur.push(c);
             }
             '[' if !in_quote => {
-                brack += 1;
+                brackets += 1;
                 cur.push(c);
             }
             ']' if !in_quote => {
-                brack -= 1;
+                brackets -= 1;
                 cur.push(c);
             }
             '{' if !in_quote => {
-                brace += 1;
+                braces += 1;
                 cur.push(c);
             }
             '}' if !in_quote => {
-                brace -= 1;
+                braces -= 1;
                 cur.push(c);
             }
-            c if c.is_ascii_whitespace() && brack <= 0 && brace <= 0 && !in_quote => {
+            c if c.is_ascii_whitespace() && brackets <= 0 && braces <= 0 && !in_quote => {
                 if !cur.is_empty() {
                     words.push(std::mem::take(&mut cur));
                 }

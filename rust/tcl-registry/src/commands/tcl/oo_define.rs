@@ -52,12 +52,6 @@ const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
 ///   index.
 /// * `oo::define Target property -set BODY ?-get BODY?` →
 ///   bodies after each `-set` / `-get` flag.
-//
-// `match_same_arms`: keeping each subcommand on its own arm reads
-// as a lookup table — collapsing the `initialise` / `initialize` /
-// `private` / `destructor` arms loses that and makes adding new
-// subcommands harder to spot.
-#[allow(clippy::match_same_arms)]
 pub(crate) fn oo_define_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let n = args.len();
     if n == 2 && !OO_DEFINE_SUBCOMMANDS.contains(&args[1]) {
@@ -71,10 +65,12 @@ pub(crate) fn oo_define_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     };
     match args[1] {
         "constructor" if n >= 4 => vec![(3, ArgRole::Body)],
-        "destructor" if n >= 3 => vec![(2, ArgRole::Body)],
         "method" | "classmethod" if n >= 5 => vec![(last, ArgRole::Body)],
-        "initialise" | "initialize" if n >= 3 => vec![(2, ArgRole::Body)],
-        "private" if n >= 3 => vec![(2, ArgRole::Body)],
+        // `destructor`/`initialise`/`initialize`/`private` all take a
+        // body at index 2.
+        "destructor" | "initialise" | "initialize" | "private" if n >= 3 => {
+            vec![(2, ArgRole::Body)]
+        }
         "self" if n >= 3 => match args[2] {
             "constructor" if n >= 5 => vec![(4, ArgRole::Body)],
             "destructor" if n >= 4 => vec![(3, ArgRole::Body)],
@@ -142,5 +138,58 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::oo_define_arg_roles;
+    use crate::arg_role::ArgRole;
+
+    // POSITIVE: every subcommand merged into the shared `n >= 3 => index 2`
+    // arm (`destructor` / `initialise` / `initialize` / `private`) must
+    // still resolve a body argument at index 2.
+    #[test]
+    fn index2_body_subcommands_resolve() {
+        for sub in ["destructor", "initialise", "initialize", "private"] {
+            let roles = oo_define_arg_roles(&["Target", sub, "{ body }"]);
+            assert_eq!(
+                roles,
+                vec![(2, ArgRole::Body)],
+                "{sub}: expected body at index 2"
+            );
+        }
+    }
+
+    // POSITIVE: arms NOT merged keep their distinct indices.
+    #[test]
+    fn distinct_arms_keep_their_indices() {
+        assert_eq!(
+            oo_define_arg_roles(&["Target", "constructor", "args", "{ body }"]),
+            vec![(3, ArgRole::Body)]
+        );
+        assert_eq!(
+            oo_define_arg_roles(&["Target", "method", "name", "args", "{ body }"]),
+            vec![(4, ArgRole::Body)]
+        );
+        // `self destructor` is a separate (inner) arm → index 3, not 2.
+        assert_eq!(
+            oo_define_arg_roles(&["Target", "self", "destructor", "{ body }"]),
+            vec![(3, ArgRole::Body)]
+        );
+    }
+
+    // NEGATIVE: the merged arm's `n >= 3` guard must fail when the body is
+    // absent — no role is surfaced.
+    #[test]
+    fn merged_arm_guard_rejects_too_few_args() {
+        for sub in ["destructor", "initialise", "initialize", "private"] {
+            // Only `Target sub` (n == 2, but `sub` is a known subcommand so
+            // the bare-script fast path does not apply) → no body role.
+            assert!(
+                oo_define_arg_roles(&["Target", sub]).is_empty(),
+                "{sub}: arity-2 form must not surface a body role"
+            );
+        }
     }
 }

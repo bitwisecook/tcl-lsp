@@ -279,10 +279,7 @@ fn parse_param_without_description() {
 fn parse_return_tag() {
     // test_return_tag — `@return <text>` → **Returns:** line.
     let md = render_doc_via_hover("# @return The sum of a and b", "a b");
-    assert!(
-        md.contains("**Returns:** The sum of a and b"),
-        "{md}",
-    );
+    assert!(md.contains("**Returns:** The sum of a and b"), "{md}");
 }
 
 #[test]
@@ -305,9 +302,18 @@ fn parse_full_doxygen() {
     let md = render_doc_via_hover(doc, "a b");
     assert!(md.contains("Calculate the sum"), "brief: {md}");
     assert!(md.contains("**Parameters:**"), "params header: {md}");
-    assert!(md.contains("**a**") && md.contains("First number"), "param a: {md}");
-    assert!(md.contains("**b**") && md.contains("Second number"), "param b: {md}");
-    assert!(md.contains("**Returns:** The sum of a and b"), "return: {md}");
+    assert!(
+        md.contains("**a**") && md.contains("First number"),
+        "param a: {md}"
+    );
+    assert!(
+        md.contains("**b**") && md.contains("Second number"),
+        "param b: {md}"
+    );
+    assert!(
+        md.contains("**Returns:** The sum of a and b"),
+        "return: {md}"
+    );
 }
 
 #[test]
@@ -342,7 +348,10 @@ fn render_markdown_params_and_returns_sections() {
     );
     let md = render_doc_via_hover(doc, "a b");
     assert!(md.contains("**Parameters:**"), "{md}");
-    assert!(md.contains("**a** \u{2014} First"), "em-dash param row: {md}");
+    assert!(
+        md.contains("**a** \u{2014} First"),
+        "em-dash param row: {md}"
+    );
     assert!(md.contains("**Returns:** The sum"), "{md}");
 }
 
@@ -413,7 +422,11 @@ fn generate_stub_text(source: &str, proc_name: &str) -> Option<String> {
     let line = source
         .lines()
         .position(|l| l.contains(&format!("proc {proc_name}")))?;
-    let actions = code_actions(source, cursor(u32::try_from(line).unwrap(), 0), Some(&analysis));
+    let actions = code_actions(
+        source,
+        cursor(u32::try_from(line).unwrap(), 0),
+        Some(&analysis),
+    );
     find(&actions, &format!("Generate docstring for '{proc_name}'"))
         .map(|a| a.edits[0].new_text.clone())
 }

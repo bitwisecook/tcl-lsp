@@ -9,7 +9,8 @@
 use std::collections::BTreeSet;
 
 use tcl_lsp_db::{
-    SourceFile, TclDatabase, TclDb, compiler_check_diagnostics, compiler_check_diagnostics_uncached,
+    AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
+    compiler_check_diagnostics_uncached,
 };
 
 fn main() {
@@ -20,9 +21,16 @@ fn main() {
 
     let db = TclDatabase::default();
     let file = SourceFile::new(&db, src.clone(), dialect.clone());
-    let memo = compiler_check_diagnostics(&db, file);
+    let cfg = AnalyserConfig::new(
+        &db,
+        Vec::new(),
+        tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
+        None,
+    );
+    let memo = compiler_check_diagnostics(&db, file, cfg);
     let reg = db.registry(&dialect);
-    let fresh = compiler_check_diagnostics_uncached(&src, &reg, &dialect);
+    let fresh = compiler_check_diagnostics_uncached(&src, &reg, &dialect, None);
 
     let ck = |d: &tcl_compiler::compiler_checks::Diagnostic| (d.span.start(), d.span.end(), d.code);
     let ms: BTreeSet<_> = memo.checks.iter().map(ck).collect();

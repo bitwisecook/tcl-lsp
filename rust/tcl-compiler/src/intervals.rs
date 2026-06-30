@@ -358,7 +358,6 @@ fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interva
 /// each `Branch` block, the names in its condition resolved against the
 /// block's exit version of each.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
 pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueKey, Vec<BlockId>> {
     let mut index: HashMap<ValueKey, Vec<BlockId>> = HashMap::new();
     for (dn, dblock) in &cfg.blocks {
@@ -405,15 +404,14 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
 /// Narrow `base[(name, version)]` by the constant-bound guards that hold on
 /// every path reaching `block`.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn refine_interval(
-    base: &HashMap<ValueKey, Interval>,
+pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    base: &HashMap<ValueKey, Interval, S1>,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     block: BlockId,
     name: &str,
     version: Version,
-    guard_index: &HashMap<ValueKey, Vec<BlockId>>,
+    guard_index: &HashMap<ValueKey, Vec<BlockId>, S2>,
 ) -> Interval {
     // A name that was never interned is not a tracked SSA value: no base
     // interval and no guard fact, so its interval is TOP.
@@ -464,7 +462,10 @@ pub fn refine_interval(
 
 /// Seed a `[c, c]` interval from a constant-integer SCCP value, else `None`.
 #[must_use]
-fn seed_const(key: ValueKey, values: &HashMap<ValueKey, LatticeValue>) -> Option<Interval> {
+fn seed_const<S: std::hash::BuildHasher>(
+    key: ValueKey,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+) -> Option<Interval> {
     match values.get(&key) {
         Some(LatticeValue::Const(ConstValue::Int(n))) => Some(constant(*n)),
         Some(LatticeValue::Const(ConstValue::Bool(b))) => Some(constant(i64::from(*b))),
@@ -523,11 +524,10 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
 /// a constant integer seeds `[c, c]`.  Everything else starts `BOTTOM` and is
 /// refined to fixpoint with loop-header widening.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn compute_intervals(
+pub fn compute_intervals<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue>,
+    values: &HashMap<ValueKey, LatticeValue, S>,
 ) -> HashMap<ValueKey, Interval> {
     let mut result: HashMap<ValueKey, Interval> = HashMap::new();
     let cur = |result: &HashMap<ValueKey, Interval>, key: &ValueKey| -> Interval {
@@ -715,8 +715,17 @@ mod tests {
         // A None (±inf) bound dominates.
         assert_eq!(join(TOP, constant(4)), TOP);
         assert_eq!(
-            join(iv(0, 5), Interval { lo: None, hi: Some(2) }),
-            Interval { lo: None, hi: Some(5) }
+            join(
+                iv(0, 5),
+                Interval {
+                    lo: None,
+                    hi: Some(2)
+                }
+            ),
+            Interval {
+                lo: None,
+                hi: Some(5)
+            }
         );
     }
 
@@ -727,7 +736,10 @@ mod tests {
         // A lower bound moving down jumps to -inf.
         assert_eq!(
             widen(iv(5, 10), iv(2, 10)),
-            Interval { lo: None, hi: Some(10) }
+            Interval {
+                lo: None,
+                hi: Some(10)
+            }
         );
     }
 
@@ -760,7 +772,13 @@ mod tests {
         assert_eq!(intersect(iv(0, 10), iv(5, 20)), iv(5, 10));
         // None is the identity (not absorbing) in intersect.
         assert_eq!(
-            intersect(iv(0, 10), Interval { lo: None, hi: Some(7) }),
+            intersect(
+                iv(0, 10),
+                Interval {
+                    lo: None,
+                    hi: Some(7)
+                }
+            ),
             iv(0, 7)
         );
         assert_eq!(intersect(BOTTOM, iv(0, 10)), BOTTOM);
@@ -770,11 +788,13 @@ mod tests {
     fn literal_int_parses_radix_and_bool_keywords() {
         // Verified against tclsh9.0: 0xff=255, 0o17=15, 0b101=5,
         // true/yes/on=1, false/no/off=0, 42=42, -7=-7.
-        let lit = |t: &str| literal_int(&ExprNode::Literal {
-            text: t.to_string(),
-            start: 0,
-            end: 0,
-        });
+        let lit = |t: &str| {
+            literal_int(&ExprNode::Literal {
+                text: t.to_string(),
+                start: 0,
+                end: 0,
+            })
+        };
         assert_eq!(lit("0xff"), Some(255));
         assert_eq!(lit("0xFF"), Some(255));
         assert_eq!(lit("0o17"), Some(15));
@@ -836,15 +856,24 @@ mod tests {
         // `$x < 5` true → x ∈ [-inf, 4] (tclsh: 4<5=1, 5<5=0).
         assert_eq!(
             guard_constraint(&pexpr("$x < 5"), "x", false),
-            Some(Interval { lo: None, hi: Some(4) })
+            Some(Interval {
+                lo: None,
+                hi: Some(4)
+            })
         );
         // mirrored: `5 < $x` true → x ∈ [6, +inf].
         assert_eq!(
             guard_constraint(&pexpr("5 < $x"), "x", false),
-            Some(Interval { lo: Some(6), hi: None })
+            Some(Interval {
+                lo: Some(6),
+                hi: None
+            })
         );
         // `$x == 7` → [7,7]; negated → Ne → None.
-        assert_eq!(guard_constraint(&pexpr("$x == 7"), "x", false), Some(constant(7)));
+        assert_eq!(
+            guard_constraint(&pexpr("$x == 7"), "x", false),
+            Some(constant(7))
+        );
         assert_eq!(guard_constraint(&pexpr("$x == 7"), "x", true), None);
         // not a comparison against this name → None.
         assert_eq!(guard_constraint(&pexpr("$y < 5"), "x", false), None);
@@ -853,15 +882,45 @@ mod tests {
 
     #[test]
     fn guard_interval_all_ops_and_negation() {
-        assert_eq!(guard_interval(BinOp::Le, 5, false), Some(Interval { lo: None, hi: Some(5) }));
-        assert_eq!(guard_interval(BinOp::Gt, 5, false), Some(Interval { lo: Some(6), hi: None }));
-        assert_eq!(guard_interval(BinOp::Ge, 5, false), Some(Interval { lo: Some(5), hi: None }));
+        assert_eq!(
+            guard_interval(BinOp::Le, 5, false),
+            Some(Interval {
+                lo: None,
+                hi: Some(5)
+            })
+        );
+        assert_eq!(
+            guard_interval(BinOp::Gt, 5, false),
+            Some(Interval {
+                lo: Some(6),
+                hi: None
+            })
+        );
+        assert_eq!(
+            guard_interval(BinOp::Ge, 5, false),
+            Some(Interval {
+                lo: Some(5),
+                hi: None
+            })
+        );
         assert_eq!(guard_interval(BinOp::Eq, 5, false), Some(constant(5)));
         // Ne yields no single interval.
         assert_eq!(guard_interval(BinOp::Ne, 5, false), None);
         // Negations flip Le↔Gt, Ge↔Lt, Eq↔Ne.
-        assert_eq!(guard_interval(BinOp::Le, 5, true), Some(Interval { lo: Some(6), hi: None }));
-        assert_eq!(guard_interval(BinOp::Ge, 5, true), Some(Interval { lo: None, hi: Some(4) }));
+        assert_eq!(
+            guard_interval(BinOp::Le, 5, true),
+            Some(Interval {
+                lo: Some(6),
+                hi: None
+            })
+        );
+        assert_eq!(
+            guard_interval(BinOp::Ge, 5, true),
+            Some(Interval {
+                lo: None,
+                hi: Some(4)
+            })
+        );
     }
 
     #[test]
@@ -880,7 +939,7 @@ mod tests {
         // The analysis runs and produces a (possibly empty but well-formed) map;
         // every computed interval is a valid lattice element (not the lo>hi
         // sentinel unless explicitly bottom).
-        for (_k, &i) in &intervals {
+        for &i in intervals.values() {
             assert!(
                 !i.is_bottom() || i == BOTTOM,
                 "computed interval must be a sound lattice element: {i:?}"

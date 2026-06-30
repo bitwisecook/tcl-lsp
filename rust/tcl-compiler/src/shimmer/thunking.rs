@@ -22,12 +22,13 @@
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
+use tcl_lexer::Span;
 use tcl_registry::TclType;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, Symbol, ValueKey, Version};
+use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::{build_successors, loop_body_blocks};
@@ -181,29 +182,18 @@ pub(super) fn per_loop_body_types(
     out
 }
 
-/// Find thunking warnings for a function.
+/// Identify the loop-header blocks of `cfg` by name.
 ///
-/// Returns one [`ThunkingWarning`] per phi node at a loop header whose
-/// type lattice is `Shimmered`.
-#[must_use]
-#[allow(clippy::too_many_lines)]
-pub(crate) fn find_thunking_warnings(
+/// A loop header is on a cycle and has both an entry edge (predecessor
+/// outside the loop) and a back edge (predecessor inside the loop, other
+/// than self-loops).  The successor graph is name-keyed, so headers are
+/// tracked by name too.
+fn loop_header_names(
     cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
-) -> Vec<ThunkingWarning> {
-    let loop_blocks = loop_body_blocks(cfg);
-    let succs = build_successors(cfg);
-    let def_map = def_range_map(ssa);
-    let mut out = Vec::new();
-
-    // A loop header is a block that is on a cycle and has both an
-    // entry edge (predecessor outside the loop) and a back edge
-    // (predecessor inside the loop, other than self-loops).  The
-    // successor graph is name-keyed, so headers are tracked by name too.
-    let loop_headers: HashSet<String> = cfg
-        .block_names()
+    loop_blocks: &HashSet<String>,
+    succs: &HashMap<String, Vec<String>>,
+) -> HashSet<String> {
+    cfg.block_names()
         .iter()
         .filter(|bn| {
             if !loop_blocks.contains(bn.as_str()) {
@@ -218,11 +208,143 @@ pub(crate) fn find_thunking_warnings(
             has_entry && has_back
         })
         .cloned()
+        .collect()
+}
+
+/// Shared, read-only context for [`classify_thunking_phi`].
+struct ThunkCtx<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    empty_by_name: &'a HashMap<Symbol, HashSet<Version>>,
+    loop_blocks: &'a HashSet<String>,
+    def_map: &'a HashMap<ValueKey, Span>,
+}
+
+/// Decide whether a loop-header phi genuinely thunks (oscillates between
+/// two intreps each iteration), returning the warning when it does.
+///
+/// `per_loop` is the body-type map for *this* loop only, so sibling loops
+/// do not pollute the oscillation check.
+fn classify_thunking_phi(
+    ctx: &ThunkCtx<'_>,
+    phi: &Phi,
+    per_loop: &HashMap<Symbol, HashSet<TclType>>,
+) -> Option<ThunkingWarning> {
+    let lattice = ctx.types.get(&(phi.name, phi.version))?;
+    if lattice.kind != TypeKind::Shimmered {
+        return None;
+    }
+    let type_a = lattice.from_type?;
+    let type_b = lattice.tcl_type?;
+
+    // A loop-header phi is SHIMMERED whenever the entry type differs
+    // from the body-exit type — but that includes the *one-time*
+    // promotion of an empty accumulator (`set r {}; foreach …
+    // {lappend r …}`): STRING once, then LIST forever.  Genuine
+    // thunking requires the body to re-introduce the entry type (so
+    // the phi re-shimmers each pass) or to produce ≥2 conflicting
+    // types itself.  Classify the phi's incomings (entry vs body) and
+    // require oscillation.
+    let empty_vers = ctx.empty_by_name.get(&phi.name);
+    let mut entry_types: HashSet<TclType> = HashSet::new();
+    let mut body_types: HashSet<TclType> = HashSet::new();
+    let mut has_body_incoming = false;
+    for (pred, &inc_ver) in &phi.incoming {
+        if inc_ver == 0 {
+            continue;
+        }
+        let Some(inc_type) = ctx.types.get(&(phi.name, inc_ver)) else {
+            continue;
+        };
+        let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
+        if ctx.loop_blocks.contains(ctx.cfg.block_name(*pred)) {
+            if inc_type.kind == TypeKind::Known && !is_empty {
+                has_body_incoming = true;
+                if let Some(t) = inc_type.tcl_type {
+                    body_types.insert(t);
+                }
+            }
+        } else if inc_type.kind == TypeKind::Known
+            && !is_empty
+            && let Some(t) = inc_type.tcl_type
+        {
+            entry_types.insert(t);
+        }
+    }
+    if !has_body_incoming {
+        return None;
+    }
+    let mut all_body_types = body_types;
+    if let Some(pl) = per_loop.get(&phi.name) {
+        all_body_types.extend(pl.iter().copied());
+    }
+    let oscillates =
+        entry_types.intersection(&all_body_types).next().is_some() || all_body_types.len() >= 2;
+    if !oscillates {
+        return None;
+    }
+
+    let span = phi_span(phi, ctx.ssa, ctx.def_map);
+    let related: Vec<_> = phi
+        .incoming
+        .iter()
+        .filter_map(|(pred_block, &ver)| {
+            ctx.def_map.get(&(phi.name, ver)).copied().map(|sp| {
+                (
+                    sp,
+                    format!("version from '{}'", ctx.cfg.block_name(*pred_block)),
+                )
+            })
+        })
         .collect();
 
+    let var = ctx.ssa.var_name(phi.name);
+    Some(ThunkingWarning {
+        span,
+        variable: var.to_owned(),
+        type_a,
+        type_b,
+        code: DiagCode::S102,
+        message: format!(
+            "S102: '{var}' oscillates between {a} and {b} across \
+             loop iterations (thunking)",
+            a = type_name(type_a),
+            b = type_name(type_b),
+        ),
+        related,
+    })
+}
+
+/// Find thunking warnings for a function.
+///
+/// Returns one [`ThunkingWarning`] per loop-header phi node whose type
+/// lattice is `Shimmered` and whose incomings genuinely oscillate.
+#[must_use]
+pub(crate) fn find_thunking_warnings(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    types: &HashMap<ValueKey, TypeLattice>,
+    executable_blocks: &HashSet<BlockId>,
+) -> Vec<ThunkingWarning> {
+    let loop_blocks = loop_body_blocks(cfg);
+    let succs = build_successors(cfg);
+    let def_map = def_range_map(ssa);
+    let mut out = Vec::new();
+
+    let loop_headers = loop_header_names(cfg, &loop_blocks, &succs);
     let preds = build_predecessors(&succs);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
+
+    let ctx = ThunkCtx {
+        cfg,
+        ssa,
+        types,
+        empty_by_name: &empty_by_name,
+        loop_blocks: &loop_blocks,
+        def_map: &def_map,
+    };
 
     for block_id in cfg_order(cfg) {
         if !executable_blocks.contains(&block_id) {
@@ -249,96 +371,9 @@ pub(crate) fn find_thunking_warnings(
         );
 
         for phi in &ssa_block.phis {
-            let key = (phi.name, phi.version);
-            let Some(lattice) = types.get(&key) else {
-                continue;
-            };
-            if lattice.kind != TypeKind::Shimmered {
-                continue;
+            if let Some(warning) = classify_thunking_phi(&ctx, phi, &per_loop) {
+                out.push(warning);
             }
-            let Some(type_a) = lattice.from_type else {
-                continue;
-            };
-            let Some(type_b) = lattice.tcl_type else {
-                continue;
-            };
-
-            // A loop-header phi is SHIMMERED whenever the entry type differs
-            // from the body-exit type — but that includes the *one-time*
-            // promotion of an empty accumulator (`set r {}; foreach …
-            // {lappend r …}`): STRING once, then LIST forever.  Genuine
-            // thunking requires the body to re-introduce the entry type (so
-            // the phi re-shimmers each pass) or to produce ≥2 conflicting
-            // types itself.  Classify the phi's incomings (entry vs body) and
-            // require oscillation.
-            let empty_vers = empty_by_name.get(&phi.name);
-            let mut entry_types: HashSet<TclType> = HashSet::new();
-            let mut body_types: HashSet<TclType> = HashSet::new();
-            let mut has_body_incoming = false;
-            for (pred, &inc_ver) in &phi.incoming {
-                if inc_ver == 0 {
-                    continue;
-                }
-                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
-                    continue;
-                };
-                let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
-                if loop_blocks.contains(cfg.block_name(*pred)) {
-                    if inc_type.kind == TypeKind::Known && !is_empty {
-                        has_body_incoming = true;
-                        if let Some(t) = inc_type.tcl_type {
-                            body_types.insert(t);
-                        }
-                    }
-                } else if inc_type.kind == TypeKind::Known
-                    && !is_empty
-                    && let Some(t) = inc_type.tcl_type
-                {
-                    entry_types.insert(t);
-                }
-            }
-            if !has_body_incoming {
-                continue;
-            }
-            let mut all_body_types = body_types;
-            if let Some(pl) = per_loop.get(&phi.name) {
-                all_body_types.extend(pl.iter().copied());
-            }
-            let oscillates = entry_types.intersection(&all_body_types).next().is_some()
-                || all_body_types.len() >= 2;
-            if !oscillates {
-                continue;
-            }
-
-            let span = phi_span(phi, ssa, &def_map);
-            let related: Vec<_> = phi
-                .incoming
-                .iter()
-                .filter_map(|(pred_block, &ver)| {
-                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
-                        (
-                            sp,
-                            format!("version from '{}'", cfg.block_name(*pred_block)),
-                        )
-                    })
-                })
-                .collect();
-
-            let var = ssa.var_name(phi.name);
-            out.push(ThunkingWarning {
-                span,
-                variable: var.to_owned(),
-                type_a,
-                type_b,
-                code: DiagCode::S102,
-                message: format!(
-                    "S102: '{var}' oscillates between {a} and {b} across \
-                     loop iterations (thunking)",
-                    a = type_name(type_a),
-                    b = type_name(type_b),
-                ),
-                related,
-            });
         }
     }
 

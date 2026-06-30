@@ -267,7 +267,10 @@ fn warnings_report_each_recovery_message() {
 
 #[test]
 fn well_formed_input_collects_no_warnings() {
-    let (_t, warns) = lex_with("proc p {a b} {return [expr {$a + $b}]}", LexerConfig::default());
+    let (_t, warns) = lex_with(
+        "proc p {a b} {return [expr {$a + $b}]}",
+        LexerConfig::default(),
+    );
     assert!(warns.is_empty(), "unexpected warnings: {warns:?}");
 }
 
@@ -337,7 +340,11 @@ fn irules_brace_separator_splits_adjacent_braced_words() {
     // Under the default (non-iRules) dialect the same `}{` is instead an
     // "extra characters after close-brace" warning, not a split.
     let (_t, warns) = lex_with("a {b}{c}", LexerConfig::default());
-    assert!(warns.iter().any(|w| w.message == "extra characters after close-brace"));
+    assert!(
+        warns
+            .iter()
+            .any(|w| w.message == "extra characters after close-brace")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -492,13 +499,22 @@ fn source_map_base_offsets_shift_resolved_positions() {
     // positions so a fragment's tokens read relative to the parent doc.
     // base_col applies only to the fragment's first line.
     let sm = SourceMap::new("xyz").with_base(100, 5, 10);
-    assert_eq!(sm.position_at(0), SourcePosition::new(5, ByteCol::new(10), 100));
-    assert_eq!(sm.position_at(1), SourcePosition::new(5, ByteCol::new(11), 101));
+    assert_eq!(
+        sm.position_at(0),
+        SourcePosition::new(5, ByteCol::new(10), 100)
+    );
+    assert_eq!(
+        sm.position_at(1),
+        SourcePosition::new(5, ByteCol::new(11), 101)
+    );
 
     // Across a newline inside the fragment, the column resets and base_col
     // is NOT re-applied (it only offsets line 0 of the fragment).
     let sm2 = SourceMap::new("a\nb").with_base(100, 5, 10);
-    assert_eq!(sm2.position_at(2), SourcePosition::new(6, ByteCol::new(0), 102));
+    assert_eq!(
+        sm2.position_at(2),
+        SourcePosition::new(6, ByteCol::new(0), 102)
+    );
 }
 
 #[test]
@@ -613,9 +629,11 @@ fn escaped_semicolon_does_not_end_the_command() {
     let src = "a\\;b";
     let sm = SourceMap::new(src);
     let toks = Lexer::new(src).tokenise_all().unwrap();
-    assert!(!toks
-        .iter()
-        .any(|t| t.kind == TokenType::Eol && sm.text(t.span).contains(';')));
+    assert!(
+        !toks
+            .iter()
+            .any(|t| t.kind == TokenType::Eol && sm.text(t.span).contains(';'))
+    );
     let w = words(src);
     assert_eq!(w, [(TokenType::Esc, "a\\;b".to_string())]);
 }
@@ -671,7 +689,10 @@ fn backslash_newline_continues_a_comment_swallowing_the_next_line() {
         .find(|t| t.kind == TokenType::Comment)
         .expect("a comment token");
     let text = sm.text(comment.span);
-    assert!(text.contains("puts SHOULD-NOT-RUN"), "comment swallows the line");
+    assert!(
+        text.contains("puts SHOULD-NOT-RUN"),
+        "comment swallows the line"
+    );
     assert!(words(src).iter().any(|(_, t)| t == "set"));
 }
 
@@ -745,7 +766,11 @@ fn line_index_offset_at_utf16_round_trips_and_clamps() {
     // Round-trips with position_at_utf16 at char boundaries.
     for off in [0u32, 1, 3, 5, 6, 7] {
         let p = idx.position_at_utf16(off, src);
-        assert_eq!(idx.offset_at_utf16(p.line, p.character, src), off, "off {off}");
+        assert_eq!(
+            idx.offset_at_utf16(p.line, p.character, src),
+            off,
+            "off {off}"
+        );
     }
 }
 
@@ -791,7 +816,11 @@ fn line_index_line_at_is_encoding_independent() {
     let src = "á\nbc\nd";
     let idx = LineIndex::new(src);
     for off in [0u32, 2, 3, 5, 6] {
-        assert_eq!(idx.line_at(off), idx.position_at(off).line, "byte off {off}");
+        assert_eq!(
+            idx.line_at(off),
+            idx.position_at(off).line,
+            "byte off {off}"
+        );
         assert_eq!(
             idx.line_at(off),
             idx.position_at_utf16(off, src).line,
@@ -806,7 +835,10 @@ fn line_index_bare_cr_is_not_a_line_break() {
     // index counts only `\n`. So `abc\rdef` is one line.
     let idx = LineIndex::new("abc\rdef");
     assert_eq!(idx.line_count(), 1);
-    assert_eq!(idx.position_at(4), SourcePosition::new(0, ByteCol::new(4), 4));
+    assert_eq!(
+        idx.position_at(4),
+        SourcePosition::new(0, ByteCol::new(4), 4)
+    );
     // CRLF still breaks (on its LF): `abc\r\ndef` is two lines.
     let idx = LineIndex::new("abc\r\ndef");
     assert_eq!(idx.line_count(), 2);
@@ -872,19 +904,32 @@ fn expr_unterminated_brace_falls_back_to_a_one_char_string() {
     let pairs = expr_pairs("{1 + 2");
     assert_eq!(pairs[0], (ExprTokenType::String, "{".to_string()));
     // The remainder still tokenises as numbers and an operator.
-    assert!(pairs.iter().any(|(k, t)| *k == ExprTokenType::Number && t == "1"));
-    assert!(pairs.iter().any(|(k, t)| *k == ExprTokenType::Operator && t == "+"));
+    assert!(
+        pairs
+            .iter()
+            .any(|(k, t)| *k == ExprTokenType::Number && t == "1")
+    );
+    assert!(
+        pairs
+            .iter()
+            .any(|(k, t)| *k == ExprTokenType::Operator && t == "+")
+    );
 
     // A *balanced* brace is one STRING covering the whole `{...}`.
     let balanced = expr_pairs("{1 + 2}");
-    assert_eq!(balanced, vec![(ExprTokenType::String, "{1 + 2}".to_string())]);
+    assert_eq!(
+        balanced,
+        vec![(ExprTokenType::String, "{1 + 2}".to_string())]
+    );
 }
 
 #[test]
 fn expr_math_function_set_is_exposed() {
     // The exported function set lets consumers detect shadowed math funcs.
     let funcs = tcl_lexer::expr_math_functions();
-    for name in ["sin", "cos", "sqrt", "pow", "atan2", "isqrt", "isinf", "isnan"] {
+    for name in [
+        "sin", "cos", "sqrt", "pow", "atan2", "isqrt", "isinf", "isnan",
+    ] {
         assert!(funcs.contains(name), "{name} missing from math_functions");
     }
     // It is a non-trivial set.

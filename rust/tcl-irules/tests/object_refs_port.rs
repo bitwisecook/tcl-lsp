@@ -40,9 +40,7 @@ fn has_command_name(
     command: &str,
     name: &str,
 ) -> bool {
-    by_name
-        .iter()
-        .any(|((c, n), _)| c == command && n == name)
+    by_name.iter().any(|((c, n), _)| c == command && n == name)
 }
 
 /// pytest: `test_extract_irules_refs_for_pool_snatpool_and_datagroup`

@@ -231,15 +231,26 @@ mod testwrongnumargs;
 use crate::spec::CommandSpec;
 
 /// Return all `stdlib` command specifications.
-// Flat declarative `vec![spec(), ...]` — splitting hurts
-// readability for a one-shot table.  The clippy::too_many_lines
-// allow stays *only* on the irreducible list-of-specs functions
-// (this one + the parallel `tcllib_command_specs` /
-// `irules_command_specs`).  Every other clippy::too_many_lines
-// allow in the workspace was retired in this chunk.
+///
+/// The flat list is assembled from per-namespace sub-builders (one per
+/// logical package family) so no single function carries the whole table.
+/// Concatenation order is preserved exactly — the registry-port tests
+/// assert the resulting set is identical.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn stdlib_command_specs() -> Vec<CommandSpec> {
+    let mut specs = Vec::new();
+    specs.extend(http_specs());
+    specs.extend(msgcat_specs());
+    specs.extend(pkg_platform_safe_specs());
+    specs.extend(tcl_namespace_specs());
+    specs.extend(tcltest_specs());
+    specs.extend(test_harness_specs());
+    specs.extend(test_harness_specs_h_w());
+    specs
+}
+
+/// `gettimes`/`history`, the `http::*` family, then `lgen`/`lstring`.
+fn http_specs() -> Vec<CommandSpec> {
     vec![
         gettimes::spec(),
         history::spec(),
@@ -274,6 +285,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         http__wait::spec(),
         lgen::spec(),
         lstring::spec(),
+    ]
+}
+
+/// The `msgcat::*` localisation family, then `noop`.
+fn msgcat_specs() -> Vec<CommandSpec> {
+    vec![
         msgcat__mc::spec(),
         msgcat__mcexists::spec(),
         msgcat__mcflmset::spec(),
@@ -293,6 +310,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         msgcat__mcunknown::spec(),
         msgcat__mcutil::spec(),
         noop::spec(),
+    ]
+}
+
+/// `pkg::*`, `platform::*`, and `safe::*` interpreter families.
+fn pkg_platform_safe_specs() -> Vec<CommandSpec> {
+    vec![
         pkg__create::spec(),
         pkg_mkindex::spec(),
         platform__generic::spec(),
@@ -308,6 +331,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         safe__interpinit::spec(),
         safe__setlogcmd::spec(),
         safe__setsyncmode::spec(),
+    ]
+}
+
+/// The `tcl::*` / `tcl_*` core-namespace family.
+fn tcl_namespace_specs() -> Vec<CommandSpec> {
+    vec![
         tcl__idna__decode::spec(),
         tcl__idna__encode::spec(),
         tcl__optkeydelete::spec(),
@@ -324,6 +353,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         tcl_startofpreviousword::spec(),
         tcl_wordbreakafter::spec(),
         tcl_wordbreakbefore::spec(),
+    ]
+}
+
+/// The `tcltest::*` test-framework family.
+fn tcltest_specs() -> Vec<CommandSpec> {
+    vec![
         tcltest__bytestring::spec(),
         tcltest__cleanuptests::spec(),
         tcltest__configure::spec(),
@@ -365,6 +400,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         tcltest__verbose::spec(),
         tcltest__viewfile::spec(),
         tcltest__workingdirectory::spec(),
+    ]
+}
+
+/// The internal `test*` C-API harness commands (`testa*`–`testg*`).
+fn test_harness_specs() -> Vec<CommandSpec> {
+    vec![
         testapplylambda::spec(),
         testappverifierpresent::spec(),
         testasync::spec(),
@@ -413,6 +454,12 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
         testgetplatform::spec(),
         testgetunichar::spec(),
         testgetvarfullname::spec(),
+    ]
+}
+
+/// The internal `test*` C-API harness commands (`testh*`–`testw*`).
+fn test_harness_specs_h_w() -> Vec<CommandSpec> {
+    vec![
         testhandlecount::spec(),
         testhashsystemhash::spec(),
         testindexobj::spec(),

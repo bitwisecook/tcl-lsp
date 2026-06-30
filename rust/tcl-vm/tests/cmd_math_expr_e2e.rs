@@ -152,10 +152,16 @@ fn expr_stk_call_error_and_unknown_function() {
 fn expr_stk_unary_plus_promotion() {
     // `ExprEval::unary` Pos over a big-int and a double (dynamic path).
     // tclsh 8.6/9.0:
-    cmd_eq("set a 1180591620717411303424; set e {+$a}; expr $e", "1180591620717411303424");
+    cmd_eq(
+        "set a 1180591620717411303424; set e {+$a}; expr $e",
+        "1180591620717411303424",
+    );
     cmd_eq("set a 2.5; set e {+$a}; expr $e", "2.5");
     // unary `~` over a big-int (dynamic path).
-    cmd_eq("set a 1180591620717411303424; set e {~$a}; expr $e", "-1180591620717411303425");
+    cmd_eq(
+        "set a 1180591620717411303424; set e {~$a}; expr $e",
+        "-1180591620717411303425",
+    );
 }
 
 #[test]
@@ -698,7 +704,10 @@ fn expr_runtime_operand_type_errors() {
     // `~` on a double operand.
     let (ok, result, _) = run("set a 2.5; expr {~$a}");
     assert!(!ok);
-    assert_eq!(result, "cannot use floating-point value \"2.5\" as operand of \"~\"");
+    assert_eq!(
+        result,
+        "cannot use floating-point value \"2.5\" as operand of \"~\""
+    );
 }
 
 #[test]
@@ -938,7 +947,10 @@ fn mathfunc_two_arg_functions() {
 #[test]
 fn mathfunc_fmod_by_zero_is_domain_error() {
     // fmod(x, 0) yields NaN -> domain error.  tclsh 8.6/9.0:
-    expr_err("fmod(5.0, 0.0)", "domain error: argument not in valid range");
+    expr_err(
+        "fmod(5.0, 0.0)",
+        "domain error: argument not in valid range",
+    );
     expr_err("fmod(7, 0)", "domain error: argument not in valid range");
 }
 
@@ -976,7 +988,9 @@ fn mathfunc_nonnumeric_argument_float_error() {
     // A non-numeric `$var` argument to a float function gives the canonical
     // "floating-point number" coercion error (the `as_double` Err branch).
     // tclsh 9.0:
-    for f in ["double", "sqrt", "floor", "ceil", "sin", "cos", "exp", "log"] {
+    for f in [
+        "double", "sqrt", "floor", "ceil", "sin", "cos", "exp", "log",
+    ] {
         let (ok, result, _) = run(&format!("set x abc; expr {{{f}($x)}}"));
         assert!(!ok, "{f}($x) should error");
         assert_eq!(
@@ -1095,7 +1109,10 @@ fn bug_max_min_mixed_preserves_winner_type() {
 fn bug_mathfunc_arity_error_wording() {
     // "too many" direction (one-arg funcs given two; two-arg funcs given three).
     expr_err("abs(1,2)", "too many arguments for math function \"abs\"");
-    expr_err("round(1,2)", "too many arguments for math function \"round\"");
+    expr_err(
+        "round(1,2)",
+        "too many arguments for math function \"round\"",
+    );
     expr_err("sin(1,2)", "too many arguments for math function \"sin\"");
     expr_err("sqrt(1,2)", "too many arguments for math function \"sqrt\"");
     expr_err("pow(1,2,3)", "too many arguments for math function \"pow\"");
@@ -1103,12 +1120,24 @@ fn bug_mathfunc_arity_error_wording() {
     expr_err("sqrt()", "not enough arguments for math function \"sqrt\"");
     expr_err("abs()", "not enough arguments for math function \"abs\"");
     expr_err("int()", "not enough arguments for math function \"int\"");
-    expr_err("double()", "not enough arguments for math function \"double\"");
+    expr_err(
+        "double()",
+        "not enough arguments for math function \"double\"",
+    );
     expr_err("bool()", "not enough arguments for math function \"bool\"");
-    expr_err("isqrt()", "not enough arguments for math function \"isqrt\"");
+    expr_err(
+        "isqrt()",
+        "not enough arguments for math function \"isqrt\"",
+    );
     expr_err("pow(1)", "not enough arguments for math function \"pow\"");
-    expr_err("atan2(1)", "not enough arguments for math function \"atan2\"");
-    expr_err("hypot(1)", "not enough arguments for math function \"hypot\"");
+    expr_err(
+        "atan2(1)",
+        "not enough arguments for math function \"atan2\"",
+    );
+    expr_err(
+        "hypot(1)",
+        "not enough arguments for math function \"hypot\"",
+    );
     expr_err("fmod(1)", "not enough arguments for math function \"fmod\"");
     expr_err("max()", "not enough arguments for math function \"max\"");
     expr_err("min()", "not enough arguments for math function \"min\"");
@@ -1143,8 +1172,7 @@ fn bug_srand_is_deterministic_and_missing() {
 #[test]
 fn bug_rand_returns_unit_interval_and_missing() {
     // Seed first (deterministic), then check rand() lands in [0,1).
-    let (ok, result, _) =
-        run("expr {srand(99)}; set x [expr {rand()}]; expr {$x >= 0 && $x < 1}");
+    let (ok, result, _) = run("expr {srand(99)}; set x [expr {rand()}]; expr {$x >= 0 && $x < 1}");
     assert!(ok, "rand() should produce a number in [0,1): {result}");
     assert_eq!(result, "1"); // tclsh 8.6/9.0
 }

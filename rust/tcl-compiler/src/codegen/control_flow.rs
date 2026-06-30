@@ -3,8 +3,6 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
-#![allow(clippy::similar_names, clippy::doc_markdown)]
-
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;

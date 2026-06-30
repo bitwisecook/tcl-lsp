@@ -9,7 +9,7 @@
 //! guard is sized well above legitimate hand-written code, so normal procs are
 //! unaffected. There are two independent halves:
 //!
-//!   * **block-count** — [`tcl_compiler::ssa::COMPLEXITY_GUARD_BLOCKS`] (20_000):
+//!   * **block-count** — [`tcl_compiler::ssa::COMPLEXITY_GUARD_BLOCKS`] (`20_000)`:
 //!     applied by [`tcl_compiler::ssa::is_complexity_guarded`] over the CFG, and
 //!     as a backstop inside `FunctionUnit::build_*`.
 //!   * **body-bytes** — [`tcl_compiler::ssa::DEEP_ANALYSIS_BODY_BYTES`]
@@ -57,9 +57,9 @@
 use tcl_compiler::cfg::{Block, Function, Terminator};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ssa::{
-    build_ssa, is_complexity_guarded, COMPLEXITY_GUARD_BLOCKS, DEEP_ANALYSIS_BODY_BYTES,
+    COMPLEXITY_GUARD_BLOCKS, DEEP_ANALYSIS_BODY_BYTES, build_ssa, is_complexity_guarded,
 };
-use tcl_registry::{registry_for_dialect, CommandRegistry};
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 const TCL: &str = "tcl8.6";
 
@@ -83,10 +83,7 @@ fn chain_cfg(n: usize) -> Function {
         let terminator = if i < n - 1 {
             // Goto the next block in the chain.
             let target = f.intern_block(format!("b{}", i + 1));
-            Terminator::Goto {
-                target,
-                span: None,
-            }
+            Terminator::Goto { target, span: None }
         } else {
             Terminator::Return {
                 value: None,

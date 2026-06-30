@@ -6,8 +6,6 @@
 //! expression was computed at a dominating definition; the new
 //! occurrence can be replaced with the earlier result.
 
-#![allow(clippy::implicit_hasher, clippy::format_push_string)]
-
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 
@@ -211,11 +209,12 @@ impl ScopedValueTable {
 ///
 /// Names that are not present in `uses` are left unchanged.
 #[must_use]
-pub fn canonicalise_word(
+pub fn canonicalise_word<S: std::hash::BuildHasher>(
     text: &str,
-    uses: &HashMap<crate::ssa::Symbol, u32>,
+    uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
 ) -> String {
+    use std::fmt::Write as _;
     if uses.is_empty() {
         return text.to_owned();
     }
@@ -239,7 +238,7 @@ pub fn canonicalise_word(
             if j < bytes.len() {
                 let name = &text[start..j];
                 if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
-                    out.push_str(&format!("${name}@{ver}"));
+                    let _ = write!(out, "${name}@{ver}");
                 } else {
                     out.push_str(&text[i..=j]);
                 }
@@ -270,7 +269,7 @@ pub fn canonicalise_word(
         }
         let name = &text[start..j];
         if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
-            out.push_str(&format!("${name}@{ver}"));
+            let _ = write!(out, "${name}@{ver}");
         } else {
             out.push_str(&text[i..j]);
         }
@@ -282,10 +281,10 @@ pub fn canonicalise_word(
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
 /// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
 #[must_use]
-pub fn build_call_key(
+pub fn build_call_key<S: std::hash::BuildHasher>(
     command: &str,
     args: &[String],
-    uses: &HashMap<crate::ssa::Symbol, u32>,
+    uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
 ) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
@@ -1985,8 +1984,12 @@ mod tests {
     }
 
     fn llength_call() -> Statement {
+        llength_call_at(0, 0)
+    }
+
+    fn llength_call_at(start: u32, end: u32) -> Statement {
         Statement::Call {
-            span: Span::new(0, 0),
+            span: Span::new(start, end),
             command: "llength".into(),
             canonical_command: None,
             args: vec!["$x".into()],
@@ -2538,8 +2541,6 @@ mod tests {
 
     // -- partial-redundancy detection --
 
-    // Long match dispatcher over IR opcodes.
-    #[allow(clippy::too_many_lines)]
     #[test]
     fn find_partial_redundancies_if_diamond() {
         // Diamond:
@@ -2573,18 +2574,7 @@ mod tests {
             .get_mut(&tt)
             .unwrap()
             .statements
-            .push(Statement::Call {
-                span: Span::new(100, 110),
-                command: "llength".into(),
-                canonical_command: None,
-                args: vec!["$x".into()],
-                defs: Vec::new(),
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            });
+            .push(llength_call_at(100, 110));
         cfg.blocks.get_mut(&tt).unwrap().terminator = Some(Terminator::Goto {
             target: join,
             span: None,
@@ -2597,18 +2587,7 @@ mod tests {
             .get_mut(&join)
             .unwrap()
             .statements
-            .push(Statement::Call {
-                span: Span::new(200, 210),
-                command: "llength".into(),
-                canonical_command: None,
-                args: vec!["$x".into()],
-                defs: Vec::new(),
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            });
+            .push(llength_call_at(200, 210));
         cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -2622,45 +2601,15 @@ mod tests {
         ssa.idom.insert(ff, Some(entry));
         ssa.idom.insert(join, Some(entry));
 
-        let mut uses_x = Map::new();
-        uses_x.insert(ssa.intern_var("x"), 1);
-
         let entry_b = empty_ssa_block("entry");
         let mut tt_b = empty_ssa_block("tt");
-        tt_b.statements.push(SsaStatement {
-            statement: Statement::Call {
-                span: Span::new(100, 110),
-                command: "llength".into(),
-                canonical_command: None,
-                args: vec!["$x".into()],
-                defs: Vec::new(),
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            },
-            uses: uses_x.clone(),
-            defs: Map::new(),
-        });
+        tt_b.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call_at(100, 110), Some(1)));
         let ff_b = empty_ssa_block("ff");
         let mut join_b = empty_ssa_block("join");
-        join_b.statements.push(SsaStatement {
-            statement: Statement::Call {
-                span: Span::new(200, 210),
-                command: "llength".into(),
-                canonical_command: None,
-                args: vec!["$x".into()],
-                defs: Vec::new(),
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            },
-            uses: uses_x,
-            defs: Map::new(),
-        });
+        join_b
+            .statements
+            .push(ssa_stmt_for(&mut ssa, llength_call_at(200, 210), Some(1)));
         ssa.blocks.insert(entry, entry_b);
         ssa.blocks.insert(tt, tt_b);
         ssa.blocks.insert(ff, ff_b);

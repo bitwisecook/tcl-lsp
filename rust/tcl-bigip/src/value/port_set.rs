@@ -33,10 +33,10 @@ impl PortSegment {
                 "PortSegment: low > high ({low}-{high})"
             )));
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Both endpoints are bounded to 0..=65535 by the checks above.
         Ok(Self {
-            low: low as u16,
-            high: high as u16,
+            low: u16::try_from(low).expect("low in 0..=65535"),
+            high: u16::try_from(high).expect("high in 0..=65535"),
         })
     }
 

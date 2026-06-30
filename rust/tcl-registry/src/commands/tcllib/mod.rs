@@ -212,13 +212,36 @@ mod yaml__yaml2huddle;
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
-// Flat declarative `vec![spec(), ...]` — splitting hurts
-// readability for a one-shot table.  See `stdlib_command_specs`
-// for the same justification on the parallel registry list.
+///
+/// The flat list is assembled from per-namespace sub-builders (grouped by
+/// tcllib package family) so no single function carries the whole table,
+/// then each spec's `required_package` is derived from its namespace.
+/// Concatenation order is preserved exactly — the registry-port tests
+/// assert the resulting set is identical.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
-    let mut specs = vec![
+    let mut specs = Vec::new();
+    specs.extend(base64_cmdline_csv_dns_specs());
+    specs.extend(fileutil_html_ip_json_specs());
+    specs.extend(logger_math_specs());
+    specs.extend(md5_mime_snit_struct_specs());
+    specs.extend(textutil_uri_yaml_specs());
+    // Every tcllib command is gated on its providing package.
+    // Derive `required_package` from the command's namespace so
+    // W120 (missing-package-require) and package-gated
+    // completion fire for tcllib commands used without the
+    // corresponding `package require`.
+    for spec in &mut specs {
+        if spec.required_package.is_none() {
+            spec.required_package = tcllib_required_package(spec.name);
+        }
+    }
+    specs
+}
+
+/// `base64::*`, `cmdline::*`, `csv::*`, and `dns::*`.
+fn base64_cmdline_csv_dns_specs() -> Vec<CommandSpec> {
+    vec![
         base64__decode::spec(),
         base64__encode::spec(),
         cmdline__getargv0::spec(),
@@ -256,6 +279,12 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         dns__result::spec(),
         dns__status::spec(),
         dns__wait::spec(),
+    ]
+}
+
+/// `fileutil::*`, `html::*`, `ip::*`, and `json::*`.
+fn fileutil_html_ip_json_specs() -> Vec<CommandSpec> {
+    vec![
         fileutil__appendtofile::spec(),
         fileutil__cat::spec(),
         fileutil__filetype::spec(),
@@ -300,6 +329,12 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         json__many_json2dict::spec(),
         json__string2json::spec(),
         json__validate::spec(),
+    ]
+}
+
+/// `logger::*` and the large `math::*` family.
+fn logger_math_specs() -> Vec<CommandSpec> {
+    vec![
         logger__disable::spec(),
         logger__enable::spec(),
         logger__import::spec(),
@@ -353,6 +388,12 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         math__statistics__test_wilcoxon::spec(),
         math__statistics__test_xbar::spec(),
         math__statistics__var::spec(),
+    ]
+}
+
+/// `md5`, `mime::*`, `sha1`/`sha2`, `smtp`, `snit::*`, and `struct::*`.
+fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
+    vec![
         md5__md5::spec(),
         mime__buildmessage::spec(),
         mime__copymessage::spec(),
@@ -387,6 +428,12 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         struct__queue::spec(),
         struct__set::spec(),
         struct__stack::spec(),
+    ]
+}
+
+/// `textutil::*`, `uri::*`, `uuid`, and `yaml::*`.
+fn textutil_uri_yaml_specs() -> Vec<CommandSpec> {
+    vec![
         textutil__adjust::spec(),
         textutil__blank::spec(),
         textutil__cap::spec(),
@@ -425,18 +472,7 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         yaml__setoptions::spec(),
         yaml__yaml2dict::spec(),
         yaml__yaml2huddle::spec(),
-    ];
-    // Every tcllib command is gated on its providing package.
-    // Derive `required_package` from the command's namespace so
-    // W120 (missing-package-require) and package-gated
-    // completion fire for tcllib commands used without the
-    // corresponding `package require`.
-    for spec in &mut specs {
-        if spec.required_package.is_none() {
-            spec.required_package = tcllib_required_package(spec.name);
-        }
-    }
-    specs
+    ]
 }
 
 /// Map a tcllib command name to the package that provides it.

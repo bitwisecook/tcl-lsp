@@ -3,7 +3,7 @@
 //!     interval-driven dynamic bounds checks (W230 lindex / W231 lset / W232
 //!     string index / W233 divide-by-zero).
 //!   * `tests/test_intervals.py` (12 tests) — `compiler.cfg`-driven integer
-//!     interval lattice (arithmetic, join/meet/widen, compute_intervals, guard
+//!     interval lattice (arithmetic, join/meet/widen, `compute_intervals`, guard
 //!     narrowing).
 //!
 //! ## Two observation surfaces
@@ -80,7 +80,9 @@
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-use tcl_compiler::intervals::{Interval, build_guard_index, compute_intervals, constant, refine_interval};
+use tcl_compiler::intervals::{
+    Interval, build_guard_index, compute_intervals, constant, refine_interval,
+};
 use tcl_registry::registry_for_dialect;
 
 /// Default dialect (8.6 and 9.0 agree on every Tcl fact exercised here).
@@ -122,12 +124,15 @@ fn messages(src: &str, code: &str) -> Vec<String> {
 /// pipeline collapsed into the shared `CompilationUnit` build).
 fn func(src: &str) -> (CompilationUnit, String) {
     // Return the owning CU alongside the proc key so the borrow lives.
-    (CompilationUnit::build_for(src, registry_for_dialect(D), false), "::f".to_owned())
+    (
+        CompilationUnit::build_for(src, registry_for_dialect(D), false),
+        "::f".to_owned(),
+    )
 }
 
 /// `compute_intervals` over `::f`, plus a name→Symbol resolver bound to it.
 /// Mirrors `_intervals(src, "::f")`, then `iv[("name", version)]`.
-fn intervals_of<'a>(fu: &'a FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + 'a {
+fn intervals_of(fu: &FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + '_ {
     let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
     move |name: &str, version: u32| {
         let sym = fu.ssa.var_symbol(name)?;
@@ -146,11 +151,9 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
         .find_map(|b| match &b.terminator {
             Some(Terminator::Branch {
                 true_target,
-                condition,
+                condition: tcl_compiler::expr_ast::ExprNode::Binary { .. },
                 ..
-            }) if matches!(condition, tcl_compiler::expr_ast::ExprNode::Binary { .. }) => {
-                Some(*true_target)
-            }
+            }) => Some(*true_target),
             _ => None,
         })
         .expect("a comparison-guarded branch")
@@ -194,7 +197,8 @@ mod dynamic_lindex_out_of_range {
     fn idiomatic_loop_is_silent() {
         // `$j < [llength $l]` — canonical in-range iteration; must not warn (the
         // symbolic RHS gives no constant upper bound to prove OOR).
-        let src = "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { set x [lindex $l $j] } }";
+        let src =
+            "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { set x [lindex $l $j] } }";
         assert_eq!(count(src, "W230"), 0);
     }
 
@@ -258,7 +262,8 @@ mod nested_position_lindex {
 
     #[test]
     fn nested_idiomatic_silent() {
-        let src = "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { puts [lindex $l $j] } }";
+        let src =
+            "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { puts [lindex $l $j] } }";
         assert_eq!(count(src, "W230"), 0);
     }
 
@@ -280,7 +285,8 @@ mod nested_position_lindex {
         // consumer turns a *proven* fact into a warning; missing one is never a
         // miscompile). The same shape in a `return`/branch position DOES fire —
         // see `expr_embedded_in_return_fires`. Captured at the actual verdict.
-        let src = "proc f {} { set l {a b c}\n set i 5\n set u [expr {[lindex $l $i] + 1}]\n return $u }";
+        let src =
+            "proc f {} { set l {a b c}\n set i 5\n set u [expr {[lindex $l $i] + 1}]\n return $u }";
         assert_eq!(
             count(src, "W230"),
             0,
@@ -308,7 +314,8 @@ mod nested_position_lindex {
     fn expr_embedded_in_range_silent() {
         // tclsh: `lindex {a b c} 1` → "b" (in range) — silent regardless of the
         // expr-position handling.
-        let src = "proc f {} { set l {a b c}\n set i 1\n set u [expr {[lindex $l $i] + 1}]\n return $u }";
+        let src =
+            "proc f {} { set l {a b c}\n set i 1\n set u [expr {[lindex $l $i] + 1}]\n return $u }";
         assert_eq!(count(src, "W230"), 0);
     }
 }
@@ -477,7 +484,10 @@ mod divide_by_zero {
     #[test]
     fn dead_ternary_arm_div_zero_silent() {
         // tclsh: `expr {0 ? 1/0 : 7}` → 7 (the 1/0 arm is never evaluated).
-        assert_eq!(count("proc f {} { return [expr {0 ? 1/0 : 7}] }", "W233"), 0);
+        assert_eq!(
+            count("proc f {} { return [expr {0 ? 1/0 : 7}] }", "W233"),
+            0
+        );
     }
 
     #[test]
@@ -519,21 +529,30 @@ mod divide_by_zero {
     fn forced_true_ternary_arm_div_zero_fires() {
         // Condition constant-true → the then-arm always runs.
         // tclsh: `expr {1 ? 1/0 : 7}` → divide by zero.
-        assert_eq!(count("proc f {} { return [expr {1 ? 1/0 : 7}] }", "W233"), 1);
+        assert_eq!(
+            count("proc f {} { return [expr {1 ? 1/0 : 7}] }", "W233"),
+            1
+        );
     }
 
     #[test]
     fn forced_false_ternary_arm_div_zero_fires() {
         // Condition constant-false → the else-arm always runs.
         // tclsh: `expr {0 ? 7 : 1/0}` → divide by zero.
-        assert_eq!(count("proc f {} { return [expr {0 ? 7 : 1/0}] }", "W233"), 1);
+        assert_eq!(
+            count("proc f {} { return [expr {0 ? 7 : 1/0}] }", "W233"),
+            1
+        );
     }
 
     #[test]
     fn bool_keyword_guard_forces_arm() {
         // `true`/`no` are constant guards too.
         // tclsh: `expr {true && 1/0}` and `expr {no || 1/0}` → divide by zero.
-        assert_eq!(count("proc f {} { return [expr {true && 1/0}] }", "W233"), 1);
+        assert_eq!(
+            count("proc f {} { return [expr {true && 1/0}] }", "W233"),
+            1
+        );
         assert_eq!(count("proc f {} { return [expr {no || 1/0}] }", "W233"), 1);
     }
 
@@ -544,7 +563,10 @@ mod divide_by_zero {
         // all raise divide by zero.
         assert_eq!(count("proc f {} { return [expr {1.0 && 1/0}] }", "W233"), 1);
         assert_eq!(count("proc f {} { return [expr {0.0 || 1/0}] }", "W233"), 1);
-        assert_eq!(count("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233"), 1);
+        assert_eq!(
+            count("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233"),
+            1
+        );
     }
 
     #[test]
@@ -552,8 +574,14 @@ mod divide_by_zero {
         // `expr` accepts booleans case-insensitively.
         // tclsh: `expr {True && 1/0}`, `expr {TRUE && 1/0}`, `expr {No || 1/0}`
         // all raise divide by zero.
-        assert_eq!(count("proc f {} { return [expr {True && 1/0}] }", "W233"), 1);
-        assert_eq!(count("proc f {} { return [expr {TRUE && 1/0}] }", "W233"), 1);
+        assert_eq!(
+            count("proc f {} { return [expr {True && 1/0}] }", "W233"),
+            1
+        );
+        assert_eq!(
+            count("proc f {} { return [expr {TRUE && 1/0}] }", "W233"),
+            1
+        );
         assert_eq!(count("proc f {} { return [expr {No || 1/0}] }", "W233"), 1);
     }
 
@@ -570,7 +598,10 @@ mod divide_by_zero {
         // `!1` is constant-false → the && RHS is short-circuited.
         // tclsh: `expr {!1 && 1/0}` → 0; `expr {False && 1/0}` → 0.
         assert_eq!(count("proc f {} { return [expr {!1 && 1/0}] }", "W233"), 0);
-        assert_eq!(count("proc f {} { return [expr {False && 1/0}] }", "W233"), 0);
+        assert_eq!(
+            count("proc f {} { return [expr {False && 1/0}] }", "W233"),
+            0
+        );
     }
 
     #[test]
@@ -579,7 +610,10 @@ mod divide_by_zero {
         // so W233 stays silent (preserves the dead-arm discipline).
         assert_eq!(count("proc f {c} { return [expr {$c && 1/0}] }", "W233"), 0);
         assert_eq!(count("proc f {c} { return [expr {$c || 1/0}] }", "W233"), 0);
-        assert_eq!(count("proc f {c} { return [expr {$c ? 1/0 : 7}] }", "W233"), 0);
+        assert_eq!(
+            count("proc f {c} { return [expr {$c ? 1/0 : 7}] }", "W233"),
+            0
+        );
     }
 }
 
@@ -682,7 +716,7 @@ mod interval_fixpoint_soundness {
         let fu = cu.procedures.get(&key).expect("::f lowered");
         let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
         assert!(!iv.is_empty(), "a counting loop must yield interval facts");
-        for (_, &interval) in &iv {
+        for &interval in iv.values() {
             assert!(
                 !interval.is_bottom(),
                 "a converged interval must never be the empty (lo>hi) sentinel: {interval:?}"
@@ -693,7 +727,10 @@ mod interval_fixpoint_soundness {
         let some_i_nonneg = (1u32..=6)
             .filter_map(|v| lat("i", v))
             .any(|itv| matches!(itv.lo, Some(l) if l >= 0));
-        assert!(some_i_nonneg, "the loop counter i must have a non-negative lower bound");
+        assert!(
+            some_i_nonneg,
+            "the loop counter i must have a non-negative lower bound"
+        );
     }
 }
 
@@ -739,7 +776,10 @@ mod compute_intervals_suite {
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
         let lat = intervals_of(fu);
-        assert!(lat("x", 1).expect("x₁").is_top(), "opaque-call result is TOP");
+        assert!(
+            lat("x", 1).expect("x₁").is_top(),
+            "opaque-call result is TOP"
+        );
     }
 }
 
@@ -778,10 +818,10 @@ mod guard_narrowing {
         let narrowed_to_9 = (1u32..=6).any(|ver| {
             // Only consider versions that actually have a base interval (skip
             // version 0 / undefined which refine to TOP).
-            iv.get(&(sym, ver)).is_some() && {
+            iv.get(&(sym, ver)).is_some_and(|_| {
                 let r = refine_interval(&iv, &fu.cfg, &fu.ssa, body, "i", ver, &gi);
                 !r.is_top() && !r.is_bottom() && r.hi == Some(9)
-            }
+            })
         });
         assert!(
             narrowed_to_9,
@@ -827,10 +867,16 @@ mod guard_narrowing {
                 "a symbolic bound must not give the widened i a finite upper bound (version {ver}): {r:?}"
             );
             if let Some(lo) = r.lo {
-                assert!(lo >= 0, "the lower bound stays non-negative (version {ver}): {r:?}");
+                assert!(
+                    lo >= 0,
+                    "the lower bound stays non-negative (version {ver}): {r:?}"
+                );
             }
         }
-        assert!(saw_widened, "the loop must produce at least one widened (+inf-above) version of i");
+        assert!(
+            saw_widened,
+            "the loop must produce at least one widened (+inf-above) version of i"
+        );
     }
 }
 

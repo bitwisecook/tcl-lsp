@@ -459,34 +459,93 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// Dynamic out-of-range findings for this function (empty if none).
 /// `executable` restricts to SCCP-reachable blocks.
 #[must_use]
-#[allow(clippy::too_many_lines, clippy::similar_names, clippy::implicit_hasher)]
-pub fn find_interval_bounds(
+pub fn find_interval_bounds<S1, S2>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<BlockId>,
-) -> Vec<BoundsFinding> {
+    values: &HashMap<ValueKey, LatticeValue, S1>,
+    executable: &std::collections::HashSet<BlockId, S2>,
+) -> Vec<BoundsFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
     if !has_candidate(cfg, ssa) {
         return Vec::new();
     }
-    let intervals = compute_intervals(cfg, ssa, values);
-    let guard_index = build_guard_index(cfg, ssa);
-    let lengths = list_length_map(ssa);
-    let str_lengths = string_length_map(ssa);
-    let phi_index: PhiIndex = ssa
-        .blocks
-        .values()
-        .flat_map(|sb| sb.phis.iter())
-        .map(|p| ((p.name, p.version), p))
-        .collect();
+    let ctx = BoundsCtx {
+        cfg,
+        ssa,
+        intervals: compute_intervals(cfg, ssa, values),
+        guard_index: build_guard_index(cfg, ssa),
+        lengths: list_length_map(ssa),
+        str_lengths: string_length_map(ssa),
+        phi_index: ssa
+            .blocks
+            .values()
+            .flat_map(|sb| sb.phis.iter())
+            .map(|p| ((p.name, p.version), p))
+            .collect(),
+    };
     let mut findings = Vec::new();
 
-    let length_for_list = |cand: &Candidate,
-                           version_map: &HashMap<Symbol, Version>,
-                           entry_versions: &HashMap<Symbol, Version>,
-                           block_stmts: &[crate::ssa::SsaStatement],
-                           stmt_idx: usize|
-     -> Option<i64> {
+    for (bid, sb) in &ssa.blocks {
+        if !executable.contains(bid) {
+            continue;
+        }
+        let bn = *bid;
+        for (idx, s) in sb.statements.iter().enumerate() {
+            let span = statement_span(&s.statement);
+            for cand in statement_candidates(&s.statement) {
+                if let Some(span) = span {
+                    let site = CandidateSite {
+                        bn,
+                        span,
+                        version_map: &s.uses,
+                        entry_versions: &sb.entry_versions,
+                        block_stmts: &sb.statements,
+                        stmt_idx: idx,
+                    };
+                    ctx.process(&cand, &site, &mut findings);
+                }
+            }
+        }
+        // Index accesses in a `return [...]` value / branch condition: the read
+        // versions are the block's exit versions; anchor on the terminator.
+        let Some(block) = cfg.blocks.get(bid) else {
+            continue;
+        };
+        ctx.process_terminator(block, sb, bn, &mut findings);
+    }
+    findings
+}
+
+/// Read-only analysis state shared by the per-candidate bounds checks,
+/// borrowed for the duration of [`find_interval_bounds`].
+struct BoundsCtx<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    intervals: HashMap<ValueKey, Interval>,
+    guard_index: HashMap<ValueKey, Vec<BlockId>>,
+    lengths: HashMap<ValueKey, i64>,
+    str_lengths: HashMap<ValueKey, i64>,
+    phi_index: PhiIndex<'a>,
+}
+
+/// The single index-access call site `process` evaluates: the versions
+/// reaching it and where in the block it sits.
+struct CandidateSite<'a> {
+    bn: crate::cfg::BlockId,
+    span: Span,
+    version_map: &'a HashMap<Symbol, Version>,
+    entry_versions: &'a HashMap<Symbol, Version>,
+    block_stmts: &'a [crate::ssa::SsaStatement],
+    stmt_idx: usize,
+}
+
+impl BoundsCtx<'_> {
+    /// Resolve the list length backing `cand` at one call site, if known.
+    fn length_for_list(&self, cand: &Candidate, site: &CandidateSite) -> Option<i64> {
+        let ssa = self.ssa;
         let mut visited = std::collections::HashSet::new();
         if cand.is_lset {
             // `lset`'s first arg is a variable *name*, recorded as a def —
@@ -495,53 +554,71 @@ pub fn find_interval_bounds(
             if lname.contains('$') || lname.contains('[') {
                 return None;
             }
-            let reaching = reaching_versions(entry_versions, block_stmts, stmt_idx);
+            let reaching = reaching_versions(site.entry_versions, site.block_stmts, site.stmt_idx);
             let lver = *reaching.get(&ssa.var_symbol(lname)?)?;
-            return resolve_list_length(ssa, lname, lver, &phi_index, &lengths, &mut visited);
+            return resolve_list_length(
+                ssa,
+                lname,
+                lver,
+                &self.phi_index,
+                &self.lengths,
+                &mut visited,
+            );
         }
         // A *value* arg: literal list, or `$l`.
         if let Some(lit) = literal_list_length(&cand.list_arg) {
             return Some(lit);
         }
-        let lvar = plain_var_name(&cand.list_arg)?;
-        let lver = *version_map.get(&ssa.var_symbol(&lvar)?)?;
-        resolve_list_length(ssa, &lvar, lver, &phi_index, &lengths, &mut visited)
-    };
+        let list_name = plain_var_name(&cand.list_arg)?;
+        let list_version = *site.version_map.get(&ssa.var_symbol(&list_name)?)?;
+        resolve_list_length(
+            ssa,
+            &list_name,
+            list_version,
+            &self.phi_index,
+            &self.lengths,
+            &mut visited,
+        )
+    }
 
-    let process = |cand: &Candidate,
-                   bn: crate::cfg::BlockId,
-                   span: Span,
-                   version_map: &HashMap<Symbol, Version>,
-                   entry_versions: &HashMap<Symbol, Version>,
-                   block_stmts: &[crate::ssa::SsaStatement],
-                   stmt_idx: usize,
-                   findings: &mut Vec<BoundsFinding>| {
-        let Some(ivar) = plain_var_name(&cand.index_arg) else {
+    /// Evaluate one candidate index access; push a finding when the index
+    /// interval is provably out of range for the resolved length.
+    fn process(&self, cand: &Candidate, site: &CandidateSite, findings: &mut Vec<BoundsFinding>) {
+        let ssa = self.ssa;
+        let Some(index_var) = plain_var_name(&cand.index_arg) else {
             return;
         };
-        let Some(isym) = ssa.var_symbol(&ivar) else {
+        let Some(index_sym) = ssa.var_symbol(&index_var) else {
             return;
         };
-        let Some(&iver) = version_map.get(&isym) else {
+        let Some(&index_version) = site.version_map.get(&index_sym) else {
             return;
         };
-        if iver == 0 {
+        if index_version == 0 {
             return;
         }
         let length = if cand.command == STRING_INDEX {
-            let svar = plain_var_name(&cand.list_arg);
-            svar.and_then(|sv| {
+            let str_var = plain_var_name(&cand.list_arg);
+            str_var.and_then(|sv| {
                 ssa.var_symbol(&sv)
-                    .and_then(|ssym| version_map.get(&ssym).map(|&v| (ssym, v)))
-                    .and_then(|(ssym, v)| str_lengths.get(&(ssym, v)).copied())
+                    .and_then(|str_sym| site.version_map.get(&str_sym).map(|&v| (str_sym, v)))
+                    .and_then(|(str_sym, v)| self.str_lengths.get(&(str_sym, v)).copied())
             })
         } else {
-            length_for_list(cand, version_map, entry_versions, block_stmts, stmt_idx)
+            self.length_for_list(cand, site)
         };
         let Some(length) = length else {
             return;
         };
-        let iv = refine_interval(&intervals, cfg, ssa, bn, &ivar, iver, &guard_index);
+        let iv = refine_interval(
+            &self.intervals,
+            self.cfg,
+            ssa,
+            site.bn,
+            &index_var,
+            index_version,
+            &self.guard_index,
+        );
         if iv.is_top() || iv.is_bottom() {
             return;
         }
@@ -556,98 +633,60 @@ pub fn find_interval_bounds(
             DiagCode::W230
         };
         findings.push(BoundsFinding {
-            span,
+            span: site.span,
             code,
             command: cand.command.to_owned(),
-            index_var: ivar,
+            index_var,
             index_interval: iv,
             length,
             reason: reason.to_owned(),
         });
-    };
+    }
 
-    for (bid, sb) in &ssa.blocks {
-        if !executable.contains(bid) {
-            continue;
-        }
-        let bn = *bid;
-        for (idx, s) in sb.statements.iter().enumerate() {
-            let span = statement_span(&s.statement);
-            for cand in statement_candidates(&s.statement) {
-                if let Some(span) = span {
-                    process(
-                        &cand,
-                        bn,
-                        span,
-                        &s.uses,
-                        &sb.entry_versions,
-                        &sb.statements,
-                        idx,
-                        &mut findings,
-                    );
-                }
-            }
-        }
-        // Index accesses in a `return [...]` value / branch condition: the read
-        // versions are the block's exit versions; anchor on the terminator.
-        let Some(block) = cfg.blocks.get(bid) else {
-            continue;
+    /// Index accesses in a `return [...]` value / branch condition: the read
+    /// versions are the block's exit versions; anchor on the terminator.
+    fn process_terminator(
+        &self,
+        block: &crate::cfg::Block,
+        sb: &crate::ssa::SsaBlock,
+        bn: crate::cfg::BlockId,
+        findings: &mut Vec<BoundsFinding>,
+    ) {
+        let exit_site = |span: Span| CandidateSite {
+            bn,
+            span,
+            version_map: &sb.exit_versions,
+            entry_versions: &sb.exit_versions,
+            block_stmts: &sb.statements,
+            stmt_idx: sb.statements.len(),
         };
         match &block.terminator {
             Some(Terminator::Return {
                 value, expr, span, ..
             }) => {
-                let Some(span) = span else { continue };
+                let Some(span) = span else { return };
                 if let Some(v) = value
                     && let Some(cand) = parse_index_sub(v)
                 {
-                    process(
-                        &cand,
-                        bn,
-                        *span,
-                        &sb.exit_versions,
-                        &sb.exit_versions,
-                        &sb.statements,
-                        sb.statements.len(),
-                        &mut findings,
-                    );
+                    self.process(&cand, &exit_site(*span), findings);
                 }
                 if let Some(e) = expr {
                     for cand in index_subs_in_expr(e) {
-                        process(
-                            &cand,
-                            bn,
-                            *span,
-                            &sb.exit_versions,
-                            &sb.exit_versions,
-                            &sb.statements,
-                            sb.statements.len(),
-                            &mut findings,
-                        );
+                        self.process(&cand, &exit_site(*span), findings);
                     }
                 }
             }
             Some(Terminator::Branch {
                 condition, span, ..
             }) => {
-                let Some(span) = span else { continue };
+                let Some(span) = span else { return };
                 for cand in index_subs_in_expr(condition) {
-                    process(
-                        &cand,
-                        bn,
-                        *span,
-                        &sb.exit_versions,
-                        &sb.exit_versions,
-                        &sb.statements,
-                        sb.statements.len(),
-                        &mut findings,
-                    );
+                    self.process(&cand, &exit_site(*span), findings);
                 }
             }
             _ => {}
         }
     }
-    findings
 }
 
 /// A divide-by-zero finding: a `/` or `%` whose divisor is provably the
@@ -742,13 +781,16 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// as [`find_interval_bounds`]. Findings are returned in source-span order
 /// for deterministic output.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn find_divide_by_zero(
+pub fn find_divide_by_zero<S1, S2>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<BlockId>,
-) -> Vec<DivZeroFinding> {
+    values: &HashMap<ValueKey, LatticeValue, S1>,
+    executable: &std::collections::HashSet<BlockId, S2>,
+) -> Vec<DivZeroFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
     if !has_division(cfg, ssa) {
         return Vec::new();
     }

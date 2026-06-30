@@ -11,12 +11,12 @@
 //!
 //!   Python                                     Rust
 //!   ------------------------------------------ -------------------------------
-//!   REGISTRY.get(cmd, dialect)                 reg.get_for_dialect(cmd, ds)
-//!   REGISTRY.switches(cmd, dialect)            spec.switch_names(Some(ds))
+//!   REGISTRY.get(cmd, dialect)                 `reg.get_for_dialect(cmd`, ds)
+//!   REGISTRY.switches(cmd, dialect)            `spec.switch_names(Some(ds))`
 //!   REGISTRY.option(cmd, opt, dialect)         spec.options scan
-//!   REGISTRY.argument_values(cmd, i, dialect)  spec.arg_values_at(i)
-//!   REGISTRY.command_names(dialect)            reg.command_names()
-//!   configure_signatures(dialect) + SIGNATURES reg.get_for_dialect(name, ds)
+//!   `REGISTRY.argument_values(cmd`, i, dialect)  `spec.arg_values_at(i)`
+//!   `REGISTRY.command_names(dialect)`            `reg.command_names()`
+//!   `configure_signatures(dialect)` + SIGNATURES `reg.get_for_dialect(name`, ds)
 //!
 //! NOTE on `test_detect_dialect.py`: the dialect-detection function
 //! (`detect_dialect_from_source`) does NOT live in the `tcl-registry` crate —
@@ -41,7 +41,7 @@ use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
-    available_dialects, registry_for_dialect, ArgRole, CommandRegistry, Traits, KNOWN_DIALECTS,
+    ArgRole, CommandRegistry, KNOWN_DIALECTS, Traits, available_dialects, registry_for_dialect,
 };
 
 // ---------------------------------------------------------------------------
@@ -77,7 +77,9 @@ fn present_in(dialect: &str, cmd: &str) -> bool {
 #[test]
 fn socket_is_registered_with_switches() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let socket = reg.get_for_dialect("socket", ds).expect("socket registered");
+    let socket = reg
+        .get_for_dialect("socket", ds)
+        .expect("socket registered");
     let switches = socket.switch_names(Some(ds));
     assert!(switches.contains(&"-server"), "switches={switches:?}");
     assert!(switches.contains(&"-myaddr"), "switches={switches:?}");
@@ -104,7 +106,7 @@ fn irules_http_commands_are_dialect_scoped() {
 ///
 /// In the Python model these surface as `argument_values(.., 0)`; in the Rust
 /// model the same keywords are the command's subcommands.
-/// f5-dialect: HTTP::header is not real Tcl; subcommand metadata is registry data.
+/// f5-dialect: `HTTP::header` is not real Tcl; subcommand metadata is registry data.
 #[test]
 fn http_header_subcommand_values_are_registered() {
     let (reg, ds) = reg_and_set("f5-irules");
@@ -125,7 +127,9 @@ fn http_header_subcommand_values_are_registered() {
 #[test]
 fn socket_server_option_is_documented() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let socket = reg.get_for_dialect("socket", ds).expect("socket registered");
+    let socket = reg
+        .get_for_dialect("socket", ds)
+        .expect("socket registered");
     let server = socket
         .options
         .iter()
@@ -147,10 +151,39 @@ fn socket_server_option_is_documented() {
 #[test]
 fn registry_covers_core_commands_in_every_tcl_dialect() {
     const CORE: &[&str] = &[
-        "set", "proc", "if", "for", "foreach", "while", "switch", "expr", "incr", "append",
-        "lappend", "list", "lindex", "llength", "lrange", "lsort", "dict", "string", "info",
-        "array", "regexp", "regsub", "catch", "return", "namespace", "variable", "upvar",
-        "uplevel", "puts", "open", "close", "read", "gets",
+        "set",
+        "proc",
+        "if",
+        "for",
+        "foreach",
+        "while",
+        "switch",
+        "expr",
+        "incr",
+        "append",
+        "lappend",
+        "list",
+        "lindex",
+        "llength",
+        "lrange",
+        "lsort",
+        "dict",
+        "string",
+        "info",
+        "array",
+        "regexp",
+        "regsub",
+        "catch",
+        "return",
+        "namespace",
+        "variable",
+        "upvar",
+        "uplevel",
+        "puts",
+        "open",
+        "close",
+        "read",
+        "gets",
     ];
     // `dict` arrived in 8.5, so skip 8.4 for the cross-dialect sweep.
     for d in ["tcl8.5", "tcl8.6", "tcl9.0"] {
@@ -172,7 +205,9 @@ fn registry_covers_core_commands_in_every_tcl_dialect() {
 #[test]
 fn parray_has_hover_with_source() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let parray = reg.get_for_dialect("parray", ds).expect("parray registered");
+    let parray = reg
+        .get_for_dialect("parray", ds)
+        .expect("parray registered");
     let hover = parray.hover.as_ref().expect("parray has hover");
     assert!(!hover.source.is_empty(), "parray hover has a source");
 }
@@ -181,7 +216,7 @@ fn parray_has_hover_with_source() {
 /// `test_curated_irules_override_wins_over_generated_data` — iRules specs
 /// carry a clouddocs.f5.com hover source.
 ///
-/// f5-dialect: ACCESS::acl / HTTP::header are not real Tcl; the doc URLs are
+/// f5-dialect: `ACCESS::acl` / `HTTP::header` are not real Tcl; the doc URLs are
 /// registry metadata. The Python test parses the URL host to avoid a
 /// substring-sanitisation bug; we assert the recorded source URL directly.
 #[test]
@@ -207,14 +242,16 @@ fn irules_specs_carry_clouddocs_source() {
 }
 
 /// `test_registry_validation_metadata_is_available` — socket's arity is
-/// "at least 2, unlimited"; ACCESS::acl is unlimited.
+/// "at least 2, unlimited"; `ACCESS::acl` is unlimited.
 ///
 /// tclsh: `socket` needs at minimum a host and a port (2 args) and accepts
-/// more with options. f5-dialect: ACCESS::acl arity is registry data.
+/// more with options. f5-dialect: `ACCESS::acl` arity is registry data.
 #[test]
 fn validation_metadata_is_available() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let socket = reg.get_for_dialect("socket", ds).expect("socket registered");
+    let socket = reg
+        .get_for_dialect("socket", ds)
+        .expect("socket registered");
     assert_eq!(socket.arity.min, 2);
     assert!(socket.arity.is_unlimited());
 
@@ -231,7 +268,7 @@ fn validation_metadata_is_available() {
 
 /// `test_control_flow_includes_if_for_while` + `test_control_flow_excludes_non_control`.
 ///
-/// registry-metadata: the CONTROL_FLOW trait is our classification. (`if`,
+/// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
 /// verified in `registry_port.rs` — but "is control flow" is registry data.)
 #[test]
@@ -241,14 +278,24 @@ fn control_flow_trait_membership() {
     for c in ["if", "for", "while", "foreach"] {
         assert!(cf.contains(&c), "{c} must be control-flow");
     }
-    assert!(!reg.get("set").unwrap().traits.contains(Traits::CONTROL_FLOW));
-    assert!(!reg.get("puts").unwrap().traits.contains(Traits::CONTROL_FLOW));
+    assert!(
+        !reg.get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::CONTROL_FLOW)
+    );
+    assert!(
+        !reg.get("puts")
+            .unwrap()
+            .traits
+            .contains(Traits::CONTROL_FLOW)
+    );
 }
 
 /// `test_needs_start_cmd_includes_expr_break_continue` +
 /// `test_needs_start_cmd_excludes_non_matching`.
 ///
-/// registry-metadata: NEEDS_START_CMD is our classification.
+/// registry-metadata: `NEEDS_START_CMD` is our classification.
 #[test]
 fn needs_start_cmd_trait_membership() {
     let (reg, _) = reg_and_set("tcl8.6");
@@ -256,16 +303,18 @@ fn needs_start_cmd_trait_membership() {
         let spec = reg.get(c).unwrap_or_else(|| panic!("{c} registered"));
         assert!(spec.traits.contains(Traits::NEEDS_START_CMD), "{c}");
     }
-    assert!(!reg
-        .get("set")
-        .unwrap()
-        .traits
-        .contains(Traits::NEEDS_START_CMD));
-    assert!(!reg
-        .get("puts")
-        .unwrap()
-        .traits
-        .contains(Traits::NEEDS_START_CMD));
+    assert!(
+        !reg.get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::NEEDS_START_CMD)
+    );
+    assert!(
+        !reg.get("puts")
+            .unwrap()
+            .traits
+            .contains(Traits::NEEDS_START_CMD)
+    );
 }
 
 // ===========================================================================
@@ -284,7 +333,12 @@ fn http_header_legal_in_http_request() {
     let profiles = ProfileRegistry::build();
     let valid = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles);
     assert!(valid.contains(&"HTTP::header"));
-    assert!(reg.is_irules_command_legal_in_event("HTTP::header", "HTTP_REQUEST", &events, &profiles));
+    assert!(reg.is_irules_command_legal_in_event(
+        "HTTP::header",
+        "HTTP_REQUEST",
+        &events,
+        &profiles
+    ));
 }
 
 /// `test_out_of_event_for_rule_init` + `test_legality_not_legal_in_rule_init`
@@ -317,13 +371,14 @@ fn unknown_event_is_illegal_for_all() {
         &events,
         &profiles
     ));
-    assert!(reg
-        .valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles)
-        .is_empty());
+    assert!(
+        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles)
+            .is_empty()
+    );
 }
 
 /// `test_http2_commands_are_legal_in_http_events` — HTTP2 family is legal in
-/// HTTP_REQUEST and in the message-routing events.
+/// `HTTP_REQUEST` and in the message-routing events.
 ///
 /// f5-dialect.
 #[test]
@@ -331,13 +386,23 @@ fn http2_commands_legal_in_http_and_mr_events() {
     let (reg, _) = reg_and_set("f5-irules");
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    for command in ["HTTP2::active", "HTTP2::concurrency", "HTTP2::stream", "HTTP2::version"] {
+    for command in [
+        "HTTP2::active",
+        "HTTP2::concurrency",
+        "HTTP2::stream",
+        "HTTP2::version",
+    ] {
         assert!(
             reg.is_irules_command_legal_in_event(command, "HTTP_REQUEST", &events, &profiles),
             "{command} should be legal in HTTP_REQUEST"
         );
     }
-    assert!(reg.is_irules_command_legal_in_event("HTTP2::active", "MR_INGRESS", &events, &profiles));
+    assert!(reg.is_irules_command_legal_in_event(
+        "HTTP2::active",
+        "MR_INGRESS",
+        &events,
+        &profiles
+    ));
     assert!(reg.is_irules_command_legal_in_event("HTTP2::active", "MR_EGRESS", &events, &profiles));
 }
 
@@ -409,8 +474,13 @@ fn event_info_for_known_events() {
     assert!(http.known);
     assert!(http.valid_command_count() >= 1);
     assert!(
-        ["client-side", "server-side", "client-side and server-side", "global"]
-            .contains(&http.side),
+        [
+            "client-side",
+            "server-side",
+            "client-side and server-side",
+            "global"
+        ]
+        .contains(&http.side),
         "side={}",
         http.side
     );
@@ -440,7 +510,7 @@ fn event_info_for_unknown_event() {
 // test_command_registry.py :: TestFormKindAndResolveForm
 // ===========================================================================
 
-/// `test_form_kind_enum_values` — the FormKind variants exist.
+/// `test_form_kind_enum_values` — the `FormKind` variants exist.
 ///
 /// registry-metadata.
 #[test]
@@ -456,7 +526,7 @@ fn form_kind_variants_exist() {
 /// is a pure getter; with one arg it is a mutating setter. The Rust
 /// `resolve_call` picks the matching form by arity.
 ///
-/// f5-dialect: HTTP::uri is not real Tcl. The getter→read / setter→write
+/// f5-dialect: `HTTP::uri` is not real Tcl. The getter→read / setter→write
 /// classification is registry side-effect metadata.
 #[test]
 fn http_uri_getter_setter_forms() {
@@ -510,7 +580,7 @@ fn http_header_value_subcommand_takes_one_arg() {
 /// `test_http_version_value_arg_is_closed` — `HTTP::version` arg 0 is a closed
 /// value set of exactly the HTTP/1.x version strings.
 ///
-/// f5-dialect: HTTP::version is not real Tcl. The allowed-version set is
+/// f5-dialect: `HTTP::version` is not real Tcl. The allowed-version set is
 /// registry metadata. (HTTP itself only ever speaks 0.9/1.0/1.1 over the
 /// classic text protocol, which is what the closed set encodes.)
 #[test]
@@ -595,7 +665,7 @@ fn dict_iteration_subcommands_declare_cfg_rewrite_names() {
 
 /// `test_proc_body_is_structural` — `proc`'s body argument is structural.
 ///
-/// registry-metadata: BodyKind classification. (`proc name args body` is real
+/// registry-metadata: `BodyKind` classification. (`proc name args body` is real
 /// Tcl, but "the body runs in its own frame" is our SSA-facing annotation.)
 #[test]
 fn proc_body_is_structural() {
@@ -655,7 +725,9 @@ fn irules_side_switches_are_flagged() {
 fn side_switch_arities() {
     let (reg, ds) = reg_and_set("f5-irules");
     for name in ["clientside", "serverside"] {
-        let spec = reg.get_for_dialect(name, ds).unwrap_or_else(|| panic!("{name}"));
+        let spec = reg
+            .get_for_dialect(name, ds)
+            .unwrap_or_else(|| panic!("{name}"));
         assert_eq!(spec.arity.min, 0, "{name} min");
         assert_eq!(spec.arity.max, 1, "{name} max");
     }
@@ -678,7 +750,9 @@ fn side_switch_arities() {
 fn close_side_effects_differ_by_dialect() {
     use tcl_registry::side_effects::SideEffectTarget;
     let (tcl_reg, tcl_ds) = reg_and_set("tcl8.6");
-    let tcl_close = tcl_reg.get_for_dialect("close", tcl_ds).expect("close in tcl");
+    let tcl_close = tcl_reg
+        .get_for_dialect("close", tcl_ds)
+        .expect("close in tcl");
     assert!(
         tcl_close
             .side_effects
@@ -688,7 +762,9 @@ fn close_side_effects_differ_by_dialect() {
     );
 
     let (ir_reg, ir_ds) = reg_and_set("f5-irules");
-    let ir_close = ir_reg.get_for_dialect("close", ir_ds).expect("close in irules");
+    let ir_close = ir_reg
+        .get_for_dialect("close", ir_ds)
+        .expect("close in irules");
     assert!(
         ir_close
             .side_effects
@@ -717,7 +793,10 @@ fn default_registry_has_core_but_not_irules() {
         "iRules commands are not in the default registry"
     );
     // Rust folds Tk into the base registry (documented divergence).
-    assert!(reg.get("button").is_some(), "Tk is part of the base registry");
+    assert!(
+        reg.get("button").is_some(),
+        "Tk is part of the base registry"
+    );
 }
 
 /// `test_get_auto_loads_dialect` / `test_command_names_auto_loads_dialect` —
@@ -744,7 +823,11 @@ fn load_dialect_is_idempotent() {
     reg.load_dialect(DialectSet::IRULES);
     let after_first = reg.len();
     reg.load_dialect(DialectSet::IRULES); // second load is a no-op
-    assert_eq!(reg.len(), after_first, "double-load must not duplicate specs");
+    assert_eq!(
+        reg.len(),
+        after_first,
+        "double-load must not duplicate specs"
+    );
 }
 
 // ===========================================================================
@@ -780,10 +863,10 @@ fn tcl85_has_dict_not_try() {
 }
 
 /// `test_tcl86_includes_tcloo_commands` + `test_tcl85_excludes_tcloo_commands`
-/// — TclOO (`oo::class`, `oo::define`) is 8.6+.
+/// — `TclOO` (`oo::class`, `oo::define`) is 8.6+.
 ///
 /// tclsh: `oo::class` is present on 8.6 (`info commands oo::class` non-empty);
-/// TclOO landed in 8.6.
+/// `TclOO` landed in 8.6.
 #[test]
 fn tcloo_is_tcl86_plus() {
     let (r86, d86) = reg_and_set("tcl8.6");
@@ -852,14 +935,8 @@ fn f5_irules_curated_signatures_are_concrete() {
 
     let when = reg.get_for_dialect("when", ds).expect("when registered");
     assert_eq!(when.arity.max, 6);
-    assert_eq!(
-        reg.get_for_dialect("pool", ds).expect("pool").arity.min,
-        1
-    );
-    assert_eq!(
-        reg.get_for_dialect("node", ds).expect("node").arity.min,
-        1
-    );
+    assert_eq!(reg.get_for_dialect("pool", ds).expect("pool").arity.min, 1);
+    assert_eq!(reg.get_for_dialect("node", ds).expect("node").arity.min, 1);
     assert_eq!(
         reg.get_for_dialect("HTTP::respond", ds)
             .expect("HTTP::respond")
@@ -931,9 +1008,9 @@ fn when_marks_trailing_body_argument() {
 
 /// `test_oo_class_create_marks_definition_body` +
 /// `test_oo_define_method_marks_method_body` + `_script_form_marks_body` — the
-/// TclOO definition bodies resolve to the BODY role.
+/// `TclOO` definition bodies resolve to the BODY role.
 ///
-/// registry-metadata: arg-role classification. (TclOO is real 8.6 Tcl.)
+/// registry-metadata: arg-role classification. (`TclOO` is real 8.6 Tcl.)
 #[test]
 fn tcloo_definition_bodies_marked_body() {
     let (reg, _) = reg_and_set("tcl8.6");
@@ -969,8 +1046,7 @@ fn tcloo_definition_bodies_marked_body() {
 #[test]
 fn proc_marks_body_argument() {
     let (reg, _) = reg_and_set("tcl8.6");
-    let bodies =
-        reg.arg_indices_for_role("proc", &["helper", "x", "{ return $x }"], ArgRole::Body);
+    let bodies = reg.arg_indices_for_role("proc", &["helper", "x", "{ return $x }"], ArgRole::Body);
     assert_eq!(bodies, vec![2]);
 }
 
@@ -1010,11 +1086,25 @@ fn is_irules_dialect_predicate() {
 /// registry-metadata: dialect vocabulary.
 #[test]
 fn detection_target_dialects_are_known() {
-    for d in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules", "expect"] {
+    for d in [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "f5-irules",
+        "expect",
+    ] {
         assert!(DialectSet::parse(d).is_some(), "{d} should parse");
     }
     // The detection targets are catalogued names.
-    for d in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules", "expect"] {
+    for d in [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "f5-irules",
+        "expect",
+    ] {
         assert!(KNOWN_DIALECTS.contains(&d), "{d} should be a known dialect");
     }
     // `tcl-dialect: unknown` (Python `test_directive_unknown_dialect_ignored`)
@@ -1068,19 +1158,41 @@ fn dialect_parse_roundtrip() {
 /// The set below is the 8.6∩9.0 intersection.
 #[test]
 fn string_subcommands_match_tclsh() {
+    const COMMON: &[&str] = &[
+        "cat",
+        "compare",
+        "equal",
+        "first",
+        "index",
+        "is",
+        "last",
+        "length",
+        "map",
+        "match",
+        "range",
+        "repeat",
+        "replace",
+        "reverse",
+        "tolower",
+        "totitle",
+        "toupper",
+        "trim",
+        "trimleft",
+        "trimright",
+        "wordend",
+        "wordstart",
+    ];
     let (reg, _) = reg_and_set("tcl8.6");
     let spec = reg.get("string").expect("string registered");
-    const COMMON: &[&str] = &[
-        "cat", "compare", "equal", "first", "index", "is", "last", "length", "map", "match",
-        "range", "repeat", "replace", "reverse", "tolower", "totitle", "toupper", "trim",
-        "trimleft", "trimright", "wordend", "wordstart",
-    ];
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()
         .filter(|s| spec.subcommand(s).is_none())
         .collect();
-    assert!(missing.is_empty(), "string missing subcommands: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "string missing subcommands: {missing:?}"
+    );
 }
 
 /// `dict` subcommands.
@@ -1091,12 +1203,12 @@ fn string_subcommands_match_tclsh() {
 /// below is the 8.6∩9.0 intersection.
 #[test]
 fn dict_subcommands_match_tclsh() {
-    let (reg, _) = reg_and_set("tcl8.6");
-    let spec = reg.get("dict").expect("dict registered");
     const COMMON: &[&str] = &[
         "append", "create", "exists", "filter", "for", "get", "incr", "info", "keys", "lappend",
         "map", "merge", "remove", "replace", "set", "size", "unset", "update", "values", "with",
     ];
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("dict").expect("dict registered");
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()
@@ -1115,8 +1227,6 @@ fn dict_subcommands_match_tclsh() {
 /// intersection (i.e. the 8.6 list).
 #[test]
 fn info_subcommands_match_tclsh() {
-    let (reg, _) = reg_and_set("tcl8.6");
-    let spec = reg.get("info").expect("info registered");
     const COMMON: &[&str] = &[
         "args",
         "body",
@@ -1145,6 +1255,8 @@ fn info_subcommands_match_tclsh() {
         "tclversion",
         "vars",
     ];
+    let (reg, _) = reg_and_set("tcl8.6");
+    let spec = reg.get("info").expect("info registered");
     let missing: Vec<&str> = COMMON
         .iter()
         .copied()
@@ -1210,9 +1322,17 @@ fn const_is_present_in_tcl90() {
 /// registry behaviour.
 #[test]
 fn cached_dialect_registries_are_populated() {
-    for d in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect"] {
+    for d in [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "f5-irules",
+        "f5-iapps",
+        "expect",
+    ] {
         let reg = registry_for_dialect(d);
-        assert!(reg.len() > 0, "{d} registry is empty");
+        assert!(!reg.is_empty(), "{d} registry is empty");
         assert!(reg.get("set").is_some(), "{d} should have `set`");
     }
     // An unparseable dialect collapses to the plain-Tcl entry (still usable).

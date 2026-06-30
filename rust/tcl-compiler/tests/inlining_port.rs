@@ -5,7 +5,7 @@
 //! Ported from four pytest files that drive the *Python* compiler:
 //!   * `tests/test_inline_decision.py` — proc classification (the inlining
 //!     catalogue: size / pure-leaf / static-call-count → ALWAYS /
-//!     IF_SINGLE_CALL / NEVER).
+//!     `IF_SINGLE_CALL` / NEVER).
 //!   * `tests/test_inline_pass.py`     — the inline transform (call sites
 //!     replaced by proc bodies, α-renaming to avoid variable capture,
 //!     defaults / variadics / early-return wrapping / decline cases).
@@ -38,7 +38,7 @@
 //!     `pub fn`) — its three `TestStaticCallCount` cases are re-expressed
 //!     through `classify_proc`, which *takes the static call count as a
 //!     parameter*, so the same 0 / 1 / N call-count decisions are asserted
-//!     directly (and the 1-vs-2-caller NEVER/IF_SINGLE_CALL split is the
+//!     directly (and the 1-vs-2-caller `NEVER/IF_SINGLE_CALL` split is the
 //!     load-bearing behaviour).
 //!   * Python `apply_inline_catalogue` (which tags `inline_decision` /
 //!     `static_call_count` onto a fresh `Module`) is internal in Rust;
@@ -67,14 +67,14 @@
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inline_uplevel::{
-    body_has_frame_reach, detect_passthrough_candidates, detect_static_passthrough,
-    inline_uplevel_passthrough, PassthroughShape,
+    PassthroughShape, body_has_frame_reach, detect_passthrough_candidates,
+    detect_static_passthrough, inline_uplevel_passthrough,
 };
 use tcl_compiler::inlining::{
-    classify_proc, count_statements, inline_module, InlineDecision, SMALL_BODY_THRESHOLD,
+    InlineDecision, SMALL_BODY_THRESHOLD, classify_proc, count_statements, inline_module,
 };
 use tcl_compiler::ir::{Module, Statement};
-use tcl_compiler::var_escape::{analyse_var_escape, ProcEscapeSummary};
+use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -88,6 +88,16 @@ fn reg() -> CommandRegistry {
 /// `source → Module`, the Rust analogue of Python's `lower_to_ir(source)`.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
+}
+
+/// Build a proc body of `n` distinct `set vN N` assignments.
+fn assign_body(n: usize) -> String {
+    use std::fmt::Write as _;
+    let mut body = String::new();
+    for i in 0..n {
+        let _ = writeln!(body, "  set v{i} {i}");
+    }
+    body
 }
 
 /// Run the whole-module inline transform (the Rust `inline_module` runs its
@@ -183,9 +193,7 @@ fn static_call_count_drives_large_proc_decision() {
     // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. This is the observable
     // content of Python's test_uncalled_proc_zero / *_one_caller / *_two
     // trio (the raw count helper is internal).
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -232,9 +240,7 @@ fn classify_non_pure_leaf_is_never() {
 #[test]
 fn classify_large_pure_leaf_one_caller_is_if_single_call() {
     // Python TestClassify::test_large_pure_leaf_with_one_caller_is_if_single_call.
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -247,9 +253,7 @@ fn classify_large_pure_leaf_one_caller_is_if_single_call() {
 #[test]
 fn classify_large_pure_leaf_two_callers_is_never() {
     // Python TestClassify::test_large_pure_leaf_with_two_callers_is_never.
-    let body: String = (0..SMALL_BODY_THRESHOLD + 2)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::big"];
@@ -263,9 +267,7 @@ fn classify_large_pure_leaf_two_callers_is_never() {
 fn classify_threshold_boundary_is_always() {
     // Edge case driving the `body_size <= SMALL_BODY_THRESHOLD` branch: a
     // pure-leaf body of *exactly* the threshold size is still ALWAYS.
-    let body: String = (0..SMALL_BODY_THRESHOLD)
-        .map(|i| format!("  set v{i} {i}\n"))
-        .collect();
+    let body = assign_body(SMALL_BODY_THRESHOLD);
     let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::edge"];
@@ -720,14 +722,22 @@ fn array_element_write_inlines_with_array_rename() {
         .filter(|n| n.contains('('))
         .collect();
     assert_eq!(array_writes.len(), 2);
-    let bases: std::collections::HashSet<&str> =
-        array_writes.iter().map(|n| n.split('(').next().unwrap()).collect();
+    let bases: std::collections::HashSet<&str> = array_writes
+        .iter()
+        .map(|n| n.split('(').next().unwrap())
+        .collect();
     assert_eq!(bases.len(), 1, "both writes share one mangled base");
     let base = *bases.iter().next().unwrap();
     assert!(base.starts_with("__inline_") && base.ends_with("__arr"));
     let indices: std::collections::HashSet<String> = array_writes
         .iter()
-        .map(|n| n.split('(').nth(1).unwrap().trim_end_matches(')').to_owned())
+        .map(|n| {
+            n.split('(')
+                .nth(1)
+                .unwrap()
+                .trim_end_matches(')')
+                .to_owned()
+        })
         .collect();
     assert_eq!(
         indices,
@@ -913,9 +923,8 @@ fn qualified_command_body_is_conservatively_kept() {
 fn unqualified_call_in_namespace() {
     // Python TestResolution::test_unqualified_call_in_namespace — a bare
     // `noop` inside `::ns::caller` resolves to `::ns::noop` and is inlined.
-    let module = module_for(
-        "namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n",
-    );
+    let module =
+        module_for("namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n");
     let summaries = analyse_var_escape(&module, true);
     let proc = &module.procedures["::ns::noop"];
     assert_eq!(
@@ -1012,9 +1021,8 @@ fn zero_param_single_uplevel_is_candidate() {
     // run {} { set counter 10; reset; return $counter }; run` → 0 — the
     // body runs in the caller's frame; inlining as a same-frame Block
     // preserves that.
-    let out = uplevel_inlined(
-        "proc reset {} { uplevel 1 {set counter 0} }\nproc caller {} { reset }\n",
-    );
+    let out =
+        uplevel_inlined("proc reset {} { uplevel 1 {set counter 0} }\nproc caller {} { reset }\n");
     let caller = &out.procedures["::caller"];
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
@@ -1047,9 +1055,8 @@ fn non_passthrough_not_inlined() {
 fn non_unit_frame_shift_not_inlined() {
     // Python TestPassthroughRecognition::test_non_unit_frame_shift_not_inlined —
     // `uplevel #0` goes to the absolute global frame; not a same-frame inline.
-    let out = uplevel_inlined(
-        "proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n",
-    );
+    let out =
+        uplevel_inlined("proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n");
     let caller = &out.procedures["::caller"];
     let first = caller.body.statements.first().expect("non-empty body");
     assert!(
@@ -1270,7 +1277,7 @@ fn static_shape_carries_body() {
     let candidates = detect_passthrough_candidates(&m);
     match candidates.get("::reset") {
         Some(PassthroughShape::Static { body }) => {
-            assert!(!body.statements.is_empty(), "static body is non-empty")
+            assert!(!body.statements.is_empty(), "static body is non-empty");
         }
         other => panic!("expected Static, got {other:?}"),
     }

@@ -27,6 +27,21 @@ use super::types::{CodeFix, Diagnostic, Severity};
 /// already collected stand); no real source nests anywhere near this.
 const MAX_BODY_DEPTH: u32 = 256;
 
+/// The borrowed word-level view of one command, threaded into the
+/// dispatch-site diagnostic emitter ([`Analyser::emit_dispatch_site_diagnostics`]).
+/// Bundling these co-varying slices keeps the emitter under the argument
+/// limit; it destructures them back into locals so the per-code emitter
+/// calls read unchanged.
+struct DispatchSite<'a> {
+    cmd_name: &'a str,
+    args: &'a [String],
+    arg_tokens: &'a [Token],
+    arg_single: &'a [bool],
+    arg_expand_in: &'a [bool],
+    cmd_tok: Token,
+    scope_path: &'a [usize],
+}
+
 /// Parent command for a control-flow keyword that is only valid as an
 /// argument *within* a parent command, or `None` for any other name.
 fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
@@ -195,7 +210,6 @@ impl Analyser {
     /// Simple-command arity (E002 / E003) is emitted here via
     /// [`Self::emit_arity_diagnostics`]; the candidates are
     /// flushed post-walk by [`Self::flush_arity_diagnostics`].
-    #[allow(clippy::too_many_lines)]
     pub fn process_command(
         &mut self,
         argv_texts: &[String],
@@ -339,7 +353,7 @@ impl Analyser {
             // per-code rationale and ordering.  Run before the
             // early-returning handlers so option-bearing / body-owning
             // commands still get checked.
-            self.emit_dispatch_site_diagnostics(
+            self.emit_dispatch_site_diagnostics(&DispatchSite {
                 cmd_name,
                 args,
                 arg_tokens,
@@ -347,14 +361,25 @@ impl Analyser {
                 arg_expand_in,
                 cmd_tok,
                 scope_path,
-            );
+            });
         } // end `if !self.structure_only`
 
-        // Handler-by-handler dispatch. Each returning-bool
-        // handler is consulted in turn; first match wins. The
-        // void-returning handlers run unconditionally (their
-        // own internal cmd-name guard rejects mismatches).
+        self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+    }
 
+    /// Handler-by-handler dispatch for [`Self::process_command`]. Each
+    /// returning-bool handler is consulted in turn; first match wins and
+    /// returns. The void-returning handlers then run unconditionally (their
+    /// own internal cmd-name guard rejects mismatches).
+    fn dispatch_command_handlers(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        cmd_tok: Token,
+        scope_path: &[usize],
+    ) {
         // proc — registers the proc record + scope.
         if self.handle_proc_command(cmd_name, args, arg_tokens, scope_path) {
             return;
@@ -539,17 +564,16 @@ impl Analyser {
     /// - **W004** (option not available in the active dialect).
     /// - **E002 / E003** (arity) — collected here and flushed
     ///   post-walk by [`Self::flush_arity_diagnostics`].
-    #[allow(clippy::too_many_arguments)]
-    fn emit_dispatch_site_diagnostics(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
-        arg_expand_in: &[bool],
-        cmd_tok: Token,
-        scope_path: &[usize],
-    ) {
+    fn emit_dispatch_site_diagnostics(&mut self, site: &DispatchSite<'_>) {
+        let DispatchSite {
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            arg_expand_in,
+            cmd_tok,
+            scope_path,
+        } = *site;
         if cmd_name == "catch" {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
@@ -992,9 +1016,15 @@ impl Analyser {
         // `emit_arity_diagnostics` expects the expand array parallel to
         // the *full* argv (head at index 0), matching `process_command`.
         let arg_expand = seg.expand_word.as_deref().unwrap_or(&[]);
-        self.emit_dispatch_site_diagnostics(
-            &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
-        );
+        self.emit_dispatch_site_diagnostics(&DispatchSite {
+            cmd_name: &cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            arg_expand_in: arg_expand,
+            cmd_tok,
+            scope_path,
+        });
         self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main

@@ -155,6 +155,33 @@ suite("LSP Command Execution", () => {
     assert.ok(Array.isArray(result.packages), "result should have packages array");
   });
 
+  // -- listTclInstallations ---------------------------------------------------
+
+  test("tcl-lsp.listTclInstallations reports discovered installs + auto_path", async () => {
+    const result = (await execLspCommand("tcl-lsp.listTclInstallations")) as {
+      installations: { version: string; tclLibrary: string; autoPath: string[] }[];
+      activeAutoPath: string[];
+      editorLibraryPaths: string[];
+    } | null;
+    assert.ok(result, "listTclInstallations should return a result");
+    assert.ok(Array.isArray(result.installations), "installations should be an array");
+    assert.ok(Array.isArray(result.activeAutoPath), "activeAutoPath should be an array");
+    assert.ok(Array.isArray(result.editorLibraryPaths), "editorLibraryPaths should be an array");
+    // Each installation carries a library dir and an auto_path list.
+    for (const inst of result.installations) {
+      assert.strictEqual(typeof inst.tclLibrary, "string");
+      assert.ok(Array.isArray(inst.autoPath));
+    }
+  });
+
+  test("tclLsp.selectTclInstallation command is registered", async () => {
+    const registered = await vscode.commands.getCommands(true);
+    assert.ok(
+      registered.includes("tclLsp.selectTclInstallation"),
+      "tclLsp.selectTclInstallation should be registered by the extension",
+    );
+  });
+
   // -- suggestPackagesForSymbol -----------------------------------------------
 
   test("tcl-lsp.suggestPackagesForSymbol returns suggestions", async () => {

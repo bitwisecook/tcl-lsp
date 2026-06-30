@@ -4,8 +4,6 @@
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
-#![allow(clippy::if_not_else, clippy::similar_names, clippy::doc_markdown)]
-
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
@@ -456,13 +454,13 @@ impl CodegenCtx<'_> {
         for (arg, braced) in args {
             self.emit_cmd_word(arg, *braced);
         }
-        let argc = bytecode_imm(1 + args.len());
-        let op = if argc < 256 {
+        let arg_count = bytecode_imm(1 + args.len());
+        let op = if arg_count < 256 {
             Op::INVOKE_STK1
         } else {
             Op::INVOKE_STK4
         };
-        self.emit(op, vec![Operand::Imm(argc)]);
+        self.emit(op, vec![Operand::Imm(arg_count)]);
     }
 
     /// Emit one word of a generic command invocation (the command name or an
@@ -622,8 +620,8 @@ impl CodegenCtx<'_> {
                 n_pushed += 1;
             }
         }
-        let argc = i32::try_from(args.len()).unwrap_or(i32::MAX);
-        self.emit(Op::LIST, vec![Operand::Imm(argc)]);
+        let arg_count = i32::try_from(args.len()).unwrap_or(i32::MAX);
+        self.emit(Op::LIST, vec![Operand::Imm(arg_count)]);
         true
     }
 
@@ -740,7 +738,7 @@ impl CodegenCtx<'_> {
     /// - `list`
     /// - `array exists`
     /// - `dict get`
-    /// - `catch` (delegates to control_flow)
+    /// - `catch` (delegates to `control_flow`)
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
@@ -1399,13 +1397,13 @@ impl CodegenCtx<'_> {
             for (a, b) in rest {
                 self.emit_cmd_subst_arg(a, *b);
             }
-            let argc = bytecode_imm(1 + rest.len());
-            let invoke_op = if argc < 256 {
+            let arg_count = bytecode_imm(1 + rest.len());
+            let invoke_op = if arg_count < 256 {
                 Op::INVOKE_STK1
             } else {
                 Op::INVOKE_STK4
             };
-            self.emit(invoke_op, vec![Operand::Imm(argc)]);
+            self.emit(invoke_op, vec![Operand::Imm(arg_count)]);
             self.place_label(&sc_end);
             self.seen_generic_invoke = true;
         } else {

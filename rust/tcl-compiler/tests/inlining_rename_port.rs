@@ -43,6 +43,7 @@
 //!     the renamer's own in-module unit tests, not here.
 //!   * `append` / `lappend` lower to a `Call` with a non-empty `defs`, which
 //!     `stmt_is_splice_eligible` rejects (see `append_lappend_block_inline`).
+//!
 //! These exclusions are pinned by tests so the boundary is explicit.
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -348,8 +349,18 @@ fn assign_expr_operands_are_renamed() {
         "right operand $b renamed, got {rname}"
     );
     // The two operands share the SAME cid prefix (same call site).
-    let cid = |n: &str| n.trim_start_matches("__inline_").split("__").next().unwrap().to_owned();
-    assert_eq!(cid(&lname), cid(&rname), "both operands share one call-site cid");
+    let cid = |n: &str| {
+        n.trim_start_matches("__inline_")
+            .split("__")
+            .next()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(
+        cid(&lname),
+        cid(&rname),
+        "both operands share one call-site cid"
+    );
 }
 
 #[test]
@@ -439,7 +450,9 @@ fn array_element_target_renames_base_keeps_index() {
     let base = write.split('(').next().unwrap().to_owned();
     let puts_args = all_call_args(stmts, "puts");
     assert!(
-        puts_args.iter().any(|a| a.contains(&base) && a.contains("(1)")),
+        puts_args
+            .iter()
+            .any(|a| a.contains(&base) && a.contains("(1)")),
         "the $a(1) read targets the same renamed base with the index kept, got {puts_args:?}"
     );
 }
@@ -487,7 +500,9 @@ fn qualified_name_passes_through_unrenamed() {
     // Exactly one puts reads the renamed local slot; another reads the
     // untouched qualified `::ns::x`.
     assert!(
-        puts_args.iter().any(|a| a.contains("::ns::x") && !a.contains("__inline_")),
+        puts_args
+            .iter()
+            .any(|a| a.contains("::ns::x") && !a.contains("__inline_")),
         "qualified $::ns::x passes through unrenamed, got {puts_args:?}"
     );
     assert!(
@@ -529,7 +544,9 @@ fn if_clause_condition_and_body_renamed() {
     // Clause body's `set r 1` renamed.
     let body_names = all_assign_names(&clauses[0].body.statements);
     assert!(
-        body_names.iter().any(|n| n.starts_with("__inline_") && n.ends_with("__r")),
+        body_names
+            .iter()
+            .any(|n| n.starts_with("__inline_") && n.ends_with("__r")),
         "if-body set target renamed, got {body_names:?}"
     );
 }
@@ -555,7 +572,10 @@ fn while_condition_and_body_renamed() {
     let ExprNode::Binary { left, .. } = condition else {
         panic!("expected Binary while-condition");
     };
-    let ExprNode::Var { name: cond_name, .. } = left.as_ref() else {
+    let ExprNode::Var {
+        name: cond_name, ..
+    } = left.as_ref()
+    else {
         panic!("expected $i Var");
     };
     assert!(
@@ -605,7 +625,10 @@ fn for_init_cond_next_body_all_renamed() {
     let ExprNode::Binary { left, .. } = condition else {
         panic!("Binary condition");
     };
-    let ExprNode::Var { name: cond_name, .. } = left.as_ref() else {
+    let ExprNode::Var {
+        name: cond_name, ..
+    } = left.as_ref()
+    else {
         panic!("$i Var");
     };
     // next: `incr i`
@@ -678,7 +701,10 @@ fn foreach_iterator_vars_and_body_renamed() {
         "body reads renamed iterator var b, got {amounts:?}"
     );
     // The list_arg `{1 2 3 4}` is a literal — no rename, preserved verbatim.
-    assert_eq!(iterators[0].list_arg, "1 2 3 4", "literal list_arg untouched");
+    assert_eq!(
+        iterators[0].list_arg, "1 2 3 4",
+        "literal list_arg untouched"
+    );
 }
 
 #[test]
@@ -701,13 +727,24 @@ fn switch_subject_and_arm_body_renamed() {
         subject.contains(&slot),
         "switch subject $s renamed to {slot}, got {subject:?}"
     );
-    let arm_args = all_call_args(arms[0].body.as_ref().expect("arm body").statements.as_slice(), "puts");
+    let arm_args = all_call_args(
+        arms[0]
+            .body
+            .as_ref()
+            .expect("arm body")
+            .statements
+            .as_slice(),
+        "puts",
+    );
     assert!(
         arm_args.iter().any(|a| a.contains(&slot)),
         "arm body $s read renamed to the same slot {slot}, got {arm_args:?}"
     );
     // The pattern `a` is a literal — never renamed.
-    assert_eq!(arms[0].pattern, "a", "switch pattern is not a variable, untouched");
+    assert_eq!(
+        arms[0].pattern, "a",
+        "switch pattern is not a variable, untouched"
+    );
 }
 
 // ===========================================================================
@@ -771,10 +808,7 @@ fn try_on_handler_var_and_body_renamed() {
         .iter()
         .find(|s| matches!(s, Statement::Try { .. }))
         .expect("the try survives inlining");
-    let Statement::Try {
-        body, handlers, ..
-    } = try_node
-    else {
+    let Statement::Try { body, handlers, .. } = try_node else {
         unreachable!()
     };
     // try body local `x` renamed.
@@ -855,21 +889,28 @@ fn callee_local_colliding_with_caller_local_is_freshened() {
     assert_eq!(calls_to(body, "add"), 0, "the add call was inlined");
 
     // The caller's own `t` write stays spelled `t` (un-mangled, value 99).
-    let caller_t = body.iter().any(|s| matches!(
-        s, Statement::AssignConst { name, value, .. } if name == "t" && value == "99"
-    ));
+    let caller_t = body.iter().any(|s| {
+        matches!(
+            s, Statement::AssignConst { name, value, .. } if name == "t" && value == "99"
+        )
+    });
     assert!(caller_t, "caller's own `t`=99 is preserved un-renamed");
 
     // The callee's `t` is freshened to a mangled slot somewhere in the body
     // (it lives inside the one-shot while-wrap the non-terminal return uses).
     let all_names = all_assign_names(body);
-    let callee_t = mangled_ending(&all_names, "__t");
-    assert_ne!(callee_t, "t", "the callee local is a distinct fresh name");
+    let callee_mangled = mangled_ending(&all_names, "__t");
+    assert_ne!(
+        callee_mangled, "t",
+        "the callee local is a distinct fresh name"
+    );
 
     // No mangled slot is literally `t` — i.e. the freshening never produces a
     // name equal to a caller local (the structural anti-capture invariant).
     assert!(
-        !all_names.iter().any(|n| n == "t" && n.starts_with("__inline_")),
+        !all_names
+            .iter()
+            .any(|n| n == "t" && n.starts_with("__inline_")),
         "freshened names never equal a caller local"
     );
 
@@ -943,14 +984,14 @@ fn callee_local_shadowing_caller_param_is_freshened() {
     // The caller's `puts $sum` (param read) must reference the bare `sum`,
     // never the callee's freshened slot.
     let puts_args = all_call_args(body, "puts");
-    let reads_caller_sum = puts_args.iter().any(|a| a == "${sum}" || a == "$sum");
-    let reads_callee_sum = puts_args.iter().any(|a| a.contains(&callee_sum));
+    let bare_sum_read = puts_args.iter().any(|a| a == "${sum}" || a == "$sum");
+    let mangled_sum_read = puts_args.iter().any(|a| a.contains(&callee_sum));
     assert!(
-        reads_caller_sum,
+        bare_sum_read,
         "caller's param read stays bare `sum`, got {puts_args:?}"
     );
     assert!(
-        reads_callee_sum,
+        mangled_sum_read,
         "callee's own read uses its freshened slot {callee_sum}, got {puts_args:?}"
     );
 }
@@ -965,15 +1006,15 @@ fn append_lappend_block_inline_so_renamer_not_reached() {
     // the splice-eligibility gate rejects — so the proc is never inlined and
     // the renamer is never asked to rewrite them. Pin that boundary: the call
     // to `f` survives. (Declining is always semantics-safe.)
-    let out_append = inlined("proc f {} { set s a\nappend s b }\nf\n");
+    let after_append = inlined("proc f {} { set s a\nappend s b }\nf\n");
     assert_eq!(
-        calls_to(&out_append.top_level.statements, "f"),
+        calls_to(&after_append.top_level.statements, "f"),
         1,
         "append in body blocks inlining; renamer not invoked"
     );
-    let out_lappend = inlined("proc f {} { set l x\nlappend l y }\nf\n");
+    let lafter_append = inlined("proc f {} { set l x\nlappend l y }\nf\n");
     assert_eq!(
-        calls_to(&out_lappend.top_level.statements, "f"),
+        calls_to(&lafter_append.top_level.statements, "f"),
         1,
         "lappend in body blocks inlining; renamer not invoked"
     );
@@ -984,7 +1025,8 @@ fn upvar_body_blocks_inline_so_renamer_not_reached() {
     // `upvar` makes the proc non-pure-leaf (`var_escape`), so it is never
     // inlinable and the renamer's `Call.reads`/`defs` rename arm for upvar
     // targets is never reached via `inline_module`. Pin it.
-    let out = inlined("proc setter {name val} { upvar 1 $name v\nset v $val }\nset x 0\nsetter x 9\n");
+    let out =
+        inlined("proc setter {name val} { upvar 1 $name v\nset v $val }\nset x 0\nsetter x 9\n");
     assert_eq!(
         calls_to(&out.top_level.statements, "setter"),
         1,
@@ -999,7 +1041,11 @@ fn empty_rename_map_is_an_identity_pass() {
     // splice still drops the call boundary, and the body `puts` is unaltered.
     // tclsh (8.6, 9.0): `proc w {} { puts hi }; w` prints "hi".
     let out = inlined("proc w {} { puts hi }\nw\n");
-    assert_eq!(calls_to(&out.top_level.statements, "w"), 0, "wrapper inlined");
+    assert_eq!(
+        calls_to(&out.top_level.statements, "w"),
+        0,
+        "wrapper inlined"
+    );
     let puts_args = all_call_args(&out.top_level.statements, "puts");
     assert!(
         puts_args.iter().any(|a| a == "hi"),
@@ -1016,7 +1062,8 @@ fn empty_rename_map_is_an_identity_pass() {
 fn idempotent_reinlining_preserves_renamed_names() {
     // Re-running the inliner over an already-inlined module is a no-op: the
     // renamed slots stay byte-identical (the renamer never double-mangles).
-    let once = inlined("proc add {a b} { set t [expr {$a + $b}]\nputs $t }\nproc caller {} { add 1 2 }\n");
+    let once =
+        inlined("proc add {a b} { set t [expr {$a + $b}]\nputs $t }\nproc caller {} { add 1 2 }\n");
     let twice = inline_module(once.clone());
     assert_eq!(once, twice, "second pass leaves renamed names unchanged");
 }

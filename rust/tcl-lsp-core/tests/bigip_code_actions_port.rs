@@ -15,7 +15,7 @@
 //!         `[uri, <bare-name>]`, and NO pre-baked workspace edit.
 //!   * `run_rename_partition(...)` — drives the `rename_partition(old,new)`
 //!     query-DSL expression through the F5 query engine to build the
-//!     WorkspaceEdit (with cascade + Common-refusal + name validation +
+//!     `WorkspaceEdit` (with cascade + Common-refusal + name validation +
 //!     post-rewrite reparse guard).
 //!
 //! ----------------------------------------------------------------------------
@@ -42,15 +42,15 @@
 //! Classification of the 8 Python tests (a = generic provider already;
 //! b = small arm over existing data; c = large unported feature)
 //! ----------------------------------------------------------------------------
-//!   1. test_no_actions_for_non_bigip_text          → (b) — covered here
-//!   2. test_rename_action_for_object_at_cursor      → (b) — covered here
-//!   3. test_rename_partition_action_on_partition…   → (b) — covered here
-//!   4. test_no_partition_rename_action_for_common…  → (b) — covered here
-//!   8. test_no_actions_when_cursor_outside_any…     → (b) — covered here
+//!   1. `test_no_actions_for_non_bigip_text`          → (b) — covered here
+//!   2. `test_rename_action_for_object_at_cursor`      → (b) — covered here
+//!   3. `test_rename_partition_action_on_partition`…   → (b) — covered here
+//!   4. `test_no_partition_rename_action_for_common`…  → (b) — covered here
+//!   8. `test_no_actions_when_cursor_outside_any`…     → (b) — covered here
 //!
-//!   5. test_run_rename_partition_drives_through_query_engine  → (c) GAP
-//!   6. test_run_rename_partition_safely_quotes_query_arguments → (c) GAP
-//!   7. test_run_rename_partition_refuses_common_renames        → (c) GAP
+//!   5. `test_run_rename_partition_drives_through_query_engine`  → (c) GAP
+//!   6. `test_run_rename_partition_safely_quotes_query_arguments` → (c) GAP
+//!   7. `test_run_rename_partition_refuses_common_renames`        → (c) GAP
 //!
 //! Tests 5–7 exercise the `run_rename_partition` LSP *wrapper*, which drives
 //! the F5 query engine's `rename_partition` builtin cascade. The engine
@@ -60,7 +60,7 @@
 //! `/Common` refusal as Python), with its own parity coverage in
 //! `f5-cli/tests/query_mutation_parity.rs`. The unported piece is the LSP
 //! *glue* (`run_rename_partition`: JSON-quote args → `run_query` → reparse
-//! guard → single-file WorkspaceEdit), which belongs in `tcl-lsp-server`
+//! guard → single-file `WorkspaceEdit`), which belongs in `tcl-lsp-server`
 //! (it would force `tcl-lsp-core` to depend on `tcl-bigip-query`), not in a
 //! minimal `code_actions.rs` arm. So those three are GAPs *for this
 //! provider file* — see the `// GAP:` markers near the end — not absent
@@ -121,7 +121,7 @@ fn no_actions_for_non_bigip_text() {
 
 /// Cursor inside a parsed stanza → a `Rename <full-path>…` action whose
 /// command is the editor's standard `editor.action.rename`.
-/// Python asserts: some title starts with "Rename /Common/web_pool" and the
+/// Python asserts: some title starts with "Rename /`Common/web_pool`" and the
 /// rename action's command is `editor.action.rename`.
 #[test]
 fn rename_action_for_object_at_cursor() {
@@ -165,7 +165,11 @@ fn rename_action_title_uses_full_path() {
 fn pool_stanza_offers_only_object_rename() {
     let source = "ltm pool /Common/web_pool { }\n";
     let actions = bigip_code_actions(source, range_at(0), URI);
-    assert_eq!(actions.len(), 1, "pool: exactly one action, got: {actions:?}");
+    assert_eq!(
+        actions.len(),
+        1,
+        "pool: exactly one action, got: {actions:?}"
+    );
     assert!(
         actions
             .iter()

@@ -3,9 +3,8 @@
 //! `state_flag`, `list_field`) and the `full_path.rsplit("/")[-1]` name
 //! convention.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 
 use super::helpers::{parse_list_block, parse_properties, unquote};
 
@@ -29,7 +28,7 @@ pub fn name_leaf(full_path: &str) -> String {
 
 /// The unquoted `description` property, or empty.
 #[must_use]
-pub fn description(props: &HashMap<String, String>) -> String {
+pub fn description<S: BuildHasher>(props: &HashMap<String, String, S>) -> String {
     props
         .get("description")
         .map(|v| unquote(v).to_owned())
@@ -38,7 +37,7 @@ pub fn description(props: &HashMap<String, String>) -> String {
 
 /// `"enabled"` / `"disabled"` for a bare state flag, else `""`.
 #[must_use]
-pub fn state_flag(props: &HashMap<String, String>) -> String {
+pub fn state_flag<S: BuildHasher>(props: &HashMap<String, String, S>) -> String {
     if props.contains_key("enabled") {
         "enabled".to_owned()
     } else if props.contains_key("disabled") {
@@ -51,7 +50,7 @@ pub fn state_flag(props: &HashMap<String, String>) -> String {
 /// A brace-delimited list field, or empty: `key { a b c }` yields the
 /// items; a bare `key value` yields a single entry; absent yields empty.
 #[must_use]
-pub fn list_field(props: &HashMap<String, String>, key: &str) -> Vec<String> {
+pub fn list_field<S: BuildHasher>(props: &HashMap<String, String, S>, key: &str) -> Vec<String> {
     match props.get(key) {
         None => Vec::new(),
         Some(raw) if raw.is_empty() => Vec::new(),
@@ -62,19 +61,19 @@ pub fn list_field(props: &HashMap<String, String>, key: &str) -> Vec<String> {
 
 /// A scalar string property, or empty.
 #[must_use]
-pub fn get_str(props: &HashMap<String, String>, key: &str) -> String {
+pub fn get_str<S: BuildHasher>(props: &HashMap<String, String, S>, key: &str) -> String {
     props.get(key).cloned().unwrap_or_default()
 }
 
 /// Whether a bare flag property is present.
 #[must_use]
-pub fn get_bool(props: &HashMap<String, String>, key: &str) -> bool {
+pub fn get_bool<S: BuildHasher>(props: &HashMap<String, String, S>, key: &str) -> bool {
     props.contains_key(key)
 }
 
 /// A scalar integer property, or `0` when absent / unparseable.
 #[must_use]
-pub fn get_int(props: &HashMap<String, String>, key: &str) -> i64 {
+pub fn get_int<S: BuildHasher>(props: &HashMap<String, String, S>, key: &str) -> i64 {
     props.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
 }
 

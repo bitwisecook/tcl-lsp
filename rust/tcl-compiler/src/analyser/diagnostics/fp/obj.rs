@@ -1,8 +1,8 @@
-//! OBJ family — object dispatch (W307/W308) + snit / TclOO modelling.
+//! OBJ family — object dispatch (W307/W308) + snit / `TclOO` modelling.
 //! Pairs to `tests/test_fp_obj.py`, `tests/test_fp_obj_var_as_cmd.py`, and
 //! the §OBJ entries in `docs/design/compiler/FP.md`.
 
-use super::{codes, fires, D};
+use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
 // FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) are method
@@ -13,7 +13,11 @@ use super::{codes, fires, D};
 fn fp_obj_01_snit_self_references_no_w307() {
     for r in ["self", "type", "selfns", "win"] {
         let src = format!("snit::type T {{\n method m {{}} {{ ${r} foo }}\n}}");
-        assert!(!fires(&src, D, "W307"), "${r} foo in snit body fired W307: {:?}", codes(&src, D));
+        assert!(
+            !fires(&src, D, "W307"),
+            "${r} foo in snit body fired W307: {:?}",
+            codes(&src, D)
+        );
     }
 }
 
@@ -22,7 +26,10 @@ fn fp_obj_01_self_ref_outside_snit_still_w307() {
     // TP control: the same names in a vanilla proc ARE stray dispatch.
     for r in ["self", "type", "selfns", "win", "hull"] {
         let src = format!("proc f {{}} {{ set {r} [getThing]\n ${r} foo }}");
-        assert!(fires(&src, D, "W307"), "${r} foo outside snit did not fire W307");
+        assert!(
+            fires(&src, D, "W307"),
+            "${r} foo outside snit did not fire W307"
+        );
     }
 }
 
@@ -254,8 +261,7 @@ fn fp_obj_06_private_proc_body_analysed() {
     let w216_fires = diags.iter().any(|c| c == "W216");
     assert!(
         w216_fires,
-        "FP-OBJ-06: snit private proc body must be analysed (expected W216); emitted: {:?}",
-        diags
+        "FP-OBJ-06: snit private proc body must be analysed (expected W216); emitted: {diags:?}"
     );
 }
 
@@ -286,11 +292,12 @@ fn fp_obj_07_bare_cmdsub_dispatch_still_fires() {
     // TP control: a bare `[cmd] $arg` dispatch with NO literal method-name tail still fires.
     let src = "[some_unknown_cmd] $arg\n";
     let diags = codes(src, D);
-    let fires_any = diags.iter().any(|c| c == "W307" || c == "W101" || c == "W101A");
+    let fires_any = diags
+        .iter()
+        .any(|c| c == "W307" || c == "W101" || c == "W101A");
     assert!(
         fires_any,
-        "FP-OBJ-07 TP: bare cmd-sub dispatch must still produce an unresolved-command diagnostic; emitted: {:?}",
-        diags
+        "FP-OBJ-07 TP: bare cmd-sub dispatch must still produce an unresolved-command diagnostic; emitted: {diags:?}"
     );
 }
 
@@ -303,8 +310,7 @@ fn fp_obj_07_namespaced_ensemble_const_prefix_fires_w307() {
     let fires_any = diags.iter().any(|c| c == "W307" || c == "W123");
     assert!(
         fires_any,
-        "FP-OBJ-07 TP: const-prefix namespaced ensemble on unknown cmd should fire W307 or W123; emitted: {:?}",
-        diags
+        "FP-OBJ-07 TP: const-prefix namespaced ensemble on unknown cmd should fire W307 or W123; emitted: {diags:?}"
     );
 }
 
@@ -425,7 +431,8 @@ fn fp_obj_10_suffix_keyed_callback_no_w307() {
 fn fp_obj_10_const_string_callback_suffix_fires_w307() {
     // TP / SCCP-evidence guard: `set state(doneCallback) notacommand` makes the
     // callback-shaped slot CONST. W307 must fire.
-    let src = "proc f {} {\n    set state(doneCallback) notacommand\n    $state(doneCallback) a\n}\n";
+    let src =
+        "proc f {} {\n    set state(doneCallback) notacommand\n    $state(doneCallback) a\n}\n";
     assert!(
         fires(src, D, "W307"),
         "FP-OBJ-10 TP: const callback-suffix dispatch should fire W307; emitted: {:?}",
@@ -570,7 +577,8 @@ fn fp_obj_14_namespaced_user_proc_non_object_return_fires() {
 fn fp_obj_14_namespaced_known_object_factory_silent() {
     // TN control: when `::pkg::Tree` IS a known TclOO class (in known_classes),
     // the `[::pkg::Tree new]` factory site IS typed OBJECT and the dispatch stays suppressed.
-    let src = "oo::class create ::pkg::Tree {}\nproc f {} {\n    set x [::pkg::Tree new]\n    $x op\n}\n";
+    let src =
+        "oo::class create ::pkg::Tree {}\nproc f {} {\n    set x [::pkg::Tree new]\n    $x op\n}\n";
     assert!(
         !fires(src, D, "W307"),
         "FP-OBJ-14: known TclOO class factory must NOT fire W307; emitted: {:?}",
@@ -610,7 +618,8 @@ fn fp_obj_15_unknown_class_new_fires() {
 #[test]
 fn fp_obj_15_known_oo_class_new_silent() {
     // TN control: `[C new]` where C IS a known oo::class correctly suppresses W307.
-    let src = "oo::class create C { method run {} { return ok } }\nproc f {} { set x [C new]; $x run }\n";
+    let src =
+        "oo::class create C { method run {} { return ok } }\nproc f {} { set x [C new]; $x run }\n";
     assert!(
         !fires(src, D, "W307"),
         "FP-OBJ-15: [C new] with known class must NOT fire W307; emitted: {:?}",

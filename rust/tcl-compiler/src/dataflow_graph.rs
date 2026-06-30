@@ -249,7 +249,10 @@ fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: Option<ValueKey
 /// Render the type-lattice kind for a node's `typeInfo`: the lattice
 /// *kind* name, or the empty string when no type was inferred for this
 /// SSA value.
-fn format_type(types: Option<&HashMap<ValueKey, TypeLattice>>, key: Option<ValueKey>) -> String {
+fn format_type<S: std::hash::BuildHasher>(
+    types: Option<&HashMap<ValueKey, TypeLattice, S>>,
+    key: Option<ValueKey>,
+) -> String {
     match key.and_then(|k| types.and_then(|t| t.get(&k))) {
         None => String::new(),
         Some(tl) => match tl.kind {
@@ -289,14 +292,13 @@ fn def_kind_name(k: DefKind) -> &'static str {
 /// been run; the extractor then leaves the corresponding display
 /// fields empty / skips alias entries.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn extract_function_dataflow(
+pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     name: &str,
     ssa: &SsaFunction,
     du: &DefUseResult,
     sccp: Option<&SccpResult>,
     mem: Option<&MemorySsaFunction>,
-    types: Option<&HashMap<ValueKey, TypeLattice>>,
+    types: Option<&HashMap<ValueKey, TypeLattice, S>>,
 ) -> FunctionDataFlowGraph {
     let empty_values: HashMap<ValueKey, LatticeValue> = HashMap::new();
     let values = sccp.map_or(&empty_values, |r| &r.values);
@@ -405,7 +407,7 @@ pub fn extract_function_dataflow(
 /// references to [`extract_dataflow_graph`], which merges them
 /// into a [`DataFlowGraph`] sorted by function name.
 #[derive(Debug, Clone, Copy)]
-pub struct FunctionInputs<'a> {
+pub struct FunctionInputs<'a, S = std::collections::hash_map::RandomState> {
     /// Qualified function name.
     pub name: &'a str,
     /// SSA form.
@@ -417,7 +419,7 @@ pub struct FunctionInputs<'a> {
     /// Optional memory-SSA for alias-info extraction.
     pub mem: Option<&'a MemorySsaFunction>,
     /// Optional type-lattice map for the per-node `typeInfo` projection.
-    pub types: Option<&'a HashMap<ValueKey, TypeLattice>>,
+    pub types: Option<&'a HashMap<ValueKey, TypeLattice, S>>,
 }
 
 /// Build a [`DataFlowGraph`] for an entire module from per-function
@@ -427,7 +429,9 @@ pub struct FunctionInputs<'a> {
 /// `::top` first, then the remaining functions alphabetically, so the
 /// output is stable across runs and byte-comparable.
 #[must_use]
-pub fn extract_dataflow_graph(inputs: &[FunctionInputs<'_>]) -> DataFlowGraph {
+pub fn extract_dataflow_graph<S: std::hash::BuildHasher>(
+    inputs: &[FunctionInputs<'_, S>],
+) -> DataFlowGraph {
     let mut functions: Vec<FunctionDataFlowGraph> = inputs
         .iter()
         .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types))
@@ -540,7 +544,14 @@ mod tests {
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
         let sccp_result = sccp(&cfg, &ssa, None, None);
-        let g = extract_function_dataflow("::top", &ssa, &du, Some(&sccp_result), None, None);
+        let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top",
+            &ssa,
+            &du,
+            Some(&sccp_result),
+            None,
+            None,
+        );
 
         assert_eq!(g.function_name, "::top");
         assert_eq!(g.total_defs, 1);
@@ -571,12 +582,21 @@ mod tests {
         let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         types.insert((xsym, 1), TypeLattice::of(crate::types::TclType::Int));
 
-        let g = extract_function_dataflow("::top", &ssa, &du, None, None, Some(&types));
+        let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top",
+            &ssa,
+            &du,
+            None,
+            None,
+            Some(&types),
+        );
         let node = g.nodes.iter().find(|n| n.name == "x").expect("x node");
         assert_eq!(node.type_info, "KNOWN");
 
         // Without a type map every node's typeInfo is empty.
-        let g0 = extract_function_dataflow("::top", &ssa, &du, None, None, None);
+        let g0 = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top", &ssa, &du, None, None, None,
+        );
         assert_eq!(g0.nodes[0].type_info, "");
     }
 
@@ -618,7 +638,9 @@ mod tests {
         ssa.blocks.insert(entry_id, entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
-        let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
+        let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top", &ssa, &du, None, None, None,
+        );
 
         let direct_edges: Vec<&DataFlowEdge> = g
             .edges
@@ -644,7 +666,14 @@ mod tests {
         };
         let du = DefUseResult::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let g = extract_function_dataflow("::top", &ssa, &du, None, Some(&mem), None);
+        let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top",
+            &ssa,
+            &du,
+            None,
+            Some(&mem),
+            None,
+        );
         assert_eq!(g.aliases.len(), 1);
         let a = &g.aliases[0];
         assert_eq!(a.reason, "global");
@@ -673,7 +702,7 @@ mod tests {
         let du_b = crate::def_use::build_def_use_chains(&ssa_b, None);
 
         // Pass inputs in reverse name order to exercise the sort.
-        let inputs = vec![
+        let inputs: Vec<FunctionInputs> = vec![
             FunctionInputs {
                 name: "::z",
                 ssa: &ssa_b,
@@ -700,7 +729,7 @@ mod tests {
 
     #[test]
     fn extract_dataflow_graph_empty_input() {
-        let g = extract_dataflow_graph(&[]);
+        let g = extract_dataflow_graph(&[] as &[FunctionInputs]);
         assert!(g.functions.is_empty());
         assert_eq!(g.total_defs(), 0);
         assert_eq!(g.total_uses(), 0);
@@ -711,7 +740,9 @@ mod tests {
     fn extract_empty_when_no_chains() {
         let du = DefUseResult::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
+        let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            "::top", &ssa, &du, None, None, None,
+        );
         assert!(g.nodes.is_empty());
         assert!(g.edges.is_empty());
         assert_eq!(g.total_defs, 0);

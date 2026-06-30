@@ -211,7 +211,10 @@ fn var_brace_forward_scan_handles_nested_braces_and_backslash() {
         // exclusive end lands at col 15 (the whole malformed token is replaced
         // with the well-formed `${na}`).
         assert_eq!(edit.start_char, 5, "{edit:?}");
-        assert_eq!(edit.end_char, 15, "scan consumes nested braces/escape: {edit:?}");
+        assert_eq!(
+            edit.end_char, 15,
+            "scan consumes nested braces/escape: {edit:?}"
+        );
         assert_eq!(edit.new_text, "${na}", "{edit:?}");
     }
 }
@@ -548,7 +551,11 @@ fn event_name_completion_empty_partial_lists_many_events() {
         "expected CLIENT_ACCEPTED: {ls:?}",
     );
     assert!(ls.contains(&"HTTP_REQUEST"), "{ls:?}");
-    assert!(ls.len() > 20, "expected the full event set: {} items", ls.len());
+    assert!(
+        ls.len() > 20,
+        "expected the full event set: {} items",
+        ls.len()
+    );
     // Sorted.
     let mut sorted = ls.clone();
     sorted.sort_unstable();
@@ -593,10 +600,8 @@ fn workspace_proc_detail_uses_singular_for_one_param() {
     let cur_src = "proc local {} {}\nx\n";
     let cur = analyse(cur_src);
     let other = analyse("proc xone {a} {}\nproc xmany {a b c} {}\n");
-    let index = WorkspaceIndex::from_documents([
-        ("file:///cur.tcl", &cur),
-        ("file:///other.tcl", &other),
-    ]);
+    let index =
+        WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
     // Partial `x` on line 1 → both cross-doc procs surface.
     let items = completions(cur_src, 1, 1, &cur, None, Some(&index), "tcl8.6");
     let one = items
@@ -633,10 +638,8 @@ fn workspace_proc_zero_params_is_plural() {
     let cur_src = "proc local {} {}\nz\n";
     let cur = analyse(cur_src);
     let other = analyse("proc znoop {} {}\n");
-    let index = WorkspaceIndex::from_documents([
-        ("file:///cur.tcl", &cur),
-        ("file:///other.tcl", &other),
-    ]);
+    let index =
+        WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
     let items = completions(cur_src, 1, 1, &cur, None, Some(&index), "tcl8.6");
     let noop = items.iter().find(|i| i.label == "znoop");
     if let Some(noop) = noop {
@@ -655,10 +658,8 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
     let cur_src = "proc shared {} {}\nsh\n";
     let cur = analyse(cur_src);
     let other = analyse("proc shared {} {}\nproc shore {} {}\n");
-    let index = WorkspaceIndex::from_documents([
-        ("file:///cur.tcl", &cur),
-        ("file:///other.tcl", &other),
-    ]);
+    let index =
+        WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
     let items = completions(cur_src, 1, 2, &cur, None, Some(&index), "tcl8.6");
     // `shared` appears exactly once (the local copy).
     assert_eq!(
@@ -692,7 +693,9 @@ fn qualified_global_var_completes_in_bare_form() {
     let analysis = analyse(src);
     // Cursor after `$::g` (col 8).
     let items = completions(src, 1, 8, &analysis, None, None, "tcl8.6");
-    let v = items.iter().find(|i| i.label == "$gvar" || i.label == "$::gvar");
+    let v = items
+        .iter()
+        .find(|i| i.label == "$gvar" || i.label == "$::gvar");
     if let Some(v) = v {
         assert!(
             v.insert_text.starts_with('$') && !v.insert_text.starts_with("${"),
@@ -768,7 +771,10 @@ fn proc_completion_renders_param_signature_detail() {
         .find(|i| i.label == "greet")
         .unwrap_or_else(|| panic!("greet missing: {:?}", labels(&items)));
     let detail = greet.detail.as_deref().unwrap_or("");
-    assert!(detail.contains("name"), "required param in detail: {detail:?}");
+    assert!(
+        detail.contains("name"),
+        "required param in detail: {detail:?}"
+    );
     assert!(
         detail.contains("{greeting hi}"),
         "optional param rendered `{{greeting hi}}`: {detail:?}",
@@ -817,9 +823,7 @@ fn no_matching_command_or_proc_yields_no_symbols() {
     let reg = registry();
     let items = completions(src, 0, 8, &analysis, Some(&reg), None, "tcl8.6");
     assert!(
-        items
-            .iter()
-            .all(|i| i.kind == CompletionKind::Snippet),
+        items.iter().all(|i| i.kind == CompletionKind::Snippet),
         "only snippets may match an unknown prefix: {:?}",
         labels(&items),
     );

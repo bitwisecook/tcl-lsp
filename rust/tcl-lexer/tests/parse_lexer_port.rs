@@ -28,7 +28,9 @@ fn lex(source: &str) -> Vec<(TokenType, String)> {
 fn lex_all(source: &str) -> Vec<(TokenType, String)> {
     let toks: Vec<Token> = Lexer::new(source).tokenise_all().expect("lexes");
     let sm = SourceMap::new(source);
-    toks.into_iter().map(|t| (t.kind, sm.token_text(t).to_string())).collect()
+    toks.into_iter()
+        .map(|t| (t.kind, sm.token_text(t).to_string()))
+        .collect()
 }
 
 fn texts(source: &str) -> Vec<String> {
@@ -184,9 +186,11 @@ fn t3_4_trailing_spaces_dropped() {
 #[test]
 fn t3_5_quoted_word_is_one_unit() {
     // `"a b c"` is a single word (tclsh: `cnt "a b c"` → 1).
-    assert!(lex("foo \"a b c\" d \"efg\"")
-        .iter()
-        .any(|(_, t)| t == "a b c"));
+    assert!(
+        lex("foo \"a b c\" d \"efg\"")
+            .iter()
+            .any(|(_, t)| t == "a b c")
+    );
 }
 
 #[test]
@@ -206,13 +210,23 @@ fn t3_7_braced_var_name() {
     // `${abc}` → a VAR token whose name is `abc`.
     let toks = lex("foo ${abc}");
     assert_eq!(toks[0].1, "foo");
-    let vars: Vec<&String> = toks.iter().filter(|(k, _)| *k == TokenType::Var).map(|(_, t)| t).collect();
+    let vars: Vec<&String> = toks
+        .iter()
+        .filter(|(k, _)| *k == TokenType::Var)
+        .map(|(_, t)| t)
+        .collect();
     assert!(vars.iter().any(|t| *t == "abc"));
 }
 
 #[test]
 fn t3_empty_commands_from_semicolons() {
-    assert_eq!(texts("set a 1; set b 2").iter().filter(|w| *w == "set").count(), 2);
+    assert_eq!(
+        texts("set a 1; set b 2")
+            .iter()
+            .filter(|w| *w == "set")
+            .count(),
+        2
+    );
     assert!(texts(";;;foo").iter().any(|w| w == "foo"));
 }
 
@@ -287,7 +301,10 @@ fn expansion_with_list_quotes_bracket() {
     // {*}{a b c} — STR "a b c"; tclsh `list {*}{a b c}` → llength 3.
     let lst = lex("cmd {*}{a b c}");
     assert!(lst.iter().any(|(k, _)| *k == TokenType::Expand));
-    assert!(lst.iter().any(|(k, t)| *k == TokenType::Str && t == "a b c"));
+    assert!(
+        lst.iter()
+            .any(|(k, t)| *k == TokenType::Str && t == "a b c")
+    );
     // {*}"a b c" — quoted argument.
     let q = lex("cmd {*}\"a b c\"");
     assert!(q.iter().any(|(k, _)| *k == TokenType::Expand));
@@ -408,14 +425,25 @@ fn t14_6_backslash_is_literal_in_braces() {
 #[test]
 fn t15_simple_quoted_word() {
     // A quoted word is one ESC token with the inner text.
-    assert_eq!(first("\"hello world\""), (TokenType::Esc, "hello world".to_string()));
+    assert_eq!(
+        first("\"hello world\""),
+        (TokenType::Esc, "hello world".to_string())
+    );
 }
 
 #[test]
 fn t15_quoted_substitutes_var_and_command() {
     // Unlike braces, quotes DO substitute `$var` and `[cmd]`.
-    assert!(lex("\"hello $name\"").iter().any(|(k, _)| *k == TokenType::Var));
-    assert!(lex("\"value is [expr {1+1}]\"").iter().any(|(k, _)| *k == TokenType::Cmd));
+    assert!(
+        lex("\"hello $name\"")
+            .iter()
+            .any(|(k, _)| *k == TokenType::Var)
+    );
+    assert!(
+        lex("\"value is [expr {1+1}]\"")
+            .iter()
+            .any(|(k, _)| *k == TokenType::Cmd)
+    );
 }
 
 #[test]
@@ -441,9 +469,18 @@ fn escaped_dollar_is_literal() {
 
 #[test]
 fn escaped_brackets_braces_quotes_are_literal() {
-    assert_eq!(lex("\\[cmd\\]"), [(TokenType::Esc, "\\[cmd\\]".to_string())]);
-    assert_eq!(lex("\\{body\\}"), [(TokenType::Esc, "\\{body\\}".to_string())]);
-    assert_eq!(lex("\\\"hello\\\""), [(TokenType::Esc, "\\\"hello\\\"".to_string())]);
+    assert_eq!(
+        lex("\\[cmd\\]"),
+        [(TokenType::Esc, "\\[cmd\\]".to_string())]
+    );
+    assert_eq!(
+        lex("\\{body\\}"),
+        [(TokenType::Esc, "\\{body\\}".to_string())]
+    );
+    assert_eq!(
+        lex("\\\"hello\\\""),
+        [(TokenType::Esc, "\\\"hello\\\"".to_string())]
+    );
 }
 
 #[test]
@@ -536,17 +573,32 @@ fn braced_special_names_are_literal_str() {
     let t = lex("set {$a} 1");
     assert_eq!(t[0].1, "set");
     assert_eq!(t[1], (TokenType::Str, "$a".to_string()));
-    assert_eq!(lex("set {[cmd]} 1")[1], (TokenType::Str, "[cmd]".to_string()));
+    assert_eq!(
+        lex("set {[cmd]} 1")[1],
+        (TokenType::Str, "[cmd]".to_string())
+    );
     assert_eq!(lex("set {\"} 1")[1], (TokenType::Str, "\"".to_string()));
     // Spaces inside braces are kept; inner `{}` is a matched pair.
-    assert_eq!(lex("proc {weird name} {} {}")[1], (TokenType::Str, "weird name".to_string()));
-    assert_eq!(lex("proc {$[]{}} {} {}")[1], (TokenType::Str, "$[]{}".to_string()));
+    assert_eq!(
+        lex("proc {weird name} {} {}")[1],
+        (TokenType::Str, "weird name".to_string())
+    );
+    assert_eq!(
+        lex("proc {$[]{}} {} {}")[1],
+        (TokenType::Str, "$[]{}".to_string())
+    );
 }
 
 #[test]
 fn escaped_special_names_are_esc() {
-    assert_eq!(lex("proc \\$ {} {puts dollar}")[1], (TokenType::Esc, "\\$".to_string()));
-    assert_eq!(lex("proc \\[ {} {puts bracket}")[1], (TokenType::Esc, "\\[".to_string()));
+    assert_eq!(
+        lex("proc \\$ {} {puts dollar}")[1],
+        (TokenType::Esc, "\\$".to_string())
+    );
+    assert_eq!(
+        lex("proc \\[ {} {puts bracket}")[1],
+        (TokenType::Esc, "\\[".to_string())
+    );
 }
 
 // -- Port: empty / minimal structures --
@@ -575,7 +627,13 @@ fn single_char_bare_words() {
 
 #[test]
 fn expand_followed_by_each_word_form() {
-    for src in ["{*}list", "{*}{body}", "{*}$var", "{*}[cmd]", "{*}\"hello\""] {
+    for src in [
+        "{*}list",
+        "{*}{body}",
+        "{*}$var",
+        "{*}[cmd]",
+        "{*}\"hello\"",
+    ] {
         assert!(
             kinds(src).contains(&TokenType::Expand),
             "{src} must produce an EXPAND token"
