@@ -248,6 +248,8 @@ struct DiagInputs {
     client: Client,
     registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
+    /// `tclLsp.extraCommands` — names treated as known by W123.
+    extra_commands: HashSet<String>,
     non_ascii_mode: NonAsciiMode,
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
@@ -376,6 +378,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client,
         registry,
         disabled,
+        extra_commands,
         non_ascii_mode,
         optimiser_enabled,
         opt_disabled,
@@ -500,9 +503,10 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         }
     } else {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        let a_extra = extra_commands.clone();
         let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
-                Backend::configured_analyser(a_disabled, non_ascii_mode)
+                Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
                     .analyse(&a_text, &a_dialect)
                     .clone(),
             )
@@ -761,6 +765,10 @@ pub struct Backend {
     /// `.tcl-lsp.ini [project]`) and discovery when building the package
     /// database. Mirrors the Python server's `libraryPaths` setting.
     editor_library_paths: Mutex<Vec<String>>,
+    /// User-declared extra command names (`tclLsp.extraCommands`) treated as
+    /// known by the unknown-command (W123) check. Mirrors the Python
+    /// `extra_commands` setting; mirrored onto the salsa `AnalyserConfig`.
+    extra_commands: Mutex<Vec<String>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -994,7 +1002,8 @@ impl Backend {
     #[must_use]
     pub fn new(client: Client) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let db_config =
+            tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -1010,6 +1019,7 @@ impl Backend {
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            extra_commands: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -1186,10 +1196,12 @@ impl Backend {
             .collect();
         disabled.sort();
         let mode = *self.non_ascii_mode.lock().await;
+        let extra = self.extra_commands.lock().await.clone();
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
+        config.set_extra_commands(&mut *db).to(extra);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -1292,15 +1304,16 @@ impl Backend {
         // fresh with the same per-folder config the cached path would have used,
         // so the on-demand result still honours folder-scoped suppression.
         let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode) = {
+        let (disabled, na_mode, extra) = {
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).iter().cloned().collect(),
                 config.non_ascii_mode(&*db),
+                config.extra_commands(&*db).iter().cloned().collect(),
             )
         };
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled, na_mode);
+            let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
             Arc::new(analyser.analyse(&text, &dialect).clone())
         })
         .await
@@ -2403,13 +2416,15 @@ impl Backend {
             return Ok(None);
         };
         let (disabled, na_mode) = self.analyser_config().await;
+        let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let dialect = doc.dialect.clone();
         let mut source = doc.text.clone();
         let value = tokio::task::spawn_blocking(move || {
             const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..4 {
-                let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
+                let mut analyser =
+                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
                 let analysis = analyser.analyse(&source, &dialect).clone();
                 // First fix per safe diagnostic, sorted by start offset.
                 let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
@@ -2701,6 +2716,19 @@ impl Backend {
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
         }
+        // `tclLsp.extraCommands` — names treated as known commands (no W123).
+        if let Some(cmds) = cfg
+            .get("extraCommands")
+            .and_then(serde_json::Value::as_array)
+        {
+            let extra: Vec<String> = cmds
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect();
+            *self.extra_commands.lock().await = extra;
+        }
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
         // so re-wrap before reusing them for the W108 mode + disabled codes.
@@ -2733,6 +2761,9 @@ impl Backend {
                 .collect();
             global_disabled.sort();
             let global_mode = *self.non_ascii_mode.lock().await;
+            // Folder handles inherit the process-global extra-commands set
+            // (`tclLsp.extraCommands` has no per-folder override).
+            let global_extra = self.extra_commands.lock().await.clone();
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
@@ -2749,9 +2780,11 @@ impl Backend {
                 if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
+                    handle.set_extra_commands(&mut *db).to(global_extra.clone());
                     next.push((folder.clone(), *handle));
                 } else {
-                    let handle = tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode);
+                    let handle =
+                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, global_extra.clone());
                     next.push((folder.clone(), handle));
                 }
             }
@@ -3071,8 +3104,14 @@ impl Backend {
 
     /// Build an `Analyser` carrying the configured disabled-diagnostics
     /// set and W108 mode.
-    fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
-        Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(mode)
+    fn configured_analyser(
+        disabled: HashSet<String>,
+        mode: NonAsciiMode,
+        extra_commands: HashSet<String>,
+    ) -> Analyser {
+        Analyser::with_disabled_diagnostics(disabled)
+            .with_non_ascii_mode(mode)
+            .with_extra_commands(extra_commands)
     }
 
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
@@ -3105,10 +3144,12 @@ impl Backend {
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
+        let extra_commands = self.extra_commands.lock().await.iter().cloned().collect();
         DiagInputs {
             client: self.client.clone(),
             registry,
             disabled,
+            extra_commands,
             non_ascii_mode,
             optimiser_enabled,
             opt_disabled,
@@ -8388,13 +8429,13 @@ mod tests {
     #[test]
     fn configured_analyser_threads_mode_and_disabled() {
         // `Off` mode suppresses W108 entirely.
-        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
+        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new());
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
         // A disabled code is filtered from the analyser's output.
         let mut disabled = HashSet::new();
         disabled.insert("W108".to_string());
-        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict);
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new());
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
     }
@@ -9003,7 +9044,8 @@ mod tests {
     fn test_backend() -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let db_config =
+            tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new());
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -9019,6 +9061,7 @@ mod tests {
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            extra_commands: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),

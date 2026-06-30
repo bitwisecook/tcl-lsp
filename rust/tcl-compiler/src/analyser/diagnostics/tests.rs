@@ -2826,6 +2826,31 @@ foo$suffix
 }
 
 #[test]
+fn extra_commands_suppress_w123() {
+    // `tclLsp.extraCommands` names are treated as known commands.
+    let src = "mylibsend foo bar\n";
+    // Baseline: an unknown bare command fires W123.
+    let mut base = Analyser::new();
+    let baseline = base.analyse(src, "tcl8.6");
+    assert!(
+        baseline
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123),
+        "baseline W123 expected for unknown command; got {:?}",
+        baseline.diagnostics,
+    );
+    // With the command declared extra, W123 is suppressed.
+    let mut a = Analyser::new().with_extra_commands(["mylibsend".to_owned()].into_iter().collect());
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "extraCommands should suppress W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
 fn analyse_w123_kept_when_partial_interpolation_resolves_to_unknown() {
     // ``set suffix _missing`` makes ``foo$suffix`` resolve
     // to ``foo_missing`` — not a known command — so W123

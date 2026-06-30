@@ -68,6 +68,7 @@ fn main() {
         &db,
         Vec::new(),
         tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
     );
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
     let _ = file_analysis_incremental(&db, file, cfg);
@@ -194,6 +195,7 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
         &db,
         Vec::new(),
         tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
     );
     let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
     let _ = file_analysis_incremental(&db, file, cfg);

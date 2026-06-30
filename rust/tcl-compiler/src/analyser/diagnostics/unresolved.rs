@@ -152,6 +152,8 @@ impl Analyser {
         candidates.extend(alias_names.iter().cloned());
         candidates.extend(ensemble_cmds.iter().cloned());
         candidates.extend(stub_names.iter().cloned());
+        // User-declared extra commands (`tclLsp.extraCommands`) are known.
+        candidates.extend(self.extra_commands.iter().cloned());
         if let Some(info) = self.result.unknown_proc_info.as_ref() {
             for t in &info.dispatch_targets {
                 candidates.push(t.clone());
@@ -201,6 +203,10 @@ impl Analyser {
                 continue;
             }
             if stub_names.contains(name) {
+                continue;
+            }
+            // User-declared extra commands (`tclLsp.extraCommands`) are known.
+            if self.extra_commands.contains(name) {
                 continue;
             }
             if let Some(info) = self.result.unknown_proc_info.as_ref()
