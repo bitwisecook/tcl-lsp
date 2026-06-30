@@ -506,8 +506,19 @@ exist yet — the verification-status table follows the list.
    whole-module mutations. This is a deep core-pipeline refactor, materially more
    foundational than Tasks 2/4 (which had a ready offset-0 analysis seam to build
    on), and the corpus byte-identity gate (`per_item_corpus` / a new lowering
-   differential) must hold throughout. **Status: scoped, not built** — the single
-   remaining de-roped task.
+   differential) must hold throughout.
+   *Deeper finding 2026-06-30:* even the per-body seam (`Lowering::lower_body`,
+   called by `lower_proc`) is **stateful and effectful** — it registers nested
+   `IRProcedure`s into the shared module, mutates the `const_map_stack` /
+   `proc_depth`, and tracks namespaces — so a per-proc lowering memo must return
+   and re-apply *all* of those effects (not just an offset-0 `Script`), on top of
+   refactoring the cross-procedural `specialise_factories` /
+   `inline_uplevel_passthrough` IR mutators to consume cross-item facts as inputs.
+   This is a deep rearchitecture of the most central, effectful compiler pipeline,
+   where any divergence corrupts every downstream consumer — distinctly harder
+   than the optimiser/checks memos (pure per-function passes with summary-level
+   cross-proc deps and a ready clean gate). **Status: scoped + core difficulty
+   confirmed, not built** — the single remaining de-roped task and the deepest.
 
 4. **Approach B follow-ups** *(deferred — one half negligible, one coupled to
    Task 3).* Two sub-parts, both re-evaluated against measurement:
