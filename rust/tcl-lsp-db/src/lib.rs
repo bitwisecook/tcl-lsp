@@ -322,6 +322,45 @@ pub fn project_command_arities(
     Arc::new(map)
 }
 
+/// Interned identity of a single command **tail** name — the key for the
+/// per-symbol cross-file resolution accessor [`command_arity`].
+#[salsa::interned]
+pub struct CommandTail<'db> {
+    #[returns(ref)]
+    pub name: String,
+}
+
+/// Per-symbol cross-file resolution accessor — the **early-cutoff** point that
+/// gives cross-file diagnostics *per-symbol* (not whole-project) invalidation
+/// precision.
+///
+/// Reads the firewalled whole-project [`project_command_arities`] table and
+/// projects out **one** tail: `Some(arities)` when the workspace resolves a
+/// command with this tail (`arities` empty ⇒ resolved by a non-proc — class /
+/// alias / ensemble — so it suppresses W123 but draws no arity error); `None`
+/// when nothing in the project claims it.
+///
+/// Why this is its own query: [`project_diagnostics`] for a file demands
+/// `command_arity` only for the tails that file actually references, so it depends
+/// on **those symbols' resolutions, not the whole table**.  A signature edit to an
+/// *unrelated* proc recomputes the aggregate table and re-runs this accessor for
+/// each demanded tail — but a tail this file does not call keeps the same
+/// projected output, so salsa **early-cutoff backdates** it and the file's
+/// `project_diagnostics` does not re-run.  Changing a widely-called utility's
+/// signature still re-checks exactly its callers (correct fan-out); changing a
+/// proc nobody in file B calls wakes nobody in B.  Proven by
+/// `project_diagnostics_per_symbol_cutoff`.
+#[salsa::tracked]
+pub fn command_arity<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    tail: CommandTail<'db>,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    project_command_arities(db, project)
+        .get(tail.name(db).as_str())
+        .map(|arities| Arc::new(arities.clone()))
+}
+
 /// Build the cross-file wrong-argument-count diagnostic for a call to a workspace
 /// proc whose arg count fits none of the proc's arities.  Reuses the analyser's
 /// **own** arity codes — `E002` (too few) / `E003` (too many), `Severity::Error`,
@@ -448,12 +487,38 @@ pub fn project_diagnostics(
     config: AnalyserConfig,
     project: Project,
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
-    let arities = project_command_arities(db, project);
     let disabled = config.disabled_diagnostics(db);
     // `file_analysis_incremental` (not the coarse `file_analysis`) so this reuses
     // the per-item firewall result the diagnostics worker already computed for
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
+
+    // Per-symbol demand (the precision lever): resolve only the command tails this
+    // file actually references — every unknown-command (W123) tail and every
+    // recorded unresolved call site — through the early-cutoff `command_arity`
+    // accessor, building the same `tail -> arities` map shape
+    // `apply_cross_file_resolution` reads.  Depending on *those symbols'*
+    // resolutions rather than the whole `project_command_arities` table is what
+    // stops an unrelated proc's signature edit from re-running this file's
+    // cross-file diagnostics (see `command_arity`).
+    let mut tails: BTreeSet<&str> = BTreeSet::new();
+    for diag in &analysis.diagnostics {
+        if diag.code == DiagCode::W123
+            && let Some(name) = w123_command(&diag.message)
+        {
+            tails.insert(name);
+        }
+    }
+    for (_, name) in &analysis.unresolved_command_sites {
+        tails.insert(name.as_str());
+    }
+    let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    for tail in tails {
+        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
+            arities.insert(tail.to_owned(), (*resolved).clone());
+        }
+    }
+
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.unresolved_command_sites,
@@ -2002,6 +2067,91 @@ mod tests {
             arities.get("helper").cloned(),
             Some(vec![(1, 1)]),
             "the new parameter list flows through to arity (1, 1)"
+        );
+    }
+
+    /// Per-symbol cross-file precision: editing an *unrelated* proc's signature in
+    /// the defining file must **not** re-run a calling file's `project_diagnostics`.
+    ///
+    /// `b` calls only `foo` (defined in `a`); `a` also defines `bar`, which `b`
+    /// never calls.  Because `project_diagnostics(b)` demands `command_arity` only
+    /// for the tails `b` references (`foo`), a signature edit to `bar` recomputes
+    /// the whole-project arity table and the `command_arity(foo)` accessor, but the
+    /// accessor's projected output for `foo` is unchanged → salsa backdates it →
+    /// `project_diagnostics(b)` does **not** re-execute (the per-symbol early-cutoff
+    /// the whole-table dependency could not give).  Editing `foo` itself, by
+    /// contrast, *must* re-run `b` and flow the new arity through.
+    #[test]
+    fn project_diagnostics_per_symbol_cutoff() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        // Count `project_diagnostics` re-executions only (not the cheap accessor /
+        // aggregate, which legitimately re-run on a signature edit).
+        let runs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("project_diagnostics"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // `a` defines `foo` (1 param) and an unrelated `bar`.
+        let a = SourceFile::new(
+            &db,
+            "proc foo {x} {}\nproc bar {y} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        // `b` calls `foo` with one arg — resolves cross-file, fits arity (1, 1),
+        // so its diagnostics are empty.  It never references `bar`.
+        let b = SourceFile::new(&db, "foo 1\n".to_owned(), "tcl8.6".to_owned());
+        let project = Project::new(&db, vec![a, b]);
+
+        assert!(
+            project_diagnostics(&db, b, cfg, project).is_empty(),
+            "cold: foo resolves cross-file (1 arg fits arity 1) → no diagnostics"
+        );
+        let _ = runs(&log);
+
+        // Signature edit to the UNRELATED `bar` (add a param).  The arity table and
+        // `command_arity(bar)` recompute, but `command_arity(foo)` backdates → `b`'s
+        // cross-file diagnostics must NOT re-run.
+        a.set_text(&mut db)
+            .to("proc foo {x} {}\nproc bar {y z} {}\n".to_owned());
+        let after_unrelated = project_diagnostics(&db, b, cfg, project);
+        assert_eq!(
+            runs(&log),
+            0,
+            "unrelated proc's signature edit must not re-run the caller's project_diagnostics"
+        );
+        assert!(
+            after_unrelated.is_empty(),
+            "b's diagnostics unchanged by an edit to a proc it never calls"
+        );
+
+        // Control: a signature edit to `foo` itself (now needs 2 args) MUST re-run
+        // `b` and surface the cross-file arity error.
+        a.set_text(&mut db)
+            .to("proc foo {x w} {}\nproc bar {y z} {}\n".to_owned());
+        let after_foo = project_diagnostics(&db, b, cfg, project);
+        assert_eq!(
+            runs(&log),
+            1,
+            "the called proc's signature edit must re-run the caller's project_diagnostics"
+        );
+        assert!(
+            after_foo.iter().any(|d| d.code == DiagCode::E002),
+            "foo now needs 2 args but b passes 1 → cross-file E002 (too few)"
         );
     }
 
