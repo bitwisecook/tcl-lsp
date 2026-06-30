@@ -6,7 +6,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 
 `CRASH` = an uncaught error/timeout aborts the file (highest leverage — one fix unlocks it). Columns: **C P/S/F** vs **VM P/S/F**.
 
-**Tally: 28 MATCH · 58 gap · 11 crash · 0 no-ref** of 97 stems.
+**Tally: 28 MATCH · 59 gap · 10 crash · 0 no-ref** of 97 stems.
 
 ## Tier 1
 
@@ -17,7 +17,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | parseExpr | 67/219/0 | 3/219/64 | gap |
 | word | 55/0/0 | 55/0/0 | MATCH |
 | subst | 62/1/0 | 54/1/8 | gap |
-| compile | 138/33/0 | 63/33/75 | gap |
+| compile | 138/33/0 | 64/33/74 | gap |
 | execute | 79/78/0 | 65/78/14 | gap |
 | basic | 69/77/0 | 45/78/23 | gap |
 | misc | 2/299/0 | 1/299/1 | gap |
@@ -50,10 +50,10 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | apply | 38/4/0 | 26/4/12 | gap |
 | uplevel | 57/0/0 | 54/0/3 | gap |
 | upvar | 62/8/0 | 29/8/33 | gap |
-| namespace | 311/3/0 | 149/3/162 | gap |
+| namespace | 311/3/0 | 168/3/143 | gap |
 | namespace-old | 126/0/0 | 102/0/24 | gap |
 | var | 198/21/0 | 119/21/79 | gap |
-| info | 282/5/0 | 103/6/178 | gap |
+| info | 282/5/0 | 104/6/177 | gap |
 | cmdInfo | 0/12/0 | 0/12/0 | MATCH |
 | trace | 273/17/0 | 120/17/153 | gap |
 | rename | 11/8/0 | 10/8/1 | gap |
@@ -115,7 +115,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | utf | 148/251/0 | 133/251/15 | gap |
 | clock | (no ref) | ERROR | CRASH |
 | msgcat | (no ref) | ERROR | CRASH |
-| safe | 147/8/0 | ERROR | CRASH |
+| safe | 147/8/0 | 2/8/145 | gap |
 | safe-stock | 11/0/0 | 0/0/11 | gap |
 | safe-stock86 | 0/0/0 | ERROR | CRASH |
 | safe-zipfs | (no ref) | ERROR | CRASH |
