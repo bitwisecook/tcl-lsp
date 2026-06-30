@@ -235,8 +235,17 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
    landing only if its 0.02% slice grows measurable *and* many-small-doc memory
    stays under ~1.2× (may legitimately never land).
 
+Also shipped this session: the **Task 2b random-edit differential fuzzer** (the
+named "still to build" verification gate — in-crate 250-edit + corpus `--ignored`,
+asserting the memoised checks path stays byte-identical to a fresh build across
+fuzzed edit sequences).
+
 **Genuinely remaining:** Task 3 (IR-lowering incrementality, L), Task 4's
-`optimise_unit` memo (M), Task 5 (blocked on 7), Task 7 (optional/gated).
+`optimise_unit` memo (**re-scoped to L** after a 2026-06-30 audit — no per-function
+optimiser seam exists, and O103 proc-call chain folding makes one function's
+optimisations depend on other functions' bodies, so it needs both per-function
+optimiser isolation *and* interproc reverse-dependency modeling, for a ~15 ms
+lever), Task 5 (blocked on 7), Task 7 (optional/gated).
 
 ---
 
