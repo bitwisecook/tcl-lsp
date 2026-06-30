@@ -546,25 +546,65 @@ fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp hide|expose path cmd` — move a command between the (current or
 /// child) interp's visible and hidden tables.
 fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Value> {
-    let [path, cmd] = rest else {
-        return err("wrong # args: should be \"interp hide path cmdName\"");
+    // `interp hide   path cmdName     ?hiddenCmdName?`
+    // `interp expose path hiddenName  ?cmdName?`
+    let (path, cmd, token) = match rest {
+        [path, cmd] => (path.to_str(), cmd.to_str(), cmd.to_str()),
+        [path, cmd, token] => (path.to_str(), cmd.to_str(), token.to_str()),
+        _ => {
+            let usage = if hide {
+                "wrong # args: should be \"interp hide path cmdName ?hiddenCmdName?\""
+            } else {
+                "wrong # args: should be \"interp expose path hiddenCmdName ?cmdName?\""
+            };
+            return err(usage);
+        }
     };
-    let p = path.to_str();
-    let c = cmd.to_str();
-    if p.is_empty() {
+    // A safe interpreter may not touch the hidden-command table of itself or
+    // any of its children (the check is on the *executing* interp).
+    if vm.is_safe() {
+        let verb = if hide { "hide" } else { "expose" };
+        return err(format!(
+            "permission denied: safe interpreter cannot {verb} commands"
+        ));
+    }
+    // The hidden-command token may never carry namespace qualifiers, and only
+    // global-namespace commands can be hidden / exposed-from.
+    if hide {
+        if token.contains("::") {
+            return err("cannot use namespace qualifiers in hidden command token (rename)");
+        }
+        if !is_global_command(&cmd) {
+            return err("can only hide global namespace commands (use rename then hide)");
+        }
+    } else {
+        if cmd.contains("::") {
+            return err("cannot use namespace qualifiers in hidden command token (rename)");
+        }
+        if !is_global_command(&token) {
+            return err("cannot expose to a namespace (use expose to toplevel, then rename)");
+        }
+    }
+    if path.is_empty() {
         if hide {
-            if let Some(command) = vm.take_command(&c) {
-                vm.hide_own_command(&c, command);
+            if let Some(command) = vm.take_command(&cmd) {
+                vm.hide_own_command(&token, command);
             }
         } else {
-            vm.expose_own_command(&c);
+            vm.expose_own_command(&cmd, &token);
         }
         ok(Value::empty())
-    } else if vm.child_hide(&p, &c, hide) {
+    } else if vm.child_hide(&path, &cmd, &token, hide) {
         ok(Value::empty())
     } else {
-        err(format!("could not find interpreter \"{p}\""))
+        err(format!("could not find interpreter \"{path}\""))
     }
+}
+
+/// Whether `name` resolves in the global namespace — i.e. it carries no
+/// namespace qualifiers beyond an optional leading `::`.
+fn is_global_command(name: &str) -> bool {
+    !name.strip_prefix("::").unwrap_or(name).contains("::")
 }
 
 /// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
@@ -577,6 +617,9 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     if tail.is_empty() {
         return err(usage);
+    }
+    if vm.is_safe() {
+        return err("not allowed to invoke hidden commands from safe interpreter");
     }
     // Skip the option flags we don't model (`-namespace ns`, `--`).
     let mut i = 0;

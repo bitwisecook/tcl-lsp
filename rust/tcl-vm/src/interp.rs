@@ -992,10 +992,11 @@ impl Vm {
         self.hidden_commands.insert(cmd.to_string(), command);
     }
 
-    /// `interp expose {} cmd` — restore one of *this* interp's hidden commands.
-    pub(crate) fn expose_own_command(&mut self, cmd: &str) {
+    /// `interp expose {} hidden ?token?` — restore one of *this* interp's
+    /// hidden commands, optionally under a new name (`token`).
+    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) {
         if let Some(c) = self.hidden_commands.remove(cmd) {
-            self.commands.insert(cmd.to_string(), c);
+            self.commands.insert(token.to_string(), c);
         }
     }
 
@@ -1006,16 +1007,19 @@ impl Vm {
         names
     }
 
-    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, hide: bool) -> bool {
+    /// `interp hide|expose path cmd ?token?` on a child. When hiding, the
+    /// command `cmd` is filed under `token`; when exposing, the hidden `cmd` is
+    /// restored as the command `token`.
+    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, token: &str, hide: bool) -> bool {
         let Some(child) = self.children.get_mut(name) else {
             return false;
         };
         if hide {
             if let Some(c) = child.commands.remove(cmd) {
-                child.hidden_commands.insert(cmd.to_string(), c);
+                child.hidden_commands.insert(token.to_string(), c);
             }
         } else if let Some(c) = child.hidden_commands.remove(cmd) {
-            child.commands.insert(cmd.to_string(), c);
+            child.commands.insert(token.to_string(), c);
         }
         true
     }
@@ -1226,7 +1230,14 @@ impl Vm {
             }
             "hide" | "expose" if rest.len() == 1 => {
                 let hide = &*sub.to_str() == "hide";
-                self.child_hide(name, &rest[0].to_str(), hide);
+                if self.is_safe() {
+                    let verb = if hide { "hide" } else { "expose" };
+                    return err(format!(
+                        "permission denied: safe interpreter cannot {verb} commands"
+                    ));
+                }
+                let c = rest[0].to_str();
+                self.child_hide(name, &c, &c, hide);
                 ok(Value::empty())
             }
             "marktrusted" => {
@@ -1234,6 +1245,11 @@ impl Vm {
                 ok(Value::empty())
             }
             "invokehidden" if !rest.is_empty() => {
+                if self.is_safe() {
+                    return err(
+                        "not allowed to invoke hidden commands from safe interpreter",
+                    );
+                }
                 // Skip unmodelled `-namespace ns` / `--` flags.
                 let mut i = 0;
                 while i < rest.len() {
