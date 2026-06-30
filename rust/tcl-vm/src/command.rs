@@ -150,6 +150,13 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [name] => {
             let n = name.to_str();
+            // `set varName` is a variable read, so it fires read traces (like
+            // the `$var` opcode path) — and a trace may create the variable
+            // before the read resolves (tcltest's `SafeFetch` lazily
+            // initialises a constraint this way).
+            if let Err(c) = vm.fire_var_traces(&n, "read") {
+                return c;
+            }
             vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
         [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
