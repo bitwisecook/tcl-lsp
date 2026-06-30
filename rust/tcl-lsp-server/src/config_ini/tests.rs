@@ -66,19 +66,33 @@ fn multiline_disabled_codes_list() {
 #[test]
 fn extra_commands_multiline() {
     // Continuation form of `extraCommands`, equivalent to the comma form
-    // (Python test_user_config::test_extra_commands_multiline). NOTE: bare
-    // command names join correctly; `::`-qualified names must use the comma
-    // form because the continuation heuristic treats an indented `a::b` as a
-    // `key: value` line (a known limitation — see the parity catalog).
+    // (Python test_user_config::test_extra_commands_multiline). `::`-qualified
+    // names now join correctly even in the continuation form (the parser treats
+    // any indented line as a continuation, configparser-style).
     let ini = "[global]\n\
                extraCommands =\n\
-               \x20   myhelper\n\
-               \x20   myother\n";
+               \x20   mylib::send\n\
+               \x20   mylib::recv\n";
     let s = settings_from_ini(ini, Layer::Global);
-    assert_eq!(s["extraCommands"], json!(["myhelper", "myother"]));
-    // The comma form handles namespace-qualified names.
+    assert_eq!(s["extraCommands"], json!(["mylib::send", "mylib::recv"]));
+    // The comma form also handles namespace-qualified names.
     let comma = settings_from_ini("[global]\nextraCommands = a::b, c::d\n", Layer::Global);
     assert_eq!(comma["extraCommands"], json!(["a::b", "c::d"]));
+}
+
+#[test]
+fn continuation_lines_with_colons_join_correctly() {
+    // A regex pattern with a `:` and a `::`-qualified name in continuation lists
+    // must join as continuations, not be mis-read as new `key: value` lines.
+    let ini = "[diagnostics]\n\
+               generic_variable_patterns =\n\
+               \x20   ^a:b$\n\
+               \x20   ^c$\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(
+        s["diagnostics"]["genericVariablePatterns"],
+        json!(["^a:b$", "^c$"])
+    );
 }
 
 #[test]

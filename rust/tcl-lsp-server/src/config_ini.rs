@@ -65,15 +65,20 @@ fn parse_ini(content: &str) -> Vec<Section> {
         let Some(section) = sections.last_mut() else {
             continue;
         };
-        // Continuation: an indented, non-empty line that isn't a new key.
+        // Continuation: an indented, non-empty line continues the current key's
+        // value — configparser semantics. Keys are written at the section's base
+        // (unindented) column, so an indented line is always a continuation,
+        // even when it contains `:` / `=` (e.g. a `mylib::send` command name or
+        // a regex pattern with a colon).
         let indented = line.starts_with([' ', '\t']);
-        let is_kv = stripped.contains('=') || stripped.contains(':');
-        if indented && !stripped.is_empty() && !is_kv {
+        if indented && !stripped.is_empty() {
             if let Some(last) = section.entries.last_mut() {
                 last.1.push('\n');
                 last.1.push_str(stripped);
+                continue;
             }
-            continue;
+            // No key to continue (indented line right after a header) — fall
+            // through and treat it as a normal `key = value` if it parses.
         }
         if stripped.is_empty() || stripped.starts_with('#') || stripped.starts_with(';') {
             continue;
