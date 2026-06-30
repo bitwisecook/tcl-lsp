@@ -15,6 +15,7 @@
 pub mod config_ini;
 
 use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -238,14 +239,29 @@ struct DiagSlot {
     running: bool,
 }
 
+/// The per-run analyser feature toggles for a diagnostics run, grouped so the
+/// owned [`DiagInputs`] doesn't accumulate a flat row of `bool` fields.  Each is
+/// resolved per folder in [`Backend::diag_inputs`].  (The client-capability
+/// `client_supports_pull` is kept separate — it is a transport choice, not an
+/// analyser feature.)
+#[derive(Clone, Copy)]
+struct DiagToggles {
+    /// Master diagnostics switch (`tclLsp.features.diagnostics`). When `false`
+    /// the pipeline publishes an empty set (clearing squiggles) instead of
+    /// analysing, mirroring the Python `diagnostics_enabled` gate.
+    diagnostics_enabled: bool,
+    /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
+    optimiser_enabled: bool,
+    /// Whether the opt-in XC100-301 translatability diagnostics are enabled for
+    /// this document.  Only takes effect on `f5-irules` documents.
+    xc_diagnostics: bool,
+}
+
 /// Owned inputs for a detached diagnostics run — the document-independent
 /// handles [`run_diagnostics_core`] (and the worker's per-drain [`DiagJob`]
 /// capture) need without borrowing `Backend`, so the work can run on a
 /// `tokio::spawn`ed task off the LSP event loop.  `Clone` so the coalescing
 /// worker can reuse it across successive runs of one document.
-// Independent per-run config flags (optimiser / xc / pull / diagnostics master
-// switch); a bitflags type would only obscure an internal owned-inputs struct.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
@@ -262,12 +278,7 @@ struct DiagInputs {
     /// document's folder; fed to the source-style checks. Distinct from the
     /// formatter's `tclLsp.formatting.lineLength`.
     style_line_length: u32,
-    /// Master diagnostics switch (`tclLsp.features.diagnostics`). When `false`
-    /// the pipeline publishes an empty set (clearing squiggles) instead of
-    /// analysing, mirroring the Python `diagnostics_enabled` gate.
-    diagnostics_enabled: bool,
     non_ascii_mode: NonAsciiMode,
-    optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -292,10 +303,10 @@ struct DiagInputs {
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
-    /// Whether the opt-in XC100-301 translatability diagnostics are enabled
-    /// for this document (resolved per folder in [`Backend::diag_inputs`]).
-    /// Only takes effect on `f5-irules` documents.
-    xc_diagnostics: bool,
+    /// Per-run analyser feature toggles (diagnostics master switch, optimiser,
+    /// `xcDiagnostics`), grouped to keep this owned struct's flat `bool` count
+    /// low.
+    toggles: DiagToggles,
     /// Snapshot of [`Backend::client_supports_pull_diagnostics`].  When `true`
     /// the worker keeps the pull cache current and asks the client to re-pull
     /// instead of pushing — see that field for the rationale (#721).
@@ -384,125 +395,133 @@ async fn deliver_diagnostics(
     }
 }
 
-#[allow(clippy::too_many_lines)]
-async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
-    // Returns whether this version is **settled** (published, intentionally
-    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
-    // cancelled mid-flight and the caller should retry the document's latest
-    // state.
-    let DiagInputs {
-        client,
-        registry,
-        disabled,
-        extra_commands,
-        generic_variable_patterns,
-        style_line_length,
-        diagnostics_enabled,
-        non_ascii_mode,
-        optimiser_enabled,
-        opt_disabled,
-        documents,
-        workspace_index,
-        package_resolver,
-        db,
-        db_project,
-        pull_diag_cache,
-        xc_diagnostics,
-        client_supports_pull,
-        // The worker captures the job from these before calling us; unused here.
-        db_files: _,
-        db_config: _,
-        folder_db_configs: _,
-    } = inputs;
-    let DiagJob {
+/// The publish-side handles + per-edit identity shared by every settled
+/// `run_diagnostics_core` path (master-off, F5, the analyser tail).  Borrows for
+/// one call so the early-return paths and the final publish all deliver through
+/// the same currency-guarded channel.
+struct DeliveryCtx<'a> {
+    client: &'a Client,
+    documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    uri: &'a Uri,
+    revision: u64,
+    version: Option<i32>,
+    client_supports_pull: bool,
+}
+
+impl DeliveryCtx<'_> {
+    /// Whether the document is still at this run's `revision` (not superseded by
+    /// a newer edit).
+    async fn is_current(&self) -> bool {
+        self.documents
+            .lock()
+            .await
+            .get(self.uri)
+            .is_some_and(|doc| doc.revision == self.revision)
+    }
+
+    /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
+    /// `revision`, with a fresh `result_id`, then notify the client (push or
+    /// refresh) — the publish half shared by every settled path.
+    async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+        self.pull_diag_cache.lock().await.insert(
+            self.uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: self.revision,
+                diagnostics: diags.clone(),
+            },
+        );
+        deliver_diagnostics(
+            self.client,
+            self.uri,
+            diags,
+            self.version,
+            self.client_supports_pull,
+        )
+        .await;
+    }
+}
+
+/// Master switch (`tclLsp.features.diagnostics = false`): publish an empty set
+/// so any existing squiggles clear, then settle — the analyser, compiler
+/// checks, and F5 validators are all skipped.  Mirrors the Python pipeline's
+/// empty-publish when `diagnostics_enabled` is off.  Always settled (`true`).
+async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
+    if delivery.is_current().await {
+        delivery.cache_and_deliver(Vec::new()).await;
+    }
+    true
+}
+
+/// F5 dialect dispatch: BIG-IP config and iApp APL presentation documents are
+/// not Tcl source — they have model-level validators (`BIGIP6001`-`6011`,
+/// `IAPP7001`-`7003`) rather than the Tcl analyser.  Compute and publish their
+/// diagnostics here, before the analyser.  Returns `Some(true)` (settled) when
+/// the document is an F5 model dialect; `None` to continue to the Tcl analyser.
+async fn run_diagnostics_f5_dialect(
+    delivery: &DeliveryCtx<'_>,
+    disabled: &HashSet<String>,
+    text: &str,
+    dialect: &str,
+    language_id: &str,
+) -> Option<bool> {
+    let diags = f5_dialect_diagnostics(
+        delivery.uri,
         text,
         dialect,
         language_id,
-        revision,
-        version,
+        disabled,
+        delivery.documents,
+    )
+    .await?;
+    // Publish only when this version is still current (the same revision
+    // guard the analyser path applies before publishing), and keep the
+    // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
+    // returns the same set.
+    if delivery.is_current().await {
+        delivery.cache_and_deliver(diags).await;
+    }
+    Some(true)
+}
+
+/// The salsa handles + per-edit identity shared by the two cancellable analysis
+/// passes ([`compute_base_analysis`], [`compute_compiler_diags`]).  Borrows for
+/// the duration of one `run_diagnostics_core` call.
+struct SalsaAnalysisCtx<'a> {
+    db: &'a Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    uri: &'a Uri,
+    file: Option<tcl_lsp_db::SourceFile>,
+    config: tcl_lsp_db::AnalyserConfig,
+    text: &'a str,
+    dialect: &'a str,
+}
+
+/// Base analysis: the cancellable salsa `file_analysis_incremental` query
+/// (slice 5), off the LSP event loop, plus the cross-file `project_diagnostics`
+/// pass when `project` is `Some`.  `ctx.file` is `None` only if the salsa input
+/// is somehow absent; then fall back to a direct (uncached) analyse.
+///
+/// `Continue((analysis, analyser_diags))` carries the result; `Break(settled)`
+/// is the early return for `run_diagnostics_core` — `Break(false)` on a genuine
+/// salsa cancellation (retry the latest state), `Break(true)` on a deterministic
+/// worker panic (settle rather than livelock the debounce loop).
+async fn compute_base_analysis(
+    ctx: &SalsaAnalysisCtx<'_>,
+    project: Option<tcl_lsp_db::Project>,
+    disabled: &HashSet<String>,
+    extra_commands: &HashSet<String>,
+    non_ascii_mode: NonAsciiMode,
+) -> ControlFlow<bool, (Arc<AnalysisResult>, Vec<tcl_compiler::analyser::Diagnostic>)> {
+    let &SalsaAnalysisCtx {
+        db,
+        uri,
         file,
         config,
-    } = job;
-
-    // Master switch (`tclLsp.features.diagnostics = false`): publish an empty
-    // set so any existing squiggles clear, then settle — the analyser, compiler
-    // checks, and F5 validators are all skipped.  Mirrors the Python pipeline's
-    // empty-publish when `diagnostics_enabled` is off.
-    if !diagnostics_enabled {
-        let is_current = {
-            let docs = documents.lock().await;
-            docs.get(uri).is_some_and(|doc| doc.revision == revision)
-        };
-        if is_current {
-            pull_diag_cache.lock().await.insert(
-                uri.clone(),
-                PullDiagEntry {
-                    result_id: next_pull_diag_result_id(),
-                    revision,
-                    diagnostics: Vec::new(),
-                },
-            );
-            deliver_diagnostics(&client, uri, Vec::new(), version, client_supports_pull).await;
-        }
-        return true;
-    }
-
-    // F5 dialect dispatch: BIG-IP config and iApp APL
-    // presentation documents are not Tcl source — they have model-level
-    // validators (`BIGIP6001`-`6011`, `IAPP7001`-`7003`) rather than the Tcl
-    // analyser.  Compute and publish their diagnostics here, before the
-    // analyser.
-    if let Some(diags) =
-        f5_dialect_diagnostics(uri, &text, &dialect, &language_id, &disabled, &documents).await
-    {
-        // Publish only when this version is still current (the same revision
-        // guard the analyser path applies before publishing), and keep the
-        // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
-        // returns the same set.
-        let is_current = documents
-            .lock()
-            .await
-            .get(uri)
-            .is_some_and(|doc| doc.revision == revision);
-        if is_current {
-            pull_diag_cache.lock().await.insert(
-                uri.clone(),
-                PullDiagEntry {
-                    result_id: next_pull_diag_result_id(),
-                    revision,
-                    diagnostics: diags.clone(),
-                },
-            );
-            deliver_diagnostics(&client, uri, diags, version, client_supports_pull).await;
-        }
-        return true;
-    }
-
-    let started = std::time::Instant::now();
-    let uri_str = uri.to_string();
-    let line_count = text.lines().count();
-
-    // Base analysis: the cancellable salsa `file_analysis_incremental` query
-    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
-    // detour: the per-item walk is memoised (a body edit recomputes one body +
-    // the cheap shell + tail, not the whole file), and a concurrent edit's
-    // `set_text` cancels this read at a per-item query boundary instead of
-    // stalling behind an uncancellable analyse.  On cancellation we drop the
-    // run — the superseding edit schedules a fresh one.  `file` is `None` only
-    // if the salsa input is somehow absent; then fall back to a direct analyse.
-    // Cross-file: when `xcDiagnostics` is enabled, the
-    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
-    // with W123 (unknown command) suppressed for commands defined as procs
-    // elsewhere in the workspace.  Read the current `Project` handle now (it is
-    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
-    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
-    // pass reuses the analyser read (a cache hit, not a second analysis).
-    let project = if xc_diagnostics {
-        *db_project.lock().await
-    } else {
-        None
-    };
-    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = if let Some(file) = file {
+        text,
+        dialect,
+    } = ctx;
+    if let Some(file) = file {
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
@@ -522,11 +541,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         })
         .await
         {
-            Ok(Some(pair)) => pair,
+            Ok(Some(pair)) => ControlFlow::Continue(pair),
             // A genuine salsa cancellation (a concurrent `set_text` on the
             // shared db) — don't publish; signal a retry of the document's
             // latest state.
-            Ok(None) => return false,
+            Ok(None) => ControlFlow::Break(false),
             // The worker PANICKED. A panic in the analysis pipeline is
             // deterministic for this document, so retrying it livelocks the
             // debounce loop (~20 failed analyses/second, diagnostics never
@@ -540,11 +559,12 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     uri.as_str(),
                     e.is_panic(),
                 );
-                return true;
+                ControlFlow::Break(true)
             }
         }
     } else {
-        let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        let (a_text, a_dialect, a_disabled) =
+            (text.to_owned(), dialect.to_owned(), disabled.clone());
         let a_extra = extra_commands.clone();
         let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
@@ -556,16 +576,32 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         .await
         .unwrap_or_default();
         let diags = analysis.diagnostics.clone();
-        (analysis, diags)
-    };
+        ControlFlow::Continue((analysis, diags))
+    }
+}
 
-    // Optimiser / compiler-checks diagnostics, also off the event loop via the
-    // cancellable salsa `compiler_check_diagnostics` query: the unit's
-    // per-procedure lattices are memoised by `function_lattice` and shared with
-    // the analyser tail above.  On cancellation, drop the run like the base
-    // analysis (the superseding edit reschedules a fresh one).  `file` is `None`
-    // only if the salsa input is absent; then build directly (uncached).
-    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = if let Some(file) = file {
+/// Optimiser / compiler-checks diagnostics, also off the event loop via the
+/// cancellable salsa `compiler_check_diagnostics` query: the unit's
+/// per-procedure lattices are memoised by `function_lattice` and shared with
+/// the analyser tail.  `file` is `None` only if the salsa input is absent; then
+/// build directly (uncached).
+///
+/// `Break(false)` on cancellation (retry), `Break(true)` on a deterministic
+/// worker panic (settle) — matching [`compute_base_analysis`].
+async fn compute_compiler_diags(
+    ctx: &SalsaAnalysisCtx<'_>,
+    registry: &Arc<CommandRegistry>,
+    generic_variable_patterns: Option<&[String]>,
+) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
+    let &SalsaAnalysisCtx {
+        db,
+        uri,
+        file,
+        config,
+        text,
+        dialect,
+    } = ctx;
+    if let Some(file) = file {
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
@@ -575,9 +611,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         })
         .await
         {
-            Ok(Some(d)) => d,
+            Ok(Some(d)) => ControlFlow::Continue(d),
             // Genuine cancellation — retry the latest state.
-            Ok(None) => return false,
+            Ok(None) => ControlFlow::Break(false),
             // Deterministic worker panic — settle instead of livelocking.
             Err(e) => {
                 eprintln!(
@@ -586,30 +622,244 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     uri.as_str(),
                     e.is_panic(),
                 );
-                return true;
+                ControlFlow::Break(true)
             }
         }
     } else {
-        let (c_text, c_dialect) = (text.clone(), dialect.clone());
-        let c_registry = Arc::clone(&registry);
-        let c_generic = generic_variable_patterns.clone();
-        tokio::task::spawn_blocking(move || {
-            Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
-                &c_text,
-                &c_registry,
-                &c_dialect,
-                c_generic.as_deref(),
-            ))
-        })
-        .await
-        .unwrap_or_else(|_| {
-            Arc::new(tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
+        let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
+        let c_registry = Arc::clone(registry);
+        let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
+        ControlFlow::Continue(
+            tokio::task::spawn_blocking(move || {
+                Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &c_text,
+                    &c_registry,
+                    &c_dialect,
+                    c_generic.as_deref(),
+                ))
             })
-        })
+            .await
+            .unwrap_or_else(|_| {
+                Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                    checks: Vec::new(),
+                    optimisations: Vec::new(),
+                })
+            }),
+        )
+    }
+}
+
+async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
+    // Returns whether this version is **settled** (published, intentionally
+    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
+    // cancelled mid-flight and the caller should retry the document's latest
+    // state.
+    let DiagInputs {
+        client,
+        registry,
+        disabled,
+        extra_commands,
+        generic_variable_patterns,
+        style_line_length,
+        non_ascii_mode,
+        opt_disabled,
+        documents,
+        workspace_index,
+        package_resolver,
+        db,
+        db_project,
+        pull_diag_cache,
+        toggles,
+        client_supports_pull,
+        // The worker captures the job from these before calling us; unused here.
+        db_files: _,
+        db_config: _,
+        folder_db_configs: _,
+    } = inputs;
+    let DiagToggles {
+        diagnostics_enabled,
+        optimiser_enabled,
+        xc_diagnostics,
+    } = toggles;
+    let DiagJob {
+        text,
+        dialect,
+        language_id,
+        revision,
+        version,
+        file,
+        config,
+    } = job;
+
+    let delivery = DeliveryCtx {
+        client: &client,
+        documents: &documents,
+        pull_diag_cache: &pull_diag_cache,
+        uri,
+        revision,
+        version,
+        client_supports_pull,
     };
 
+    if !diagnostics_enabled {
+        return run_diagnostics_master_off(&delivery).await;
+    }
+
+    if let Some(settled) =
+        run_diagnostics_f5_dialect(&delivery, &disabled, &text, &dialect, &language_id).await
+    {
+        return settled;
+    }
+
+    let salsa_ctx = SalsaAnalysisCtx {
+        db: &db,
+        uri,
+        file,
+        config,
+        text: &text,
+        dialect: &dialect,
+    };
+    let lift_inputs = LiftInputs {
+        text: &text,
+        dialect: &dialect,
+        disabled: &disabled,
+        opt_disabled: &opt_disabled,
+        optimiser_enabled,
+        style_line_length,
+        xc_diagnostics,
+    };
+    run_diagnostics_analyser_path(
+        &delivery,
+        &salsa_ctx,
+        &lift_inputs,
+        &AnalyserPathInputs {
+            registry: &registry,
+            extra_commands: &extra_commands,
+            generic_variable_patterns: generic_variable_patterns.as_deref(),
+            non_ascii_mode,
+            db_project: &db_project,
+            workspace_index: &workspace_index,
+            package_resolver: &package_resolver,
+            xc_diagnostics,
+        },
+    )
+    .await
+}
+
+/// The non-document-buffer handles the analyser/compiler/publish path needs.
+struct AnalyserPathInputs<'a> {
+    registry: &'a Arc<CommandRegistry>,
+    extra_commands: &'a HashSet<String>,
+    generic_variable_patterns: Option<&'a [String]>,
+    non_ascii_mode: NonAsciiMode,
+    db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    xc_diagnostics: bool,
+}
+
+/// The Tcl analyser path: base analysis + compiler checks (both cancellable,
+/// off the event loop), the W120 workspace refinement, the diagnostic lifts,
+/// and the final currency-guarded publish.  Returns `false` only on a genuine
+/// salsa cancellation (the caller retries the document's latest state).
+async fn run_diagnostics_analyser_path(
+    delivery: &DeliveryCtx<'_>,
+    salsa_ctx: &SalsaAnalysisCtx<'_>,
+    lift_inputs: &LiftInputs<'_>,
+    inputs: &AnalyserPathInputs<'_>,
+) -> bool {
+    let started = std::time::Instant::now();
+    let uri_str = delivery.uri.to_string();
+    let line_count = salsa_ctx.text.lines().count();
+
+    // Base analysis: the cancellable salsa `file_analysis_incremental` query
+    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
+    // detour: the per-item walk is memoised (a body edit recomputes one body +
+    // the cheap shell + tail, not the whole file), and a concurrent edit's
+    // `set_text` cancels this read at a per-item query boundary instead of
+    // stalling behind an uncancellable analyse.  On cancellation we drop the
+    // run — the superseding edit schedules a fresh one.
+    // Cross-file: when `xcDiagnostics` is enabled, the
+    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
+    // with W123 (unknown command) suppressed for commands defined as procs
+    // elsewhere in the workspace.  Read the current `Project` handle now (it is
+    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
+    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
+    // pass reuses the analyser read (a cache hit, not a second analysis).
+    let project = if inputs.xc_diagnostics {
+        *inputs.db_project.lock().await
+    } else {
+        None
+    };
+    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = match compute_base_analysis(
+        salsa_ctx,
+        project,
+        lift_inputs.disabled,
+        inputs.extra_commands,
+        inputs.non_ascii_mode,
+    )
+    .await
+    {
+        ControlFlow::Continue(pair) => pair,
+        ControlFlow::Break(settled) => return settled,
+    };
+
+    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> =
+        match compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns)
+            .await
+        {
+            ControlFlow::Continue(d) => d,
+            ControlFlow::Break(settled) => return settled,
+        };
+
+    let result = refine_and_lift_diagnostics(
+        &analysis,
+        analyser_diags,
+        &compiler_diags,
+        inputs.package_resolver,
+        inputs.registry,
+        lift_inputs,
+    )
+    .await;
+
+    publish_diagnostics_result(
+        delivery,
+        inputs.workspace_index,
+        &analysis,
+        result,
+        PublishTiming {
+            started,
+            uri_str: &uri_str,
+            line_count,
+        },
+    )
+    .await
+}
+
+/// The document-style toggles + buffer the diagnostic lifts read; borrows for
+/// one `run_diagnostics_core` call.
+struct LiftInputs<'a> {
+    text: &'a str,
+    dialect: &'a str,
+    disabled: &'a HashSet<String>,
+    opt_disabled: &'a HashSet<String>,
+    optimiser_enabled: bool,
+    style_line_length: u32,
+    xc_diagnostics: bool,
+}
+
+/// Refine the analyser's single-file W120 against the workspace package
+/// database (#723), then lift the analyser / compiler / source-style / XC
+/// diagnostics into LSP diagnostics on a `spawn_blocking` worker.  Returns the
+/// join result so the caller distinguishes a worker panic from a clean set.
+async fn refine_and_lift_diagnostics(
+    analysis: &Arc<AnalysisResult>,
+    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+    registry: &Arc<CommandRegistry>,
+    inputs: &LiftInputs<'_>,
+) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
     // #723: refine the analyser's single-file W120 against the workspace
     // package database. The common case (no W120, or no `package require`)
     // skips the resolver entirely; otherwise the (bounded) transitive scan
@@ -624,16 +874,21 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             analyser_diags
         } else {
             let resolver = package_resolver.read().await;
-            refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, &registry)
+            refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
         }
     } else {
         analyser_diags
     };
 
-    let analysis_lifts = Arc::clone(&analysis);
-    let lift_text = text.clone();
-    let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
-    let result = tokio::task::spawn_blocking(move || {
+    let analysis_lifts = Arc::clone(analysis);
+    let lift_text = inputs.text.to_owned();
+    let disabled = inputs.disabled.clone();
+    let opt_disabled = inputs.opt_disabled.clone();
+    let optimiser_enabled = inputs.optimiser_enabled;
+    let style_line_length = inputs.style_line_length;
+    let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
+    let compiler_diags = Arc::clone(compiler_diags);
+    tokio::task::spawn_blocking(move || {
         // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
         // on (else identical to `analysis_lifts.diagnostics`).
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
@@ -662,65 +917,81 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         }
         diagnostics
     })
-    .await;
+    .await
+}
 
-    match result {
-        Ok(diags) => {
-            {
-                // Hold the `documents` lock across the currency re-check and the
-                // workspace-index update so a concurrent `did_change`/`did_close`
-                // (which also take `documents`) cannot interleave between them
-                // and leave a stale index entry — the role the former global
-                // `document_analysis_gate` served, now via the natural
-                // `documents` → `workspace_index` lock order.
-                let docs = documents.lock().await;
-                let is_current = docs.get(uri).is_some_and(|doc| doc.revision == revision);
-                if !is_current {
-                    // Superseded by a newer edit, which has marked the document
-                    // dirty — settled for this version; the worker will process
-                    // the newer state.
-                    return true;
-                }
-                let mut index = workspace_index.write().await;
-                index.remove_document(uri.as_str());
-                index.add_document(uri.as_str(), &analysis);
-            }
-            let diag_count = diags.len();
-            // Keep the pull-diagnostic cache in lock-step with the push: a
-            // `textDocument/diagnostic` request now returns this exact set with
-            // a fresh `result_id`, and an editor that already holds it gets a
-            // cheap `Unchanged` report.
-            pull_diag_cache.lock().await.insert(
-                uri.clone(),
-                PullDiagEntry {
-                    result_id: next_pull_diag_result_id(),
-                    revision,
-                    diagnostics: diags.clone(),
-                },
-            );
-            deliver_diagnostics(&client, uri, diags, version, client_supports_pull).await;
-            let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
-            client
-                .log_message(
-                    MessageType::LOG,
-                    format!(
-                        "[timing] workspace_state.update {elapsed_ms:.0}ms \
-                         (uri={uri_str}, lines={line_count}, diags={diag_count})"
-                    ),
-                )
-                .await;
-            true
-        }
+/// Timing for the `[timing] workspace_state.update` log line.
+struct PublishTiming<'a> {
+    started: std::time::Instant,
+    uri_str: &'a str,
+    line_count: usize,
+}
+
+/// Publish the lifted diagnostics: re-check currency, refresh the workspace
+/// index, prime the pull cache, deliver to the client, and log timing.  Always
+/// settled (`true`) — a stale revision or a lift-worker panic both keep the
+/// prior diagnostics rather than retrying.
+async fn publish_diagnostics_result(
+    delivery: &DeliveryCtx<'_>,
+    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    analysis: &Arc<AnalysisResult>,
+    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError>,
+    timing: PublishTiming<'_>,
+) -> bool {
+    let diags = match result {
+        Ok(diags) => diags,
         Err(err) => {
-            client
+            delivery
+                .client
                 .log_message(
                     MessageType::WARNING,
                     format!("diagnostics worker panicked: {err}"),
                 )
                 .await;
-            true
+            return true;
         }
+    };
+    {
+        // Hold the `documents` lock across the currency re-check and the
+        // workspace-index update so a concurrent `did_change`/`did_close`
+        // (which also take `documents`) cannot interleave between them
+        // and leave a stale index entry — the role the former global
+        // `document_analysis_gate` served, now via the natural
+        // `documents` → `workspace_index` lock order.
+        let docs = delivery.documents.lock().await;
+        let is_current = docs
+            .get(delivery.uri)
+            .is_some_and(|doc| doc.revision == delivery.revision);
+        if !is_current {
+            // Superseded by a newer edit, which has marked the document
+            // dirty — settled for this version; the worker will process
+            // the newer state.
+            return true;
+        }
+        let mut index = workspace_index.write().await;
+        index.remove_document(delivery.uri.as_str());
+        index.add_document(delivery.uri.as_str(), analysis);
     }
+    let diag_count = diags.len();
+    // Keep the pull-diagnostic cache in lock-step with the push: a
+    // `textDocument/diagnostic` request now returns this exact set with
+    // a fresh `result_id`, and an editor that already holds it gets a
+    // cheap `Unchanged` report.
+    delivery.cache_and_deliver(diags).await;
+    let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
+    delivery
+        .client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] workspace_state.update {elapsed_ms:.0}ms \
+                 (uri={uri_str}, lines={line_count}, diags={diag_count})",
+                uri_str = timing.uri_str,
+                line_count = timing.line_count,
+            ),
+        )
+        .await;
+    true
 }
 
 /// LSP server backend.
@@ -1019,6 +1290,26 @@ impl FeatureToggles {
     }
 }
 
+/// A folder's `tclLsp.diagnostics.genericVariablePatterns` override (IRULE4002).
+///
+/// A 3-state resolution, distinguishing "the folder said nothing" from "the
+/// folder explicitly asked for the built-in defaults" from "the folder supplied
+/// its own list".  Replaces a former `Option<Option<Vec<String>>>`, preserving
+/// its exact semantics.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum FolderGenericPatterns {
+    /// The folder did not set the value (former outer `None`): inherit the
+    /// process-global `genericVariablePatterns`.
+    #[default]
+    Inherit,
+    /// The folder set the value to the built-in default patterns (former
+    /// `Some(None)`): the analyser uses its built-in generic-name set.
+    BuiltinDefaults,
+    /// The folder supplied its own list (former `Some(Some(list))`): replace the
+    /// built-in patterns with this list.
+    Replace(Vec<String>),
+}
+
 /// One workspace folder's editor configuration overrides.
 ///
 /// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
@@ -1045,12 +1336,11 @@ struct FolderConfig {
     shimmer_enabled: Option<bool>,
     /// `tclLsp.extraCommands` override; `None` inherits the global set.
     extra_commands: Option<Vec<String>>,
-    /// `tclLsp.diagnostics.genericVariablePatterns` override. Outer `None`
-    /// inherits the global value; `Some(inner)` overrides, where `inner` follows
-    /// the same `None` = built-in defaults / `Some(list)` = replace semantics —
-    /// the nested option is intentional (folder-set vs the value's own option).
-    #[allow(clippy::option_option)]
-    generic_variable_patterns: Option<Option<Vec<String>>>,
+    /// `tclLsp.diagnostics.genericVariablePatterns` override. See
+    /// [`FolderGenericPatterns`]: `Inherit` falls back to the global value,
+    /// `BuiltinDefaults` selects the analyser's built-in set, and `Replace`
+    /// supplies the folder's own list.
+    generic_variable_patterns: FolderGenericPatterns,
     /// `tclLsp.libraryPaths` override; `None` inherits the global set.
     library_paths: Option<Vec<String>>,
 }
@@ -2745,7 +3035,6 @@ impl Backend {
     /// the client and then handles per-folder configs) so the apply logic is
     /// unit-testable without a live editor client.
     // A long but flat sequence of independent `tclLsp.*` knob applications.
-    #[allow(clippy::too_many_lines)]
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
         if !cfg.is_object() {
             return;
@@ -2753,10 +3042,20 @@ impl Backend {
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
-        // `tclLsp.libraryPaths` — the editor layer of the package database's
-        // `auto_path` (the user's picked installation / hand-entered paths).
-        // Mirrors the Python server's `libraryPaths` setting. A change rebuilds
-        // the database so the new paths take effect immediately.
+        self.apply_global_library_paths(cfg).await;
+        self.apply_global_toggles(cfg).await;
+        self.apply_global_formatting(cfg).await;
+        self.apply_global_analyser_knobs(cfg).await;
+        // Mirror the applied analyser knobs onto the salsa config input so the
+        // query graph recomputes against the latest settings.
+        self.sync_db_config().await;
+    }
+
+    /// `tclLsp.libraryPaths` — the editor layer of the package database's
+    /// `auto_path` (the user's picked installation / hand-entered paths).
+    /// Mirrors the Python server's `libraryPaths` setting. A change rebuilds
+    /// the database so the new paths take effect immediately.
+    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) {
         if let Some(paths) = cfg
             .get("libraryPaths")
             .and_then(serde_json::Value::as_array)
@@ -2780,6 +3079,11 @@ impl Backend {
                 self.scan_workspace_folders().await;
             }
         }
+    }
+
+    /// The boolean / enum feature switches: `xcDiagnostics`, optimiser
+    /// enable/profile/per-code overrides, and the `shimmer` master switch.
+    async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -2831,6 +3135,10 @@ impl Backend {
                 }
             }
         }
+    }
+
+    /// The formatter / style-width / default-dialect knobs.
+    async fn apply_global_formatting(&self, cfg: &serde_json::Value) {
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
@@ -2858,6 +3166,11 @@ impl Backend {
         if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
             *self.default_dialect.lock().await = dialect.to_owned();
         }
+    }
+
+    /// The analyser inputs: `extraCommands`, `genericVariablePatterns`, the
+    /// non-ASCII (W108) mode, and the disabled-diagnostics set.
+    async fn apply_global_analyser_knobs(&self, cfg: &serde_json::Value) {
         // `tclLsp.extraCommands` — names treated as known commands (no W123).
         if let Some(cmds) = cfg
             .get("extraCommands")
@@ -2898,9 +3211,6 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
-        // Mirror the applied analyser knobs onto the salsa config input so the
-        // query graph recomputes against the latest settings.
-        self.sync_db_config().await;
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
@@ -2933,7 +3243,7 @@ impl Backend {
                 if fc.disabled_diagnostics.is_none()
                     && fc.non_ascii_mode.is_none()
                     && fc.extra_commands.is_none()
-                    && fc.generic_variable_patterns.is_none()
+                    && matches!(fc.generic_variable_patterns, FolderGenericPatterns::Inherit)
                 {
                     continue;
                 }
@@ -2947,10 +3257,11 @@ impl Backend {
                     .extra_commands
                     .clone()
                     .unwrap_or_else(|| global_extra.clone());
-                let generic = fc
-                    .generic_variable_patterns
-                    .clone()
-                    .unwrap_or_else(|| global_generic.clone());
+                let generic = match &fc.generic_variable_patterns {
+                    FolderGenericPatterns::Inherit => global_generic.clone(),
+                    FolderGenericPatterns::BuiltinDefaults => None,
+                    FolderGenericPatterns::Replace(list) => Some(list.clone()),
+                };
                 if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
                     handle.set_disabled_diagnostics(&mut *db).to(disabled);
                     handle.set_non_ascii_mode(&mut *db).to(mode);
@@ -3307,11 +3618,16 @@ impl Backend {
     async fn resolved_generic_variable_patterns(&self, uri: &Uri) -> Option<Vec<String>> {
         let folder = {
             let configs = self.folder_configs.lock().await;
-            longest_folder_match(&configs, uri).and_then(|f| f.generic_variable_patterns.clone())
+            longest_folder_match(&configs, uri).map(|f| f.generic_variable_patterns.clone())
         };
         match folder {
-            Some(v) => v,
-            None => self.generic_variable_patterns.lock().await.clone(),
+            // `Replace`/`BuiltinDefaults` are the folder's own override; only
+            // `Inherit` (or no matching folder) falls back to the global value.
+            Some(FolderGenericPatterns::Replace(list)) => Some(list),
+            Some(FolderGenericPatterns::BuiltinDefaults) => None,
+            Some(FolderGenericPatterns::Inherit) | None => {
+                self.generic_variable_patterns.lock().await.clone()
+            }
         }
     }
 
@@ -3399,9 +3715,7 @@ impl Backend {
             extra_commands,
             generic_variable_patterns,
             style_line_length,
-            diagnostics_enabled,
             non_ascii_mode,
-            optimiser_enabled,
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
@@ -3412,7 +3726,11 @@ impl Backend {
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
-            xc_diagnostics,
+            toggles: DiagToggles {
+                diagnostics_enabled,
+                optimiser_enabled,
+                xc_diagnostics,
+            },
             client_supports_pull: self
                 .client_supports_pull_diagnostics
                 .load(std::sync::atomic::Ordering::Relaxed),
@@ -5677,7 +5995,6 @@ impl LanguageServer for Backend {
         Ok(lens)
     }
 
-    #[allow(clippy::too_many_lines)]
     async fn code_action(
         &self,
         params: CodeActionParams,
@@ -5714,27 +6031,7 @@ impl LanguageServer for Backend {
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
         // didn't re-emit them.
-        let context_diags: Vec<core_code_actions::ContextDiagnostic> = params
-            .context
-            .diagnostics
-            .iter()
-            .filter_map(|d| {
-                let code = match d.code.as_ref()? {
-                    tower_lsp_server::ls_types::NumberOrString::String(s) => s.clone(),
-                    tower_lsp_server::ls_types::NumberOrString::Number(n) => n.to_string(),
-                };
-                Some(core_code_actions::ContextDiagnostic {
-                    code,
-                    message: d.message.clone(),
-                    range: CoreLspRange {
-                        start_line: d.range.start.line,
-                        start_character: d.range.start.character,
-                        end_line: d.range.end.line,
-                        end_character: d.range.end.character,
-                    },
-                })
-            })
-            .collect();
+        let context_diags = lift_context_diagnostics(&params.context.diagnostics);
         let dialect = doc.dialect.clone();
         let uri_str = uri.as_str().to_string();
         // IRULE4002 generic-name patterns for the iRules-only compiler-checks
@@ -5793,69 +6090,7 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
-        // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
-        // action is kept when its kind prefix-matches a requested kind in
-        // either direction (`refactor` matches `refactor.extract` and vice
-        // versa).
-        let only: Option<Vec<String>> = params.context.only.as_ref().map(|kinds| {
-            kinds
-                .iter()
-                .map(|k| k.as_str().to_owned())
-                .collect::<Vec<_>>()
-        });
-        let lifted: Vec<CodeActionOrCommand> = actions
-            .into_iter()
-            .filter(|a| {
-                only.as_ref().is_none_or(|wanted| {
-                    let k = a.kind.as_str();
-                    // Keep an action when its kind exactly matches a requested
-                    // kind, or is a *subtype* of one (`refactor.extract`
-                    // satisfies a `refactor` request). A requested
-                    // `refactor.extract` must NOT pull in a generic `refactor`
-                    // action — the requested kind is not a parent of the
-                    // action's kind in that direction (LSP CodeActionKind
-                    // matching is prefix-on-the-action-side only).
-                    wanted
-                        .iter()
-                        .any(|w| k == w || k.starts_with(&format!("{w}.")))
-                })
-            })
-            .map(|a| {
-                let mut changes = std::collections::HashMap::new();
-                let lifted_edits: Vec<TextEdit> = a
-                    .edits
-                    .into_iter()
-                    .map(|e| TextEdit {
-                        range: lift_lsp_range(e.range),
-                        new_text: e.new_text,
-                    })
-                    .collect();
-                changes.insert(uri.clone(), lifted_edits);
-                let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
-                // Surface the rendered tmsh data-group definition (the
-                // extract-to-datagroup refactor) as the action's `data`
-                // payload.
-                let data = a
-                    .data_group_definition
-                    .map(|def| serde_json::json!({ "data_group_definition": def }));
-                CodeActionOrCommand::CodeAction(CodeAction {
-                    title: a.title,
-                    kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
-                        a.kind.as_str(),
-                    )),
-                    diagnostics: None,
-                    edit: Some(WorkspaceEdit {
-                        changes: Some(changes),
-                        document_changes: None,
-                        change_annotations: None,
-                    }),
-                    command,
-                    is_preferred: None,
-                    disabled: None,
-                    data,
-                })
-            })
-            .collect();
+        let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
         if lifted.is_empty() {
             return Ok(None);
         }
@@ -6452,6 +6687,106 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
     }
 }
 
+/// Lift the editor's request-context diagnostics (the ones it currently shows)
+/// into the core's [`core_code_actions::ContextDiagnostic`] shape so
+/// context-driven quick-fixes can act on them even when the analyser did not
+/// re-emit them.
+fn lift_context_diagnostics(
+    diagnostics: &[tower_lsp_server::ls_types::Diagnostic],
+) -> Vec<core_code_actions::ContextDiagnostic> {
+    diagnostics
+        .iter()
+        .filter_map(|d| {
+            let code = match d.code.as_ref()? {
+                tower_lsp_server::ls_types::NumberOrString::String(s) => s.clone(),
+                tower_lsp_server::ls_types::NumberOrString::Number(n) => n.to_string(),
+            };
+            Some(core_code_actions::ContextDiagnostic {
+                code,
+                message: d.message.clone(),
+                range: CoreLspRange {
+                    start_line: d.range.start.line,
+                    start_character: d.range.start.character,
+                    end_line: d.range.end.line,
+                    end_character: d.range.end.character,
+                },
+            })
+        })
+        .collect()
+}
+
+/// Filter the computed actions by the client's `only` kinds and lift each into
+/// an LSP [`CodeActionOrCommand`] for document `uri`.
+fn lift_code_actions(
+    actions: Vec<core_code_actions::CodeAction>,
+    uri: &Uri,
+    only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
+) -> Vec<CodeActionOrCommand> {
+    // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
+    // action is kept when its kind prefix-matches a requested kind in
+    // either direction (`refactor` matches `refactor.extract` and vice
+    // versa).
+    let only: Option<Vec<String>> = only.map(|kinds| {
+        kinds
+            .iter()
+            .map(|k| k.as_str().to_owned())
+            .collect::<Vec<_>>()
+    });
+    actions
+        .into_iter()
+        .filter(|a| {
+            only.as_ref().is_none_or(|wanted| {
+                let k = a.kind.as_str();
+                // Keep an action when its kind exactly matches a requested
+                // kind, or is a *subtype* of one (`refactor.extract`
+                // satisfies a `refactor` request). A requested
+                // `refactor.extract` must NOT pull in a generic `refactor`
+                // action — the requested kind is not a parent of the
+                // action's kind in that direction (LSP CodeActionKind
+                // matching is prefix-on-the-action-side only).
+                wanted
+                    .iter()
+                    .any(|w| k == w || k.starts_with(&format!("{w}.")))
+            })
+        })
+        .map(|a| {
+            let mut changes = std::collections::HashMap::new();
+            let lifted_edits: Vec<TextEdit> = a
+                .edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect();
+            changes.insert(uri.clone(), lifted_edits);
+            let command = a.command.map(|c| action_command_to_lsp(a.title.clone(), c));
+            // Surface the rendered tmsh data-group definition (the
+            // extract-to-datagroup refactor) as the action's `data`
+            // payload.
+            let data = a
+                .data_group_definition
+                .map(|def| serde_json::json!({ "data_group_definition": def }));
+            CodeActionOrCommand::CodeAction(CodeAction {
+                title: a.title,
+                kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
+                    a.kind.as_str(),
+                )),
+                diagnostics: None,
+                edit: Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    document_changes: None,
+                    change_annotations: None,
+                }),
+                command,
+                is_preferred: None,
+                disabled: None,
+                data,
+            })
+        })
+        .collect()
+}
+
 /// Lift a [`tcl_bigip::Range`] (UTF-16 columns, **inclusive** end — the last
 /// covered code unit) to an LSP [`Range`] (exclusive end). BIG-IP object
 /// stanzas and reference spans are single-line tokens, so the exclusive end
@@ -6846,45 +7181,35 @@ fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet
 /// resolver inherits the process-global value.  Returns `None` when `cfg` is
 /// not a JSON object (the folder pull returned nothing usable).  Mirrors the
 /// key handling of [`Backend::pull_and_apply_config`]'s global pull.
-fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
-    let obj = cfg.as_object()?;
-    let mut fc = FolderConfig::default();
-    if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
-        fc.feature_toggles.apply(features);
+/// Parse the `optimiser` section of a folder config: enable flag, profile, and
+/// the per-`O-code` boolean overrides.
+fn parse_folder_optimiser(obj: &serde_json::Map<String, serde_json::Value>, fc: &mut FolderConfig) {
+    let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) else {
+        return;
+    };
+    if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
+        fc.optimiser_enabled = Some(b);
     }
-    // `xcDiagnostics.enabled` is a config section, not a `features.*` key
-    // (see `pull_and_apply_config`) — map it onto the toggle for the folder.
-    if let Some(flag) = obj
-        .get("xcDiagnostics")
-        .and_then(|x| x.get("enabled"))
-        .and_then(serde_json::Value::as_bool)
-    {
-        fc.feature_toggles.set_flag("xcDiagnostics", flag);
+    if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
+        fc.optimiser_profile =
+            Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
     }
-    if let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) {
-        if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
-            fc.optimiser_enabled = Some(b);
+    for (key, val) in opt {
+        if key == "enabled" || key == "profile" {
+            continue;
         }
-        if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
-            fc.optimiser_profile =
-                Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
-        }
-        for (key, val) in opt {
-            if key == "enabled" || key == "profile" {
-                continue;
-            }
-            if let Some(b) = val.as_bool() {
-                fc.optimiser_code_overrides.insert(key.clone(), b);
-            }
+        if let Some(b) = val.as_bool() {
+            fc.optimiser_code_overrides.insert(key.clone(), b);
         }
     }
-    if let Some(b) = obj
-        .get("shimmer")
-        .and_then(|s| s.get("enabled"))
-        .and_then(serde_json::Value::as_bool)
-    {
-        fc.shimmer_enabled = Some(b);
-    }
+}
+
+/// Parse the formatter line length, the whole `formatting` section, and the
+/// `style.lineLength` (W111) threshold of a folder config.
+fn parse_folder_formatting(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    fc: &mut FolderConfig,
+) {
     if let Some(len) = obj
         .get("formatting")
         .and_then(|f| f.get("lineLength"))
@@ -6905,6 +7230,32 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     {
         fc.style_line_length = Some(u32::try_from(len).unwrap_or(120));
     }
+}
+
+fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
+    let obj = cfg.as_object()?;
+    let mut fc = FolderConfig::default();
+    if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
+        fc.feature_toggles.apply(features);
+    }
+    // `xcDiagnostics.enabled` is a config section, not a `features.*` key
+    // (see `pull_and_apply_config`) — map it onto the toggle for the folder.
+    if let Some(flag) = obj
+        .get("xcDiagnostics")
+        .and_then(|x| x.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        fc.feature_toggles.set_flag("xcDiagnostics", flag);
+    }
+    parse_folder_optimiser(obj, &mut fc);
+    if let Some(b) = obj
+        .get("shimmer")
+        .and_then(|s| s.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        fc.shimmer_enabled = Some(b);
+    }
+    parse_folder_formatting(obj, &mut fc);
     // `tclLsp.extraCommands` per-folder override.
     if let Some(cmds) = obj
         .get("extraCommands")
@@ -6918,21 +7269,26 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
-    // `tclLsp.diagnostics.genericVariablePatterns` per-folder override (a
-    // present array sets `Some(list)`; absent leaves the global value).
-    if let Some(patterns) = obj
+    // `tclLsp.diagnostics.genericVariablePatterns` per-folder override. A present
+    // array replaces the patterns (`Replace`); an explicit `null` requests the
+    // analyser's built-in defaults (`BuiltinDefaults`); an absent key leaves the
+    // value inheriting the global (`Inherit`, the default).
+    if let Some(value) = obj
         .get("diagnostics")
         .and_then(serde_json::Value::as_object)
         .and_then(|d| d.get("genericVariablePatterns"))
-        .and_then(serde_json::Value::as_array)
     {
-        fc.generic_variable_patterns = Some(Some(
-            patterns
-                .iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(str::to_owned)
-                .collect(),
-        ));
+        if let Some(patterns) = value.as_array() {
+            fc.generic_variable_patterns = FolderGenericPatterns::Replace(
+                patterns
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+            );
+        } else if value.is_null() {
+            fc.generic_variable_patterns = FolderGenericPatterns::BuiltinDefaults;
+        }
     }
     // `tclLsp.libraryPaths` per-folder override.
     if let Some(paths) = obj
@@ -9446,11 +9802,10 @@ mod tests {
     /// edits must stay byte-identical to a rebuild from the final text — the
     /// invariant `DocumentState` relies on for its persisted index.
     #[test]
-    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn apply_content_change_indexed_keeps_line_index_consistent() {
         let line_starts = |idx: &tcl_lexer::LineIndex| {
             (0..idx.line_count())
-                .map(|l| idx.line_start(l as u32))
+                .map(|l| idx.line_start(u32::try_from(l).unwrap_or(u32::MAX)))
                 .collect::<Vec<_>>()
         };
         let mut text = "abc\ndef\nghi\n".to_string();
@@ -10650,7 +11005,32 @@ mod tests {
         );
         assert_eq!(
             fc.generic_variable_patterns,
-            Some(Some(vec!["^proj_".to_owned()])),
+            FolderGenericPatterns::Replace(vec!["^proj_".to_owned()]),
+        );
+    }
+
+    /// An explicit `genericVariablePatterns: null` selects the analyser's
+    /// built-in defaults (`BuiltinDefaults`), distinct from an absent key
+    /// (`Inherit`) and from a present array (`Replace`). Pins the third state.
+    #[test]
+    fn parse_folder_config_generic_patterns_null_is_builtin_defaults() {
+        let with_null = serde_json::json!({
+            "diagnostics": { "genericVariablePatterns": null },
+        });
+        let fc = parse_folder_config(&with_null).expect("folder config");
+        assert_eq!(
+            fc.generic_variable_patterns,
+            FolderGenericPatterns::BuiltinDefaults,
+            "null requests the built-in defaults",
+        );
+
+        // Negative: an absent key leaves the default `Inherit` (no override).
+        let absent = serde_json::json!({ "extraCommands": ["x"] });
+        let fc_absent = parse_folder_config(&absent).expect("folder config");
+        assert_eq!(
+            fc_absent.generic_variable_patterns,
+            FolderGenericPatterns::Inherit,
+            "an absent key inherits the global value",
         );
     }
 
@@ -10667,7 +11047,7 @@ mod tests {
         *backend.extra_commands.lock().await = vec!["globalcmd".to_owned()];
         let fc = FolderConfig {
             extra_commands: Some(vec!["projacmd".to_owned()]),
-            generic_variable_patterns: Some(Some(vec!["^proja_".to_owned()])),
+            generic_variable_patterns: FolderGenericPatterns::Replace(vec!["^proja_".to_owned()]),
             ..FolderConfig::default()
         };
         backend
@@ -10704,6 +11084,92 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle for extraCommands",
+        );
+    }
+
+    /// The three `FolderGenericPatterns` states each resolve as documented, and
+    /// a doc outside every folder falls back to the global value. Pins the
+    /// 3-state replacement for the former `Option<Option<Vec<String>>>`.
+    #[tokio::test]
+    async fn resolved_generic_variable_patterns_three_state() {
+        let backend = test_backend();
+        let folder_replace = Uri::from_str("file:///replace").unwrap();
+        let folder_builtin = Uri::from_str("file:///builtin").unwrap();
+        let folder_inherit = Uri::from_str("file:///inherit").unwrap();
+        *backend.workspace_folders.lock().await = vec![
+            folder_replace.clone(),
+            folder_builtin.clone(),
+            folder_inherit.clone(),
+        ];
+        // Global supplies a list, so an inheriting folder (and a doc outside any
+        // folder) must observe it — distinguishing `Inherit` from
+        // `BuiltinDefaults` (which forces the built-in set, i.e. `None`).
+        *backend.generic_variable_patterns.lock().await = Some(vec!["^global_".to_owned()]);
+
+        backend
+            .apply_folder_configs(vec![
+                (
+                    folder_replace.clone(),
+                    FolderConfig {
+                        generic_variable_patterns: FolderGenericPatterns::Replace(vec![
+                            "^repl_".to_owned(),
+                        ]),
+                        ..FolderConfig::default()
+                    },
+                ),
+                (
+                    folder_builtin.clone(),
+                    FolderConfig {
+                        generic_variable_patterns: FolderGenericPatterns::BuiltinDefaults,
+                        ..FolderConfig::default()
+                    },
+                ),
+                (
+                    folder_inherit.clone(),
+                    FolderConfig {
+                        // `Inherit` is the default; set another field so the
+                        // folder still parses as a real (non-empty) override.
+                        optimiser_enabled: Some(true),
+                        ..FolderConfig::default()
+                    },
+                ),
+            ])
+            .await;
+
+        // Positive: a folder that replaces the patterns gets exactly its list.
+        let in_replace = Uri::from_str("file:///replace/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_replace)
+                .await,
+            Some(vec!["^repl_".to_owned()]),
+            "Replace yields the folder's own list",
+        );
+        // Negative (vs Inherit): BuiltinDefaults forces the analyser built-ins
+        // (`None`) even though the global is set.
+        let in_builtin = Uri::from_str("file:///builtin/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_builtin)
+                .await,
+            None,
+            "BuiltinDefaults forces the built-in set, ignoring the global list",
+        );
+        // Inherit folder observes the global list.
+        let in_inherit = Uri::from_str("file:///inherit/a.tcl").unwrap();
+        assert_eq!(
+            backend
+                .resolved_generic_variable_patterns(&in_inherit)
+                .await,
+            Some(vec!["^global_".to_owned()]),
+            "Inherit falls back to the global patterns",
+        );
+        // A doc under no folder also inherits the global.
+        let outside = Uri::from_str("file:///elsewhere/a.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_generic_variable_patterns(&outside).await,
+            Some(vec!["^global_".to_owned()]),
+            "a doc outside every folder inherits the global patterns",
         );
     }
 
@@ -11943,42 +12409,35 @@ mod tests {
         assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
     }
 
-    #[tokio::test]
-    async fn disabled_feature_toggles_short_circuit_their_handlers() {
-        // A representative sweep of the previously-unenforced toggles: each
-        // handler must honour `tclLsp.features.<feature> = false` and return
-        // an empty result, matching the Python server's per-handler gates.
+    /// Build a backend with one document registered, then disable the named
+    /// `tclLsp.features.*` toggle.  Returns the backend plus the document
+    /// identifier and a cursor-position params for the request handlers.
+    async fn backend_with_feature_disabled(
+        feature: &str,
+    ) -> (Backend, TextDocumentIdentifier, TextDocumentPositionParams) {
         let backend = test_backend();
         let uri = Uri::from_str("file:///g.tcl").unwrap();
         register(&backend, &uri, "proc helper {} {}\nhelper\n").await;
-        backend.feature_toggles.lock().await.apply(
-            serde_json::json!({
-                "semanticTokens": false,
-                "codeActions": false,
-                "rename": false,
-                "documentHighlight": false,
-                "codeLens": false,
-                "implementation": false,
-                "typeDefinition": false,
-                "declaration": false,
-                "linkedEditingRange": false,
-                "callHierarchy": false,
-                "workspaceSymbols": false,
-            })
-            .as_object()
-            .unwrap(),
-        );
-
-        let td = TextDocumentIdentifier { uri: uri.clone() };
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .apply(serde_json::json!({ feature: false }).as_object().unwrap());
+        let td = TextDocumentIdentifier { uri };
         let pos_params = TextDocumentPositionParams {
             text_document: td.clone(),
             position: Position::new(0, 5),
         };
+        (backend, td, pos_params)
+    }
 
+    #[tokio::test]
+    async fn disabled_semantic_tokens_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("semanticTokens").await;
         assert!(
             backend
                 .semantic_tokens_full(SemanticTokensParams {
-                    text_document: td.clone(),
+                    text_document: td,
                     work_done_progress_params: WorkDoneProgressParams::default(),
                     partial_result_params: PartialResultParams::default(),
                 })
@@ -11987,10 +12446,37 @@ mod tests {
                 .is_none(),
             "semanticTokens disabled must yield None",
         );
+    }
+
+    /// Negative: with the `semanticTokens` toggle left at its default (enabled),
+    /// the same handler returns a token set — proving the gate, not the handler,
+    /// is what suppresses the result above.
+    #[tokio::test]
+    async fn enabled_semantic_tokens_toggle_yields_some() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///g.tcl").unwrap();
+        register(&backend, &uri, "proc helper {} {}\nhelper\n").await;
+        assert!(
+            backend
+                .semantic_tokens_full(SemanticTokensParams {
+                    text_document: TextDocumentIdentifier { uri },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                })
+                .await
+                .expect("ok")
+                .is_some(),
+            "semanticTokens enabled must yield a token set",
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_code_actions_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("codeActions").await;
         assert!(
             backend
                 .code_action(CodeActionParams {
-                    text_document: td.clone(),
+                    text_document: td,
                     range: Range::new(Position::new(0, 0), Position::new(0, 0)),
                     context: tower_lsp_server::ls_types::CodeActionContext::default(),
                     work_done_progress_params: WorkDoneProgressParams::default(),
@@ -12001,10 +12487,15 @@ mod tests {
                 .is_none(),
             "codeActions disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_rename_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("rename").await;
         assert!(
             backend
                 .rename(RenameParams {
-                    text_document_position: pos_params.clone(),
+                    text_document_position: pos_params,
                     new_name: "do_it".to_owned(),
                     work_done_progress_params: WorkDoneProgressParams::default(),
                 })
@@ -12013,10 +12504,15 @@ mod tests {
                 .is_none(),
             "rename disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_document_highlight_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("documentHighlight").await;
         assert!(
             backend
                 .document_highlight(DocumentHighlightParams {
-                    text_document_position_params: pos_params.clone(),
+                    text_document_position_params: pos_params,
                     work_done_progress_params: WorkDoneProgressParams::default(),
                     partial_result_params: PartialResultParams::default(),
                 })
@@ -12025,10 +12521,15 @@ mod tests {
                 .is_none(),
             "documentHighlight disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_code_lens_toggle_yields_none() {
+        let (backend, td, _) = backend_with_feature_disabled("codeLens").await;
         assert!(
             backend
                 .code_lens(CodeLensParams {
-                    text_document: td.clone(),
+                    text_document: td,
                     work_done_progress_params: WorkDoneProgressParams::default(),
                     partial_result_params: PartialResultParams::default(),
                 })
@@ -12037,10 +12538,15 @@ mod tests {
                 .is_none(),
             "codeLens disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_linked_editing_range_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("linkedEditingRange").await;
         assert!(
             backend
                 .linked_editing_range(LinkedEditingRangeParams {
-                    text_document_position_params: pos_params.clone(),
+                    text_document_position_params: pos_params,
                     work_done_progress_params: WorkDoneProgressParams::default(),
                 })
                 .await
@@ -12048,10 +12554,15 @@ mod tests {
                 .is_none(),
             "linkedEditingRange disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_call_hierarchy_toggle_yields_none() {
+        let (backend, _, pos_params) = backend_with_feature_disabled("callHierarchy").await;
         assert!(
             backend
                 .prepare_call_hierarchy(CallHierarchyPrepareParams {
-                    text_document_position_params: pos_params.clone(),
+                    text_document_position_params: pos_params,
                     work_done_progress_params: WorkDoneProgressParams::default(),
                 })
                 .await
@@ -12059,6 +12570,11 @@ mod tests {
                 .is_none(),
             "callHierarchy disabled must yield None",
         );
+    }
+
+    #[tokio::test]
+    async fn disabled_workspace_symbols_toggle_yields_none() {
+        let (backend, _, _) = backend_with_feature_disabled("workspaceSymbols").await;
         assert!(
             backend
                 .symbol(WorkspaceSymbolParams {
