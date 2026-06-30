@@ -499,6 +499,15 @@ impl Vm {
     fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
         let mut acts: Vec<Frame> = vec![initial];
         loop {
+            // Enforce `interp limit $i time` for unbounded bytecode loops: the
+            // counter is Vm-scoped so it survives the short activations a
+            // command-driven loop re-enters (see `limit_check_tick`).
+            if let Some(c) = self.limit_check_tick() {
+                if let Some(done) = self.unwind(&mut acts, c) {
+                    return done;
+                }
+                continue;
+            }
             let tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
