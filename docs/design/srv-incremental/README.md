@@ -503,16 +503,35 @@ exist yet — the verification-status table follows the list.
      **15+ call sites** (mostly tests passing an owned `InterproceduralAnalysis::
      default()`). 15-site churn for 0.1 ms is below the value bar — the rope
      tradeoff. Skipped.
-   - *Per-function `optimise_unit` memo:* harder than 2a's per-function check memo,
-     for two concrete reasons (not the 2a "coupling", which was a rebasing bug):
+   - *Per-function `optimise_unit` memo:* **re-scoped to L (not M) after a
+     2026-06-30 implementation-path audit** — three concrete blockers, the third
+     decisive:
      (a) the optimiser reads **absolute `source[span]` slices** (e.g.
-     `consumed_var_count` counts `$var` refs in the original source span), so an
-     offset-0 memo would need the source window threaded + rebased, not just span
-     arithmetic; (b) `optimise_unit` does **whole-module overlap selection**
-     (`select_non_overlapping`) + group renumbering across *all* functions'
-     optimisations, so the per-function raw optimisations would memoise but the
-     selection/renumbering stays whole-module (the 2b shape). Tractable on the 2a/2b
-     pattern, but a separate M-sized piece; not yet built.
+     `consumed_var_count` counts `$var` refs in the original source span;
+     `drop_def_elims_resurrected_by_replacements(&cu.source, …)`), so an offset-0
+     memo would need the source window threaded + rebased, not just span arithmetic;
+     (b) `optimise_unit` does **whole-module overlap selection**
+     (`select_non_overlapping`) + `couple_propagated_const_dead_stores` +
+     group renumbering across *all* functions' optimisations — the per-function raw
+     optimisations would memoise but this tail stays whole-module (the 2b shape,
+     fine);
+     (c) **the decisive one — there is no per-function optimiser seam, and the
+     per-function raw optimisations are not function-local.** Unlike the checks
+     (which had `function_nontaint_checks(fu)`, a clean offset-0 entry that made 2a
+     a small change), every optimiser pass is driven by `run(ctx, &CompilationUnit)`
+     and reads `cu.interproc` / `cu.ir_module` / `cu.source`. Critically,
+     `propagation::run_function` does **O103 proc-call chain folding** that resolves
+     a call against `cu.ir_module.procedures` — so one function's optimisations
+     **depend on other functions' bodies**. A correct memo therefore needs *both* a
+     new per-function offset-0 optimiser isolation (a `CompilationUnit`→`FunctionUnit`
+     refactor of the pass driver) **and** interproc reverse-dependency modeling for
+     cross-function optimisations (an O103-relevant callee summary, the
+     `proc_summary_cascade` pattern applied to the optimiser), settled byte-identical
+     against the random-edit + corpus differential fuzzers (now built — see Task 2b
+     gate). For a measured ~15 ms lever this is an L-sized, high-divergence-risk
+     change with a real silent-miscompile hazard (the `command_mutations` trust gate);
+     **deliberately not landed** rather than shipped unverified. *Status:* designed +
+     blockers identified; not built.
 
 5. **Wire the structural-state index into the live re-lex path** *(blocked — no
    consumer exists; coupled to Task 7).* The intent: bound `did_change`'s re-lex /
