@@ -33,6 +33,11 @@
 //! No test is `#[ignore]`d and no Python expectation was dropped as a Rust bug:
 //! every const-fold result here matches tclsh.
 
+// Decimal literals such as `3.14` / `6.28` are the values Tcl yields for those
+// expression *strings*, not the math constants PI / TAU — `approx_constant`
+// would mis-flag them, so it is disabled for this expression-folding port.
+#![allow(clippy::approx_constant)]
+
 use tcl_compiler::expr_parser::parse_expr;
 use tcl_compiler::tcl_expr_eval::{eval_tcl_expr, eval_tcl_expr_in_dialect};
 use tcl_compiler::{Env, EnvValue, TclValue, format_tcl_value};
