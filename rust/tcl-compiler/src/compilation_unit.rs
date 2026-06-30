@@ -457,7 +457,7 @@ impl CompilationUnit {
         defer_top_level: bool,
         config: tcl_lexer::LexerConfig,
     ) -> Self {
-        Self::build_for_inner(source, registry, defer_top_level, config, "", None)
+        Self::build_for_inner(source, registry, defer_top_level, config, "", None, None)
     }
 
     /// Like [`Self::build_for_with_config`] but routes each procedure's
@@ -492,9 +492,40 @@ impl CompilationUnit {
             config,
             dialect,
             Some(cache),
+            None,
         )
     }
 
+    /// Like [`Self::build_for_memoized`] but also threads a memoised per-procedure
+    /// **body-lowering** callback (SRV-INCREMENTAL Task 3) into the lowering phase,
+    /// so an unchanged top-level proc's body IR is reused across edits.  The caller
+    /// installs it only for context-free files (see [`crate::lowering::Lowerer`]'s
+    /// `body_cache`); byte-identity is guarded by the corpus differential gates.
+    pub fn build_for_memoized_with_body_cache(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+        dialect: &str,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &dyn Fn(&str, &str) -> crate::ir::Script,
+    ) -> Self {
+        Self::build_for_inner(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            Some(cache),
+            Some(body_cache),
+        )
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity
+    )]
     fn build_for_inner(
         source: &str,
         registry: &CommandRegistry,
@@ -502,8 +533,12 @@ impl CompilationUnit {
         config: tcl_lexer::LexerConfig,
         dialect: &str,
         mut cache: Option<&mut ProcLatticeCache<'_>>,
+        body_cache: Option<&dyn Fn(&str, &str) -> crate::ir::Script>,
     ) -> Self {
-        let mut ir_module = lower_to_ir_with_config(source, registry, config);
+        let mut ir_module = match body_cache {
+            Some(bc) => crate::lowering::lower_to_ir_with_body_cache(source, registry, config, bc),
+            None => lower_to_ir_with_config(source, registry, config),
+        };
         // Specialise Option-shape factories before any other
         // module-level passes so the synthesised child procs
         // appear in module.procedures for the inline_uplevel pass

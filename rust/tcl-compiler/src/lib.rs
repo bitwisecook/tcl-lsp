@@ -102,6 +102,7 @@ pub mod ir;
 pub mod ir_helpers;
 pub mod irules_checks;
 mod lattice_rebase;
+pub use lattice_rebase::rebase_script;
 pub mod loops;
 pub mod lowering;
 pub mod lowering_hooks;

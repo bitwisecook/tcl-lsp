@@ -672,6 +672,129 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     ))
 }
 
+/// Interned identity of one top-level `proc`'s **offset-0** static body source
+/// (SRV-INCREMENTAL Task 3 — incremental per-item IR *lowering*).  A `proc`
+/// body is lowered against a clean slate (`lower_proc` pushes an empty const-map
+/// frame, so the body inherits no tracked scalars from preceding code), so its
+/// lowering is a pure function of `(body_text, namespace, dialect, config)` —
+/// no position, no cross-item state.  An edit to one proc's body changes only
+/// that proc's `ProcBodyKey`, so salsa reuses every other proc body's lowered
+/// IR; an edit that merely *shifts* a body leaves its key unchanged (the caller
+/// rebases the offset-0 `Script` back to the body's real offset).  Installed
+/// only for **context-free files** (see [`file_body_cache_eligible`]) where the
+/// isolated lowering is byte-identical to the in-place `lower_body`; guarded by
+/// the corpus differential gates (`file_analysis_corpus` / `compiler_check_corpus`).
+#[salsa::interned]
+pub struct ProcBodyKey<'db> {
+    #[returns(ref)]
+    pub body_text: String,
+    #[returns(ref)]
+    pub namespace: String,
+    #[returns(ref)]
+    pub dialect: String,
+    /// The two dialect-varying [`tcl_lexer::LexerConfig`] fields (see
+    /// [`LexerCfgKey`]); the rest are the invariant defaults both consumers use.
+    pub expand_syntax: bool,
+    pub irules_brace_separator: bool,
+}
+
+/// Memoised offset-0 isolated lowering of one top-level `proc` body
+/// (SRV-INCREMENTAL Task 3).  Replicates the body-lowering setup `lower_proc`
+/// performs for a static literal body (a fresh `Lowerer` at `proc_depth == 1`
+/// with an empty const-map frame, lowering at offset 0).  Byte-identical to the
+/// body the whole-file lowering produces for that procedure, normalised to
+/// offset 0 — for the context-free files the caller gates on.
+#[salsa::tracked]
+pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
+    let registry = db.registry(key.dialect(db));
+    let config = tcl_lexer::LexerConfig {
+        expand_syntax: key.expand_syntax(db),
+        irules_brace_separator: key.irules_brace_separator(db),
+        ..tcl_lexer::LexerConfig::default()
+    };
+    Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
+        key.body_text(db),
+        key.namespace(db),
+        &registry,
+        config,
+    ))
+}
+
+/// Whether a file is **context-free** enough that lowering each top-level
+/// `proc` body in isolation (via the [`lower_proc_body`] memo) is byte-identical
+/// to the whole-file lowering.  The isolated body lowering drops every cross-item
+/// side effect `lower_body` performs (nested `IRProcedure` registration,
+/// `namespace`/`import`/`export` tracking, command aliases, `when`/OO
+/// definitions), so the body cache is installed **only** when no body can carry
+/// such an effect.
+///
+/// Deliberately conservative — a substring/brace scan that errs toward
+/// *disabling* the cache (a false negative costs only the status-quo whole-file
+/// lowering; a false positive would corrupt the IR).  A file is eligible when it
+/// contains none of the context-introducing keywords and every `proc` keyword
+/// sits at brace-nesting depth 0 (so no body defines a nested `proc`).  Backstopped
+/// by the corpus differential gates.
+#[must_use]
+fn file_body_cache_eligible(source: &str) -> bool {
+    // Any of these constructs (at *any* position) means some body could carry a
+    // cross-item effect the isolated lowering would drop — disable wholesale.
+    const DISQUALIFIERS: &[&str] = &[
+        "namespace ",
+        "oo::",
+        "::oo",
+        "itcl",
+        "interp ",
+        "rename ",
+        "method ",
+        "when ",
+        "apply ",
+    ];
+    if DISQUALIFIERS.iter().any(|kw| source.contains(kw)) {
+        return false;
+    }
+    !has_nested_proc(source)
+}
+
+/// True when a whole-word `proc` keyword appears at brace-nesting depth > 0 —
+/// i.e. inside another command's `{…}` body (a nested `proc`, or a `proc` defined
+/// inside top-level control flow).  Brace depth is clamped at 0 so an unmatched
+/// `}` inside a string can only *over*-report nesting (disable the cache), never
+/// hide a genuinely nested `proc`.
+#[must_use]
+fn has_nested_proc(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => {
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => depth = (depth - 1).max(0),
+            b'p' if depth > 0 => {
+                // Whole-word `proc` at nesting depth > 0.
+                let word_start = i == 0 || !is_word_byte(bytes[i - 1]);
+                if word_start && bytes[i..].starts_with(b"proc") {
+                    let after = bytes.get(i + 4).copied();
+                    if after.is_none_or(|b| !is_word_byte(b)) {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+#[must_use]
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b':'
+}
+
 /// Build a `CompilationUnit` (with interprocedural summary applied) whose
 /// per-procedure baseline lattices are memoised by the salsa-native
 /// [`function_lattice`] query.
@@ -731,42 +854,70 @@ fn build_unit_with_keys<'db>(
     // baseline (`function_lattice`) again to layer the `taint_cascade` memo on
     // top — without re-deriving the offset-0 body/context.
     let mut lattice_keys: HashMap<String, FnLatticeKey<'db>> = HashMap::new();
-    let cu = CompilationUnit::build_for_memoized(
-        source,
-        registry,
-        defer_top_level,
-        config,
-        dialect,
-        &mut |req: &LatticeRequest<'_>| -> FunctionUnit {
-            let context = *context.get_or_insert_with(|| {
-                let mut upvar: Vec<(String, UpvarInfo)> = req
-                    .upvar_procs
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                upvar.sort_by(|a, b| a.0.cmp(&b.0));
-                let mut proc_params: Vec<(String, Vec<String>)> = req
-                    .proc_params
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                proc_params.sort_by(|a, b| a.0.cmp(&b.0));
-                CfgContext::new(db, upvar, proc_params)
-            });
-            let key = FnLatticeKey::new(
+    let mut lattice_memo = |req: &LatticeRequest<'_>| -> FunctionUnit {
+        let context = *context.get_or_insert_with(|| {
+            let mut upvar: Vec<(String, UpvarInfo)> = req
+                .upvar_procs
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            upvar.sort_by(|a, b| a.0.cmp(&b.0));
+            let mut proc_params: Vec<(String, Vec<String>)> = req
+                .proc_params
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            proc_params.sort_by(|a, b| a.0.cmp(&b.0));
+            CfgContext::new(db, upvar, proc_params)
+        });
+        let key = FnLatticeKey::new(
+            db,
+            req.body.clone(),
+            req.qname.to_owned(),
+            req.params.to_vec(),
+            context,
+            req.dialect.to_owned(),
+            req.param_constants.to_vec(),
+            req.known_classes.to_vec(),
+        );
+        lattice_keys.insert(req.qname.to_owned(), key);
+        (*function_lattice(db, key)).clone()
+    };
+    // SRV-INCREMENTAL Task 3: for context-free files, lower each top-level proc
+    // body through the `lower_proc_body` memo so a body-only edit re-lowers only
+    // the edited proc's body (every other body's IR is reused). Other files take
+    // the status-quo whole-file lowering. Byte-identical either way (corpus gates).
+    let cu = if file_body_cache_eligible(source) {
+        let body_memo = |body_text: &str, namespace: &str| -> Script {
+            let key = ProcBodyKey::new(
                 db,
-                req.body.clone(),
-                req.qname.to_owned(),
-                req.params.to_vec(),
-                context,
-                req.dialect.to_owned(),
-                req.param_constants.to_vec(),
-                req.known_classes.to_vec(),
+                body_text.to_owned(),
+                namespace.to_owned(),
+                dialect.to_owned(),
+                config.expand_syntax,
+                config.irules_brace_separator,
             );
-            lattice_keys.insert(req.qname.to_owned(), key);
-            (*function_lattice(db, key)).clone()
-        },
-    );
+            (*lower_proc_body(db, key)).clone()
+        };
+        CompilationUnit::build_for_memoized_with_body_cache(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            &mut lattice_memo,
+            &body_memo,
+        )
+    } else {
+        CompilationUnit::build_for_memoized(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            &mut lattice_memo,
+        )
+    };
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
     // only unchanged procedures' `propagate_taints` is skipped.
@@ -947,9 +1098,12 @@ pub struct SummaryDepsKey<'db> {
 /// summaries read (transitive, not just direct callees) is sound: a wrong/missed
 /// dependency is caught by the debug fixpoint guard in `converge_summaries_with`,
 /// which re-runs the real `infer_proc_summary`.
+#[allow(clippy::too_many_arguments)]
 fn summary_deps_key<'db>(
     db: &'db dyn TclDb,
     qname: &str,
+    fu: &FunctionUnit,
+    body_source: Option<&str>,
     interproc: Option<&InterproceduralAnalysis>,
     summaries: &HashMap<String, ReturnTaintSummary>,
     known: &HashSet<String>,
@@ -975,7 +1129,26 @@ fn summary_deps_key<'db>(
             writes_global: root.writes_global,
             return_passthrough_param: root.return_passthrough_param.clone(),
         });
-        for callee in &calls {
+        // Complete the callee set: `root.calls` comes from `direct_calls`, which
+        // misses a callee buried in a nested command substitution under a dynamic
+        // command (e.g. `symbolNodeOf` in `[$t get [symbolNodeOf …] …]`). The real
+        // `infer_proc_summary` reads that callee's summary anyway (it scans the
+        // FunctionUnit), so without it here the cascade would seed the callee clean
+        // and under-taint — diverging from the whole-module solve (and tripping its
+        // debug fixpoint guard). `resolved_callees` scans `fu` exactly as the
+        // inference does, so we overlay the same callee projections + summaries.
+        // The root's own `.calls` field above is left as the real `root.calls` so
+        // the reconstructed `ia` still matches the whole-module projection.
+        let mut callee_set = calls.clone();
+        callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(fu, known));
+        if let Some(src) = body_source {
+            callee_set.extend(tcl_compiler::taint_interproc::command_subst_callees(
+                src, qname, known,
+            ));
+        }
+        callee_set.sort();
+        callee_set.dedup();
+        for callee in &callee_set {
             if callee != qname
                 && let Some(s) = ia.procedures.get(callee)
             {
@@ -1161,7 +1334,21 @@ pub fn proc_taint_solve<'db>(
         &mut |qname, params, fu, known, summaries| match lattice_keys.get(qname) {
             // Memoised path: the proc has an offset-0 baseline key.
             Some(&lattice_key) => {
-                let deps_key = summary_deps_key(db, qname, interproc, summaries, known, &dialect);
+                let body_source = cu
+                    .ir_module
+                    .procedures
+                    .get(qname)
+                    .and_then(|p| p.body_source.as_deref());
+                let deps_key = summary_deps_key(
+                    db,
+                    qname,
+                    fu,
+                    body_source,
+                    interproc,
+                    summaries,
+                    known,
+                    &dialect,
+                );
                 (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
             }
             // Fallback (a proc without a memoised lattice — e.g. an unanalysable
@@ -2380,6 +2567,76 @@ mod tests {
             runs(&log),
             1,
             "unrelated body edit -> exactly ONE function_optimisations recomputes"
+        );
+    }
+
+    /// SRV-INCREMENTAL Task 3: the per-procedure body-lowering memo
+    /// (`lower_proc_body`) must skip an unchanged proc's body lowering across a
+    /// body-only edit. For a context-free file (no `namespace`/`oo::`/nested
+    /// `proc`), `build_unit_with_keys` lowers each top-level proc's static body
+    /// through `lower_proc_body`, keyed on the offset-0 body text — so editing one
+    /// proc's body re-lowers only that body; the others are cache hits. A shift
+    /// (prepended blank line) re-lowers nothing (offset-invariant key).
+    #[test]
+    fn lower_proc_body_reused_on_unrelated_edit() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let runs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("lower_proc_body"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { puts 11111 }\n\
+             proc b {} { puts 22222 }\n\
+             proc c {} { puts 33333 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            runs(&log),
+            3,
+            "cold build: every top-level proc body lowers once through the memo"
+        );
+
+        // Edit only `b`'s body — `a`/`c` bodies are cache hits.
+        file.set_text(&mut db).to("proc a {} { puts 11111 }\n\
+             proc b {} { puts 99999999 }\n\
+             proc c {} { puts 33333 }\n"
+            .to_owned());
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            runs(&log),
+            1,
+            "unrelated body edit -> exactly ONE lower_proc_body recomputes"
+        );
+
+        // Prepend a blank line: every body shifts but none changes — the offset-0
+        // body key is identical, so no body re-lowers.
+        file.set_text(&mut db).to("\nproc a {} { puts 11111 }\n\
+             proc b {} { puts 99999999 }\n\
+             proc c {} { puts 33333 }\n"
+            .to_owned());
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            runs(&log),
+            0,
+            "pure offset shift -> no body re-lowers (offset-invariant key)"
         );
     }
 

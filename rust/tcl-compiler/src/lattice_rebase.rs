@@ -83,7 +83,7 @@ fn rebase_tokens(tokens: &mut Option<CommandTokens>, delta: i64) {
 /// to normalise a procedure body to offset 0 before interning it as a
 /// salsa-native [`crate::compilation_unit`] lattice key (and reused for nested
 /// `Try` bodies during unit rebasing).
-pub(crate) fn rebase_script(script: &mut Script, delta: i64) {
+pub fn rebase_script(script: &mut Script, delta: i64) {
     if delta == 0 {
         return;
     }

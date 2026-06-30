@@ -541,6 +541,16 @@ pub struct Lowerer<'r> {
     /// runs these as runtime builtins; analysis callers keep the structured IR
     /// (default `false`) for their diagnostics. Set via [`lower_to_ir_for_bytecode`].
     pub(crate) for_bytecode: bool,
+    /// Optional memoised per-procedure body lowering (SRV-INCREMENTAL Task 3).
+    /// When set, a **top-level** `proc`'s static literal body is lowered through
+    /// this callback `(offset-0 body text, namespace) -> offset-0 body Script`
+    /// (the caller rebases by the body offset) instead of `lower_body`, so an
+    /// unchanged proc's body IR is reused across edits.  Set only for
+    /// **context-free** files (no `namespace eval`/`import`/`export`, alias,
+    /// `oo::`, `when`, or nested `proc`) where isolated lowering is byte-identical;
+    /// `None` ⇒ the normal whole-file lowering.  See [`lower_to_ir_with_body_cache`].
+    #[allow(clippy::type_complexity)]
+    body_cache: Option<&'r dyn Fn(&str, &str) -> Script>,
 }
 
 impl<'r> Lowerer<'r> {
@@ -568,7 +578,16 @@ impl<'r> Lowerer<'r> {
             suppress_proc_register: false,
             config,
             for_bytecode: false,
+            body_cache: None,
         }
+    }
+
+    /// Install a memoised per-procedure body-lowering callback (see
+    /// [`body_cache`](Self::body_cache) and [`lower_to_ir_with_body_cache`]).
+    #[must_use]
+    pub fn with_body_cache(mut self, cache: &'r dyn Fn(&str, &str) -> Script) -> Self {
+        self.body_cache = Some(cache);
+        self
     }
 
     /// Mark this as the bytecode/VM compile path, barriering constructs the
@@ -1119,6 +1138,16 @@ impl<'r> Lowerer<'r> {
             // ``$body`` source text as a script.  The runtime
             // ``proc`` IRCall below carries the actual body bytes.
             Script::default()
+        } else if let Some(cache) = self.body_cache.filter(|_| self.proc_depth == 1) {
+            // SRV-INCREMENTAL Task 3: a top-level proc's static body is lowered in
+            // isolation through the memo (offset 0) and rebased to its real offset.
+            // Installed only for context-free files, where this is byte-identical to
+            // the in-place `lower_body` (the const-map is a fresh empty frame here, so
+            // a literal body has no cross-item dependency) — guarded by the corpus
+            // differential gates (`file_analysis_corpus` / `compiler_check_corpus`).
+            let mut s = cache(body_text, namespace);
+            crate::lattice_rebase::rebase_script(&mut s, i64::from(body_offset));
+            s
         } else {
             self.lower_body(body_text, body_offset, namespace)
         };
@@ -1963,6 +1992,53 @@ impl<'r> Lowerer<'r> {
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
+}
+
+/// Lower a single `proc` body in isolation at `proc_depth == 1` (a fresh
+/// [`Lowerer`] with an empty const-map frame), returning the **offset-0** body
+/// [`Script`].  Replicates the body-lowering setup `lower_proc` performs for a
+/// static literal body (`proc_depth += 1`; push an empty const-map;
+/// `lower_body(text, 0, namespace)`).
+///
+/// For a body free of cross-item context (no nested `proc` / `namespace
+/// import`/`export` / command alias / const-map materialisation), this is
+/// byte-identical to the body the whole-file lowering produces for that
+/// procedure, normalised to offset 0 — the seam the SRV-INCREMENTAL per-procedure
+/// lowering memo (Task 3) keys on the offset-0 body text and feeds back through
+/// [`Lowerer::with_body_cache`].
+#[must_use]
+pub fn lower_proc_body_isolated(
+    body_text: &str,
+    namespace: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Script {
+    let mut lowerer = Lowerer::with_config(registry, config);
+    lowerer.proc_depth += 1;
+    lowerer.const_map_stack.push(HashMap::new());
+    let body = lowerer.lower_body(body_text, 0, namespace);
+    lowerer.const_map_stack.pop();
+    lowerer.proc_depth -= 1;
+    body
+}
+
+/// Like [`lower_to_ir_with_config`] but with a memoised per-procedure body-lowering
+/// callback (SRV-INCREMENTAL Task 3): a top-level `proc`'s static body is lowered
+/// through `body_cache` `(offset-0 body text, namespace) -> offset-0 Script` and
+/// rebased, so an unchanged proc's body IR is reused across edits.  The caller must
+/// only install a cache for **context-free** files (see [`Lowerer::body_cache`]);
+/// byte-identity is guarded by the corpus differential gates.
+#[must_use]
+pub fn lower_to_ir_with_body_cache(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    body_cache: &dyn Fn(&str, &str) -> Script,
+) -> Module {
+    lower_with(
+        Lowerer::with_config(registry, config).with_body_cache(body_cache),
+        source,
+    )
 }
 
 /// Like [`lower_to_ir`] but with an explicit dialect
