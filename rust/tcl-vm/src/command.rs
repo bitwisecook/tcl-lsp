@@ -463,6 +463,34 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `interp limit path limitType ?-option value ...?` — query/configure the
+/// `commands` or `time` limit on a child interp (stored, not enforced).
+fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, ltype, opts) = match rest {
+        [path, ltype, opts @ ..] => (path.to_str(), ltype.to_str(), opts),
+        _ => {
+            return err(
+                "wrong # args: should be \"interp limit path limitType ?-option value ...?\"",
+            );
+        }
+    };
+    // Validate the limit type before the current-interp guard so that a bad
+    // type is reported ahead of the inaccessibility error (interp-35.3 vs .23).
+    if &*ltype != "commands" && &*ltype != "time" {
+        return err(format!("bad limit type \"{ltype}\": must be commands or time"));
+    }
+    if path.is_empty() {
+        return err("limits on current interpreter inaccessible");
+    }
+    match vm.child_mut(&path) {
+        Some(child) => match child.limit_apply(&ltype, opts) {
+            Ok(v) => ok(v),
+            Err(m) => err(m),
+        },
+        None => err(format!("could not find interpreter \"{path}\"")),
+    }
+}
+
 /// `interp bgerror path ?cmdPrefix?` — get/set the background-error handler.
 fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, bargs) = match rest {
@@ -659,6 +687,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "invokehidden" => interp_invokehidden_cmd(vm, rest),
         "debug" => interp_debug_cmd(vm, rest),
         "bgerror" => interp_bgerror_cmd(vm, rest),
+        "limit" => interp_limit_cmd(vm, rest),
         // `interp marktrusted path` — clear a child's safe flag.
         "marktrusted" => match rest {
             [path] => {
