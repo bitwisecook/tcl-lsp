@@ -41,7 +41,7 @@ impl Arity {
 /// Interprocedural argument trait. Documents how a parameter is
 /// used inside the callee — consumed by the optimiser for
 /// parameter-specific reasoning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ProcArgTrait {
     /// Parameter text is substituted into the return value
     /// unchanged.

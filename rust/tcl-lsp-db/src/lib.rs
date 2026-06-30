@@ -1107,6 +1107,11 @@ pub struct CheckSolve {
     /// Per-procedure non-taint checks (`function_checks`-memoised), already
     /// rebased to each procedure's real position.
     pub fn_checks: Vec<CompilerCheck>,
+    /// The document's optimisations, assembled from the per-procedure
+    /// [`function_optimisations`] memo + the whole-module `finalise_optimisations`
+    /// tail (or the whole-module `optimise_unit` fallback).  Byte-identical to a
+    /// bare `optimise_unit`.
+    pub optimisations: Vec<Optimisation>,
 }
 
 /// The checks-path memoised solve for one document.
@@ -1221,7 +1226,372 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    Arc::new(CheckSolve { taints, fn_checks })
+    let optimisations = solve_optimisations(db, &cu, &lattice_keys, &registry, dialect_opt);
+    Arc::new(CheckSolve {
+        taints,
+        fn_checks,
+        optimisations,
+    })
+}
+
+/// Hashable normalisation of a callee's `ConstantReturn` (`f64` isn't `Hash`/`Eq`)
+/// for the interned [`OptDepsKey`].
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum ConstReturnKey {
+    Int(i64),
+    FloatBits(u64),
+    Bool(bool),
+    Str(String),
+}
+
+/// The opt-relevant projection of a direct-callee `ProcSummary` — the fields the
+/// optimiser passes read from `cu.interproc` (O103 static-call folding + the
+/// purity / effect gates). Hashable, so it can live in the interned [`OptDepsKey`].
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[allow(clippy::struct_excessive_bools)] // a faithful projection of ProcSummary's fold/purity flags
+pub struct OptCalleeSummary {
+    pub qname: String,
+    pub params: Vec<String>,
+    pub can_fold_static_calls: bool,
+    pub returns_constant: bool,
+    pub constant_return: Option<ConstReturnKey>,
+    pub pure: bool,
+    pub writes_global: bool,
+    pub has_barrier: bool,
+    pub has_unknown_calls: bool,
+    pub return_passthrough_param: Option<String>,
+    pub return_depends_on_params: Vec<String>,
+    /// Per-parameter traits (`upvar` / call-by-name / passthrough / …), sorted —
+    /// the `call_by_name` O109/O126 suppression reads a callee's by-name params.
+    pub param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)>,
+}
+
+fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
+    use tcl_compiler::interprocedural::ConstantReturn;
+    let mut param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)> = s
+        .param_traits
+        .iter()
+        .map(|(p, traits)| {
+            let mut ts: Vec<_> = traits.iter().copied().collect();
+            ts.sort_unstable();
+            (p.clone(), ts)
+        })
+        .collect();
+    param_traits.sort_by(|a, b| a.0.cmp(&b.0));
+    OptCalleeSummary {
+        qname: s.qualified_name.clone(),
+        params: s.params.clone(),
+        can_fold_static_calls: s.can_fold_static_calls,
+        returns_constant: s.returns_constant,
+        constant_return: s.constant_return.as_ref().map(|cr| match cr {
+            ConstantReturn::Int(i) => ConstReturnKey::Int(*i),
+            ConstantReturn::Float(f) => ConstReturnKey::FloatBits(f.to_bits()),
+            ConstantReturn::Bool(b) => ConstReturnKey::Bool(*b),
+            ConstantReturn::Str(t) => ConstReturnKey::Str(t.clone()),
+        }),
+        pure: s.pure,
+        writes_global: s.writes_global,
+        has_barrier: s.has_barrier,
+        has_unknown_calls: s.has_unknown_calls,
+        return_passthrough_param: s.return_passthrough_param.clone(),
+        return_depends_on_params: s.return_depends_on_params.clone(),
+        param_traits,
+    }
+}
+
+fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
+    use tcl_compiler::interprocedural::ConstantReturn;
+    let mut s = ProcSummary::unknown(&o.qname);
+    s.params.clone_from(&o.params);
+    s.can_fold_static_calls = o.can_fold_static_calls;
+    s.returns_constant = o.returns_constant;
+    s.constant_return = o.constant_return.as_ref().map(|cr| match cr {
+        ConstReturnKey::Int(i) => ConstantReturn::Int(*i),
+        ConstReturnKey::FloatBits(b) => ConstantReturn::Float(f64::from_bits(*b)),
+        ConstReturnKey::Bool(b) => ConstantReturn::Bool(*b),
+        ConstReturnKey::Str(t) => ConstantReturn::Str(t.clone()),
+    });
+    s.pure = o.pure;
+    s.writes_global = o.writes_global;
+    s.has_barrier = o.has_barrier;
+    s.has_unknown_calls = o.has_unknown_calls;
+    s.return_passthrough_param
+        .clone_from(&o.return_passthrough_param);
+    s.return_depends_on_params
+        .clone_from(&o.return_depends_on_params);
+    s.param_traits = o
+        .param_traits
+        .iter()
+        .map(|(p, ts)| (p.clone(), ts.iter().copied().collect()))
+        .collect();
+    s
+}
+
+/// Interned per-procedure optimiser dependency key: the offset-0 body source (for
+/// the optimiser's `source[span]` reads), the cross-proc resolution domain (every
+/// module proc qname), the opt-relevant summaries of this proc's resolved direct
+/// callees (O103 fold / purity inputs), and the module `redefined_procedures` set
+/// (the O103 don't-fold-a-redefined-callee gate).  A body edit to an unrelated proc
+/// whose summary this proc doesn't read leaves this key unchanged → cache hit.
+#[salsa::interned]
+pub struct OptDepsKey<'db> {
+    #[returns(ref)]
+    pub body_source: String,
+    #[returns(ref)]
+    pub proc_names: Vec<String>,
+    #[returns(ref)]
+    pub callees: Vec<OptCalleeSummary>,
+    #[returns(ref)]
+    pub redefined: Vec<String>,
+}
+
+/// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
+///
+/// Captures **every** module proc's opt-relevant summary (the resolution domain +
+/// fold/purity inputs).  A proc's call to a callee can come from a bare statement
+/// *or* a `[…]` command substitution (which `direct_calls` does not record), so a
+/// resolved-direct-callee-only key would miss an O103 fold inside a substitution.
+/// Keying on every proc's *opt-projection* is the correct superset: it only changes
+/// when some proc's fold/purity facts (`can_fold_static_calls` / `constant_return` /
+/// `pure` / …) change — **not** on every body edit, since most edits leave those
+/// summary fields untouched (a `set y 1` → `set y 2` edit re-keys only the edited
+/// proc's own `FnLatticeKey`, not every caller's `OptDepsKey`).
+fn opt_deps_key<'db>(
+    db: &'db dyn TclDb,
+    ia: &InterproceduralAnalysis,
+    redefined: &HashSet<String>,
+    body_source: &str,
+) -> OptDepsKey<'db> {
+    let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
+    proc_names.sort();
+    let mut callees: Vec<OptCalleeSummary> = ia
+        .procedures
+        .values()
+        .map(opt_callee_from_summary)
+        .collect();
+    callees.sort_by(|a, b| a.qname.cmp(&b.qname));
+    let mut redef: Vec<String> = redefined.iter().cloned().collect();
+    redef.sort();
+    OptDepsKey::new(db, body_source.to_owned(), proc_names, callees, redef)
+}
+
+/// Memoised offset-0 raw optimisations for one procedure (SRV-INCREMENTAL Task 4).
+/// Builds a single-procedure offset-0 [`CompilationUnit`] — the proc's offset-0
+/// `function_lattice` unit, its offset-0 IR body, and the reconstructed interproc
+/// (domain stubs overlaid with the resolved direct callees' real opt summaries) —
+/// and runs [`optimise_unit_raw`] on it.  Returns the **raw** (pre-overlap-select,
+/// pre-renumber) optimisations at **offset 0**; the caller rebases by the proc's
+/// `body_offset` and runs the whole-module [`finalise_optimisations`] over the
+/// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
+/// edit is a cache hit unless this proc reads its summary (a resolved direct call).
+#[salsa::tracked]
+pub fn function_optimisations<'db>(
+    db: &'db dyn TclDb,
+    key: FnLatticeKey<'db>,
+    deps: OptDepsKey<'db>,
+) -> Arc<Vec<Optimisation>> {
+    let fu = function_lattice(db, key);
+    let qname = key.qname(db).clone();
+    let params = key.params(db).clone();
+    let body = key.body(db).clone();
+    let dialect = key.dialect(db).clone();
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(&dialect);
+    let body_source = deps.body_source(db).clone();
+
+    let mut ia = InterproceduralAnalysis::default();
+    for name in deps.proc_names(db) {
+        ia.procedures
+            .insert(name.clone(), ProcSummary::unknown(name));
+    }
+    for c in deps.callees(db) {
+        ia.procedures
+            .insert(c.qname.clone(), opt_callee_to_summary(c));
+    }
+    let redefined: HashSet<String> = deps.redefined(db).iter().cloned().collect();
+
+    let short = qname.rsplit("::").next().unwrap_or(&qname).to_owned();
+    let body_len = u32::try_from(body_source.len()).unwrap_or(u32::MAX);
+    let proc = tcl_compiler::ir::Procedure {
+        name: short,
+        qualified_name: qname.clone(),
+        params: params.clone(),
+        span: tcl_lexer::Span::new(0, body_len),
+        body,
+        params_raw: params.join(" "),
+        body_source: Some(body_source.clone()),
+        namespace_scoped: false,
+        base_priority: 0,
+    };
+    let mut ir_procs = HashMap::new();
+    ir_procs.insert(qname.clone(), proc);
+    let ir_module = tcl_compiler::ir::Module {
+        source: body_source.clone(),
+        top_level: tcl_compiler::ir::Script::new(),
+        procedures: ir_procs,
+        methods: HashMap::new(),
+        redefined_procedures: redefined,
+        redefined_methods: HashSet::new(),
+        namespace_imports: Vec::new(),
+        namespace_exports: Vec::new(),
+        traced_commands: BTreeSet::new(),
+        has_dynamic_trace: false,
+    };
+    let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
+    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], &registry);
+    let mut cfg_procs = HashMap::new();
+    cfg_procs.insert(qname.clone(), fu.cfg.clone());
+    let mut fu_procs = HashMap::new();
+    fu_procs.insert(qname.clone(), (*fu).clone());
+    let cu = CompilationUnit {
+        source: body_source,
+        ir_module,
+        cfg_module: tcl_compiler::cfg::CfgModule {
+            top_level: empty_cfg,
+            procedures: cfg_procs,
+        },
+        top_level: top_fu,
+        procedures: fu_procs,
+        methods: HashMap::new(),
+        interproc: Some(ia),
+        connection_scope: None,
+    };
+    Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
+        &cu,
+        &registry,
+        dialect_opt,
+    ))
+}
+
+/// Assemble a document's optimisations from the per-procedure memo (Task 4).
+///
+/// For a non-iRules module with no command mutations and a lattice key for every
+/// analysable procedure, each proc's raw optimisations come from the memoised
+/// [`function_optimisations`] (offset 0), rebased by the proc's `body_offset`; the
+/// top-level body's raw optimisations are computed on a top-level-only unit (small,
+/// not memoised), and the whole-module [`finalise_optimisations`] runs once over the
+/// assembled set.  Otherwise (iRules / command mutations / a complexity-guarded
+/// proc without a key) it falls back to the whole-module [`optimise_unit`] — always
+/// byte-identical, guarded by the `compiler_check` random-edit + corpus fuzzers.
+fn solve_optimisations<'db>(
+    db: &'db dyn TclDb,
+    cu: &CompilationUnit,
+    lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
+    registry: &CommandRegistry,
+    dialect_opt: Option<&str>,
+) -> Vec<Optimisation> {
+    let mutations =
+        tcl_compiler::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let every_proc_keyed = cu
+        .procedures
+        .keys()
+        .all(|qname| lattice_keys.contains_key(qname));
+    let is_irules = tcl_compiler::taint::is_irules_dialect(dialect_opt);
+    // The **argument-sensitive** O103 fold re-runs a *pure* callee's body with the
+    // call's constant arguments (`evaluate_proc_with_constants`), so it reads the
+    // callee's whole `FunctionUnit` (`cu.procedures.get(callee)`), not just its
+    // summary — a genuine cross-function *body* dependency the single-proc unit
+    // cannot serve. Fall back to the whole-module optimise when any proc could be
+    // such a fold target: `pure` but not an argument-independent constant return
+    // (the latter is summary-level and the memo handles it).
+    let has_arg_sensitive_target = cu.interproc.as_ref().is_some_and(|ia| {
+        ia.procedures
+            .values()
+            .any(|s| s.pure && !(s.can_fold_static_calls && s.constant_return.is_some()))
+    });
+    if is_irules
+        || !cu.methods.is_empty()
+        || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
+        || has_arg_sensitive_target
+        || !every_proc_keyed
+    {
+        return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
+    }
+
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let redefined = &cu.ir_module.redefined_procedures;
+    let mut raw: Vec<Optimisation> = Vec::new();
+    // Each per-proc `optimise_unit_raw` allocates group ids from 0, so the procs'
+    // raw sets carry **colliding** group ids; offset each proc's groups into a
+    // disjoint range so the assembled set has unique ids (the whole-module build's
+    // invariant). The final group numbers are then identical: `renumber_groups`
+    // reassigns by sorted first-appearance, which only depends on the (unchanged)
+    // span order and the preserved per-proc grouping — not the offset values.
+    let mut group_base: u32 = 0;
+
+    // Per-procedure memoised raw optimisations, rebased to absolute spans.
+    for qname in cu.procedures.keys() {
+        let Some(&key) = lattice_keys.get(qname) else {
+            continue;
+        };
+        let Some(proc) = cu.ir_module.procedures.get(qname) else {
+            continue;
+        };
+        // The offset-0 lattice normalises every span by `-proc.span.start()`
+        // (the body offset), so the single-proc unit's `source` must be the file
+        // sliced at `[body_offset, body_end)` — `proc.body_source` is the body text
+        // but not necessarily at that exact base. Reading the slice keeps
+        // `source[offset0_span]` byte-aligned with the whole-module read.
+        let body_offset = proc.span.start();
+        let body_end = proc.span.end();
+        let body_source = cu
+            .source
+            .get(body_offset as usize..body_end as usize)
+            .unwrap_or("")
+            .to_owned();
+        let deps = opt_deps_key(db, &ia, redefined, &body_source);
+        let mut max_group: Option<u32> = None;
+        for opt in function_optimisations(db, key, deps).iter() {
+            let mut opt = opt.clone();
+            opt.span =
+                tcl_lexer::Span::new(opt.span.start() + body_offset, opt.span.end() + body_offset);
+            if let Some(g) = opt.group {
+                opt.group = Some(group_base + g);
+                max_group = Some(max_group.map_or(g, |m| m.max(g)));
+            }
+            raw.push(opt);
+        }
+        if let Some(m) = max_group {
+            group_base += m + 1;
+        }
+    }
+
+    // Top-level body: not per-proc memoised (it changes on top-level edits), but it
+    // is usually tiny.  Run the passes on a top-level-only unit — `procedures`
+    // empty so only the top-level is optimised, `interproc` retained so the
+    // top-level's O103 calls resolve — producing absolute-span raw optimisations.
+    let top_unit = CompilationUnit {
+        source: cu.source.clone(),
+        ir_module: tcl_compiler::ir::Module {
+            source: cu.source.clone(),
+            top_level: cu.ir_module.top_level.clone(),
+            procedures: HashMap::new(),
+            methods: HashMap::new(),
+            redefined_procedures: redefined.clone(),
+            redefined_methods: HashSet::new(),
+            namespace_imports: Vec::new(),
+            namespace_exports: Vec::new(),
+            traced_commands: BTreeSet::new(),
+            has_dynamic_trace: false,
+        },
+        cfg_module: tcl_compiler::cfg::CfgModule {
+            top_level: cu.cfg_module.top_level.clone(),
+            procedures: HashMap::new(),
+        },
+        top_level: cu.top_level.clone(),
+        procedures: HashMap::new(),
+        methods: HashMap::new(),
+        interproc: cu.interproc.clone(),
+        connection_scope: None,
+    };
+    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
+        if let Some(g) = opt.group {
+            opt.group = Some(group_base + g);
+        }
+        raw.push(opt);
+    }
+
+    tcl_compiler::optimiser::finalise_optimisations(raw, cu, registry, dialect_opt)
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -1417,7 +1787,7 @@ pub fn compiler_check_diagnostics(
     tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
     Arc::new(CompilerDiagnostics {
         checks,
-        optimisations: tcl_compiler::optimiser::optimise_unit(&cu, &registry, dialect_opt),
+        optimisations: solve.optimisations.clone(),
     })
 }
 
@@ -1951,6 +2321,65 @@ mod tests {
             cascades(&log),
             1,
             "unrelated body edit -> exactly ONE taint cascade recomputes"
+        );
+    }
+
+    /// The per-procedure optimiser memo (`function_optimisations`, Task 4) must
+    /// skip an unrelated procedure across edits: a body edit that does not change a
+    /// proc's *opt-projection* (`OptDepsKey`) leaves every other proc's optimise a
+    /// cache hit, while the edited proc's own re-keys (its `FnLatticeKey` changed).
+    /// This is the per-edit incrementality win — the whole-module `optimise_unit`
+    /// re-optimised all procs on any edit.
+    #[test]
+    fn function_optimisations_reused_on_unrelated_edit() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let runs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("function_optimisations"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        // Three independent procs (no foldable cross-proc calls, no pure-non-const
+        // proc → the memo path, not the whole-module fallback).
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { puts 11111 }\n\
+             proc b {} { puts 22222 }\n\
+             proc c {} { puts 33333 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            runs(&log),
+            3,
+            "cold build: every procedure's optimise runs once"
+        );
+
+        // Edit only `b`'s body (a literal change that does not alter b's
+        // opt-projection) — `a`/`c` are cache hits; only `b`'s optimise re-runs.
+        file.set_text(&mut db).to("proc a {} { puts 11111 }\n\
+             proc b {} { puts 99999999 }\n\
+             proc c {} { puts 33333 }\n"
+            .to_owned());
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            runs(&log),
+            1,
+            "unrelated body edit -> exactly ONE function_optimisations recomputes"
         );
     }
 
