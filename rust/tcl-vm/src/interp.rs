@@ -343,6 +343,36 @@ impl Vm {
         for (k, v) in plat {
             let _ = self.write_array_raw("tcl_platform", k, Value::string(v));
         }
+        // Backend-introspection keys (the test-suite constraint overlay reads
+        // these). The bytecode VM is a native interpreter, so the wasm / WASI /
+        // eBPF facts come from the build's `cfg` (empty on a native build) and
+        // may be overridden from the environment to evaluate another backend's
+        // skip lists.
+        use tcl_platform::backend::{self, key};
+        let detected = |k: &str| -> String {
+            backend::override_env_var(k)
+                .and_then(|var| std::env::var(var).ok())
+                .unwrap_or_else(|| {
+                    match k {
+                        key::WASM => backend::compiled_wasm_spec(),
+                        key::WASI => backend::compiled_wasi_spec(),
+                        key::WASI_VERSION => backend::compiled_wasi_host(),
+                        key::EBPF => backend::compiled_ebpf_spec(),
+                        _ => "",
+                    }
+                    .to_string()
+                })
+        };
+        for (k, v) in [
+            (key::RUNTIME, "bytecode".to_string()),
+            (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
+            (key::WASM, detected(key::WASM)),
+            (key::WASI, detected(key::WASI)),
+            (key::WASI_VERSION, detected(key::WASI_VERSION)),
+            (key::EBPF, detected(key::EBPF)),
+        ] {
+            let _ = self.write_array_raw("tcl_platform", k, Value::string(v.as_str()));
+        }
         for (k, v) in std::env::vars() {
             let _ = self.write_array_raw("env", &k, Value::string(v));
         }

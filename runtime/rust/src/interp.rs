@@ -1217,6 +1217,46 @@ impl Interp {
                 drop_fresh(o);
             }
         }
+        // Backend-introspection keys (the test-suite constraint overlay reads
+        // these). The tree-walk runtime targets native or wasm32-wasip*, so the
+        // wasm / WASI facts come from the build's `cfg`; an environment override
+        // (read through the host seam) lets a native binary evaluate another
+        // backend's skip lists.
+        {
+            use tcl_platform::backend::{self, key};
+            let detected = |k: &str, compiled: &str| -> String {
+                backend::override_env_var(k)
+                    .and_then(|var| self.host().env().get(var))
+                    .filter(|v| !v.is_empty())
+                    .unwrap_or_else(|| compiled.to_string())
+            };
+            let backend_keys = [
+                (key::RUNTIME, "treewalk".to_string()),
+                (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
+                (
+                    key::WASM,
+                    detected(key::WASM, backend::compiled_wasm_spec()),
+                ),
+                (
+                    key::WASI,
+                    detected(key::WASI, backend::compiled_wasi_spec()),
+                ),
+                (
+                    key::WASI_VERSION,
+                    detected(key::WASI_VERSION, backend::compiled_wasi_host()),
+                ),
+                (
+                    key::EBPF,
+                    detected(key::EBPF, backend::compiled_ebpf_spec()),
+                ),
+            ];
+            for (k, v) in backend_keys {
+                let o = new_string(v.as_bytes());
+                if self.var_set_elem(b"tcl_platform", k.as_bytes(), o).is_err() {
+                    drop_fresh(o);
+                }
+            }
+        }
         // env array from the host environment (no quoting hazards via var_set_elem).
         let vars = self.host().env().vars();
         for (k, v) in vars {
