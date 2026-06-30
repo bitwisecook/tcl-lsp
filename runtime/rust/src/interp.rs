@@ -567,6 +567,10 @@ pub struct InterpState {
     /// recursion so an infinite proc loop raises a catchable error instead of
     /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
     recursion_depth: Cell<usize>,
+    /// Per-interp recursion bound (`interp recursionlimit`), default
+    /// [`RECURSION_LIMIT`]. Each child carries its own, so raising a child's
+    /// limit does not affect the parent.
+    recursion_limit: Cell<usize>,
     /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
     pub(crate) packages: RefCell<crate::cmd_package::PackageState>,
     /// The `source` script stack (`info script` — the file being sourced).
@@ -731,6 +735,32 @@ pub(crate) struct EnsembleRewrite {
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 const RECURSION_LIMIT: usize = 1000;
 
+/// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
+/// reports: a decimal that overflows `i64` is "too large to represent", a
+/// non-numeric value is "expected integer but got …".
+fn parse_recursion_limit(bytes: &[u8]) -> Result<i64, Vec<u8>> {
+    let not_int = || {
+        let mut m = b"expected integer but got \"".to_vec();
+        m.extend_from_slice(bytes);
+        m.push(b'"');
+        m
+    };
+    let s = match std::str::from_utf8(bytes) {
+        Ok(s) => s.trim(),
+        Err(_) => return Err(not_int()),
+    };
+    if let Ok(n) = s.parse::<i64>() {
+        return Ok(n);
+    }
+    // A run of decimal digits (with an optional sign) that failed to parse
+    // overflowed the integer range; anything else is simply not an integer.
+    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
+    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(b"integer value too large to represent".to_vec());
+    }
+    Err(not_int())
+}
+
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
     /// result.
@@ -755,6 +785,7 @@ impl Interp {
             namespaces: RefCell::new(Namespaces::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
+            recursion_limit: Cell::new(RECURSION_LIMIT),
             packages: RefCell::new(crate::cmd_package::PackageState::with_core()),
             script_stack: RefCell::new(Vec::new()),
             channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
@@ -4371,6 +4402,24 @@ impl Interp {
                 self.set_result(obj::new_string_bytes(&alias));
                 Code::Ok
             }
+            // `$child recursionlimit ?newlimit?` — the path-less child form.
+            b"recursionlimit" => {
+                if argv.len() > 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" recursionlimit ?newlimit?\"");
+                    return self.error(&m);
+                }
+                let newlimit = argv.get(2).map(|&a| obj_bytes(a));
+                match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
+                    Some(Ok(n)) => {
+                        self.set_result_bytes(n.to_string().as_bytes());
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
             other => {
                 let mut m = b"interp subcommand \"".to_vec();
                 m.extend_from_slice(other);
@@ -4513,6 +4562,25 @@ impl Interp {
     /// Whether this interp is safe (`interp issafe`).
     pub(crate) fn is_safe(&self) -> bool {
         self.is_safe.get()
+    }
+
+    /// `interp recursionlimit` get / set on this interp. `newlimit` is the
+    /// optional new-limit bytes; returns the resulting limit, or the error
+    /// message the caller should raise (`expected integer …` / `… too large …`
+    /// / `recursion limit must be > 0`). Each interp keeps its own limit, so a
+    /// child raising its limit leaves the parent's untouched.
+    pub(crate) fn recursion_limit_apply(&self, newlimit: Option<&[u8]>) -> Result<i64, Vec<u8>> {
+        match newlimit {
+            None => Ok(self.recursion_limit.get() as i64),
+            Some(bytes) => {
+                let n = parse_recursion_limit(bytes)?;
+                if n <= 0 {
+                    return Err(b"recursion limit must be > 0".to_vec());
+                }
+                self.recursion_limit.set(n as usize);
+                Ok(n)
+            }
+        }
     }
 
     /// The names of this interp's direct child interpreters (sorted).
@@ -4685,7 +4753,7 @@ impl Interp {
             return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
         }
         // Recursion bound (catchable, not a stack overflow).
-        if self.recursion_depth.get() >= RECURSION_LIMIT {
+        if self.recursion_depth.get() >= self.recursion_limit.get() {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);
