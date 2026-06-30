@@ -40,7 +40,7 @@ number of areas:
 | 1 | WASM codegen emitter + `tcl-wasm` bundling | RT-WASM | 🟡 | **Largest single gap** |
 | 2 | Bytecode VM command surface + tcltest parity | RT-VM | 🟡 | Large |
 | 3 | `runtime/rust` tree-walking runtime port | (runtime, off-workspace) | 🟡 | Large |
-| 4 | Per-edit / cross-file incrementality (Tasks 1/2/6 shipped; 3/4/5/7 remain) | SRV-INCREMENTAL | 🟡 | XL |
+| 4 | Per-edit / cross-file incrementality (Tasks 1/2/6 shipped; 3/4 remain; 5/7 dropped — rope) | SRV-INCREMENTAL | 🟡 | L |
 | 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
 | 7 | Tooling residuals (explorer, fuzzer, irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
@@ -222,8 +222,8 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
    blocked by whole-module passes coupling one body's IR to others).
 4. 🟡 Approach B follow-ups — deep-clone removal *skipped* (measured 0.1 ms, below
    the value bar); per-function `optimise_unit` memo not yet built (M).
-5. 🔴 Wire `reparse_window` into the live re-lex path — *blocked*: no windowed
-   re-lex consumer exists; coupled to Task 7's chunk-addressable input.
+5. ⊘ **DROPPED** (rope-dependent, 2026-06-30 decision) — windowed re-lex is
+   coupled to Task 7's chunk-addressable input; out of scope.
 6. ✅ **Cross-file cascade** — `Project` salsa input, `project_proc_names` /
    `project_command_arities`, `project_diagnostics` (W123 suppression + cross-file
    E002/E003 arity across procs/classes/aliases/ensembles), live server wiring,
@@ -231,21 +231,21 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
    diagnostics depend only on the symbols it references, so an unrelated proc's
    signature edit no longer wakes it) **and the corpus-scale multi-file
    `incremental == fresh` fuzzer** (`project_diagnostics_corpus.rs`).
-7. 🔵 **Optional, gated** — rope store + chunk-addressable `SourceFile` input,
-   landing only if its 0.02% slice grows measurable *and* many-small-doc memory
-   stays under ~1.2× (may legitimately never land).
+7. ⊘ **DROPPED** (rope-dependent, 2026-06-30 decision) — rope store +
+   chunk-addressable `SourceFile` input; the `String` store is retained. Out of
+   scope.
 
 Also shipped this session: the **Task 2b random-edit differential fuzzer** (the
 named "still to build" verification gate — in-crate 250-edit + corpus `--ignored`,
 asserting the memoised checks path stays byte-identical to a fresh build across
 fuzzed edit sequences).
 
-**Genuinely remaining:** Task 3 (IR-lowering incrementality, L), Task 4's
-`optimise_unit` memo (**re-scoped to L** after a 2026-06-30 audit — no per-function
-optimiser seam exists, and O103 proc-call chain folding makes one function's
-optimisations depend on other functions' bodies, so it needs both per-function
-optimiser isolation *and* interproc reverse-dependency modeling, for a ~15 ms
-lever), Task 5 (blocked on 7), Task 7 (optional/gated).
+**De-roped remaining (Tasks 5 + 7 dropped 2026-06-30):** Task 3 (IR-lowering
+incrementality, L) and Task 4's `optimise_unit` memo (**re-scoped to L** after a
+2026-06-30 audit — no per-function optimiser seam exists, and O103 proc-call chain
+folding makes one function's optimisations depend on other functions' bodies, so it
+needs both per-function optimiser isolation *and* interproc reverse-dependency
+modeling, for a ~15 ms lever).
 
 ---
 
