@@ -207,6 +207,12 @@ pub fn find_command_at(
     find_command_at_inner(source, cursor, predicate, registry, 0)
 }
 
+/// Defensive recursion bound for the nested-command search, set to match the
+/// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
+/// still resolves the command under the cursor. Real source never nests
+/// anywhere near this.
+const MAX_COMMAND_SEARCH_DEPTH: u32 = 256;
+
 fn find_command_at_inner(
     source: &str,
     cursor: u32,
@@ -214,7 +220,7 @@ fn find_command_at_inner(
     registry: &CommandRegistry,
     depth: u32,
 ) -> Option<SegmentedCommand> {
-    if depth > 20 {
+    if depth > MAX_COMMAND_SEARCH_DEPTH {
         return None;
     }
     for cmd in segment_commands_with_offset(source, 0) {

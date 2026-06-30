@@ -402,6 +402,11 @@ struct FoldCtx<'a> {
 }
 
 /// Recursion depth is capped at 20.
+/// Defensive recursion bound for nested-body fold collection, set to match the
+/// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
+/// keeps full folding support. Real source never nests anywhere near this.
+const MAX_FOLD_DEPTH: u32 = 256;
+
 fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
@@ -409,7 +414,7 @@ fn collect_body_folds(
     inside_oo_body: bool,
     ctx: &mut FoldCtx<'_>,
 ) {
-    if depth > 20 {
+    if depth > MAX_FOLD_DEPTH {
         return;
     }
     let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);
@@ -770,6 +775,31 @@ mod tests {
         let source = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
+    }
+
+    #[test]
+    fn deeply_nested_bodies_fold_past_the_old_depth_cap() {
+        // Regression for the lifted `MAX_FOLD_DEPTH` (was 20): 40 nested `while`
+        // bodies — each on its own line — must all yield a region fold, so the
+        // innermost levels are no longer dropped by the descent guard.
+        const LEVELS: usize = 40;
+        let mut source = String::new();
+        for i in 0..LEVELS {
+            source.push_str(&"    ".repeat(i));
+            source.push_str("while {1} {\n");
+        }
+        source.push_str(&"    ".repeat(LEVELS));
+        source.push_str("puts deep\n");
+        for i in (0..LEVELS).rev() {
+            source.push_str(&"    ".repeat(i));
+            source.push_str("}\n");
+        }
+        let ranges = folding_ranges_default(&source, "tcl8.6");
+        let regions = fold_lines(&ranges, FoldKind::Region).len();
+        assert!(
+            regions >= LEVELS - 1,
+            "expected ~{LEVELS} nested region folds, got {regions} (depth cap too low?)",
+        );
     }
 
     #[test]

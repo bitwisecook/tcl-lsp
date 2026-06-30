@@ -24,8 +24,11 @@ use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 
-/// Recursion depth guard for nested body walks (a `depth > 20` cap).
-const MAX_BODY_DEPTH: u32 = 20;
+/// Recursion depth guard for nested body walks — a defensive stack-overflow
+/// bound, set to match the compiler analyser's `MAX_BODY_DEPTH` so deeply (but
+/// validly) nested code keeps full go-to-declaration support. Real source never
+/// nests anywhere near this.
+const MAX_BODY_DEPTH: u32 = 256;
 
 use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
 use crate::hover::find_var_at_position;
