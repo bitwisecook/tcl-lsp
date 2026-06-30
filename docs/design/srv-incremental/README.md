@@ -507,6 +507,15 @@ exist yet — the verification-status table follows the list.
    foundational than Tasks 2/4 (which had a ready offset-0 analysis seam to build
    on), and the corpus byte-identity gate (`per_item_corpus` / a new lowering
    differential) must hold throughout.
+   *Measured 2026-06-30 (a per-proc lowering-isolation differential over ~4.2 K
+   corpus procs):* lowering a proc body **in isolation** matches the whole-file
+   lowering's offset-0 body IR for only **~53 % of procs**; the other ~47 % diverge
+   on cross-item context (namespace scope, `namespace import`/`export`, command
+   aliases). This **quantifies** the "cross-item facts as inputs" requirement — a
+   complete byte-identical incremental lowering must thread that context as memo
+   inputs for the context-dependent half (and even a gated v1 over the ~53 %
+   context-free procs still needs the deep `Lowerer`-callback threading + effect
+   capture + assembly, for partial coverage on the non-paramount build path).
    *Deeper finding 2026-06-30:* even the per-body seam (`Lowering::lower_body`,
    called by `lower_proc`) is **stateful and effectful** — it registers nested
    `IRProcedure`s into the shared module, mutates the `const_map_stack` /
