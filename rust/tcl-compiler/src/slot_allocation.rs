@@ -278,21 +278,23 @@ fn add_clique(graph: &mut Interference, live: &HashSet<String>) {
 ///
 /// `live_out` must be the per-block name-level live-out from
 /// [`live_out_by_name`] for the same `cfg` / `ssa`.
-// `live_out` is the `live_out_by_name` map, always built with the default
-// hasher; generalising over the hasher would not help any caller.
-#[allow(clippy::implicit_hasher)]
 #[must_use]
-pub fn build_interference(
+pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
-    live_out: &HashMap<BlockId, HashSet<String>>,
+    live_out: &HashMap<BlockId, HashSet<String, S2>, S1>,
     registry: &CommandRegistry,
 ) -> Interference {
     let mut graph: Interference = HashMap::new();
     let mut scanner = make_scanner();
 
     for (id, sblock) in &ssa.blocks {
-        let mut live: HashSet<String> = live_out.get(id).cloned().unwrap_or_default();
+        // Collect into a fresh default-hashed set so the inner set's hasher
+        // (`S2`) does not propagate into the working `live` set / `add_clique`.
+        let mut live: HashSet<String> = live_out
+            .get(id)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
         if let Some(block) = cfg.blocks.get(id) {
             live.extend(terminator_read_names(block, &mut scanner, registry));
         }
@@ -336,14 +338,11 @@ pub fn build_interference(
 ///
 /// The result maps every name in the interference graph (plus any param) to a
 /// slot; [`slot_count`] of it is the coalesced slot count.
-// `live_out` is the `live_out_by_name` map, always built with the default
-// hasher; generalising over the hasher would not help any caller.
-#[allow(clippy::implicit_hasher)]
 #[must_use]
-pub fn coalesce_slots(
+pub fn coalesce_slots<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
-    live_out: &HashMap<BlockId, HashSet<String>>,
+    live_out: &HashMap<BlockId, HashSet<String, S2>, S1>,
     params: &[String],
     registry: &CommandRegistry,
 ) -> SlotMapping {

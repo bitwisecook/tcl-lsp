@@ -151,11 +151,9 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
         .find_map(|b| match &b.terminator {
             Some(Terminator::Branch {
                 true_target,
-                condition,
+                condition: tcl_compiler::expr_ast::ExprNode::Binary { .. },
                 ..
-            }) if matches!(condition, tcl_compiler::expr_ast::ExprNode::Binary { .. }) => {
-                Some(*true_target)
-            }
+            }) => Some(*true_target),
             _ => None,
         })
         .expect("a comparison-guarded branch")
@@ -820,10 +818,10 @@ mod guard_narrowing {
         let narrowed_to_9 = (1u32..=6).any(|ver| {
             // Only consider versions that actually have a base interval (skip
             // version 0 / undefined which refine to TOP).
-            iv.get(&(sym, ver)).is_some() && {
+            iv.get(&(sym, ver)).is_some_and(|_| {
                 let r = refine_interval(&iv, &fu.cfg, &fu.ssa, body, "i", ver, &gi);
                 !r.is_top() && !r.is_bottom() && r.hi == Some(9)
-            }
+            })
         });
         assert!(
             narrowed_to_9,

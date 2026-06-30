@@ -47,8 +47,10 @@
 //! Where a test's *premise* is a Tcl-semantic fact — a command's actual
 //! behaviour, a string transform, whether the first list element becomes the
 //! command word — it is verified against `scripts/dev/tclsh_check.sh` (tclsh8.6
-//! + tclsh9.0) and cited in a `// tclsh:` comment. The headline facts proven
-//! while authoring this file:
+//! + tclsh9.0) and cited in a `// tclsh:` comment.
+//!
+//! The headline facts proven while authoring this file:
+//!
 //!   * `eval [list $raw]`        → tclsh runs `$raw` as the command word
 //!     (`proc marker args {puts EXECUTED}; eval [list marker]` prints
 //!     `EXECUTED`) — so `LIST_CANONICAL` does NOT suppress T100 (D5-T100).

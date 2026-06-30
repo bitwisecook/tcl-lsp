@@ -56,9 +56,9 @@ pub fn dominates(ssa: &SsaFunction, dominator: BlockId, node: BlockId) -> bool {
 
 /// Predecessor map restricted to `executable` blocks (terminator
 /// successors only).
-fn cfg_predecessors(
+fn cfg_predecessors<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
-    executable: &HashSet<BlockId>,
+    executable: &HashSet<BlockId, S>,
 ) -> HashMap<BlockId, HashSet<BlockId>> {
     let mut preds: HashMap<BlockId, HashSet<BlockId>> =
         executable.iter().map(|b| (*b, HashSet::new())).collect();
@@ -77,11 +77,11 @@ fn cfg_predecessors(
 }
 
 /// Blocks in the natural loop for one back edge `latch -> header`.
-fn natural_loop_blocks(
+fn natural_loop_blocks<S: std::hash::BuildHasher>(
     header: BlockId,
     latch: BlockId,
     preds: &HashMap<BlockId, HashSet<BlockId>>,
-    executable: &HashSet<BlockId>,
+    executable: &HashSet<BlockId, S>,
 ) -> HashSet<BlockId> {
     let mut blocks: HashSet<BlockId> = HashSet::new();
     blocks.insert(header);
@@ -106,11 +106,10 @@ fn natural_loop_blocks(
 /// Build the natural-loop forest for `cfg` / `ssa`, restricted to the
 /// `executable` blocks.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn build_loop_forest(
+pub fn build_loop_forest<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable: &HashSet<BlockId>,
+    executable: &HashSet<BlockId, S>,
 ) -> LoopForest {
     let preds = cfg_predecessors(cfg, executable);
     let mut order: Vec<BlockId> = Vec::new();

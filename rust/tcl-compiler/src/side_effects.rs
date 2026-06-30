@@ -887,9 +887,8 @@ fn classify_variable_assignment(
 /// region `NONE`).
 // Each variant is mapped explicitly (1:1 by name, plus the two
 // registry-only fall-throughs) so the correspondence is auditable and
-// new registry targets fail to compile until mapped — keep the arms
-// even where two share a body.
-#[allow(clippy::match_same_arms)]
+// new registry targets fail to compile until mapped. Arms that share a
+// body are grouped with `|`.
 fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
     use RegistryTarget as R;
     match t {
@@ -912,7 +911,8 @@ fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
         R::PoolSelection => SideEffectTarget::PoolSelection,
         R::NodeSelection => SideEffectTarget::NodeSelection,
         R::SnatSelection => SideEffectTarget::SnatSelection,
-        R::FileIo => SideEffectTarget::FileIo,
+        // `ChannelIo` is file-shaped, so it lifts to `FileIo` like `FileIo`.
+        R::FileIo | R::ChannelIo => SideEffectTarget::FileIo,
         R::NetworkIo => SideEffectTarget::NetworkIo,
         R::LogIo => SideEffectTarget::LogIo,
         R::StreamProfile => SideEffectTarget::StreamProfile,
@@ -932,9 +932,7 @@ fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
         R::NamespaceState => SideEffectTarget::NamespaceState,
         R::InterpState => SideEffectTarget::InterpState,
         // Registry-only targets with no compiler counterpart.
-        R::Process => SideEffectTarget::Unknown,
-        R::ChannelIo => SideEffectTarget::FileIo,
-        R::Unknown => SideEffectTarget::Unknown,
+        R::Process | R::Unknown => SideEffectTarget::Unknown,
     }
 }
 

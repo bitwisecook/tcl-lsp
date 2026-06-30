@@ -9,9 +9,10 @@
 //!     Rust equivalent: `apply_optimisations(src, &optimise_with_dialect(...))`
 //!     for the rewritten text, and the `Vec<Optimisation>` for the `O1xx` codes.
 //!   * `find_redundant_computations(src)` — the GVN/CSE/LICM finder. Rust
-//!     equivalent: `find_redundancies_for_cu` + `find_partial_redundancies_for_cu`
-//!     + `find_loop_invariants_for_cu` over a `CompilationUnit` (all three are the
-//!     pieces Python's single function returns; full/partial → O105, loop → O106).
+//!     equivalent: `find_redundancies_for_cu`, `find_partial_redundancies_for_cu`,
+//!     and `find_loop_invariants_for_cu` over a `CompilationUnit` (all three are
+//!     the pieces Python's single function returns; full/partial → O105, loop →
+//!     O106).
 //!   * `find_shimmer_warnings(src)` — the shimmer/thunking detector. Rust
 //!     equivalent: `find_shimmer_warnings_for_cu` (S100/S101) +
 //!     `find_thunking_warnings_for_cu` (S102).
@@ -92,16 +93,6 @@ fn optimised(src: &str, dialect: &str) -> String {
     let registry = registry_for_dialect(dialect);
     let d = (!dialect.is_empty()).then_some(dialect);
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
-}
-
-/// Count optimisations carrying `code`.
-fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
-    optimise_with_dialect(src, registry, d)
-        .iter()
-        .filter(|o| o.code.as_str() == code)
-        .count()
 }
 
 /// True if any emitted code is in `wanted` (Python `any(r.code in (...))`).

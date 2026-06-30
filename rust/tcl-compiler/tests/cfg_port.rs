@@ -4,7 +4,7 @@
 //! Ported from two pytest files that drive the *Python* compiler:
 //!   * `tests/test_cfg.py`        → `compiler.cfg.build_cfg` over lowered IR
 //!   * `tests/test_cfg_layout.py` → `tooling.explorer.cfg_layout` (`assign_lanes`,
-//!                                   `build_cfg_edges`)
+//!     `build_cfg_edges`)
 //!
 //! The Rust pipeline is `build_cfg(&lower_to_ir(src, registry), false)`, the
 //! analogue of Python's `build_cfg(lower_to_ir(src))`. It returns a

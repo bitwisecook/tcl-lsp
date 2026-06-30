@@ -50,18 +50,30 @@ use super::{Optimisation, PassContext};
 /// recognise a pure `my <method>` self-dispatch. Conservative:
 /// anything we can't classify (unknown proc, dynamic dispatch,
 /// unparseable / no registry) is treated as having a side effect.
-fn word_has_observable_side_effect(
-    text: &str,
-    registry: Option<&CommandRegistry>,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
-) -> bool {
+/// Read-only purity context for the dead-code side-effect gates: the command
+/// registry plus the interprocedurally-proven pure procs / methods and the
+/// enclosing class for `my`-dispatch resolution. Bundled so the recursive
+/// side-effect checks stay within the argument limit.
+#[derive(Clone, Copy)]
+pub(crate) struct PurityCtx<'a> {
+    pub(crate) registry: Option<&'a CommandRegistry>,
+    pub(crate) interproc_pure: &'a HashSet<String>,
+    pub(crate) pure_methods: &'a HashSet<String>,
+    pub(crate) enclosing_class: Option<&'a str>,
+}
+
+fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>) -> bool {
+    let PurityCtx {
+        interproc_pure,
+        pure_methods,
+        enclosing_class,
+        ..
+    } = purity;
     if !text.contains('[') {
         return false;
     }
     // No registry to classify embedded commands → conservative.
-    let Some(registry) = registry else {
+    let Some(registry) = purity.registry else {
         return true;
     };
     let sm = tcl_lexer::SourceMap::new(text);
@@ -97,13 +109,7 @@ fn word_has_observable_side_effect(
         }
         // Recurse into nested substitutions inside the args.
         for arg in cmd_args {
-            if word_has_observable_side_effect(
-                arg,
-                Some(registry),
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ) {
+            if word_has_observable_side_effect(arg, purity) {
                 return true;
             }
         }
@@ -130,77 +136,28 @@ fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<Stri
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
 /// if any embedded command substitution in the expression has an
 /// observable side effect.
-fn expr_has_observable_side_effect(
-    node: &ExprNode,
-    registry: Option<&CommandRegistry>,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
-) -> bool {
+fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>) -> bool {
     match node {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => word_has_observable_side_effect(
-            text,
-            registry,
-            interproc_pure,
-            pure_methods,
-            enclosing_class,
-        ),
-        ExprNode::Binary { left, right, .. } => {
-            expr_has_observable_side_effect(
-                left,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ) || expr_has_observable_side_effect(
-                right,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            )
+        ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
+            word_has_observable_side_effect(text, purity)
         }
-        ExprNode::Unary { operand, .. } => expr_has_observable_side_effect(
-            operand,
-            registry,
-            interproc_pure,
-            pure_methods,
-            enclosing_class,
-        ),
+        ExprNode::Binary { left, right, .. } => {
+            expr_has_observable_side_effect(left, purity)
+                || expr_has_observable_side_effect(right, purity)
+        }
+        ExprNode::Unary { operand, .. } => expr_has_observable_side_effect(operand, purity),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_has_observable_side_effect(
-                condition,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ) || expr_has_observable_side_effect(
-                true_branch,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ) || expr_has_observable_side_effect(
-                false_branch,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            )
+            expr_has_observable_side_effect(condition, purity)
+                || expr_has_observable_side_effect(true_branch, purity)
+                || expr_has_observable_side_effect(false_branch, purity)
         }
-        ExprNode::Call { args, .. } => args.iter().any(|a| {
-            expr_has_observable_side_effect(
-                a,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            )
-        }),
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|a| expr_has_observable_side_effect(a, purity)),
         _ => false,
     }
 }
@@ -211,41 +168,17 @@ fn expr_has_observable_side_effect(
 /// substitution to be provably side-effect-free; `incr v` is safe
 /// unless its optional amount word has a side effect. Any other
 /// statement form is conservatively unsafe.
-pub(crate) fn assignment_safe_to_delete(
-    stmt: &Statement,
-    registry: Option<&CommandRegistry>,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
-) -> bool {
+pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
-        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(
-            value,
-            registry,
-            interproc_pure,
-            pure_methods,
-            enclosing_class,
-        ),
-        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(
-            expr,
-            registry,
-            interproc_pure,
-            pure_methods,
-            enclosing_class,
-        ),
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, purity),
+        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, purity),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead and
         // the optional amount word is side-effect-free.
         Statement::Incr { amount, .. } => match amount {
             None => true,
-            Some(a) => !word_has_observable_side_effect(
-                a,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ),
+            Some(a) => !word_has_observable_side_effect(a, purity),
         },
         // Unknown statement form — conservative.
         _ => false,
@@ -289,13 +222,17 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let proc_index = crate::interprocedural::build_proc_index_from_summaries(&ctx.interproc);
 
     emit_unreachable(ctx, &cu.top_level);
+    let purity = PurityCtx {
+        registry: ctx.registry,
+        interproc_pure: &interproc_pure,
+        pure_methods: &pure_methods,
+        enclosing_class: None,
+    };
     let baseline = emit_dead_stores_and_unused(
         ctx,
         &cu.top_level,
         is_top_level(&cu.top_level),
-        &interproc_pure,
-        &pure_methods,
-        None,
+        purity,
         &proc_index,
     );
     emit_adce(
@@ -333,15 +270,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             std::collections::HashSet::new()
         };
         emit_unreachable(ctx, fu);
-        let baseline = emit_dead_stores_and_unused(
-            ctx,
-            fu,
-            false,
-            &interproc_pure,
-            &pure_methods,
-            None,
-            &proc_index,
-        );
+        let purity = PurityCtx {
+            registry: ctx.registry,
+            interproc_pure: &interproc_pure,
+            pure_methods: &pure_methods,
+            enclosing_class: None,
+        };
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
         emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
     }
     ctx.cross_event_vars = saved_proc_cross;
@@ -361,15 +296,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             .map(|m| m.instance_vars.clone())
             .unwrap_or_default();
         emit_unreachable(ctx, fu);
-        let baseline = emit_dead_stores_and_unused(
-            ctx,
-            fu,
-            false,
-            &interproc_pure,
-            &pure_methods,
+        let purity = PurityCtx {
+            registry: ctx.registry,
+            interproc_pure: &interproc_pure,
+            pure_methods: &pure_methods,
             enclosing_class,
-            &proc_index,
-        );
+        };
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
         emit_adce(
             ctx,
             fu,
@@ -457,17 +390,13 @@ struct DseEntry {
 /// dead SSA def in `fu.def_use`. Returns the set of SSA value
 /// keys that were reported — the ADCE pass uses it as the
 /// "already eliminated" seed for its fixpoint.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn emit_dead_stores_and_unused(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     is_top_level: bool,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
+    purity: PurityCtx<'_>,
     proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
-    let registry = ctx.registry;
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let scope_aliases = scan_scope_aliases(&fu.cfg);
     // Caller-locals this function passes by name to an
@@ -525,13 +454,7 @@ fn emit_dead_stores_and_unused(
         // effects (`set unused [puts X]` prints, `set unused [my
         // impureMethod]` mutates object state). Only delete when every
         // embedded command substitution is provably side-effect-free.
-        if !assignment_safe_to_delete(
-            stmt,
-            registry,
-            interproc_pure,
-            pure_methods,
-            enclosing_class,
-        ) {
+        if !assignment_safe_to_delete(stmt, purity) {
             continue;
         }
         // Suppress when this element write is observed by a read the name-level
@@ -606,6 +529,18 @@ fn emit_dead_stores_and_unused(
         });
     }
 
+    emit_dse_entries(ctx, fu, entries)
+}
+
+/// Sort the collected dead-store / unused entries by span, record each O109
+/// into `ctx.dead_stores`, emit every optimisation, and return the set of
+/// eliminated SSA keys (the ADCE seed). Extracted from
+/// [`emit_dead_stores_and_unused`].
+fn emit_dse_entries(
+    ctx: &mut PassContext<'_>,
+    fu: &FunctionUnit,
+    mut entries: Vec<DseEntry>,
+) -> HashSet<(String, u32)> {
     entries.sort_by_key(|e| e.span.start());
     let mut removed: HashSet<(String, u32)> = HashSet::new();
     for e in entries {
@@ -641,6 +576,12 @@ fn emit_adce(
     pure_methods: &HashSet<String>,
     enclosing_class: Option<&str>,
 ) {
+    let purity = PurityCtx {
+        registry: ctx.registry,
+        interproc_pure,
+        pure_methods,
+        enclosing_class,
+    };
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
     let removed = run_adce_fixpoint(
@@ -649,10 +590,7 @@ fn emit_adce(
         &consumer_stmt_keys,
         &keep_forever,
         &stmt_to_defs,
-        ctx.registry,
-        interproc_pure,
-        pure_methods,
-        enclosing_class,
+        purity,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
 }
@@ -704,17 +642,13 @@ fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
     out
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run_adce_fixpoint(
     fu: &FunctionUnit,
     baseline: &HashSet<(String, u32)>,
     consumer_stmt_keys: &ConsumerMap,
     keep_forever: &HashSet<(String, u32)>,
     stmt_to_defs: &StmtDefsMap,
-    registry: Option<&CommandRegistry>,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
+    purity: PurityCtx<'_>,
 ) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
@@ -749,13 +683,7 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same gate O109/DSE applies
             // (an execution-intent PURE/NO_ESCAPE check) rather than treating
             // every assignment as pure.
-            if !assignment_safe_to_delete(
-                stmt,
-                registry,
-                interproc_pure,
-                pure_methods,
-                enclosing_class,
-            ) {
+            if !assignment_safe_to_delete(stmt, purity) {
                 continue;
             }
             let empty: Vec<(String, usize)> = Vec::new();
@@ -822,28 +750,27 @@ fn emit_adce_reports(
 /// suppression across proc boundaries no longer applies.
 /// Scan a slice for `$var` and `${var}` references, inserting names
 /// into *out*.  Extracted from `collect_textual_var_references`.
-#[allow(clippy::many_single_char_names)]
 fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
     let bytes = slice.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            i += 1;
+    let mut pos = 0;
+    while pos < bytes.len() {
+        if bytes[pos] != b'$' {
+            pos += 1;
             continue;
         }
-        i += 1;
-        if i >= bytes.len() {
+        pos += 1;
+        if pos >= bytes.len() {
             break;
         }
-        if bytes[i] == b'{' {
+        if bytes[pos] == b'{' {
             // ${name}
-            i += 1;
-            let start = i;
-            while i < bytes.len() && bytes[i] != b'}' {
-                i += 1;
+            pos += 1;
+            let start = pos;
+            while pos < bytes.len() && bytes[pos] != b'}' {
+                pos += 1;
             }
-            if start < i
-                && let Ok(name) = std::str::from_utf8(&bytes[start..i])
+            if start < pos
+                && let Ok(name) = std::str::from_utf8(&bytes[start..pos])
             {
                 // Strip any array index.
                 let name = name.split('(').next().unwrap_or(name);
@@ -851,25 +778,25 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
                     out.insert(name.to_owned());
                 }
             }
-            if i < bytes.len() {
-                i += 1; // consume closing `}`
+            if pos < bytes.len() {
+                pos += 1; // consume closing `}`
             }
             continue;
         }
         // $name: identifier chars (letters, digits, underscore, ::).
-        let start = i;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                i += 1;
-            } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
-                i += 2;
+        let start = pos;
+        while pos < bytes.len() {
+            let byte = bytes[pos];
+            if byte.is_ascii_alphanumeric() || byte == b'_' {
+                pos += 1;
+            } else if byte == b':' && pos + 1 < bytes.len() && bytes[pos + 1] == b':' {
+                pos += 2;
             } else {
                 break;
             }
         }
-        if start < i
-            && let Ok(name) = std::str::from_utf8(&bytes[start..i])
+        if start < pos
+            && let Ok(name) = std::str::from_utf8(&bytes[start..pos])
         {
             out.insert(name.to_owned());
         }
@@ -877,63 +804,67 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
 }
 
 /// Scan a slice for `[set NAME]` (1-arg read form) references.
-#[allow(clippy::many_single_char_names)]
 fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
-    let bs = slice.as_bytes();
-    let mut j = 0;
-    while j < bs.len() {
-        if bs[j] != b'[' {
-            j += 1;
+    let bytes = slice.as_bytes();
+    let mut pos = 0;
+    while pos < bytes.len() {
+        if bytes[pos] != b'[' {
+            pos += 1;
             continue;
         }
-        let open = j;
-        let mut k = j + 1;
-        while k < bs.len() && (bs[k] == b' ' || bs[k] == b'\t') {
-            k += 1;
+        let open = pos;
+        let mut cursor = pos + 1;
+        while cursor < bytes.len() && (bytes[cursor] == b' ' || bytes[cursor] == b'\t') {
+            cursor += 1;
         }
-        if slice[k..].starts_with("::") {
-            k += 2;
+        if slice[cursor..].starts_with("::") {
+            cursor += 2;
         }
-        if !slice[k..].starts_with("set") {
-            j = open + 1;
+        if !slice[cursor..].starts_with("set") {
+            pos = open + 1;
             continue;
         }
-        let after_set = k + 3;
-        if after_set >= bs.len() || !(bs[after_set] == b' ' || bs[after_set] == b'\t') {
-            j = open + 1;
+        let after_set = cursor + 3;
+        if after_set >= bytes.len() || !(bytes[after_set] == b' ' || bytes[after_set] == b'\t') {
+            pos = open + 1;
             continue;
         }
-        let mut m = after_set;
-        while m < bs.len() && (bs[m] == b' ' || bs[m] == b'\t') {
-            m += 1;
+        let mut name_cursor = after_set;
+        while name_cursor < bytes.len()
+            && (bytes[name_cursor] == b' ' || bytes[name_cursor] == b'\t')
+        {
+            name_cursor += 1;
         }
-        let name_start = m;
-        while m < bs.len() {
-            let b = bs[m];
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                m += 1;
-            } else if b == b':' && m + 1 < bs.len() && bs[m + 1] == b':' {
-                m += 2;
+        let name_start = name_cursor;
+        while name_cursor < bytes.len() {
+            let byte = bytes[name_cursor];
+            if byte.is_ascii_alphanumeric() || byte == b'_' {
+                name_cursor += 1;
+            } else if byte == b':'
+                && name_cursor + 1 < bytes.len()
+                && bytes[name_cursor + 1] == b':'
+            {
+                name_cursor += 2;
             } else {
                 break;
             }
         }
-        if m == name_start {
-            j = open + 1;
+        if name_cursor == name_start {
+            pos = open + 1;
             continue;
         }
-        let mut n = m;
-        while n < bs.len() && (bs[n] == b' ' || bs[n] == b'\t') {
-            n += 1;
+        let mut tail = name_cursor;
+        while tail < bytes.len() && (bytes[tail] == b' ' || bytes[tail] == b'\t') {
+            tail += 1;
         }
-        if n < bs.len()
-            && bs[n] == b']'
-            && let Ok(name) = std::str::from_utf8(&bs[name_start..m])
+        if tail < bytes.len()
+            && bytes[tail] == b']'
+            && let Ok(name) = std::str::from_utf8(&bytes[name_start..name_cursor])
             && !name.is_empty()
         {
             out.insert(name.to_owned());
         }
-        j = m;
+        pos = name_cursor;
     }
 }
 

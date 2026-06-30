@@ -375,7 +375,18 @@ fn couple_propagated_const_dead_stores(
     }
 }
 
-#[allow(clippy::too_many_lines)]
+/// Per-function read-only state for the const-dead-store coupling check,
+/// borrowed across each def-use chain.
+struct CoupleCtx<'a> {
+    fu: &'a crate::compilation_unit::FunctionUnit,
+    registry: &'a CommandRegistry,
+    source: &'a str,
+    selected: &'a [Optimisation],
+    def_count: std::collections::HashMap<&'a str, usize>,
+    scope_aliases: std::collections::HashSet<String>,
+    rmw_hidden: std::collections::HashSet<String>,
+}
+
 fn couple_const_dead_stores_in_function(
     fu: &crate::compilation_unit::FunctionUnit,
     registry: &CommandRegistry,
@@ -383,13 +394,7 @@ fn couple_const_dead_stores_in_function(
     selected: &[Optimisation],
     removals: &mut Vec<Optimisation>,
 ) {
-    use crate::analyses::LatticeValue;
-    use crate::def_use::{DefKind, UseKind};
-    use std::collections::HashSet;
-
-    let scope_aliases = super::elimination::scan_scope_aliases(&fu.cfg);
-    let rmw_hidden = super::elimination::collect_rmw_hidden_reads(fu, registry);
-    let empty: HashSet<String> = HashSet::new();
+    use crate::def_use::DefKind;
 
     // Per-variable def count — only single-def scalars qualify.
     let mut def_count: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
@@ -399,144 +404,172 @@ fn couple_const_dead_stores_in_function(
         }
     }
 
+    let ctx = CoupleCtx {
+        fu,
+        registry,
+        source,
+        selected,
+        def_count,
+        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg),
+        rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
+    };
+
     for chain in fu.def_use.chains.values() {
-        if chain.definition.kind != DefKind::Statement {
-            continue;
+        if let Some(removal) = couple_const_dead_store_chain(&ctx, chain) {
+            removals.push(removal);
         }
-        let (var, _ver) = &chain.key;
-        // Single constant scalar def, never aliased / global / RMW-hidden.
-        if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
-            continue;
-        }
-        if var.starts_with("::") || scope_aliases.contains(var) || rmw_hidden.contains(var) {
-            continue;
-        }
-        // The def-use chain keys on the variable name; resolve it to the SSA
-        // symbol to index the `(Symbol, Version)`-keyed SCCP lattice.
-        let is_const = fu
-            .ssa
-            .var_symbol(var)
-            .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
-            .is_some_and(|lv| matches!(lv, LatticeValue::Const(_)));
-        if !is_const {
-            continue;
-        }
-        // Any def-tracked use must be a simple operand read — a phi/terminator
-        // use means the value flows somewhere a textual `$var` scan can't see,
-        // so bail conservatively.
-        if chain
-            .uses
-            .iter()
-            .any(|u| !matches!(u.kind, UseKind::Operand))
-        {
-            continue;
-        }
-        let Some(def_block) = fu.cfg.block_by_name(&chain.definition.block) else {
-            continue;
-        };
-        let Ok(def_idx) = usize::try_from(chain.definition.statement_index) else {
-            continue;
-        };
-        let Some(def_stmt) = def_block.statements.get(def_idx) else {
-            continue;
-        };
-        // The def must be a const-foldable scalar assignment whose inlined
-        // value carries no substitution metacharacters. Two shapes qualify:
-        //
-        //   * `set x <literal>` (`AssignConst`) inlines its literal verbatim.
-        //   * `set x [expr {1+1}]` (`AssignExpr` / `AssignValue`) was proven
-        //     `Const` by SCCP above, so O100 substituted the *rendered
-        //     constant* (`2`), not the original expression text. These are
-        //     removed too once the fold and propagation are applied.
-        //
-        // Either way reject a value bearing `$ [ ] \`: it could re-substitute
-        // differently once inlined, so those are left to the conservative path.
-        let inlined_value = match def_stmt {
-            crate::ir::Statement::AssignConst { value, .. } => value.clone(),
-            crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
-                let Some(LatticeValue::Const(c)) = fu
-                    .ssa
-                    .var_symbol(&chain.key.0)
-                    .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
-                else {
-                    continue;
-                };
-                let Some(text) = super::helpers::literals::format_constant(c) else {
-                    continue;
-                };
-                text
-            }
-            _ => continue,
-        };
-        if inlined_value.contains(['$', '[', ']', '\\']) {
-            continue;
-        }
-        // Pure constant assignment — removing it loses no observable effect.
-        if !super::elimination::assignment_safe_to_delete(
-            def_stmt,
-            Some(registry),
-            &empty,
-            &empty,
-            None,
-        ) {
-            continue;
-        }
-
-        // Textual coupling check (robust to def-use gaps such as
-        // string-interpolation reads): count `$var` references across the
-        // function, then count how many a *surviving* propagation actually
-        // consumed. The def is removable only when at least one reference
-        // existed and **every** reference was propagated away. A braced
-        // literal `{$var}` (no substitution) or an array `$var(i)` read is
-        // counted but never consumed, so the counts diverge and we keep the
-        // def — conservative and safe.
-        let (fs, fe) = function_source_span(fu);
-        if fs >= fe || fe > source.len() {
-            continue;
-        }
-        let func_src = &source[fs..fe];
-        let total_refs = count_var_refs(func_src, var);
-        if total_refs == 0 {
-            // Never read (or read only in a non-substituting form) — the
-            // existing unused-variable pass owns this; not a propagation
-            // coupling.
-            continue;
-        }
-        // Miscompilation guard: the variable name must appear as a *bareword*
-        // exactly once — the def target. Any other bareword occurrence is a
-        // by-name read the `$var` scan can't see (`[set x]`, `info exists x`,
-        // `upvar … x`, a `"…x…"` literal, …); removing the def would then drop a
-        // value still consumed. Conservative: a stray textual `x` keeps the def.
-        if bareword_occurrences(func_src, var) != 1 {
-            continue;
-        }
-        // Attribute a propagation to this function by its *start* offset —
-        // a rewrite never spans two functions, and a word-token's span may
-        // run one past `fe` (the inner-end convention leaves the closing
-        // delimiter outside the statement span).
-        let consumed: usize = selected
-            .iter()
-            .filter(|o| {
-                !o.hint_only
-                    && is_propagation_code(o.code)
-                    && (o.span.start() as usize) >= fs
-                    && (o.span.start() as usize) <= fe
-            })
-            .map(|o| consumed_var_count(o, source, var))
-            .sum();
-        if consumed != total_refs {
-            continue;
-        }
-
-        // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
-        let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
-        removals.push(Optimisation::new(
-            DiagCode::O109,
-            "Eliminate dead store",
-            del_span,
-            "",
-        ));
     }
+}
+
+/// Decide whether one def-use `chain` is a const dead store fully consumed by
+/// propagation, returning the O109 removal to emit when so. Extracted from
+/// [`couple_const_dead_stores_in_function`].
+fn couple_const_dead_store_chain(
+    ctx: &CoupleCtx<'_>,
+    chain: &crate::def_use::DefUseChain,
+) -> Option<Optimisation> {
+    use crate::analyses::LatticeValue;
+    use crate::def_use::{DefKind, UseKind};
+    use std::collections::HashSet;
+
+    let CoupleCtx {
+        fu,
+        registry,
+        source,
+        selected,
+        def_count,
+        scope_aliases,
+        rmw_hidden,
+    } = ctx;
+    let empty: HashSet<String> = HashSet::new();
+
+    if chain.definition.kind != DefKind::Statement {
+        return None;
+    }
+    let (var, _ver) = &chain.key;
+    // Single constant scalar def, never aliased / global / RMW-hidden.
+    if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
+        return None;
+    }
+    if var.starts_with("::") || scope_aliases.contains(var) || rmw_hidden.contains(var) {
+        return None;
+    }
+    // The def-use chain keys on the variable name; resolve it to the SSA
+    // symbol to index the `(Symbol, Version)`-keyed SCCP lattice.
+    let is_const = fu
+        .ssa
+        .var_symbol(var)
+        .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
+        .is_some_and(|lv| matches!(lv, LatticeValue::Const(_)));
+    if !is_const {
+        return None;
+    }
+    // Any def-tracked use must be a simple operand read — a phi/terminator
+    // use means the value flows somewhere a textual `$var` scan can't see,
+    // so bail conservatively.
+    if chain
+        .uses
+        .iter()
+        .any(|u| !matches!(u.kind, UseKind::Operand))
+    {
+        return None;
+    }
+    let def_block = fu.cfg.block_by_name(&chain.definition.block)?;
+    let def_idx = usize::try_from(chain.definition.statement_index).ok()?;
+    let def_stmt = def_block.statements.get(def_idx)?;
+    // The def must be a const-foldable scalar assignment whose inlined
+    // value carries no substitution metacharacters. Two shapes qualify:
+    //
+    //   * `set x <literal>` (`AssignConst`) inlines its literal verbatim.
+    //   * `set x [expr {1+1}]` (`AssignExpr` / `AssignValue`) was proven
+    //     `Const` by SCCP above, so O100 substituted the *rendered
+    //     constant* (`2`), not the original expression text. These are
+    //     removed too once the fold and propagation are applied.
+    //
+    // Either way reject a value bearing `$ [ ] \`: it could re-substitute
+    // differently once inlined, so those are left to the conservative path.
+    let inlined_value = match def_stmt {
+        crate::ir::Statement::AssignConst { value, .. } => value.clone(),
+        crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
+            let Some(LatticeValue::Const(c)) = fu
+                .ssa
+                .var_symbol(&chain.key.0)
+                .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
+            else {
+                return None;
+            };
+            super::helpers::literals::format_constant(c)?
+        }
+        _ => return None,
+    };
+    if inlined_value.contains(['$', '[', ']', '\\']) {
+        return None;
+    }
+    // Pure constant assignment — removing it loses no observable effect.
+    let purity = super::elimination::PurityCtx {
+        registry: Some(registry),
+        interproc_pure: &empty,
+        pure_methods: &empty,
+        enclosing_class: None,
+    };
+    if !super::elimination::assignment_safe_to_delete(def_stmt, purity) {
+        return None;
+    }
+
+    // Textual coupling check (robust to def-use gaps such as
+    // string-interpolation reads): count `$var` references across the
+    // function, then count how many a *surviving* propagation actually
+    // consumed. The def is removable only when at least one reference
+    // existed and **every** reference was propagated away. A braced
+    // literal `{$var}` (no substitution) or an array `$var(i)` read is
+    // counted but never consumed, so the counts diverge and we keep the
+    // def — conservative and safe.
+    let (fs, fe) = function_source_span(fu);
+    if fs >= fe || fe > source.len() {
+        return None;
+    }
+    let func_src = &source[fs..fe];
+    let total_refs = count_var_refs(func_src, var);
+    if total_refs == 0 {
+        // Never read (or read only in a non-substituting form) — the
+        // existing unused-variable pass owns this; not a propagation
+        // coupling.
+        return None;
+    }
+    // Miscompilation guard: the variable name must appear as a *bareword*
+    // exactly once — the def target. Any other bareword occurrence is a
+    // by-name read the `$var` scan can't see (`[set x]`, `info exists x`,
+    // `upvar … x`, a `"…x…"` literal, …); removing the def would then drop a
+    // value still consumed. Conservative: a stray textual `x` keeps the def.
+    if bareword_occurrences(func_src, var) != 1 {
+        return None;
+    }
+    // Attribute a propagation to this function by its *start* offset —
+    // a rewrite never spans two functions, and a word-token's span may
+    // run one past `fe` (the inner-end convention leaves the closing
+    // delimiter outside the statement span).
+    let consumed: usize = selected
+        .iter()
+        .filter(|o| {
+            !o.hint_only
+                && is_propagation_code(o.code)
+                && (o.span.start() as usize) >= fs
+                && (o.span.start() as usize) <= fe
+        })
+        .map(|o| consumed_var_count(o, source, var))
+        .sum();
+    if consumed != total_refs {
+        return None;
+    }
+
+    // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
+    let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
+    Some(Optimisation::new(
+        DiagCode::O109,
+        "Eliminate dead store",
+        del_span,
+        "",
+    ))
 }
 
 /// Source byte range spanning every statement of `fu` (for textual reference

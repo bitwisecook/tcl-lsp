@@ -310,10 +310,10 @@ fn dead_store_and_dead_code_elimination() {
 
     // DCE of an `if {0}` block: dead body removed, `puts always` survives (O112).
     let dce = "if {0} {\n    puts never\n    set x 1\n}\nputs always\n";
-    let dce_out = optimised(dce, TCL);
-    assert!(!dce_out.contains("puts never"));
-    assert!(!dce_out.contains("set x 1"));
-    assert!(dce_out.contains("puts always"));
+    let dce_result = optimised(dce, TCL);
+    assert!(!dce_result.contains("puts never"));
+    assert!(!dce_result.contains("set x 1"));
+    assert!(dce_result.contains("puts always"));
     assert!(opt_fires(dce, TCL, "O112"));
 }
 

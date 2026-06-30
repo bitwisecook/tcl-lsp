@@ -5,8 +5,6 @@
 //! `InterproceduralAnalysis`) plus the call-target resolver, which
 //! plug into the side-effect classifier and the SCCP evaluator.
 
-#![allow(clippy::struct_excessive_bools, clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
@@ -112,6 +110,10 @@ impl ConstantReturn {
 }
 
 /// Per-procedure summary of interprocedural facts.
+// False positive: a flat record of independent boolean facts about a
+// procedure (barrier / unknown-calls / writes-global / pure / ...), not a
+// state machine — there is no natural enum to collapse these into.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcSummary {
     /// Fully-qualified procedure name.
@@ -343,10 +345,10 @@ pub fn collect_call_by_name_reads(
 /// not starting with it are treated as global-relative; bare
 /// names are resolved by walking up the caller's namespace path.
 #[must_use]
-pub fn resolve_internal_call(
+pub fn resolve_internal_call<S: std::hash::BuildHasher>(
     command: &str,
     caller_qname: &str,
-    known: &HashSet<String>,
+    known: &HashSet<String, S>,
 ) -> Option<String> {
     if command.is_empty() {
         return None;
@@ -387,11 +389,11 @@ pub fn resolve_internal_call(
 /// handles the common case where the caller has no special
 /// aliasing information.
 #[must_use]
-pub fn resolve_call_target(
+pub fn resolve_call_target<S: std::hash::BuildHasher>(
     command: &str,
     _args: &[String],
     caller_qname: &str,
-    known: &HashSet<String>,
+    known: &HashSet<String, S>,
 ) -> Option<String> {
     resolve_internal_call(command, caller_qname, known)
 }
@@ -509,15 +511,14 @@ fn build_method_summaries(
             ..LocalFacts::default()
         };
         let params: HashSet<String> = method.params.iter().cloned().collect();
-        scan_script(
-            &method.body,
-            mqname,
-            &method_known,
+        let ctx = ScanCtx {
+            caller: mqname,
+            known: &method_known,
             registry,
             dialect,
-            &mut facts,
-            &params,
-        );
+            params: &params,
+        };
+        scan_script(&method.body, ctx, &mut facts);
         // Fall-through exit is non-constant (O103); see `scan_proc`.
         if !script_always_returns(&method.body) {
             facts.returns.push(ReturnKind::Other);
@@ -916,6 +917,9 @@ fn materialise_summaries(
 
 /// Per-procedure scratch facts consumed by the summary-building
 /// pipeline.
+// False positive: a flat record of independent boolean facts gathered while
+// scanning a body, not a state machine — no natural enum to collapse into.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 struct LocalFacts {
     direct_calls: HashSet<String>,
@@ -993,9 +997,14 @@ fn scan_proc(
         ..LocalFacts::default()
     };
     let params: HashSet<String> = proc.params.iter().cloned().collect();
-    scan_script(
-        &proc.body, qname, known, registry, dialect, &mut facts, &params,
-    );
+    let ctx = ScanCtx {
+        caller: qname,
+        known,
+        registry,
+        dialect,
+        params: &params,
+    };
+    scan_script(&proc.body, ctx, &mut facts);
     // If the body can fall off the end, its implicit exit returns the
     // result of the last command — not a constant. Record a non-constant
     // exit so `summarise_returns` won't fold a conditional `return CONST`
@@ -1007,33 +1016,36 @@ fn scan_proc(
     facts
 }
 
-fn scan_script(
-    script: &crate::ir::Script,
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    facts: &mut LocalFacts,
-    params: &HashSet<String>,
-) {
+/// Read-only context shared by the recursive proc/method body scanners
+/// ([`scan_script`] / [`scan_statement`] / [`scan_call_facts`] /
+/// [`scan_value_substitutions`]). Bundled so the scanners stay within the
+/// argument limit.
+#[derive(Clone, Copy)]
+struct ScanCtx<'a> {
+    caller: &'a str,
+    known: &'a HashSet<String>,
+    registry: &'a tcl_registry::CommandRegistry,
+    dialect: Option<&'a str>,
+    params: &'a HashSet<String>,
+}
+
+fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
     for stmt in &script.statements {
-        scan_statement(stmt, caller, known, registry, dialect, facts, params);
+        scan_statement(stmt, ctx, facts);
     }
 }
 
 /// Process a `Statement::Call` for interprocedural facts: side-
 /// effects classification, internal-call resolution, and param
 /// trait inference.  Extracted from [`scan_statement`].
-#[allow(clippy::too_many_arguments)]
-fn scan_call_facts(
-    command: &str,
-    args: &[String],
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    facts: &mut LocalFacts,
-    params: &HashSet<String>,
-) {
+fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    let ScanCtx {
+        caller,
+        known,
+        registry,
+        params,
+        ..
+    } = ctx;
     // Resolve internal-proc call targets first. Special case
     // for iRules' ``call <proc>`` indirection: when the
     // command is literally ``call`` and the first arg is
@@ -1186,17 +1198,62 @@ fn mark_upvar_alias_write(name: &str, facts: &mut LocalFacts) {
     }
 }
 
-#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
-fn scan_statement(
-    stmt: &crate::ir::Statement,
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+/// Gather interprocedural facts from a `Statement::Call`: scope-aliasing
+/// declarations (`global` / `variable` / `upvar #0`), global / upvar write-back
+/// detection, and the per-call side-effect / call-graph facts. Extracted from
+/// [`scan_statement`].
+fn scan_call_statement(
+    command: &str,
+    args: &[String],
+    defs: &[String],
+    ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
-    params: &HashSet<String>,
 ) {
+    let ScanCtx { params, .. } = ctx;
+    // Track scope-aliasing declarations (`global` / `variable` / `upvar #0`)
+    // so a later bare write to an aliased name counts as `writes_global`.
+    // Declaring is not writing, so handle the declaration before the
+    // defs-based write check.
+    match global_alias_names(command, args) {
+        Some(alias_names) => {
+            if alias_names.contains("") {
+                // Dynamic / unbounded alias target — conservative.
+                facts.writes_global = true;
+            }
+            facts
+                .global_aliases
+                .extend(alias_names.into_iter().filter(|n| !n.is_empty()));
+        }
+        None => {
+            // A non-declaration command that writes a `::`-qualified
+            // or global-aliased variable (`append g`, `lappend g`,
+            // `dict set ::cfg ...`) mutates caller-visible state.
+            if defs
+                .iter()
+                .any(|n| !n.is_empty() && (n.starts_with("::") || facts.global_aliases.contains(n)))
+            {
+                facts.writes_global = true;
+            }
+        }
+    }
+    // Call-by-name: record `upvar` aliases, and treat any command writing a
+    // level-1 upvar alias (`append` / `lappend` / `lassign` … via `defs`) as a
+    // write-back to the caller's variable.
+    if command == "upvar" {
+        handle_upvar_aliases(args, params, facts);
+    } else {
+        // `upvar` itself is excluded — its `defs` are the locals it *defines*
+        // (aliases), not writes.
+        for d in defs {
+            mark_upvar_alias_write(d, facts);
+        }
+    }
+    scan_call_facts(command, args, ctx, facts);
+}
+
+fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
     use crate::ir::Statement;
+    let ScanCtx { params, .. } = ctx;
     match stmt {
         Statement::Barrier { .. } => {
             facts.has_barrier = true;
@@ -1215,14 +1272,14 @@ fn scan_statement(
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
             for inner in &body.statements {
-                scan_statement(inner, caller, known, registry, dialect, facts, params);
+                scan_statement(inner, ctx, facts);
             }
         }
         Statement::Block { body, .. } => {
             // ``Block`` is a transparent splice: walk through to the
             // inner statements without flagging a barrier.
             for inner in &body.statements {
-                scan_statement(inner, caller, known, registry, dialect, facts, params);
+                scan_statement(inner, ctx, facts);
             }
         }
         Statement::AssignConst { name, .. } | Statement::AssignExpr { name, .. } => {
@@ -1234,7 +1291,7 @@ fn scan_statement(
             // value is a call site (`set y [double $x]`), so its callees
             // become call-graph edges.
             if value.contains('[') {
-                scan_value_substitutions(value, caller, known, registry, dialect, facts, params);
+                scan_value_substitutions(value, ctx, facts);
             }
         }
         Statement::Incr { name, amount, .. } => {
@@ -1242,7 +1299,7 @@ fn scan_statement(
             if let Some(amount) = amount
                 && amount.contains('[')
             {
-                scan_value_substitutions(amount, caller, known, registry, dialect, facts, params);
+                scan_value_substitutions(amount, ctx, facts);
             }
         }
         Statement::Return { value, expr, .. } => {
@@ -1253,7 +1310,7 @@ fn scan_statement(
             if let Some(value) = value
                 && value.contains('[')
             {
-                scan_value_substitutions(value, caller, known, registry, dialect, facts, params);
+                scan_value_substitutions(value, ctx, facts);
             }
         }
         Statement::Call {
@@ -1262,67 +1319,43 @@ fn scan_statement(
             defs,
             ..
         } => {
-            // Track scope-aliasing declarations (`global`
-            // / `variable` / `upvar #0`) so a later bare write to an
-            // aliased name counts as `writes_global`. Declaring is not
-            // writing, so handle the declaration before the defs-based
-            // write check.
-            match global_alias_names(command, args) {
-                Some(alias_names) => {
-                    if alias_names.contains("") {
-                        // Dynamic / unbounded alias target — conservative.
-                        facts.writes_global = true;
-                    }
-                    facts
-                        .global_aliases
-                        .extend(alias_names.into_iter().filter(|n| !n.is_empty()));
-                }
-                None => {
-                    // A non-declaration command that writes a `::`-qualified
-                    // or global-aliased variable (`append g`, `lappend g`,
-                    // `dict set ::cfg ...`) mutates caller-visible state.
-                    if defs.iter().any(|n| {
-                        !n.is_empty() && (n.starts_with("::") || facts.global_aliases.contains(n))
-                    }) {
-                        facts.writes_global = true;
-                    }
-                }
-            }
-            // Call-by-name: record `upvar` aliases, and
-            // treat any command writing a level-1 upvar alias (`append`
-            // / `lappend` / `lassign` … via `defs`) as a write-back to
-            // the caller's variable.
-            if command == "upvar" {
-                handle_upvar_aliases(args, params, facts);
-            } else {
-                // A command writing a level-1 upvar alias (`append` /
-                // `lappend` / `lassign` … via `defs`) is a write-back.
-                // `upvar` itself is excluded — its `defs` are the locals
-                // it *defines* (aliases), not writes.
-                for d in defs {
-                    mark_upvar_alias_write(d, facts);
-                }
-            }
-            scan_call_facts(command, args, caller, known, registry, facts, params);
+            scan_call_statement(command, args, defs, ctx, facts);
         }
+        Statement::If { .. }
+        | Statement::For { .. }
+        | Statement::While { .. }
+        | Statement::ExprEval { .. }
+        | Statement::Foreach { .. }
+        | Statement::Catch { .. }
+        | Statement::Try { .. }
+        | Statement::Switch { .. } => {
+            scan_control_flow_statement(stmt, ctx, facts);
+        }
+    }
+}
+
+/// Recurse into the bodies / conditions of a control-flow statement (`if` /
+/// `for` / `while` / `expr` / `foreach` / `catch` / `try` / `switch`),
+/// recording param-touching conditions and embedded call edges. Extracted from
+/// [`scan_statement`].
+fn scan_control_flow_statement(
+    stmt: &crate::ir::Statement,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use crate::ir::Statement;
+    let ScanCtx { params, .. } = ctx;
+    match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
                 note_params_in_expr(&c.condition, params, facts);
-                scan_expr_for_calls(
-                    &c.condition,
-                    caller,
-                    known,
-                    registry,
-                    dialect,
-                    facts,
-                    params,
-                );
-                scan_script(&c.body, caller, known, registry, dialect, facts, params);
+                scan_expr_for_calls(&c.condition, ctx, facts);
+                scan_script(&c.body, ctx, facts);
             }
             if let Some(body) = else_body {
-                scan_script(body, caller, known, registry, dialect, facts, params);
+                scan_script(body, ctx, facts);
             }
         }
         Statement::For {
@@ -1333,24 +1366,24 @@ fn scan_statement(
             ..
         } => {
             note_params_in_expr(condition, params, facts);
-            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
-            scan_script(init, caller, known, registry, dialect, facts, params);
-            scan_script(next, caller, known, registry, dialect, facts, params);
-            scan_script(body, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(condition, ctx, facts);
+            scan_script(init, ctx, facts);
+            scan_script(next, ctx, facts);
+            scan_script(body, ctx, facts);
         }
         Statement::While {
             condition, body, ..
         } => {
             note_params_in_expr(condition, params, facts);
-            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
-            scan_script(body, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(condition, ctx, facts);
+            scan_script(body, ctx, facts);
         }
         Statement::ExprEval { expr, .. } => {
             note_params_in_expr(expr, params, facts);
-            scan_expr_for_calls(expr, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(expr, ctx, facts);
         }
         Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
-            scan_script(body, caller, known, registry, dialect, facts, params);
+            scan_script(body, ctx, facts);
         }
         Statement::Try {
             body,
@@ -1358,12 +1391,12 @@ fn scan_statement(
             finally_body,
             ..
         } => {
-            scan_script(body, caller, known, registry, dialect, facts, params);
+            scan_script(body, ctx, facts);
             for h in handlers {
-                scan_script(&h.body, caller, known, registry, dialect, facts, params);
+                scan_script(&h.body, ctx, facts);
             }
             if let Some(fb) = finally_body {
-                scan_script(fb, caller, known, registry, dialect, facts, params);
+                scan_script(fb, ctx, facts);
             }
         }
         Statement::Switch {
@@ -1371,13 +1404,14 @@ fn scan_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    scan_script(b, caller, known, registry, dialect, facts, params);
+                    scan_script(b, ctx, facts);
                 }
             }
             if let Some(db) = default_body {
-                scan_script(db, caller, known, registry, dialect, facts, params);
+                scan_script(db, ctx, facts);
             }
         }
+        _ => {}
     }
 }
 
@@ -1434,15 +1468,7 @@ fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>>
 /// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
 /// ...` left `q` unrecorded as a callee — flagging it as dead code
 /// and missing the edge in `tcl callgraph`.
-fn scan_expr_for_calls(
-    node: &crate::expr_ast::ExprNode,
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    facts: &mut LocalFacts,
-    params: &HashSet<String>,
-) {
+fn scan_expr_for_calls(node: &crate::expr_ast::ExprNode, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
     use crate::expr_ast::ExprNode;
     match node {
         ExprNode::Command { text, .. } => {
@@ -1454,7 +1480,7 @@ fn scan_expr_for_calls(
                 .strip_prefix('[')
                 .and_then(|s| s.strip_suffix(']'))
                 .unwrap_or(text.as_str());
-            scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
+            scan_source_for_calls(inner, ctx, facts);
         }
         ExprNode::String { text, .. }
             // Quoted strings may contain command substitutions
@@ -1467,36 +1493,28 @@ fn scan_expr_for_calls(
         {
             let inner = &text[1..text.len() - 1];
             if inner.contains('[') {
-                scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
+                scan_source_for_calls(inner, ctx, facts);
             }
         }
         ExprNode::Binary { left, right, .. } => {
-            scan_expr_for_calls(left, caller, known, registry, dialect, facts, params);
-            scan_expr_for_calls(right, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(left, ctx, facts);
+            scan_expr_for_calls(right, ctx, facts);
         }
         ExprNode::Unary { operand, .. } => {
-            scan_expr_for_calls(operand, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(operand, ctx, facts);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
-            scan_expr_for_calls(true_branch, caller, known, registry, dialect, facts, params);
-            scan_expr_for_calls(
-                false_branch,
-                caller,
-                known,
-                registry,
-                dialect,
-                facts,
-                params,
-            );
+            scan_expr_for_calls(condition, ctx, facts);
+            scan_expr_for_calls(true_branch, ctx, facts);
+            scan_expr_for_calls(false_branch, ctx, facts);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                scan_expr_for_calls(a, caller, known, registry, dialect, facts, params);
+                scan_expr_for_calls(a, ctx, facts);
             }
         }
         _ => {}
@@ -1529,15 +1547,8 @@ fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
 /// dialect; each [`TokenType::Cmd`] token's inner script is handed to
 /// [`scan_source_for_calls`] (which resolves the head, applies the
 /// callee's effects, and recurses into `BODY`-role args).
-fn scan_value_substitutions(
-    text: &str,
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    facts: &mut LocalFacts,
-    params: &HashSet<String>,
-) {
+fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    let dialect = ctx.dialect;
     if !text.contains('[') {
         return;
     }
@@ -1559,28 +1570,15 @@ fn scan_value_substitutions(
             && text.is_char_boundary(start)
             && text.is_char_boundary(end)
         {
-            scan_source_for_calls(
-                &text[start..end],
-                caller,
-                known,
-                registry,
-                dialect,
-                facts,
-                params,
-            );
+            scan_source_for_calls(&text[start..end], ctx, facts);
         }
     }
 }
 
-fn scan_source_for_calls(
-    source: &str,
-    caller: &str,
-    known: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    facts: &mut LocalFacts,
-    params: &HashSet<String>,
-) {
+fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    let ScanCtx {
+        registry, dialect, ..
+    } = ctx;
     // Scan the call graph under the
     // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
     // the same way the rest of the analyser/lowering now does.
@@ -1597,7 +1595,7 @@ fn scan_source_for_calls(
             continue;
         }
         let texts = cmd.args();
-        scan_call_facts(name, texts, caller, known, registry, facts, params);
+        scan_call_facts(name, texts, ctx, facts);
         // Recurse into BODY-role args (e.g. `catch {p}` → `{p}` is
         // BODY).  The registry resolves the role using the same
         // logic as the top-level scanner.
@@ -1606,7 +1604,7 @@ fn scan_source_for_calls(
             registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Body);
         for idx in body_indices {
             if let Some(body_text) = texts.get(idx) {
-                scan_source_for_calls(body_text, caller, known, registry, dialect, facts, params);
+                scan_source_for_calls(body_text, ctx, facts);
             }
         }
         // Recurse into EXPR-role args. `expr {…}` (and the registry's other
@@ -1628,7 +1626,7 @@ fn scan_source_for_calls(
                     .strip_prefix('{')
                     .and_then(|s| s.strip_suffix('}'))
                     .unwrap_or(arg);
-                scan_value_substitutions(inner, caller, known, registry, dialect, facts, params);
+                scan_value_substitutions(inner, ctx, facts);
             }
         }
     }

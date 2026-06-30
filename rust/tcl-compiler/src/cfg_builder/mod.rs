@@ -589,7 +589,81 @@ impl CfgBuilder {
         result
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// Push a "frozen" loop (`for` / `while` whose condition is a command
+    /// substitution) into `current` as an opaque [`Statement::Barrier`]; the
+    /// body is kept un-lowered so it is treated as an opaque effect.
+    fn push_frozen_loop_barrier(
+        &mut self,
+        command: &str,
+        raw_args: &[String],
+        raw_tokens: Option<&CommandTokens>,
+        span: Span,
+        current: &str,
+    ) {
+        self.block_mut(current).statements.push(Statement::Barrier {
+            span,
+            reason: format!("frozen {command} (cmd-subst condition)"),
+            command: command.to_owned(),
+            canonical_command: None,
+            args: raw_args.to_vec(),
+            tokens: Some(frozen_loop_tokens(command, raw_args, raw_tokens)),
+        });
+    }
+
+    /// Lower a `for`, or freeze it as an opaque barrier when its condition is a
+    /// command substitution (`for {…} [cond] {…} {…}`).
+    fn lower_for_or_frozen(&mut self, stmt: &Statement, current: &str) -> Option<String> {
+        if let Statement::For {
+            condition,
+            raw_args,
+            raw_tokens,
+            span,
+            ..
+        } = stmt
+            && matches!(condition, ExprNode::Command { .. })
+            && !raw_args.is_empty()
+        {
+            self.push_frozen_loop_barrier("for", raw_args, raw_tokens.as_ref(), *span, current);
+            Some(current.to_owned())
+        } else {
+            self.lower_for(stmt, current)
+        }
+    }
+
+    /// Lower a `while`, or freeze it as an opaque barrier when its condition is
+    /// a command substitution (`while [cond] {…}`).
+    fn lower_while_or_frozen(&mut self, stmt: &Statement, current: &str) -> String {
+        if let Statement::While {
+            condition,
+            raw_args,
+            raw_tokens,
+            span,
+            ..
+        } = stmt
+            && matches!(condition, ExprNode::Command { .. })
+            && !raw_args.is_empty()
+        {
+            self.push_frozen_loop_barrier("while", raw_args, raw_tokens.as_ref(), *span, current);
+            current.to_owned()
+        } else {
+            self.lower_while(stmt, current)
+        }
+    }
+
+    /// `return -options …` / `return {*}…args`: push the original barrier
+    /// (codegen keeps its raw args) but, in `faithful_exceptions` analysis
+    /// builds, also terminate `current` with a `Return` so the fall-through
+    /// edge to the rest of the block / `try` join is cut.
+    fn lower_return_options_barrier(&mut self, stmt: &Statement, span: Span, current: &str) {
+        self.push_plain_statement(current, stmt);
+        self.block_mut(current).terminator = Some(Terminator::Return {
+            value: None,
+            span: Some(span),
+            expr: None,
+            braced: false,
+        });
+    }
+
     fn lower_script_inner(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
         // True once the *main* (reachable) path has hit an unconditional
@@ -619,59 +693,12 @@ impl CfgBuilder {
                     current = self.lower_if(stmt, &current);
                 }
 
-                Statement::For {
-                    condition,
-                    raw_args,
-                    raw_tokens,
-                    span,
-                    ..
-                } => {
-                    // Frozen for: condition is a command substitution.
-                    if matches!(condition, ExprNode::Command { .. }) && !raw_args.is_empty() {
-                        self.block_mut(&current)
-                            .statements
-                            .push(Statement::Barrier {
-                                span: *span,
-                                reason: "frozen for (cmd-subst condition)".into(),
-                                command: "for".into(),
-                                canonical_command: None,
-                                args: raw_args.clone(),
-                                tokens: Some(frozen_loop_tokens(
-                                    "for",
-                                    raw_args,
-                                    raw_tokens.as_ref(),
-                                )),
-                            });
-                    } else {
-                        current = self.lower_for(stmt, &current)?;
-                    }
+                Statement::For { .. } => {
+                    current = self.lower_for_or_frozen(stmt, &current)?;
                 }
 
-                Statement::While {
-                    condition,
-                    raw_args,
-                    raw_tokens,
-                    span,
-                    ..
-                } => {
-                    if matches!(condition, ExprNode::Command { .. }) && !raw_args.is_empty() {
-                        self.block_mut(&current)
-                            .statements
-                            .push(Statement::Barrier {
-                                span: *span,
-                                reason: "frozen while (cmd-subst condition)".into(),
-                                command: "while".into(),
-                                canonical_command: None,
-                                args: raw_args.clone(),
-                                tokens: Some(frozen_loop_tokens(
-                                    "while",
-                                    raw_args,
-                                    raw_tokens.as_ref(),
-                                )),
-                            });
-                    } else {
-                        current = self.lower_while(stmt, &current);
-                    }
+                Statement::While { .. } => {
+                    current = self.lower_while_or_frozen(stmt, &current);
                 }
 
                 Statement::Foreach { .. } => {
@@ -736,14 +763,7 @@ impl CfgBuilder {
                             "return with options" | "return with expansion"
                         ) =>
                 {
-                    let span = *span;
-                    self.push_plain_statement(&current, stmt);
-                    self.block_mut(&current).terminator = Some(Terminator::Return {
-                        value: None,
-                        span: Some(span),
-                        expr: None,
-                        braced: false,
-                    });
+                    self.lower_return_options_barrier(stmt, *span, &current);
                 }
 
                 // All other statements (assignments, calls, barriers,
@@ -1062,17 +1082,24 @@ pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Fu
 /// [`CfgModule::procedures`] — codegen never emits them) but still
 /// need the same call-site def invalidation as procs.
 ///
-/// The maps come straight from [`prepare_cfg_context`] (default
-/// hasher), so the signature isn't generalised over `BuildHasher`.
+/// The maps usually come straight from [`prepare_cfg_context`] (default
+/// hasher); the signature is generalised over `BuildHasher` and rehashes
+/// into the builder's default-hashed maps on entry.
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn build_cfg_function_with_upvars(
+pub fn build_cfg_function_with_upvars<S1, S2>(
     name: &str,
     script: &Script,
     inline_loops: bool,
-    upvar_procs: HashMap<String, UpvarInfo>,
-    proc_params: HashMap<String, Vec<String>>,
-) -> Function {
+    upvar_procs: HashMap<String, UpvarInfo, S1>,
+    proc_params: HashMap<String, Vec<String>, S2>,
+) -> Function
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
+    // Rehash into the builder's default-hashed maps (cheap, once per function).
+    let upvar_procs: HashMap<String, UpvarInfo> = upvar_procs.into_iter().collect();
+    let proc_params: HashMap<String, Vec<String>> = proc_params.into_iter().collect();
     let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params)
         .with_faithful_exceptions();
     builder.build_function(name, script)

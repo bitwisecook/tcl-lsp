@@ -464,8 +464,12 @@ fn build_forward_edits(
         }
         let s = (i64::from(sp.start()) + base_offset).max(0);
         let e = (i64::from(sp.end()) + base_offset).max(0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        tcl_lexer::Span::new(s as u32, e as u32)
+        // Clamped `>= 0`; an absolutised offset past `u32::MAX` is degenerate
+        // and clamps to the max (spans are `u32` source offsets).
+        tcl_lexer::Span::new(
+            u32::try_from(s).unwrap_or(u32::MAX),
+            u32::try_from(e).unwrap_or(u32::MAX),
+        )
     };
     let def_span = shift(def_stmt.span());
     let var_span = shift(var_span);
@@ -1248,7 +1252,36 @@ fn o115_redundant_nested_expr(word: &str) -> Option<String> {
 /// [`try_fold_static_proc_call`], which stays hint-only because
 /// folding `::answer` as a statement would turn the discarded
 /// call into a bare `42` (invalid as a command name).
-#[allow(clippy::too_many_lines)]
+/// Fold a constant `[expr {…}]` command substitution in an argument position,
+/// returning the rewritten word (`[expr {1 + 2}]` → `3`). A *braced* body folds
+/// under the known `constants` (value substitution); a quoted / bare `expr "…"`
+/// folds only as a literal (textual substitution is conservative). `None` when
+/// the inner command is not `expr` or does not fold to a substitution-free
+/// constant. Extracted from [`visit_call_cmd_subst_folds`].
+fn try_o101_expr_arg_fold(
+    ctx: &PassContext<'_>,
+    inner: &str,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    let mut parts = inner.splitn(2, char::is_whitespace);
+    if parts.next() != Some("expr") {
+        return None;
+    }
+    let raw_body = parts.next().unwrap_or("").trim();
+    let folded =
+        if let Some(braced_body) = raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}')) {
+            super::helpers::expr_simplify::try_fold_expr_with_constants(
+                braced_body,
+                constants,
+                true,
+                ctx.dialect,
+            )
+        } else {
+            super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.dialect)
+        };
+    folded.filter(|f| !f.contains(['$', '[']))
+}
+
 fn visit_call_cmd_subst_folds(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
@@ -1256,8 +1289,6 @@ fn visit_call_cmd_subst_folds(
     constants: &std::collections::HashMap<String, String>,
     namespace: &str,
 ) {
-    use crate::interprocedural::ConstantReturn;
-
     for (i, argv_span) in tokens.argv.iter().enumerate() {
         let single = tokens.single_token_word.get(i).copied().unwrap_or(false);
         if !single {
@@ -1284,42 +1315,14 @@ fn visit_call_cmd_subst_folds(
         // position (`return [expr {1 + 2}]` → `return 3`). The general
         // `AssignExpr` / `ExprEval` expr folds don't reach a cmd-sub
         // embedded in a `Call` argument, so handle it here.
-        {
-            let mut parts = inner.splitn(2, char::is_whitespace);
-            if parts.next() == Some("expr") {
-                let raw_body = parts.next().unwrap_or("").trim();
-                // A *braced* `[expr {…}]` uses value-substitution semantics, so
-                // fold it under the known constants — `puts [expr {$a + $b}]`
-                // with `$a`/`$b` proven constant collapses to its value (the
-                // SCCP `[expr …]` fold doesn't reach a Call-argument position).
-                // A quoted / bare `expr "…"` substitutes the variable values
-                // textually before parsing; this is conservative there and
-                // never folds it, so keep the historical literal-only fold (no
-                // constants env).
-                let folded = if let Some(braced_body) =
-                    raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}'))
-                {
-                    super::helpers::expr_simplify::try_fold_expr_with_constants(
-                        braced_body,
-                        constants,
-                        true,
-                        ctx.dialect,
-                    )
-                } else {
-                    super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.dialect)
-                };
-                if let Some(folded) = folded
-                    && !folded.contains(['$', '['])
-                {
-                    ctx.report(Optimisation::new(
-                        DiagCode::O101,
-                        "Fold constant expression",
-                        full_word_span(ctx.source, *argv_span),
-                        folded,
-                    ));
-                    continue;
-                }
-            }
+        if let Some(folded) = try_o101_expr_arg_fold(ctx, inner, constants) {
+            ctx.report(Optimisation::new(
+                DiagCode::O101,
+                "Fold constant expression",
+                full_word_span(ctx.source, *argv_span),
+                folded,
+            ));
+            continue;
         }
         // O129: fold a pure-builtin cmd-sub with constant (literal) args
         // through the registry `const_fold` callback (no interproc
@@ -1346,70 +1349,78 @@ fn visit_call_cmd_subst_folds(
             continue;
         }
         // O103 (below) folds a pure-proc cmd-sub to its constant return.
-        let Some(ia) = cu.interproc.as_ref() else {
-            continue;
-        };
-        let Some(head) = parse_cmd_subst_head(inner) else {
-            continue;
-        };
-        let Some(qname) = resolve_proc_qname(head, namespace, ia) else {
-            continue;
-        };
-        let Some(summary) = ia.procedures.get(&qname) else {
-            continue;
-        };
-        // A redefined proc has an ambiguous body — never fold its calls.
-        if cu.ir_module.redefined_procedures.contains(&qname) {
-            continue;
+        if let Some((qualified_name, replacement)) =
+            try_o103_proc_fold(ctx, cu, inner, namespace, constants)
+        {
+            ctx.report(Optimisation::new(
+                DiagCode::O103,
+                format!("Fold pure-proc call to '{qualified_name}' to its constant return"),
+                full_word_span(ctx.source, *argv_span),
+                replacement,
+            ));
         }
-        let render_const = |cv: &ConstValue| match cv {
-            ConstValue::Int(i) => i.to_string(),
-            ConstValue::Float(f) => f.to_string(),
-            ConstValue::Bool(b) => i64::from(*b).to_string(),
-            ConstValue::String(s) => render_propagation_word(s),
-        };
-        let replacement = if summary.can_fold_static_calls
-            && let Some(cr) = &summary.constant_return
-        {
-            // Argument-independent constant return from the summary.
-            match cr {
-                ConstantReturn::Int(i) => i.to_string(),
-                ConstantReturn::Float(f) => f.to_string(),
-                ConstantReturn::Bool(true) => "1".to_owned(),
-                ConstantReturn::Bool(false) => "0".to_owned(),
-                // A multi-word string return folds
-                // too, list-quoted as a single word via the canonical quoter
-                // (the cmd-sub is one argument word) — `set msg {a b}; return
-                // $msg` in the callee does not block the fold.
-                ConstantReturn::Str(s) => render_propagation_word(s),
-            }
-        } else if summary.pure
-            && let Some(callee) = cu.procedures.get(&qname)
-            && let Some(args) = parse_static_call_args(inner, 1, constants)
-            && let Some(cv) = evaluate_proc_with_constants(
-                callee,
-                &summary.params,
-                &args,
-                ctx.dialect.map(crate::tcl_expr_eval::leading_zero_is_octal),
-            )
-        {
-            // Argument-sensitive: re-run SCCP on the pure callee with the
-            // call's constant arguments bound and fold the constant return
-            // (`[::math::add 2 4]` → `6`).
-            render_const(&cv)
-        } else {
-            continue;
-        };
-        ctx.report(Optimisation::new(
-            DiagCode::O103,
-            format!(
-                "Fold pure-proc call to '{}' to its constant return",
-                summary.qualified_name
-            ),
-            full_word_span(ctx.source, *argv_span),
-            replacement,
-        ));
     }
+}
+
+/// Fold a pure-proc command substitution to its constant return (O103),
+/// returning `(qualified_name, replacement_word)`. Uses the interprocedural
+/// summary's argument-independent constant return when present, else re-runs
+/// the pure callee under the call's constant arguments. `None` when the head
+/// is not a foldable internal proc. Extracted from [`visit_call_cmd_subst_folds`].
+fn try_o103_proc_fold(
+    ctx: &PassContext<'_>,
+    cu: &CompilationUnit,
+    inner: &str,
+    namespace: &str,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<(String, String)> {
+    use crate::interprocedural::ConstantReturn;
+
+    let ia = cu.interproc.as_ref()?;
+    let head = parse_cmd_subst_head(inner)?;
+    let qname = resolve_proc_qname(head, namespace, ia)?;
+    let summary = ia.procedures.get(&qname)?;
+    // A redefined proc has an ambiguous body — never fold its calls.
+    if cu.ir_module.redefined_procedures.contains(&qname) {
+        return None;
+    }
+    let render_const = |cv: &ConstValue| match cv {
+        ConstValue::Int(i) => i.to_string(),
+        ConstValue::Float(f) => f.to_string(),
+        ConstValue::Bool(b) => i64::from(*b).to_string(),
+        ConstValue::String(s) => render_propagation_word(s),
+    };
+    let replacement = if summary.can_fold_static_calls
+        && let Some(cr) = &summary.constant_return
+    {
+        // Argument-independent constant return from the summary.
+        match cr {
+            ConstantReturn::Int(i) => i.to_string(),
+            ConstantReturn::Float(f) => f.to_string(),
+            ConstantReturn::Bool(true) => "1".to_owned(),
+            ConstantReturn::Bool(false) => "0".to_owned(),
+            // A multi-word string return folds too, list-quoted as a single
+            // word via the canonical quoter (the cmd-sub is one argument word)
+            // — `set msg {a b}; return $msg` in the callee does not block it.
+            ConstantReturn::Str(s) => render_propagation_word(s),
+        }
+    } else if summary.pure
+        && let Some(callee) = cu.procedures.get(&qname)
+        && let Some(args) = parse_static_call_args(inner, 1, constants)
+        && let Some(cv) = evaluate_proc_with_constants(
+            callee,
+            &summary.params,
+            &args,
+            ctx.dialect.map(crate::tcl_expr_eval::leading_zero_is_octal),
+        )
+    {
+        // Argument-sensitive: re-run SCCP on the pure callee with the call's
+        // constant arguments bound and fold the constant return.
+        render_const(&cv)
+    } else {
+        return None;
+    };
+    Some((summary.qualified_name.clone(), replacement))
 }
 
 /// Parse the head word out of a CMD-subst interior. Returns
