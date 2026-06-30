@@ -305,7 +305,6 @@ pub fn emit_tmsh_delta(
             kind_name,
             old_cfg,
             new_cfg,
-            new_source,
             &new_blocks,
             &changed,
             &mut lines,
@@ -474,12 +473,10 @@ impl ObjRef<'_> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn delta_modifies(
     kind_name: &str,
     old_cfg: &BigipConfig,
     new_cfg: &BigipConfig,
-    _new_source: &str,
     new_blocks: &HashMap<(String, String, String), String>,
     changed: &dyn Fn(&(String, String, String)) -> bool,
     lines: &mut Vec<String>,

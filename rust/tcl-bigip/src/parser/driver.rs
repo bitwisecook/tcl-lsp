@@ -188,12 +188,12 @@ fn dispatch_block(
         if let Some((table, object)) =
             dispatch_singleton(generic_module, generic_type, "", body, range)
         {
-            return placed(table, "", object);
+            return Some(placed(table, "", object));
         }
         if let Some((table, object)) =
             dispatch_minimal(generic_module, generic_type, "", body, range)
         {
-            return placed(table, "", object);
+            return Some(placed(table, "", object));
         }
         return None;
     };
@@ -208,39 +208,39 @@ fn dispatch_block(
 
     // Minimal pre-pass + named + singleton + rich ltm tables (generated).
     if let Some((table, object)) = dispatch_minimal(&module, &object_type, fp, body, range) {
-        return placed(table, fp, object);
+        return Some(placed(table, fp, object));
     }
     if let Some((table, object)) = dispatch_named(&module, &object_type, fp, body, range) {
-        return placed(table, fp, object);
+        return Some(placed(table, fp, object));
     }
     if full_path.is_empty()
         && let Some((table, object)) = dispatch_singleton(&module, &object_type, fp, body, range)
     {
-        return placed(table, fp, object);
+        return Some(placed(table, fp, object));
     }
     if let Some((table, object)) = dispatch_ltm_tables(&module, &object_type, fp, body, range) {
-        return placed(table, fp, object);
+        return Some(placed(table, fp, object));
     }
 
     // Family parsers with a sub-type argument + the ltm/gtm match block.
     if module == "apm" && object_type.starts_with("policy agent ") {
-        return placed(
+        return Some(placed(
             "apm_policy_agents",
             fp,
             ModelObject::ApmPolicyAgent(parse_bigip_apm_policy_agent(fp, body, range)),
-        );
+        ));
     }
     if module == "gtm" && object_type.starts_with("pool ") {
         let record_type = object_type.strip_prefix("pool ").unwrap_or("");
-        return placed(
+        return Some(placed(
             "gtm_pools",
             fp,
             ModelObject::GtmPool(super::bespoke::parse_gtm_pool(fp, body, record_type, range)),
-        );
+        ));
     }
     if module == "gtm" && object_type.starts_with("wideip ") {
         let record_type = object_type.strip_prefix("wideip ").unwrap_or("");
-        return placed(
+        return Some(placed(
             "gtm_wideips",
             fp,
             ModelObject::GtmWideip(super::bespoke::parse_gtm_wideip(
@@ -249,7 +249,7 @@ fn dispatch_block(
                 record_type,
                 range,
             )),
-        );
+        ));
     }
     if module == "pem"
         && matches!(
@@ -260,11 +260,11 @@ fn dispatch_block(
                 | "profile subscriber-mgmt"
         )
     {
-        return placed(
+        return Some(placed(
             "pem_profiles",
             fp,
             ModelObject::PemProfile(parse_bigip_pem_profile(fp, body, range)),
-        );
+        ));
     }
     if module != "ltm" && module != "gtm" {
         return None;
@@ -277,11 +277,11 @@ fn dispatch_block(
             } else {
                 crate::model::DataGroupType::Internal
             };
-            return placed(
+            return Some(placed(
                 "data_groups",
                 fp,
                 ModelObject::DataGroup(super::bespoke::parse_data_group(fp, body, kind, range)),
-            );
+            ));
         }
         "pool" if module == "ltm" => {
             ModelObject::Pool(super::bespoke::parse_pool(fp, body, range, ctx))
@@ -299,23 +299,23 @@ fn dispatch_block(
             ModelObject::Policy(super::bespoke::parse_policy(fp, body, range))
         }
         ot if ot.starts_with("dns cache records ") && module == "ltm" => {
-            return placed(
+            return Some(placed(
                 "ltm_dns_cache_records",
                 fp,
                 ModelObject::LtmDnsCacheRecord(parse_bigip_ltm_dns_cache_record(fp, body, range)),
-            );
+            ));
         }
         ot if ot.starts_with("profile ") => {
             let profile_type = ot.strip_prefix("profile ").unwrap_or("");
-            return placed(
+            return Some(placed(
                 "profiles",
                 fp,
                 ModelObject::Profile(super::bespoke::parse_profile(fp, profile_type, body, range)),
-            );
+            ));
         }
         ot if ot.starts_with("persistence ") => {
             let persistence_type = ot.strip_prefix("persistence ").unwrap_or("");
-            return placed(
+            return Some(placed(
                 "persistence",
                 fp,
                 ModelObject::Persistence(super::bespoke::parse_persistence(
@@ -324,7 +324,7 @@ fn dispatch_block(
                     body,
                     range,
                 )),
-            );
+            ));
         }
         ot if ot.starts_with("monitor ") => {
             let monitor_type = ot.strip_prefix("monitor ").unwrap_or("");
@@ -333,11 +333,11 @@ fn dispatch_block(
             } else {
                 "monitors"
             };
-            return placed(
+            return Some(placed(
                 table,
                 fp,
                 ModelObject::Monitor(super::bespoke::parse_monitor(fp, body, monitor_type, range)),
-            );
+            ));
         }
         _ => return None,
     };
@@ -351,24 +351,22 @@ fn dispatch_block(
         "policy" => "policies",
         _ => return None,
     };
-    placed(table, fp, object)
+    Some(placed(table, fp, object))
 }
 
 /// Build a [`Placed`] from a table name + object.
-#[allow(clippy::unnecessary_wraps)]
-fn placed(table: &'static str, full_path: &str, object: ModelObject) -> Option<Placed> {
-    Some(Placed {
+fn placed(table: &'static str, full_path: &str, object: ModelObject) -> Placed {
+    Placed {
         table_name: table,
         full_path: full_path.to_owned(),
         object,
-    })
+    }
 }
 
 /// Intercept the `(module, object_type)` keys whose generated dispatch
 /// routes through the scalar named/singleton tables but which carry
 /// structured fields handled by [`super::bespoke`]. Returns `None` for any
 /// other key so the generated dispatch proceeds unchanged.
-#[allow(clippy::too_many_lines)]
 fn bespoke_override(
     module: &str,
     object_type: &str,
@@ -376,210 +374,278 @@ fn bespoke_override(
     body: &str,
     range: Range,
 ) -> Option<Placed> {
-    match (module, object_type) {
-        ("sys", "ntp") => placed(
+    match module {
+        "sys" => bespoke_sys(object_type, full_path, body, range),
+        "net" => bespoke_net(object_type, full_path, body, range),
+        "gtm" => bespoke_gtm(object_type, full_path, body, range),
+        "cm" => bespoke_cm(object_type, full_path, body, range),
+        "security" => bespoke_security(object_type, full_path, body, range),
+        "pem" => bespoke_pem(object_type, full_path, body, range),
+        "apm" => bespoke_apm(object_type, full_path, body, range),
+        "auth" => bespoke_auth(object_type, full_path, body, range),
+        "ltm" => bespoke_ltm(object_type, full_path, body, range),
+        _ => None,
+    }
+}
+
+fn bespoke_sys(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "ntp" => Some(placed(
             "sys_ntp",
             full_path,
             ModelObject::SysNtp(super::bespoke::parse_sys_ntp(full_path, body, range)),
-        ),
-        ("sys", "snmp") => placed(
+        )),
+        "snmp" => Some(placed(
             "sys_snmp",
             full_path,
             ModelObject::SysSnmp(super::bespoke::parse_sys_snmp(full_path, body, range)),
-        ),
-        ("net", "route") => placed(
-            "net_routes",
-            full_path,
-            ModelObject::NetRoute(super::bespoke::parse_net_route(full_path, body, range)),
-        ),
-        ("net", "self") => placed(
-            "net_selves",
-            full_path,
-            ModelObject::NetSelf(super::bespoke::parse_net_self(full_path, body, range)),
-        ),
-        ("security", "firewall rule-list") => placed(
-            "security_firewall_rule_lists",
-            full_path,
-            ModelObject::SecurityFirewallRuleList(
-                super::bespoke::parse_security_firewall_rule_list(full_path, body, range),
-            ),
-        ),
-        ("security", "firewall policy") => placed(
-            "security_firewall_policies",
-            full_path,
-            ModelObject::SecurityFirewallPolicy(super::bespoke::parse_security_firewall_policy(
-                full_path, body, range,
-            )),
-        ),
-        ("gtm", "server") => placed(
-            "gtm_servers",
-            full_path,
-            ModelObject::GtmServer(super::bespoke::parse_gtm_server(full_path, body, range)),
-        ),
-        ("apm", "oauth db-instance") => placed(
-            "apm_oauth_db_instances",
-            full_path,
-            ModelObject::ApmOauthDbInstance(super::bespoke::parse_apm_oauth_db_instance(
-                full_path, body, range,
-            )),
-        ),
-        ("apm", "policy policy-item") => placed(
-            "apm_policy_items",
-            full_path,
-            ModelObject::ApmPolicyItem(super::bespoke::parse_apm_policy_item(
-                full_path, body, range,
-            )),
-        ),
-        ("auth", "partition") => placed(
-            "auth_partitions",
-            full_path,
-            ModelObject::AuthPartition(super::bespoke::parse_auth_partition(
-                full_path, body, range,
-            )),
-        ),
-        ("cm", "device") => placed(
-            "cm_devices",
-            full_path,
-            ModelObject::CmDevice(super::bespoke::parse_cm_device(full_path, body, range)),
-        ),
-        ("cm", "device-group") => placed(
-            "cm_device_groups",
-            full_path,
-            ModelObject::CmDeviceGroup(super::bespoke::parse_cm_device_group(
-                full_path, body, range,
-            )),
-        ),
-        ("cm", "traffic-group") => placed(
-            "cm_traffic_groups",
-            full_path,
-            ModelObject::CmTrafficGroup(super::bespoke::parse_cm_traffic_group(
-                full_path, body, range,
-            )),
-        ),
-        ("cm", "trust-domain") => placed(
-            "cm_trust_domains",
-            full_path,
-            ModelObject::CmTrustDomain(super::bespoke::parse_cm_trust_domain(
-                full_path, body, range,
-            )),
-        ),
-        ("gtm", "datacenter") => placed(
-            "gtm_datacenters",
-            full_path,
-            ModelObject::GtmDatacenter(super::bespoke::parse_gtm_datacenter(
-                full_path, body, range,
-            )),
-        ),
-        ("gtm", "prober-pool") => placed(
-            "gtm_prober_pools",
-            full_path,
-            ModelObject::GtmProberPool(super::bespoke::parse_gtm_prober_pool(
-                full_path, body, range,
-            )),
-        ),
-        ("gtm", "rule") => placed(
-            "gtm_rules",
-            full_path,
-            ModelObject::GtmRule(super::bespoke::parse_gtm_rule(full_path, body, range)),
-        ),
-        ("ltm", "dns cache resolver") => placed(
-            "ltm_dns_cache_resolvers",
-            full_path,
-            ModelObject::LtmDnsCacheResolver(super::bespoke::parse_ltm_dns_cache_resolver(
-                full_path, body, range,
-            )),
-        ),
-        ("net", "dns-resolver") => placed(
-            "net_dns_resolvers",
-            full_path,
-            ModelObject::NetDnsResolver(super::bespoke::parse_net_dns_resolver(
-                full_path, body, range,
-            )),
-        ),
-        ("net", "interface") => placed(
-            "net_interfaces",
-            full_path,
-            ModelObject::NetInterface(super::bespoke::parse_net_interface(full_path, body, range)),
-        ),
-        ("net", "port-list") => placed(
-            "net_port_lists",
-            full_path,
-            ModelObject::NetPortList(super::bespoke::parse_net_port_list(full_path, body, range)),
-        ),
-        ("net", "route-domain") => placed(
-            "net_route_domains",
-            full_path,
-            ModelObject::NetRouteDomain(super::bespoke::parse_net_route_domain(
-                full_path, body, range,
-            )),
-        ),
-        ("net", "stp") => placed(
-            "net_stps",
-            full_path,
-            ModelObject::NetStp(super::bespoke::parse_net_stp(full_path, body, range)),
-        ),
-        ("net", "vlan") => placed(
-            "net_vlans",
-            full_path,
-            ModelObject::NetVlan(super::bespoke::parse_net_vlan(full_path, body, range)),
-        ),
-        ("pem", "listener") => placed(
-            "pem_listeners",
-            full_path,
-            ModelObject::PemListener(super::bespoke::parse_pem_listener(full_path, body, range)),
-        ),
-        ("pem", "policy") => placed(
-            "pem_policies",
-            full_path,
-            ModelObject::PemPolicy(super::bespoke::parse_pem_policy(full_path, body, range)),
-        ),
-        ("pem", "service-chain-endpoint") => placed(
-            "pem_service_chain_endpoints",
-            full_path,
-            ModelObject::PemServiceChainEndpoint(super::bespoke::parse_pem_service_chain_endpoint(
-                full_path, body, range,
-            )),
-        ),
-        ("security", "firewall port-list") => placed(
-            "security_firewall_port_lists",
-            full_path,
-            ModelObject::SecurityFirewallPortList(
-                super::bespoke::parse_security_firewall_port_list(full_path, body, range),
-            ),
-        ),
-        ("security", "log profile") => placed(
-            "security_log_profiles",
-            full_path,
-            ModelObject::SecurityLogProfile(super::bespoke::parse_security_log_profile(
-                full_path, body, range,
-            )),
-        ),
-        ("security", "nat policy") => placed(
-            "security_nat_policies",
-            full_path,
-            ModelObject::SecurityNatPolicy(super::bespoke::parse_security_nat_policy(
-                full_path, body, range,
-            )),
-        ),
-        ("security", "packet-filter policy") => placed(
-            "security_packet_filter_policies",
-            full_path,
-            ModelObject::SecurityPacketFilterPolicy(
-                super::bespoke::parse_security_packet_filter_policy(full_path, body, range),
-            ),
-        ),
-        ("sys", "file ssl-cert") => placed(
+        )),
+        "file ssl-cert" => Some(placed(
             "sys_file_ssl_certs",
             full_path,
             ModelObject::SysFileSslCert(super::bespoke::parse_sys_file_ssl_cert(
                 full_path, body, range,
             )),
-        ),
-        ("sys", "provision") => placed(
+        )),
+        "provision" => Some(placed(
             "sys_provisions",
             full_path,
             ModelObject::SysProvision(super::bespoke::parse_sys_provision(full_path, body, range)),
-        ),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_net(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "route" => Some(placed(
+            "net_routes",
+            full_path,
+            ModelObject::NetRoute(super::bespoke::parse_net_route(full_path, body, range)),
+        )),
+        "self" => Some(placed(
+            "net_selves",
+            full_path,
+            ModelObject::NetSelf(super::bespoke::parse_net_self(full_path, body, range)),
+        )),
+        "dns-resolver" => Some(placed(
+            "net_dns_resolvers",
+            full_path,
+            ModelObject::NetDnsResolver(super::bespoke::parse_net_dns_resolver(
+                full_path, body, range,
+            )),
+        )),
+        "interface" => Some(placed(
+            "net_interfaces",
+            full_path,
+            ModelObject::NetInterface(super::bespoke::parse_net_interface(full_path, body, range)),
+        )),
+        "port-list" => Some(placed(
+            "net_port_lists",
+            full_path,
+            ModelObject::NetPortList(super::bespoke::parse_net_port_list(full_path, body, range)),
+        )),
+        "route-domain" => Some(placed(
+            "net_route_domains",
+            full_path,
+            ModelObject::NetRouteDomain(super::bespoke::parse_net_route_domain(
+                full_path, body, range,
+            )),
+        )),
+        "stp" => Some(placed(
+            "net_stps",
+            full_path,
+            ModelObject::NetStp(super::bespoke::parse_net_stp(full_path, body, range)),
+        )),
+        "vlan" => Some(placed(
+            "net_vlans",
+            full_path,
+            ModelObject::NetVlan(super::bespoke::parse_net_vlan(full_path, body, range)),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_gtm(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "server" => Some(placed(
+            "gtm_servers",
+            full_path,
+            ModelObject::GtmServer(super::bespoke::parse_gtm_server(full_path, body, range)),
+        )),
+        "datacenter" => Some(placed(
+            "gtm_datacenters",
+            full_path,
+            ModelObject::GtmDatacenter(super::bespoke::parse_gtm_datacenter(
+                full_path, body, range,
+            )),
+        )),
+        "prober-pool" => Some(placed(
+            "gtm_prober_pools",
+            full_path,
+            ModelObject::GtmProberPool(super::bespoke::parse_gtm_prober_pool(
+                full_path, body, range,
+            )),
+        )),
+        "rule" => Some(placed(
+            "gtm_rules",
+            full_path,
+            ModelObject::GtmRule(super::bespoke::parse_gtm_rule(full_path, body, range)),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_cm(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "device" => Some(placed(
+            "cm_devices",
+            full_path,
+            ModelObject::CmDevice(super::bespoke::parse_cm_device(full_path, body, range)),
+        )),
+        "device-group" => Some(placed(
+            "cm_device_groups",
+            full_path,
+            ModelObject::CmDeviceGroup(super::bespoke::parse_cm_device_group(
+                full_path, body, range,
+            )),
+        )),
+        "traffic-group" => Some(placed(
+            "cm_traffic_groups",
+            full_path,
+            ModelObject::CmTrafficGroup(super::bespoke::parse_cm_traffic_group(
+                full_path, body, range,
+            )),
+        )),
+        "trust-domain" => Some(placed(
+            "cm_trust_domains",
+            full_path,
+            ModelObject::CmTrustDomain(super::bespoke::parse_cm_trust_domain(
+                full_path, body, range,
+            )),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_security(
+    object_type: &str,
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> Option<Placed> {
+    match object_type {
+        "firewall rule-list" => Some(placed(
+            "security_firewall_rule_lists",
+            full_path,
+            ModelObject::SecurityFirewallRuleList(
+                super::bespoke::parse_security_firewall_rule_list(full_path, body, range),
+            ),
+        )),
+        "firewall policy" => Some(placed(
+            "security_firewall_policies",
+            full_path,
+            ModelObject::SecurityFirewallPolicy(super::bespoke::parse_security_firewall_policy(
+                full_path, body, range,
+            )),
+        )),
+        "firewall port-list" => Some(placed(
+            "security_firewall_port_lists",
+            full_path,
+            ModelObject::SecurityFirewallPortList(
+                super::bespoke::parse_security_firewall_port_list(full_path, body, range),
+            ),
+        )),
+        "log profile" => Some(placed(
+            "security_log_profiles",
+            full_path,
+            ModelObject::SecurityLogProfile(super::bespoke::parse_security_log_profile(
+                full_path, body, range,
+            )),
+        )),
+        "nat policy" => Some(placed(
+            "security_nat_policies",
+            full_path,
+            ModelObject::SecurityNatPolicy(super::bespoke::parse_security_nat_policy(
+                full_path, body, range,
+            )),
+        )),
+        "packet-filter policy" => Some(placed(
+            "security_packet_filter_policies",
+            full_path,
+            ModelObject::SecurityPacketFilterPolicy(
+                super::bespoke::parse_security_packet_filter_policy(full_path, body, range),
+            ),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_pem(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "listener" => Some(placed(
+            "pem_listeners",
+            full_path,
+            ModelObject::PemListener(super::bespoke::parse_pem_listener(full_path, body, range)),
+        )),
+        "policy" => Some(placed(
+            "pem_policies",
+            full_path,
+            ModelObject::PemPolicy(super::bespoke::parse_pem_policy(full_path, body, range)),
+        )),
+        "service-chain-endpoint" => Some(placed(
+            "pem_service_chain_endpoints",
+            full_path,
+            ModelObject::PemServiceChainEndpoint(super::bespoke::parse_pem_service_chain_endpoint(
+                full_path, body, range,
+            )),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_apm(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "oauth db-instance" => Some(placed(
+            "apm_oauth_db_instances",
+            full_path,
+            ModelObject::ApmOauthDbInstance(super::bespoke::parse_apm_oauth_db_instance(
+                full_path, body, range,
+            )),
+        )),
+        "policy policy-item" => Some(placed(
+            "apm_policy_items",
+            full_path,
+            ModelObject::ApmPolicyItem(super::bespoke::parse_apm_policy_item(
+                full_path, body, range,
+            )),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_auth(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "partition" => Some(placed(
+            "auth_partitions",
+            full_path,
+            ModelObject::AuthPartition(super::bespoke::parse_auth_partition(
+                full_path, body, range,
+            )),
+        )),
+        _ => None,
+    }
+}
+
+fn bespoke_ltm(object_type: &str, full_path: &str, body: &str, range: Range) -> Option<Placed> {
+    match object_type {
+        "dns cache resolver" => Some(placed(
+            "ltm_dns_cache_resolvers",
+            full_path,
+            ModelObject::LtmDnsCacheResolver(super::bespoke::parse_ltm_dns_cache_resolver(
+                full_path, body, range,
+            )),
+        )),
         _ => None,
     }
 }

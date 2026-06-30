@@ -13,17 +13,29 @@
 //! driver threads a [`BespokeCtx`] carrying the source text, its line
 //! index, and the block's `start_offset`.
 
-#![allow(clippy::wildcard_imports)]
-// Structured fields are assigned onto a freshly-built object one at a time
-// after calling the scalar parser.
-#![allow(clippy::assigning_clones)]
-
 use std::collections::HashMap;
 
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
 
-use crate::model::r#gen::parsers::*;
+use crate::model::r#gen::parsers::{
+    parse_bigip_apm_oauth_db_instance, parse_bigip_apm_policy_item, parse_bigip_auth_partition,
+    parse_bigip_cm_device, parse_bigip_cm_device_group, parse_bigip_cm_traffic_group,
+    parse_bigip_cm_trust_domain, parse_bigip_data_group, parse_bigip_gtm_datacenter,
+    parse_bigip_gtm_pool, parse_bigip_gtm_prober_pool, parse_bigip_gtm_rule,
+    parse_bigip_gtm_server, parse_bigip_gtm_wideip, parse_bigip_ltm_dns_cache_resolver,
+    parse_bigip_monitor, parse_bigip_net_dns_resolver, parse_bigip_net_interface,
+    parse_bigip_net_port_list, parse_bigip_net_route, parse_bigip_net_route_domain,
+    parse_bigip_net_self, parse_bigip_net_stp, parse_bigip_net_vlan, parse_bigip_node,
+    parse_bigip_pem_listener, parse_bigip_pem_policy, parse_bigip_pem_service_chain_endpoint,
+    parse_bigip_persistence, parse_bigip_policy, parse_bigip_pool, parse_bigip_profile,
+    parse_bigip_rule, parse_bigip_security_firewall_policy,
+    parse_bigip_security_firewall_port_list, parse_bigip_security_firewall_rule_list,
+    parse_bigip_security_log_profile, parse_bigip_security_nat_policy,
+    parse_bigip_security_packet_filter_policy, parse_bigip_snat_pool,
+    parse_bigip_sys_file_ssl_cert, parse_bigip_sys_ntp, parse_bigip_sys_provision,
+    parse_bigip_sys_snmp, parse_bigip_virtual_address, parse_bigip_virtual_server,
+};
 use crate::model::{
     BigipApmOauthDbInstance, BigipApmPolicyItem, BigipAuthPartition, BigipCmDevice,
     BigipCmDeviceGroup, BigipCmTrafficGroup, BigipCmTrustDomain, BigipDataGroup,
@@ -839,7 +851,7 @@ pub fn parse_monitor(
 ) -> BigipMonitor {
     let mut obj = parse_bigip_monitor(full_path, body, range);
     let props = props_map(body);
-    obj.monitor_type = monitor_type.to_owned();
+    monitor_type.clone_into(&mut obj.monitor_type);
     // These quoted text fields are unquoted.
     let uq = |k: &str| unquote(props.get(k).map_or("", String::as_str)).to_owned();
     obj.send = uq("send");
@@ -889,8 +901,8 @@ pub fn parse_persistence(
 ) -> BigipPersistence {
     let mut obj = parse_bigip_persistence(full_path, body, range);
     let props = props_map(body);
-    obj.persistence_type = persistence_type.to_owned();
-    obj.cookie_name = unquote(props.get("cookie-name").map_or("", String::as_str)).to_owned();
+    persistence_type.clone_into(&mut obj.persistence_type);
+    unquote(props.get("cookie-name").map_or("", String::as_str)).clone_into(&mut obj.cookie_name);
     obj
 }
 
@@ -940,13 +952,13 @@ fn parse_policy_condition(index: i64, body: &str) -> BigipPolicyCondition {
             continue;
         }
         if POLICY_OPERANDS.contains(&key.as_str()) && operand.is_empty() {
-            operand = key.clone();
+            operand.clone_from(key);
         } else if POLICY_SELECTORS.contains(&key.as_str()) && selector.is_empty() {
-            selector = key.clone();
+            selector.clone_from(key);
         } else if POLICY_OPERATORS.contains(&key.as_str()) {
-            operator = key.clone();
+            operator.clone_from(key);
         } else if POLICY_EVENTS.contains(&key.as_str()) {
-            event = key.clone();
+            event.clone_from(key);
         } else if key == "not" {
             negate = true;
         } else if key == "case-insensitive" {
@@ -982,7 +994,7 @@ fn parse_policy_action(index: i64, body: &str) -> BigipPolicyAction {
     for (key, val) in &props {
         if !val.is_empty() {
             match key.as_str() {
-                "pool" => pool = val.trim().to_owned(),
+                "pool" => val.trim().clone_into(&mut pool),
                 "location" => location = strip_quotes(val),
                 "name" | "tm-name" => name = strip_quotes(val),
                 "value" => value = strip_quotes(val),
@@ -994,11 +1006,11 @@ fn parse_policy_action(index: i64, body: &str) -> BigipPolicyAction {
             continue;
         }
         if POLICY_ACTION_TARGETS.contains(&key.as_str()) && target.is_empty() {
-            target = key.clone();
+            target.clone_from(key);
         } else if POLICY_ACTION_VERBS.contains(&key.as_str()) && verb.is_empty() {
-            verb = key.clone();
+            verb.clone_from(key);
         } else if POLICY_EVENTS.contains(&key.as_str()) {
-            event = key.clone();
+            event.clone_from(key);
         }
     }
     BigipPolicyAction {
@@ -1067,10 +1079,14 @@ pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
 
     let mut strategy = props.get("strategy").cloned().unwrap_or_default();
     if strategy.trim().is_empty() {
-        strategy = "first-match".to_owned();
+        "first-match".clone_into(&mut strategy);
     }
     let strategy = strategy.trim();
-    obj.strategy = strategy.rsplit('/').next().unwrap_or(strategy).to_owned();
+    strategy
+        .rsplit('/')
+        .next()
+        .unwrap_or(strategy)
+        .clone_into(&mut obj.strategy);
 
     obj.requires = list_from(props.get("requires"));
     obj.controls = list_from(props.get("controls"));
@@ -1097,7 +1113,7 @@ pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
 #[must_use]
 pub fn parse_rule(full_path: &str, body: &str, range: Range) -> BigipRule {
     let mut obj = parse_bigip_rule(full_path, body, range);
-    obj.source = body.trim().to_owned();
+    body.trim().clone_into(&mut obj.source);
     obj.description = String::new();
     obj
 }
@@ -1115,7 +1131,7 @@ pub fn parse_gtm_pool(
 ) -> BigipGtmPool {
     let mut obj = parse_bigip_gtm_pool(full_path, body, range);
     let props = props_map(body);
-    obj.record_type = record_type.to_owned();
+    record_type.clone_into(&mut obj.record_type);
     let mut members: Vec<BigipGtmPoolMember> = Vec::new();
     if let Some(members_block) = props.get("members") {
         for (entry_name, entry_body) in parse_keyed_block_entries(members_block) {
@@ -1160,7 +1176,7 @@ pub fn parse_gtm_wideip(
 ) -> BigipGtmWideip {
     let mut obj = parse_bigip_gtm_wideip(full_path, body, range);
     let props = props_map(body);
-    obj.record_type = record_type.to_owned();
+    record_type.clone_into(&mut obj.record_type);
     obj.pools = list_from(props.get("pools"));
     obj.aliases = list_from(props.get("aliases"));
     // ``last-resort-pool`` is emitted with the record-type prefix.
@@ -1169,8 +1185,10 @@ pub fn parse_gtm_wideip(
         let mut parts = raw.splitn(2, char::is_whitespace);
         let first = parts.next().unwrap_or("");
         match parts.next() {
-            Some(rest) if !first.is_empty() => obj.last_resort_pool = rest.trim_start().to_owned(),
-            _ => obj.last_resort_pool = raw.clone(),
+            Some(rest) if !first.is_empty() => {
+                rest.trim_start().clone_into(&mut obj.last_resort_pool);
+            }
+            _ => obj.last_resort_pool.clone_from(raw),
         }
     }
     obj
@@ -1231,7 +1249,6 @@ pub fn parse_sys_ntp(full_path: &str, body: &str, range: Range) -> BigipSysNtp {
 
 /// Parse a `sys snmp` block.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn parse_sys_snmp(full_path: &str, body: &str, range: Range) -> BigipSysSnmp {
     let mut obj = parse_bigip_sys_snmp(full_path, body, range);
     let props_with_spans = parse_properties_with_spans(body);
@@ -1254,8 +1271,8 @@ pub fn parse_sys_snmp(full_path: &str, body: &str, range: Range) -> BigipSysSnmp
             .map(|(k, _)| k)
             .collect()
     });
-    obj.sys_contact = unquote(plain.get("sys-contact").map_or("", String::as_str)).to_owned();
-    obj.sys_location = unquote(plain.get("sys-location").map_or("", String::as_str)).to_owned();
+    unquote(plain.get("sys-contact").map_or("", String::as_str)).clone_into(&mut obj.sys_contact);
+    unquote(plain.get("sys-location").map_or("", String::as_str)).clone_into(&mut obj.sys_location);
     obj.sys_services = plain.get("sys-services").cloned().unwrap_or_default();
     obj.trap_community = plain.get("trap-community").cloned().unwrap_or_default();
 
@@ -1605,7 +1622,7 @@ pub fn parse_gtm_prober_pool(full_path: &str, body: &str, range: Range) -> Bigip
 #[must_use]
 pub fn parse_gtm_rule(full_path: &str, body: &str, range: Range) -> BigipGtmRule {
     let mut obj = parse_bigip_gtm_rule(full_path, body, range);
-    obj.source = body.trim().to_owned();
+    body.trim().clone_into(&mut obj.source);
     obj
 }
 
@@ -1639,7 +1656,7 @@ pub fn parse_net_dns_resolver(full_path: &str, body: &str, range: Range) -> Bigi
 #[must_use]
 pub fn parse_net_interface(full_path: &str, body: &str, range: Range) -> BigipNetInterface {
     let mut obj = parse_bigip_net_interface(full_path, body, range);
-    obj.name = full_path.to_owned();
+    full_path.clone_into(&mut obj.name);
     obj
 }
 
@@ -1779,7 +1796,7 @@ pub fn parse_sys_file_ssl_cert(full_path: &str, body: &str, range: Range) -> Big
 #[must_use]
 pub fn parse_sys_provision(full_path: &str, body: &str, range: Range) -> BigipSysProvision {
     let mut obj = parse_bigip_sys_provision(full_path, body, range);
-    obj.name = full_path.to_owned();
+    full_path.clone_into(&mut obj.name);
     obj
 }
 
@@ -1787,7 +1804,7 @@ pub fn parse_sys_provision(full_path: &str, body: &str, range: Range) -> BigipSy
 #[must_use]
 pub fn parse_auth_partition(full_path: &str, body: &str, range: Range) -> BigipAuthPartition {
     let mut obj = parse_bigip_auth_partition(full_path, body, range);
-    obj.name = full_path.to_owned();
+    full_path.clone_into(&mut obj.name);
     obj
 }
 

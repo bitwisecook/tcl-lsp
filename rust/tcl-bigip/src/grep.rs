@@ -483,23 +483,8 @@ impl Default for GrepArgs<'_> {
     }
 }
 
-/// Find every BIG-IP object related to seeds whose identifiers match the
-/// pattern. `graph` must come from
-/// [`crate::graph::build_bigip_object_graph`] (built with the iRules dialect
-/// active, which the caller arranges). `source_uris` are the input URIs used
-/// only for the report header.
-///
-/// # Errors
-/// Returns `Err` on an invalid direction, a non-positive `max_nodes`, a negative
-/// `max_depth`, or a bad regex / CIDR pattern.
-// The seed matching, BFS expansion, and report assembly read most clearly as
-// one function; splitting it would obscure the ordering / dedup contract.
-#[allow(clippy::too_many_lines)]
-pub fn compute_grep(
-    graph: &ObjectGraph,
-    source_uris: &[String],
-    args: &GrepArgs,
-) -> Result<GrepReport, BigipError> {
+/// Validate the direction / `max_nodes` invariants `compute_grep` relies on.
+fn validate_grep_args(args: &GrepArgs) -> Result<(), BigipError> {
     if !DIRECTIONS.contains(&args.direction) {
         let mut sorted = DIRECTIONS;
         sorted.sort_unstable();
@@ -514,17 +499,14 @@ pub fn compute_grep(
             args.max_nodes
         )));
     }
+    Ok(())
+}
 
-    let matcher = build_matcher(args.pattern, args.use_regex, args.use_cidr, args.use_exact)?;
+/// Per-node edge adjacency: node id → the edges touching it.
+type Adjacency<'a> = HashMap<&'a str, Vec<&'a ObjectEdge>>;
 
-    // Flatten nodes by id, in source order.
-    let mut all_nodes: HashMap<&str, &ObjectNode> = HashMap::new();
-    for (_uri, nodes) in &graph.nodes_by_uri {
-        for node in nodes {
-            all_nodes.insert(node.node_id.as_str(), node);
-        }
-    }
-
+/// Build the `(outgoing, incoming)` per-node edge adjacency for the graph.
+fn build_adjacency(graph: &ObjectGraph) -> (Adjacency<'_>, Adjacency<'_>) {
     let mut outgoing: HashMap<&str, Vec<&ObjectEdge>> = HashMap::new();
     let mut incoming: HashMap<&str, Vec<&ObjectEdge>> = HashMap::new();
     for edge in &graph.edges {
@@ -537,87 +519,64 @@ pub fn compute_grep(
             .or_default()
             .push(edge);
     }
+    (outgoing, incoming)
+}
 
-    let sort_key = |nid: &str| -> (String, String) {
-        let node = all_nodes[nid];
-        (node.kind.unwrap_or("").to_owned(), node.identifier.clone())
-    };
-
-    let mut seed_ids: Vec<String> = all_nodes
-        .iter()
-        .filter(|(_, node)| matcher.matches(node))
-        .map(|(id, _)| (*id).to_owned())
-        .collect();
-    seed_ids.sort_by_key(|nid| sort_key(nid));
-
-    // Strict cap on total collected objects: truncate seeds before any BFS.
-    if seed_ids.len() > args.max_nodes {
-        seed_ids.truncate(args.max_nodes);
-    }
-
+/// BFS from the (already capped) seeds, returning depth-per-node (0 for seeds).
+/// Honours `direction`, `max_depth`, and the strict `max_nodes` cap.
+fn expand_bfs(
+    seed_ids: &[String],
+    args: &GrepArgs,
+    outgoing: &HashMap<&str, Vec<&ObjectEdge>>,
+    incoming: &HashMap<&str, Vec<&ObjectEdge>>,
+) -> HashMap<String, usize> {
     let mut depths: HashMap<String, usize> = seed_ids.iter().map(|s| (s.clone(), 0)).collect();
-    if args.recurse {
-        let mut queue: VecDeque<String> = seed_ids.iter().cloned().collect();
-        while let Some(nid) = queue.pop_front() {
+    if !args.recurse {
+        return depths;
+    }
+    let mut queue: VecDeque<String> = seed_ids.iter().cloned().collect();
+    while let Some(nid) = queue.pop_front() {
+        if depths.len() >= args.max_nodes {
+            break;
+        }
+        let depth = depths[&nid];
+        if args.max_depth.is_some_and(|m| depth >= m) {
+            continue;
+        }
+        let mut neighbours: Vec<String> = Vec::new();
+        if matches!(args.direction, "forward" | "both")
+            && let Some(edges) = outgoing.get(nid.as_str())
+        {
+            for edge in edges {
+                neighbours.push(edge.target_id.clone());
+            }
+        }
+        if matches!(args.direction, "reverse" | "both")
+            && let Some(edges) = incoming.get(nid.as_str())
+        {
+            for edge in edges {
+                neighbours.push(edge.source_id.clone());
+            }
+        }
+        for neighbour in neighbours {
+            if depths.contains_key(&neighbour) {
+                continue;
+            }
+            depths.insert(neighbour.clone(), depth + 1);
+            queue.push_back(neighbour);
             if depths.len() >= args.max_nodes {
                 break;
             }
-            let depth = depths[&nid];
-            if args.max_depth.is_some_and(|m| depth >= m) {
-                continue;
-            }
-            let mut neighbours: Vec<String> = Vec::new();
-            if matches!(args.direction, "forward" | "both")
-                && let Some(edges) = outgoing.get(nid.as_str())
-            {
-                for edge in edges {
-                    neighbours.push(edge.target_id.clone());
-                }
-            }
-            if matches!(args.direction, "reverse" | "both")
-                && let Some(edges) = incoming.get(nid.as_str())
-            {
-                for edge in edges {
-                    neighbours.push(edge.source_id.clone());
-                }
-            }
-            for neighbour in neighbours {
-                if depths.contains_key(&neighbour) {
-                    continue;
-                }
-                depths.insert(neighbour.clone(), depth + 1);
-                queue.push_back(neighbour);
-                if depths.len() >= args.max_nodes {
-                    break;
-                }
-            }
         }
     }
+    depths
+}
 
-    let seed_set: HashSet<&str> = seed_ids.iter().map(String::as_str).collect();
-
-    let mut sorted_seed_ids = seed_ids.clone();
-    sorted_seed_ids.sort_by_key(|nid| sort_key(nid));
-    let seeds_list: Vec<GrepObject> = sorted_seed_ids
-        .iter()
-        .map(|nid| to_grep_object(all_nodes[nid.as_str()], 0, true))
-        .collect();
-
-    let mut related_ids: Vec<String> = depths
-        .keys()
-        .filter(|nid| !seed_set.contains(nid.as_str()))
-        .cloned()
-        .collect();
-    related_ids.sort_by(|a, b| (depths[a], sort_key(a)).cmp(&(depths[b], sort_key(b))));
-    let related_list: Vec<GrepObject> = related_ids
-        .iter()
-        .map(|nid| to_grep_object(all_nodes[nid.as_str()], depths[nid], false))
-        .collect();
-
-    // Per-kind summary in first-seen order (seeds then related).
+/// Per-kind count summary in first-seen order (seeds first, then related).
+fn build_summary(seeds: &[GrepObject], related: &[GrepObject]) -> Vec<(String, usize)> {
     let mut summary_order: Vec<String> = Vec::new();
     let mut summary_counts: HashMap<String, usize> = HashMap::new();
-    for obj in seeds_list.iter().chain(related_list.iter()) {
+    for obj in seeds.iter().chain(related.iter()) {
         let key = obj.kind.clone().unwrap_or_else(|| "<unknown>".to_owned());
         if let Some(c) = summary_counts.get_mut(&key) {
             *c += 1;
@@ -626,12 +585,14 @@ pub fn compute_grep(
             summary_counts.insert(key, 1);
         }
     }
-    let summary: Vec<(String, usize)> = summary_order
+    summary_order
         .iter()
         .map(|k| (k.clone(), summary_counts[k]))
-        .collect();
+        .collect()
+}
 
-    let visited: HashSet<&str> = depths.keys().map(String::as_str).collect();
+/// Collect the deduped edges whose endpoints are both in `visited`.
+fn collect_visible_edges(graph: &ObjectGraph, visited: &HashSet<&str>) -> Vec<GrepEdge> {
     let mut edge_items: Vec<GrepEdge> = Vec::new();
     let mut seen_edges: HashSet<(&str, &str, &str, &str)> = HashSet::new();
     for edge in &graph.edges {
@@ -655,6 +616,80 @@ pub fn compute_grep(
             via_kind: edge.via_kind.clone(),
         });
     }
+    edge_items
+}
+
+/// Find every BIG-IP object related to seeds whose identifiers match the
+/// pattern. `graph` must come from
+/// [`crate::graph::build_bigip_object_graph`] (built with the iRules dialect
+/// active, which the caller arranges). `source_uris` are the input URIs used
+/// only for the report header.
+///
+/// # Errors
+/// Returns `Err` on an invalid direction, a non-positive `max_nodes`, a negative
+/// `max_depth`, or a bad regex / CIDR pattern.
+pub fn compute_grep(
+    graph: &ObjectGraph,
+    source_uris: &[String],
+    args: &GrepArgs,
+) -> Result<GrepReport, BigipError> {
+    validate_grep_args(args)?;
+
+    let matcher = build_matcher(args.pattern, args.use_regex, args.use_cidr, args.use_exact)?;
+
+    // Flatten nodes by id, in source order.
+    let mut all_nodes: HashMap<&str, &ObjectNode> = HashMap::new();
+    for (_uri, nodes) in &graph.nodes_by_uri {
+        for node in nodes {
+            all_nodes.insert(node.node_id.as_str(), node);
+        }
+    }
+
+    let (outgoing, incoming) = build_adjacency(graph);
+
+    let sort_key = |nid: &str| -> (String, String) {
+        let node = all_nodes[nid];
+        (node.kind.unwrap_or("").to_owned(), node.identifier.clone())
+    };
+
+    let mut seed_ids: Vec<String> = all_nodes
+        .iter()
+        .filter(|(_, node)| matcher.matches(node))
+        .map(|(id, _)| (*id).to_owned())
+        .collect();
+    seed_ids.sort_by_key(|nid| sort_key(nid));
+
+    // Strict cap on total collected objects: truncate seeds before any BFS.
+    if seed_ids.len() > args.max_nodes {
+        seed_ids.truncate(args.max_nodes);
+    }
+
+    let depths = expand_bfs(&seed_ids, args, &outgoing, &incoming);
+
+    let seed_set: HashSet<&str> = seed_ids.iter().map(String::as_str).collect();
+
+    let mut sorted_seed_ids = seed_ids.clone();
+    sorted_seed_ids.sort_by_key(|nid| sort_key(nid));
+    let seeds_list: Vec<GrepObject> = sorted_seed_ids
+        .iter()
+        .map(|nid| to_grep_object(all_nodes[nid.as_str()], 0, true))
+        .collect();
+
+    let mut related_ids: Vec<String> = depths
+        .keys()
+        .filter(|nid| !seed_set.contains(nid.as_str()))
+        .cloned()
+        .collect();
+    related_ids.sort_by(|a, b| (depths[a], sort_key(a)).cmp(&(depths[b], sort_key(b))));
+    let related_list: Vec<GrepObject> = related_ids
+        .iter()
+        .map(|nid| to_grep_object(all_nodes[nid.as_str()], depths[nid], false))
+        .collect();
+
+    let summary = build_summary(&seeds_list, &related_list);
+
+    let visited: HashSet<&str> = depths.keys().map(String::as_str).collect();
+    let edge_items = collect_visible_edges(graph, &visited);
 
     let mut uris = source_uris.to_vec();
     uris.sort();

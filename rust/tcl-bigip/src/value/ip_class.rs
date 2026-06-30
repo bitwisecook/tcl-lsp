@@ -133,8 +133,8 @@ const V6_MAPPED: V6Net = (0x0000_0000_0000_0000_0000_FFFF_0000_0000, 96); // ::f
 /// (`::ffff:a.b.c.d`), per the IPv4-mapped IPv6 address rule.
 fn ipv4_mapped(addr: u128) -> Option<u32> {
     if v6_in(addr, V6_MAPPED) {
-        #[allow(clippy::cast_possible_truncation)]
-        Some((addr & 0xFFFF_FFFF) as u32)
+        // The low 32 bits are masked off, so the value always fits in a u32.
+        Some(u32::try_from(addr & 0xFFFF_FFFF).expect("masked to 32 bits"))
     } else {
         None
     }

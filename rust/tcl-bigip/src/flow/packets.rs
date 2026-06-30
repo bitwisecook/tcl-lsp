@@ -487,7 +487,6 @@ fn extract_rst_cause_from_trailer(trailer: &[u8]) -> Vec<String> {
 ///
 /// Returns an `IndexMap` keyed as `(src_ip, src_port, dst_ip, dst_port,
 /// proto)`, preserving first-seen insertion order.
-#[allow(clippy::too_many_lines)]
 pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, BigipError> {
     let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
     for (linktype, packet) in iter_pcap_packets(data)? {
@@ -524,119 +523,145 @@ pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, BigipError>
         } else {
             &[]
         };
-        if !trailer.is_empty()
-            && flow.peer_remote_ip.is_empty()
-            && let Some((rr, rp, lr, lp)) = extract_peer_tuple_from_trailer(trailer)
-        {
-            flow.peer_remote_ip = rr;
-            flow.peer_remote_port = rp;
-            flow.peer_local_ip = lr;
-            flow.peer_local_port = lp;
-        }
+        absorb_peer_tuple(flow, trailer);
 
         if proto == 6 {
-            if tcp_flags & 0x02 != 0 {
-                if tcp_flags & 0x10 != 0 {
-                    flow.tcp_synack = true;
-                } else {
-                    flow.tcp_syn = true;
-                }
-            }
-            if tcp_flags & 0x01 != 0 {
-                flow.tcp_fin = true;
-            }
-            if tcp_flags & 0x04 != 0 {
-                if !flow.tcp_rst {
-                    flow.tcp_rst_after_bytes = flow.bytes_total;
-                }
-                flow.tcp_rst = true;
-                flow.tcp_rst_count += 1;
-                if !trailer.is_empty() {
-                    for c in extract_rst_cause_from_trailer(trailer) {
-                        if !flow.f5_reset_causes.contains(&c) {
-                            flow.f5_reset_causes.push(c);
-                        }
-                    }
-                }
-            }
+            absorb_tcp_flags(flow, tcp_flags, trailer);
         }
 
         let payload = l4_payload(&packet, ip_off, is_v6, proto);
         if !payload.is_empty() {
-            let (is_ch, ver, sni) = peek_tls_clienthello(&payload);
-            if is_ch {
-                flow.tls_clienthello = true;
-                if !ver.is_empty() && flow.tls_version.is_empty() {
-                    flow.tls_version = ver;
-                }
-                if !sni.is_empty() && flow.tls_sni.is_empty() {
-                    flow.tls_sni = sni;
-                }
-            }
-            if let Some(http) = peek_http(&payload) {
-                if http.is_response {
-                    flow.http_response_seen = true;
-                    set_if_empty(&mut flow.http_response_code, http.status);
-                    set_if_empty(&mut flow.http_response_phrase, http.phrase);
-                    if flow.http_response_headers.is_empty() {
-                        flow.http_response_headers = imap_to_vec(&http.headers);
-                    }
-                    set_if_empty(
-                        &mut flow.http_response_content_type,
-                        http.headers
-                            .get("content-type")
-                            .cloned()
-                            .unwrap_or_default(),
-                    );
-                    set_if_empty(
-                        &mut flow.http_response_content_length,
-                        http.headers
-                            .get("content-length")
-                            .cloned()
-                            .unwrap_or_default(),
-                    );
-                } else if !http.method.is_empty() {
-                    flow.http_request_seen = true;
-                    set_if_empty(&mut flow.http_method, http.method);
-                    set_if_empty(&mut flow.http_uri, http.uri);
-                    set_if_empty(&mut flow.http_path, http.path);
-                    set_if_empty(&mut flow.http_query, http.query);
-                    set_if_empty(&mut flow.http_host, http.host);
-                    set_if_empty(&mut flow.http_request_version, http.version);
-                    if flow.http_request_headers.is_empty() {
-                        flow.http_request_headers = imap_to_vec(&http.headers);
-                    }
-                    set_if_empty(
-                        &mut flow.http_user_agent,
-                        http.headers.get("user-agent").cloned().unwrap_or_default(),
-                    );
-                    set_if_empty(
-                        &mut flow.http_cookie,
-                        http.headers.get("cookie").cloned().unwrap_or_default(),
-                    );
-                    set_if_empty(
-                        &mut flow.http_referer,
-                        http.headers.get("referer").cloned().unwrap_or_default(),
-                    );
-                    set_if_empty(
-                        &mut flow.http_request_content_type,
-                        http.headers
-                            .get("content-type")
-                            .cloned()
-                            .unwrap_or_default(),
-                    );
-                    set_if_empty(
-                        &mut flow.http_request_content_length,
-                        http.headers
-                            .get("content-length")
-                            .cloned()
-                            .unwrap_or_default(),
-                    );
+            absorb_payload(flow, &payload);
+        }
+    }
+    Ok(flows)
+}
+
+/// Record the F5 peer-tuple from the packet trailer on first observation.
+fn absorb_peer_tuple(flow: &mut Flow, trailer: &[u8]) {
+    if !trailer.is_empty()
+        && flow.peer_remote_ip.is_empty()
+        && let Some((rr, rp, lr, lp)) = extract_peer_tuple_from_trailer(trailer)
+    {
+        flow.peer_remote_ip = rr;
+        flow.peer_remote_port = rp;
+        flow.peer_local_ip = lr;
+        flow.peer_local_port = lp;
+    }
+}
+
+/// Fold a TCP segment's flags (and any reset cause in the trailer) into `flow`.
+fn absorb_tcp_flags(flow: &mut Flow, tcp_flags: u8, trailer: &[u8]) {
+    if tcp_flags & 0x02 != 0 {
+        if tcp_flags & 0x10 != 0 {
+            flow.tcp_synack = true;
+        } else {
+            flow.tcp_syn = true;
+        }
+    }
+    if tcp_flags & 0x01 != 0 {
+        flow.tcp_fin = true;
+    }
+    if tcp_flags & 0x04 != 0 {
+        if !flow.tcp_rst {
+            flow.tcp_rst_after_bytes = flow.bytes_total;
+        }
+        flow.tcp_rst = true;
+        flow.tcp_rst_count += 1;
+        if !trailer.is_empty() {
+            for c in extract_rst_cause_from_trailer(trailer) {
+                if !flow.f5_reset_causes.contains(&c) {
+                    flow.f5_reset_causes.push(c);
                 }
             }
         }
     }
-    Ok(flows)
+}
+
+/// Peek TLS `ClientHello` + HTTP request/response details out of L4 payload
+/// bytes.
+fn absorb_payload(flow: &mut Flow, payload: &[u8]) {
+    let (is_ch, ver, sni) = peek_tls_clienthello(payload);
+    if is_ch {
+        flow.tls_clienthello = true;
+        if !ver.is_empty() && flow.tls_version.is_empty() {
+            flow.tls_version = ver;
+        }
+        if !sni.is_empty() && flow.tls_sni.is_empty() {
+            flow.tls_sni = sni;
+        }
+    }
+    if let Some(http) = peek_http(payload) {
+        if http.is_response {
+            absorb_http_response(flow, http);
+        } else if !http.method.is_empty() {
+            absorb_http_request(flow, http);
+        }
+    }
+}
+
+/// Fold an HTTP response into `flow` (first-seen wins per field).
+fn absorb_http_response(flow: &mut Flow, http: HttpPeek) {
+    flow.http_response_seen = true;
+    set_if_empty(&mut flow.http_response_code, http.status);
+    set_if_empty(&mut flow.http_response_phrase, http.phrase);
+    if flow.http_response_headers.is_empty() {
+        flow.http_response_headers = imap_to_vec(&http.headers);
+    }
+    set_if_empty(
+        &mut flow.http_response_content_type,
+        http.headers
+            .get("content-type")
+            .cloned()
+            .unwrap_or_default(),
+    );
+    set_if_empty(
+        &mut flow.http_response_content_length,
+        http.headers
+            .get("content-length")
+            .cloned()
+            .unwrap_or_default(),
+    );
+}
+
+/// Fold an HTTP request into `flow` (first-seen wins per field).
+fn absorb_http_request(flow: &mut Flow, http: HttpPeek) {
+    flow.http_request_seen = true;
+    set_if_empty(&mut flow.http_method, http.method);
+    set_if_empty(&mut flow.http_uri, http.uri);
+    set_if_empty(&mut flow.http_path, http.path);
+    set_if_empty(&mut flow.http_query, http.query);
+    set_if_empty(&mut flow.http_host, http.host);
+    set_if_empty(&mut flow.http_request_version, http.version);
+    if flow.http_request_headers.is_empty() {
+        flow.http_request_headers = imap_to_vec(&http.headers);
+    }
+    set_if_empty(
+        &mut flow.http_user_agent,
+        http.headers.get("user-agent").cloned().unwrap_or_default(),
+    );
+    set_if_empty(
+        &mut flow.http_cookie,
+        http.headers.get("cookie").cloned().unwrap_or_default(),
+    );
+    set_if_empty(
+        &mut flow.http_referer,
+        http.headers.get("referer").cloned().unwrap_or_default(),
+    );
+    set_if_empty(
+        &mut flow.http_request_content_type,
+        http.headers
+            .get("content-type")
+            .cloned()
+            .unwrap_or_default(),
+    );
+    set_if_empty(
+        &mut flow.http_request_content_length,
+        http.headers
+            .get("content-length")
+            .cloned()
+            .unwrap_or_default(),
+    );
 }
 
 fn set_if_empty(slot: &mut String, value: String) {
