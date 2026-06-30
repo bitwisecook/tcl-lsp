@@ -487,13 +487,27 @@ exist yet — the verification-status table follows the list.
    edit sequences). Cross-edit correctness is also pinned by
    `taint_cascade_matches_uncached_under_edits` and the debug fixpoint guard.
 
-3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
+3. **Approach A — incremental per-item IR lowering / CFG** *(L — the one open
+   de-roped task; the most foundational of the set).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
-   item-body keyed on offset-0 body text. Blocked today because whole-module passes
-   (`specialise_factories`, `inline_uplevel_passthrough`, `extract_oo_methods_pass`,
-   `populate_trace_facts`) make one body's IR depend on the others; resolve with the
-   same "cross-item facts as inputs" split the analyser walk used. Attacks the
-   ~59 ms lowering floor.
+   item-body keyed on offset-0 body text. Attacks the ~59 ms lowering floor — the
+   `compilation_unit` query that `build_for_memoized` runs whole-file every edit.
+   *Scope confirmed 2026-06-30:* `build_for_memoized` does
+   `lower_to_ir_with_config(source)` (whole-file lowering) → the cross-procedural
+   IR-mutating passes `specialise_factories` + `inline_uplevel_passthrough` →
+   `build_cfg` → `collect_call_site_constants` / `collect_known_classes`, **then**
+   the per-proc lattices (already memoised via `function_lattice`). The remaining
+   floor is the *lowering* itself, which has **no per-proc seam** (unlike the
+   checks/optimise memos, which built on the existing offset-0 `function_lattice`):
+   `lower_to_ir` lowers the whole file at once, and `specialise_factories` /
+   `inline_uplevel_passthrough` *mutate the `ir_module` across procedures* — so a
+   per-body lowering memo needs those passes refactored to take their cross-item
+   facts as **inputs** (the split the analyser walk used), not as in-place
+   whole-module mutations. This is a deep core-pipeline refactor, materially more
+   foundational than Tasks 2/4 (which had a ready offset-0 analysis seam to build
+   on), and the corpus byte-identity gate (`per_item_corpus` / a new lowering
+   differential) must hold throughout. **Status: scoped, not built** — the single
+   remaining de-roped task.
 
 4. **Approach B follow-ups** *(deferred — one half negligible, one coupled to
    Task 3).* Two sub-parts, both re-evaluated against measurement:
