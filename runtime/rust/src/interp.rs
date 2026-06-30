@@ -4663,6 +4663,25 @@ impl Interp {
         Some(r)
     }
 
+    /// Run `f` against the interpreter addressed by a (possibly multi-level)
+    /// path — a list of child names descending from this interp. An empty path
+    /// is this interp itself; otherwise each name is resolved through
+    /// [`with_child`] in turn. Returns `None` if any name in the chain is not a
+    /// child of its predecessor (`interp create {a b}`, `interp eval {a b} …`).
+    pub(crate) fn with_child_path<R>(
+        &mut self,
+        path: &[Vec<u8>],
+        f: impl FnOnce(&mut Interp) -> R,
+    ) -> Option<R> {
+        match path {
+            [] => Some(f(self)),
+            [name] => self.with_child(name, f),
+            [name, rest @ ..] => self
+                .with_child(name, |c| c.with_child_path(rest, f))
+                .flatten(),
+        }
+    }
+
     /// `interp hide name`: move command `name` out of the command table into the
     /// hidden table. Returns whether it existed.
     pub(crate) fn hide_command(&mut self, name: &[u8]) -> bool {
