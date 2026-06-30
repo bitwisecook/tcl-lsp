@@ -196,8 +196,18 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"namespace path ?nsList?\""),
         },
+        // `namespace forget ?pattern ...?` — remove previously imported commands
+        // matching each pattern from the current namespace.
+        "forget" => {
+            for p in rest {
+                if let Err(e) = vm.forget_imports(&p.to_str()) {
+                    return err(e);
+                }
+            }
+            ok(Value::empty())
+        }
         // Accepted no-ops (metadata only, for now).
-        "forget" | "ensemble" | "unknown" => ok(Value::empty()),
+        "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"

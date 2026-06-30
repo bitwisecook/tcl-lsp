@@ -115,6 +115,13 @@ pub struct Vm {
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
     ns_exports: HashMap<String, Vec<String>>,
+    /// Import provenance: canonical key of a command created by `namespace
+    /// import` → the canonical FQN of its origin (source) command. Lets
+    /// `namespace forget` remove *only* imported commands (C
+    /// `Tcl_ForgetImport`, which matches on `deleteProc == DeleteImportedCmd`),
+    /// leaving a real command of the same name intact. Cleared whenever the key
+    /// is re-registered (a redefine) or taken (a `rename`).
+    imported_commands: HashMap<String, String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -256,6 +263,7 @@ impl Vm {
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
+            imported_commands: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -501,6 +509,9 @@ impl Vm {
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
         // The table is keyed by canonical names (no leading `::`).
         let key = name.strip_prefix("::").unwrap_or(name);
+        // A direct (re)definition at this key is not an import — drop any stale
+        // import provenance so `namespace forget` won't later remove it.
+        self.imported_commands.remove(key);
         self.commands.insert(key.to_owned(), cmd);
     }
 
@@ -523,6 +534,7 @@ impl Vm {
     /// Resolve and remove the command `name`, returning it (for `rename`).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
         let key = self.command_key(name)?;
+        self.imported_commands.remove(&key);
         self.commands.remove(&key)
     }
 
@@ -768,10 +780,68 @@ impl Vm {
         let mut imported = Vec::new();
         for (tail, cmd) in to_import {
             let alias = self.qualify_name(&tail);
+            let origin = format!("{prefix}{tail}");
             self.register_command(&alias, cmd);
+            // `register_command` cleared any stale provenance; now stamp this key
+            // as an import so `namespace forget` can target it.
+            self.imported_commands.insert(alias, origin);
             imported.push(tail);
         }
         imported
+    }
+
+    /// `namespace forget pattern` — remove previously imported commands matching
+    /// `pattern` from the current namespace (C `Tcl_ForgetImport`). Only commands
+    /// created by `namespace import` are removed; a real command of the same name
+    /// is left intact. A simple (unqualified) pattern matches imported commands
+    /// in the current namespace by name; a qualified `ns::pat` pattern matches
+    /// those whose origin lives in `ns` and whose origin tail matches `pat`.
+    /// Returns `Err` for an unknown namespace in a qualified pattern.
+    pub(crate) fn forget_imports(&mut self, pattern: &str) -> Result<(), String> {
+        // Split a canonical command key into (namespace, tail).
+        fn split_key(key: &str) -> (&str, &str) {
+            match key.rsplit_once("::") {
+                Some((ns, tail)) => (ns, tail),
+                None => ("", key),
+            }
+        }
+        let cur = self.current_ns().to_string();
+        let abs = pattern.strip_prefix("::").unwrap_or(pattern);
+        let victims: Vec<String> = if pattern.contains("::") {
+            // Qualified pattern: source namespace + simple pattern on the origin.
+            let (src_ns, simple) = abs.rsplit_once("::").unwrap();
+            if !self.namespace_exists(src_ns) {
+                return Err(format!(
+                    "unknown namespace in namespace forget pattern \"{pattern}\""
+                ));
+            }
+            self.imported_commands
+                .iter()
+                .filter(|(key, origin)| {
+                    split_key(key).0 == cur && {
+                        let (o_ns, o_tail) = split_key(origin);
+                        o_ns == src_ns && tcl_syntax::glob::string_match(simple, o_tail)
+                    }
+                })
+                .map(|(key, _)| key.clone())
+                .collect()
+        } else {
+            // Simple pattern: imported commands in the current namespace whose
+            // own name matches.
+            self.imported_commands
+                .keys()
+                .filter(|key| {
+                    let (ns, tail) = split_key(key);
+                    ns == cur && tcl_syntax::glob::string_match(abs, tail)
+                })
+                .cloned()
+                .collect()
+        };
+        for key in victims {
+            self.imported_commands.remove(&key);
+            self.commands.remove(&key);
+        }
+        Ok(())
     }
 
     /// Delete namespace `canonical` (no leading `::`) and every descendant,
@@ -789,6 +859,8 @@ impl Vm {
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
         self.commands.retain(|k, _| !k.starts_with(&prefix));
+        self.imported_commands
+            .retain(|k, _| !k.starts_with(&prefix));
         if let Some(g) = self.frames.first_mut() {
             g.locals.retain(|k, _| !k.starts_with(&prefix));
         }
