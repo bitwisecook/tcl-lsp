@@ -1,122 +1,122 @@
 # Rust bytecode VM — Tier 1/2/3 tcltest parity scoreboard
 
-_Snapshot 2026-06-23 — regenerate with `TCL_LIBRARY=tmp/tcl9.0.3/library python scripts/dev/rust_vm_tier_gap.py --json tmp/g.json`._
+_Snapshot 2026-06-30 — regenerate with `TCL_LIBRARY=tmp/tcl9.0.3/library python scripts/dev/rust_vm_tier_gap.py --json tmp/g.json`._
 
 Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`).
 
 `CRASH` = an uncaught error/timeout aborts the file (highest leverage — one fix unlocks it). Columns: **C P/S/F** vs **VM P/S/F**.
 
-**Tally: 22 MATCH · 61 gap · 14 crash · 0 no-ref** of 97 stems.
-
+**Tally: 28 MATCH · 56 gap · 13 crash · 0 no-ref** of 97 stems.
 
 ## Tier 1
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| abstractlist | 0/123/0 | 0/123/0 | MATCH |
-| append | 49/3/0 | 44/3/5 | gap |
-| appendComp | 43/5/0 | 38/5/5 | gap |
-| apply | 38/4/0 | 18/4/20 | gap |
-| assemble | (no ref) | ERROR | CRASH |
-| assocd | 0/11/0 | 0/11/0 | MATCH |
-| basic | 69/77/0 | 43/78/25 | gap |
-| cmdAH | 16820/181/0 | ERROR | CRASH |
-| cmdIL | 163/5/0 | 129/7/32 | gap |
-| cmdInfo | 0/12/0 | 0/12/0 | MATCH |
-| cmdMZ | 96/1/0 | 40/3/54 | gap |
-| compExpr | 80/2/0 | 64/2/16 | gap |
-| compExpr-old | 183/1/0 | 121/2/61 | gap |
+| parse | 90/181/0 | 69/181/21 | gap |
+| parseOld | 158/0/0 | 148/0/10 | gap |
+| parseExpr | 67/219/0 | 3/219/64 | gap |
+| word | 55/0/0 | 55/0/0 | MATCH |
+| subst | 62/1/0 | 53/1/9 | gap |
 | compile | 138/33/0 | 61/33/77 | gap |
-| concat | 9/0/0 | 9/0/0 | MATCH |
-| dict | 367/6/0 | 282/6/85 | gap |
-| dstring | 0/46/0 | 0/46/0 | MATCH |
-| error | 309/8/0 | 278/8/31 | gap |
-| eval | 12/0/0 | 11/0/1 | gap |
-| execute | 79/78/0 | 54/78/25 | gap |
-| expr | 2137/31/0 | 1621/32/515 | gap |
-| expr-old | 430/31/0 | 330/31/100 | gap |
+| execute | 79/78/0 | 60/78/19 | gap |
+| basic | 69/77/0 | 44/78/24 | gap |
+| misc | 2/299/0 | 1/299/1 | gap |
+| compExpr | 80/2/0 | 71/2/9 | gap |
+| compExpr-old | 183/1/0 | 138/2/44 | gap |
+| appendComp | 43/5/0 | 39/5/4 | gap |
+| lsetComp | 19/0/0 | 19/0/0 | MATCH |
+| regexpComp | 179/0/0 | 167/1/11 | gap |
+| assemble | (no ref) | ERROR | CRASH |
+| obj | 8/76/0 | 8/76/0 | MATCH |
+| nre | 5/23/0 | 2/23/3 | gap |
+| eval | 12/0/0 | 12/0/0 | MATCH |
+| if | 73/0/0 | 71/0/2 | gap |
+| if-old | 33/0/0 | 33/0/0 | MATCH |
 | for | 64/24/0 | 57/24/7 | gap |
 | for-old | 9/0/0 | 8/0/1 | gap |
 | foreach | 43/0/0 | 37/0/6 | gap |
-| format | 269/0/0 | 174/19/76 | gap |
-| get | 6/17/0 | 4/17/2 | gap |
-| if | 73/0/0 | 66/0/7 | gap |
-| if-old | 33/0/0 | 32/0/1 | gap |
+| while | 46/0/0 | 45/0/1 | gap |
+| while-old | 15/0/0 | 15/0/0 | MATCH |
+| switch | 113/0/0 | 99/0/14 | gap |
+| error | 309/8/0 | 296/8/13 | gap |
+| result | 4/22/0 | 0/22/4 | gap |
+| expr | 2137/31/0 | 1921/32/215 | gap |
+| expr-old | 430/31/0 | 393/31/37 | gap |
+| mathop | 385/0/0 | 350/0/35 | gap |
 | incr | 69/0/0 | 61/0/8 | gap |
-| incr-old | 14/0/0 | 10/0/4 | gap |
-| indexObj | 0/65/0 | 0/65/0 | MATCH |
-| info | 282/5/0 | 85/6/196 | gap |
+| incr-old | 14/0/0 | 11/0/3 | gap |
+| proc | 29/9/0 | 26/9/3 | gap |
+| proc-old | 74/0/0 | 61/0/13 | gap |
+| apply | 38/4/0 | 26/4/12 | gap |
+| uplevel | 57/0/0 | 53/0/4 | gap |
+| upvar | 62/8/0 | 29/8/33 | gap |
+| namespace | 311/3/0 | 147/3/164 | gap |
+| namespace-old | 126/0/0 | 102/0/24 | gap |
+| var | 198/21/0 | 118/21/80 | gap |
+| info | 282/5/0 | 102/6/179 | gap |
+| cmdInfo | 0/12/0 | 0/12/0 | MATCH |
+| trace | 273/17/0 | 120/17/153 | gap |
+| rename | 11/8/0 | 10/8/1 | gap |
+| unknown | 7/0/0 | 7/0/0 | MATCH |
+| string | 693/12/0 | 676/12/17 | gap |
+| set | 63/1/0 | 63/1/0 | MATCH |
+| set-old | 153/0/0 | 91/0/62 | gap |
+| append | 49/3/0 | 45/3/4 | gap |
+| format | 269/0/0 | 239/0/30 | gap |
+| scan | 184/1/0 | 169/1/15 | gap |
+| split | 18/0/0 | 18/0/0 | MATCH |
 | join | 10/0/0 | 10/0/0 | MATCH |
-| lindex | 47/37/0 | 44/37/3 | gap |
-| linsert | 28/0/0 | 27/0/1 | gap |
+| concat | 9/0/0 | 9/0/0 | MATCH |
+| regexp | 253/4/0 | 231/5/21 | gap |
+| stringObj | 0/81/0 | 0/81/0 | MATCH |
+| dstring | 0/46/0 | 0/46/0 | MATCH |
 | list | 78/0/0 | 78/0/0 | MATCH |
-| listObj | 42/17/0 | 42/17/0 | MATCH |
-| listRep | 4/227/0 | 4/227/0 | MATCH |
+| lindex | 47/37/0 | 46/37/1 | gap |
+| linsert | 28/0/0 | 28/0/0 | MATCH |
 | llength | 6/0/0 | 6/0/0 | MATCH |
-| lmap | 66/0/0 | 63/0/3 | gap |
-| lpop | 17/2/0 | 17/2/0 | MATCH |
 | lrange | 1764/2/0 | 1759/2/5 | gap |
 | lrepeat | 11/1/0 | 11/1/0 | MATCH |
 | lreplace | 3579/0/0 | 3579/0/0 | MATCH |
-| lsearch | 165/0/0 | 163/0/2 | gap |
-| lseq | 132/2/0 | 95/3/36 | gap |
+| lsearch | 165/0/0 | 165/0/0 | MATCH |
 | lset | 0/89/0 | 0/89/0 | MATCH |
-| lsetComp | 19/0/0 | 19/0/0 | MATCH |
-| mathop | 385/0/0 | 248/0/137 | gap |
-| misc | 2/299/0 | 1/299/1 | gap |
-| namespace | 311/3/0 | 141/3/170 | gap |
-| namespace-old | 126/0/0 | 99/0/27 | gap |
-| nre | 5/23/0 | 2/23/3 | gap |
-| obj | 8/76/0 | 8/76/0 | MATCH |
-| parse | 90/181/0 | 60/181/30 | gap |
-| parseExpr | 67/219/0 | 3/219/64 | gap |
-| parseOld | 158/0/0 | 148/0/10 | gap |
-| proc | 29/9/0 | 20/9/9 | gap |
-| proc-old | 74/0/0 | 57/0/17 | gap |
-| regexp | 253/4/0 | 231/5/21 | gap |
-| regexpComp | 179/0/0 | 167/1/11 | gap |
-| rename | 11/8/0 | 10/8/1 | gap |
-| result | 4/22/0 | 0/22/4 | gap |
-| scan | 184/1/0 | 125/1/59 | gap |
-| set | 63/1/0 | 63/1/0 | MATCH |
-| set-old | 153/0/0 | 88/0/65 | gap |
-| split | 18/0/0 | 18/0/0 | MATCH |
-| string | 693/12/0 | 671/12/22 | gap |
-| stringObj | 0/81/0 | 0/81/0 | MATCH |
-| subst | 62/1/0 | 23/1/39 | gap |
-| switch | 113/0/0 | 99/0/14 | gap |
-| trace | 273/17/0 | 80/17/193 | gap |
-| unknown | 7/0/0 | 7/0/0 | MATCH |
-| uplevel | 57/0/0 | 33/0/24 | gap |
-| upvar | 62/8/0 | 28/8/34 | gap |
-| util | 310/152/0 | 133/152/177 | gap |
-| var | 198/21/0 | 58/21/140 | gap |
-| while | 46/0/0 | 45/0/1 | gap |
-| while-old | 15/0/0 | 14/0/1 | gap |
-| word | 55/0/0 | 55/0/0 | MATCH |
+| lmap | 66/0/0 | 63/0/3 | gap |
+| lpop | 17/2/0 | 17/2/0 | MATCH |
+| lseq | 132/2/0 | 96/3/35 | gap |
+| listObj | 42/17/0 | 42/17/0 | MATCH |
+| listRep | 4/227/0 | 4/227/0 | MATCH |
+| abstractlist | 0/123/0 | 0/123/0 | MATCH |
+| cmdAH | 16820/181/0 | ERROR | CRASH |
+| cmdIL | 163/5/0 | 132/7/29 | gap |
+| cmdMZ | 96/1/0 | 49/3/45 | gap |
+| util | 310/152/0 | 280/152/30 | gap |
+| dict | 367/6/0 | 324/6/43 | gap |
+| indexObj | 0/65/0 | 0/65/0 | MATCH |
+| get | 6/17/0 | 6/17/0 | MATCH |
+| assocd | 0/11/0 | 0/11/0 | MATCH |
 
 ## Tier 2
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| binary | 660/90/0 | 578/91/81 | gap |
 | coroutine | 74/3/0 | 0/3/74 | gap |
+| tailcall | 29/8/0 | 21/8/8 | gap |
 | interp | 340/14/0 | ERROR | CRASH |
+| binary | 660/90/0 | 600/91/59 | gap |
 | oo | 372/16/0 | ERROR | CRASH |
 | ooNext2 | 57/5/0 | ERROR | CRASH |
 | ooProp | 55/0/0 | ERROR | CRASH |
 | ooUtil | 33/0/0 | ERROR | CRASH |
-| tailcall | 29/8/0 | ERROR | CRASH |
 
 ## Tier 3
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| clock | (no ref) | ERROR | CRASH |
 | encoding | (no ref) | ERROR | CRASH |
+| utf | 148/251/0 | 133/251/15 | gap |
+| clock | (no ref) | ERROR | CRASH |
 | msgcat | (no ref) | ERROR | CRASH |
 | safe | 147/8/0 | ERROR | CRASH |
 | safe-stock | 11/0/0 | 0/0/11 | gap |
 | safe-stock86 | 0/0/0 | ERROR | CRASH |
 | safe-zipfs | (no ref) | ERROR | CRASH |
-| utf | 148/251/0 | 133/251/15 | gap |
+
