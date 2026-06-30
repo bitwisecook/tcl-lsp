@@ -1074,7 +1074,7 @@ impl Backend {
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
-            Vec::new(),
+            default_disabled_set().into_iter().collect(),
             NonAsciiMode::Default,
             Vec::new(),
             None,
@@ -1089,7 +1089,7 @@ impl Backend {
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(HashSet::new()),
+            disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
@@ -6555,26 +6555,44 @@ fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode>
 /// `None` when no diagnostics config is present (so the caller leaves the
 /// current set untouched).
 fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet<String>> {
+    // Every resolution starts from the opt-in default-off set; a `false` value
+    // disables a code and a `true` value *enables* one (removing it from the
+    // set, so a default-off code like W242 can be turned on). Mirrors
+    // `server/settings.py`'s `new_disabled = set(default_disabled())` + per-code
+    // add/discard.
     if let Some(map) = settings
         .get("tclLsp")
         .and_then(|v| v.get("diagnostics"))
         .and_then(serde_json::Value::as_object)
     {
-        return Some(
-            map.iter()
-                .filter(|(_, v)| v.as_bool() == Some(false))
-                .map(|(k, _)| k.clone())
-                .collect(),
-        );
+        let mut set = default_disabled_set();
+        for (code, v) in map {
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.clone());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
+            }
+        }
+        return Some(set);
     }
     let obj = settings.as_object()?;
-    let mut set = HashSet::new();
+    let mut set = default_disabled_set();
     let mut found = false;
     for (k, v) in obj {
         if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
             found = true;
-            if v.as_bool() == Some(false) {
-                set.insert(code.to_owned());
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.to_owned());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
             }
         }
     }
@@ -6720,12 +6738,19 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
     }
 }
 
-/// Diagnostic codes that are *default-off* in the editor catalogue —
-/// the analyser emits them but
-/// the LSP layer is the consuming filter, so they are dropped from the
-/// published set unless explicitly enabled.  The Rust server has no per-code
-/// enable config, so these are simply never published.
+/// Diagnostic codes that are *default-off* (opt-in) in the editor catalogue.
+/// They are seeded into the resolved disabled-diagnostics set so the analyser
+/// suppresses them by default, and `tclLsp.diagnostics.<CODE>: true` removes a
+/// code from the disabled set to enable it — mirroring Python's
+/// `default_disabled_diagnostics()` + per-code enable in `server/settings.py`.
 const DEFAULT_OFF_CODES: &[&str] = &["W242"];
+
+/// A fresh disabled-diagnostics set seeded with the opt-in [`DEFAULT_OFF_CODES`]
+/// — the starting point every resolution builds on (Python's
+/// `set(default_disabled_diagnostics())`).
+fn default_disabled_set() -> HashSet<String> {
+    DEFAULT_OFF_CODES.iter().map(|c| (*c).to_owned()).collect()
+}
 
 /// Default BIG-IP partition assumed when a config carries no explicit
 /// one.
@@ -7068,9 +7093,12 @@ fn lift_analyser_diagnostics(
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let line_index = tcl_lexer::LineIndex::new(text);
+    // Default-off codes are suppressed at the analyser via the seeded disabled
+    // set (see `default_disabled_set` / `settings_disabled_diagnostics`), so no
+    // publish-time filter is needed here — and removing it is what lets
+    // `tclLsp.diagnostics.<CODE>: true` actually enable an opt-in code.
     diagnostics
         .iter()
-        .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
         .map(|d| tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
@@ -8170,27 +8198,64 @@ mod tests {
     }
 
     #[test]
-    fn default_off_w242_is_not_published() {
-        // `while {$x < 10} {puts hi}` emits the default-off W242 hint
-        // from the analyser, which the lift layer must drop (no consuming
-        // config exists in the Rust server) while keeping other codes.
-        let src = "while {$x < 10} {puts hi}\n";
-        let mut a = Analyser::new();
-        let analysis = a.analyse(src, "tcl8.6").clone();
+    fn default_off_codes_are_seeded_into_the_disabled_set() {
+        // The opt-in default-off codes (e.g. W242) start in the resolved
+        // disabled set, so the analyser suppresses them by default.
+        assert!(default_disabled_set().contains("W242"));
+        // An empty config keeps the default-off seed.
+        let none = settings_disabled_diagnostics(&serde_json::json!({}));
+        assert!(none.is_none(), "no diagnostics section ⇒ inherit default");
+        // A `false` for some other code keeps W242 disabled too.
+        let with_false = settings_disabled_diagnostics(
+            &serde_json::json!({ "tclLsp": { "diagnostics": { "W111": false } } }),
+        )
+        .expect("set");
+        assert!(with_false.contains("W242"), "W242 stays default-off");
+        assert!(with_false.contains("W111"));
+        // `tclLsp.diagnostics.W242: true` enables it (removes from disabled).
+        let enabled = settings_disabled_diagnostics(
+            &serde_json::json!({ "tclLsp": { "diagnostics": { "W242": true } } }),
+        )
+        .expect("set");
         assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .any(|d| d.code == DiagCode::W242),
-            "analyser should still emit W242"
+            !enabled.contains("W242"),
+            "W242 enabled via config: {enabled:?}"
         );
-        let lifted = lift_analyser_diagnostics(src, &analysis.diagnostics);
+    }
+
+    #[tokio::test]
+    async fn default_off_w242_hidden_by_default_enableable_via_config() {
+        // End-to-end: a default-off W242 is not published by default, but
+        // `tclLsp.diagnostics.W242: true` turns it on (the Rust server now has a
+        // per-code enable path, matching Python).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w242.tcl").unwrap();
+        let src = "while {$x < 10} {puts hi}\n"; // emits W242 from the analyser
+        register(&backend, &uri, src).await;
+
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
         assert!(
-            !lifted.iter().any(|d| matches!(
+            !off.iter().any(|d| matches!(
                 &d.code,
                 Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W242"
             )),
-            "W242 must be filtered from the published set"
+            "W242 hidden by default: {off:?}",
+        );
+
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "W242": true } }))
+            .await;
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            on.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W242"
+            )),
+            "W242 should appear once enabled: {on:?}",
         );
     }
 
@@ -9526,7 +9591,7 @@ mod tests {
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
-            Vec::new(),
+            default_disabled_set().into_iter().collect(),
             NonAsciiMode::Default,
             Vec::new(),
             None,
@@ -9541,7 +9606,7 @@ mod tests {
             folder_configs: Mutex::new(Vec::new()),
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
-            disabled_diagnostics: Mutex::new(HashSet::new()),
+            disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
