@@ -492,6 +492,21 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 }
 
 /// `interp bgerror path ?cmdPrefix?` — get/set the background-error handler.
+/// `interp children ?path?` — children of the current interp, or (one level
+/// down) of the named child.
+fn interp_children_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let names = match rest {
+        [] => vm.child_names(),
+        [path] if path.to_str().is_empty() => vm.child_names(),
+        [path] => match vm.child_child_names(&path.to_str()) {
+            Some(names) => names,
+            None => return err(format!("could not find interpreter \"{}\"", path.to_str())),
+        },
+        _ => return err("wrong # args: should be \"interp children ?path?\""),
+    };
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
 fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, bargs) = match rest {
         [path] | [path, _] => (path.to_str(), &rest[1..]),
@@ -720,9 +735,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"interp issafe ?path?\""),
         },
-        "slaves" | "children" => ok(Value::list(
-            vm.child_names().into_iter().map(Value::string).collect(),
-        )),
+        "slaves" | "children" => interp_children_cmd(vm, rest),
         "recursionlimit" => interp_recursionlimit_cmd(vm, rest),
         // interp hide path cmd / interp expose path cmd
         "hide" | "expose" => interp_hidectl_cmd(vm, &*sub.to_str() == "hide", rest),
@@ -731,9 +744,13 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "debug" => interp_debug_cmd(vm, rest),
         "bgerror" => interp_bgerror_cmd(vm, rest),
         "limit" => interp_limit_cmd(vm, rest),
-        // `interp marktrusted path` — clear a child's safe flag.
+        // `interp marktrusted path` — clear a child's safe flag. A safe
+        // interpreter may not mark anything trusted (checked on the executor).
         "marktrusted" => match rest {
             [path] => {
+                if vm.is_safe() {
+                    return err("permission denied: safe interpreter cannot mark trusted");
+                }
                 vm.child_mark_trusted(&path.to_str());
                 ok(Value::empty())
             }

@@ -4480,6 +4480,15 @@ impl Interp {
             }
             b"hide" | b"expose" if argv.len() == 3 => {
                 let hide = obj_bytes(argv[1]) == b"hide";
+                // A safe interpreter may not touch any hidden-command table
+                // (checked on the executing interp).
+                if self.is_safe() {
+                    return self.error(if hide {
+                        b"permission denied: safe interpreter cannot hide commands"
+                    } else {
+                        b"permission denied: safe interpreter cannot expose commands"
+                    });
+                }
                 let cmd = obj_bytes(argv[2]);
                 self.with_child(name, |c| {
                     if hide {
@@ -4492,6 +4501,10 @@ impl Interp {
                 Code::Ok
             }
             b"invokehidden" if argv.len() >= 3 => {
+                if self.is_safe() {
+                    return self
+                        .error(b"not allowed to invoke hidden commands from safe interpreter");
+                }
                 let cmd = obj_bytes(argv[2]);
                 let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
                 for &a in &hidden_argv {
@@ -4921,6 +4934,14 @@ impl Interp {
             };
             return Ok(obj::new_string_bytes(&val));
         }
+        // A trailing option with no value is a catchable error, not a silent
+        // drop (`interp limit c commands -value 1 -granularity`).
+        if opts.len() % 2 != 0 {
+            return Err(
+                b"wrong # args: should be \"interp limit path commands ?-option value ...?\""
+                    .to_vec(),
+            );
+        }
         let mut i = 0;
         while i + 1 < opts.len() {
             let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
@@ -4972,6 +4993,11 @@ impl Interp {
                 _ => opt_int(l.time_value.map(|(_, m)| m)),
             };
             return Ok(obj::new_string_bytes(&val));
+        }
+        if opts.len() % 2 != 0 {
+            return Err(
+                b"wrong # args: should be \"interp limit path time ?-option value ...?\"".to_vec(),
+            );
         }
         let (mut sec, mut ms) = self.limits.borrow().time_value.unwrap_or((0, 0));
         let mut touched = self.limits.borrow().time_value.is_some();

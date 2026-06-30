@@ -853,8 +853,14 @@ impl Vm {
             [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
             _ => {
                 for pair in args.chunks(2) {
-                    let opt = resolve_limit_opt(&pair[0].to_str(), OPTS)?;
-                    let val = &pair[1];
+                    // A trailing option with no value is a catchable error, not a
+                    // panic (`interp limit c commands -value 1 -granularity`).
+                    let [opt, val] = pair else {
+                        return Err("wrong # args: should be \"interp limit path commands \
+                                    ?-option value ...?\""
+                            .into());
+                    };
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
                     match opt {
                         "-command" => self.limits.cmd_command = val.clone(),
                         "-granularity" => {
@@ -909,8 +915,12 @@ impl Vm {
                 let (mut sec, mut ms) = self.limits.time_value.unwrap_or((0, 0));
                 let mut touched = self.limits.time_value.is_some();
                 for pair in args.chunks(2) {
-                    let opt = resolve_limit_opt(&pair[0].to_str(), OPTS)?;
-                    let val = &pair[1];
+                    let [opt, val] = pair else {
+                        return Err("wrong # args: should be \"interp limit path time \
+                                    ?-option value ...?\""
+                            .into());
+                    };
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
                     match opt {
                         "-command" => self.limits.time_command = val.clone(),
                         "-granularity" => {
@@ -954,6 +964,12 @@ impl Vm {
         let mut names: Vec<String> = self.children.keys().cloned().collect();
         names.sort();
         names
+    }
+
+    /// `interp children path` — the direct child names of the named child interp
+    /// (one level down), or `None` when that child does not exist.
+    pub(crate) fn child_child_names(&self, name: &str) -> Option<Vec<String>> {
+        self.children.get(name).map(Vm::child_names)
     }
 
     /// `interp issafe ?path?` for the current interp.
@@ -1285,6 +1301,9 @@ impl Vm {
                 ok(Value::empty())
             }
             "marktrusted" => {
+                if self.is_safe() {
+                    return err("permission denied: safe interpreter cannot mark trusted");
+                }
                 self.child_mark_trusted(name);
                 ok(Value::empty())
             }
