@@ -59,6 +59,10 @@ pub enum Command {
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
     Alias(Rc<Vec<Value>>),
+    /// A child interpreter addressable as a command (`$child eval …`): the name
+    /// keys into the parent's `children` table. Invoking it dispatches the
+    /// `interp` ensemble restricted to that child.
+    ChildInterp(String),
 }
 
 /// Register the builtin set on `vm`.
@@ -377,14 +381,48 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-/// `interp` — the subset the stdlib/test suite needs in a single-interpreter
-/// VM. Only the current interpreter (`{}` path) is modelled, so `slaves`/`exists`
-/// answer for it and the unsupported sub-interpreter operations are rejected.
+/// `interp create ?-safe? ?--? ?name?` — make a child interpreter.
+fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let mut safe = false;
+    let mut name: Option<String> = None;
+    let mut i = 0;
+    while i < rest.len() {
+        let a = rest[i].to_str();
+        match &*a {
+            "-safe" => safe = true,
+            "--" => {
+                i += 1;
+                break;
+            }
+            s if s.starts_with('-') => {
+                return err(format!("bad option \"{s}\": must be -safe or --"));
+            }
+            _ => break,
+        }
+        i += 1;
+    }
+    if let Some(n) = rest.get(i) {
+        let n = n.to_str().to_string();
+        if vm.child_exists(&n) {
+            return err(format!(
+                "interpreter named \"{n}\" already exists, cannot create"
+            ));
+        }
+        name = Some(n);
+    }
+    ok(Value::string(vm.create_child(name, safe)))
+}
+
+/// `interp` — child-interpreter creation, evaluation, and the single-interp
+/// alias form. A child is a full `Vm` sharing the parent's output and compile
+/// service (see [`Vm::create_child`]); `interp eval`/`delete`/`issafe`/… address
+/// the current interp (empty path) or a named child.
 fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"interp cmd ?arg ...?\"");
     };
     match &*sub.to_str() {
+        "create" => interp_create_cmd(vm, rest),
         // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
         "alias" => match rest {
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
@@ -401,33 +439,79 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "exists" => match rest {
             [] => ok(Value::int(1)),
-            [path] => ok(Value::bool(path.to_str().is_empty())),
+            [path] => {
+                let p = path.to_str();
+                ok(Value::bool(p.is_empty() || vm.child_exists(&p)))
+            }
             _ => err("wrong # args: should be \"interp exists ?path?\""),
         },
-        // interp eval path arg ?arg ...? — only the current interpreter (an
-        // empty path) exists; its scripts (concatenated) evaluate in the current
-        // frame, exactly like `eval` (verified against tclsh 9.0).
+        // interp eval path arg ?arg ...? — empty path is the current interp
+        // (evaluate like `eval`); a named path routes into that child.
         "eval" => match rest {
             [path, scripts @ ..] if !scripts.is_empty() => {
                 let p = path.to_str();
-                if !p.is_empty() {
-                    return err(format!("could not find interpreter \"{p}\""));
-                }
                 let script = scripts
                     .iter()
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                match vm.eval_source(&script) {
-                    Ok(c) => c,
-                    Err(e) => err(e.message),
+                if p.is_empty() {
+                    match vm.eval_source(&script) {
+                        Ok(c) => c,
+                        Err(e) => err(e.message),
+                    }
+                } else {
+                    vm.eval_in_child(&p, &script)
                 }
             }
             _ => err("wrong # args: should be \"interp eval path arg ?arg ...?\""),
         },
-        "slaves" | "children" => ok(Value::empty()),
+        // interp delete ?path ...?
+        "delete" => {
+            for path in rest {
+                let p = path.to_str();
+                if p.is_empty() || !vm.delete_child(&p) {
+                    return err(format!("could not find interpreter \"{p}\""));
+                }
+            }
+            ok(Value::empty())
+        }
+        "issafe" => match rest {
+            [] => ok(Value::bool(vm.is_safe())),
+            [path] => {
+                let p = path.to_str();
+                if p.is_empty() {
+                    ok(Value::bool(vm.is_safe()))
+                } else {
+                    match vm.child_is_safe(&p) {
+                        Some(s) => ok(Value::bool(s)),
+                        None => err(format!("could not find interpreter \"{p}\"")),
+                    }
+                }
+            }
+            _ => err("wrong # args: should be \"interp issafe ?path?\""),
+        },
+        "slaves" | "children" => ok(Value::list(
+            vm.child_names().into_iter().map(Value::string).collect(),
+        )),
+        // `interp marktrusted path` — clear a child's safe flag.
+        "marktrusted" => match rest {
+            [path] => {
+                vm.child_mark_trusted(&path.to_str());
+                ok(Value::empty())
+            }
+            _ => err("wrong # args: should be \"interp marktrusted path\""),
+        },
+        // Channel sharing/transfer between interps. Channels are per-interp in
+        // this model; accept the operation so a script that wires up shared
+        // channels at top level runs to completion (the dependent reads are
+        // covered by the per-interp channel table, not a global one).
+        "share" | "transfer" => ok(Value::empty()),
         other => err(format!(
-            "bad option \"{other}\": only alias, eval, exists, and slaves are supported"
+            "bad option \"{other}\": must be alias, aliases, bgerror, cancel, \
+             children, create, debug, delete, eval, exists, expose, hide, \
+             hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, \
+             share, slaves, target, or transfer"
         )),
     }
 }
