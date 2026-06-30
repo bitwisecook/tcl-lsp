@@ -463,6 +463,40 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `interp bgerror path ?cmdPrefix?` — get/set the background-error handler.
+fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, bargs) = match rest {
+        [path] | [path, _] => (path.to_str(), &rest[1..]),
+        _ => return err("wrong # args: should be \"interp bgerror path ?cmdPrefix?\""),
+    };
+    if path.is_empty() {
+        ok(vm.bgerror_apply(bargs))
+    } else if let Some(child) = vm.child_mut(&path) {
+        ok(child.bgerror_apply(bargs))
+    } else {
+        err(format!("could not find interpreter \"{path}\""))
+    }
+}
+
+/// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
+fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((path, dargs)) = rest.split_first() else {
+        return err("wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+    };
+    let p = path.to_str();
+    let res = if p.is_empty() {
+        vm.debug_apply(dargs)
+    } else if let Some(child) = vm.child_mut(&p) {
+        child.debug_apply(dargs)
+    } else {
+        return err(format!("could not find interpreter \"{p}\""));
+    };
+    match res {
+        Ok(v) => ok(v),
+        Err(m) => err(m),
+    }
+}
+
 /// `interp hidden ?path?` — the hidden-command names of the current or named
 /// interp.
 fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -623,6 +657,8 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "hide" | "expose" => interp_hidectl_cmd(vm, &*sub.to_str() == "hide", rest),
         "hidden" => interp_hidden_cmd(vm, rest),
         "invokehidden" => interp_invokehidden_cmd(vm, rest),
+        "debug" => interp_debug_cmd(vm, rest),
+        "bgerror" => interp_bgerror_cmd(vm, rest),
         // `interp marktrusted path` — clear a child's safe flag.
         "marktrusted" => match rest {
             [path] => {

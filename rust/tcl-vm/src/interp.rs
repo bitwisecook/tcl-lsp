@@ -270,6 +270,10 @@ pub struct Vm {
     hidden_commands: HashMap<String, Command>,
     /// Monotonic counter minting auto-generated child names (`interp0`, …).
     interp_counter: u64,
+    /// `interp debug -frame` — a one-way switch (once on, stays on).
+    debug_frame: bool,
+    /// `interp bgerror` — the background-error handler command prefix.
+    bgerror_handler: Value,
 }
 
 /// The command-identity arena backing `Namespaces::find_command` /
@@ -343,6 +347,8 @@ impl Vm {
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
             interp_counter: 0,
+            debug_frame: false,
+            bgerror_handler: Value::string("::tcl::Bgerror"),
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
@@ -678,6 +684,45 @@ impl Vm {
     /// Whether a child interpreter `name` exists.
     pub(crate) fn child_exists(&self, name: &str) -> bool {
         self.children.contains_key(name)
+    }
+
+    /// Mutable access to a child interpreter (for the per-interp `debug` /
+    /// `bgerror` settings).
+    pub(crate) fn child_mut(&mut self, name: &str) -> Option<&mut Vm> {
+        self.children.get_mut(name)
+    }
+
+    /// `interp debug ?-frame ?bool??` on this interp. `-frame` is a one-way
+    /// switch (once on, stays on); returns the settings list / the frame bool.
+    pub(crate) fn debug_apply(&mut self, args: &[Value]) -> Result<Value, String> {
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-frame"),
+                Value::int(i64::from(self.debug_frame)),
+            ])),
+            [opt] if &*opt.to_str() == "-frame" => Ok(Value::int(i64::from(self.debug_frame))),
+            [opt, val] if &*opt.to_str() == "-frame" => {
+                if val.as_bool().unwrap_or(false) {
+                    self.debug_frame = true;
+                }
+                Ok(Value::int(i64::from(self.debug_frame)))
+            }
+            _ => Err(format!(
+                "bad option \"{}\": must be -frame",
+                args.first()
+                    .map(|v| v.to_str().to_string())
+                    .unwrap_or_default()
+            )),
+        }
+    }
+
+    /// `interp bgerror ?cmdPrefix?` on this interp — get/set the background-error
+    /// handler.
+    pub(crate) fn bgerror_apply(&mut self, args: &[Value]) -> Value {
+        if let [prefix] = args {
+            self.bgerror_handler = prefix.clone();
+        }
+        self.bgerror_handler.clone()
     }
 
     /// Sorted names of this interp's direct children (`interp children`).
