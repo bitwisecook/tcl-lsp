@@ -155,8 +155,11 @@ pub struct Vm {
     /// variables); inside a proc called from one, the depths differ and
     /// unqualified names are proc locals.
     ns_script_frames: Vec<usize>,
-    out: Box<dyn Write>,
-    compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
+    // Shared with child interpreters (`interp create`): a child writes `puts`
+    // output to the same sink and compiles dynamic scripts with the same
+    // (stateless) compile service, so both are `Rc` rather than owned.
+    out: Rc<RefCell<Box<dyn Write>>>,
+    compiler: Option<Rc<dyn CompileService<Module = ModuleAsm>>>,
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
@@ -226,6 +229,18 @@ pub struct Vm {
     /// generator's 31-bit seed (`tclExecute.c`). Seeded deterministically so a
     /// fresh VM is reproducible; `srand(n)` resets it.
     rand_seed: i64,
+    /// Child interpreters (`interp create`), keyed by name. Each is a full `Vm`
+    /// sharing this one's output sink and compile service; their command tables,
+    /// namespaces, variables, and channels are isolated. A child is reachable
+    /// both here and as a command (`Command::ChildInterp`) in this interp.
+    children: HashMap<String, Vm>,
+    /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
+    is_safe: bool,
+    /// Commands hidden by `interp create -safe` / `interp hide`, keyed by name —
+    /// invocable via `interp invokehidden`, restorable with `interp expose`.
+    hidden_commands: HashMap<String, Command>,
+    /// Monotonic counter minting auto-generated child names (`interp0`, …).
+    interp_counter: u64,
 }
 
 /// The command-identity arena backing `Namespaces::find_command` /
@@ -256,6 +271,13 @@ impl Vm {
     /// A VM writing `puts` output to `out` (tests pass a capture buffer).
     #[must_use]
     pub fn with_output(out: Box<dyn Write>) -> Self {
+        Self::with_shared_output(Rc::new(RefCell::new(out)))
+    }
+
+    /// A VM writing to an already-shared output sink — the path
+    /// [`fork_child`](Self::fork_child) uses so a child interpreter's `puts`
+    /// reaches the same place as its parent's.
+    fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let mut vm = Self {
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
@@ -287,6 +309,10 @@ impl Vm {
             script_stack: Vec::new(),
             recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
+            children: HashMap::new(),
+            is_safe: false,
+            hidden_commands: HashMap::new(),
+            interp_counter: 0,
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
@@ -512,7 +538,7 @@ impl Vm {
 
     /// Inject the compiler used for runtime `eval` / command substitution.
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
-        self.compiler = Some(compiler);
+        self.compiler = Some(Rc::from(compiler));
     }
 
     /// The host environment (capability seam) backing the platform commands.
@@ -587,7 +613,188 @@ impl Vm {
             Command::Builtin(_) => "native",
             Command::Proc(_) => "proc",
             Command::Alias(_) => "alias",
+            Command::ChildInterp(_) => "interp",
         })
+    }
+
+    /// A fresh child interpreter sharing this one's output sink, compile
+    /// service, and host — its command table, namespaces, variables, and
+    /// channels are otherwise independent (`interp create`).
+    fn fork_child(&self) -> Vm {
+        let mut child = Vm::with_shared_output(Rc::clone(&self.out));
+        child.compiler.clone_from(&self.compiler);
+        child.host = Rc::clone(&self.host);
+        child
+    }
+
+    /// `interp create ?-safe? ?name?` — make a child interpreter, registering it
+    /// as a command in this interp. Returns the (possibly auto-generated) name.
+    pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
+        let name = name.unwrap_or_else(|| {
+            let n = format!("interp{}", self.interp_counter);
+            self.interp_counter += 1;
+            n
+        });
+        let mut child = self.fork_child();
+        if safe {
+            child.make_safe();
+        }
+        self.children.insert(name.clone(), child);
+        self.register_command(&name, Command::ChildInterp(name.clone()));
+        name
+    }
+
+    /// Whether a child interpreter `name` exists.
+    pub(crate) fn child_exists(&self, name: &str) -> bool {
+        self.children.contains_key(name)
+    }
+
+    /// Sorted names of this interp's direct children (`interp children`).
+    pub(crate) fn child_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.children.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    /// `interp issafe ?path?` for the current interp.
+    pub(crate) fn is_safe(&self) -> bool {
+        self.is_safe
+    }
+
+    /// Whether the named child is safe (`$child issafe` / `interp issafe path`).
+    pub(crate) fn child_is_safe(&self, name: &str) -> Option<bool> {
+        self.children.get(name).map(|c| c.is_safe)
+    }
+
+    /// `interp marktrusted path` — clear a child's safe flag (exposing every
+    /// hidden command). A no-op if the child does not exist.
+    pub(crate) fn child_mark_trusted(&mut self, name: &str) {
+        if let Some(child) = self.children.get_mut(name) {
+            for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
+                child.commands.insert(cmd_name, cmd);
+            }
+            child.is_safe = false;
+        }
+    }
+
+    /// `interp hide name` / `interp expose name` on a child: move a command
+    /// between its visible and hidden tables. Returns `false` if the child is
+    /// missing.
+    fn child_hide(&mut self, name: &str, cmd: &str, hide: bool) -> bool {
+        let Some(child) = self.children.get_mut(name) else {
+            return false;
+        };
+        if hide {
+            if let Some(c) = child.commands.remove(cmd) {
+                child.hidden_commands.insert(cmd.to_string(), c);
+            }
+        } else if let Some(c) = child.hidden_commands.remove(cmd) {
+            child.commands.insert(cmd.to_string(), c);
+        }
+        true
+    }
+
+    /// Make this interp safe (`interp create -safe`): hide the commands that
+    /// reach the host (filesystem, processes, sockets, the interpreter loader).
+    /// Hidden commands move to `hidden_commands`, invocable via
+    /// `interp invokehidden` and restorable with `interp expose`.
+    fn make_safe(&mut self) {
+        const UNSAFE: &[&str] = &[
+            "exec",
+            "exit",
+            "cd",
+            "pwd",
+            "glob",
+            "open",
+            "socket",
+            "source",
+            "load",
+            "file",
+            "fconfigure",
+            "encoding",
+            "after",
+            "vwait",
+        ];
+        for &c in UNSAFE {
+            if let Some(cmd) = self.commands.remove(c) {
+                self.hidden_commands.insert(c.to_string(), cmd);
+            }
+        }
+        self.is_safe = true;
+    }
+
+    /// Evaluate `script` in the named child interpreter (`interp eval path …` /
+    /// `$child eval …`). The child is taken out of the table for the call so the
+    /// parent is free, then restored.
+    pub(crate) fn eval_in_child(&mut self, name: &str, script: &str) -> Completion<Value> {
+        let Some(mut child) = self.children.remove(name) else {
+            return err(format!("could not find interpreter \"{name}\""));
+        };
+        let res = match child.eval_source(script) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        };
+        // Restore the child unless it tore itself down (no parent re-entry in
+        // this model, so it is always still present).
+        self.children.insert(name.to_string(), child);
+        res
+    }
+
+    /// `interp delete path …` / `$child delete` — destroy a child and its
+    /// command. Returns whether it existed.
+    pub(crate) fn delete_child(&mut self, name: &str) -> bool {
+        let existed = self.children.remove(name).is_some();
+        if existed {
+            self.commands
+                .remove(name.strip_prefix("::").unwrap_or(name));
+        }
+        existed
+    }
+
+    /// Dispatch a child-as-command call (`$child sub ?arg …?`) — the `interp`
+    /// ensemble restricted to that child.
+    pub(crate) fn dispatch_child(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        let Some((sub, rest)) = argv.split_first() else {
+            return err(format!("wrong # args: should be \"{name} cmd ?arg ...?\""));
+        };
+        match &*sub.to_str() {
+            "eval" => {
+                let script = rest
+                    .iter()
+                    .map(|v| v.to_str().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                self.eval_in_child(name, &script)
+            }
+            "issafe" => ok(Value::bool(self.child_is_safe(name).unwrap_or(false))),
+            "delete" => {
+                self.delete_child(name);
+                ok(Value::empty())
+            }
+            "hidden" => {
+                let mut names: Vec<String> = self
+                    .children
+                    .get(name)
+                    .map(|c| c.hidden_commands.keys().cloned().collect())
+                    .unwrap_or_default();
+                names.sort();
+                ok(Value::list(names.into_iter().map(Value::string).collect()))
+            }
+            "hide" | "expose" if rest.len() == 1 => {
+                let hide = &*sub.to_str() == "hide";
+                self.child_hide(name, &rest[0].to_str(), hide);
+                ok(Value::empty())
+            }
+            "marktrusted" => {
+                self.child_mark_trusted(name);
+                ok(Value::empty())
+            }
+            other => err(format!(
+                "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
+                 expose, hide, hidden, issafe, invokehidden, marktrusted, \
+                 recursionlimit, or transfer"
+            )),
+        }
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
@@ -2019,11 +2226,12 @@ impl Vm {
     }
 
     pub(crate) fn write_output(&mut self, s: &str, newline: bool) {
-        let _ = self.out.write_all(s.as_bytes());
+        let mut out = self.out.borrow_mut();
+        let _ = out.write_all(s.as_bytes());
         if newline {
-            let _ = self.out.write_all(b"\n");
+            let _ = out.write_all(b"\n");
         }
-        let _ = self.out.flush();
+        let _ = out.flush();
     }
 
     /// Register a freshly opened channel, returning its minted id (`file3`, …).
