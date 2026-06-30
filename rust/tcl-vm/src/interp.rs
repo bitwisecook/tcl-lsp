@@ -814,7 +814,8 @@ impl Vm {
             return None;
         }
         self.limit_tick = self.limit_tick.wrapping_add(1);
-        if self.limit_tick & 0x0FFF == 0 && self.time_limit_exceeded() {
+        // Poll roughly every 4096 ticks (the low 12 bits clear).
+        if self.limit_tick.trailing_zeros() >= 12 && self.time_limit_exceeded() {
             return Some(err("time limit exceeded"));
         }
         None
@@ -1326,28 +1327,32 @@ impl Vm {
             "recursionlimit" => err(format!(
                 "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
             )),
-            "limit" => {
-                let (ltype, opts) = match rest {
-                    [ltype, opts @ ..] => (ltype.to_str(), opts),
-                    _ => {
-                        return err(format!(
-                            "wrong # args: should be \"{name} limit limitType ?-option value ...?\""
-                        ));
-                    }
-                };
-                match self.children.get_mut(name) {
-                    Some(child) => match child.limit_apply(&ltype, opts) {
-                        Ok(v) => ok(v),
-                        Err(m) => err(m),
-                    },
-                    None => err(format!("could not find interpreter \"{name}\"")),
-                }
-            }
+            "limit" => self.child_limit_cmd(name, rest),
             other => err(format!(
                 "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
                  expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
                  recursionlimit, or transfer"
             )),
+        }
+    }
+
+    /// `$child limit limitType ?-option value …?` — query/configure the named
+    /// child's commands/time limit (the `$child` form of `interp limit`).
+    fn child_limit_cmd(&mut self, name: &str, rest: &[Value]) -> Completion<Value> {
+        let (ltype, opts) = match rest {
+            [ltype, opts @ ..] => (ltype.to_str(), opts),
+            _ => {
+                return err(format!(
+                    "wrong # args: should be \"{name} limit limitType ?-option value ...?\""
+                ));
+            }
+        };
+        match self.children.get_mut(name) {
+            Some(child) => match child.limit_apply(&ltype, opts) {
+                Ok(v) => ok(v),
+                Err(m) => err(m),
+            },
+            None => err(format!("could not find interpreter \"{name}\"")),
         }
     }
 
