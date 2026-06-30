@@ -1647,6 +1647,20 @@ impl Backend {
         }
     }
 
+    /// Re-run diagnostics for every open document — used after a config change
+    /// (any `tclLsp.*` knob may have shifted, not just the cross-file ones).
+    async fn reschedule_all_open_documents(&self) {
+        let snapshot: Vec<(Uri, String)> = {
+            let docs = self.documents.lock().await;
+            docs.iter()
+                .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
+                .collect()
+        };
+        for (uri, dialect) in snapshot {
+            self.schedule_diagnostics(uri, dialect).await;
+        }
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -3880,7 +3894,15 @@ impl LanguageServer for Backend {
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
         let mut domain_changed = false;
+        let mut config_changed = false;
         for change in params.changes {
+            // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
+            // layered config — same live-reload the Python server gives these
+            // files.
+            if is_config_file(&change.uri) {
+                config_changed = true;
+                continue;
+            }
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
             // `reindex_index_from_disk` re-checks this under the lock as well.
@@ -3910,6 +3932,14 @@ impl LanguageServer for Backend {
         // enabled so their cross-file pass re-runs against the new domain.
         if domain_changed {
             self.reschedule_xc_open_documents().await;
+        }
+        // Re-read config.ini / .tcl-lsp.ini and re-apply with full precedence,
+        // then rebuild the package database (libraryPaths may have changed) and
+        // re-run open documents so the new settings take effect immediately.
+        if config_changed {
+            self.pull_and_apply_config().await;
+            self.scan_workspace_folders().await;
+            self.reschedule_all_open_documents().await;
         }
     }
 
@@ -6170,6 +6200,17 @@ fn formatter_config_from_options(
     }
 }
 
+/// Whether `uri` names a tcl-lsp config file (`.tcl-lsp.ini` project config or
+/// the user `config.ini`) — a watched-file change to one triggers a config
+/// re-apply.
+fn is_config_file(uri: &Uri) -> bool {
+    let s = uri.as_str();
+    s.ends_with("/.tcl-lsp.ini")
+        || s.ends_with("\\.tcl-lsp.ini")
+        || s.ends_with("/tcl-lsp/config.ini")
+        || s.ends_with("\\tcl-lsp\\config.ini")
+}
+
 /// Read an INI config file at `path` (if present/readable) into the
 /// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
 /// files yield an empty object, so a layer simply contributes nothing.
@@ -7571,6 +7612,22 @@ mod tests {
 
     fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
         diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    #[test]
+    fn is_config_file_recognises_project_and_user_config() {
+        assert!(is_config_file(
+            &Uri::from_str("file:///ws/.tcl-lsp.ini").unwrap()
+        ));
+        assert!(is_config_file(
+            &Uri::from_str("file:///home/me/.config/tcl-lsp/config.ini").unwrap()
+        ));
+        assert!(!is_config_file(
+            &Uri::from_str("file:///ws/foo.tcl").unwrap()
+        ));
+        assert!(!is_config_file(
+            &Uri::from_str("file:///ws/settings.ini").unwrap()
+        ));
     }
 
     #[tokio::test]
