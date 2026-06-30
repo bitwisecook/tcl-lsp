@@ -105,16 +105,8 @@ def _rust_inner(inner: str) -> str | None:
     return None
 
 
-def rust_default(field: dc.Field, rust_ty: str) -> str:
-    """Return the Rust default expression matching the Python default."""
-    if field.default is not dc.MISSING and field.default is not None:
-        d = field.default
-        if isinstance(d, bool):
-            return "true" if d else "false"
-        if isinstance(d, int):
-            return str(d)
-        if isinstance(d, str):
-            return "String::new()" if d == "" else f"{d!r}.to_owned()".replace("'", '"')
+def type_default(rust_ty: str) -> str:
+    """The Rust expression `#[derive(Default)]` would produce for `rust_ty`."""
     if rust_ty.startswith("Option<"):
         return "None"
     if rust_ty == "String":
@@ -127,9 +119,20 @@ def rust_default(field: dc.Field, rust_ty: str) -> str:
         return "Vec::new()"
     if rust_ty.startswith("std::collections::HashMap"):
         return "std::collections::HashMap::new()"
-    if rust_ty in ENUMS:
-        return f"{rust_ty}::default()"
-    return "Default::default()"
+    return f"{rust_ty}::default()"
+
+
+def rust_default(field: dc.Field, rust_ty: str) -> str:
+    """Return the Rust default expression matching the Python default."""
+    if field.default is not dc.MISSING and field.default is not None:
+        d = field.default
+        if isinstance(d, bool):
+            return "true" if d else "false"
+        if isinstance(d, int):
+            return str(d)
+        if isinstance(d, str):
+            return "String::new()" if d == "" else f"{d!r}.to_owned()".replace("'", '"')
+    return type_default(rust_ty)
 
 
 def snake_doc(name: str) -> str:
@@ -137,25 +140,29 @@ def snake_doc(name: str) -> str:
 
 
 def gen_struct(name: str, cls: type) -> str:
-    lines = [snake_doc(name), "#[derive(Debug, Clone, PartialEq)]", f"pub struct {name} {{"]
-    defaults: list[tuple[str, str]] = []
-    for f in dc.fields(cls):
-        rty = rust_type(f.type)
-        if rty is None:
-            continue
+    rust_fields = [(f, rust_type(f.type)) for f in dc.fields(cls)]
+    rust_fields = [(f, rty) for f, rty in rust_fields if rty is not None]
+    # When every field's default expression equals what `#[derive(Default)]`
+    # would produce for its type, the explicit impl is identical to the derive
+    # (avoids clippy::derivable_impls); a field whose Python default diverges
+    # from its type default (e.g. `enabled = True`) needs the explicit impl.
+    derivable = all(rust_default(f, rty) == type_default(rty) for f, rty in rust_fields)
+    derives = "Debug, Clone, PartialEq, Default" if derivable else "Debug, Clone, PartialEq"
+    lines = [snake_doc(name), f"#[derive({derives})]", f"pub struct {name} {{"]
+    for f, rty in rust_fields:
         lines.append(f"    /// `{f.name}`")
         lines.append(f"    pub {f.name}: {rty},")
-        defaults.append((f.name, rust_default(f, rty)))
     lines.append("}")
-    lines.append("")
-    lines.append(f"impl Default for {name} {{")
-    lines.append("    fn default() -> Self {")
-    lines.append("        Self {")
-    for fname, dexpr in defaults:
-        lines.append(f"            {fname}: {dexpr},")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("}")
+    if not derivable:
+        lines.append("")
+        lines.append(f"impl Default for {name} {{")
+        lines.append("    fn default() -> Self {")
+        lines.append("        Self {")
+        for f, rty in rust_fields:
+            lines.append(f"            {f.name}: {rust_default(f, rty)},")
+        lines.append("        }")
+        lines.append("    }")
+        lines.append("}")
     return "\n".join(lines)
 
 
@@ -475,9 +482,11 @@ def main() -> None:
             f"//! Generated BIG-IP `{mod}` model structs (port of"
             f" `dialects/f5/bigip/model/_{mod}.py`).",
             "",
+            "// Generated BIG-IP config records are flat data structs of",
+            "// independent, orthogonal boolean attributes (mirroring the tmsh",
+            "// object schema) — not state machines, so struct_excessive_bools is",
+            "// a false positive here and is allowed deliberately.",
             "#![allow(clippy::struct_excessive_bools)]",
-            "#![allow(clippy::derivable_impls)]",
-            "#![allow(clippy::default_trait_access)]",
             "#![allow(unused_imports)]",
             "",
             "use super::*;",
