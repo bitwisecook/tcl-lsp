@@ -18,6 +18,7 @@ use crate::value::Value;
 pub type BuiltinFn = fn(&mut Vm, &[Value]) -> Completion<Value>;
 
 /// A procedure parameter: a name with an optional default.
+#[derive(Clone)]
 pub struct Param {
     /// Parameter name.
     pub name: String,
@@ -26,6 +27,7 @@ pub struct Param {
 }
 
 /// A user procedure: parameters plus the pre-compiled body.
+#[derive(Clone)]
 pub struct ProcDef {
     /// Canonical (namespace-qualified, no leading `::`) proc name.
     pub name: String,
@@ -350,6 +352,25 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             new_name.to_string()
         } else {
             vm.qualify_name(&new_name)
+        };
+        // A proc executes in the namespace it currently lives in, so renaming
+        // it across namespaces re-homes its body (C `TclRenameCommand` updates
+        // the command's `nsPtr`). `namespace current` inside the body then
+        // reports the destination namespace (proc-3.4).
+        let cmd = match cmd {
+            Command::Proc(def) => {
+                let canon = key.strip_prefix("::").unwrap_or(&key);
+                let new_ns = canon.rsplit_once("::").map_or("", |(ns, _)| ns);
+                if new_ns == def.namespace && canon == def.name {
+                    Command::Proc(def)
+                } else {
+                    let mut relocated = (*def).clone();
+                    relocated.namespace = new_ns.to_string();
+                    relocated.name = canon.to_string();
+                    Command::Proc(Rc::new(relocated))
+                }
+            }
+            other => other,
         };
         vm.register_command(&key, cmd);
     }
