@@ -1795,6 +1795,99 @@ mod tests {
         }
     }
 
+    /// Random-edit differential fuzzer for the **whole** memoised checks path
+    /// (SRV-INCREMENTAL Task 2b verification gate — the "random-edit fuzzer still
+    /// to build" the status table flags).  The cold corpus differential and the
+    /// hand-written `taint_cascade_matches_uncached_under_edits` prove the memo is
+    /// complete and correct on a fixed edit script; this drives a **randomised**
+    /// sequence of incremental edits — body swaps, signature changes, and proc
+    /// add/remove across an interprocedural call graph — over **one warm db**,
+    /// asserting the memoised `compiler_check_diagnostics` (per-proc
+    /// `function_lattice` / `function_checks` / `proc_taint_solve` /
+    /// `proc_summary_cascade`) stays byte-identical (checks **and** optimisations)
+    /// to a from-scratch `compiler_check_diagnostics_uncached` after every edit.
+    /// Catches a stale per-proc cache or summary edge a fixed script would miss.
+    #[test]
+    #[allow(clippy::cast_possible_truncation)] // index modulo tiny arrays
+    fn compiler_check_incremental_matches_fresh_under_edits() {
+        use salsa::Setter as _;
+        let dialect = "tcl8.6";
+        // Four interdependent slots, each with several variants (index 0 = the
+        // proc is absent).  `caller` invokes `pass`/`leaf`, so flipping a callee's
+        // passthrough / global-write / arity must cascade into the caller's solve;
+        // the `calc` slot drives SCCP const-branch + loop optimisations (O1xx).
+        let pass_variants = [
+            "",
+            "proc pass {x} { return $x }\n", // passthrough (taint transfer)
+            "proc pass {x} { return ok }\n", // constant (drops taint)
+            "proc pass {x y} { return $x$y }\n", // signature change (arity 2)
+        ];
+        let leaf_variants = [
+            "",
+            "proc leaf {} { global g; incr g }\n", // global write
+            "proc leaf {} { set z 1 }\n",          // pure
+        ];
+        let caller_variants = [
+            "",
+            "proc caller {} { set u [gets stdin]; set p [pass $u]; exec $p }\n", // tainted sink
+            "proc caller {} { leaf; set v [pass ok]; return $v }\n",             // benign
+            "proc caller {} { if {1} { return 1 }\n return [pass 2] }\n",        // const branch
+        ];
+        let calc_variants = [
+            "",
+            "proc calc {n} { set acc 0\n for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n return $acc }\n",
+            "proc calc {n} { if {1} { set y 1 }\n return $y }\n",
+        ];
+
+        let assemble = |s: &[usize]| -> String {
+            format!(
+                "{}{}{}{}",
+                pass_variants[s[0]],
+                leaf_variants[s[1]],
+                caller_variants[s[2]],
+                calc_variants[s[3]],
+            )
+        };
+        let lens = [
+            pass_variants.len(),
+            leaf_variants.len(),
+            caller_variants.len(),
+            calc_variants.len(),
+        ];
+
+        // xorshift64 — deterministic, reproducible run-to-run.
+        let mut rng = 0xfeed_face_cafe_d00d_u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+
+        let mut state = [1usize, 1, 1, 1];
+        let mut db = TclDatabase::default();
+        let registry = db.registry(dialect);
+        let file = SourceFile::new(&db, assemble(&state).to_owned(), dialect.to_owned());
+
+        for iter in 0..250 {
+            let slot = (next() as usize) % state.len();
+            state[slot] = (next() as usize) % lens[slot];
+            let src = assemble(&state);
+            file.set_text(&mut db).to(src.clone());
+
+            let got = compiler_check_diagnostics(&db, file);
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+            assert_eq!(
+                got.checks, want.checks,
+                "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"
+            );
+            assert_eq!(
+                got.optimisations, want.optimisations,
+                "iter {iter}: optimisations diverge from fresh build for state {state:?}:\n{src}"
+            );
+        }
+    }
+
     /// The taint cascade memoises: a body edit to a procedure that no other
     /// procedure's taint depends on must **not** re-execute the unrelated
     /// procedures' `taint_cascade` (they reuse their cached taints), whereas the
