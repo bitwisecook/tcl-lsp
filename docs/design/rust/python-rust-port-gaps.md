@@ -40,7 +40,7 @@ number of areas:
 | 1 | WASM codegen emitter + `tcl-wasm` bundling | RT-WASM | 🟡 | **Largest single gap** |
 | 2 | Bytecode VM command surface + tcltest parity | RT-VM | 🟡 | Large |
 | 3 | `runtime/rust` tree-walking runtime port | (runtime, off-workspace) | 🟡 | Large |
-| 4 | Per-edit / cross-file incrementality (Tasks 1/2/6 shipped; 3/4 remain; 5/7 dropped — rope) | SRV-INCREMENTAL | 🟡 | L |
+| 4 | Per-edit / cross-file incrementality (Tasks 1/2/4/6 shipped; only Task 3 remains; 5/7 dropped — rope) | SRV-INCREMENTAL | 🟡 | M |
 | 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
 | 7 | Tooling residuals (explorer, fuzzer, irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
@@ -220,8 +220,12 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
    `proc_summary_cascade`, 2b). Warm `compiler_check_diagnostics` fell ~445 → ~83 ms.
 3. 🔴 Approach A — incremental per-item IR lowering (the ~59 ms lowering floor;
    blocked by whole-module passes coupling one body's IR to others).
-4. 🟡 Approach B follow-ups — deep-clone removal *skipped* (measured 0.1 ms, below
-   the value bar); per-function `optimise_unit` memo not yet built (M).
+4. ✅ **Per-procedure `optimise_unit` memo** — optimisations assembled from a
+   per-proc memo (`function_optimisations`) on single-procedure offset-0 CUs +
+   whole-module `finalise_optimisations`, byte-identical to `optimise_unit`
+   (893-file cold corpus + random-edit corpus + 250-edit in-crate fuzzers); an
+   unrelated body edit re-optimises exactly one proc. (Approach B's deep-clone
+   removal stays *skipped* — measured 0.1 ms, below the value bar.)
 5. ⊘ **DROPPED** (rope-dependent, 2026-06-30 decision) — windowed re-lex is
    coupled to Task 7's chunk-addressable input; out of scope.
 6. ✅ **Cross-file cascade** — `Project` salsa input, `project_proc_names` /
@@ -238,14 +242,13 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
 Also shipped this session: the **Task 2b random-edit differential fuzzer** (the
 named "still to build" verification gate — in-crate 250-edit + corpus `--ignored`,
 asserting the memoised checks path stays byte-identical to a fresh build across
-fuzzed edit sequences).
+fuzzed edit sequences) **and Task 4 (the per-procedure `optimise_unit` memo)**.
 
-**De-roped remaining (Tasks 5 + 7 dropped 2026-06-30):** Task 3 (IR-lowering
-incrementality, L) and Task 4's `optimise_unit` memo (**re-scoped to L** after a
-2026-06-30 audit — no per-function optimiser seam exists, and O103 proc-call chain
-folding makes one function's optimisations depend on other functions' bodies, so it
-needs both per-function optimiser isolation *and* interproc reverse-dependency
-modeling, for a ~15 ms lever).
+**De-roped remaining (Tasks 5 + 7 dropped, Task 4 shipped 2026-06-30):** only
+**Task 3** — incremental per-item IR lowering (the ~59 ms `CompilationUnit`
+build floor; blocked by whole-module lowering passes that couple one body's IR to
+others, resolved with the same "cross-item facts as inputs" split the analyser
+walk used). Everything else in the de-roped track (Tasks 1/2/4/6) is shipped.
 
 ---
 
