@@ -172,7 +172,7 @@ fn sweep_every_command_every_accessor() {
     for &dname in LOADABLE_DIALECTS {
         let reg = registry_for_dialect(dname);
         let ds = DialectSet::parse(dname);
-        assert!(reg.len() > 0, "{dname}: empty registry");
+        assert!(!reg.is_empty(), "{dname}: empty registry");
         dialects_seen += 1;
 
         // Collect names first so the borrow of `reg` ends before per-name
@@ -350,14 +350,13 @@ fn sweep_every_command_every_accessor() {
             }
             // If the command has subcommands, resolving with the first
             // subcommand name as arg 0 should attach that subcommand.
-            if let Some(first_sub) = spec.subcommands.first() {
-                if let Some(rc) = reg.resolve_call(name, &[first_sub.name], active) {
+            if let Some(first_sub) = spec.subcommands.first()
+                && let Some(rc) = reg.resolve_call(name, &[first_sub.name], active) {
                     assert_eq!(rc.spec.name, spec.name);
                     if let Some(s) = rc.sub {
                         assert_eq!(s.name, first_sub.name, "{dname}/{name}: wrong sub attached");
                     }
                 }
-            }
             // resolve_option_terminator must not panic; when Some, scan_start is
             // within the (subcommand-or-form) contract (0 or 1).
             if let Some(term) = reg.resolve_option_terminator(name, &["--"], active) {
@@ -659,7 +658,7 @@ fn bigip_lookup_misses_are_graceful() {
 /// f5-dialect: iRules events / profiles are F5 concepts, not tclsh.
 #[test]
 fn sweep_event_command_legality_parity() {
-    let (reg, _) = (registry_for_dialect("f5-irules"), ());
+    let (reg, ()) = (registry_for_dialect("f5-irules"), ());
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
 
@@ -731,7 +730,7 @@ fn sweep_event_command_legality_parity() {
 
 /// Every command the registry reports as a taint source resolves to a spec
 /// whose `taint_source` colour is set; the colour includes TAINTED (a source is
-/// attacker-controlled by definition). Exercises the TAINT_SOURCE_INDEX and the
+/// attacker-controlled by definition). Exercises the `TAINT_SOURCE_INDEX` and the
 /// `taint_source` query helper across the whole index.
 ///
 /// registry-metadata / f5-dialect: taint colours are registry security data.
@@ -1060,7 +1059,7 @@ fn sweep_dialect_catalogue() {
     for &d in KNOWN_DIALECTS {
         // Every cached dialect registry has the Tcl core.
         let reg = registry_for_dialect(d);
-        assert!(reg.len() > 0, "{d}: empty registry");
+        assert!(!reg.is_empty(), "{d}: empty registry");
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
         // The name either parses to a DialectSet bit, or is a config-only name
         // that collapses to plain Tcl (still a usable registry).

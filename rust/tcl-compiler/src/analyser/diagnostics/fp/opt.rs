@@ -229,8 +229,7 @@ fn fp_opt_04_call_by_name_suppresses_dead_store() {
         .collect();
     assert!(
         relevant.is_empty(),
-        "FP-OPT-04: call-by-name suppression should silence O109/O126 on tag/type; got {:?}",
-        relevant
+        "FP-OPT-04: call-by-name suppression should silence O109/O126 on tag/type; got {relevant:?}"
     );
 }
 
@@ -352,8 +351,7 @@ fn fp_opt_08_nested_if_constant_chain_does_not_delete_inner_var() {
     if opt_src.contains("$b") {
         assert!(
             opt_src.contains("set b 0") || opt_src.contains("set b {0}"),
-            "FP-OPT-08: O109/O126 must not delete 'set b 0' when $b survives; got: {:?}",
-            opt_src
+            "FP-OPT-08: O109/O126 must not delete 'set b 0' when $b survives; got: {opt_src:?}"
         );
     }
 }
@@ -394,8 +392,7 @@ fn fp_opt_09_unknown_type_param_blocks_identity_rewrite() {
         .collect();
     assert!(
         unsound_o110.is_empty(),
-        "FP-OPT-09: unsound O110 drop of `$x + 0` on unknown-type param; got {:?}",
-        unsound_o110
+        "FP-OPT-09: unsound O110 drop of `$x + 0` on unknown-type param; got {unsound_o110:?}"
     );
     // The diagnostic surface should also be quiet on O110.
     assert!(
@@ -474,8 +471,7 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
     let opt_src = optimised(FP_OPT_11_TN_REPRO, D);
     assert!(
         opt_src.contains("$a eq \"hello\""),
-        "FP-OPT-11 TN: expected eq-form in optimised source; got: {:?}",
-        opt_src
+        "FP-OPT-11 TN: expected eq-form in optimised source; got: {opt_src:?}"
     );
 }
 

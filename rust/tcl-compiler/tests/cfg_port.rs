@@ -40,7 +40,7 @@
 //!
 //! Python's `build_cfg` emits header-tested loops, so its `test_for_creates_loop_cfg`
 //! finds the `$i < 3` condition on the `for_header` block. The Rust *analysis*
-//! `build_cfg` (faithful_exceptions on) ROTATES a provably-once loop to
+//! `build_cfg` (`faithful_exceptions` on) ROTATES a provably-once loop to
 //! bottom-tested form: the `for_header` keeps a synthetic always-true `1`
 //! condition (so it still branches) and the real `$i < 3` condition moves to the
 //! latch (`for_step`). The port therefore asserts the rotated shape (header

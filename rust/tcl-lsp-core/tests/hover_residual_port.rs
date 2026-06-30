@@ -102,7 +102,7 @@ fn residual_hover_binary_absolute_seek_byte_math() {
     // Cursor on the bare `c@4c` format word (argv[2]).
     let h = hover(src, 0, 15, &analysis, None).expect("binary @-seek hover");
     assert!(h.value.contains("binary format"), "{}", h.value);
-    assert!(h.value.contains("5"), "expected 5-byte total from @4 seek: {}", h.value);
+    assert!(h.value.contains('5'), "expected 5-byte total from @4 seek: {}", h.value);
     // A small total (<=32) with all-known sizes draws the box-ruler.
     assert!(h.value.contains('┌'), "expected byte-ruler diagram: {}", h.value);
 }
@@ -468,7 +468,7 @@ fn residual_hover_class_with_mixin_and_doc_comment() {
     // Cursor on the `C` class name (line 2, col 18).
     let h = hover(src, 2, 18, &analysis, None).expect("class+mixin hover");
     assert!(h.value.contains("mixin"), "expected mixin annotation: {}", h.value);
-    assert!(h.value.contains("M"), "{}", h.value);
+    assert!(h.value.contains('M'), "{}", h.value);
     assert!(
         h.value.contains("A widget mixed with M"),
         "expected class doc-comment: {}",

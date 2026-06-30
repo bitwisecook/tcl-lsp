@@ -660,7 +660,7 @@ fn constant_propagation_into_strings_o105() {
     let bstr = "set x 7\nputs \"${x}\"";
     let bs = optimised(bstr, TCL);
     assert!(!bs.contains("\"7}\""));
-    assert!(bs.contains("7"));
+    assert!(bs.contains('7'));
 
     // A call barrier (string length abc) stops propagation into the later string.
     let barrier = "set x 5\nstring length abc\nputs \"val=$x\"";

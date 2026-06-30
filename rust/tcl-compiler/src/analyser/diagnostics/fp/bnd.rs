@@ -9,7 +9,7 @@ use crate::compiler_checks::run_all_checks;
 use tcl_registry::registry_for_dialect;
 
 /// Full `(code, message)` diagnostics for `src`, mirroring `tcl diag` (analyser
-/// + run_all_checks, optimisation codes excluded). Bounds codes (W23x) flow
+/// + `run_all_checks`, optimisation codes excluded). Bounds codes (W23x) flow
 /// through these passes.
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = registry_for_dialect(dialect);

@@ -308,8 +308,7 @@ fn fp_sty_08_non_empty_body_unused_param_still_fires() {
     // check W214 fires at all (param b is unused).
     assert!(
         w214_b,
-        "FP-STY-08 TP: non-empty body with unused 'b' must still fire W214; emitted: {:?}",
-        all
+        "FP-STY-08 TP: non-empty body with unused 'b' must still fire W214; emitted: {all:?}"
     );
 }
 
@@ -361,9 +360,7 @@ fn fp_sty_09_arity_incompatible_dispatcher_does_not_suppress() {
     assert!(
         w214_count >= 3,
         "FP-STY-09 TP: W214 must fire on 'token' in all three peers (a/b/c); the 1-arg \
-         unrelated dispatcher is arity-incompatible. Got {} W214: {:?}",
-        w214_count,
-        all
+         unrelated dispatcher is arity-incompatible. Got {w214_count} W214: {all:?}"
     );
 }
 
@@ -784,18 +781,15 @@ fn fp_sty_15_regsub_dollar_anchor_no_errors() {
     let all = codes(src, D);
     assert!(
         !all.iter().any(|c| c == "E002"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire E002; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire E002; emitted: {all:?}"
     );
     assert!(
         !all.iter().any(|c| c == "E205"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire E205; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire E205; emitted: {all:?}"
     );
     assert!(
         !all.iter().any(|c| c == "W306"),
-        "FP-STY-15: regsub dollar-anchor must NOT fire W306; emitted: {:?}",
-        all
+        "FP-STY-15: regsub dollar-anchor must NOT fire W306; emitted: {all:?}"
     );
 }
 

@@ -3,7 +3,7 @@
 //!     interval-driven dynamic bounds checks (W230 lindex / W231 lset / W232
 //!     string index / W233 divide-by-zero).
 //!   * `tests/test_intervals.py` (12 tests) — `compiler.cfg`-driven integer
-//!     interval lattice (arithmetic, join/meet/widen, compute_intervals, guard
+//!     interval lattice (arithmetic, join/meet/widen, `compute_intervals`, guard
 //!     narrowing).
 //!
 //! ## Two observation surfaces
@@ -127,7 +127,7 @@ fn func(src: &str) -> (CompilationUnit, String) {
 
 /// `compute_intervals` over `::f`, plus a name→Symbol resolver bound to it.
 /// Mirrors `_intervals(src, "::f")`, then `iv[("name", version)]`.
-fn intervals_of<'a>(fu: &'a FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + 'a {
+fn intervals_of(fu: &FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + '_ {
     let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
     move |name: &str, version: u32| {
         let sym = fu.ssa.var_symbol(name)?;
@@ -682,7 +682,7 @@ mod interval_fixpoint_soundness {
         let fu = cu.procedures.get(&key).expect("::f lowered");
         let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
         assert!(!iv.is_empty(), "a counting loop must yield interval facts");
-        for (_, &interval) in &iv {
+        for &interval in iv.values() {
             assert!(
                 !interval.is_bottom(),
                 "a converged interval must never be the empty (lo>hi) sentinel: {interval:?}"

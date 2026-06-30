@@ -23,7 +23,7 @@
 //!     `decode_param_constants` round-trip.
 //!   * `src/connection_scope.rs` — iRules cross-event variable scope. Multi-`when`
 //!     scripts drive `cross_event_defs` / `cross_event_imports`, the
-//!     `info exists` literal-name scan, the `unset` tracking, the RULE_INIT
+//!     `info exists` literal-name scan, the `unset` tracking, the `RULE_INIT`
 //!     non-racy carve-out, and the duplicate-event summary merge.
 //!
 //! ## C-Tcl proof split

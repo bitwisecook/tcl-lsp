@@ -346,8 +346,7 @@ proc caller {} {
     });
     assert!(
         fires_any,
-        "caller's $x set-but-never-used must fire W211/W220/O126/O109; emitted: {:?}",
-        cs
+        "caller's $x set-but-never-used must fire W211/W220/O126/O109; emitted: {cs:?}"
     );
 }
 
@@ -614,8 +613,7 @@ fn fp_rbs_08_dynamic_upvar_target_silent() {
     });
     assert!(
         !rbs_or_ds,
-        "FP-RBS-08: dynamic-target upvar alias use must NOT fire any RBS/dead-store/unused code; emitted: {:?}",
-        cs
+        "FP-RBS-08: dynamic-target upvar alias use must NOT fire any RBS/dead-store/unused code; emitted: {cs:?}"
     );
 }
 
@@ -684,7 +682,7 @@ fn fp_rbs_09_regexp_capture_in_switch_arm_silent() {
 #[test]
 fn fp_rbs_09_genuine_unset_in_arm_still_fires() {
     // TP control: $missing (never written anywhere) still fires W210 even inside a switch arm.
-    let src = r#"
+    let src = r"
 proc f {n} {
     switch -- $n {
         a {
@@ -692,7 +690,7 @@ proc f {n} {
         }
     }
 }
-"#;
+";
     assert!(
         fires(src, D, "W210"),
         "FP-RBS-09 TP: $missing (never written anywhere) must fire W210; emitted: {:?}",
@@ -1279,8 +1277,7 @@ fn fp_rbs_callbyname_scan_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "scan $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "scan $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1291,8 +1288,7 @@ fn fp_rbs_callbyname_regexp_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "regexp $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "regexp $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1303,8 +1299,7 @@ fn fp_rbs_callbyname_regsub_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "regsub $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "regsub $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1315,8 +1310,7 @@ fn fp_rbs_callbyname_lassign_target_not_caller_alias() {
     let cs = codes(src, D);
     assert!(
         cs.iter().any(|c| c == "W211" || c == "W220"),
-        "lassign $target — caller's x must still fire W211/W220; emitted: {:?}",
-        cs
+        "lassign $target — caller's x must still fire W211/W220; emitted: {cs:?}"
     );
 }
 
@@ -1328,7 +1322,6 @@ fn fp_rbs_callbyname_upvar_alias_still_suppresses() {
     let fires_any = cs.iter().any(|c| c == "W211" || c == "W220");
     assert!(
         !fires_any,
-        "upvar-aliased callee write must continue to suppress caller W211/W220; emitted: {:?}",
-        cs
+        "upvar-aliased callee write must continue to suppress caller W211/W220; emitted: {cs:?}"
     );
 }

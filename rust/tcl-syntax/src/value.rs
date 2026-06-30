@@ -89,222 +89,6 @@ impl core::fmt::Display for ValueError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A string-backed `ValueOps` model: every value is an `Rc<str>`; lists are
-    /// whitespace-separated words. Enough to drive every default-method body in
-    /// the seam. Expected results below were cross-checked against `tclsh9.0`
-    /// (and `tclsh8.6` where the two agree) so the shared logic matches C Tcl.
-    #[derive(Default)]
-    struct Strs;
-
-    impl ValueOps for Strs {
-        type Value = Rc<str>;
-
-        fn new_str(&mut self, s: &str) -> Rc<str> {
-            Rc::from(s)
-        }
-        fn new_int(&mut self, n: i64) -> Rc<str> {
-            Rc::from(n.to_string().as_str())
-        }
-        fn new_double(&mut self, f: f64) -> Rc<str> {
-            Rc::from(f.to_string().as_str())
-        }
-        fn new_bool(&mut self, b: bool) -> Rc<str> {
-            Rc::from(if b { "1" } else { "0" })
-        }
-        fn new_list(&mut self, items: Vec<Rc<str>>) -> Rc<str> {
-            Rc::from(
-                items
-                    .iter()
-                    .map(|s| s.as_ref())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-                    .as_str(),
-            )
-        }
-        fn as_str(&mut self, v: &Rc<str>) -> Rc<str> {
-            v.clone()
-        }
-        fn as_int(&mut self, v: &Rc<str>) -> Result<i64, ValueError> {
-            v.parse::<i64>()
-                .map_err(|_| ValueError::NotInteger(v.to_string()))
-        }
-        fn as_double(&mut self, v: &Rc<str>) -> Result<f64, ValueError> {
-            v.parse::<f64>()
-                .map_err(|_| ValueError::NotDouble(v.to_string()))
-        }
-        fn as_bool(&mut self, v: &Rc<str>) -> Result<bool, ValueError> {
-            match v.as_ref() {
-                "1" | "true" | "yes" | "on" => Ok(true),
-                "0" | "false" | "no" | "off" => Ok(false),
-                _ => Err(ValueError::NotBoolean(v.to_string())),
-            }
-        }
-        fn list_elements(&mut self, v: &Rc<str>) -> Result<Vec<Rc<str>>, ValueError> {
-            Ok(v.split_whitespace().map(Rc::from).collect())
-        }
-    }
-
-    #[test]
-    fn construction_defaults() {
-        let mut o = Strs;
-        // new_string defaults through new_str; empty is "".
-        assert_eq!(o.new_string("hi".to_string()).as_ref(), "hi");
-        assert_eq!(o.empty().as_ref(), "");
-        assert_eq!(o.new_int(42).as_ref(), "42");
-        assert_eq!(o.new_bool(true).as_ref(), "1");
-        assert_eq!(o.new_bool(false).as_ref(), "0");
-    }
-
-    #[test]
-    fn char_len_counts_code_points() {
-        // tclsh9.0: `string length héllo` == 5 (code points), not bytes.
-        let mut o = Strs;
-        let v = o.new_str("héllo");
-        assert_eq!(o.char_len(&v), 5);
-        let ascii = o.new_str("abc");
-        assert_eq!(o.char_len(&ascii), 3);
-    }
-
-    #[test]
-    fn int_add_default_and_unset_is_zero() {
-        let mut o = Strs;
-        let three = o.new_int(3);
-        let four = o.new_int(4);
-        // 3 + 4 == 7.
-        assert_eq!(o.int_add(Some(&three), &four).unwrap().as_ref(), "7");
-        // `incr` of an unset variable starts at 0: None + 4 == 4.
-        assert_eq!(o.int_add(None, &four).unwrap().as_ref(), "4");
-    }
-
-    #[test]
-    fn int_add_overflow_is_reported() {
-        let mut o = Strs;
-        let max = o.new_int(i64::MAX);
-        let one = o.new_int(1);
-        // i64::MAX + 1 overflows the fixed-width tower.
-        assert_eq!(o.int_add(Some(&max), &one), Err(ValueError::IntegerOverflow));
-    }
-
-    #[test]
-    fn int_add_propagates_coercion_error() {
-        let mut o = Strs;
-        let bad = o.new_str("zzz");
-        let one = o.new_int(1);
-        assert!(matches!(
-            o.int_add(Some(&bad), &one),
-            Err(ValueError::NotInteger(_))
-        ));
-    }
-
-    #[test]
-    fn list_len_index_append_defaults() {
-        let mut o = Strs;
-        let list = o.new_str("a b c");
-        // llength {a b c} == 3.
-        assert_eq!(o.list_len(&list).unwrap(), 3);
-        // lindex {a b c} 1 == b; out-of-range is None.
-        assert_eq!(o.list_index(&list, 1).unwrap().unwrap().as_ref(), "b");
-        assert!(o.list_index(&list, 9).unwrap().is_none());
-        // lappend {a b} c == "a b c".
-        let two = o.new_str("a b");
-        let c = o.new_str("c");
-        assert_eq!(o.list_append(two, c).unwrap().as_ref(), "a b c");
-    }
-
-    #[test]
-    fn dict_pairs_even_odd_and_dedup() {
-        let mut o = Strs;
-        // Even-length list → pairs in first-occurrence order.
-        let d = o.new_str("a 1 b 2");
-        let pairs = o.dict_pairs(&d).unwrap();
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0].0.as_ref(), "a");
-        assert_eq!(pairs[0].1.as_ref(), "1");
-        assert_eq!(pairs[1].0.as_ref(), "b");
-        // Duplicate key: last value wins, original position kept (tclsh
-        // `dict create a 1 a 2` → `a 2`).
-        let dup = o.new_str("a 1 a 2");
-        let dp = o.dict_pairs(&dup).unwrap();
-        assert_eq!(dp.len(), 1);
-        assert_eq!(dp[0].0.as_ref(), "a");
-        assert_eq!(dp[0].1.as_ref(), "2");
-        // Odd-length list → the canonical "missing value to go with key" error.
-        let odd = o.new_str("a 1 b");
-        assert_eq!(
-            o.dict_pairs(&odd),
-            Err(ValueError::BadList("missing value to go with key".to_string()))
-        );
-    }
-
-    #[test]
-    fn new_dict_interleaves_pairs() {
-        let mut o = Strs;
-        let pairs = vec![
-            (o.new_str("k1"), o.new_str("v1")),
-            (o.new_str("k2"), o.new_str("v2")),
-        ];
-        assert_eq!(o.new_dict(pairs).as_ref(), "k1 v1 k2 v2");
-    }
-
-    #[test]
-    fn bytes_defaults_round_trip_utf8() {
-        let mut o = Strs;
-        let v = o.new_str("abc");
-        assert_eq!(o.as_bytes(&v).as_ref(), b"abc");
-        // new_bytes routes through new_string (UTF-8).
-        assert_eq!(o.new_bytes(b"xyz").as_ref(), "xyz");
-    }
-
-    #[test]
-    fn cow_escape_hatches_default_false() {
-        let mut o = Strs;
-        let mut v = o.new_str("a");
-        let extra = o.new_str("b");
-        assert!(!o.try_append_bytes_in_place(&mut v, b"bc"));
-        let mut list = o.new_str("a b");
-        assert!(!o.try_list_append_in_place(&mut list, &extra));
-    }
-
-    #[test]
-    fn value_error_messages_match_tclsh() {
-        // Verified against tclsh8.6 / tclsh9.0 (identical):
-        //   incr of non-int       → expected integer but got "zzz"
-        //   double("xx")          → expected floating-point number but got "xx"
-        //   if {"notbool"}        → expected boolean value but got "notbool"
-        //   llength "{"           → unmatched open brace in list
-        //   i64 overflow          → integer value too large to represent
-        assert_eq!(
-            ValueError::NotInteger("zzz".to_string()).message(),
-            "expected integer but got \"zzz\""
-        );
-        assert_eq!(
-            ValueError::NotDouble("xx".to_string()).message(),
-            "expected floating-point number but got \"xx\""
-        );
-        assert_eq!(
-            ValueError::NotBoolean("notbool".to_string()).message(),
-            "expected boolean value but got \"notbool\""
-        );
-        assert_eq!(
-            ValueError::BadList("unmatched open brace in list".to_string()).message(),
-            "unmatched open brace in list"
-        );
-        assert_eq!(
-            ValueError::IntegerOverflow.message(),
-            "integer value too large to represent"
-        );
-        // Display routes through message().
-        assert_eq!(
-            format!("{}", ValueError::IntegerOverflow),
-            "integer value too large to represent"
-        );
-    }
-}
-
 impl std::error::Error for ValueError {}
 
 /// The value operations a Tcl command core supplies its runtime.
@@ -507,5 +291,221 @@ pub trait ValueOps {
     /// rebuilds); a runtime owning the backing vector uniquely overrides it.
     fn try_list_append_in_place(&mut self, _list: &mut Self::Value, _item: &Self::Value) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A string-backed `ValueOps` model: every value is an `Rc<str>`; lists are
+    /// whitespace-separated words. Enough to drive every default-method body in
+    /// the seam. Expected results below were cross-checked against `tclsh9.0`
+    /// (and `tclsh8.6` where the two agree) so the shared logic matches C Tcl.
+    #[derive(Default)]
+    struct Strs;
+
+    impl ValueOps for Strs {
+        type Value = Rc<str>;
+
+        fn new_str(&mut self, s: &str) -> Rc<str> {
+            Rc::from(s)
+        }
+        fn new_int(&mut self, n: i64) -> Rc<str> {
+            Rc::from(n.to_string().as_str())
+        }
+        fn new_double(&mut self, f: f64) -> Rc<str> {
+            Rc::from(f.to_string().as_str())
+        }
+        fn new_bool(&mut self, b: bool) -> Rc<str> {
+            Rc::from(if b { "1" } else { "0" })
+        }
+        fn new_list(&mut self, items: Vec<Rc<str>>) -> Rc<str> {
+            Rc::from(
+                items
+                    .iter()
+                    .map(std::convert::AsRef::as_ref)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .as_str(),
+            )
+        }
+        fn as_str(&mut self, v: &Rc<str>) -> Rc<str> {
+            v.clone()
+        }
+        fn as_int(&mut self, v: &Rc<str>) -> Result<i64, ValueError> {
+            v.parse::<i64>()
+                .map_err(|_| ValueError::NotInteger(v.to_string()))
+        }
+        fn as_double(&mut self, v: &Rc<str>) -> Result<f64, ValueError> {
+            v.parse::<f64>()
+                .map_err(|_| ValueError::NotDouble(v.to_string()))
+        }
+        fn as_bool(&mut self, v: &Rc<str>) -> Result<bool, ValueError> {
+            match v.as_ref() {
+                "1" | "true" | "yes" | "on" => Ok(true),
+                "0" | "false" | "no" | "off" => Ok(false),
+                _ => Err(ValueError::NotBoolean(v.to_string())),
+            }
+        }
+        fn list_elements(&mut self, v: &Rc<str>) -> Result<Vec<Rc<str>>, ValueError> {
+            Ok(v.split_whitespace().map(Rc::from).collect())
+        }
+    }
+
+    #[test]
+    fn construction_defaults() {
+        let mut o = Strs;
+        // new_string defaults through new_str; empty is "".
+        assert_eq!(o.new_string("hi".to_string()).as_ref(), "hi");
+        assert_eq!(o.empty().as_ref(), "");
+        assert_eq!(o.new_int(42).as_ref(), "42");
+        assert_eq!(o.new_bool(true).as_ref(), "1");
+        assert_eq!(o.new_bool(false).as_ref(), "0");
+    }
+
+    #[test]
+    fn char_len_counts_code_points() {
+        // tclsh9.0: `string length héllo` == 5 (code points), not bytes.
+        let mut o = Strs;
+        let v = o.new_str("héllo");
+        assert_eq!(o.char_len(&v), 5);
+        let ascii = o.new_str("abc");
+        assert_eq!(o.char_len(&ascii), 3);
+    }
+
+    #[test]
+    fn int_add_default_and_unset_is_zero() {
+        let mut o = Strs;
+        let three = o.new_int(3);
+        let four = o.new_int(4);
+        // 3 + 4 == 7.
+        assert_eq!(o.int_add(Some(&three), &four).unwrap().as_ref(), "7");
+        // `incr` of an unset variable starts at 0: None + 4 == 4.
+        assert_eq!(o.int_add(None, &four).unwrap().as_ref(), "4");
+    }
+
+    #[test]
+    fn int_add_overflow_is_reported() {
+        let mut o = Strs;
+        let max = o.new_int(i64::MAX);
+        let one = o.new_int(1);
+        // i64::MAX + 1 overflows the fixed-width tower.
+        assert_eq!(o.int_add(Some(&max), &one), Err(ValueError::IntegerOverflow));
+    }
+
+    #[test]
+    fn int_add_propagates_coercion_error() {
+        let mut o = Strs;
+        let bad = o.new_str("zzz");
+        let one = o.new_int(1);
+        assert!(matches!(
+            o.int_add(Some(&bad), &one),
+            Err(ValueError::NotInteger(_))
+        ));
+    }
+
+    #[test]
+    fn list_len_index_append_defaults() {
+        let mut o = Strs;
+        let list = o.new_str("a b c");
+        // llength {a b c} == 3.
+        assert_eq!(o.list_len(&list).unwrap(), 3);
+        // lindex {a b c} 1 == b; out-of-range is None.
+        assert_eq!(o.list_index(&list, 1).unwrap().unwrap().as_ref(), "b");
+        assert!(o.list_index(&list, 9).unwrap().is_none());
+        // lappend {a b} c == "a b c".
+        let two = o.new_str("a b");
+        let c = o.new_str("c");
+        assert_eq!(o.list_append(two, c).unwrap().as_ref(), "a b c");
+    }
+
+    #[test]
+    fn dict_pairs_even_odd_and_dedup() {
+        let mut o = Strs;
+        // Even-length list → pairs in first-occurrence order.
+        let d = o.new_str("a 1 b 2");
+        let pairs = o.dict_pairs(&d).unwrap();
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0].0.as_ref(), "a");
+        assert_eq!(pairs[0].1.as_ref(), "1");
+        assert_eq!(pairs[1].0.as_ref(), "b");
+        // Duplicate key: last value wins, original position kept (tclsh
+        // `dict create a 1 a 2` → `a 2`).
+        let dup = o.new_str("a 1 a 2");
+        let dp = o.dict_pairs(&dup).unwrap();
+        assert_eq!(dp.len(), 1);
+        assert_eq!(dp[0].0.as_ref(), "a");
+        assert_eq!(dp[0].1.as_ref(), "2");
+        // Odd-length list → the canonical "missing value to go with key" error.
+        let odd = o.new_str("a 1 b");
+        assert_eq!(
+            o.dict_pairs(&odd),
+            Err(ValueError::BadList("missing value to go with key".to_string()))
+        );
+    }
+
+    #[test]
+    fn new_dict_interleaves_pairs() {
+        let mut o = Strs;
+        let pairs = vec![
+            (o.new_str("k1"), o.new_str("v1")),
+            (o.new_str("k2"), o.new_str("v2")),
+        ];
+        assert_eq!(o.new_dict(pairs).as_ref(), "k1 v1 k2 v2");
+    }
+
+    #[test]
+    fn bytes_defaults_round_trip_utf8() {
+        let mut o = Strs;
+        let v = o.new_str("abc");
+        assert_eq!(o.as_bytes(&v).as_ref(), b"abc");
+        // new_bytes routes through new_string (UTF-8).
+        assert_eq!(o.new_bytes(b"xyz").as_ref(), "xyz");
+    }
+
+    #[test]
+    fn cow_escape_hatches_default_false() {
+        let mut o = Strs;
+        let mut v = o.new_str("a");
+        let extra = o.new_str("b");
+        assert!(!o.try_append_bytes_in_place(&mut v, b"bc"));
+        let mut list = o.new_str("a b");
+        assert!(!o.try_list_append_in_place(&mut list, &extra));
+    }
+
+    #[test]
+    fn value_error_messages_match_tclsh() {
+        // Verified against tclsh8.6 / tclsh9.0 (identical):
+        //   incr of non-int       → expected integer but got "zzz"
+        //   double("xx")          → expected floating-point number but got "xx"
+        //   if {"notbool"}        → expected boolean value but got "notbool"
+        //   llength "{"           → unmatched open brace in list
+        //   i64 overflow          → integer value too large to represent
+        assert_eq!(
+            ValueError::NotInteger("zzz".to_string()).message(),
+            "expected integer but got \"zzz\""
+        );
+        assert_eq!(
+            ValueError::NotDouble("xx".to_string()).message(),
+            "expected floating-point number but got \"xx\""
+        );
+        assert_eq!(
+            ValueError::NotBoolean("notbool".to_string()).message(),
+            "expected boolean value but got \"notbool\""
+        );
+        assert_eq!(
+            ValueError::BadList("unmatched open brace in list".to_string()).message(),
+            "unmatched open brace in list"
+        );
+        assert_eq!(
+            ValueError::IntegerOverflow.message(),
+            "integer value too large to represent"
+        );
+        // Display routes through message().
+        assert_eq!(
+            format!("{}", ValueError::IntegerOverflow),
+            "integer value too large to represent"
+        );
     }
 }

@@ -5,7 +5,7 @@
 //! Ported from four pytest files that drive the *Python* compiler:
 //!   * `tests/test_inline_decision.py` — proc classification (the inlining
 //!     catalogue: size / pure-leaf / static-call-count → ALWAYS /
-//!     IF_SINGLE_CALL / NEVER).
+//!     `IF_SINGLE_CALL` / NEVER).
 //!   * `tests/test_inline_pass.py`     — the inline transform (call sites
 //!     replaced by proc bodies, α-renaming to avoid variable capture,
 //!     defaults / variadics / early-return wrapping / decline cases).
@@ -38,7 +38,7 @@
 //!     `pub fn`) — its three `TestStaticCallCount` cases are re-expressed
 //!     through `classify_proc`, which *takes the static call count as a
 //!     parameter*, so the same 0 / 1 / N call-count decisions are asserted
-//!     directly (and the 1-vs-2-caller NEVER/IF_SINGLE_CALL split is the
+//!     directly (and the 1-vs-2-caller `NEVER/IF_SINGLE_CALL` split is the
 //!     load-bearing behaviour).
 //!   * Python `apply_inline_catalogue` (which tags `inline_decision` /
 //!     `static_call_count` onto a fresh `Module`) is internal in Rust;
@@ -1270,7 +1270,7 @@ fn static_shape_carries_body() {
     let candidates = detect_passthrough_candidates(&m);
     match candidates.get("::reset") {
         Some(PassthroughShape::Static { body }) => {
-            assert!(!body.statements.is_empty(), "static body is non-empty")
+            assert!(!body.statements.is_empty(), "static body is non-empty");
         }
         other => panic!("expected Static, got {other:?}"),
     }

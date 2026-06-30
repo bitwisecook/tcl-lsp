@@ -391,7 +391,7 @@ fn lens_count(lens: &CodeLens) -> usize {
 }
 
 /// Lens whose anchor starts on `line`.
-fn lens_on_line<'a>(lenses: &'a [CodeLens], line: u32) -> &'a CodeLens {
+fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
     lenses
         .iter()
         .find(|l| l.range.start_line == line)

@@ -20,8 +20,7 @@ return $y
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-01: OVERDEFINED value should not produce a shimmer warning; got {:?}",
-        got
+        "FP-SH-01: OVERDEFINED value should not produce a shimmer warning; got {got:?}"
     );
 }
 
@@ -57,8 +56,7 @@ proc f {} {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-02: scope-alias declared with `variable` must be typed OVERDEFINED, not STRING; got {:?}",
-        got
+        "FP-SH-02: scope-alias declared with `variable` must be typed OVERDEFINED, not STRING; got {got:?}"
     );
 }
 
@@ -69,16 +67,14 @@ fn fp_sh_02_global_alias_no_shimmer() {
     let got_g = codes(src_global, D);
     assert!(
         !got_g.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-02: `global` alias must be OVERDEFINED too; got {:?}",
-        got_g
+        "FP-SH-02: `global` alias must be OVERDEFINED too; got {got_g:?}"
     );
 
     let src_upvar = "proc f {} { upvar 1 src dst\n return [expr {$dst + 1}] }";
     let got_u = codes(src_upvar, D);
     assert!(
         !got_u.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-02: `upvar` alias must be OVERDEFINED too; got {:?}",
-        got_u
+        "FP-SH-02: `upvar` alias must be OVERDEFINED too; got {got_u:?}"
     );
 }
 
@@ -104,8 +100,7 @@ proc f {n} {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-03: INT-INT phi join must come out INT; no shimmer here; got {:?}",
-        got
+        "FP-SH-03: INT-INT phi join must come out INT; no shimmer here; got {got:?}"
     );
 }
 
@@ -125,8 +120,7 @@ fn fp_sh_03_genuine_phi_string_int_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-03 TP: genuine per-iteration loop shimmer must still fire; got {:?}",
-        got
+        "FP-SH-03 TP: genuine per-iteration loop shimmer must still fire; got {got:?}"
     );
 }
 
@@ -134,7 +128,7 @@ fn fp_sh_03_genuine_phi_string_int_still_fires() {
 // FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
 // ---------------------------------------------------------------------------
 
-/// FP-SH-04: hex literal `0x80` is recognised as INT by Tcl_GetIntFromObj;
+/// FP-SH-04: hex literal `0x80` is recognised as INT by `Tcl_GetIntFromObj`;
 /// the analyser must also recognise it as INT so incr on a hex-init variable
 /// doesn't fire spurious S100/S101.
 #[test]
@@ -153,8 +147,7 @@ proc f {} {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-04: hex literal 0x80 must be typed INT; incr loop here is clean; got {:?}",
-        got
+        "FP-SH-04: hex literal 0x80 must be typed INT; incr loop here is clean; got {got:?}"
     );
 }
 
@@ -165,8 +158,7 @@ fn fp_sh_04_binary_literal_increment_no_shimmer() {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101" || c == "S102"),
-        "FP-SH-04: binary literal 0b1010 must be typed INT; got {:?}",
-        got
+        "FP-SH-04: binary literal 0b1010 must be typed INT; got {got:?}"
     );
 }
 
@@ -177,8 +169,7 @@ fn fp_sh_04_genuine_string_increment_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-04 TP: STRING in incr must still fire; got {:?}",
-        got
+        "FP-SH-04 TP: STRING in incr must still fire; got {got:?}"
     );
 }
 
@@ -208,8 +199,7 @@ proc f {state} {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S102"),
-        "FP-SH-05: destructure-foreach must not pollute S102; got {:?}",
-        got
+        "FP-SH-05: destructure-foreach must not pollute S102; got {got:?}"
     );
 }
 
@@ -228,8 +218,7 @@ fn fp_sh_05_real_iter_foreach_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S101" || c == "S102"),
-        "FP-SH-05 TP: real per-iter oscillation must still fire; got {:?}",
-        got
+        "FP-SH-05 TP: real per-iter oscillation must still fire; got {got:?}"
     );
 }
 
@@ -238,7 +227,7 @@ fn fp_sh_05_real_iter_foreach_still_fires() {
 // ---------------------------------------------------------------------------
 
 /// FP-SH-06: sibling loops in the same proc must not pollute each other's
-/// S102 body_types map.
+/// S102 `body_types` map.
 #[test]
 fn fp_sh_06_sibling_loops_no_s102() {
     let src = "\
@@ -257,8 +246,7 @@ proc f {items} {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S102"),
-        "FP-SH-06: sibling-loop S102 should not fire; got {:?}",
-        got
+        "FP-SH-06: sibling-loop S102 should not fire; got {got:?}"
     );
 }
 
@@ -277,8 +265,7 @@ fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S101" || c == "S102"),
-        "FP-SH-06 TP: real intra-loop oscillation must still fire; got {:?}",
-        got
+        "FP-SH-06 TP: real intra-loop oscillation must still fire; got {got:?}"
     );
 }
 
@@ -288,7 +275,7 @@ fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
 // ---------------------------------------------------------------------------
 
 /// FP-SH-07 TP: `if {$s + 1}` — expr in if-cond promotes $s from STRING to
-/// INT.  Pre-fix `_find_expr_shimmers` only walked IRAssignExpr, missing the
+/// INT.  Pre-fix `_find_expr_shimmers` only walked `IRAssignExpr`, missing the
 /// CFGBranch.condition expr.
 #[test]
 fn fp_sh_07_if_condition_shimmer_fires() {
@@ -307,8 +294,7 @@ fn fp_sh_07_while_condition_shimmer_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S101" || c == "S100"),
-        "FP-SH-07 TP: while-condition shimmer must fire; got {:?}",
-        got
+        "FP-SH-07 TP: while-condition shimmer must fire; got {got:?}"
     );
 }
 
@@ -332,8 +318,7 @@ fn fp_sh_07_pure_numeric_if_no_shimmer() {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-07: pure-numeric if must not fire shimmer; got {:?}",
-        got
+        "FP-SH-07: pure-numeric if must not fire shimmer; got {got:?}"
     );
 }
 
@@ -351,8 +336,7 @@ fn fp_sh_08_eq_both_non_numeric_no_shimmer() {
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-08: both-non-numeric == must not fire shimmer; got {:?}",
-        got
+        "FP-SH-08: both-non-numeric == must not fire shimmer; got {got:?}"
     );
 }
 
@@ -365,8 +349,7 @@ fn fp_sh_08_eq_with_numeric_literal_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-08 TP: ==/numeric-literal mix must still fire shimmer; got {:?}",
-        got
+        "FP-SH-08 TP: ==/numeric-literal mix must still fire shimmer; got {got:?}"
     );
 }
 
@@ -378,7 +361,6 @@ fn fp_sh_08_add_still_fires() {
     let got = codes(src, D);
     assert!(
         got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-08 TP: $s + 0 must still fire shimmer; got {:?}",
-        got
+        "FP-SH-08 TP: $s + 0 must still fire shimmer; got {got:?}"
     );
 }

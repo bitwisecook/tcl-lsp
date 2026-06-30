@@ -880,7 +880,7 @@ mod tests {
         // The analysis runs and produces a (possibly empty but well-formed) map;
         // every computed interval is a valid lattice element (not the lo>hi
         // sentinel unless explicitly bottom).
-        for (_k, &i) in &intervals {
+        for &i in intervals.values() {
             assert!(
                 !i.is_bottom() || i == BOTTOM,
                 "computed interval must be a sound lattice element: {i:?}"

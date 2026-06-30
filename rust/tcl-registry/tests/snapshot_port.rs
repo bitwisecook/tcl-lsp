@@ -5,7 +5,7 @@
 //! Snapshots are F5/registry-internal canonical JSON with no core-tclsh
 //! analogue, so the proof is structural: the dump is well-formed,
 //! deterministic (byte-identical across two builds → sorted keys, no
-//! HashMap iteration), and contains exactly the core commands tclsh reports
+//! `HashMap` iteration), and contains exactly the core commands tclsh reports
 //! via `info commands`. The per-dialect registry is loaded via
 //! `registry_for_dialect` so the f5-irules `validEvents` cross-product path
 //! is exercised, not just the empty-list Tcl path.

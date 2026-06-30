@@ -571,7 +571,7 @@ mod tests {
 
     /// Issue #727: go-to-definition of a formal-parameter use must resolve to
     /// the parameter *name* in the declaration, not the proc name (proc) or the
-    /// whole method/constructor body (TclOO). The returned range must be a
+    /// whole method/constructor body (`TclOO`). The returned range must be a
     /// single-line, name-sized span over `arg1`.
     #[test]
     fn param_definition_points_at_the_name_not_the_body() {

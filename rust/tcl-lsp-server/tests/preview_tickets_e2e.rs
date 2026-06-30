@@ -4,7 +4,7 @@
 //!   unknown subcommand).
 //! * #726 — `if {[myCmd [expr {1+1}]]}` must not raise W114 (the nested `[expr]`
 //!   is a command argument, not a top-level expression context).
-//! * #727 — go-to-definition of a TclOO method/constructor parameter must
+//! * #727 — go-to-definition of a `TclOO` method/constructor parameter must
 //!   resolve to the parameter *name*, not the whole method body.
 //!
 //! Driven over real JSON-RPC against the `tower-lsp` service.
@@ -130,9 +130,7 @@ async fn published_codes(
 ) -> String {
     let frames = collect_frames(reader, Duration::from_millis(1200)).await;
     frames
-        .into_iter()
-        .filter(|f| f.contains("publishDiagnostics") && f.contains(uri))
-        .next_back()
+        .into_iter().rfind(|f| f.contains("publishDiagnostics") && f.contains(uri))
         .unwrap_or_default()
 }
 

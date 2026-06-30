@@ -38,7 +38,7 @@ fn registry_covers_tcl_core_commands() {
 #[test]
 fn build_default_is_non_empty_and_iterates() {
     let reg = CommandRegistry::build_default();
-    assert!(reg.len() > 0);
+    assert!(!reg.is_empty());
     let names: Vec<&str> = reg.command_names().collect();
     assert!(names.contains(&"set"));
     assert!(names.contains(&"proc"));

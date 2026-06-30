@@ -1,6 +1,6 @@
 //! Behaviour-driven coverage for three under-covered `tcl-compiler`
 //! modules: `var_escape/` (variable escape analysis), `type_infer`
-//! (the SSA TclType lattice), and `subst_nocommands` (the compile-time
+//! (the SSA `TclType` lattice), and `subst_nocommands` (the compile-time
 //! `subst -nocommands` evaluator).
 //!
 //! There is no single pytest source for these — the tests below are
@@ -124,7 +124,7 @@ fn infer_type(src: &str, qname: &str, var: &str) -> Option<TclType> {
         .and_then(|(_, t)| t.tcl_type)
 }
 
-/// The inferred `TypeLattice` (kind + tcl_type) of `var`'s highest version
+/// The inferred `TypeLattice` (kind + `tcl_type`) of `var`'s highest version
 /// in the top-level script.
 fn infer_lattice(src: &str, var: &str) -> Option<TypeLattice> {
     let cu = CompilationUnit::build_for(src, registry(), false);

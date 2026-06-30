@@ -347,7 +347,7 @@ fn def_use_foreach_loop() {
     // ≥1 def of the loop variable `item`. tclsh: after the loop item == c.
     let cu = build_cu("foreach item {a b c} { set result $item }");
     let fu = top_fu(&cu);
-    assert!(reaching_defs(fu, "item").len() >= 1);
+    assert!(!reaching_defs(fu, "item").is_empty());
 }
 
 // ===========================================================================

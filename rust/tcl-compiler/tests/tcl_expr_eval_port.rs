@@ -723,7 +723,7 @@ fn format_tcl_value_signed_zero() {
     assert_eq!(format_tcl_value(TclValue::Float(0.0)), "0.0");
     assert_eq!(format_tcl_value(TclValue::Float(-0.0)), "-0.0");
     // -1.0 * 0.0 == -0.0 by IEEE-754.
-    let neg_zero = -1.0_f64 * 0.0_f64;
+    let neg_zero = -0.0_f64;
     assert!(neg_zero.is_sign_negative());
     assert_eq!(format_tcl_value(TclValue::Float(neg_zero)), "-0.0");
 }

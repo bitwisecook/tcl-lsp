@@ -51,7 +51,7 @@
 //! while authoring this file:
 //!   * `eval [list $raw]`        → tclsh runs `$raw` as the command word
 //!     (`proc marker args {puts EXECUTED}; eval [list marker]` prints
-//!     `EXECUTED`) — so LIST_CANONICAL does NOT suppress T100 (D5-T100).
+//!     `EXECUTED`) — so `LIST_CANONICAL` does NOT suppress T100 (D5-T100).
 //!   * `eval [list puts $raw]`   → tclsh prints `marker` (`puts` is the command
 //!     word, `$raw` is its argument) — so a literal `[list <known-cmd> …]` head
 //!     DOES suppress T100.

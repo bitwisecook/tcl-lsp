@@ -11,10 +11,10 @@
 //! cited inline.
 //!
 //! Field-name map Python → Rust:
-//!   result.all_procs              -> result.procs
-//!   result.all_classes            -> result.classes
-//!   pd.params[i].default_value=="2" -> Some("2".to_string())
-//!   command_aliases["::x"]=(t,e)  -> SignatureCommandAlias{ target, extras }
+//!   `result.all_procs`              -> result.procs
+//!   `result.all_classes`            -> result.classes
+//!   pd.params[i].`default_value=="2`" -> `Some("2".to_string())`
+//!   `command_aliases`["`::x`"]=(t,e)  -> `SignatureCommandAlias`{ target, extras }
 //!
 //! GAPs (Python assertions with no Rust equivalent) are flagged with
 //! `// GAP:` comments where they would otherwise appear.
@@ -280,7 +280,7 @@ fn proc_in_try_body() {
 #[test]
 fn proc_in_try_handlers_and_finally() {
     // py: test_proc_in_try_handlers_and_finally
-    let src = r#"
+    let src = r"
         try {
             proc main {} {}
         } on error {msg opts} {
@@ -290,7 +290,7 @@ fn proc_in_try_handlers_and_finally() {
         } finally {
             proc cleanup {} {}
         }
-        "#;
+        ";
     let r = run(src);
     for name in ["::main", "::on_err", "::on_eacces", "::cleanup"] {
         assert!(r.procs.contains_key(name), "missing {name}");
@@ -300,11 +300,11 @@ fn proc_in_try_handlers_and_finally() {
 #[test]
 fn conditional_proc_respects_namespace() {
     // py: test_conditional_proc_respects_namespace
-    let src = r#"
+    let src = r"
         namespace eval util {
             if {$::tcl_version >= 9} { proc helper {} {} }
         }
-        "#;
+        ";
     let r = run(src);
     assert!(r.procs.contains_key("::util::helper"));
 }
@@ -406,7 +406,7 @@ fn try_body_and_handlers_marked_conditional() {
         .iter()
         .map(|pr| (pr.name.as_str(), pr.conditional))
         .collect();
-    got.sort();
+    got.sort_unstable();
     assert_eq!(got, [("A", true), ("B", true)]);
 }
 

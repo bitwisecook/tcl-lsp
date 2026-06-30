@@ -18,7 +18,7 @@
 //!
 //! The Python `demorgan_transform` / `invert_expression` string→string helpers
 //! have no standalone Rust analogue (the Rust De-Morgan / inversion logic lives
-//! inside the O110 InstCombine pass on the expr AST). Those API tests are ported
+//! inside the O110 `InstCombine` pass on the expr AST). Those API tests are ported
 //! as O110-driven `[expr {...}]` rewrites, which exercise the same logic and are
 //! the form `optimiser_port.rs` already uses.
 //!
@@ -154,7 +154,7 @@ fn shimmer_count(src: &str, code: &str) -> usize {
 
 /// Python `_int_x` wrapper: a loop where `$x` is SCCP-typed INT and live (the
 /// precondition D5-O110 identity/annihilator drops require). Matches the helper
-/// in optimiser_port.rs / the Python file byte-for-byte.
+/// in `optimiser_port.rs` / the Python file byte-for-byte.
 fn int_x(body: &str) -> String {
     format!("proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n")
 }

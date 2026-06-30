@@ -25,11 +25,11 @@
 //!
 //! ── Python codegen surface with NO clean Rust analogue (documented, not ported) ─
 //!  1. SPECIALISED string/dict-subcommand opcodes. The Python emitter lowers
-//!     `string length` → STR_LEN, `string index` → STR_INDEX, `string toupper`
-//!     → STR_UPPER, `string trim*` → STR_TRIM*, `string match` → STR_MATCH,
-//!     `string equal/compare` → STR_EQ/STR_CMP, `string range/first/last/
-//!     replace/map`, `lindex` → LIST_INDEX_IMM, `dict get/exists` → DICT_GET/
-//!     DICT_EXISTS, etc. The Rust emitter (verified by probing
+//!     `string length` → `STR_LEN`, `string index` → `STR_INDEX`, `string toupper`
+//!     → `STR_UPPER`, `string trim*` → `STR_TRIM`*, `string match` → `STR_MATCH`,
+//!     `string equal/compare` → `STR_EQ/STR_CMP`, `string range/first/last/
+//!     replace/map`, `lindex` → `LIST_INDEX_IMM`, `dict get/exists` → `DICT_GET`/
+//!     `DICT_EXISTS`, etc. The Rust emitter (verified by probing
 //!     `codegen_module`) routes ALL of these through a generic `invokeStk1`
 //!     both at top level AND in proc bodies — the dedicated string/dict
 //!     opcodes exist in `Op` but the bytecode emitter does not select them for
@@ -41,8 +41,8 @@
 //!     emitter DOES specialise — llength/lrange/linsert/lassign/lreplace — are
 //!     ported with their real opcodes.)
 //!  2. `LiteralTable.entries()` returns `&[String]` (ordered, deduped) and
-//!     `LocalVarTable` likewise — ported directly (TestLiteralTable /
-//!     TestLocalVarTable).
+//!     `LocalVarTable` likewise — ported directly (`TestLiteralTable` /
+//!     `TestLocalVarTable`).
 //!  3. `_esc` escaping. The Rust `format::esc` matches C-Tcl's disassembler
 //!     BYTE-WISE over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of
 //!     each raw UTF-8 byte (so `ÿ` U+00FF → `Ã¿`, an astral char →
@@ -91,7 +91,7 @@ fn sp() -> Span {
     Span::new(0, 0)
 }
 
-/// Lower `source` → IR → CFG (codegen flavour, defer top-level) → ModuleAsm.
+/// Lower `source` → IR → CFG (codegen flavour, defer top-level) → `ModuleAsm`.
 fn asm_for(source: &str) -> tcl_compiler::codegen::ModuleAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
@@ -1389,11 +1389,10 @@ fn all_blocks_reachable() {
         if !visited.insert(id) {
             continue;
         }
-        if let Some(block) = proc_cfg.blocks.get(&id) {
-            if let Some(t) = &block.terminator {
+        if let Some(block) = proc_cfg.blocks.get(&id)
+            && let Some(t) = &block.terminator {
                 queue.extend(t.successors());
             }
-        }
     }
     // Every block reached from entry must be a real block in the CFG (no
     // dangling successor ids). Rust leaves an `exit_*` sentinel that the

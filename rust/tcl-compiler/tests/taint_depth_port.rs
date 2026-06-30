@@ -26,8 +26,8 @@
 //! cited in a `// tclsh:` comment. The headline facts proven while authoring
 //! this file (all agree on 8.6 and 9.0):
 //!   * `file join /base sub ../etc` → `/base/sub/../etc` — a portable *concat*
-//!     that does NOT canonicalise away `..` (so `[file join]` earns PATH_JOINED,
-//!     not PATH_NORMALISED, and does not clear W313).
+//!     that does NOT canonicalise away `..` (so `[file join]` earns `PATH_JOINED`,
+//!     not `PATH_NORMALISED`, and does not clear W313).
 //!   * `regsub -all a banana X` → `bXnXnX` — `regsub` returns the substituted
 //!     *string* (a content value, not a count), so a tainted pattern is a live
 //!     regex-injection vector (T103).

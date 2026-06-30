@@ -1075,7 +1075,7 @@ fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
     let small: String = (0..SMALL_BODY_THRESHOLD)
         .map(|i| format!("  set v{i} {i}\n"))
         .collect();
-    let big: String = (0..SMALL_BODY_THRESHOLD + 1)
+    let big: String = (0..=SMALL_BODY_THRESHOLD)
         .map(|i| format!("  set v{i} {i}\n"))
         .collect();
     let ms = module_for(&format!("proc ::s {{}} {{\n{small}}}\n"));

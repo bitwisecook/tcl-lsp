@@ -100,7 +100,7 @@ fn no_suppress() -> HashMap<i32, HashSet<String>> {
 // editor-presentation, asserted structurally.
 // ===========================================================================
 
-/// A document with a top-level proc, a namespaced proc, and a TclOO class
+/// A document with a top-level proc, a namespaced proc, and a `TclOO` class
 /// (with a method + a constructor). Reused by several symbol tests.
 const SYMBOL_DOC: &str = "proc alpha {} { return 1 }\n\
                           namespace eval ::ns {\n\

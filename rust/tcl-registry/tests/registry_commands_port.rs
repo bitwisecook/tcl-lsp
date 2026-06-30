@@ -11,12 +11,12 @@
 //!
 //!   Python                                     Rust
 //!   ------------------------------------------ -------------------------------
-//!   REGISTRY.get(cmd, dialect)                 reg.get_for_dialect(cmd, ds)
-//!   REGISTRY.switches(cmd, dialect)            spec.switch_names(Some(ds))
+//!   REGISTRY.get(cmd, dialect)                 `reg.get_for_dialect(cmd`, ds)
+//!   REGISTRY.switches(cmd, dialect)            `spec.switch_names(Some(ds))`
 //!   REGISTRY.option(cmd, opt, dialect)         spec.options scan
-//!   REGISTRY.argument_values(cmd, i, dialect)  spec.arg_values_at(i)
-//!   REGISTRY.command_names(dialect)            reg.command_names()
-//!   configure_signatures(dialect) + SIGNATURES reg.get_for_dialect(name, ds)
+//!   `REGISTRY.argument_values(cmd`, i, dialect)  `spec.arg_values_at(i)`
+//!   `REGISTRY.command_names(dialect)`            `reg.command_names()`
+//!   `configure_signatures(dialect)` + SIGNATURES `reg.get_for_dialect(name`, ds)
 //!
 //! NOTE on `test_detect_dialect.py`: the dialect-detection function
 //! (`detect_dialect_from_source`) does NOT live in the `tcl-registry` crate —
@@ -104,7 +104,7 @@ fn irules_http_commands_are_dialect_scoped() {
 ///
 /// In the Python model these surface as `argument_values(.., 0)`; in the Rust
 /// model the same keywords are the command's subcommands.
-/// f5-dialect: HTTP::header is not real Tcl; subcommand metadata is registry data.
+/// f5-dialect: `HTTP::header` is not real Tcl; subcommand metadata is registry data.
 #[test]
 fn http_header_subcommand_values_are_registered() {
     let (reg, ds) = reg_and_set("f5-irules");
@@ -181,7 +181,7 @@ fn parray_has_hover_with_source() {
 /// `test_curated_irules_override_wins_over_generated_data` — iRules specs
 /// carry a clouddocs.f5.com hover source.
 ///
-/// f5-dialect: ACCESS::acl / HTTP::header are not real Tcl; the doc URLs are
+/// f5-dialect: `ACCESS::acl` / `HTTP::header` are not real Tcl; the doc URLs are
 /// registry metadata. The Python test parses the URL host to avoid a
 /// substring-sanitisation bug; we assert the recorded source URL directly.
 #[test]
@@ -207,10 +207,10 @@ fn irules_specs_carry_clouddocs_source() {
 }
 
 /// `test_registry_validation_metadata_is_available` — socket's arity is
-/// "at least 2, unlimited"; ACCESS::acl is unlimited.
+/// "at least 2, unlimited"; `ACCESS::acl` is unlimited.
 ///
 /// tclsh: `socket` needs at minimum a host and a port (2 args) and accepts
-/// more with options. f5-dialect: ACCESS::acl arity is registry data.
+/// more with options. f5-dialect: `ACCESS::acl` arity is registry data.
 #[test]
 fn validation_metadata_is_available() {
     let (reg, ds) = reg_and_set("tcl8.6");
@@ -231,7 +231,7 @@ fn validation_metadata_is_available() {
 
 /// `test_control_flow_includes_if_for_while` + `test_control_flow_excludes_non_control`.
 ///
-/// registry-metadata: the CONTROL_FLOW trait is our classification. (`if`,
+/// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
 /// verified in `registry_port.rs` — but "is control flow" is registry data.)
 #[test]
@@ -248,7 +248,7 @@ fn control_flow_trait_membership() {
 /// `test_needs_start_cmd_includes_expr_break_continue` +
 /// `test_needs_start_cmd_excludes_non_matching`.
 ///
-/// registry-metadata: NEEDS_START_CMD is our classification.
+/// registry-metadata: `NEEDS_START_CMD` is our classification.
 #[test]
 fn needs_start_cmd_trait_membership() {
     let (reg, _) = reg_and_set("tcl8.6");
@@ -323,7 +323,7 @@ fn unknown_event_is_illegal_for_all() {
 }
 
 /// `test_http2_commands_are_legal_in_http_events` — HTTP2 family is legal in
-/// HTTP_REQUEST and in the message-routing events.
+/// `HTTP_REQUEST` and in the message-routing events.
 ///
 /// f5-dialect.
 #[test]
@@ -440,7 +440,7 @@ fn event_info_for_unknown_event() {
 // test_command_registry.py :: TestFormKindAndResolveForm
 // ===========================================================================
 
-/// `test_form_kind_enum_values` — the FormKind variants exist.
+/// `test_form_kind_enum_values` — the `FormKind` variants exist.
 ///
 /// registry-metadata.
 #[test]
@@ -456,7 +456,7 @@ fn form_kind_variants_exist() {
 /// is a pure getter; with one arg it is a mutating setter. The Rust
 /// `resolve_call` picks the matching form by arity.
 ///
-/// f5-dialect: HTTP::uri is not real Tcl. The getter→read / setter→write
+/// f5-dialect: `HTTP::uri` is not real Tcl. The getter→read / setter→write
 /// classification is registry side-effect metadata.
 #[test]
 fn http_uri_getter_setter_forms() {
@@ -510,7 +510,7 @@ fn http_header_value_subcommand_takes_one_arg() {
 /// `test_http_version_value_arg_is_closed` — `HTTP::version` arg 0 is a closed
 /// value set of exactly the HTTP/1.x version strings.
 ///
-/// f5-dialect: HTTP::version is not real Tcl. The allowed-version set is
+/// f5-dialect: `HTTP::version` is not real Tcl. The allowed-version set is
 /// registry metadata. (HTTP itself only ever speaks 0.9/1.0/1.1 over the
 /// classic text protocol, which is what the closed set encodes.)
 #[test]
@@ -595,7 +595,7 @@ fn dict_iteration_subcommands_declare_cfg_rewrite_names() {
 
 /// `test_proc_body_is_structural` — `proc`'s body argument is structural.
 ///
-/// registry-metadata: BodyKind classification. (`proc name args body` is real
+/// registry-metadata: `BodyKind` classification. (`proc name args body` is real
 /// Tcl, but "the body runs in its own frame" is our SSA-facing annotation.)
 #[test]
 fn proc_body_is_structural() {
@@ -780,10 +780,10 @@ fn tcl85_has_dict_not_try() {
 }
 
 /// `test_tcl86_includes_tcloo_commands` + `test_tcl85_excludes_tcloo_commands`
-/// — TclOO (`oo::class`, `oo::define`) is 8.6+.
+/// — `TclOO` (`oo::class`, `oo::define`) is 8.6+.
 ///
 /// tclsh: `oo::class` is present on 8.6 (`info commands oo::class` non-empty);
-/// TclOO landed in 8.6.
+/// `TclOO` landed in 8.6.
 #[test]
 fn tcloo_is_tcl86_plus() {
     let (r86, d86) = reg_and_set("tcl8.6");
@@ -931,9 +931,9 @@ fn when_marks_trailing_body_argument() {
 
 /// `test_oo_class_create_marks_definition_body` +
 /// `test_oo_define_method_marks_method_body` + `_script_form_marks_body` — the
-/// TclOO definition bodies resolve to the BODY role.
+/// `TclOO` definition bodies resolve to the BODY role.
 ///
-/// registry-metadata: arg-role classification. (TclOO is real 8.6 Tcl.)
+/// registry-metadata: arg-role classification. (`TclOO` is real 8.6 Tcl.)
 #[test]
 fn tcloo_definition_bodies_marked_body() {
     let (reg, _) = reg_and_set("tcl8.6");
@@ -1212,7 +1212,7 @@ fn const_is_present_in_tcl90() {
 fn cached_dialect_registries_are_populated() {
     for d in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect"] {
         let reg = registry_for_dialect(d);
-        assert!(reg.len() > 0, "{d} registry is empty");
+        assert!(!reg.is_empty(), "{d} registry is empty");
         assert!(reg.get("set").is_some(), "{d} should have `set`");
     }
     // An unparseable dialect collapses to the plain-Tcl entry (still usable).

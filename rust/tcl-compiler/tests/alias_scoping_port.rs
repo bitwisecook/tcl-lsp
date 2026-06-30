@@ -97,14 +97,12 @@ fn mem(source: &str, proc: &str) -> MemorySsaFunction {
     let f: &Function = module
         .procedures
         .iter()
-        .find(|(qname, _)| qname.contains(proc))
-        .map(|(_, f)| f)
-        .unwrap_or_else(|| {
+        .find(|(qname, _)| qname.contains(proc)).map_or_else(|| {
             panic!(
                 "proc {proc:?} not found in {:?}",
                 module.procedures.keys().collect::<Vec<_>>()
             )
-        });
+        }, |(_, f)| f);
     build_memory_ssa(&build_ssa(f, registry()))
 }
 

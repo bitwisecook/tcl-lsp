@@ -284,11 +284,10 @@ mod tests {
         fn call(&mut self, function: &str, args: Vec<V>) -> Result<V, String> {
             self.calls.push(format!("{function}/{}", args.len()));
             // `max` of two numbers; otherwise echo the arg count.
-            if function == "max" && args.len() == 2 {
-                if let (V::Num(a), V::Num(b)) = (&args[0], &args[1]) {
+            if function == "max" && args.len() == 2
+                && let (V::Num(a), V::Num(b)) = (&args[0], &args[1]) {
                     return Ok(V::Num((*a).max(*b)));
                 }
-            }
             Ok(V::Num(args.len() as i64))
         }
         fn arith(&mut self, op: BinOp, left: V, right: V) -> Result<V, String> {
@@ -308,7 +307,7 @@ mod tests {
                 BinOp::BitXor => a ^ b,
                 BinOp::LShift => a << b,
                 BinOp::RShift => a >> b,
-                other => return Err(self.unsupported("bad arith op")),
+                _other => return Err(self.unsupported("bad arith op")),
             }))
         }
         fn unary(&mut self, op: UnaryOp, value: V) -> Result<V, String> {

@@ -12,7 +12,7 @@
 //! `tests/var_escape_typeinfer_port.rs`, and `tests/var_escape_cfg_port.rs`
 //! already cover (the common emitter paths, the happy-path if/for/while/
 //! switch/proc lowering, the `Backend` trait entry points, the conditional-
-//! upvar / loop / switch-arm escape cases, the cfg_result low-level surface).
+//! upvar / loop / switch-arm escape cases, the `cfg_result` low-level surface).
 //! Every test below drives an arm those suites skip — typically a rare /
 //! fallback / option-flag / dynamic shape:
 //!
@@ -937,8 +937,7 @@ fn cu_value_with_frameless_cmd_subst_head_no_fallback() {
     let p = summary(&s, "::p");
     assert!(
         !p.has_fallback(),
-        "a frameless subst head must not trip the fallback: {:?}",
-        p
+        "a frameless subst head must not trip the fallback: {p:?}"
     );
     assert_eq!(p.tag("x"), EscapeTag::Local);
 }
@@ -1002,8 +1001,7 @@ fn ir_return_value_info_exists_escapes_target() {
     let p = summary(&s, "::p");
     assert!(
         p.is_frame("rv"),
-        "info-exists target in a return value is Frame: {:?}",
-        p
+        "info-exists target in a return value is Frame: {p:?}"
     );
     assert!(!p.dynamic_barrier(), "a literal info-exists is not pessimistic");
 }
@@ -1014,7 +1012,7 @@ fn ir_expr_eval_info_exists_escapes_target() {
     // expression scanned — the walker.rs `ExprEval { expr }` arm.
     let s = escape_ir("proc ::p {} { expr {[info exists ev]} }");
     let p = summary(&s, "::p");
-    assert!(p.is_frame("ev"), "info-exists in an expr statement is Frame: {:?}", p);
+    assert!(p.is_frame("ev"), "info-exists in an expr statement is Frame: {p:?}");
 }
 
 // ── C.4  standalone namespace upvar handler (handle_namespace_call) ──────────

@@ -531,7 +531,7 @@ fn bigip_nested_and_quoted_braces_inside_body_dont_break_scan() {
     assert!(all.contains(&"/Common/r".to_owned()), "{all:?}");
     assert!(all.contains(&"/Common/p".to_owned()), "{all:?}");
     // `ltm` groups two kinds (`rule`, `pool`), sorted by the BTreeMap.
-    assert_eq!(ltm.children.len(), 2, "{:?}", all);
+    assert_eq!(ltm.children.len(), 2, "{all:?}");
 }
 
 #[test]

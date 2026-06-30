@@ -9,7 +9,7 @@
 //! guard is sized well above legitimate hand-written code, so normal procs are
 //! unaffected. There are two independent halves:
 //!
-//!   * **block-count** — [`tcl_compiler::ssa::COMPLEXITY_GUARD_BLOCKS`] (20_000):
+//!   * **block-count** — [`tcl_compiler::ssa::COMPLEXITY_GUARD_BLOCKS`] (`20_000)`:
 //!     applied by [`tcl_compiler::ssa::is_complexity_guarded`] over the CFG, and
 //!     as a backstop inside `FunctionUnit::build_*`.
 //!   * **body-bytes** — [`tcl_compiler::ssa::DEEP_ANALYSIS_BODY_BYTES`]

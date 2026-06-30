@@ -36,7 +36,7 @@
 //!     is a real method dispatch.  With two instances `$a bark` / `$b bark`
 //!     both dispatch -> woof/woof.
 //!   * `oo::class create Puppy {superclass Dog}; puts [[Puppy new] bark]`
-//!     -> woof  (the `superclass Dog` word makes Puppy inherit Dog::bark, so
+//!     -> woof  (the `superclass Dog` word makes Puppy inherit `Dog::bark`, so
 //!     it is a genuine reference to Dog).
 //!   * `oo::class create C {}; oo::define C self method build {} {return built};
 //!     puts [C build]`  -> built  (a classmethod is invoked on the class
@@ -44,7 +44,7 @@
 //!   * `oo::class create P {variable color; constructor {} {set color red};
 //!     method show {} {return $color}}; puts [[P new] show]`  -> red.
 //!   * BUG witness: a *bare* `greet` at command-head position inside a sibling
-//!     method body is NOT a valid TclOO call —
+//!     method body is NOT a valid `TclOO` call —
 //!     `oo::class create C {method greet {} {return hi};
 //!      method twice {} {return "[greet][greet]"}}; puts [[C new] twice]`
 //!     -> ERR: invalid command name "greet".  The runnable form is `my greet`

@@ -53,12 +53,7 @@ fn write(path: &Path, content: &str) {
 
 /// The first usable `tclsh` on `PATH`, or `None` (tests then skip).
 fn find_tclsh() -> Option<&'static str> {
-    for sh in ["tclsh9.0", "tclsh8.6", "tclsh"] {
-        if run_tclsh(sh, "puts ok").as_deref().map(str::trim) == Some("ok") {
-            return Some(sh);
-        }
-    }
-    None
+    ["tclsh9.0", "tclsh8.6", "tclsh"].into_iter().find(|&sh| run_tclsh(sh, "puts ok").as_deref().map(str::trim) == Some("ok")).map(|v| v as _)
 }
 
 /// Run `script` through `tclsh` (fed on stdin), returning trimmed stdout.

@@ -388,11 +388,10 @@ mod new_lowering_analysis {
         // lappend produces a LIST-typed value. tclsh: `lappend items hello` →
         // `hello` and items is a list.
         let cu = build("lappend items hello");
-        if let Some(t) = ty(&cu.top_level, "items", 1) {
-            if t.kind == TypeKind::Known {
+        if let Some(t) = ty(&cu.top_level, "items", 1)
+            && t.kind == TypeKind::Known {
                 assert_eq!(t.tcl_type, Some(TclType::List), "lappend result must be LIST");
             }
-        }
     }
 
     #[test]

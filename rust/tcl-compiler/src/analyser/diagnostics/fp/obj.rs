@@ -1,4 +1,4 @@
-//! OBJ family — object dispatch (W307/W308) + snit / TclOO modelling.
+//! OBJ family — object dispatch (W307/W308) + snit / `TclOO` modelling.
 //! Pairs to `tests/test_fp_obj.py`, `tests/test_fp_obj_var_as_cmd.py`, and
 //! the §OBJ entries in `docs/design/compiler/FP.md`.
 
@@ -254,8 +254,7 @@ fn fp_obj_06_private_proc_body_analysed() {
     let w216_fires = diags.iter().any(|c| c == "W216");
     assert!(
         w216_fires,
-        "FP-OBJ-06: snit private proc body must be analysed (expected W216); emitted: {:?}",
-        diags
+        "FP-OBJ-06: snit private proc body must be analysed (expected W216); emitted: {diags:?}"
     );
 }
 
@@ -289,8 +288,7 @@ fn fp_obj_07_bare_cmdsub_dispatch_still_fires() {
     let fires_any = diags.iter().any(|c| c == "W307" || c == "W101" || c == "W101A");
     assert!(
         fires_any,
-        "FP-OBJ-07 TP: bare cmd-sub dispatch must still produce an unresolved-command diagnostic; emitted: {:?}",
-        diags
+        "FP-OBJ-07 TP: bare cmd-sub dispatch must still produce an unresolved-command diagnostic; emitted: {diags:?}"
     );
 }
 
@@ -303,8 +301,7 @@ fn fp_obj_07_namespaced_ensemble_const_prefix_fires_w307() {
     let fires_any = diags.iter().any(|c| c == "W307" || c == "W123");
     assert!(
         fires_any,
-        "FP-OBJ-07 TP: const-prefix namespaced ensemble on unknown cmd should fire W307 or W123; emitted: {:?}",
-        diags
+        "FP-OBJ-07 TP: const-prefix namespaced ensemble on unknown cmd should fire W307 or W123; emitted: {diags:?}"
     );
 }
 

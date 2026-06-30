@@ -35,12 +35,12 @@
 //! SESSION_TABLE` / `e.namespace == "HTTP"` on a *hint-derived* effect do not
 //! map; the equivalent Rust effect leaves `scope = Unknown` / `namespace =
 //! None`. Each such site asserts the parts that *do* hold (target, reads,
-//! writes, connection_side) and notes the field Rust leaves at its default.
+//! writes, `connection_side`) and notes the field Rust leaves at its default.
 //! The `set`/`incr`/`unset` variable-assignment path *does* populate
 //! scope/namespace/key (it is not hint-driven), so those assertions port 1:1.
 //!
 //! The Rust `class match` (a `pure: true` subcommand) short-circuits to a
-//! pure, effect-free result rather than surfacing the command-level DataGroup
+//! pure, effect-free result rather than surfacing the command-level `DataGroup`
 //! read hint — so the Python `test_class_lookup` effect assertions are adapted
 //! to assert purity (documented at the site). This is a design choice (pure
 //! subcommands win), not a bug.
@@ -818,11 +818,10 @@ fn build_top(src: &str) -> CompilationUnit {
 fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, usize) {
     let mut last = None;
     for bid in cfg.reverse_postorder() {
-        if let Some(blk) = cfg.blocks.get(&bid) {
-            if !blk.statements.is_empty() {
+        if let Some(blk) = cfg.blocks.get(&bid)
+            && !blk.statements.is_empty() {
                 last = Some((bid, blk.statements.len()));
             }
-        }
     }
     last.expect("no non-empty block")
 }
