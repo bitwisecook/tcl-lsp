@@ -778,6 +778,14 @@ impl Analyser {
         if cmd_name != "catch" || args.is_empty() {
             return false;
         }
+        // The script body (args[0]) is evaluated by `catch`, so walk it like
+        // every other body-bearing command — otherwise the per-command
+        // syntactic checks (W100 unbraced `expr`, W104, W304, …) never reach
+        // inside a `catch { … }`, under-reporting relative to the Python
+        // analyser. `analyse_body` no-ops on a dynamic body (`catch $cmd`).
+        if let Some(body_tok) = arg_tokens.first().copied() {
+            self.analyse_body(&args[0], body_tok, scope_path);
+        }
         // Result var (args[1]) and options var (args[2]).
         for (i, name) in args.iter().enumerate().take(3).skip(1) {
             if let Some(tok) = arg_tokens.get(i) {

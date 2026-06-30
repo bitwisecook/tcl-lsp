@@ -719,11 +719,38 @@ impl Analyser {
         // do NOT recurse into it (and do not fire W123/W002 on its contents).
         // Analyse iRules under the f5-irules dialect, where `when` is a real
         // body-owning command.
-        let body_indices = registry.arg_indices_for_role(
+        let mut body_indices = registry.arg_indices_for_role(
             cmd_name,
             &body_args,
             tcl_registry::arg_role::ArgRole::Body,
         );
+        // Fallback for an *imported* command called by its unqualified name:
+        // `namespace import ::tcltest::*` followed by `test name desc { body }`
+        // calls the registry's `tcltest::test`, whose body roles only resolve
+        // under the qualified name. Re-query through each recorded import so the
+        // body walk reaches inside (matching the Python analyser, which resolves
+        // the import). Conservative: only when the bare name owns no body itself,
+        // and only against a namespace explicitly imported in this document.
+        if body_indices.is_empty() && !cmd_name.contains("::") {
+            for imp in &self.result.namespace_imports {
+                let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
+                    format!("{prefix}{cmd_name}")
+                } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
+                    imp.pattern.clone()
+                } else {
+                    continue;
+                };
+                let idxs = registry.arg_indices_for_role(
+                    &candidate,
+                    &body_args,
+                    tcl_registry::arg_role::ArgRole::Body,
+                );
+                if !idxs.is_empty() {
+                    body_indices = idxs;
+                    break;
+                }
+            }
+        }
         if body_indices.is_empty() {
             return;
         }
