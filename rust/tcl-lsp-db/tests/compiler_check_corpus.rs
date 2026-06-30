@@ -225,8 +225,8 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
             let src = format!("{}{base}{tail}", "\n".repeat(blanks));
             file.set_text(&mut db).to(src.clone());
 
-            let got = compiler_check_diagnostics(&db, file);
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+            let got = compiler_check_diagnostics(&db, file, default_config(&db));
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
             checked += 1;
             if (got.checks != want.checks || got.optimisations != want.optimisations)
                 && bad.len() < 40
