@@ -44,7 +44,7 @@ use tcl_lexer::{Span, Token, TokenType};
 use super::scope::scope_at_mut;
 use super::state::Analyser;
 use super::types::{ClassDef, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo};
-use super::utils::parse_param_list;
+use super::utils::{param_name_spans, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
@@ -187,9 +187,19 @@ impl Analyser {
         };
         let mut method_path = scope_path.to_vec();
         method_path.push(method_idx);
-        // Formal parameters — defined, never unused-warned.
-        for p in &mb.params {
-            self.define_var(&p.name, mb.body_tok, &method_path, false, None);
+        // Formal parameters — defined, never unused-warned.  Anchor each
+        // param's definition span at its name in the param-list literal (issue
+        // #727) so go-to-definition / references / rename resolve to the
+        // parameter, not the whole method body.  Falls back to the body token
+        // when the param-list word or a name can't be located.
+        let param_spans = mb.params_tok.and_then(|pt| {
+            self.source
+                .get(pt.span.start() as usize..pt.span.end() as usize)
+                .map(|raw| param_name_spans(raw, pt.span.start()))
+        });
+        for (i, p) in mb.params.iter().enumerate() {
+            let def_span = param_spans.as_ref().and_then(|s| s.get(i).copied());
+            self.define_var(&p.name, mb.body_tok, &method_path, false, def_span);
         }
         // Class instance variables — visible in every method body.
         for var in class_variables {
@@ -501,7 +511,7 @@ impl Analyser {
         no_arglist: bool,
         synthetic_name: &str,
     ) {
-        let (name, params, body_text, body_tok) = if no_arglist {
+        let (name, params, body_text, body_tok, params_tok) = if no_arglist {
             let Some(body) = args.first() else {
                 return;
             };
@@ -510,7 +520,13 @@ impl Analyser {
             } else {
                 synthetic_name.to_string()
             };
-            (nm, Vec::new(), body.clone(), arg_tokens.first().copied())
+            (
+                nm,
+                Vec::new(),
+                body.clone(),
+                arg_tokens.first().copied(),
+                None,
+            )
         } else if synthetic_name.is_empty() {
             // method / typemethod: NAME ARGLIST BODY.
             if args.len() < 3 {
@@ -521,6 +537,7 @@ impl Analyser {
                 parse_param_list(&args[1]),
                 args[2].clone(),
                 arg_tokens.get(2).copied(),
+                arg_tokens.get(1).copied(),
             )
         } else {
             // constructor / onconfigure: ARGLIST BODY (name is synthetic).
@@ -532,6 +549,7 @@ impl Analyser {
                 parse_param_list(&args[0]),
                 args[1].clone(),
                 arg_tokens.get(1).copied(),
+                arg_tokens.first().copied(),
             )
         };
 
@@ -567,6 +585,7 @@ impl Analyser {
                 params,
                 body_text,
                 body_tok: bt,
+                params_tok,
             };
             self.walk_method_body(seed_vars, class_qualified, scope_path, &mb);
         }
@@ -792,6 +811,10 @@ struct CollectedMethodBody {
     body_text: String,
     /// The body word token (carries the absolute span + `content_offset`).
     body_tok: Token,
+    /// The raw param-list word token (`{a b}`), used to anchor each formal
+    /// parameter's definition span at its name (issue #727). `None` for
+    /// `destructor` (no parameter list).
+    params_tok: Option<Token>,
 }
 
 /// Recognise a method-defining subcommand in a class body and return its body
@@ -805,18 +828,21 @@ fn collect_method_body(texts: &[String], argv: &[Token]) -> Option<CollectedMeth
             params: parse_param_list(&texts[2]),
             body_text: texts[3].clone(),
             body_tok: *argv.get(3)?,
+            params_tok: argv.get(2).copied(),
         }),
         "constructor" if texts.len() >= 3 => Some(CollectedMethodBody {
             name: "<constructor>".to_string(),
             params: parse_param_list(&texts[1]),
             body_text: texts[2].clone(),
             body_tok: *argv.get(2)?,
+            params_tok: argv.get(1).copied(),
         }),
         "destructor" if texts.len() >= 2 => Some(CollectedMethodBody {
             name: "<destructor>".to_string(),
             params: Vec::new(),
             body_text: texts[1].clone(),
             body_tok: *argv.get(1)?,
+            params_tok: None,
         }),
         _ => None,
     }
@@ -1055,6 +1081,7 @@ fn collect_property_accessor_bodies(
                         params: Vec::new(),
                         body_text: texts[i + 1].clone(),
                         body_tok: tok,
+                        params_tok: None,
                     });
                 }
                 i += 2;

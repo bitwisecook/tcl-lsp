@@ -20,7 +20,7 @@ use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
 use super::types::ProcDef;
-use super::utils::parse_param_list;
+use super::utils::{param_name_spans, parse_param_list};
 
 /// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
 /// package.tcl / word.tcl) that are script-defined and documented as
@@ -392,13 +392,27 @@ impl Analyser {
             let mut child_path = path.clone();
             child_path.push(proc_scope_idx);
 
-            // Parameters become locals in the proc scope. Each
-            // param's definition range is anchored to the proc
-            // *name* token — there's no per-parameter span
-            // available without re-tokenising the param-list
-            // literal.
-            for p in &params {
-                self.define_var(&p.name, name_tok, &child_path, false, None);
+            // Parameters become locals in the proc scope. Each param's
+            // definition range is anchored to its *name* in the param-list
+            // literal (issue #727) so go-to-definition / references / rename on
+            // a formal parameter resolve to the parameter, not the proc name.
+            // The spans are recovered from the raw param-list word token
+            // (`arg_tokens[1]`); any param whose name can't be located falls
+            // back to the proc name token.
+            let params_tok = arg_tokens[1];
+            let param_spans = self
+                .source
+                .get(params_tok.span.start() as usize..params_tok.span.end() as usize)
+                .map(|raw| param_name_spans(raw, params_tok.span.start()))
+                .unwrap_or_default();
+            for (i, p) in params.iter().enumerate() {
+                self.define_var(
+                    &p.name,
+                    name_tok,
+                    &child_path,
+                    false,
+                    param_spans.get(i).copied(),
+                );
             }
 
             // Save / restore last_comment around the body walk so
