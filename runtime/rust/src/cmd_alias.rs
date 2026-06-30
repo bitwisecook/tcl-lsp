@@ -103,22 +103,21 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"bgerror" => {
-            // `interp bgerror path ?cmdPrefix?` — get/set the current interp's
-            // background-error handler. Only the current interp ("") is modelled.
+            // `interp bgerror path ?cmdPrefix?` — get/set the (possibly nested)
+            // interp's background-error handler.
             if argv.len() < 3 || argv.len() > 4 {
                 return wrong_args(interp, b"interp bgerror path ?cmdPrefix?");
             }
-            match argv.get(3) {
-                Some(&p) => {
-                    interp.set_bgerror_handler(&obj_bytes(p));
-                    interp.set_result_bytes(b"");
-                }
-                None => {
-                    let h = interp.bgerror_handler();
+            let path = interp_path(argv[2]);
+            let prefix = argv.get(3).copied();
+            match interp.with_child_path(&path, |c| c.bgerror_apply(prefix)) {
+                Some(Ok(h)) => {
                     interp.set_result_bytes(&h);
+                    Code::Ok
                 }
+                Some(Err(m)) => interp.set_error(&m),
+                None => not_found_path(interp, &path),
             }
-            Code::Ok
         }
         b"hide" => interp_hidectl(interp, argv, HideOp::Hide),
         b"expose" => interp_hidectl(interp, argv, HideOp::Expose),

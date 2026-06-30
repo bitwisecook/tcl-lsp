@@ -2835,6 +2835,23 @@ impl Interp {
         *self.bgerror.borrow_mut() = prefix.to_vec();
     }
 
+    /// `interp bgerror` get / set on this interp. With no `prefix` it returns
+    /// the current handler; with one it must be a list of length ≥ 1 (set, then
+    /// returned). Returns the handler bytes, or the error message.
+    pub(crate) fn bgerror_apply(&self, prefix: Option<*mut TclObj>) -> Result<Vec<u8>, Vec<u8>> {
+        match prefix {
+            None => Ok(self.bgerror_handler()),
+            Some(p) => {
+                if crate::list::list_length(p).unwrap_or(0) < 1 {
+                    return Err(b"cmdPrefix must be list of length >= 1".to_vec());
+                }
+                let bytes = obj_bytes(p);
+                self.set_bgerror_handler(&bytes);
+                Ok(bytes)
+            }
+        }
+    }
+
     /// Queue a background error (a destructor failing during implicit teardown,
     /// etc.) for later processing by `update` — Tcl defers it to the event loop
     /// rather than firing at the error site.
@@ -4535,6 +4552,25 @@ impl Interp {
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
                     Some(Ok(n)) => {
                         self.set_result_bytes(n.to_string().as_bytes());
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            // `$child bgerror ?cmdPrefix?` — get/set the child's background-error
+            // handler.
+            b"bgerror" => {
+                if argv.len() < 2 || argv.len() > 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" bgerror ?cmdPrefix?\"");
+                    return self.error(&m);
+                }
+                let prefix = argv.get(2).copied();
+                match self.with_child(name, |c| c.bgerror_apply(prefix)) {
+                    Some(Ok(h)) => {
+                        self.set_result_bytes(&h);
                         Code::Ok
                     }
                     Some(Err(m)) => self.error(&m),
