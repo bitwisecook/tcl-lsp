@@ -133,6 +133,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"hide" => interp_hidectl(interp, argv, HideOp::Hide),
         b"expose" => interp_hidectl(interp, argv, HideOp::Expose),
         b"invokehidden" => interp_invokehidden(interp, argv),
+        b"limit" => interp_limit(interp, argv),
         b"hidden" => {
             // `interp hidden ?path?` — hidden command names in the (current or
             // named) interp.
@@ -262,6 +263,42 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 enum HideOp {
     Hide,
     Expose,
+}
+
+/// `interp limit path limitType ?-option value …?` — query/configure the
+/// `commands` or `time` limit on a child interp.
+fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // argv = [interp, limit, path, limitType, opts…]
+    if argv.len() < 4 {
+        return wrong_args(interp, b"interp limit path limitType ?-option value ...?");
+    }
+    let path = obj_bytes(argv[2]);
+    let ltype = obj_bytes(argv[3]);
+    // Validate the limit type before the current-interp guard so a bad type is
+    // reported ahead of the inaccessibility error (interp-35.3 vs .23).
+    if ltype.as_slice() != b"commands" && ltype.as_slice() != b"time" {
+        let mut m = b"bad limit type \"".to_vec();
+        m.extend_from_slice(&ltype);
+        m.extend_from_slice(b"\": must be commands or time");
+        return interp.set_error(&m);
+    }
+    if path.is_empty() {
+        return interp.set_error(b"limits on current interpreter inaccessible");
+    }
+    let opts: Vec<*mut TclObj> = argv[4..].to_vec();
+    match interp.with_child(&path, |c| c.limit_apply(&ltype, &opts)) {
+        Some(Ok(o)) => {
+            interp.set_result(o);
+            Code::Ok
+        }
+        Some(Err(m)) => interp.set_error(&m),
+        None => {
+            let mut m = b"could not find interpreter \"".to_vec();
+            m.extend_from_slice(&path);
+            m.push(b'"');
+            interp.set_error(&m)
+        }
+    }
 }
 
 /// Whether `name` resolves in the global namespace — it carries no namespace
