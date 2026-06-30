@@ -403,32 +403,43 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `interp create ?-safe? ?--? ?name?` — make a child interpreter.
 fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    // C's "weird historical rule": `-safe` is accepted anywhere before `--`
+    // (`interp create a -safe` is valid), and the path is the lone non-option
+    // word — so scan all args rather than stopping at the first non-flag.
     let mut safe = false;
+    let mut last = false;
     let mut name: Option<String> = None;
     let mut i = 0;
     while i < rest.len() {
         let a = rest[i].to_str();
-        match &*a {
-            "-safe" => safe = true,
-            "--" => {
-                i += 1;
-                break;
+        if !last && a.starts_with('-') {
+            match &*a {
+                "-safe" => {
+                    safe = true;
+                    i += 1;
+                    continue;
+                }
+                "--" => {
+                    i += 1;
+                    last = true;
+                }
+                s => return err(format!("bad option \"{s}\": must be -safe or --")),
             }
-            s if s.starts_with('-') => {
-                return err(format!("bad option \"{s}\": must be -safe or --"));
-            }
-            _ => break,
+        }
+        if name.is_some() {
+            return err("wrong # args: should be \"interp create ?-safe? ?--? ?path?\"");
+        }
+        if let Some(n) = rest.get(i) {
+            name = Some(n.to_str().to_string());
         }
         i += 1;
     }
-    if let Some(n) = rest.get(i) {
-        let n = n.to_str().to_string();
-        if vm.child_exists(&n) {
+    if let Some(ref n) = name {
+        if vm.child_exists(n) {
             return err(format!(
                 "interpreter named \"{n}\" already exists, cannot create"
             ));
         }
-        name = Some(n);
     }
     ok(Value::string(vm.create_child(name, safe)))
 }

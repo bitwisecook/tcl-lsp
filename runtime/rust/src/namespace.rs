@@ -210,7 +210,9 @@ impl Namespaces {
         let mut found: Vec<(NsId, Vec<u8>)> = Vec::new();
         for (id, ns) in self.arena.iter().enumerate() {
             for (key, cmd) in &ns.commands {
-                if matches!(cmd, Command::Alias { .. }) {
+                // Both single-interp aliases and cross-interp (child→parent)
+                // aliases are reported by `interp aliases` / `$child aliases`.
+                if matches!(cmd, Command::Alias { .. } | Command::ParentAlias { .. }) {
                     found.push((id, key.clone()));
                 }
             }

@@ -207,31 +207,49 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
 /// host-touching commands (the Safe Base's re-aliasing is a follow-up).
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // C's "weird historical rule": `-safe` is accepted anywhere before `--`
+    // (`interp create a -safe` is valid), and the path is the lone non-option
+    // word — so scan all args rather than stopping at the first non-flag.
     let mut name: Option<Vec<u8>> = None;
     let mut safe = false;
+    let mut last = false;
     let mut i = 2;
     while i < argv.len() {
         let a = obj_bytes(argv[i]);
-        match a.as_slice() {
-            b"-safe" => safe = true,
-            b"--" => {
-                i += 1;
-                break;
+        if !last && a.first() == Some(&b'-') {
+            match a.as_slice() {
+                b"-safe" => {
+                    safe = true;
+                    i += 1;
+                    continue;
+                }
+                b"--" => {
+                    i += 1;
+                    last = true;
+                }
+                _ => {
+                    let mut m = b"bad option \"".to_vec();
+                    m.extend_from_slice(&a);
+                    m.extend_from_slice(b"\": must be -safe or --");
+                    return interp.set_error(&m);
+                }
             }
-            _ => break,
+        }
+        if name.is_some() {
+            return wrong_args(interp, b"interp create ?-safe? ?--? ?path?");
+        }
+        if i < argv.len() {
+            name = Some(obj_bytes(argv[i]));
         }
         i += 1;
     }
-    if i < argv.len() {
-        let p = obj_bytes(argv[i]);
-        // Only single-level (simple) names are supported; a path list is not.
-        if interp.child_exists(&p) {
+    if let Some(ref p) = name {
+        if interp.child_exists(p) {
             let mut m = b"interpreter named \"".to_vec();
-            m.extend_from_slice(&p);
+            m.extend_from_slice(p);
             m.extend_from_slice(b"\" already exists, cannot create");
             return interp.set_error(&m);
         }
-        name = Some(p);
     }
     let created = interp.create_child(name);
     if safe {
