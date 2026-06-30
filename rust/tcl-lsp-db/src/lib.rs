@@ -1778,7 +1778,7 @@ fn solve_optimisations<'db>(
         raw.push(opt);
     }
 
-    tcl_compiler::optimiser::finalise_optimisations(raw, cu, registry, dialect_opt)
+    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -2424,7 +2424,7 @@ mod tests {
         let mut state = [1usize, 1, 1, 1];
         let mut db = TclDatabase::default();
         let registry = db.registry(dialect);
-        let file = SourceFile::new(&db, assemble(&state).to_owned(), dialect.to_owned());
+        let file = SourceFile::new(&db, assemble(&state), dialect.to_owned());
 
         for iter in 0..250 {
             let slot = (next() as usize) % state.len();
@@ -2432,8 +2432,8 @@ mod tests {
             let src = assemble(&state);
             file.set_text(&mut db).to(src.clone());
 
-            let got = compiler_check_diagnostics(&db, file);
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+            let got = compiler_check_diagnostics(&db, file, cfg(&db));
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
             assert_eq!(
                 got.checks, want.checks,
                 "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"
@@ -2549,7 +2549,7 @@ mod tests {
                 .to_owned(),
             "tcl8.6".to_owned(),
         );
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
             runs(&log),
             3,
@@ -2562,7 +2562,7 @@ mod tests {
              proc b {} { puts 99999999 }\n\
              proc c {} { puts 33333 }\n"
             .to_owned());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
             runs(&log),
             1,
@@ -2607,7 +2607,7 @@ mod tests {
                 .to_owned(),
             "tcl8.6".to_owned(),
         );
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
             runs(&log),
             3,
@@ -2619,7 +2619,7 @@ mod tests {
              proc b {} { puts 99999999 }\n\
              proc c {} { puts 33333 }\n"
             .to_owned());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
             runs(&log),
             1,
@@ -2632,7 +2632,7 @@ mod tests {
              proc b {} { puts 99999999 }\n\
              proc c {} { puts 33333 }\n"
             .to_owned());
-        let _ = compiler_check_diagnostics(&db, file);
+        let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
             runs(&log),
             0,
@@ -2884,7 +2884,7 @@ mod tests {
             storage: salsa::Storage::new(Some(Box::new(sink))),
             registries: Arc::default(),
         };
-        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // `a` defines `foo` (1 param) and an unrelated `bar`.
         let a = SourceFile::new(
             &db,
