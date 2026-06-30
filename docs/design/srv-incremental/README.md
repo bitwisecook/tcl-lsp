@@ -509,9 +509,14 @@ exist yet — the verification-status table follows the list.
    differential) must hold throughout.
    *Measured 2026-06-30 (a per-proc lowering-isolation differential over ~4.2 K
    corpus procs):* lowering a proc body **in isolation** matches the whole-file
-   lowering's offset-0 body IR for only **~53 % of procs**; the other ~47 % diverge
-   on cross-item context (namespace scope, `namespace import`/`export`, command
-   aliases). This **quantifies** the "cross-item facts as inputs" requirement — a
+   lowering's offset-0 body IR for only **~53 % of procs** via a `proc q {…} {…}`
+   re-lowering, and a *direct* `lower_body`-seam isolation matches just **~1.2 %** —
+   because the whole-file path lowers the **const-map-materialised** (const-folded)
+   body, whose materialisation depends on *preceding code*, on top of the namespace
+   scope, `namespace import`/`export`, and command-alias context. So per-proc
+   lowering is entangled with cross-item state at **multiple** layers (const-map
+   materialisation **and** namespace/alias/import context), with no clean per-proc
+   seam. This **quantifies** the "cross-item facts as inputs" requirement — a
    complete byte-identical incremental lowering must thread that context as memo
    inputs for the context-dependent half (and even a gated v1 over the ~53 %
    context-free procs still needs the deep `Lowerer`-callback threading + effect
