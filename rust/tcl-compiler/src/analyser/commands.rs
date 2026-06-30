@@ -1067,6 +1067,20 @@ impl Analyser {
         // the IRULE5005 emitter never sees it.  Matches the top-level
         // `process_command` ordering (proc-resolution after site recording).
         self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
+        // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
+        // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
+        // still binds its result/options variables in the enclosing scope, so
+        // record them for `symbols`/completion/hover — matching the Python
+        // analyser, which collects var-defs from substitution commands too.
+        // `warn_if_unused = false`: the binding is a side effect of `catch`,
+        // not a "set but never used" target (no W211).
+        if cmd_name == "catch" {
+            for (i, name) in args.iter().enumerate().take(3).skip(1) {
+                if let Some(tok) = arg_tokens.get(i) {
+                    self.define_var(name, *tok, scope_path, false, None);
+                }
+            }
+        }
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
