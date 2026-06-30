@@ -57,6 +57,12 @@ pub const fn spec() -> CommandSpec {
                 synopsis: "HTTP::uri <URI>",
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT
     }
