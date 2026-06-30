@@ -861,24 +861,14 @@ async fn refine_and_lift_diagnostics(
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
     // #723: refine the analyser's single-file W120 against the workspace
-    // package database. The common case (no W120, or no `package require`)
-    // skips the resolver entirely; otherwise the (bounded) transitive scan
-    // reads only the required packages' implementation files.
-    let analyser_diags = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
-        let pkg_requires: Vec<String> = analysis
-            .package_requires
-            .iter()
-            .map(|pr| pr.name.clone())
-            .collect();
-        if pkg_requires.is_empty() {
-            analyser_diags
-        } else {
-            let resolver = package_resolver.read().await;
-            refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
-        }
-    } else {
-        analyser_diags
-    };
+    // package database (shared with the pull path via `refine_workspace_w120`).
+    let analyser_diags = refine_workspace_w120(
+        analyser_diags,
+        analysis.as_ref(),
+        package_resolver,
+        registry,
+    )
+    .await;
 
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
@@ -3809,7 +3799,10 @@ impl Backend {
         let compiler_diags = {
             let (c_text, c_dialect, c_registry) =
                 (text.clone(), dialect.clone(), Arc::clone(&registry));
-            let c_generic = self.generic_variable_patterns.lock().await.clone();
+            // URI-scoped (folder/project override aware), matching the push
+            // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
+            // honours a folder's `diagnostics.genericVariablePatterns` override.
+            let c_generic = self.resolved_generic_variable_patterns(uri).await;
             tokio::task::spawn_blocking(move || {
                 tcl_lsp_db::compiler_check_diagnostics_uncached(
                     &c_text,
@@ -3840,6 +3833,17 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        // #723: refine the single-file W120 against the workspace package
+        // database, mirroring the push path's `refine_and_lift_diagnostics`, so a
+        // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
+        // transitively provides the flagged package suppresses the false W120.
+        let analyser_diags = refine_workspace_w120(
+            analyser_diags,
+            analysis.as_ref(),
+            &self.package_resolver,
+            &registry,
+        )
+        .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
@@ -4044,9 +4048,13 @@ impl Backend {
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
-        if roots.is_empty() {
-            return;
-        }
+        // Note: we deliberately do NOT early-return when `roots.is_empty()`.
+        // The package resolver must still be (re)built from the editor library
+        // paths + `TCLLIBPATH` + discovered installations so single-file /
+        // no-folder sessions resolve `package require` against the user's picked
+        // "Select Tcl Installation" library paths.  Only the per-folder
+        // workspace *indexing* (collecting/analysing on-disk files) is skipped
+        // below when there are no roots.
         // Snapshot the dialect-resolution inputs and the set of
         // open documents so the blocking worker can run without
         // touching any async mutex.
@@ -7722,6 +7730,36 @@ fn refine_w120_diagnostics(
         .collect()
 }
 
+/// Apply the #723 workspace W120 refinement to `analyser_diags`: resolve the
+/// document's `package require`s through the shared package database and drop
+/// any W120 whose flagged package is transitively available. Shared by the push
+/// path (`refine_and_lift_diagnostics`) and the pull path
+/// (`Backend::full_diagnostics_for`) so both stay behavior-identical.
+///
+/// The common case (no W120, or no `package require`) skips the resolver lock
+/// entirely; otherwise the (bounded) transitive scan reads only the required
+/// packages' implementation files.
+async fn refine_workspace_w120(
+    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    analysis: &AnalysisResult,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+    registry: &CommandRegistry,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+        return analyser_diags;
+    }
+    let pkg_requires: Vec<String> = analysis
+        .package_requires
+        .iter()
+        .map(|pr| pr.name.clone())
+        .collect();
+    if pkg_requires.is_empty() {
+        return analyser_diags;
+    }
+    let resolver = package_resolver.read().await;
+    refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
+}
+
 /// The package name a W120 says is missing, read from its quick-fix
 /// (`package require {pkg}\n`) — the structured, deterministic carrier the
 /// analyser emits.
@@ -10141,6 +10179,206 @@ mod tests {
         );
     }
 
+    /// Fix #1: the pull path (`full_diagnostics_for`) must feed the IRULE4002
+    /// compiler check the *URI-scoped* generic-variable patterns, so a folder's
+    /// `diagnostics.genericVariablePatterns` override applies on the pull path
+    /// exactly as it does on the push path.  POSITIVE: a folder that disables the
+    /// check (empty pattern list) suppresses IRULE4002.  NEGATIVE: a doc outside
+    /// that folder keeps the default-pattern IRULE4002.
+    #[tokio::test]
+    async fn pull_path_honours_folder_generic_variable_patterns() {
+        let backend = test_backend();
+        let folder = Uri::from_str("file:///proj").unwrap();
+        let inside = Uri::from_str("file:///proj/rule.tcl").unwrap();
+        let outside = Uri::from_str("file:///other/rule.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        // `static::debug` matches the built-in generic set ⇒ IRULE4002 by default.
+        let src = "when RULE_INIT { set static::debug 1 }\n";
+
+        // NEGATIVE (no folder override anywhere): IRULE4002 fires with defaults.
+        let baseline = backend
+            .full_diagnostics_for(
+                &outside,
+                src.to_owned(),
+                "f5-irules".to_owned(),
+                "tcl-irule",
+            )
+            .await;
+        assert!(
+            diag_codes(&baseline).iter().any(|c| c == "IRULE4002"),
+            "IRULE4002 should fire with the default generic patterns, got: {:?}",
+            diag_codes(&baseline),
+        );
+
+        // The folder explicitly empties the generic-pattern set (disables the
+        // check).  On the push path this is `resolved_generic_variable_patterns`
+        // returning `Some(vec![])`; the pull path must consult the same resolver.
+        let fc = FolderConfig {
+            generic_variable_patterns: FolderGenericPatterns::Replace(Vec::new()),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder.clone(), fc)])
+            .await;
+
+        // POSITIVE: a doc *inside* the folder no longer reports IRULE4002.
+        let suppressed = backend
+            .full_diagnostics_for(&inside, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .await;
+        assert!(
+            !diag_codes(&suppressed).iter().any(|c| c == "IRULE4002"),
+            "folder's empty genericVariablePatterns must disable IRULE4002 on the \
+             pull path, got: {:?}",
+            diag_codes(&suppressed),
+        );
+
+        // NEGATIVE: a doc *outside* the folder still gets the default IRULE4002,
+        // proving the override is folder-scoped, not process-global.
+        let still_fires = backend
+            .full_diagnostics_for(
+                &outside,
+                src.to_owned(),
+                "f5-irules".to_owned(),
+                "tcl-irule",
+            )
+            .await;
+        assert!(
+            diag_codes(&still_fires).iter().any(|c| c == "IRULE4002"),
+            "a doc outside the folder must keep the default IRULE4002, got: {:?}",
+            diag_codes(&still_fires),
+        );
+    }
+
+    /// Fix #2: the pull path must apply the #723 W120 package refinement that the
+    /// push path applies, so a workspace whose package database proves a required
+    /// package transitively provides the flagged package suppresses the false
+    /// W120.  POSITIVE: with a resolver proving `http` is transitively available,
+    /// the W120 is refined away.  NEGATIVE: with the default empty resolver, the
+    /// (genuine) W120 still publishes.
+    #[tokio::test]
+    async fn pull_path_applies_w120_package_refinement() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w120.tcl").unwrap();
+        // `package require mywrap` (so `package_requires` is non-empty) plus a
+        // call to `http::register`, which the registry marks as requiring the
+        // `http` package ⇒ single-file W120 for `http`.
+        let src = "package require mywrap\nhttp::register foo 80 bar\n";
+
+        // NEGATIVE: empty resolver can't prove `mywrap` provides `http`.  The
+        // require is *unknowable* (unknown to registry + empty database), so the
+        // conservative refinement drops W120 — to assert the *unrefined* W120 we
+        // need a resolver that knows `mywrap` but where `mywrap` does NOT pull in
+        // `http`.  Build that first.
+        let plain_ws = TmpWs::new("w120-plain");
+        plain_ws.write(
+            "mywrap/mywrap.tcl",
+            "package provide mywrap 1.0\nproc mywrap::go {} {}\n",
+        );
+        plain_ws.write(
+            "mywrap/pkgIndex.tcl",
+            "package ifneeded mywrap 1.0 [list source [file join $dir mywrap.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&plain_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let unrefined = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&unrefined).iter().any(|c| c == "W120"),
+            "a resolvable wrapper that does NOT provide http must keep the W120, \
+             got: {:?}",
+            diag_codes(&unrefined),
+        );
+
+        // POSITIVE: a wrapper whose implementation does `package require http`
+        // makes `http` transitively available ⇒ the W120 is refined away.
+        let wrap_ws = TmpWs::new("w120-wrap");
+        wrap_ws.write(
+            "mywrap/mywrap.tcl",
+            "package provide mywrap 1.0\npackage require http\nproc mywrap::go {} {}\n",
+        );
+        wrap_ws.write(
+            "mywrap/pkgIndex.tcl",
+            "package ifneeded mywrap 1.0 [list source [file join $dir mywrap.tcl]]\n",
+        );
+        // Also provide an `http` package so it is resolvable in the database.
+        wrap_ws.write(
+            "http/http.tcl",
+            "package provide http 2.9\nproc http::register {a b c} {}\n",
+        );
+        wrap_ws.write(
+            "http/pkgIndex.tcl",
+            "package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&wrap_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let refined = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&refined).iter().any(|c| c == "W120"),
+            "the pull path must refine away the W120 once the workspace proves \
+             http is transitively available, got: {:?}",
+            diag_codes(&refined),
+        );
+    }
+
+    /// Fix #3: `scan_workspace_folders` must (re)build the package resolver from
+    /// the editor library paths / discovered installations EVEN with no workspace
+    /// roots, so a single-file / no-folder session's W120 refinement sees the
+    /// user's "Select Tcl Installation" library paths.  POSITIVE: with no roots
+    /// but a library path that provides a package, the resolver is populated.
+    /// NEGATIVE (control): with roots and no library paths, it scans the tree.
+    #[tokio::test]
+    async fn scan_workspace_folders_builds_resolver_with_no_roots() {
+        // POSITIVE: no workspace folders, but a `tclLsp.libraryPaths` directory
+        // containing a package.  Before the fix `scan_workspace_folders`
+        // early-returned and left the resolver empty.
+        let lib_ws = TmpWs::new("noroots-lib");
+        lib_ws.write(
+            "mypkg/pkgIndex.tcl",
+            "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
+        );
+        lib_ws.write("mypkg/mypkg.tcl", "package provide mypkg 1.0\n");
+
+        let backend = test_backend();
+        // No workspace folders at all (single-file / no-folder session).
+        assert!(backend.workspace_folders.lock().await.is_empty());
+        *backend.editor_library_paths.lock().await = vec![lib_ws.0.to_string_lossy().into_owned()];
+
+        backend.scan_workspace_folders().await;
+
+        assert!(
+            backend.package_resolver.read().await.provides("mypkg"),
+            "with no roots, the resolver must still be built from the editor \
+             library paths so single-file sessions resolve packages",
+        );
+
+        // NEGATIVE / control: a fresh backend with a root tree and no library
+        // paths still scans the workspace tree (the indexing path is unaffected).
+        let root_ws = TmpWs::new("withroot");
+        root_ws.write(
+            "pkgIndex.tcl",
+            "package ifneeded rootpkg 1.0 [list source [file join $dir r.tcl]]\n",
+        );
+        root_ws.write("r.tcl", "package provide rootpkg 1.0\n");
+        let backend2 = test_backend();
+        let root_uri = Uri::from_file_path(&root_ws.0).unwrap();
+        *backend2.workspace_folders.lock().await = vec![root_uri];
+        backend2.scan_workspace_folders().await;
+        assert!(
+            backend2.package_resolver.read().await.provides("rootpkg"),
+            "with a root and no library paths, the tree scan must still populate \
+             the resolver",
+        );
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -10576,6 +10814,64 @@ mod tests {
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
         assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
+    }
+
+    /// Fix #4 regression guard: the retired `features.inlayHints` alias must
+    /// survive the *whole* config-apply → effective-config wiring, not just the
+    /// `FeatureToggles::apply` unit. This mirrors the `lsp-e2e`
+    /// `test_legacy_inlay_hints_alias_enables_type_only` flow without a live
+    /// editor: apply `{"features": {"inlayHints": true}}` through
+    /// `apply_global_config` (the same call `pull_and_apply_config` makes after a
+    /// `didChangeConfiguration` re-pull), then read it back through
+    /// `get_effective_config_command` (the `getEffectiveConfig` handler). The
+    /// alias must resolve to `inlayTypeHints: true` while `inlayParameterHints`
+    /// stays off.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn apply_global_config_inlay_alias_reaches_effective_config() {
+        let backend = test_backend();
+        // Default-off before any config: both inlay families report disabled.
+        let before = backend
+            .get_effective_config_command(&[serde_json::json!("file:///inlay.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            before["features"]["inlayTypeHints"],
+            serde_json::Value::Bool(false),
+            "type hints default off before any config: {before}",
+        );
+
+        backend
+            .apply_global_config(&serde_json::json!({ "features": { "inlayHints": true } }))
+            .await;
+
+        let after = backend
+            .get_effective_config_command(&[serde_json::json!("file:///inlay.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            after["features"]["inlayTypeHints"],
+            serde_json::Value::Bool(true),
+            "the `inlayHints` alias must enable `inlayTypeHints` end-to-end: {after}",
+        );
+        assert_eq!(
+            after["features"]["inlayParameterHints"],
+            serde_json::Value::Bool(false),
+            "the alias enables type hints only; parameter hints stay off: {after}",
+        );
+        // And the gate the inlay handler reads agrees with the reported config.
+        let uri = Uri::from_str("file:///inlay.tcl").unwrap();
+        assert!(
+            backend.inlay_family_enabled(&uri, "inlayTypeHints").await,
+            "the inlay-type gate must see the alias-enabled toggle",
+        );
+        assert!(
+            !backend
+                .inlay_family_enabled(&uri, "inlayParameterHints")
+                .await,
+            "parameter hints must stay gated off",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
