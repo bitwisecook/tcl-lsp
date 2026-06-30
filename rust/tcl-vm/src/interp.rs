@@ -297,8 +297,14 @@ pub struct Vm {
     debug_frame: bool,
     /// `interp bgerror` — the background-error handler command prefix.
     bgerror_handler: Value,
-    /// `interp limit` configuration (not enforced — stored for query/set).
+    /// `interp limit` configuration. The `time` limit is enforced; `commands`
+    /// is stored for query/set only.
     limits: LimitSet,
+    /// Free-running counter that throttles wall-clock polling for the `time`
+    /// limit (see [`Vm::limit_check_tick`]). Vm-scoped, not per-activation, so
+    /// it accumulates across the short-lived activations a command-driven loop
+    /// (`$while {1} {…}`) spins through.
+    limit_tick: u32,
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
@@ -401,6 +407,7 @@ impl Vm {
             debug_frame: false,
             bgerror_handler: Value::string("::tcl::Bgerror"),
             limits: LimitSet::default(),
+            limit_tick: 0,
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
@@ -777,8 +784,44 @@ impl Vm {
         self.bgerror_handler.clone()
     }
 
+    /// Whether this interp's `time` limit has elapsed. The stored time value is
+    /// an absolute wall-clock deadline (`-seconds`/`-milliseconds`); the
+    /// execution trampoline polls this so an unbounded bytecode loop still
+    /// honours `interp limit $i time`. Returns `false` when no time limit is set.
+    pub(crate) fn time_limit_exceeded(&self) -> bool {
+        match self.limits.time_value {
+            Some((secs, millis)) => {
+                let deadline = i128::from(secs) * 1000 + i128::from(millis);
+                self.host_rc().clock().now_millis() >= deadline
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a `time` limit is configured at all — the cheap guard the
+    /// trampoline checks before paying for a wall-clock read.
+    pub(crate) fn has_time_limit(&self) -> bool {
+        self.limits.time_value.is_some()
+    }
+
+    /// Advance the limit-poll counter and, when a `time` limit is armed and the
+    /// throttle window elapses, return the `time limit exceeded` error. Called
+    /// from the bytecode trampoline (per tick) and the loop commands (per
+    /// iteration) so both pure-bytecode and command-driven infinite loops are
+    /// trapped. A no-op (beyond the guard) when no time limit is set.
+    pub(crate) fn limit_check_tick(&mut self) -> Option<Completion<Value>> {
+        if !self.has_time_limit() {
+            return None;
+        }
+        self.limit_tick = self.limit_tick.wrapping_add(1);
+        if self.limit_tick & 0x0FFF == 0 && self.time_limit_exceeded() {
+            return Some(err("time limit exceeded"));
+        }
+        None
+    }
+
     /// `interp limit limitType ?-option value …?` on this interp (query / set;
-    /// not enforced).
+    /// enforced for `time`).
     pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
         match ltype {
             "commands" => self.limit_commands(args),

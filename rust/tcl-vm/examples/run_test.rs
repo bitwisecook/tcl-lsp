@@ -37,7 +37,9 @@ impl CompileService for Svc {
 struct Stdout;
 impl Write for Stdout {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        std::io::stdout().write(b)
+        let n = std::io::stdout().write(b)?;
+        std::io::stdout().flush()?;
+        Ok(n)
     }
     fn flush(&mut self) -> std::io::Result<()> {
         std::io::stdout().flush()
@@ -76,8 +78,14 @@ fn run() -> i32 {
         Ok(p) if !p.is_empty() => format!("source {p}\n"),
         _ => String::new(),
     };
+    // Diagnostic: `TCL_TEST_VERBOSE=1` makes tcltest announce each test as it
+    // starts, so a hanging test can be pinpointed.
+    let verbose = match std::env::var("TCL_TEST_VERBOSE") {
+        Ok(v) if !v.is_empty() => "::tcltest::configure -verbose {body start}\n",
+        _ => "",
+    };
     let src = format!(
-        "source {tcltest}\nnamespace import -force ::tcltest::*\n{overlay}source {testfile}\n"
+        "source {tcltest}\nnamespace import -force ::tcltest::*\n{verbose}{overlay}source {testfile}\n"
     );
     let ir = lower_to_ir(&src, &registry);
     let cfg = build_cfg(&ir, false);
