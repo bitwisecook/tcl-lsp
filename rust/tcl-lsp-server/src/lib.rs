@@ -2972,6 +2972,18 @@ impl Backend {
                 .map(|root| core_tcl_install::project_config_path(&root)),
             config_ini::Layer::Project,
         );
+        // Collapse the retired `features.inlayHints` alias to `inlayTypeHints`
+        // *within each layer* before merging. The alias must be resolved
+        // per-layer because `merge_settings` is layer-agnostic: a lower layer
+        // (the global `config.ini`) carrying an explicit `inlayTypeHints` would
+        // otherwise win over a higher layer (the editor) that only sets the
+        // `inlayHints` alias, inverting precedence (#728).
+        let mut global_ini = global_ini;
+        let mut cfg = cfg;
+        let mut primary_project = primary_project;
+        collapse_inlay_alias(&mut global_ini);
+        collapse_inlay_alias(&mut cfg);
+        collapse_inlay_alias(&mut primary_project);
         let merged = config_ini::merge_settings(
             &config_ini::merge_settings(&global_ini, &cfg),
             &primary_project,
@@ -7051,6 +7063,22 @@ fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json
 ///
 /// The shapes compose: a nested `tclLsp` object is merged with any flat dotted
 /// keys and any unwrapped top-level sections.
+/// Collapse the retired `features.inlayHints` boolean into `inlayTypeHints`
+/// in-place, for one settings layer. `inlayHints` is the backward-compatible
+/// alias for `inlayTypeHints`; an explicit `inlayTypeHints` in the *same* layer
+/// still wins (`or_insert` keeps it). Done per-layer before [`merge_settings`]
+/// so cross-layer precedence stays correct — see the call site in
+/// [`Backend::pull_and_apply_config`].
+fn collapse_inlay_alias(settings: &mut serde_json::Value) {
+    if let Some(features) = settings
+        .get_mut("features")
+        .and_then(serde_json::Value::as_object_mut)
+        && let Some(alias) = features.remove("inlayHints")
+    {
+        features.entry("inlayTypeHints").or_insert(alias);
+    }
+}
+
 fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
     use serde_json::{Map, Value};
     let mut out = Map::new();
@@ -8683,6 +8711,57 @@ mod tests {
         for code in ["S100", "S101", "S102", "S110"] {
             assert!(disabled.contains(code), "{code} should be suppressed");
         }
+    }
+
+    #[test]
+    fn collapse_inlay_alias_resolves_per_layer() {
+        // Alias-only: `inlayHints` becomes `inlayTypeHints`.
+        let mut alias_only = serde_json::json!({ "features": { "inlayHints": true } });
+        collapse_inlay_alias(&mut alias_only);
+        assert_eq!(
+            alias_only["features"]["inlayTypeHints"],
+            serde_json::json!(true)
+        );
+        assert!(alias_only["features"].get("inlayHints").is_none());
+
+        // Both present in one layer: the explicit `inlayTypeHints` wins.
+        let mut both = serde_json::json!({
+            "features": { "inlayHints": true, "inlayTypeHints": false }
+        });
+        collapse_inlay_alias(&mut both);
+        assert_eq!(both["features"]["inlayTypeHints"], serde_json::json!(false));
+        assert!(both["features"].get("inlayHints").is_none());
+
+        // Neither: untouched (negative case).
+        let mut neither = serde_json::json!({ "features": { "codeActions": true } });
+        collapse_inlay_alias(&mut neither);
+        assert!(neither["features"].get("inlayTypeHints").is_none());
+    }
+
+    #[test]
+    fn inlay_alias_in_editor_layer_beats_global_inlay_type_hints() {
+        // Regression (#728): the global `config.ini` layer (e.g. written by
+        // `exportConfig`) carries an explicit `inlayTypeHints: false`, while the
+        // higher-precedence editor layer sets only the legacy `inlayHints`
+        // alias. After per-layer collapse the editor must win → type hints on.
+        let mut global = serde_json::json!({
+            "features": { "inlayTypeHints": false, "inlayParameterHints": false, "codeActions": true }
+        });
+        let mut editor = serde_json::json!({ "features": { "inlayHints": true } });
+        collapse_inlay_alias(&mut global);
+        collapse_inlay_alias(&mut editor);
+        let merged = config_ini::merge_settings(&global, &editor);
+        assert_eq!(
+            merged["features"]["inlayTypeHints"],
+            serde_json::json!(true),
+            "editor inlayHints alias must beat global inlayTypeHints:false",
+        );
+        // Parameter hints (only in the global layer) stay off; no stray alias key.
+        assert_eq!(
+            merged["features"]["inlayParameterHints"],
+            serde_json::json!(false)
+        );
+        assert!(merged["features"].get("inlayHints").is_none());
     }
 
     #[test]
