@@ -730,21 +730,20 @@ fn namespace_dispatch_unknown_subcommand() {
     );
 }
 
-/// `namespace forget` is accepted as a no-op in the VM, so an imported command
-/// stays callable. In tclsh, `forget` removes the import (the command then
-/// errors). UNIMPLEMENTED no-op (metadata only).
+/// `namespace forget` removes a previously imported command, so a bare call to
+/// it then errors, matching tclsh.
 ///   tclsh (both): after forget, `catch {bar}` -> 1 (command removed)
-///   VM:           after forget, `catch {bar}` -> 0 (still imported)
-/// Asserting the VM's actual behaviour so the stub is pinned.
+///   VM:           after forget, `catch {bar}` -> 1 (command removed)
 #[test]
-fn namespace_forget_is_noop_in_vm() {
+fn namespace_forget_removes_imported_command() {
     let (ok, res, _) = run(concat!(
         "namespace eval foo {namespace export bar; proc bar {} {return B}}; ",
         "namespace import foo::bar; namespace forget foo::bar; catch {bar}",
     ));
     assert!(ok, "must not error: {res}");
-    // VM keeps the import (no-op); tclsh would yield "1" here.
-    assert_eq!(res, "0");
+    // `namespace forget` removes the imported `bar`, so the bare call errors
+    // (catch → 1), matching tclsh.
+    assert_eq!(res, "1");
 }
 
 /// `namespace ensemble` is accepted as a no-op returning empty. In tclsh,
