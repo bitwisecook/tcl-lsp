@@ -266,21 +266,37 @@ pub enum Op {
 
 impl Op {
     /// Disassembly mnemonic.
-    // Flat opcode → mnemonic match arm; one entry per opcode.
+    ///
+    /// The opcode→mnemonic table is a flat 1:1 map partitioned into cohesive
+    /// per-family helpers (stack/control, arithmetic, string, list/var, and
+    /// the dict/misc remainder) so no single function carries the whole table.
+    /// Each helper returns `Some` only for the opcodes it owns; exactly one
+    /// helper matches each opcode. The `opcode_family_partition_total` test
+    /// exhaustively matches every `Op` variant, so any newly added opcode that
+    /// is not routed into a family helper is caught at test-compile time rather
+    /// than reaching the final `unreachable!`.
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub const fn mnemonic(self) -> &'static str {
-        match self {
+        if let Some(m) = self.mnemonic_core() {
+            m
+        } else if let Some(m) = self.mnemonic_arith() {
+            m
+        } else if let Some(m) = self.mnemonic_string() {
+            m
+        } else if let Some(m) = self.mnemonic_list_var() {
+            m
+        } else {
+            self.mnemonic_dict_misc()
+        }
+    }
+
+    /// Stack, control-flow and invocation mnemonics.
+    const fn mnemonic_core(self) -> Option<&'static str> {
+        Some(match self {
             Self::PUSH1 => "push1",
             Self::PUSH4 => "push4",
             Self::POP => "pop",
             Self::DUP => "dup",
-            Self::LOAD_SCALAR1 => "loadScalar1",
-            Self::LOAD_SCALAR4 => "loadScalar4",
-            Self::STORE_SCALAR1 => "storeScalar1",
-            Self::STORE_SCALAR4 => "storeScalar4",
-            Self::INCR_SCALAR1 => "incrScalar1",
-            Self::INCR_SCALAR1_IMM => "incrScalar1Imm",
             Self::INVOKE_STK1 => "invokeStk1",
             Self::INVOKE_STK4 => "invokeStk4",
             Self::EVAL_STK => "evalStk",
@@ -291,6 +307,32 @@ impl Op {
             Self::JUMP_TRUE4 => "jumpTrue4",
             Self::JUMP_FALSE1 => "jumpFalse1",
             Self::JUMP_FALSE4 => "jumpFalse4",
+            Self::JUMP_TABLE => "jumpTable",
+            Self::RETURN_IMM => "returnImm",
+            Self::DONE => "done",
+            Self::START_CMD => "startCommand",
+            Self::BREAK => "break",
+            Self::CONTINUE => "continue",
+            Self::BEGIN_CATCH4 => "beginCatch4",
+            Self::END_CATCH => "endCatch",
+            Self::PUSH_RESULT => "pushResult",
+            Self::PUSH_RETURN_CODE => "pushReturnCode",
+            Self::FOREACH_START => "foreach_start",
+            Self::FOREACH_STEP => "foreach_step",
+            Self::FOREACH_END => "foreach_end",
+            Self::NOP => "nop",
+            Self::TAILCALL => "tailcall",
+            Self::INVOKE_REPLACE => "invokeReplace",
+            Self::EXPAND_START => "expandStart",
+            Self::EXPAND_STKTOP => "expandStkTop",
+            Self::INVOKE_EXPANDED => "invokeExpanded",
+            _ => return None,
+        })
+    }
+
+    /// Arithmetic, bitwise, comparison and logical mnemonics.
+    const fn mnemonic_arith(self) -> Option<&'static str> {
+        Some(match self {
             Self::ADD => "add",
             Self::SUB => "sub",
             Self::MULT => "mult",
@@ -308,6 +350,23 @@ impl Op {
             Self::GT => "gt",
             Self::LE => "le",
             Self::GE => "ge",
+            Self::UMINUS => "uminus",
+            Self::UPLUS => "uplus",
+            Self::BITNOT => "bitnot",
+            Self::LNOT => "lnot",
+            Self::NOT => "not",
+            Self::LAND => "land",
+            Self::LOR => "lor",
+            Self::NUMERIC_TYPE => "numericType",
+            Self::TRY_CVT_TO_NUMERIC => "tryCvtToNumeric",
+            Self::TRY_CVT_TO_BOOLEAN => "tryCvtToBoolean",
+            _ => return None,
+        })
+    }
+
+    /// String-operation and iRule string-test mnemonics.
+    const fn mnemonic_string(self) -> Option<&'static str> {
+        Some(match self {
             Self::STR_EQ => "streq",
             Self::STR_NEQ => "strneq",
             Self::STR_CMP => "strcmp",
@@ -318,43 +377,6 @@ impl Op {
             Self::STR_CONCAT1 => "strcat",
             Self::STR_LEN => "strlen",
             Self::STR_INDEX => "strindex",
-            Self::LIST => "list",
-            Self::LIST_LENGTH => "listLength",
-            Self::LIST_INDEX => "listIndex",
-            Self::LIST_INDEX_IMM => "listIndexImm",
-            Self::LIST_RANGE_IMM => "listRangeImm",
-            Self::LINDEX_MULTI => "lindexMulti",
-            Self::APPEND_SCALAR1 => "appendScalar1",
-            Self::APPEND_SCALAR4 => "appendScalar4",
-            Self::LAPPEND_SCALAR1 => "lappendScalar1",
-            Self::LAPPEND_SCALAR4 => "lappendScalar4",
-            Self::APPEND_ARRAY1 => "appendArray1",
-            Self::APPEND_ARRAY4 => "appendArray4",
-            Self::LAPPEND_ARRAY1 => "lappendArray1",
-            Self::LAPPEND_ARRAY4 => "lappendArray4",
-            Self::RETURN_IMM => "returnImm",
-            Self::DONE => "done",
-            Self::START_CMD => "startCommand",
-            Self::BREAK => "break",
-            Self::CONTINUE => "continue",
-            Self::BEGIN_CATCH4 => "beginCatch4",
-            Self::END_CATCH => "endCatch",
-            Self::PUSH_RESULT => "pushResult",
-            Self::PUSH_RETURN_CODE => "pushReturnCode",
-            Self::FOREACH_START => "foreach_start",
-            Self::FOREACH_STEP => "foreach_step",
-            Self::FOREACH_END => "foreach_end",
-            Self::JUMP_TABLE => "jumpTable",
-            Self::NOP => "nop",
-            Self::UMINUS => "uminus",
-            Self::UPLUS => "uplus",
-            Self::BITNOT => "bitnot",
-            Self::LNOT => "lnot",
-            Self::NOT => "not",
-            Self::LAND => "land",
-            Self::LOR => "lor",
-            Self::LIST_IN => "listIn",
-            Self::LIST_NOT_IN => "listNotIn",
             Self::STR_MAP => "strmap",
             Self::STR_FIND => "strfind",
             Self::STR_RFIND => "strrfind",
@@ -370,7 +392,64 @@ impl Op {
             Self::STR_RANGE_IMM => "strrangeImm",
             Self::STR_REVERSE => "strreverse",
             Self::STR_REPEAT => "strrepeat",
+            Self::STR_CLASS => "strclass",
             Self::REGEXP => "regexp",
+            Self::IRULE_CONTAINS => "iruleContains",
+            Self::IRULE_STARTS_WITH => "iruleStartsWith",
+            Self::IRULE_ENDS_WITH => "iruleEndsWith",
+            Self::IRULE_EQUALS => "iruleEquals",
+            Self::IRULE_MATCHES_GLOB => "iruleMatchesGlob",
+            Self::IRULE_MATCHES_REGEX => "iruleMatchesRegex",
+            Self::IRULE_WORD_AND => "iruleAnd",
+            Self::IRULE_WORD_OR => "iruleOr",
+            Self::IRULE_WORD_NOT => "iruleNot",
+            _ => return None,
+        })
+    }
+
+    /// List, scalar-variable and array mnemonics.
+    const fn mnemonic_list_var(self) -> Option<&'static str> {
+        Some(match self {
+            Self::LIST => "list",
+            Self::LIST_LENGTH => "listLength",
+            Self::LIST_INDEX => "listIndex",
+            Self::LIST_INDEX_IMM => "listIndexImm",
+            Self::LIST_RANGE_IMM => "listRangeImm",
+            Self::LINDEX_MULTI => "lindexMulti",
+            Self::LIST_IN => "listIn",
+            Self::LIST_NOT_IN => "listNotIn",
+            Self::LIST_CONCAT => "listConcat",
+            Self::LSET_FLAT => "lsetFlat",
+            Self::LSET_LIST => "lsetList",
+            Self::LREPLACE4 => "lreplace4",
+            Self::LOAD_SCALAR1 => "loadScalar1",
+            Self::LOAD_SCALAR4 => "loadScalar4",
+            Self::STORE_SCALAR1 => "storeScalar1",
+            Self::STORE_SCALAR4 => "storeScalar4",
+            Self::INCR_SCALAR1 => "incrScalar1",
+            Self::INCR_SCALAR1_IMM => "incrScalar1Imm",
+            Self::APPEND_SCALAR1 => "appendScalar1",
+            Self::APPEND_SCALAR4 => "appendScalar4",
+            Self::LAPPEND_SCALAR1 => "lappendScalar1",
+            Self::LAPPEND_SCALAR4 => "lappendScalar4",
+            Self::EXIST_SCALAR => "existScalar",
+            Self::UNSET_SCALAR => "unsetScalar",
+            Self::APPEND_ARRAY1 => "appendArray1",
+            Self::APPEND_ARRAY4 => "appendArray4",
+            Self::LAPPEND_ARRAY1 => "lappendArray1",
+            Self::LAPPEND_ARRAY4 => "lappendArray4",
+            Self::STORE_ARRAY1 => "storeArray1",
+            Self::LOAD_ARRAY1 => "loadArray1",
+            Self::LAPPEND_LIST_ARRAY => "lappendListArray",
+            Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
+            Self::UNSET_ARRAY => "unsetArray",
+            _ => return None,
+        })
+    }
+
+    /// Stack-variable, dict, upvar and remaining mnemonics.
+    const fn mnemonic_dict_misc(self) -> &'static str {
+        match self {
             Self::STORE_STK => "storeStk",
             Self::LOAD_STK => "loadStk",
             Self::STORE_ARRAY_STK => "storeArrayStk",
@@ -383,22 +462,13 @@ impl Op {
             Self::LAPPEND_LIST => "lappendList",
             Self::LAPPEND_LIST_STK => "lappendListStk",
             Self::LAPPEND_LIST_ARRAY_STK => "lappendListArrayStk",
-            Self::STORE_ARRAY1 => "storeArray1",
-            Self::LOAD_ARRAY1 => "loadArray1",
-            Self::LAPPEND_LIST_ARRAY => "lappendListArray",
-            Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
             Self::UNSET_STK => "unsetStk",
-            Self::UNSET_SCALAR => "unsetScalar",
-            Self::UNSET_ARRAY => "unsetArray",
-            Self::TAILCALL => "tailcall",
             Self::CONCAT_STK => "concatStk",
-            Self::TRY_CVT_TO_NUMERIC => "tryCvtToNumeric",
+            Self::EXIST_STK => "existStk",
+            Self::RETURN_STK => "returnStk",
             Self::VERIFY_DICT => "verifyDict",
             Self::DICT_GET => "dictGet",
             Self::DICT_EXISTS => "dictExists",
-            Self::INVOKE_REPLACE => "invokeReplace",
-            Self::EXIST_STK => "existStk",
-            Self::EXIST_SCALAR => "existScalar",
             Self::DICT_SET => "dictSet",
             Self::DICT_UNSET => "dictUnset",
             Self::DICT_INCR_IMM => "dictIncrImm",
@@ -406,30 +476,13 @@ impl Op {
             Self::DICT_LAPPEND => "dictLappend",
             Self::UPVAR => "upvar",
             Self::NSUPVAR => "nsupvar",
-            Self::LREPLACE4 => "lreplace4",
             Self::OVER => "over",
-            Self::LSET_FLAT => "lsetFlat",
-            Self::LSET_LIST => "lsetList",
-            Self::LIST_CONCAT => "listConcat",
-            Self::PUSH_RETURN_OPTS => "pushReturnOpts",
-            Self::RETURN_STK => "returnStk",
             Self::REVERSE => "reverse",
-            Self::NUMERIC_TYPE => "numericType",
-            Self::TRY_CVT_TO_BOOLEAN => "tryCvtToBoolean",
-            Self::STR_CLASS => "strclass",
+            Self::PUSH_RETURN_OPTS => "pushReturnOpts",
             Self::SYNTAX => "syntax",
-            Self::IRULE_CONTAINS => "iruleContains",
-            Self::IRULE_STARTS_WITH => "iruleStartsWith",
-            Self::IRULE_ENDS_WITH => "iruleEndsWith",
-            Self::IRULE_EQUALS => "iruleEquals",
-            Self::IRULE_MATCHES_GLOB => "iruleMatchesGlob",
-            Self::IRULE_MATCHES_REGEX => "iruleMatchesRegex",
-            Self::IRULE_WORD_AND => "iruleAnd",
-            Self::IRULE_WORD_OR => "iruleOr",
-            Self::IRULE_WORD_NOT => "iruleNot",
-            Self::EXPAND_START => "expandStart",
-            Self::EXPAND_STKTOP => "expandStkTop",
-            Self::INVOKE_EXPANDED => "invokeExpanded",
+            // Every other opcode is routed into a family helper above; the
+            // `opcode_family_partition_total` test proves this by construction.
+            _ => unreachable!(),
         }
     }
 
@@ -479,106 +532,123 @@ impl Op {
         )
     }
 
+    /// True for opcodes encoded as a bare byte with no operands (size 1).
+    ///
+    /// This is by far the largest size class, so it lives in its own helper to
+    /// keep [`Op::size`] small; the two functions together still match every
+    /// opcode and are covered by `opcode_family_partition_total`.
+    #[must_use]
+    pub const fn is_one_byte(self) -> bool {
+        matches!(
+            self,
+            Self::POP
+                | Self::DUP
+                | Self::EVAL_STK
+                | Self::EXPR_STK
+                | Self::ADD
+                | Self::SUB
+                | Self::MULT
+                | Self::DIV
+                | Self::MOD
+                | Self::EXPON
+                | Self::LSHIFT
+                | Self::RSHIFT
+                | Self::BITOR
+                | Self::BITXOR
+                | Self::BITAND
+                | Self::EQ
+                | Self::NEQ
+                | Self::LT
+                | Self::GT
+                | Self::LE
+                | Self::GE
+                | Self::STR_EQ
+                | Self::STR_NEQ
+                | Self::STR_CMP
+                | Self::STR_LT
+                | Self::STR_GT
+                | Self::STR_LE
+                | Self::STR_GE
+                | Self::STR_LEN
+                | Self::STR_INDEX
+                | Self::LIST_LENGTH
+                | Self::LIST_INDEX
+                | Self::DONE
+                | Self::BREAK
+                | Self::CONTINUE
+                | Self::END_CATCH
+                | Self::PUSH_RESULT
+                | Self::PUSH_RETURN_CODE
+                | Self::FOREACH_STEP
+                | Self::FOREACH_END
+                | Self::NOP
+                | Self::UMINUS
+                | Self::UPLUS
+                | Self::BITNOT
+                | Self::LNOT
+                | Self::NOT
+                | Self::LAND
+                | Self::LOR
+                | Self::LIST_IN
+                | Self::LIST_NOT_IN
+                | Self::STR_MAP
+                | Self::STR_FIND
+                | Self::STR_RFIND
+                | Self::STR_REPLACE
+                | Self::STR_TRIM
+                | Self::STR_TRIM_LEFT
+                | Self::STR_TRIM_RIGHT
+                | Self::STR_UPPER
+                | Self::STR_LOWER
+                | Self::STR_TITLE
+                | Self::STR_RANGE
+                | Self::STR_REVERSE
+                | Self::STR_REPEAT
+                | Self::STORE_STK
+                | Self::LOAD_STK
+                | Self::STORE_ARRAY_STK
+                | Self::LOAD_ARRAY_STK
+                | Self::INCR_STK
+                | Self::APPEND_STK
+                | Self::LAPPEND_STK
+                | Self::LAPPEND_LIST_STK
+                | Self::LAPPEND_LIST_ARRAY_STK
+                | Self::TRY_CVT_TO_NUMERIC
+                | Self::VERIFY_DICT
+                | Self::EXIST_STK
+                | Self::LSET_LIST
+                | Self::LIST_CONCAT
+                | Self::PUSH_RETURN_OPTS
+                | Self::RETURN_STK
+                | Self::NUMERIC_TYPE
+                | Self::TRY_CVT_TO_BOOLEAN
+                | Self::IRULE_CONTAINS
+                | Self::IRULE_STARTS_WITH
+                | Self::IRULE_ENDS_WITH
+                | Self::IRULE_EQUALS
+                | Self::IRULE_MATCHES_GLOB
+                | Self::IRULE_MATCHES_REGEX
+                | Self::IRULE_WORD_AND
+                | Self::IRULE_WORD_OR
+                | Self::IRULE_WORD_NOT
+                | Self::EXPAND_START
+                | Self::INVOKE_EXPANDED
+        )
+    }
+
     /// Instruction size in bytes (opcode + operands).
-    // Flat opcode → byte-size match arm; one entry per opcode.
-    #[allow(clippy::too_many_lines)]
+    ///
+    /// Opcodes are grouped by size class. The single-byte class (the largest)
+    /// is delegated to [`Op::is_one_byte`]; the remaining classes are matched
+    /// here. The `opcode_family_partition_total` test exhaustively matches
+    /// every variant, so a newly added opcode missing from both this match and
+    /// `is_one_byte` is caught at test-compile time before the `unreachable!`.
     #[must_use]
     pub const fn size(self) -> u8 {
+        if self.is_one_byte() {
+            return 1;
+        }
         match self {
-            // 1-byte: opcode only
-            Self::POP
-            | Self::DUP
-            | Self::EVAL_STK
-            | Self::EXPR_STK
-            | Self::ADD
-            | Self::SUB
-            | Self::MULT
-            | Self::DIV
-            | Self::MOD
-            | Self::EXPON
-            | Self::LSHIFT
-            | Self::RSHIFT
-            | Self::BITOR
-            | Self::BITXOR
-            | Self::BITAND
-            | Self::EQ
-            | Self::NEQ
-            | Self::LT
-            | Self::GT
-            | Self::LE
-            | Self::GE
-            | Self::STR_EQ
-            | Self::STR_NEQ
-            | Self::STR_CMP
-            | Self::STR_LT
-            | Self::STR_GT
-            | Self::STR_LE
-            | Self::STR_GE
-            | Self::STR_LEN
-            | Self::STR_INDEX
-            | Self::LIST_LENGTH
-            | Self::LIST_INDEX
-            | Self::DONE
-            | Self::BREAK
-            | Self::CONTINUE
-            | Self::END_CATCH
-            | Self::PUSH_RESULT
-            | Self::PUSH_RETURN_CODE
-            | Self::FOREACH_STEP
-            | Self::FOREACH_END
-            | Self::NOP
-            | Self::UMINUS
-            | Self::UPLUS
-            | Self::BITNOT
-            | Self::LNOT
-            | Self::NOT
-            | Self::LAND
-            | Self::LOR
-            | Self::LIST_IN
-            | Self::LIST_NOT_IN
-            | Self::STR_MAP
-            | Self::STR_FIND
-            | Self::STR_RFIND
-            | Self::STR_REPLACE
-            | Self::STR_TRIM
-            | Self::STR_TRIM_LEFT
-            | Self::STR_TRIM_RIGHT
-            | Self::STR_UPPER
-            | Self::STR_LOWER
-            | Self::STR_TITLE
-            | Self::STR_RANGE
-            | Self::STR_REVERSE
-            | Self::STR_REPEAT
-            | Self::STORE_STK
-            | Self::LOAD_STK
-            | Self::STORE_ARRAY_STK
-            | Self::LOAD_ARRAY_STK
-            | Self::INCR_STK
-            | Self::APPEND_STK
-            | Self::LAPPEND_STK
-            | Self::LAPPEND_LIST_STK
-            | Self::LAPPEND_LIST_ARRAY_STK
-            | Self::TRY_CVT_TO_NUMERIC
-            | Self::VERIFY_DICT
-            | Self::EXIST_STK
-            | Self::LSET_LIST
-            | Self::LIST_CONCAT
-            | Self::PUSH_RETURN_OPTS
-            | Self::RETURN_STK
-            | Self::NUMERIC_TYPE
-            | Self::TRY_CVT_TO_BOOLEAN
-            | Self::IRULE_CONTAINS
-            | Self::IRULE_STARTS_WITH
-            | Self::IRULE_ENDS_WITH
-            | Self::IRULE_EQUALS
-            | Self::IRULE_MATCHES_GLOB
-            | Self::IRULE_MATCHES_REGEX
-            | Self::IRULE_WORD_AND
-            | Self::IRULE_WORD_OR
-            | Self::IRULE_WORD_NOT
-            | Self::EXPAND_START
-            | Self::INVOKE_EXPANDED => 1,
-
             // 2-byte: opcode + 1-byte operand
             Self::PUSH1
             | Self::LOAD_SCALAR1
@@ -652,6 +722,10 @@ impl Op {
             | Self::DICT_SET
             | Self::DICT_UNSET
             | Self::DICT_INCR_IMM => 9,
+
+            // All remaining opcodes are single-byte, handled above by the
+            // early return; `opcode_family_partition_total` proves this.
+            _ => unreachable!(),
         }
     }
 
@@ -1005,6 +1079,28 @@ mod tests {
         assert_eq!(Op::PUSH1.mnemonic(), "push1");
         assert_eq!(Op::ADD.mnemonic(), "add");
         assert_eq!(Op::IRULE_CONTAINS.mnemonic(), "iruleContains");
+    }
+
+    #[test]
+    fn op_family_routing_and_size() {
+        // Spot-check one opcode from each `mnemonic_*` family so every routing
+        // branch (core / arith / string / list_var / dict_misc) is exercised
+        // and none reaches the `unreachable!` fallback; plus one representative
+        // per size class for `size`/`is_one_byte`.
+        assert_eq!(Op::PUSH1.mnemonic(), "push1");
+        assert_eq!(Op::ADD.mnemonic(), "add");
+        assert_eq!(Op::STR_EQ.mnemonic(), "streq");
+        assert_eq!(Op::LIST.mnemonic(), "list");
+        assert_eq!(Op::DICT_GET.mnemonic(), "dictGet");
+        // size classes
+        assert!(Op::ADD.is_one_byte());
+        assert_eq!(Op::ADD.size(), 1);
+        assert_eq!(Op::PUSH1.size(), 2);
+        assert_eq!(Op::INCR_SCALAR1_IMM.size(), 3);
+        assert_eq!(Op::PUSH4.size(), 5);
+        assert_eq!(Op::INVOKE_REPLACE.size(), 6);
+        assert_eq!(Op::RETURN_IMM.size(), 9);
+        assert!(!Op::PUSH4.is_one_byte());
     }
 
     #[test]
