@@ -12,9 +12,11 @@
 
 The Rust analyser **matches or exceeds Python and agrees with the Tcl 9.0
 oracle** across every analysis (diagnostics, taint, optimiser, call/symbol
-graphs, CFG/diagram, legacy detection, class hierarchy). Two real gaps were
-found and **fixed** here (body-recursion; `append`/`lappend` symbols); two
-narrow export-only residuals are documented.
+graphs, CFG/diagram, legacy detection, class hierarchy). Four real gaps were
+found and **fixed** here (body-recursion; `append`/`lappend` symbols; the
+`HTTP::uri`/`path`/`query` effect data; value/expression `[…]` effect
+propagation) — the full committed-corpus differential is now **0 DIFF across
+every verb**; one narrow, partly-Rust-correct export-only residual is documented.
 
 * **Parity (committed corpus).** Across both the lighter `diag` path and the
   fuller `lint` path the Rust analyser emits **everything Python does, at the
@@ -35,8 +37,8 @@ narrow export-only residuals are documented.
   `if {$x == 8}` with `set x 08`, the Rust analyser's `I230` direction matches
   real `tclsh` **per dialect**: `tcl9.0` → "always true" (`tclsh9.0` `08==8`→1),
   `tcl8.6` → "always false" (`tclsh8.6` `08==8`→0). Python now matches too.
-* **Rust test suite green:** `tcl-compiler` lib `3323 passed; 0 failed`
-  (incl. 2 new regression tests); `tcl-registry` all green.
+* **Rust test suite green:** `tcl-compiler` lib `3326 passed; 0 failed`
+  (incl. 6 new regression tests); `tcl-registry` all green.
 
 ## Every analysis verified (Rust↔Python differential + Tcl oracle)
 
@@ -48,9 +50,9 @@ live `tclsh9.0`.
 |---|---|
 | **Diagnostics** (`diag`/`lint`/`validate`; E/W/IRULE/T/S) | Parity — 0 missing/pos/msg/**sev**; Rust richer (EXTRA_FIRE). Body-recursion gap **fixed** (below). |
 | **Taint** (`dataflow` `taint_warnings`, T100–T106, IRULE3xxx) | Parity — cross-proc taint propagation, sinks, messages, codes all match. |
-| **Effects / connection-state** (`dataflow`/`callgraph` `effects`) | Parity — `HTTP::uri`/`path`/`query` state bits **fixed** (below); only an expression-nested sub-case residual remains. |
+| **Effects / connection-state** (`dataflow`/`callgraph` `effects`) | Parity — `HTTP::uri`/`path`/`query` state-bit data **fixed** and value/expression `[…]` propagation **fixed** (below). |
 | **Optimiser** (`opt`, O100–O130; GVN/SCCP/dead-store/const-fold) | **Behaviourally correct** — broad before/after sweep through `tclsh9.0`: **0 semantic mismatches**. The four 2026-06-22 audit miscompiles (O122, O109/O126, O129, O103) are **fixed** (verified end-to-end). |
-| **Call graph** (`callgraph`) | Parity (nodes/edges) except the shared `effects`-bit gap above. |
+| **Call graph** (`callgraph`) | Parity (nodes, edges, effects). |
 | **Symbols / symbol graph** (`symbols`/`symbolgraph`) | Parity for `set`/`variable`/`global`/`incr`/proc/namespace/TclOO; **`append`/`lappend` var-defs fixed** (below). Long-tail residual documented. |
 | **Control-flow diagram** (`diagram`) | Full parity. |
 | **Legacy detection** (`find-legacy`) | Parity. |
@@ -147,27 +149,41 @@ DIFF**. Regression test: `http_uri_family_reads_http_state_region`.
 
 ## Residual divergences (documented, not fixed)
 
-These remaining divergences share **one deep root cause** — full per-command
-analysis is not dispatched into commands nested in `[...]` command
-substitutions — which Python handles **context-dependently** (effects propagate
-in *expression* contexts only; var-defs propagate more broadly). Matching this
-exactly is risky: an attempt to scan command-arg substitutions for effects
-*over-reported* vs Python (Python does **not** propagate `[HTTP::uri]`'s state
-through a plain `matchclass [HTTP::uri] …` arg), so it was reverted. All are
-**export-only** (the diagnostics that consume state/symbols are at parity).
+## Fourth gap — and fix: effect propagation through value/expression `[…]` subs
+
+The one remaining corpus divergence was `[matchclass [HTTP::uri] …]` nested in a
+value/expression position (`set x [matchclass [HTTP::uri] …]`,
+`if {[matchclass [HTTP::uri] …]}`): Rust under-reported `HTTP_STATE` because the
+interprocedural scanner recursed into a command's BODY/EXPR-role args but not its
+plain value args. Python propagates nested effects **exactly in these contexts**
+(value substitution, `return` value, `if`/`while` condition) and **not** through a
+plain-statement arg (`matchclass [HTTP::uri] …` on its own line stays
+`UNKNOWN_STATE`).
+
+**Fix.** `scan_source_for_calls` — reached only from the value/return/expr
+scanners (plain statements go through the `Statement::Call` arm, which correctly
+does not propagate) — now also scans each plain value arg for `[…]`
+substitutions. Braced args are inert (no `Cmd` token inside `{…}`); the
+already-handled body/expr args are idempotent under the re-scan. Verified to
+match Python in all four contexts (value / return / if-condition propagate;
+plain statement does not), and the **full committed-corpus differential is now
+0 DIFF across every verb** (`dataflow`, `callgraph`, `symbolgraph`, `symbols`,
+`diagram`, `find-legacy`). Regression test:
+`nested_substitution_effects_propagate_in_value_context_only`.
+
+## Residual divergences (documented, not fixed)
 
 * **`EXTRA_FIRE` arity (E002), Tcl-correct.** Rust surfaces real arity errors
   inside `catch`/`test` error-probe idioms; *exceeds* Python.
-* **Effect bit inside an expression-nested sub (1 corpus file).**
-  `if {[matchclass [HTTP::uri] …]}` — Rust under-reports `HTTP_STATE` because the
-  expression scanner recurses into BODY/EXPR-role args but not plain value-arg
-  `[...]` subs. Fixing needs an `in_expr`-threaded scan to avoid the command-context
-  over-report above.
-* **Long-tail symbol definers (~35/20-files).** Variables created **inside
-  `[...]` subs** (`[catch {…} msg]` result vars, `set` inside `interp eval`
-  bodies) are not dispatched through the var-defining handlers. A few cases are
-  arguably **Rust-correct** (Python lists `unset` targets and dynamic
-  `proc $::SRC` names as symbols).
+* **Long-tail symbol definers (~35 over a 20-file real-suite sample).** Variables
+  created **inside `[...]` subs** (`[catch {…} msg]` result vars, `set` inside
+  `interp eval` bodies) are absent from `symbols`, because the *analyser's*
+  var-definition handlers (a separate subsystem from the interprocedural effect
+  scanner fixed above) are not dispatched through `[...]` substitutions. Python
+  records them, but suppresses diagnostics there — so closing this needs a
+  diagnostics-quiet var-def dispatch through `[...]` to avoid the E002 noise.
+  Several of the 35 are arguably **Rust-correct** anyway (Python lists `unset`
+  targets and dynamic `proc $::SRC` names as symbols). Export-only.
 
 ## Residual divergences (all benign / Rust-correct)
 
@@ -210,3 +226,5 @@ cargo test -p tcl-compiler --lib catch_body tcltest_test_body
   `HttpUri` read `side_effects` (effect-region parity).
 * `rust/tcl-compiler/src/side_effects.rs` — `http_uri_family_reads_http_state_region`
   regression test.
+* `rust/tcl-compiler/src/interprocedural.rs` — propagate nested `[…]` effects
+  in value/expression contexts; `nested_substitution_effects_propagate_in_value_context_only` test.
