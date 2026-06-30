@@ -1639,7 +1639,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
         // body/expr args handled above are idempotent under a re-scan.
         for arg in texts {
             if arg.contains('[') {
-                scan_value_substitutions(arg, caller, known, registry, dialect, facts, params);
+                scan_value_substitutions(arg, ctx, facts);
             }
         }
     }
