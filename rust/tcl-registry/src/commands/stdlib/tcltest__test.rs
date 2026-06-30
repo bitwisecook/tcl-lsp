@@ -1,5 +1,46 @@
 //! `tcltest::test` command.
 use crate::prelude::*;
+
+/// Dynamic arg-role resolver for `tcltest::test`.
+///
+/// Mirrors the Python `dialects/stdlib/tcltest.py::_test_arg_roles`. The
+/// command has two shapes whose script bodies must be recursed into:
+///
+///   * `test name description ?option value ...?` — the values of the
+///     `-setup` / `-body` / `-cleanup` options are Tcl scripts.
+///   * `test name description ?constraints? body result` — the legacy
+///     positional form, where the body is always the penultimate argument.
+///
+/// Without these `Body` roles the analyser never descends into a `test`
+/// body, under-reporting every nested diagnostic relative to Python (real
+/// `*.test` suites are almost entirely composed of `test` blocks).
+fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    const BODY_OPTIONS: [&str; 3] = ["-setup", "-body", "-cleanup"];
+    let mut roles: Vec<(u8, ArgRole)> = Vec::new();
+    let n = args.len();
+    // Skip name (0) and description (1); scan option-value pairs.
+    let mut has_body_option = false;
+    let mut i = 2usize;
+    while i + 1 < n {
+        if BODY_OPTIONS.contains(&args[i]) {
+            if let Ok(idx) = u8::try_from(i + 1) {
+                roles.push((idx, ArgRole::Body));
+            }
+            has_body_option = true;
+        }
+        i += 1;
+    }
+    // Legacy positional form: the body is the penultimate argument. Only
+    // applies when no body-related options were used.
+    if !has_body_option
+        && n >= 4
+        && let Ok(idx) = u8::try_from(n - 2)
+    {
+        roles.push((idx, ArgRole::Body));
+    }
+    roles
+}
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
@@ -102,6 +143,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        arg_role_resolver: Some(test_arg_roles),
+        body_kind: BodyKind::Structural,
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,

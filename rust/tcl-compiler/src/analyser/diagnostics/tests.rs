@@ -4538,3 +4538,44 @@ fn scratch_dup_e003_per_item() {
         eprintln!("  span={:?} msg={}", d.span, d.message);
     }
 }
+
+#[test]
+fn catch_body_is_walked_for_syntactic_checks() {
+    // `catch { … }` evaluates its script body, so the per-command syntactic
+    // checks (here W100, unbraced `expr`) must reach inside it — matching the
+    // Python analyser. Regression for the missing body walk in
+    // `handle_catch_command` (it defined the result/options vars but never
+    // recursed into args[0]).
+    assert_eq!(count_code("catch { expr $x+1 }\n", "W100"), 1);
+    assert_eq!(count_code("catch { set y [expr $x+1] } res\n", "W100"), 1);
+    // A dynamic body (`catch $cmd`) stays opaque — nothing to walk.
+    assert_eq!(count_code("catch $cmd\n", "W100"), 0);
+}
+
+#[test]
+fn tcltest_test_body_is_walked_when_imported() {
+    // `tcltest::test` carries `Body` roles on its `-setup`/`-body`/`-cleanup`
+    // option values and on the legacy positional body (penultimate arg), so
+    // the analyser descends into the test script — both when the command is
+    // called fully-qualified and when it is reached through a
+    // `namespace import ::tcltest::*` by its bare name.
+    let qualified = "package require tcltest\n\
+                     tcltest::test t1 {d} { expr $x+1 } {}\n";
+    assert_eq!(count_code(qualified, "W100"), 1);
+
+    let imported = "package require tcltest\n\
+                    namespace import -force ::tcltest::*\n\
+                    test t1 {d} -body { expr $x+1 } -result {}\n";
+    assert_eq!(count_code(imported, "W100"), 1);
+
+    // The expected-result field is data, not a script, and must not be walked.
+    let result_field = "package require tcltest\n\
+                        namespace import -force ::tcltest::*\n\
+                        test t1 {d} -body { puts ok } -result {[expr $x]}\n";
+    assert_eq!(count_code(result_field, "W100"), 0);
+
+    // Without the import, a bare `test` is an unknown command whose braced
+    // argument is an opaque string — do not recurse (matches Tcl: `test` is
+    // undefined until tcltest is loaded).
+    assert_eq!(count_code("test t1 {d} { expr $x+1 } {}\n", "W100"), 0);
+}
