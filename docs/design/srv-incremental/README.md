@@ -476,13 +476,16 @@ exist yet — the verification-status table follows the list.
      "measure-then-decide" gate (the one the rope is held to) **passed** before this
      shipped — not an assumption. The win is on the *non-paramount* checks-diagnostics
      path; the analyser walk / first-token latency is untouched.
-   *Verification gate — partially built:* the cold `compiler_check` corpus differential
-   (memo vs uncached, debug guard live) now exists and passes over the whole corpus. A
-   **random-edit** differential fuzzer (memoised `compiler_check_diagnostics` vs a fresh
-   whole-unit `run_all_checks` under fuzzed edit sequences) is still to build — the
-   cross-edit correctness is meanwhile pinned by `taint_cascade_matches_uncached_under_edits`
-   (a hand-written callee-flip edit sequence) + the corpus differential + the debug
-   fixpoint guard.
+   *Verification gate — **built**:* the cold `compiler_check` corpus differential
+   (memo vs uncached, debug guard live) passes over the whole corpus, **and the
+   random-edit differential fuzzer now exists** — `compiler_check_incremental_matches_fresh_under_edits`
+   (in-crate, always-on: 250 randomised incremental edits — body swaps, signature
+   changes, proc add/remove across an interprocedural call graph — on one warm db,
+   asserting memo == `compiler_check_diagnostics_uncached` byte-for-byte each step)
+   plus the corpus-scale `compiler_check_memo_matches_uncached_under_corpus_edits`
+   (`--ignored`: real `tmp/` files driven through fuzzed offset-shift + appended-proc
+   edit sequences). Cross-edit correctness is also pinned by
+   `taint_cascade_matches_uncached_under_edits` and the debug fixpoint guard.
 
 3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
@@ -652,7 +655,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 5: `reparse_window` can be wired to bound re-lex today | **refuted** (code) | no windowed re-lex / incremental-segmentation consumer exists; `Lexer` lexes whole source, `did_change` feeds whole text to salsa — coupled to Task 7's chunk input |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
-| Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
+| Task 2 (2b) memo is sound | **measured + verified** | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`; **random-edit fuzzer built** — `compiler_check_incremental_matches_fresh_under_edits` (250-edit in-crate) + `compiler_check_memo_matches_uncached_under_corpus_edits` (corpus, `--ignored`) |
 | Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
 | Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
 | **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
@@ -667,7 +670,7 @@ Differential-fuzzer coverage **today**:
 |---|---|
 | Analyser-walk diagnostics, test-only `analyse_incremental` path | ✅ `differential_incremental.rs` |
 | Live salsa `file_analysis_incremental` | ⚠️ corpus equality only (no random-edit fuzz) |
-| `compiler_check_diagnostics` (the checks) | ⚠️ cold corpus differential (memo vs uncached) ✅ + debug fixpoint guard; random-edit fuzz still to build |
+| `compiler_check_diagnostics` (the checks) | ✅ cold corpus differential (memo vs uncached) + debug fixpoint guard + **random-edit fuzz** (in-crate 250-edit + corpus `--ignored`) |
 | Cross-file / multi-file | ❌ none — **Task 6 must build it** |
 
 ## Experiment (evidence)

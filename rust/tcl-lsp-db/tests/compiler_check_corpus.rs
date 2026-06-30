@@ -17,6 +17,7 @@
 
 use std::path::{Path, PathBuf};
 
+use salsa::Setter as _;
 use tcl_lsp_db::{
     AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
     compiler_check_diagnostics_uncached,
@@ -157,6 +158,93 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
     assert!(
         bad.is_empty(),
         "compiler_check_diagnostics (memo) != uncached in {}+ / {checked} files:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// Corpus-scale **random-edit** differential for the memoised checks path
+/// (SRV-INCREMENTAL Task 2b gate — the random-edit fuzzer over real source the
+/// status table flags as "still to build").  The sweep above compares memo vs
+/// uncached on a *fresh* db per file; this drives each file through a fuzzed
+/// **edit sequence** on one **warm** db — prepending blank lines (an offset
+/// shift the per-proc memo must reuse), appending a fuzzed synthetic proc (a
+/// re-analysed body), and toggling that proc's shape — asserting the warm
+/// memoised `compiler_check_diagnostics` stays byte-identical to a from-scratch
+/// `compiler_check_diagnostics_uncached` after every edit.  A stale per-proc
+/// lattice / summary cache surviving an edit would diverge here where the
+/// fresh-db sweep cannot see it.
+#[test]
+#[ignore = "slow corpus random-edit sweep (~minutes over tmp/); run with --ignored"]
+#[allow(clippy::cast_possible_truncation)] // index modulo tiny arrays
+fn compiler_check_memo_matches_uncached_under_corpus_edits() {
+    let dialect = "tcl8.6";
+    let mut files = Vec::new();
+    for v in [
+        "tcl8.6.16/library",
+        "tcllib-2.0/modules",
+        "tcl9.0.3/library",
+    ] {
+        gather(&repo_root().join("tmp").join(v), &mut files, 120);
+    }
+    files.sort();
+
+    // Fuzzed trailing-proc shapes (exercise SCCP const-branch, loop optimisations,
+    // a taint passthrough+sink, and a plain body).
+    let tail_procs = [
+        "",
+        "\nproc __fuzz_tail {n} { if {1} { set y 1 }\n return $y }\n",
+        "\nproc __fuzz_tail {n} { set acc 0\n for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n return $acc }\n",
+        "\nproc __fuzz_tail {} { set u [gets stdin]; exec $u }\n",
+    ];
+
+    let mut rng = 0x5eed_1234_abcd_0001_u64;
+    let mut next = move || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+
+    let mut bad: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+    for path in &files {
+        let Ok(base) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        if base.is_empty() || base.len() > 200_000 {
+            continue;
+        }
+        let mut db = TclDatabase::default();
+        let registry = db.registry(dialect);
+        let file = SourceFile::new(&db, base.clone(), dialect.to_owned());
+
+        for _ in 0..8 {
+            let blanks = (next() as usize) % 4; // offset shift above the real procs
+            let tail = tail_procs[(next() as usize) % tail_procs.len()];
+            let src = format!("{}{base}{tail}", "\n".repeat(blanks));
+            file.set_text(&mut db).to(src.clone());
+
+            let got = compiler_check_diagnostics(&db, file);
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+            checked += 1;
+            if (got.checks != want.checks || got.optimisations != want.optimisations)
+                && bad.len() < 40
+            {
+                bad.push(
+                    path.strip_prefix(repo_root())
+                        .unwrap_or(path)
+                        .display()
+                        .to_string(),
+                );
+                break; // one report per file is enough
+            }
+        }
+    }
+
+    assert!(
+        bad.is_empty(),
+        "memo != uncached under edits in {}+ files ({checked} edit-steps checked):\n{}",
         bad.len(),
         bad.join("\n")
     );
