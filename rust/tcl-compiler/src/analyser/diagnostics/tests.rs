@@ -4600,3 +4600,22 @@ fn append_and_lappend_define_their_target_variable() {
     // A read-modify-write target is not "set but never used": no W211.
     assert_eq!(count_code("lappend safe 1\n", "W211"), 0);
 }
+
+#[test]
+fn nested_catch_result_var_is_defined() {
+    // `catch SCRIPT ?resultVar? ?optionsVar?` binds its result/options vars even
+    // when the `catch` is nested in a `[...]` substitution, so they must reach
+    // the symbol table (symbols/completion/hover), matching the Python analyser.
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse("set out [catch {error x} msg opts]\n", "tcl8.6");
+    assert!(
+        r.global_scope.variables.contains_key("msg"),
+        "catch result var"
+    );
+    assert!(
+        r.global_scope.variables.contains_key("opts"),
+        "catch options var"
+    );
+    // The binding is a side effect of catch, not a "set but unused" target.
+    assert_eq!(count_code("if {[catch {foo} e]} {puts $e}\n", "W211"), 0);
+}

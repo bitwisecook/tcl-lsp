@@ -175,15 +175,17 @@ plain statement does not), and the **full committed-corpus differential is now
 
 * **`EXTRA_FIRE` arity (E002), Tcl-correct.** Rust surfaces real arity errors
   inside `catch`/`test` error-probe idioms; *exceeds* Python.
-* **Long-tail symbol definers (~35 over a 20-file real-suite sample).** Variables
-  created **inside `[...]` subs** (`[catch {…} msg]` result vars, `set` inside
-  `interp eval` bodies) are absent from `symbols`, because the *analyser's*
-  var-definition handlers (a separate subsystem from the interprocedural effect
-  scanner fixed above) are not dispatched through `[...]` substitutions. Python
-  records them, but suppresses diagnostics there — so closing this needs a
-  diagnostics-quiet var-def dispatch through `[...]` to avoid the E002 noise.
-  Several of the 35 are arguably **Rust-correct** anyway (Python lists `unset`
-  targets and dynamic `proc $::SRC` names as symbols). Export-only.
+* **Long-tail symbol definers (now ~18 over a 20-file real-suite sample, down
+  from 35).** `catch` result/options vars nested in a `[...]` substitution
+  (`set out [catch {…} msg]`, `if {[catch {…} e]}`) are now recorded
+  (`dispatch_nested_segment` defines them with `warn_if_unused = false`;
+  regression test `nested_catch_result_var_is_defined`), which closed the
+  dominant chunk. The residual ~18 are **largely Rust-correct or extreme edge
+  cases**: Python over-reports `unset` targets (`catch {unset ::result}`) and
+  dynamic `proc $::SRC` names as symbols (Rust correctly omits them); the rest
+  are deeply nested (`set` inside an `interp eval` body inside a `[catch …]`) or
+  qualified-proc/namespace classification differences. Export-only; not pursued
+  further as matching Python here would mean adopting its over-reporting.
 
 ## Residual divergences (all benign / Rust-correct)
 
