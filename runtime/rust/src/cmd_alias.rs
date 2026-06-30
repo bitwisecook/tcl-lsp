@@ -162,10 +162,42 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(if safe { b"1" } else { b"0" });
             Code::Ok
         }
+        b"recursionlimit" => {
+            // `interp recursionlimit path ?newlimit?` — get/set a (possibly
+            // child) interp's recursion bound.
+            if argv.len() < 3 || argv.len() > 4 {
+                return wrong_args(interp, b"interp recursionlimit path ?newlimit?");
+            }
+            let path = obj_bytes(argv[2]);
+            let newlimit = argv.get(3).map(|&a| obj_bytes(a));
+            let result = if path.is_empty() {
+                Some(interp.recursion_limit_apply(newlimit.as_deref()))
+            } else {
+                interp.with_child(&path, |c| c.recursion_limit_apply(newlimit.as_deref()))
+            };
+            match result {
+                Some(Ok(n)) => {
+                    interp.set_result_bytes(n.to_string().as_bytes());
+                    Code::Ok
+                }
+                Some(Err(m)) => interp.set_error(&m),
+                None => {
+                    let mut m = b"could not find interpreter \"".to_vec();
+                    m.extend_from_slice(&path);
+                    m.push(b'"');
+                    interp.set_error(&m)
+                }
+            }
+        }
         other => {
-            let mut m = b"interp subcommand \"".to_vec();
+            let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\" is not supported in this runtime");
+            m.extend_from_slice(
+                b"\": must be alias, aliases, bgerror, cancel, children, create, \
+                  debug, delete, eval, exists, expose, hide, hidden, issafe, \
+                  invokehidden, limit, marktrusted, recursionlimit, share, \
+                  target, or transfer",
+            );
             interp.set_error(&m)
         }
     }
