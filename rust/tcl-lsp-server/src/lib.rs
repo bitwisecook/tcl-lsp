@@ -778,6 +778,10 @@ pub struct Backend {
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
     optimiser_enabled: Mutex<bool>,
+    /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
+    /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
+    /// on. Mirrors the Python `shimmer_enabled` setting.
+    shimmer_enabled: Mutex<bool>,
     /// Optimisation profile (`tclLsp.optimiser.profile`) controlling which
     /// O-code categories surface as diagnostics. Default
     /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
@@ -965,6 +969,8 @@ struct FolderConfig {
     optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
     optimiser_code_overrides: HashMap<String, bool>,
     line_length: Option<u32>,
+    /// `tclLsp.shimmer.enabled` override; `None` inherits the global value.
+    shimmer_enabled: Option<bool>,
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -1022,6 +1028,7 @@ impl Backend {
             extra_commands: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
@@ -2628,6 +2635,8 @@ impl Backend {
     /// Split out of [`Self::pull_and_apply_config`] (which fetches `cfg` from
     /// the client and then handles per-folder configs) so the apply logic is
     /// unit-testable without a live editor client.
+    // A long but flat sequence of independent `tclLsp.*` knob applications.
+    #[allow(clippy::too_many_lines)]
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
         if !cfg.is_object() {
             return;
@@ -2682,6 +2691,14 @@ impl Backend {
             .and_then(serde_json::Value::as_bool)
         {
             *self.optimiser_enabled.lock().await = flag;
+        }
+        // `tclLsp.shimmer.enabled` — master switch for the Shimmer family.
+        if let Some(flag) = cfg
+            .get("shimmer")
+            .and_then(|s| s.get("enabled"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            *self.shimmer_enabled.lock().await = flag;
         }
         if let Some(profile) = cfg
             .get("optimiser")
@@ -3048,10 +3065,22 @@ impl Backend {
             let configs = self.folder_configs.lock().await;
             longest_folder_match(&configs, uri).cloned()
         };
-        let disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
+        let mut disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
             Some(d) => d,
             None => self.disabled_diagnostics.lock().await.clone(),
         };
+        // `tclLsp.shimmer.enabled = false` suppresses the whole Shimmer family
+        // (S100–S110); fold those codes into the effective disabled set so the
+        // compiler-check lift drops them (the analyser never emits them).
+        let shimmer_enabled = match folder.as_ref().and_then(|f| f.shimmer_enabled) {
+            Some(b) => b,
+            None => *self.shimmer_enabled.lock().await,
+        };
+        if !shimmer_enabled {
+            for code in ["S100", "S101", "S102", "S110"] {
+                disabled.insert(code.to_owned());
+            }
+        }
         let non_ascii_mode = match folder.as_ref().and_then(|f| f.non_ascii_mode) {
             Some(m) => m,
             None => *self.non_ascii_mode.lock().await,
@@ -6264,6 +6293,13 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
             }
         }
     }
+    if let Some(b) = obj
+        .get("shimmer")
+        .and_then(|s| s.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        fc.shimmer_enabled = Some(b);
+    }
     if let Some(len) = obj
         .get("formatting")
         .and_then(|f| f.get("lineLength"))
@@ -7535,6 +7571,24 @@ mod tests {
 
     fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
         diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    #[tokio::test]
+    async fn shimmer_disabled_folds_shimmer_family_into_disabled() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///s.tcl").unwrap();
+        // Default (shimmer on): no S-codes forced into the disabled set.
+        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
+        assert!(!disabled.contains("S100"));
+        // `tclLsp.shimmer.enabled = false` applies and forces the family off.
+        backend
+            .apply_global_config(&serde_json::json!({ "shimmer": { "enabled": false } }))
+            .await;
+        assert!(!*backend.shimmer_enabled.lock().await);
+        let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
+        for code in ["S100", "S101", "S102", "S110"] {
+            assert!(disabled.contains(code), "{code} should be suppressed");
+        }
     }
 
     #[tokio::test]
@@ -9064,6 +9118,7 @@ mod tests {
             extra_commands: Mutex::new(Vec::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
