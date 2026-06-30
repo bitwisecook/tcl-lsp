@@ -40,7 +40,7 @@ number of areas:
 | 1 | WASM codegen emitter + `tcl-wasm` bundling | RT-WASM | 🟡 | **Largest single gap** |
 | 2 | Bytecode VM command surface + tcltest parity | RT-VM | 🟡 | Large |
 | 3 | `runtime/rust` tree-walking runtime port | (runtime, off-workspace) | 🟡 | Large |
-| 4 | Per-edit / cross-file incrementality | SRV-INCREMENTAL | 🔴 | XL |
+| 4 | Per-edit / cross-file incrementality (Tasks 1/2/6 shipped; 3/4/5/7 remain) | SRV-INCREMENTAL | 🟡 | XL |
 | 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
 | 7 | Tooling residuals (explorer, fuzzer, irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
@@ -207,27 +207,36 @@ subsystems are **partial**:
 
 ## Stage 3 — Server
 
-### 4. SRV-INCREMENTAL — per-edit / cross-file incrementality 🔴
+### 4. SRV-INCREMENTAL — per-edit / cross-file incrementality 🟡
 
-The LSP server/core/db (SRV-LSP) is ✅. What is **not started** (foundation
-only) is making the per-edit pipeline incremental, both within a file and across
-the project. Measured headline: warm per-edit latency on `linalg.tcl` is
-~411 ms, of which whole-file `run_all_checks` is ~405 ms (~99%); the rope's
-buffer-apply slice is ~85 µs (0.02%). **Open tasks** (smallest-first, each
-independently shippable, each fuzzer-gated):
+The LSP server/core/db (SRV-LSP) is ✅. The per-edit incremental pipeline is now
+**substantially shipped** — the original 🔴 was stale. Measured headline: warm
+per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
+`run_all_checks` was ~405 ms (~99%). The track's seven tasks:
 
-1. Persisted incremental `LineIndex` on the `String` store (no rope).
-2. **The prize** — per-proc `run_all_checks` / `optimise_unit` salsa memo
-   (keyed on the offset-invariant `FnLatticeKey`).
-3. Approach A — incremental per-item IR lowering.
-4. Approach B follow-ups — deep-clone removal + `optimise_unit` memo.
-5. Wire the `reparse_window` / structural-state index into the live re-lex path.
-6. Cross-file cascade — project signature table in salsa + a multi-file
-   differential fuzzer (greenfield: editing file A recomputes nothing in file B
-   today).
-7. **Optional, gated** — rope store + chunk-addressable `SourceFile` input,
+1. ✅ Persisted incremental `LineIndex` on the `String` store (no rope).
+2. ✅ **The prize** — per-function check memo (`function_checks`, 2a) **and**
+   incremental interprocedural-taint memo (`proc_taint_solve` /
+   `proc_summary_cascade`, 2b). Warm `compiler_check_diagnostics` fell ~445 → ~83 ms.
+3. 🔴 Approach A — incremental per-item IR lowering (the ~59 ms lowering floor;
+   blocked by whole-module passes coupling one body's IR to others).
+4. 🟡 Approach B follow-ups — deep-clone removal *skipped* (measured 0.1 ms, below
+   the value bar); per-function `optimise_unit` memo not yet built (M).
+5. 🔴 Wire `reparse_window` into the live re-lex path — *blocked*: no windowed
+   re-lex consumer exists; coupled to Task 7's chunk-addressable input.
+6. ✅ **Cross-file cascade** — `Project` salsa input, `project_proc_names` /
+   `project_command_arities`, `project_diagnostics` (W123 suppression + cross-file
+   E002/E003 arity across procs/classes/aliases/ensembles), live server wiring,
+   **plus the per-symbol `command_arity` early-cutoff** (a file's cross-file
+   diagnostics depend only on the symbols it references, so an unrelated proc's
+   signature edit no longer wakes it) **and the corpus-scale multi-file
+   `incremental == fresh` fuzzer** (`project_diagnostics_corpus.rs`).
+7. 🔵 **Optional, gated** — rope store + chunk-addressable `SourceFile` input,
    landing only if its 0.02% slice grows measurable *and* many-small-doc memory
-   stays under ~1.2×.
+   stays under ~1.2× (may legitimately never land).
+
+**Genuinely remaining:** Task 3 (IR-lowering incrementality, L), Task 4's
+`optimise_unit` memo (M), Task 5 (blocked on 7), Task 7 (optional/gated).
 
 ---
 

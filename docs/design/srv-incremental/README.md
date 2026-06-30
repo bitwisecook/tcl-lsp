@@ -299,15 +299,16 @@ open risks and the spike that must precede committing it are listed after the st
    server) absorb edit bursts; a keystroke that does not alter a signature wakes
    nobody.
 
-7. **Correctness gate — first multi-file fuzzer BUILT (W123); corpus-scale TODO.**
-   `project_diagnostics_incremental_matches_fresh_under_edits` extends
-   `incremental == fresh` to *project* scope for the shipped cross-file W123: a
-   2-file project driven through 60 edits to the defining file (proc add/remove),
-   asserting the caller's cross-file diagnostics always equal a from-scratch
-   project rebuild. Remaining: broaden it to a **corpus-scale** sequence
-   (`source` / `package require` graph edits, many files) as cross-file arity /
-   class resolution lands — each new cross-file surface gets fuzzed before it
-   ships, the same discipline the single-file path follows.
+7. **Correctness gate — multi-file fuzzers BUILT (W123 + arity), corpus-scale
+   BUILT.** `project_diagnostics_incremental_matches_fresh_under_edits` (and the
+   `…_both_files_edited` sibling) extend `incremental == fresh` to *project* scope
+   for the shipped cross-file W123 + arity: a 2-file project driven through 60
+   edits, asserting the caller's cross-file diagnostics always equal a from-scratch
+   project rebuild. The **corpus-scale** sequence has since landed too —
+   `project_diagnostics_corpus.rs` (`--ignored`) drives ~200 real `tmp/` files plus
+   a synthetic caller/library pair through 120 fuzzed signature/call-site edits,
+   asserting incremental == fresh after every edit. Each new cross-file surface
+   gets fuzzed before it ships, the same discipline the single-file path follows.
 
 **Open risks — the salsa-mechanics three are now retired by a spike; the
 heuristic-edge one remains:**
@@ -528,8 +529,9 @@ exist yet — the verification-status table follows the list.
    `reparse_window`'s windowed re-lex that has no consumer.) *When unblocked, the
    gate:* dirty-span re-lex byte-identical to a full re-lex over the edit-fuzz corpus.
 
-6. **Cross-file cascade** *(cross-file resolution **SHIPPED** — W123 + arity across
-   procs/classes/aliases/ensembles; per-symbol precision + corpus fuzz remain).*
+6. **Cross-file cascade** *(**SHIPPED** — W123 + arity across
+   procs/classes/aliases/ensembles, **plus** per-symbol precision and the
+   corpus-scale multi-file fuzzer).*
    Lift the project signature table into salsa
    (`project_signatures` over per-file `file_decls`), make cross-file resolution
    tracked queries (reverse-dependency invalidation then falls out of salsa), and
@@ -585,11 +587,25 @@ exist yet — the verification-status table follows the list.
      `cross_file_drops_disk_backed_file_when_gone`). ci-fast (805 e2e) green; no
      regression.
 
-   *Remaining extensions (not blockers — the cross-file machinery + its fuzzer
-   now exist):* a per-symbol `signature(qname)` query for
-   finer-than-whole-project-set invalidation; and broadening the multi-file fuzzer
-   to a corpus-scale differential (`source` / `package require` graph edits, many
-   files) for the heuristic-edge risk.
+   *Extensions — both **SHIPPED**:*
+   - **Per-symbol precision (`command_arity`).** `project_diagnostics(file)` no
+     longer depends on the whole-project `project_command_arities` table; it
+     demands a per-tail `command_arity(project, CommandTail)` accessor only for the
+     command tails the file actually references, so an *unrelated* proc's signature
+     edit recomputes the aggregate table and the accessor but **early-cutoff
+     backdates** every tail this file does not call → the file's cross-file
+     diagnostics do not re-run. A widely-called utility's signature change still
+     re-checks exactly its callers (correct fan-out); a proc nobody in file B calls
+     wakes nobody in B. *Gate:* `project_diagnostics_per_symbol_cutoff` (an
+     unrelated-proc signature edit re-runs the caller's `project_diagnostics` **0**
+     times; the called proc's signature edit re-runs it once and surfaces the new
+     cross-file arity error).
+   - **Corpus-scale multi-file fuzzer.** `project_diagnostics_corpus.rs`
+     (`#[ignore]`d, run with `--ignored`) drives a project of ~200 real `tmp/`
+     corpus files plus a synthetic caller/library pair through 120 fuzzed
+     signature/call-site edits, asserting the caller's (and a sampled real file's)
+     incremental `project_diagnostics` equals a from-scratch whole-project rebuild
+     after every edit — the corpus-scale heuristic-edge gate over real source.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -642,7 +658,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
 | **Task 6 cross-file arity (E002/E003) SHIPPED** — wrong-arg-count to a workspace proc reuses the analyser's own arity codes (not the unrelated `W124` IP warning); W123 suppressed when resolved | **measured + verified** | `project_diagnostics_emits_cross_file_arity` (3 args to a 2-param proc → E003 + W123 suppressed; correct count → neither); conservative on `{*}` / mixed tails / tail collisions |
 | **Task 6 cross-file classes / aliases / ensembles SHIPPED** — resolution domain matches the analyser's local suppression kinds | **measured + verified** | `project_diagnostics_resolves_cross_file_class` (cross-file `Widget` class command → no W123, no arity error) |
-| Task 6 per-symbol precision + corpus-scale heuristic-edge correctness | **hypothesis** | needs a per-symbol `signature(qname)` query + a corpus-scale multi-file differential |
+| **Task 6 per-symbol precision SHIPPED** — `command_arity(project, CommandTail)` accessor; `project_diagnostics` demands only the tails a file references, so an unrelated proc's signature edit early-cutoffs (re-runs the caller's `project_diagnostics` 0×) | **measured + verified** | `project_diagnostics_per_symbol_cutoff` (0 re-runs on an unrelated signature edit; 1 + new arity error on the called proc's edit) |
+| **Task 6 corpus-scale multi-file fuzzer SHIPPED** — incremental == fresh over ~200 real `tmp/` files + a synthetic caller/library pair, 120 fuzzed edits | **measured + verified** | `project_diagnostics_corpus.rs` (`--ignored`); caller + sampled real file match a from-scratch project rebuild after every edit |
 
 Differential-fuzzer coverage **today**:
 
