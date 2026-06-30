@@ -454,6 +454,108 @@ fn resolve_call_flows(
     flows
 }
 
+/// The known-proc callees a function references — every call target
+/// [`infer_proc_summary`] resolves while propagating taints, scanned from the
+/// same executable CFG blocks (`Statement::Call` + command-substitution
+/// `AssignValue`) as [`resolve_call_flows`].
+///
+/// Unlike [`crate::interprocedural::ProcSummary::direct_calls`] — which misses a
+/// call buried in a nested command substitution under a dynamic command (e.g.
+/// `symbolNodeOf` in `[$t get [symbolNodeOf …] …]`) — this captures exactly the
+/// callee summaries the inference reads.  The LSP summary-cascade memo keys on
+/// this complete set so its reconstructed dependency context matches the
+/// whole-module solve (and the debug fixpoint guard) instead of seeding a missed
+/// callee clean and under-tainting the result.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn resolved_callees(fu: &FunctionUnit, known: &HashSet<String>) -> Vec<String> {
+    let caller_qname = fu.ssa.name.as_str();
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for bn in &fu.sccp.executable_blocks {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let resolved: Option<(String, Vec<String>)> = match stmt {
+                crate::ir::Statement::Call { command, args, .. } => {
+                    Some((command.clone(), args.clone()))
+                }
+                crate::ir::Statement::AssignValue { value, .. } => {
+                    parse_command_substitution(value)
+                }
+                _ => None,
+            };
+            let Some((cmd_name, cmd_args)) = resolved else {
+                continue;
+            };
+            if let Some(callee) = resolve_call_target(&cmd_name, &cmd_args, caller_qname, known)
+                && seen.insert(callee.clone())
+            {
+                out.push(callee);
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Known-proc callees reached through a **command substitution** `[name …]`
+/// embedded in a word (return value, argument, expression operand) of `caller`'s
+/// body — the summaries [`infer_proc_summary`] reads when it evaluates those
+/// words (`word_taint` recurses into nested substitutions), which neither
+/// `direct_calls` nor the CFG-statement scan of [`resolved_callees`] captures
+/// (e.g. `symbolNodeOf` in `return [$t get [symbolNodeOf …] …]`).
+///
+/// A deliberately conservative source scan: every `[` opens a candidate
+/// substitution whose head word is resolved against `known` (a `$`-led dynamic
+/// head is skipped).  It over-approximates (a `[` in a string/comment, an escaped
+/// `\[`) — sound, since an unread callee summary only widens the memo key, never
+/// changes the inferred result — but never misses a real `[name …]` head, so the
+/// cascade memo sees every summary the whole-module solve does.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn command_subst_callees(
+    body_source: &str,
+    caller_qname: &str,
+    known: &HashSet<String>,
+) -> Vec<String> {
+    let bytes = body_source.as_bytes();
+    let is_word = |b: u8| !matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'[' | b']' | b';' | b'\\');
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b'[' {
+            continue;
+        }
+        // Skip leading whitespace after the bracket, then read the head word.
+        let mut j = i + 1;
+        while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
+            j += 1;
+        }
+        let start = j;
+        while j < bytes.len() && is_word(bytes[j]) {
+            j += 1;
+        }
+        if start == j {
+            continue;
+        }
+        let Ok(head) = std::str::from_utf8(&bytes[start..j]) else {
+            continue;
+        };
+        if head.starts_with('$') {
+            continue;
+        }
+        if let Some(callee) = resolve_call_target(head, &[], caller_qname, known)
+            && seen.insert(callee.clone())
+        {
+            out.push(callee);
+        }
+    }
+    out.sort();
+    out
+}
+
 // Solver
 
 /// Result of the interprocedural taint solve. Summaries are dropped — the
@@ -604,12 +706,46 @@ pub fn converge_summaries_with(
         map
     });
     let mut dirty: HashSet<&str> = proc_names.iter().map(|q| q.as_str()).collect();
-    while !dirty.is_empty() {
-        let mut next: HashSet<&str> = HashSet::new();
-        for qname in &proc_names {
-            if !dirty.contains(qname.as_str()) {
-                continue;
+    // Outer fixpoint-completion loop. The dirty-set worklist below converges
+    // fast *when the call graph is complete*, but `callers` is derived from
+    // `direct_calls`, which misses a callee edge buried in a nested command
+    // substitution — e.g. `symbolNodeOf` inside `[$t get [symbolNodeOf …] …]`,
+    // or a self-call inside `[expr {[fib …]}]`. With a missed edge the worklist
+    // can empty one step short of the fixpoint (a taint false-negative the debug
+    // guard below flags). After the worklist settles we run a full round-robin
+    // pass and re-queue every proc whose summary still moves; the lattice is
+    // monotone over a finite domain, so this reaches the true least fixpoint and
+    // terminates. When the call graph *is* complete the completion pass finds no
+    // movement and breaks after one clean sweep — the common, cheap case.
+    loop {
+        while !dirty.is_empty() {
+            let mut next: HashSet<&str> = HashSet::new();
+            for qname in &proc_names {
+                if !dirty.contains(qname.as_str()) {
+                    continue;
+                }
+                let Some(fu) = cu.procedures.get(*qname) else {
+                    continue;
+                };
+                let proc = &cu.ir_module.procedures[*qname];
+                let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+                if summaries.get(*qname) != Some(&inferred) {
+                    summaries.insert((*qname).clone(), inferred);
+                    // Re-queue `qname` itself (a self-recursive proc reads its own
+                    // summary) plus its known callers from the reverse call graph.
+                    next.insert(qname.as_str());
+                    match &callers {
+                        Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
+                        None => next.extend(proc_names.iter().map(|q| q.as_str())),
+                    }
+                }
             }
+            dirty = next;
+        }
+        // Completion pass: a full round-robin catches any proc still short of the
+        // fixpoint because the worklist's `callers` map missed an inbound edge.
+        let mut moved: HashSet<&str> = HashSet::new();
+        for qname in &proc_names {
             let Some(fu) = cu.procedures.get(*qname) else {
                 continue;
             };
@@ -617,23 +753,13 @@ pub fn converge_summaries_with(
             let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
             if summaries.get(*qname) != Some(&inferred) {
                 summaries.insert((*qname).clone(), inferred);
-                // Re-queue `qname` itself: a self-recursive proc's inference
-                // reads its own summary, so a change can enable another. The
-                // `direct_calls` reverse map does not always round-trip the
-                // self-edge — a recursive call buried in `[expr {[fib …]}]` is
-                // not extracted as a call-graph edge — so relying on `callers`
-                // alone leaves a direct-recursion summary one step short of the
-                // fixpoint (the debug guard below would then trip). Monotone
-                // over a finite lattice ⇒ still terminates; for a non-recursive
-                // proc the extra re-inference is a single no-op.
-                next.insert(qname.as_str());
-                match &callers {
-                    Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
-                    None => next.extend(proc_names.iter().map(|q| q.as_str())),
-                }
+                moved.insert(qname.as_str());
             }
         }
-        dirty = next;
+        if moved.is_empty() {
+            break;
+        }
+        dirty = moved;
     }
 
     // Debug-only soundness guard: one full round-robin pass must find the dirty-set
