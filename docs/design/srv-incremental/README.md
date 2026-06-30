@@ -533,8 +533,10 @@ exist yet — the verification-status table follows the list.
      **deliberately not landed** rather than shipped unverified. *Status:* designed +
      blockers identified; not built.
 
-5. **Wire the structural-state index into the live re-lex path** *(blocked — no
-   consumer exists; coupled to Task 7).* The intent: bound `did_change`'s re-lex /
+5. **Wire the structural-state index into the live re-lex path** *(**DROPPED** —
+   rope-dependent, removed from scope 2026-06-30 by the "drop everything that
+   requires the rope" decision; coupled to Task 7's chunk-addressable input).*
+   The intent: bound `did_change`'s re-lex /
    re-segment to the dirty span via the already-built `reparse_window` /
    `script_is_complete` / bracket-brace-paren indexes. **Verified blocked:** there
    is **no windowed re-lex or incremental-segmentation API** to consume a dirty
@@ -629,15 +631,17 @@ exist yet — the verification-status table follows the list.
      incremental `project_diagnostics` equals a from-scratch whole-project rebuild
      after every edit — the corpus-scale heuristic-edge gate over real source.
 
-7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
-   gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
-   the experiment below. Justified **only after** Tasks 2–6, and **only if** the
-   apply-side 0.02% slice has grown into a non-trivial share once the analysis floor
-   is gone *and* the many-small-docs memory regression (1.4–1.9×) can be held under
-   ~1.2×. Sub-tasks: feature-flagged rope `DocumentState` with burst-coalescing;
-   `LineIndex::from_rope_slice` + `Lexer::with_source_map` rope-slice re-lex in
-   `tcl-lexer`; chunk-addressable `SourceFile` input so `set_text` interns only
-   changed chunks; MVCC write-window minimisation. The experiment is the gate.
+7. **(DROPPED) rope-backed store + chunk-addressable salsa input** *(removed from
+   scope 2026-06-30 by the "drop everything that requires the rope" decision).*
+   The demoted SRV-ROPE work — full sub-task breakdown and measurements in the
+   experiment below — is **not in scope**. It was always optional/gated (justified
+   only if the apply-side 0.02% slice grew measurable *and* the many-small-docs
+   memory regression of 1.4–1.9× could be held under ~1.2×); the decision is now
+   explicit: the `String` store is retained and the rope is not pursued. Sub-tasks
+   (kept for reference only): feature-flagged rope `DocumentState` with
+   burst-coalescing; `LineIndex::from_rope_slice` + `Lexer::with_source_map`
+   rope-slice re-lex; chunk-addressable `SourceFile` input; MVCC write-window
+   minimisation.
 
 **Benches & gates** *(S, throughout).* Fold `tail_profile` into a committed
 per-edit bench: assert **no time-to-first-tokens regression** (the paramount
@@ -646,11 +650,12 @@ per-edit latency on the corpus task-by-task as each lever lands.
 
 **Ordering rationale / exit criteria.** Tasks 1–2 deliver the bulk of the realistic
 per-edit win (cheap apply win + the dominant `run_all_checks` slice) with no rope
-and no cross-file work. 3–4 close the lowering floor. 5 unlocks bounded re-lex (and
-the rope). 6 is the cross-file feature, built incremental-first. 7 (the rope) lands
-only if its slice has grown measurable and the memory regression is contained —
-otherwise the `String` store is retained. The experiment is the gate, not an
-assumption.
+and no cross-file work. 3–4 close the lowering floor. 6 is the cross-file feature,
+built incremental-first. **Tasks 5 and 7 are dropped (rope-dependent, 2026-06-30
+decision)** — the `String` store is retained, so windowed re-lex (5) and the rope
+(7) are out of scope. **The de-roped track's completion target is therefore Tasks
+1–4 + 6:** 1/2/6 shipped, leaving 3 and 4 (both rope-independent per-edit-latency
+memoisations, each gated by an `incremental == fresh` differential fuzzer).
 
 ## Experiments & verification status
 
