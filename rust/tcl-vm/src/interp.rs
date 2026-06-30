@@ -761,6 +761,25 @@ impl Vm {
                 self.hidden_commands.insert(c.to_string(), cmd);
             }
         }
+        // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
+        // unsets os/osVersion/machine/user) plus our backend-introspection keys,
+        // so a safe interp exposes only the portable subset.
+        const UNSAFE_PLATFORM: &[&str] = &[
+            "os",
+            "osVersion",
+            "machine",
+            "user",
+            "threaded",
+            "runtime",
+            "runtimeVersion",
+            "wasm",
+            "wasi",
+            "wasiVersion",
+            "ebpf",
+        ];
+        for &k in UNSAFE_PLATFORM {
+            let _ = self.unset_one(&format!("tcl_platform({k})"), false);
+        }
         self.is_safe = true;
     }
 

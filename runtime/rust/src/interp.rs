@@ -4556,6 +4556,26 @@ impl Interp {
         for &c in UNSAFE {
             self.hide_command(c);
         }
+        // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
+        // unsets os/osVersion/machine/user) plus our backend-introspection keys,
+        // so a safe interp exposes only the portable subset (byteOrder, engine,
+        // pathSeparator, platform, pointerSize, wordSize).
+        const UNSAFE_PLATFORM: &[&[u8]] = &[
+            b"os",
+            b"osVersion",
+            b"machine",
+            b"user",
+            b"threaded",
+            b"runtime",
+            b"runtimeVersion",
+            b"wasm",
+            b"wasi",
+            b"wasiVersion",
+            b"ebpf",
+        ];
+        for &k in UNSAFE_PLATFORM {
+            self.var_unset_elem(b"tcl_platform", k);
+        }
         self.is_safe.set(true);
     }
 
