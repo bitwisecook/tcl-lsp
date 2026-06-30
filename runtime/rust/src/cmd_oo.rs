@@ -6484,7 +6484,9 @@ mod tests {
             ok(i, b"rename obj {}");
             ok(i, b"update idletasks");
             assert_eq!(ok(i, b"set ::caught"), b"boom");
-            ok(i, b"interp bgerror {} {}");
+            // An empty cmdPrefix is rejected (C's `ChildBgerror`: length >= 1),
+            // so the handler is reset by overwriting it with a one-element list.
+            ok(i, b"interp bgerror {} noop");
         });
     }
 
