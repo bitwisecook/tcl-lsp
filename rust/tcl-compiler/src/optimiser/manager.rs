@@ -67,28 +67,18 @@ pub fn optimise_unit(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    // The whole-module builtin-fold trust gate (O129/O116/O118).
-    // Without this the production path leaves `command_mutations` at its default,
-    // whose `trusts()` returns `true` for everything, so renamed/redefined
-    // builtins (`rename string {}; [string length …]`) get const-folded — a
-    // silent miscompile. The test-only `optimise_raw` already wired this; the
-    // shipping `optimise_unit` did not.
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
-    run_passes(&mut ctx, cu, &PassId::all());
+    let raw = optimise_unit_raw(cu, registry, dialect);
+    finalise_optimisations(raw, cu, registry, dialect)
+}
 
-    // Determinism chokepoint.  Several passes iterate `HashMap`s
-    // (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
-    // and the monotonic group ids vary run-to-run — and, critically, between the
-    // offset-0 per-procedure memo build and the whole-module build.  Canonicalise
-    // before overlap arbitration so the surviving set, its order, and group
-    // numbering are byte-identical given an equal `CompilationUnit` (the
-    // `compiler_check_corpus` guard's contract, and the precondition for salsa
-    // early-cutoff on [`compiler_check_diagnostics`]).
-    ctx.optimisations.sort_by(|a, b| {
+/// The total ordering key used to canonicalise the optimisation set before
+/// overlap arbitration and group renumbering — the determinism chokepoint that
+/// makes the surviving set, its order, and group numbering byte-identical given
+/// an equal `CompilationUnit` (the precondition for salsa early-cutoff on
+/// `compiler_check_diagnostics`, and for the per-procedure optimiser memo: the
+/// rebased per-proc raw set sorts into the same order the whole-module run does).
+fn sort_optimisations(opts: &mut [Optimisation]) {
+    opts.sort_by(|a, b| {
         (
             a.span.start(),
             a.span.end(),
@@ -106,7 +96,65 @@ pub fn optimise_unit(
                 b.hint_only,
             ))
     });
-    let mut selected = select_non_overlapping(&ctx.optimisations);
+}
+
+/// Phase 1 of [`optimise_unit`]: run every pass over the built unit and return
+/// the **canonicalised raw** optimisation set (before overlap selection /
+/// const-dead-store coupling / group renumbering — that whole-module tail is
+/// [`finalise_optimisations`]).
+///
+/// Split out so the per-procedure optimiser memo can run this phase on a
+/// **single-procedure offset-0** unit (one proc in `cu.procedures`, its offset-0
+/// body in `cu.ir_module.procedures`, the reconstructed interproc summary +
+/// `redefined_procedures` + module `command_mutations` it depends on) and cache
+/// the result keyed on the proc's offset-0 `FnLatticeKey`; the whole-module
+/// [`finalise_optimisations`] then runs once over the rebased, assembled set.
+/// Running it on the whole unit reproduces `optimise_unit` exactly.
+#[must_use]
+pub fn optimise_unit_raw(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Optimisation> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    // The whole-module builtin-fold trust gate (O129/O116/O118).
+    // Without this the production path leaves `command_mutations` at its default,
+    // whose `trusts()` returns `true` for everything, so renamed/redefined
+    // builtins (`rename string {}; [string length …]`) get const-folded — a
+    // silent miscompile. The test-only `optimise_raw` already wired this; the
+    // shipping `optimise_unit` did not.  (For the per-procedure memo this is the
+    // whole-module mutation set, threaded in via the single-proc unit's
+    // `ir_module`.)
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    run_passes(&mut ctx, cu, &PassId::all());
+
+    // Determinism chokepoint.  Several passes iterate `HashMap`s
+    // (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
+    // and the monotonic group ids vary run-to-run — and, critically, between the
+    // offset-0 per-procedure memo build and the whole-module build.  Canonicalise
+    // before overlap arbitration so the surviving set, its order, and group
+    // numbering are byte-identical given an equal `CompilationUnit`.
+    sort_optimisations(&mut ctx.optimisations);
+    ctx.optimisations
+}
+
+/// Phase 2 of [`optimise_unit`]: the **whole-module tail** over a canonicalised
+/// raw optimisation set — overlap selection, const-propagation/dead-store
+/// coupling, the resurrected-reference guard, and group renumbering.  Reads
+/// `cu.source` (absolute span slices) and iterates `cu.procedures` / `cu.methods`,
+/// so it always runs over the **real whole-module unit** with the assembled,
+/// rebased raw set — never a single-procedure unit.
+#[must_use]
+pub fn finalise_optimisations(
+    raw: Vec<Optimisation>,
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Optimisation> {
+    let mut selected = select_non_overlapping(&raw);
     // Couple constant propagation with dead-store removal: a `set x <const>`
     // whose every use was propagated away by a *surviving* O100/O101/O102/O103
     // rewrite is now dead and can be removed. Done after overlap selection so
@@ -129,24 +177,7 @@ pub fn optimise_unit(
     // above so the surviving set's order (and therefore `renumber_groups`'
     // group numbering, which walks this order) is byte-identical given an equal
     // `CompilationUnit`. Also keeps `output_is_sorted_by_span_start`.
-    selected.sort_by(|a, b| {
-        (
-            a.span.start(),
-            a.span.end(),
-            &a.code,
-            &a.message,
-            &a.replacement,
-            a.hint_only,
-        )
-            .cmp(&(
-                b.span.start(),
-                b.span.end(),
-                &b.code,
-                &b.message,
-                &b.replacement,
-                b.hint_only,
-            ))
-    });
+    sort_optimisations(&mut selected);
     renumber_groups(&mut selected);
     selected
 }
