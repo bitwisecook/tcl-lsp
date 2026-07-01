@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 KNOWN_DIALECTS: frozenset[str] = frozenset(
     (
         "tcl8.4",
         "tcl8.5",
         "tcl8.6",
         "tcl9.0",
+        "tcl9.1",
         "f5-irules",
         "f5-iapps",
         "f5-tmsh",
@@ -65,6 +68,7 @@ DIALECT_BASE_VERSION: dict[str, str] = {
     "tcl8.5": "tcl8.5",
     "tcl8.6": "tcl8.6",
     "tcl9.0": "tcl9.0",
+    "tcl9.1": "tcl9.1",
     # iRules: TMOS embedded Tcl 8.4.6.
     "f5-irules": "tcl8.4",
     # iApps/tmsh: CentOS 7 system Tcl 8.5.13.
@@ -85,7 +89,49 @@ _TCL_VERSION_RANK: dict[str, int] = {
     "tcl8.5": 1,
     "tcl8.6": 2,
     "tcl9.0": 3,
+    "tcl9.1": 4,
 }
+
+
+# Dialect inheritance — a dialect that is a strict superset of an earlier
+# release inherits all of the earlier dialect's command, subcommand, and
+# option membership.  Listing the parent here means a spec tagged only with
+# the parent (e.g. ``tcl9.0``) is automatically available under the child
+# (``tcl9.1``) without re-tagging hundreds of command specs.  The relation
+# is one-directional: ``tcl9.0`` never inherits ``tcl9.1`` additions.
+DIALECT_INHERITS: dict[str, str] = {
+    "tcl9.1": "tcl9.0",
+}
+
+
+@lru_cache(maxsize=None)
+def dialect_membership(dialect: str) -> frozenset[str]:
+    """Return the dialect tags that *dialect* satisfies for spec membership.
+
+    For a plain dialect this is just ``{dialect}``.  For an inheriting
+    dialect (see :data:`DIALECT_INHERITS`) it also includes every ancestor
+    it is a superset of, so a spec tagged only with an ancestor
+    (``{"tcl9.0"}``) still matches the descendant (``tcl9.1``).
+    """
+    seen = {dialect}
+    cur = dialect
+    while cur in DIALECT_INHERITS:
+        cur = DIALECT_INHERITS[cur]
+        seen.add(cur)
+    return frozenset(seen)
+
+
+def dialect_supports(dialect: str | None, dialects: frozenset[str] | None) -> bool:
+    """Return True when *dialect* is a member of *dialects* (with inheritance).
+
+    ``dialect is None`` (dialect-agnostic query) and ``dialects is None``
+    (command available everywhere) both match.  Otherwise the query
+    dialect's inherited membership set is intersected with *dialects* so an
+    inheriting dialect picks up its ancestors' tags.
+    """
+    if dialect is None or dialects is None:
+        return True
+    return bool(dialects & dialect_membership(dialect))
 
 
 def dialects_since(min_version: str) -> frozenset[str]:

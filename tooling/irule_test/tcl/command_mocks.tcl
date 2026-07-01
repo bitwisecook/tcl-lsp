@@ -135,6 +135,40 @@ namespace eval ::itest {
 
 namespace eval ::itest::cmd {
 
+    # ── Byte-array helpers for *::payload mocks ───────────────────────
+    # TMM treats payloads as raw byte buffers: `length`, the `<size>`
+    # getter, and `replace` offsets/lengths are all BYTE counts, and a
+    # write-back is interpreted as a byte array.  These helpers force a
+    # byte-array intrep so the mocks are byte-accurate (and binary-safe)
+    # rather than character-based — matching real TMM and the S110
+    # diagnostic's model.  `binary format a*` maps each character to its
+    # low byte (latin-1), which is identity for an existing byte array
+    # and the byte view for an ASCII string.
+
+    proc _payload_bytes {s} {
+        return [binary format a* $s]
+    }
+
+    proc _payload_bytelength {s} {
+        return [string length [_payload_bytes $s]]
+    }
+
+    proc _payload_first {s n} {
+        if {$n <= 0} {
+            return [_payload_bytes ""]
+        }
+        return [string range [_payload_bytes $s] 0 [expr {$n - 1}]]
+    }
+
+    proc _payload_splice {s offset len data} {
+        set b [_payload_bytes $s]
+        set before [string range $b 0 [expr {$offset - 1}]]
+        set after  [string range $b [expr {$offset + $len}] end]
+        # Re-wrap as a byte array so the splice does not re-encode the
+        # surrounding high bytes (the F5 KB K22406348 corruption).
+        return [_payload_bytes "${before}[_payload_bytes $data]${after}"]
+    }
+
     proc ip_client_addr {args} {
         return $::state::connection::client_addr
     }
@@ -253,23 +287,21 @@ namespace eval ::itest::cmd {
 
         switch -exact -- $subcmd {
             length {
-                return [string length $::state::connection::client_payload]
+                return [_payload_bytelength $::state::connection::client_payload]
             }
             replace {
                 set offset [lindex $args 1]
                 set len    [lindex $args 2]
                 set data   [lindex $args 3]
-                set payload $::state::connection::client_payload
-                set before [string range $payload 0 [expr {$offset - 1}]]
-                set after  [string range $payload [expr {$offset + $len}] end]
-                set ::state::connection::client_payload "${before}${data}${after}"
+                set ::state::connection::client_payload \
+                    [_payload_splice $::state::connection::client_payload $offset $len $data]
                 ::itest::log_decision tcp payload_replace [list $offset $len $data]
                 return
             }
             default {
-                # TCP::payload <size> -- return first N bytes
+                # TCP::payload <size> -- return first N bytes (byte-accurate).
                 if {[string is integer -strict $subcmd]} {
-                    return [string range $::state::connection::client_payload 0 [expr {$subcmd - 1}]]
+                    return [_payload_first $::state::connection::client_payload $subcmd]
                 }
                 return $::state::connection::client_payload
             }
@@ -548,18 +580,39 @@ namespace eval ::itest::cmd {
     }
 
     proc http_payload {args} {
+        # HTTP::payload ?<size>?
+        # HTTP::payload length
+        # HTTP::payload replace <offset> <length> <data>
         set in_response [expr {$::itest::current_event eq "HTTP_RESPONSE_DATA"}]
-        if {[llength $args] > 0} {
-            set length [lindex $args 0]
-            if {$in_response} {
-                return [string range $::state::http::response::payload 0 [expr {$length - 1}]]
-            }
-            return [string range $::state::http::request::payload 0 [expr {$length - 1}]]
-        }
         if {$in_response} {
-            return $::state::http::response::payload
+            set var ::state::http::response::payload
+        } else {
+            set var ::state::http::request::payload
         }
-        return $::state::http::request::payload
+        if {[llength $args] == 0} {
+            return [set $var]
+        }
+        set subcmd [lindex $args 0]
+        switch -exact -- $subcmd {
+            length {
+                return [_payload_bytelength [set $var]]
+            }
+            replace {
+                set offset [lindex $args 1]
+                set len    [lindex $args 2]
+                set data   [lindex $args 3]
+                set $var [_payload_splice [set $var] $offset $len $data]
+                ::itest::log_decision http payload_replace [list $offset $len $data]
+                return
+            }
+            default {
+                # HTTP::payload <size> -- return the first N bytes.
+                if {[string is integer -strict $subcmd]} {
+                    return [_payload_first [set $var] $subcmd]
+                }
+                return [set $var]
+            }
+        }
     }
 
     proc http_collect {args} {

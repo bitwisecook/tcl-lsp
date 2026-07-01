@@ -139,7 +139,7 @@ def _warm_imports() -> None:
 
 _scan_lock = threading.Lock()
 
-_TCL_VERSION_ORDER = {"tcl8.4": 0, "tcl8.5": 1, "tcl8.6": 2, "tcl9.0": 3}
+_TCL_VERSION_ORDER = {"tcl8.4": 0, "tcl8.5": 1, "tcl8.6": 2, "tcl9.0": 3, "tcl9.1": 4}
 
 
 def _upgrade_dialect_from_workspace() -> None:

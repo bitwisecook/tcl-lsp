@@ -272,6 +272,7 @@ _TCL_LANGUAGE_IDS = (
     "tcl8.4",
     "tcl8.5",
     "tcl9.0",
+    "tcl9.1",
     "tcl-synopsys",
     "tcl-cadence",
     "tcl-xilinx",

@@ -349,13 +349,13 @@ class OptionSpec:
         If this option has its own ``dialects`` set, use that.  Otherwise
         inherit from *parent_dialects* (the parent CommandSpec or SubCommand).
         """
+        from .dialects import dialect_supports
+
         if dialect is None:
             return True
         if self.dialects is not None:
-            return dialect in self.dialects
-        if parent_dialects is None:
-            return True
-        return dialect in parent_dialects
+            return dialect_supports(dialect, self.dialects)
+        return dialect_supports(dialect, parent_dialects)
 
 
 class FormKind(enum.Enum):
@@ -602,14 +602,36 @@ class SubCommand:
         If this subcommand has its own ``dialects`` set, use that.
         Otherwise, inherit from the parent command's dialects.
         """
+        from .dialects import dialect_supports
+
         if dialect is None:
             return True
         if self.dialects is not None:
-            return dialect in self.dialects
+            return dialect_supports(dialect, self.dialects)
         # Inherit from parent.
-        if parent_dialects is None:
-            return True
-        return dialect in parent_dialects
+        return dialect_supports(dialect, parent_dialects)
+
+
+@dataclass(frozen=True, slots=True)
+class BytePayloadSpec:
+    """Layout of a ``<proto>::payload`` byte-array command for the S110 check.
+
+    The getter form returns raw on-the-wire bytes (a binary source); the
+    ``replace`` form rewrites them (a byte sink).  ``replace`` argument layouts
+    differ per protocol, so the index of the ``<data>`` operand is carried here
+    instead of being hardcoded in the analyser:
+
+    - ``replace_data_index`` — 0-based index, *within the args after the command
+      name*, of the ``<data>`` operand in the ``replace`` form.  ``3`` for the
+      common ``replace <offset> <length> <data>`` layout (TCP/HTTP/…); ``1`` for
+      ``replace <data> …`` (MQTT/DIAMETER).
+    - ``message_flag_shift`` — when True, an optional leading ``-message
+      <value>`` flag (GTP) shifts every positional ``replace`` operand by two,
+      so the data index becomes ``replace_data_index + 2`` when present.
+    """
+
+    replace_data_index: int = 3
+    message_flag_shift: bool = False
 
 
 @dataclass(slots=True)
@@ -651,6 +673,10 @@ class CommandSpec:
     has_destructive_ops: bool = False  # file, namespace, chan
     is_irules_event_handler: bool = False  # when
     is_unnormalized_http_getter: bool = False  # HTTP::path, HTTP::uri, HTTP::query
+    # ``*::payload`` — getter returns raw bytes, ``replace`` rewrites them.
+    # ``True`` uses the default replace layout (data at index 3); pass a
+    # :class:`BytePayloadSpec` to describe a protocol-specific layout.
+    byte_array_payload: bool | BytePayloadSpec = False
 
     # Command-classification traits sourced by tooling instead of
     # consumer-local name lists (single source of truth = the spec).
@@ -873,11 +899,9 @@ class CommandSpec:
     terminates_block: bool = False
 
     def supports_dialect(self, dialect: str | None) -> bool:
-        if dialect is None:
-            return True
-        if self.dialects is None:
-            return True
-        return dialect in self.dialects
+        from .dialects import dialect_supports
+
+        return dialect_supports(dialect, self.dialects)
 
     def supports_packages(self, active_packages: frozenset[str] | None) -> bool:
         """Check if this command is available given the active packages.

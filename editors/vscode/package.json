@@ -32,6 +32,7 @@
     "onLanguage:tcl8.4",
     "onLanguage:tcl8.5",
     "onLanguage:tcl9.0",
+    "onLanguage:tcl9.1",
     "onLanguage:tcl-synopsys",
     "onLanguage:tcl-cadence",
     "onLanguage:tcl-xilinx",
@@ -140,6 +141,13 @@
         "configuration": "./language-configuration.json"
       },
       {
+        "id": "tcl9.1",
+        "aliases": [
+          "Tcl 9.1"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
         "id": "tcl-synopsys",
         "aliases": [
           "Synopsys EDA Tcl",
@@ -229,6 +237,11 @@
       },
       {
         "language": "tcl9.0",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl9.1",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       },
@@ -1423,6 +1436,86 @@
       },
       {
         "language": "tcl9.0",
+        "scopes": {
+          "operator": [
+            "keyword.operator.format.tcl"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "namespace": [
+            "entity.name.namespace.tcl"
+          ],
+          "decorator": [
+            "entity.other.attribute-name.option.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl9.1",
         "scopes": {
           "operator": [
             "keyword.operator.format.tcl"
@@ -2949,6 +3042,79 @@
           "clockModifier:tcl-mentor": {
             "foreground": "#9cdcfe",
             "italic": true
+          },
+          "regexp:tcl9.1": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "escape:tcl9.1": {
+            "foreground": "#d7ba7d"
+          },
+          "event:tcl9.1": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "decorator:tcl9.1": {
+            "foreground": "#9cdcfe",
+            "italic": true
+          },
+          "regexpGroup:tcl9.1": {
+            "foreground": "#c586c0"
+          },
+          "regexpCharClass:tcl9.1": {
+            "foreground": "#d16969",
+            "italic": true
+          },
+          "regexpQuantifier:tcl9.1": {
+            "foreground": "#dcdcaa"
+          },
+          "regexpAnchor:tcl9.1": {
+            "foreground": "#569cd6",
+            "bold": true
+          },
+          "regexpEscape:tcl9.1": {
+            "foreground": "#d7ba7d"
+          },
+          "regexpBackref:tcl9.1": {
+            "foreground": "#b5cea8"
+          },
+          "regexpAlternation:tcl9.1": {
+            "foreground": "#c586c0"
+          },
+          "binarySpec:tcl9.1": {
+            "foreground": "#4ec9b0",
+            "bold": true
+          },
+          "binaryCount:tcl9.1": {
+            "foreground": "#b5cea8"
+          },
+          "binaryFlag:tcl9.1": {
+            "foreground": "#569cd6",
+            "italic": true
+          },
+          "formatPercent:tcl9.1": {
+            "foreground": "#c586c0"
+          },
+          "formatSpec:tcl9.1": {
+            "foreground": "#4fc1ff",
+            "bold": true
+          },
+          "formatFlag:tcl9.1": {
+            "foreground": "#d8a0df"
+          },
+          "formatWidth:tcl9.1": {
+            "foreground": "#b5cea8"
+          },
+          "clockPercent:tcl9.1": {
+            "foreground": "#dcdcaa"
+          },
+          "clockSpec:tcl9.1": {
+            "foreground": "#ce9178",
+            "bold": true
+          },
+          "clockModifier:tcl9.1": {
+            "foreground": "#9cdcfe",
+            "italic": true
           }
         }
       }
@@ -2981,6 +3147,7 @@
               "tcl8.5",
               "tcl8.6",
               "tcl9.0",
+              "tcl9.1",
               "f5-irules",
               "f5-iapps",
               "f5-tmsh",
@@ -2997,6 +3164,7 @@
               "Tcl 8.5 core commands",
               "Tcl 8.6 core commands (default)",
               "Tcl 9.0 with OO extensions",
+              "Tcl 9.1 with OO extensions",
               "F5 BIG-IP iRules command set",
               "F5 iApps utility/template commands",
               "F5 BIG-IP tmsh scripting commands",
@@ -4104,6 +4272,13 @@
             "default": true,
             "markdownDescription": "**S102:** Variable oscillates between two types across loop iterations.",
             "order": 2
+          },
+          "tclLsp.diagnostics.S110": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S110:** Byte array corrupted by a string operation before being written back as bytes.",
+            "order": 3
           }
         }
       },
@@ -4822,6 +4997,7 @@
                       "tcl8.5",
                       "tcl8.6",
                       "tcl9.0",
+                      "tcl9.1",
                       "f5-irules",
                       "f5-iapps",
                       "f5-tmsh",
@@ -4966,10 +5142,10 @@
     "test:coverage": "mkdir -p ../../tmp/coverage/.v8-coverage-vscode ../../tmp/coverage/vscode && NODE_V8_COVERAGE=../../tmp/coverage/.v8-coverage-vscode node ./out/test/runTest.js && node scripts/coverage-report.cjs"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
     "@typescript-eslint/parser": "^8.60.1",
     "@types/vscode": "~1.95.0",
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.0",
     "@types/mocha": "^10.0.0",
     "@types/glob": "^9.0.0",
     "@vscode/test-electron": "^3.0.0",
@@ -4997,6 +5173,7 @@
     "@vscode/vsce": {
       "@azure/msal-node": "^5.1.5"
     },
-    "lodash": "^4.18.1"
+    "lodash": "^4.18.1",
+    "undici": "^7.28.0"
   }
 }

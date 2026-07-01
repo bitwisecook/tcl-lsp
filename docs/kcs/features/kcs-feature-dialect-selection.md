@@ -22,7 +22,7 @@ MCP, all-editors
 
 ## How to use
 
-- **VS Code**: Run `Tcl: Select Dialect` from the command palette and pick from: tcl8.4, tcl8.5, tcl8.6, tcl9.0, f5-irules, f5-iapps, f5-bigip, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, expect.
+- **VS Code**: Run `Tcl: Select Dialect` from the command palette and pick from: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps, f5-bigip, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, expect.
 - **Other editors**: Set `tclLsp.dialect` in workspace settings.
 - **MCP**: Call `set_dialect` with the dialect name.
 - **Automatic**: `.irul`/`.irule` files default to f5-irules; `.iapp` to f5-iapps; `bigip.conf` to f5-bigip; `.exp` to expect. Shebang `#!/usr/bin/expect` also triggers the expect dialect.

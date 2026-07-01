@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # (S1xx) is fully body-local.  NOT here: cross-proc codes (W123/W307/W308,
 # interproc-derived O-codes, taint-flow) and the optimiser (cross-document
 # overlap resolution) — those always recompute.
-SHIMMER_CODES = frozenset({"S100", "S101", "S102"})
+SHIMMER_CODES = frozenset({"S100", "S101", "S102", "S110"})
 
 
 @dataclass(frozen=True, slots=True)

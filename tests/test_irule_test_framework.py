@@ -491,6 +491,20 @@ class TestTclIntegration:
         assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
         assert "FAIL" not in result.stdout or "0 FAILED" in result.stdout
 
+    def test_binary_payload_orchestrator_test_runs(self) -> None:
+        """Run the binary-payload orchestrator suite: real iRules driven through
+        the simulated TMM, asserting byte-accurate ``*::payload`` length / getter
+        / replace and lossless high-byte preservation (F5 KB K22406348)."""
+        result = subprocess.run(
+            [_tclsh_path(), str(TCL_DIR / "binary_payload_test.tcl")],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        assert "Failed\t0" in result.stdout, result.stdout
+        assert "All tests passed" in result.stdout, result.stdout
+
     def test_compat84_loads(self) -> None:
         """Verify the compat84 shim loads without errors."""
         script = f'source "{TCL_DIR / "compat84.tcl"}"\nputs "ok"'
@@ -604,6 +618,62 @@ if {{$r1 && $result eq "CONTAINS_OK"}} {{
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert "CONTAINS_OK" in result.stdout
+
+    def _run_framework(self, body: str) -> subprocess.CompletedProcess:
+        """Source the full mock framework, ``::orch::init``, then run *body*."""
+        sources = "\n".join(
+            f'source "{TCL_DIR / name}.tcl"'
+            for name in (
+                "compat84",
+                "state_layers",
+                "tmm_shim",
+                "expr_ops",
+                "profiler",
+                "command_mocks",
+            )
+        )
+        stubs = TCL_DIR / "_mock_stubs.tcl"
+        if stubs.exists():
+            sources += f'\nsource "{stubs}"'
+        sources += f'\nsource "{TCL_DIR / "itest_core"}.tcl"'
+        sources += f'\nsource "{TCL_DIR / "orchestrator"}.tcl"'
+        script = f"{sources}\n::orch::init\nproc hx {{s}} {{ binary scan [binary format a* $s] H* h; return $h }}\n{body}\n"
+        return subprocess.run(
+            [_tclsh_path()], input=script, capture_output=True, text=True, timeout=20
+        )
+
+    def test_tcp_payload_is_byte_accurate(self) -> None:
+        """TCP::payload length / <size> / replace are BYTE-accurate (TMM
+        semantics), and replace preserves surrounding high bytes — the
+        binary-safety contract behind the S110 diagnostic."""
+        # client payload "Józ" where ó = UTF-8 c3 b3 (bytes 4a c3 b3 7a).
+        body = (
+            "set ::state::connection::client_payload [binary format H* 4ac3b37a]\n"
+            'puts "LEN=[TCP::payload length]"\n'
+            'puts "FIRST2=[hx [TCP::payload 2]]"\n'
+            "TCP::payload replace 3 1 [binary format c* {0x21}]\n"
+            'puts "AFTER=[hx [TCP::payload]]"\n'
+        )
+        result = self._run_framework(body)
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "LEN=4" in result.stdout, result.stdout  # bytes, not chars
+        assert "FIRST2=4ac3" in result.stdout, result.stdout
+        # 7a -> 21, the c3 b3 high bytes survive the splice.
+        assert "AFTER=4ac3b321" in result.stdout, result.stdout
+
+    def test_http_payload_replace_is_byte_accurate(self) -> None:
+        """HTTP::payload now supports length/replace and is byte-accurate."""
+        body = (
+            "set ::itest::current_event HTTP_REQUEST_DATA\n"
+            "set ::state::http::request::payload [binary format H* deadbeef]\n"
+            'puts "HLEN=[HTTP::payload length]"\n'
+            "HTTP::payload replace 0 2 [binary format H* cafe]\n"
+            'puts "HAFTER=[hx [HTTP::payload]]"\n'
+        )
+        result = self._run_framework(body)
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "HLEN=4" in result.stdout, result.stdout
+        assert "HAFTER=cafebeef" in result.stdout, result.stdout
 
 
 # Bridge backend tests

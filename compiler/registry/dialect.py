@@ -24,6 +24,7 @@ class Dialect(Enum):
     TCL_8_5 = "tcl8.5"
     TCL_8_6 = "tcl8.6"
     TCL_9_0 = "tcl9.0"
+    TCL_9_1 = "tcl9.1"
     F5_IRULES = "f5-irules"
     F5_IAPPS = "f5-iapps"
     F5_BIGIP = "f5-bigip"
@@ -103,6 +104,7 @@ _TCL_VERSION_MAP: dict[str, str] = {
     "8.5": "tcl8.5",
     "8.6": "tcl8.6",
     "9.0": "tcl9.0",
+    "9.1": "tcl9.1",
 }
 
 DIALECT_DIRECTIVE_SCAN_LINES = 5

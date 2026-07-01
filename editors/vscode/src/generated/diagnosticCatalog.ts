@@ -429,6 +429,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "S110",
+    section: "shimmer",
+    description: "Byte array corrupted by a string operation before being written back as bytes.",
+    defaultEnabled: true,
+  },
+  {
     code: "T100",
     section: "taint",
     description:

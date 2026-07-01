@@ -1913,6 +1913,16 @@ class _CFGBuilder:
 
         # Each handler is reachable from body failure (modelled as a
         # non-deterministic branch from the body entry block).
+        #
+        # A ``-`` (fallthrough) handler shares the next non-``-`` handler's
+        # body.  Tcl binds the *matching* handler's variables when running
+        # that shared body in the byte-compiled form, but the *target*
+        # handler's variables in the interpreted form (the two diverge — see
+        # issue #703).  Statically we can't know which handler matched, so the
+        # shared body is analysed with the whole group's variables treated as
+        # defined: the precise over-approximation that avoids a read-before-set
+        # false positive under either binding rule.
+        pending_fallthrough_defs: list[str] = []
         for handler in stmt.handlers:
             handler_block = self._new_block("try_handler")
             # ``block_name`` already gotos ``try_body`` (single successor), so a
@@ -1961,11 +1971,20 @@ class _CFGBuilder:
                         self._exception_edges.append((body_tail, handler_block))
 
             # Emit synthetic defs for handler-bound variables.
-            var_defs: list[str] = []
+            own_defs: list[str] = []
             if handler.var_name:
-                var_defs.append(handler.var_name)
+                own_defs.append(handler.var_name)
             if handler.options_var:
-                var_defs.append(handler.options_var)
+                own_defs.append(handler.options_var)
+            if handler.fallthrough:
+                # Empty body of its own; carry its vars to the shared body.
+                pending_fallthrough_defs.extend(own_defs)
+                var_defs = own_defs
+            else:
+                # Target of any preceding ``-`` chain: its shared body may run
+                # with any group member's vars bound, so define them all here.
+                var_defs = list(dict.fromkeys(pending_fallthrough_defs + own_defs))
+                pending_fallthrough_defs = []
             if var_defs:
                 self._block(handler_block).statements.append(
                     IRCall(range=stmt.range, command="try", defs=tuple(var_defs))
