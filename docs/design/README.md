@@ -237,6 +237,10 @@ chunk-by-chunk dispatch story lives in
   stack on `main` (reuse the 83 K-line Zig runtime as-is, port only the ~20 K
   emitter against its ~100-fn ABI), staged A–F with an honest difficulty
   register (ABI drift, frame-elision soundness, refcount discipline).
+- [runtime/runtime-execution-gaps.md](runtime/runtime-execution-gaps.md) — the
+  consolidated index for the runtime & execution port scope (RT-WASM / RT-VM /
+  `runtime/rust`) and the tiered VM/runtime delivery plan; the single entry
+  point separate from the tooling/LSP/compiler/analysis gaps.
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
@@ -254,6 +258,21 @@ chunk-by-chunk dispatch story lives in
 - [rust/s110-byte-array-corruption-port.md](rust/s110-byte-array-corruption-port.md)
   — FE-TYPESHIM port spec for the S110 byte-array-corruption shimmer
   (Python #656): algorithm, Rust integration points, and verification contract.
+- [rust/python-rust-port-gaps.md](rust/python-rust-port-gaps.md) — consolidated
+  audit of every feature not yet completely ported from Python to Rust
+  (front-end / analyser / server / API / tooling scope).
+- [rust/scripts-retirement-triage.md](rust/scripts-retirement-triage.md) —
+  per-`scripts/` triage for Python retirement: retire-with-Python vs survivor
+  vs runtime-scope, and the `scripts`→`xtask` decisions.
+- [rust/fp-rust-port-plan.md](rust/fp-rust-port-plan.md) — plan for porting the
+  false-positive / ground-truth precision catalogue to Rust.
+- [rust/fp-rust-port-status.md](rust/fp-rust-port-status.md) — live worklist of
+  the remaining FP-precision Rust-vs-Python divergences.
+- [rust/analyser-verification-2026-06-30.md](rust/analyser-verification-2026-06-30.md)
+  — analyser verification snapshot (2026-06-30).
+- [rust/python-parity-scrub.md](rust/python-parity-scrub.md) — Python-parity
+  scrub pass findings.
+- [rust/cleanup-status.md](rust/cleanup-status.md) — workspace cleanup status.
 
 ## Optional WASM extensions
 

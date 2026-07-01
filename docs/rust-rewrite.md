@@ -1228,10 +1228,12 @@ final track** — every consumer above must port first.
   Python toolchain dependency). Full triage of the ~110 `scripts/` tools —
   which retire with Python vs which survive and how — is in
   [`design/rust/scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md).
-  ⚠ **Reality check: `xtask` is not wired into the Makefile or CI at all**
-  (`grep xtask Makefile .github/` is empty), so the ported verbs are dormant
-  code — "flip the invocations" means *wiring each verb into CI*, not just
-  deleting the Python. The `rust/xtask` crate + `cargo xtask` alias scaffold
+  The check verbs now have a `make xtask-check` target
+  (`cargo xtask kcs-index-links` + `refcount-contract`), verified locally; the CI
+  step that runs it in the Rust-capable `rust-tests` job (`rust-gate.yml` +
+  `ci.yml`; the Python-only `ci-fast` job has no Rust toolchain) is **prepared,
+  pending a workflow-scoped push**. Until then `kcs-index-links` stays wired as
+  the Python `lint-py` gate. The `rust/xtask` crate + `cargo xtask` alias scaffold
   **landed**, with five scripts ported and parity-checked against the Python
   originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
   and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
@@ -1251,11 +1253,12 @@ final track** — every consumer above must port first.
   ~26+ scripts are ported.** Triage decisions (per
   [`scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md)):
   the `refcount_contract` / `audit_option_dialects` / `tzdata_bundle` Python
-  originals — fully orphaned (no live Makefile/CI invocation) — were **deleted
-  2026-07-01**, leaving the xtask verbs as the successors (which still need
-  wiring into CI). `kcs_index_links.py` and `print_version.py` are **kept** —
-  both are still live (lint gate / wheel-version) and flipping them needs the
-  Rust toolchain in those CI paths. The **artifact generators** (`codegen/*`
+  originals were **deleted 2026-07-01** (fully orphaned) — `refcount-contract` is
+  now in `make xtask-check`, `audit-option-dialects` is an on-demand `make`
+  target, `tzdata_bundle` was orphaned. `kcs_index_links.py` stays wired in
+  `lint-py` until the CI workflow step lands (then flip + delete);
+  `print_version.py` is **kept** (live `:=` for the wheel filename; retires with
+  the Python packaging). The **artifact generators** (`codegen/*`
   editor catalogs/settings + `port_names`, `dev/gen_query_builtins_doc`,
   `build/kcs_db`, the `gen_f5_query_*` / `gen_bigip_model_rust` /
   `registry-audit/*` families) are **port-to-Rust** targets so the shipped

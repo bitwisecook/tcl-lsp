@@ -85,29 +85,39 @@ Rust; these scaffold Python sources):
 
 ## PORTED — the `xtask` verbs (⚠ not yet wired into CI)
 
-The `xtask` Rust port exists and was parity-checked, **but `xtask` is not invoked
-anywhere in the Makefile or CI** (`grep xtask Makefile .github/` is empty). So
-the ports are dormant code, and "flip CI" means *wiring the verb into CI*, not
-merely deleting the Python. Two states:
+The `xtask` check verbs now have **Makefile targets** (`make xtask-check` →
+`cargo xtask kcs-index-links` + `refcount-contract`; `make
+xtask-audit-option-dialects` on-demand), verified locally. The **CI step** that
+runs `make xtask-check` in the Rust-capable `rust-tests` job (`rust-gate.yml` +
+`ci.yml`) is **prepared but pending a workflow-scoped push** — the session's
+OAuth token can't modify `.github/workflows/*.yml`. Until that lands,
+`kcs-index-links` keeps running as the Python gate in `make lint-py` so the
+docs-link check never goes dark. The Python-only `ci-fast` job has no Rust
+toolchain (`.github/actions/setup-build` installs uv/Python only), which is why
+the gates must live in `rust-tests`, not `ci-fast`.
 
 **Deleted 2026-07-01 (fully orphaned — no live Makefile/CI invocation of either
 the Python or the xtask verb; nothing that runs today changed):**
 
-- `check/refcount_contract.py` → `xtask refcount-contract` *(deleted)*
-- `check/audit_option_dialects.py` → `xtask audit-option-dialects` *(deleted)*
+- `check/refcount_contract.py` → `xtask refcount-contract` (now in `make
+  xtask-check`, warning-only until every `runtime/zig` export has a row). *(deleted)*
+- `check/audit_option_dialects.py` → `xtask audit-option-dialects` — a *generator*
+  (writes `tmp/option_dialect_audit.json`, needs built `tmp/tcl*/unix` trees), not
+  a pass/fail gate, so it is a `make xtask-audit-option-dialects` on-demand target,
+  **not** in the CI aggregate. *(deleted)*
 - `build/tzdata_bundle.py` → `xtask tzdata-bundle` *(deleted; `data/tzdata.bin`
   is generated on demand, no build target invoked it)*
 
-  ⚠ Follow-up: these contract checks now run **nowhere** — wire the three xtask
-  verbs into CI so the gates are live again.
+**Kept:**
 
-**Kept — still load-bearing; flip needs CI surgery, not just deletion:**
-
-- `check/kcs_index_links.py` — live in `make lint-py`; flipping to
-  `cargo xtask kcs-index-links` needs the Rust toolchain in that lint job.
+- `check/kcs_index_links.py` → `xtask kcs-index-links` — the xtask verb is the
+  successor (hard gate: broken docs link / unindexed design doc → non-zero), but
+  the Python copy stays wired in `make lint-py` until the CI workflow step lands;
+  then flip it out and delete the Python.
 - `print_version.py` — live `:=` computing `HATCH_VCS_VERSION` / the Python
   **wheel filename** on every `make` parse; entangled with the still-live Python
-  packaging (B3). Retires with B3.
+  packaging (B3). Flipping it to `cargo xtask version` would force a cargo build
+  on every `make` parse, so it retires with B3 instead.
 
 ## Decisions (2026-07-01)
 
