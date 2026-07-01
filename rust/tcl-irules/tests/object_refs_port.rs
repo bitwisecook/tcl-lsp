@@ -9,6 +9,7 @@
 //! Rust API used:
 //!   - `tcl_irules::extract_irules_object_references(source, rule_module, registry)`
 //!   - `tcl_irules::IrulesObjectReference { command, name, kinds, .. }`
+//!
 //! These correspond to the Python `extract_irules_object_references(source)`
 //! returning objects with `.command`, `.name`, and `.kinds`.
 
