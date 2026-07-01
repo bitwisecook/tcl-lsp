@@ -4431,7 +4431,7 @@ impl LanguageServer for Backend {
         }
         let default_dialect = self.default_dialect.lock().await.clone();
         let change_version = params.text_document.version;
-        let dialect = {
+        let (dialect, language_id) = {
             let mut docs = self.documents.lock().await;
             let entry = docs
                 .entry(uri.clone())
@@ -4450,6 +4450,7 @@ impl LanguageServer for Backend {
             entry.line_index = index;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
+            let language_id = entry.language_id.clone();
             // Update the salsa `SourceFile` input + the cross-document index
             // WHILE still holding the `documents` lock (the `documents` →
             // `workspace_index` order that replaced the global gate): no
@@ -4464,9 +4465,40 @@ impl LanguageServer for Backend {
                 .await
                 .remove_document(uri.as_str());
             drop(docs);
-            dialect
+            (dialect, language_id)
         };
-        self.schedule_diagnostics(uri, dialect).await;
+        self.schedule_diagnostics(uri.clone(), dialect.clone())
+            .await;
+        // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
+        // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
+        // adding or changing one in an already-open buffer must take effect
+        // without reopening.  Only a generically-opened `tcl` buffer consults
+        // the source (an explicit versioned / non-Tcl languageId is fixed), and
+        // only the source hint is edit-sensitive, so this is the sole case that
+        // can change.  When it does, commit the new dialect and re-analyse.
+        if language_id == "tcl" {
+            let text = match self.read_document(&uri).await {
+                Some(doc) => doc.text,
+                None => return,
+            };
+            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
+            if new_dialect != dialect {
+                {
+                    let mut docs = self.documents.lock().await;
+                    let Some(entry) = docs.get_mut(&uri) else {
+                        return;
+                    };
+                    entry.dialect.clone_from(&new_dialect);
+                    let text = entry.text.clone();
+                    self.db_set_source(&uri, text, new_dialect.clone()).await;
+                    self.workspace_index
+                        .write()
+                        .await
+                        .remove_document(uri.as_str());
+                }
+                self.reschedule_diagnostics(uri, new_dialect).await;
+            }
+        }
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {

@@ -1081,6 +1081,12 @@ impl Analyser {
         // the check entirely (matching the Python analyser, which runs the
         // brace-then-paren emitter on substitution commands).
         self.emit_w216_brace_then_paren(seg);
+        // `lassign`/`scan`/`regexp`/`regsub` nested in a `[…]` substitution still
+        // write their trailing variables into the enclosing scope — the
+        // idiomatic `if {[regexp {…} $s m]} {…}` / `set n [scan $s "%d" x]` —
+        // so bind them for completion/hover/definition and read-before-set,
+        // just as the top-level `process_command` path does.
+        self.handle_var_binding_command(&cmd_name, args, arg_tokens, scope_path);
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch
