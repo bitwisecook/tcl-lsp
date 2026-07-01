@@ -18,7 +18,11 @@ fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     const BODY_OPTIONS: [&str; 3] = ["-setup", "-body", "-cleanup"];
     let mut roles: Vec<(u8, ArgRole)> = Vec::new();
     let n = args.len();
-    // Skip name (0) and description (1); scan option-value pairs.
+    // Skip name (0) and description (1); scan option/value *pairs*, examining
+    // only the option positions (step by 2). Advancing by 1 would let an option
+    // whose value is literally `-body`/`-setup`/`-cleanup` (e.g. `-result -body`)
+    // be misread as an option and mark the following word as a body. Mirrors the
+    // Python `_test_arg_roles` (`i += 2`).
     let mut has_body_option = false;
     let mut i = 2usize;
     while i + 1 < n {
@@ -28,7 +32,7 @@ fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             }
             has_body_option = true;
         }
-        i += 1;
+        i += 2;
     }
     // Legacy positional form: the body is the penultimate argument. Only
     // applies when no body-related options were used.

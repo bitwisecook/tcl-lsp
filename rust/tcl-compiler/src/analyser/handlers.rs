@@ -783,8 +783,16 @@ impl Analyser {
         // syntactic checks (W100 unbraced `expr`, W104, W304, …) never reach
         // inside a `catch { … }`, under-reporting relative to the Python
         // analyser. `analyse_body` no-ops on a dynamic body (`catch $cmd`).
+        //
+        // The body is a *guarded probe*: `catch { package require Foo }` is the
+        // idiomatic optional-dependency check, so facts recorded inside it
+        // (package requirements, …) must be marked conditional. Bump
+        // `conditional_depth` for the walk, matching `if`/`try` bodies (and this
+        // handler's own contract — see the doc comment above).
         if let Some(body_tok) = arg_tokens.first().copied() {
+            self.conditional_depth += 1;
             self.analyse_body(&args[0], body_tok, scope_path);
+            self.conditional_depth -= 1;
         }
         // Result var (args[1]) and options var (args[2]).
         for (i, name) in args.iter().enumerate().take(3).skip(1) {
