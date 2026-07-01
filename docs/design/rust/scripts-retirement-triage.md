@@ -86,7 +86,7 @@ Rust; these scaffold Python sources):
 ## PORTED — the `xtask` verbs (⚠ not yet wired into CI)
 
 The `xtask` check verbs now have **Makefile targets** (`make xtask-check` →
-`cargo xtask kcs-index-links` + `refcount-contract`; `make
+`cargo xtask kcs-index-links` + `refcount-contract` + `diag-tables --check`; `make
 xtask-audit-option-dialects` on-demand), verified locally. The **CI step** that
 runs `make xtask-check` in the Rust-capable `rust-tests` job (`rust-gate.yml` +
 `ci.yml`) is **prepared but pending a workflow-scoped push** — the session's
@@ -121,14 +121,54 @@ the Python or the xtask verb; nothing that runs today changed):**
 
 ## Decisions (2026-07-01)
 
-- **B1 + B2 artifact generators → port to Rust** (`xtask` / `build.rs`, reading
-  the Rust registry) so the shipped artifacts keep regenerating post-Python.
-  Recorded as API-PYO3 (`scripts`→`xtask`) targets; not deleted.
+- **B1 shipped-artifact generators → port to Rust** (3 xtask verbs above), each
+  self-gated by `make check-generated` during the transition. `port_names.py`
+  and the Rust-model/data generators are **not** ports (B1a → Bucket A).
+- **B2 KCS DB builder → port to Rust** (`xtask gen-kcs-db`).
 - **B3 Python zipapp distribution → retire with Python** (native-binary
-  distribution takes over). Kept until that lands, then deleted with the engine —
-  moved into Bucket A intent, not deleted now (it is the live shipping path).
-- **PORTED → flip CI & delete**: applied to the 3 orphans above; the 2 live ones
-  are blocked on wiring `xtask` into CI.
+  distribution takes over). Kept until that lands; not deleted now (it is the
+  live shipping path).
+- **PORTED → flip CI & delete**: 3 orphans deleted; `kcs-index-links` flips once
+  the CI workflow step lands; `print_version.py` retires with B3.
+
+## Prep status — is this "finished"?
+
+The **prep** (triage + safe mechanical actions + turnkey specs) is complete:
+
+- ✅ **100% triaged** — every `scripts/` tool has a bucket + successor + retirement
+  trigger (families cover the globbed sets: `gen_f5_query_*`, `capture/*.sh`,
+  `release/*.sh`, `zipapp-main/*`, `tcltest_sweep/*`, `explain_flow_test_harness/*`,
+  `install/*`).
+- ✅ **Safe deletions done** — 4 orphaned/ported Python dupes removed
+  (`refcount_contract`, `audit_option_dialects`, `tzdata_bundle`; + earlier).
+- ✅ **Check gates** — `make xtask-check` targets added + verified; CI step
+  prepared (pending a workflow-scoped push).
+- ✅ **Port targets specified turnkey** — B1 (×3) + B2 have input/output/Rust-source/
+  verb/acceptance rows above; each self-gates via `check-generated`.
+
+What remains is **execution, not prep**: implementing the 4 xtask generator verbs
+and, at PYTHON-RETIRE, deleting Bucket A + B3. The order:
+
+## Retirement sequence (PYTHON-RETIRE order of operations)
+
+1. **Land the CI workflow step** (`make xtask-check` in `rust-tests`), then flip
+   `kcs-index-links` out of `lint-py` and `git rm scripts/check/kcs_index_links.py`.
+2. **Implement the 4 generator xtask verbs** (B1 ×3 + B2); repoint `make generate`
+   / `check-generated` / `kcs-db` at them; delete the Python generators once
+   `check-generated` is green off the Rust path. Freeze the B1a Rust-model output.
+3. **Native distribution parity** (B3): replace `build/zipapps.py` + `zipapp-main/*`
+   with native-binary packaging; retire `print_version.py` (wheel version).
+4. **Delete Bucket A** — the measurement / Python↔Rust-differential / Python-era
+   sweep scripts — in the terminal PYTHON-RETIRE sweep, alongside
+   `compiler/` / `analyser/` / `server/` / ported `tooling/`.
+5. **Runtime-scope (RT) scripts** are handled by the runtime scope
+   ([`../runtime/runtime-execution-gaps.md`]) — reimplement the live tracker
+   generators (`rust_vm_tier_gap` etc.) Rust-side if their scoreboards outlive
+   Python; otherwise they retire in step 4.
+
+Keep (never retire): `capture/*.sh` (reference capture from tclsh), the
+`dev/*.sh` env helpers, `release/*.sh`, `install/*.sh`, and the integration-test
+harnesses (B4–B7) — all backend-agnostic.
 
 ---
 
@@ -153,25 +193,57 @@ if reimplemented Rust-side:
 
 Grouped by identical fate. One decision per family.
 
-### B1 — Editor/registry/doc artifact generators (Python-registry-tied)
+### B1 — Shipped-artifact generators → **port to Rust** (turnkey specs)
 
-Produce **checked-in shipped artifacts** from the Python registry. Post-retirement
-the artifact must be regenerated from the Rust registry, so each is
-port-to-Rust *or* freeze-artifact-and-drop.
+Each produces a **checked-in shipped artifact** from the Python registry and is
+verified by `make check-generated`. Post-retirement the artifact must regenerate
+from the **Rust** registry (`tcl-registry` / `tcl-bigip-query`). Port each to a
+`cargo xtask <verb>`; the **transition is self-gating** — while both exist,
+`make check-generated` diffs the Python output against the checked-in artifact,
+so wire the xtask to write the same artifact and confirm `check-generated` stays
+green, then delete the Python.
 
-- `codegen/catalogs.py` — editor command catalogs from the registry.
-- `codegen/editor_settings.py` — editor settings (imports `server._codes_init`,
-  `shared.codes`, `tooling.formatter.config`; also shells `cargo`).
-- `codegen/port_names.py` — generates `dialects/f5/bigip/_port_names_table.py`
-  from the SCF port-name CSV.
-- `dev/gen_query_builtins_doc.py` — `docs/references/f5_query/builtins.md` from
-  `dialects.f5.query.builtins`.
+| Target (Python) | Artifact(s) | Rust source | xtask verb | Acceptance |
+|---|---|---|---|---|
+| `codegen/catalogs.py` | `editors/zed/src/generated/{tcl_commands,irule_events}.json`, `editors/vscode/src/generated/iruleEvents.json` | `tcl-registry` command/event tables | `xtask gen-editor-catalogs` | byte-diff vs committed JSON (`check-generated`) |
+| `codegen/editor_settings.py` | `editors/vscode/src/generated/diagnosticCatalog.ts` (+ the `*.j2`-rendered settings) | `tcl-registry` `DiagCode` catalogue + `formatting::config` | `xtask gen-editor-settings` | byte-diff vs committed `.ts` |
+| `dev/gen_query_builtins_doc.py` | `docs/references/f5_query/builtins.md` | `tcl-bigip-query` builtin registry | `xtask gen-query-builtins-doc` | byte-diff vs committed `.md` |
 
-### B2 — KCS help database builder
+Ordering: `gen-editor-catalogs` first (pure registry read, JSON out — simplest),
+then `gen-editor-settings` (needs the `.j2` template step reproduced or the
+Tera/askama equivalent), then the doc. The existing `xtask diag-tables` is the
+model — it already reads the `DiagCode` catalogue and writes `docs/generated/`
+with a `--check` mode.
+
+### B2 — KCS help database builder → **port to Rust**
 
 - `build/kcs_db.py` — builds the KCS SQLite help index from `docs/kcs/**`
-  markdown (imports `shared.help.kcs_db`). Consumed at runtime for hover/help.
-  Port the builder to Rust, keep as a Python build-dep, or freeze the `.db`.
+  markdown (imports `shared.help.kcs_db`), consumed at runtime for hover/help.
+  Port to `xtask gen-kcs-db` (needs a Rust SQLite dep, e.g. `rusqlite`; the
+  parse rules — `applies_to` / category — live in `shared.help.kcs_db` and are
+  small). Acceptance: the emitted `.db` answers the same hover/help queries;
+  a schema+row differential against the Python `.db` during transition.
+
+### B1a — Python-only artifacts → **Bucket A** (retire with Python; no port)
+
+Reclassified after checking the Rust side — these do **not** feed a Rust
+artifact, so there is nothing to port; they die with Python:
+
+- `codegen/port_names.py` — generates the **Python** `dialects/f5/bigip/_port_names_table.py`
+  from `data/scf_port_names.csv`. The **Rust** table
+  (`rust/tcl-bigip/src/model/port_names.rs`) already exists **independently** —
+  no script generates it (hand-maintained/frozen), so the Python generator + its
+  Python table just retire. *(If a Rust CSV→`port_names.rs` regenerator is ever
+  wanted it is a fresh xtask, not a port of this script.)*
+- `codegen/gen_bigip_model_rust.py`, `registry-audit/gen_bigip_rust.py`,
+  `registry-audit/gen_event_descriptions.py`,
+  `registry-audit/reconcile_irules_dialects.py` — Python-oracle→Rust generators.
+  Their output (`rust/tcl-bigip/src/model/gen/*.rs`, registry data) is checked
+  in; at retirement **freeze the generated Rust** (it becomes the source of
+  truth) or move the `OBJECT_SPECS` definition into Rust. Either way the Python
+  generator retires; no Rust-side regenerator is required for retirement.
+- `codegen/registry_baselines.py` — regenerates the `tests/baselines/registry/`
+  fixtures from the registries; a test oracle, frozen at retirement.
 
 ### B3 — Python distribution packaging
 

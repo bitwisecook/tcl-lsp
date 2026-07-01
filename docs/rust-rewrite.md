@@ -1229,7 +1229,8 @@ final track** — every consumer above must port first.
   which retire with Python vs which survive and how — is in
   [`design/rust/scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md).
   The check verbs now have a `make xtask-check` target
-  (`cargo xtask kcs-index-links` + `refcount-contract`), verified locally; the CI
+  (`cargo xtask kcs-index-links` + `refcount-contract` + `diag-tables --check`),
+  verified locally; the CI
   step that runs it in the Rust-capable `rust-tests` job (`rust-gate.yml` +
   `ci.yml`; the Python-only `ci-fast` job has no Rust toolchain) is **prepared,
   pending a workflow-scoped push**. Until then `kcs-index-links` stays wired as

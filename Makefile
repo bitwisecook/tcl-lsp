@@ -211,7 +211,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
 .PHONY: check-wasm-parity snapshot-wasm-parity capture-bytecode-refs
-.PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust rust-deny
 # Coverage
@@ -599,7 +599,7 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-refcount-contract ## Rust-side check gates (docs index coverage + refcount rows)
+xtask-check: xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables ## Rust-side check gates (docs index coverage + refcount rows + generated-table drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -608,6 +608,10 @@ xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ s
 xtask-refcount-contract: ## Lint runtime/zig refcount-contract rows (warning-only; --strict once complete)
 	@echo "==> Checking refcount-contract rows (cargo xtask)"
 	cd $(ROOT) && cargo xtask refcount-contract
+
+xtask-diag-tables: ## Verify docs/generated/ code tables are in sync with the DiagCode catalogue (drift gate)
+	@echo "==> Checking generated DiagCode tables are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask diag-tables --check
 
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
