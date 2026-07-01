@@ -16,7 +16,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::new(3, 3),
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         return_type: Some(TclType::String),

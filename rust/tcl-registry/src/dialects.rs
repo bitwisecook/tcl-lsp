@@ -37,16 +37,24 @@ bitflags! {
         const MENTOR    = 1 << 12;
         /// BPF-Tcl (the eBPF framework dialect)
         const BPF       = 1 << 13;
+        /// Tcl 9.1
+        const TCL91     = 1 << 14;
 
         /// All standard Tcl versions.
         const ALL_TCL = Self::TCL84.bits() | Self::TCL85.bits()
-                      | Self::TCL86.bits() | Self::TCL90.bits();
+                      | Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Tcl 8.5 and later.
-        const TCL85_PLUS = Self::TCL85.bits() | Self::TCL86.bits() | Self::TCL90.bits();
+        const TCL85_PLUS = Self::TCL85.bits() | Self::TCL86.bits()
+                         | Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Tcl 8.6 and later.
-        const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits();
+        const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
+
+        /// Tcl 9.0 and later.  A command/option gated to "9.0" persists in
+        /// 9.1 (a `.1` release is additive), matching the Python oracle's
+        /// membership inheritance (`{tcl9.0}` is available under `tcl9.1`).
+        const TCL90_PLUS = Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Every modelled dialect *except* F5 iRules and Tk.
         ///
@@ -88,6 +96,7 @@ pub const KNOWN_DIALECTS: &[&str] = &[
     "tcl8.5",
     "tcl8.6",
     "tcl9.0",
+    "tcl9.1",
     "xilinx-eda-tcl",
 ];
 
@@ -109,6 +118,7 @@ fn tcl_version_dialect(ver: &str) -> Option<&'static str> {
         "8.5" => "tcl8.5",
         "8.6" => "tcl8.6",
         "9.0" => "tcl9.0",
+        "9.1" => "tcl9.1",
         _ => return None,
     })
 }
@@ -294,6 +304,7 @@ impl DialectSet {
             "tcl8.5" => Self::TCL85,
             "tcl8.6" => Self::TCL86,
             "tcl9.0" => Self::TCL90,
+            "tcl9.1" => Self::TCL91,
             "f5-irules" => Self::IRULES,
             "f5-iapps" => Self::IAPPS,
             "tk" => Self::TK,
@@ -315,7 +326,7 @@ mod tests {
     #[test]
     fn available_dialects_is_sorted_and_complete() {
         let d = available_dialects();
-        assert_eq!(d.len(), 15);
+        assert_eq!(d.len(), 16);
         let mut sorted = d.to_vec();
         sorted.sort_unstable();
         assert_eq!(d, sorted.as_slice(), "must be pre-sorted");
@@ -323,6 +334,7 @@ mod tests {
         assert!(d.contains(&"bpf"));
         assert!(d.contains(&"f5-bigip"));
         assert!(d.contains(&"f5-tmsh"));
+        assert!(d.contains(&"tcl9.1"));
         assert!(!d.contains(&"tk"));
     }
 

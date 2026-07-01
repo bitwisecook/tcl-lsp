@@ -1142,11 +1142,17 @@ mod tests {
         let reg = CommandRegistry::build_default();
         for name in ["foreachLine", "readFile", "writeFile", "lpop"] {
             let spec = reg.get(name).expect("registered");
+            // A 9.0 addition is available in 9.0 *and* 9.1 (a `.1` release is
+            // additive — verified against C Tcl 9.1b0 doc/*.n), so it is gated
+            // `TCL90_PLUS`, not `TCL90`-only.
             assert_eq!(
                 spec.dialects,
-                Some(DialectSet::TCL90),
-                "{name} should be Tcl 9.0-only",
+                Some(DialectSet::TCL90_PLUS),
+                "{name} should be Tcl 9.0+",
             );
+            assert!(spec.supports_dialect(DialectSet::TCL90));
+            assert!(spec.supports_dialect(DialectSet::TCL91));
+            assert!(!spec.supports_dialect(DialectSet::TCL86));
         }
         // Unlike the four above, `const` is `dialects = None`
         // (universal) rather than Tcl-9.0-gated, so it is valid inside

@@ -137,7 +137,7 @@ static OPTIONS: &[OptionSpec] = &[
         takes_value: true,
         value_hint: "strideLength",
         detail: "Treat the list as a sequence of fixed-size records.",
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
     OptionSpec {
         name: "-subindices",

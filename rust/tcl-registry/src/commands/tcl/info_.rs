@@ -52,7 +52,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info cmdtype commandName",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -80,7 +80,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info constant varName",
         pure: true,
         return_type: Some(TclType::Boolean),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -90,7 +90,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info consts ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
