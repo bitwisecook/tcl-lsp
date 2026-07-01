@@ -1170,7 +1170,7 @@ fn control_runtime_condition_parse_error() {
 // and passes, guarding the fix against regression.
 // ===========================================================================
 
-/// BUG (Vm::set_var, surfaced via cmd_try's `bind_handler_vars`): binding a
+/// BUG (`Vm::set_var`, surfaced via `cmd_try`'s `bind_handler_vars`): binding a
 /// `try` handler's result/options variable into an *array element whose base is
 /// a scalar* (`x(y)` while `x` is a scalar) should fail with
 /// `can't set "x(y)": variable isn't array` (C's `handlerFailed` → the bind
