@@ -4,9 +4,14 @@
 //! `differential_incremental`.
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use tcl_compiler::analyser::Analyser;
+
+mod common;
+use common::{Progress, describe_analysis_divergence};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -46,6 +51,15 @@ fn per_item_matches_analyse_over_corpus() {
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
+    // Chunk support: process files[skip .. skip+limit] (env `TCL_FUZZ_SKIP` /
+    // `TCL_FUZZ_LIMIT`), so a killed sweep resumes and a batch can be bounded.
+    let (files, start0, total) = Progress::slice(&files);
+
+    // Durable, flushed progress + findings: each divergence is described in full
+    // and written to `target/fuzz-progress/per_item_gate.log` the instant it is
+    // found, so a `SIGKILL` mid-sweep still leaves every finding on disk.
+    let prog = Mutex::new(Progress::new("per_item_gate"));
+    let done = AtomicUsize::new(start0);
 
     // Each file is analysed by independent `Analyser::new()` instances, so the
     // sweep parallelises cleanly across files (the bottleneck is the ~2 deep
@@ -53,34 +67,29 @@ fn per_item_matches_analyse_over_corpus() {
     // aggregate afterwards so the gate is order-independent.
     let outcomes: Vec<(bool, Option<String>)> = files
         .par_iter()
-        .filter_map(|path| {
-            let src = std::fs::read_to_string(path).ok()?;
+        .map(|path| {
+            let Ok(src) = std::fs::read_to_string(path) else {
+                return (false, None);
+            };
             if src.len() > 400_000 {
-                return None;
+                return (false, None);
             }
             let want = Analyser::new().analyse(&src, dialect);
             let got = Analyser::new().analyse_per_item(&src, dialect);
             let fellback = !tcl_lexer::script_is_complete(&src) || src.contains("tcl-lsp: stub");
-            let mismatch = (got != want).then(|| {
-                let name = path.file_name().unwrap().to_string_lossy();
-                let field = if got.all_procs != want.all_procs {
-                    "all_procs"
-                } else if got.all_classes != want.all_classes {
-                    "all_classes"
-                } else if got.global_scope != want.global_scope {
-                    "global_scope"
-                } else if got.diagnostics != want.diagnostics {
-                    "diagnostics"
-                } else if got.command_invocations != want.command_invocations {
-                    "command_invocations"
-                } else if got.all_variables != want.all_variables {
-                    "all_variables"
-                } else {
-                    "other"
-                };
-                format!("{name}: field={field}")
-            });
-            Some((fellback, mismatch))
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let mismatch = (got != want).then(|| describe_analysis_divergence(&name, &got, &want));
+            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+            {
+                let mut p = prog.lock().unwrap();
+                if let Some(m) = &mismatch {
+                    p.finding(m);
+                }
+                if n % 25 == 0 || n == total {
+                    p.tick(n, total, &format!("last={name}"));
+                }
+            }
+            (fellback, mismatch)
         })
         .collect();
 
@@ -91,6 +100,10 @@ fn per_item_matches_analyse_over_corpus() {
         .filter_map(|(_, m)| m)
         .take(25)
         .collect();
+    prog.into_inner().unwrap().finish(&format!(
+        "{checked} files, {} mismatches, {fellback} trivially-fellback",
+        mismatches.len()
+    ));
 
     assert!(
         mismatches.is_empty(),
@@ -197,6 +210,9 @@ fn per_item_matches_analyse_under_edits() {
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
+    // Chunk / resume (env `TCL_FUZZ_SKIP` / `TCL_FUZZ_LIMIT`).
+    let (files, start0, total) = Progress::slice(&files);
+    let mut prog = Progress::new("per_item_edit_fuzz");
 
     // Random edits can produce malformed transient inputs that make the
     // *reference* `analyse` itself panic (e.g. a non-char-boundary slice deep in
@@ -220,11 +236,14 @@ fn per_item_matches_analyse_under_edits() {
     let mut checked = 0usize;
     let mut steps = 0usize;
     let mut mismatches: Vec<String> = Vec::new();
-    'files: for path in &files {
+    'files: for (idx, path) in files.iter().enumerate() {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
         let Ok(orig) = std::fs::read_to_string(path) else {
+            prog.tick(start0 + idx + 1, total, &format!("skip(unreadable) {name}"));
             continue;
         };
         if orig.is_empty() || orig.len() > 200_000 {
+            prog.tick(start0 + idx + 1, total, &format!("skip(size) {name}"));
             continue;
         }
         checked += 1;
@@ -250,13 +269,17 @@ fn per_item_matches_analyse_under_edits() {
                     _ => true,
                 };
                 if bad {
-                    let name = path.file_name().unwrap().to_string_lossy();
-                    let kind = match (&want, &got) {
-                        (Some(_), None) => "per_item panicked, analyse ok",
-                        (None, Some(_)) => "analyse panicked, per_item ok",
-                        _ => "result mismatch",
+                    // Full detail, flushed the instant it is found (survives a kill).
+                    let detail = match (&want, &got) {
+                        (Some(w), Some(g)) => {
+                            describe_analysis_divergence(&format!("{name} (seed {seed:#x})"), g, w)
+                        }
+                        (Some(_), None) => format!("{name} (seed {seed:#x}): per_item panicked, analyse ok"),
+                        (None, Some(_)) => format!("{name} (seed {seed:#x}): analyse panicked, per_item ok"),
+                        (None, None) => unreachable!(),
                     };
-                    mismatches.push(format!("{name} (seed {seed:#x}): {kind}"));
+                    prog.finding(&detail);
+                    mismatches.push(detail);
                     if mismatches.len() >= 25 {
                         break 'files;
                     }
@@ -264,8 +287,10 @@ fn per_item_matches_analyse_under_edits() {
                 }
             }
         }
+        prog.tick(start0 + idx + 1, total, &format!("{name} steps={steps}"));
     }
     let _ = std::panic::take_hook();
+    prog.finish(&format!("{checked} files, {steps} steps, {} findings", mismatches.len()));
 
     assert!(
         mismatches.is_empty(),

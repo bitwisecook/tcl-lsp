@@ -14,6 +14,9 @@ use std::path::{Path, PathBuf};
 
 use tcl_compiler::analyser::{Analyser, ItemTree};
 
+mod common;
+use common::Progress;
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -53,9 +56,15 @@ fn file_decls_match_analyse_over_corpus() {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
 
+    let (files, start0, total) = Progress::slice(&files);
+    let mut prog = Progress::new("file_decls_gate");
     let mut checked = 0usize;
     let mut mismatches: Vec<String> = Vec::new();
-    for path in &files {
+    for (idx, path) in files.iter().enumerate() {
+        let file_label = path.file_name().unwrap().to_string_lossy().into_owned();
+        if (idx + 1) % 50 == 0 || idx + 1 == files.len() {
+            prog.tick(start0 + idx + 1, total, &format!("last={file_label}"));
+        }
         let Ok(src) = std::fs::read_to_string(path) else {
             continue;
         };
@@ -78,12 +87,16 @@ fn file_decls_match_analyse_over_corpus() {
 
         let name = path.file_name().unwrap().to_string_lossy();
         let mut report = |field: &str, got: &BTreeSet<String>, want: &BTreeSet<String>| {
-            if got != want && mismatches.len() < 20 {
+            if got != want {
                 let only_got: Vec<_> = got.difference(want).take(4).cloned().collect();
                 let only_want: Vec<_> = want.difference(got).take(4).cloned().collect();
-                mismatches.push(format!(
+                let m = format!(
                     "{name} {field}: only_decls={only_got:?} only_analyse={only_want:?}"
-                ));
+                );
+                prog.finding(&m);
+                if mismatches.len() < 20 {
+                    mismatches.push(m);
+                }
             }
         };
         report("procs", &decls.procs, &want_procs);
@@ -91,6 +104,7 @@ fn file_decls_match_analyse_over_corpus() {
         report("aliases", &decls.aliases, &want_aliases);
         report("ensembles", &decls.ensembles, &want_ensembles);
     }
+    prog.finish(&format!("{checked} files, {} mismatches", mismatches.len()));
 
     assert!(
         mismatches.is_empty(),
