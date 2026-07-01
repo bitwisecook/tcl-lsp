@@ -36,6 +36,15 @@ class TestTcl91Completion:
         assert "unicode" not in _complete_cmd(lsp_server, uri_factory, "tcl9.0", "unic")
         assert "timer" not in _complete_cmd(lsp_server, uri_factory, "tcl9.0", "time")
 
+    def test_math_and_lfilter_offered_in_91(self, lsp_server, uri_factory):
+        # doc/divmod.n, doc/lfilter.n — new commands in 9.1 (C tclBasic.c).
+        assert "divmod" in _complete_cmd(lsp_server, uri_factory, "tcl9.1", "divm")
+        assert "lfilter" in _complete_cmd(lsp_server, uri_factory, "tcl9.1", "lfil")
+
+    def test_math_absent_in_90(self, lsp_server, uri_factory):
+        assert "divmod" not in _complete_cmd(lsp_server, uri_factory, "tcl9.0", "divm")
+        assert "lfilter" not in _complete_cmd(lsp_server, uri_factory, "tcl9.0", "lfil")
+
     def test_90_commands_still_offered_in_91(self, lsp_server, uri_factory):
         # A `.1` release is additive: `lseq` (9.0) persists in 9.1.
         assert "lseq" in _complete_cmd(lsp_server, uri_factory, "tcl9.1", "lseq")
