@@ -3099,12 +3099,14 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-compiler",
+ "tcl-explorer",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-lsp-db",
  "tcl-registry",
  "temp-env",
  "tokio",
+ "tower",
  "tower-lsp-server",
 ]
 

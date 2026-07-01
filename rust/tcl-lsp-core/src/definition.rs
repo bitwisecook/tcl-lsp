@@ -407,6 +407,35 @@ pub(crate) fn visible_variable_names(
     names
 }
 
+/// For completion: the set of variable names defined in the *global/root*
+/// scope, returned only when the cursor sits where an unqualified reference
+/// does NOT resolve to the global — inside a proc (unqualified names are the
+/// proc's locals) or inside a nested `namespace eval` (they resolve within
+/// that namespace).  Such a global must be offered `::`-qualified (`$::foo`)
+/// so the inserted reference actually reaches it, matching Tcl's name
+/// resolution.  Returns `None` at global scope, where bare names are correct.
+pub(crate) fn global_vars_needing_qualification(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Option<FxHashSet<String>> {
+    use tcl_compiler::analyser::ScopeKind;
+    let chain = scope_chain_at(scope, byte_offset);
+    let in_local_context = chain.iter().any(|sc| {
+        matches!(sc.kind, ScopeKind::Proc)
+            || (matches!(sc.kind, ScopeKind::Namespace) && !sc.name.is_empty() && sc.name != "::")
+    });
+    if !in_local_context {
+        return None;
+    }
+    let mut globals = FxHashSet::default();
+    for sc in &chain {
+        if matches!(sc.kind, ScopeKind::Global) {
+            globals.extend(sc.variables.keys().cloned());
+        }
+    }
+    Some(globals)
+}
+
 /// Names of every namespace / global scope in the cursor's lexical chain.
 /// Used by completion to skip cross-namespace candidates already offered as
 /// bare names.

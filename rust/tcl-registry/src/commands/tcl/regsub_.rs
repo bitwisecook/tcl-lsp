@@ -7,6 +7,39 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regsub ?switches? exp string subSpec ?varName?",
 }];
 
+/// `regsub ?switches? exp string subSpec ?varName?` — after skipping leading
+/// options (`-start` consumes a value; `--` terminates), the positional args
+/// are `exp` (0), `string` (1), `subSpec` (2), and the optional `varName` (3).
+/// When `varName` is present it names the variable the result is written to;
+/// resolve it as `VarWrite` dynamically (the leading-option shift means a
+/// static slot cannot place it).  Omitting `varName` (Tcl 8.7+/9 returns the
+/// substituted string instead) simply yields no `VarWrite` index.
+fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    // exp (i), string (i+1), subSpec (i+2), varName (i+3).
+    let var_idx = i + 3;
+    (var_idx < args.len())
+        .then(|| u8::try_from(var_idx).ok().map(|v| (v, ArgRole::VarWrite)))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
 /// Command spec for `regsub`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -97,6 +130,7 @@ pub fn spec() -> CommandSpec {
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
+        arg_role_resolver: Some(regsub_arg_roles),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

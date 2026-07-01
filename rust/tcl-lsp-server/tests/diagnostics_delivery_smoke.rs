@@ -1,12 +1,12 @@
 //! End-to-end LSP smoke tests for diagnostic *delivery* and the
 //! reference-count code lens — the two preview regressions #721 and #724.
 //!
-//! * #721 — a pull-capable client (one advertising `textDocument/diagnostic`)
-//!   must receive diagnostics over the pull channel only.  When the server
-//!   *also* pushes `textDocument/publishDiagnostics`, clients such as
-//!   `vscode-languageclient` route push and pull into two collections and
-//!   render every diagnostic twice.  So: no content-bearing push to a
-//!   pull-capable client, and the pull report carries exactly one `E003`.
+//! * #721 — pull diagnostics are opt-in.  When a server advertises
+//!   `diagnosticProvider`, clients such as `vscode-languageclient` switch to
+//!   pull mode and stop honouring push (or, if they route both, render every
+//!   diagnostic twice).  So by default the server does NOT advertise
+//!   `diagnosticProvider`, and push is the sole channel — a pull-capable
+//!   client still receives exactly one content-bearing `publishDiagnostics`.
 //!
 //! * #724 — `codeLens/resolve` must return a clickable
 //!   `tcl-lsp.showReferences` command, not an inert title.
@@ -92,7 +92,7 @@ where
 }
 
 #[tokio::test]
-async fn pull_capable_client_is_not_also_pushed() {
+async fn pull_capable_client_still_gets_push_by_default() {
     let (client_side, server_side) = tokio::io::duplex(16384);
     let (server_read, server_write) = tokio::io::split(server_side);
     let (client_read, mut client_write) = tokio::io::split(client_side);
@@ -105,7 +105,12 @@ async fn pull_capable_client_is_not_also_pushed() {
     });
     let mut reader = BufReader::new(client_read);
 
-    // Advertise pull-diagnostic support (`textDocument.diagnostic`).
+    // Advertise pull-diagnostic support (`textDocument.diagnostic`).  Pull
+    // diagnostics are nonetheless opt-in: the server must NOT advertise
+    // `diagnosticProvider`, so a pull-capable client that isn't told to pull
+    // keeps receiving push.  (Advertising it would flip most clients to
+    // pull-only and silently disable the richer push pipeline — the inverse of
+    // the #721 double-render hazard.)
     let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"textDocument":{"diagnostic":{"dynamicRegistration":false}}}}}"#;
     client_write
         .write_all(frame(init).as_bytes())
@@ -115,8 +120,8 @@ async fn pull_capable_client_is_not_also_pushed() {
         .await
         .expect("initialize response");
     assert!(
-        resp.contains("\"diagnosticProvider\""),
-        "server should advertise pull diagnostics: {resp}",
+        !resp.contains("\"diagnosticProvider\""),
+        "pull diagnostics are opt-in and must not be advertised by default: {resp}",
     );
 
     let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
@@ -125,8 +130,7 @@ async fn pull_capable_client_is_not_also_pushed() {
         .await
         .unwrap();
 
-    // `set var 10 10` → one E003 (too many args).  Historically this rendered
-    // twice (#721) when push and pull both delivered it.
+    // `set var 10 10` → one E003 (too many args).
     let did_open = concat!(
         r#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"#,
         r#""uri":"file:///dup.tcl","languageId":"tcl","version":1,"#,
@@ -137,31 +141,17 @@ async fn pull_capable_client_is_not_also_pushed() {
         .await
         .unwrap();
 
-    // Within a generous window, the server must not push a *content-bearing*
-    // `publishDiagnostics` to this pull-capable client.
-    let frames = collect_frames(&mut reader, Duration::from_millis(900)).await;
-    for f in &frames {
-        if f.contains("textDocument/publishDiagnostics") {
-            assert!(
-                !f.contains("E003"),
-                "pull-capable client must not be pushed diagnostics too (#721): {f}",
-            );
-        }
-    }
-
-    // The pull channel returns exactly one E003.
-    let pull = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/diagnostic","params":{"textDocument":{"uri":"file:///dup.tcl"}}}"#;
-    client_write
-        .write_all(frame(pull).as_bytes())
-        .await
-        .unwrap();
-    let report = read_until_id(&mut reader, "\"id\":2", 8)
-        .await
-        .expect("diagnostic pull response");
-    let e003_count = report.matches("E003").count();
+    // Push is the sole channel: the server must deliver exactly one
+    // content-bearing `publishDiagnostics` carrying the E003, even to this
+    // pull-capable client (which, absent a `diagnosticProvider`, never pulls).
+    let frames = collect_frames(&mut reader, Duration::from_millis(1500)).await;
+    let e003_pushes = frames
+        .iter()
+        .filter(|f| f.contains("textDocument/publishDiagnostics") && f.contains("E003"))
+        .count();
     assert_eq!(
-        e003_count, 1,
-        "exactly one E003 in the pull report, got {e003_count}: {report}",
+        e003_pushes, 1,
+        "expected exactly one pushed E003 publish, got {e003_pushes}: {frames:?}",
     );
 
     let shutdown = r#"{"jsonrpc":"2.0","id":9,"method":"shutdown","params":null}"#;
