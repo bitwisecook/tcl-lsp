@@ -83,28 +83,18 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"delete" => interp_delete(interp, argv),
         b"exists" => {
             // `interp exists ?path?`: the current interp ("") always exists; a
-            // named one exists iff it's a child.
-            let exists = match argv.get(2) {
-                None => true,
-                Some(&a) => {
-                    let p = obj_bytes(a);
-                    p.is_empty() || interp.child_exists(&p)
-                }
-            };
+            // named one exists iff the whole path resolves.
+            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
+            let exists = interp.with_child_path(&path, |_| ()).is_some();
             interp.set_result_bytes(if exists { b"1" } else { b"0" });
             Code::Ok
         }
         b"children" | b"slaves" => {
-            // Children of the current interp (a named sub-path is single-level).
-            let names = if argv
-                .get(2)
-                .map(|&a| obj_bytes(a))
-                .is_some_and(|p| !p.is_empty())
-            {
-                Vec::new()
-            } else {
-                interp.child_names()
-            };
+            // Children of the interp addressed by the (possibly nested) path.
+            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
+            let names = interp
+                .with_child_path(&path, |c| c.child_names())
+                .unwrap_or_default();
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
             interp.set_result(list::new_list_obj(&elems));
             for e in elems {
@@ -113,37 +103,35 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"bgerror" => {
-            // `interp bgerror path ?cmdPrefix?` — get/set the current interp's
-            // background-error handler. Only the current interp ("") is modelled.
+            // `interp bgerror path ?cmdPrefix?` — get/set the (possibly nested)
+            // interp's background-error handler.
             if argv.len() < 3 || argv.len() > 4 {
                 return wrong_args(interp, b"interp bgerror path ?cmdPrefix?");
             }
-            match argv.get(3) {
-                Some(&p) => {
-                    interp.set_bgerror_handler(&obj_bytes(p));
-                    interp.set_result_bytes(b"");
-                }
-                None => {
-                    let h = interp.bgerror_handler();
+            let path = interp_path(argv[2]);
+            let prefix = argv.get(3).copied();
+            match interp.with_child_path(&path, |c| c.bgerror_apply(prefix)) {
+                Some(Ok(h)) => {
                     interp.set_result_bytes(&h);
+                    Code::Ok
                 }
+                Some(Err(m)) => interp.set_error(&m),
+                None => not_found_path(interp, &path),
             }
-            Code::Ok
         }
         b"hide" => interp_hidectl(interp, argv, HideOp::Hide),
         b"expose" => interp_hidectl(interp, argv, HideOp::Expose),
         b"invokehidden" => interp_invokehidden(interp, argv),
+        b"limit" => interp_limit(interp, argv),
+        b"marktrusted" => interp_marktrusted(interp, argv),
+        b"debug" => interp_debug(interp, argv),
         b"hidden" => {
-            // `interp hidden ?path?` — hidden command names in the (current or
-            // named) interp.
-            let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
-            let names = if path.is_empty() {
-                interp.hidden_names()
-            } else {
-                interp
-                    .with_child(&path, |c| c.hidden_names())
-                    .unwrap_or_default()
-            };
+            // `interp hidden ?path?` — hidden command names in the interp
+            // addressed by the (possibly nested) path.
+            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
+            let names = interp
+                .with_child_path(&path, |c| c.hidden_names())
+                .unwrap_or_default();
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
             interp.set_result(list::new_list_obj(&elems));
             for e in elems {
@@ -152,20 +140,41 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"issafe" => {
-            // `interp issafe ?path?` — the current interp (no path) or a child.
-            let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
-            let safe = if path.is_empty() {
-                interp.is_safe()
-            } else {
-                interp.with_child(&path, |c| c.is_safe()).unwrap_or(false)
-            };
+            // `interp issafe ?path?` — the current interp (no path) or a child
+            // addressed by a (possibly nested) path.
+            let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
+            let safe = interp
+                .with_child_path(&path, |c| c.is_safe())
+                .unwrap_or(false);
             interp.set_result_bytes(if safe { b"1" } else { b"0" });
             Code::Ok
         }
+        b"recursionlimit" => {
+            // `interp recursionlimit path ?newlimit?` — get/set a (possibly
+            // nested) interp's recursion bound.
+            if argv.len() < 3 || argv.len() > 4 {
+                return wrong_args(interp, b"interp recursionlimit path ?newlimit?");
+            }
+            let path = interp_path(argv[2]);
+            let newlimit = argv.get(3).map(|&a| obj_bytes(a));
+            match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit.as_deref())) {
+                Some(Ok(n)) => {
+                    interp.set_result_bytes(n.to_string().as_bytes());
+                    Code::Ok
+                }
+                Some(Err(m)) => interp.set_error(&m),
+                None => not_found_path(interp, &path),
+            }
+        }
         other => {
-            let mut m = b"interp subcommand \"".to_vec();
+            let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\" is not supported in this runtime");
+            m.extend_from_slice(
+                b"\": must be alias, aliases, bgerror, cancel, children, create, \
+                  debug, delete, eval, exists, expose, hide, hidden, issafe, \
+                  invokehidden, limit, marktrusted, recursionlimit, share, \
+                  target, or transfer",
+            );
             interp.set_error(&m)
         }
     }
@@ -175,38 +184,110 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
 /// host-touching commands (the Safe Base's re-aliasing is a follow-up).
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut name: Option<Vec<u8>> = None;
+    // C's "weird historical rule": `-safe` is accepted anywhere before `--`
+    // (`interp create a -safe` is valid), and the path is the lone non-option
+    // word — so scan all args rather than stopping at the first non-flag.
+    let mut name_obj: Option<*mut TclObj> = None;
     let mut safe = false;
+    let mut last = false;
     let mut i = 2;
     while i < argv.len() {
         let a = obj_bytes(argv[i]);
-        match a.as_slice() {
-            b"-safe" => safe = true,
-            b"--" => {
-                i += 1;
-                break;
+        if !last && a.first() == Some(&b'-') {
+            match a.as_slice() {
+                b"-safe" => {
+                    safe = true;
+                    i += 1;
+                    continue;
+                }
+                b"--" => {
+                    i += 1;
+                    last = true;
+                }
+                _ => {
+                    let mut m = b"bad option \"".to_vec();
+                    m.extend_from_slice(&a);
+                    m.extend_from_slice(b"\": must be -safe or --");
+                    return interp.set_error(&m);
+                }
             }
-            _ => break,
+        }
+        if name_obj.is_some() {
+            return wrong_args(interp, b"interp create ?-safe? ?--? ?path?");
+        }
+        if i < argv.len() {
+            name_obj = Some(argv[i]);
         }
         i += 1;
     }
-    if i < argv.len() {
-        let p = obj_bytes(argv[i]);
-        // Only single-level (simple) names are supported; a path list is not.
-        if interp.child_exists(&p) {
-            let mut m = b"interpreter named \"".to_vec();
-            m.extend_from_slice(&p);
-            m.extend_from_slice(b"\" already exists, cannot create");
-            return interp.set_error(&m);
+    // The path is a list of interp names; an empty/absent path auto-names a
+    // child of this interp, otherwise the leaf is created inside the interp
+    // addressed by the parent segments (`interp create {a b}`).
+    let path = name_obj.map(interp_path).unwrap_or_default();
+    let Some((leaf, parent)) = path.split_last() else {
+        let created = interp.create_child(None);
+        if safe {
+            interp.with_child(&created, |c| c.make_safe());
         }
-        name = Some(p);
+        interp.set_result(obj::new_string_bytes(&created));
+        return Code::Ok;
+    };
+    let leaf = leaf.clone();
+    let outcome: Option<Result<(), ()>> = interp.with_child_path(parent, |a| {
+        if a.child_exists(&leaf) {
+            return Err(()); // already exists
+        }
+        a.create_child(Some(leaf.clone()));
+        if safe {
+            a.with_child(&leaf, |c| c.make_safe());
+        }
+        Ok(())
+    });
+    match outcome {
+        Some(Ok(())) => {
+            // Result is the path as written (the original list object).
+            interp.set_result(obj::new_string_bytes(&obj_bytes(name_obj.unwrap())));
+            Code::Ok
+        }
+        Some(Err(_)) => {
+            let mut m = b"interpreter named \"".to_vec();
+            m.extend_from_slice(&obj_bytes(name_obj.unwrap()));
+            m.extend_from_slice(b"\" already exists, cannot create");
+            interp.set_error(&m)
+        }
+        None => not_found_path(interp, parent),
     }
-    let created = interp.create_child(name);
-    if safe {
-        interp.with_child(&created, |c| c.make_safe());
+}
+
+/// Parse an interp path object into its list of names (`{a b}` → `["a","b"]`).
+fn interp_path(obj: *mut TclObj) -> Vec<Vec<u8>> {
+    match crate::list::list_elements(obj) {
+        Ok(els) => els.iter().map(|&e| obj_bytes(e)).collect(),
+        Err(_) => {
+            let b = obj_bytes(obj);
+            if b.is_empty() {
+                Vec::new()
+            } else {
+                vec![b]
+            }
+        }
     }
-    interp.set_result(obj::new_string_bytes(&created));
-    Code::Ok
+}
+
+/// The `could not find interpreter "a b"` error for a path that failed to
+/// resolve, rendering the path as a Tcl list.
+fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
+    let elems: Vec<*mut TclObj> = path.iter().map(|n| obj::new_string_bytes(n)).collect();
+    let joined = crate::list::new_list_obj(&elems);
+    let rendered = obj_bytes(joined);
+    for e in elems {
+        crate::interp::drop_fresh(e);
+    }
+    crate::interp::drop_fresh(joined);
+    let mut m = b"could not find interpreter \"".to_vec();
+    m.extend_from_slice(&rendered);
+    m.push(b'"');
+    interp.set_error(&m)
 }
 
 enum HideOp {
@@ -214,31 +295,144 @@ enum HideOp {
     Expose,
 }
 
+/// `interp limit path limitType ?-option value …?` — query/configure the
+/// `commands` or `time` limit on a child interp.
+fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // argv = [interp, limit, path, limitType, opts…]
+    if argv.len() < 4 {
+        return wrong_args(interp, b"interp limit path limitType ?-option value ...?");
+    }
+    let path = interp_path(argv[2]);
+    let ltype = obj_bytes(argv[3]);
+    // Validate the limit type before the current-interp guard so a bad type is
+    // reported ahead of the inaccessibility error (interp-35.3 vs .23).
+    if ltype.as_slice() != b"commands" && ltype.as_slice() != b"time" {
+        let mut m = b"bad limit type \"".to_vec();
+        m.extend_from_slice(&ltype);
+        m.extend_from_slice(b"\": must be commands or time");
+        return interp.set_error(&m);
+    }
+    if path.is_empty() {
+        return interp.set_error(b"limits on current interpreter inaccessible");
+    }
+    let opts: Vec<*mut TclObj> = argv[4..].to_vec();
+    match interp.with_child_path(&path, |c| c.limit_apply(&ltype, &opts)) {
+        Some(Ok(o)) => {
+            interp.set_result(o);
+            Code::Ok
+        }
+        Some(Err(m)) => interp.set_error(&m),
+        None => not_found_path(interp, &path),
+    }
+}
+
+/// `interp marktrusted path` — clear a child interp's safe flag (denied from a
+/// safe interpreter).
+fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"interp marktrusted path");
+    }
+    if interp.is_safe() {
+        return interp.set_error(b"permission denied: safe interpreter cannot mark trusted");
+    }
+    let path = interp_path(argv[2]);
+    if path.is_empty() {
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    match interp.with_child_path(&path, |c| c.mark_trusted()) {
+        Some(()) => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        None => not_found_path(interp, &path),
+    }
+}
+
+/// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
+fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 || argv.len() > 5 {
+        return wrong_args(interp, b"interp debug path ?-frame ?bool??");
+    }
+    let path = interp_path(argv[2]);
+    let opts: Vec<*mut TclObj> = argv[3..].to_vec();
+    match interp.with_child_path(&path, |c| c.debug_apply(&opts)) {
+        Some(Ok(o)) => {
+            interp.set_result(o);
+            Code::Ok
+        }
+        Some(Err(m)) => interp.set_error(&m),
+        None => not_found_path(interp, &path),
+    }
+}
+
+/// Whether `name` resolves in the global namespace — it carries no namespace
+/// qualifiers beyond an optional leading `::`.
+fn is_global_command(name: &[u8]) -> bool {
+    let body = name.strip_prefix(b"::".as_slice()).unwrap_or(name);
+    !body.windows(2).any(|w| w == b"::")
+}
+
 /// `interp hide|expose path cmdName` — move a command into/out of the hidden
 /// table of the named (or current, when path is `{}`) interpreter.
 fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(interp, b"interp hide|expose path cmdName");
+    // `interp hide   path cmdName     ?hiddenCmdName?`
+    // `interp expose path hiddenName  ?cmdName?`
+    if argv.len() != 4 && argv.len() != 5 {
+        return match op {
+            HideOp::Hide => wrong_args(interp, b"interp hide path cmdName ?hiddenCmdName?"),
+            HideOp::Expose => wrong_args(interp, b"interp expose path hiddenCmdName ?cmdName?"),
+        };
     }
-    let path = obj_bytes(argv[2]);
+    // A safe interpreter may not touch the hidden-command table of itself or
+    // any of its children (the check is on the *executing* interp).
+    if interp.is_safe() {
+        return interp.set_error(match op {
+            HideOp::Hide => b"permission denied: safe interpreter cannot hide commands",
+            HideOp::Expose => b"permission denied: safe interpreter cannot expose commands",
+        });
+    }
+    let path = interp_path(argv[2]);
     let cmd = obj_bytes(argv[3]);
-    let did = if path.is_empty() {
-        match op {
-            HideOp::Hide => interp.hide_command(&cmd),
-            HideOp::Expose => interp.expose_command(&cmd),
-        }
+    let token = if argv.len() == 5 {
+        obj_bytes(argv[4])
     } else {
-        interp
-            .with_child(&path, |c| match op {
-                HideOp::Hide => c.hide_command(&cmd),
-                HideOp::Expose => c.expose_command(&cmd),
-            })
-            .unwrap_or(false)
+        cmd.clone()
     };
-    if !did {
-        // Hiding a missing command, or exposing a non-hidden one.
-        let _ = did;
+    // The hidden-command token may never carry namespace qualifiers, and only
+    // global-namespace commands can be hidden / exposed-from.
+    match op {
+        HideOp::Hide => {
+            if token.windows(2).any(|w| w == b"::") {
+                return interp.set_error(
+                    b"cannot use namespace qualifiers in hidden command token (rename)",
+                );
+            }
+            if !is_global_command(&cmd) {
+                return interp
+                    .set_error(b"can only hide global namespace commands (use rename then hide)");
+            }
+        }
+        HideOp::Expose => {
+            if cmd.windows(2).any(|w| w == b"::") {
+                return interp.set_error(
+                    b"cannot use namespace qualifiers in hidden command token (rename)",
+                );
+            }
+            if !is_global_command(&token) {
+                return interp.set_error(
+                    b"cannot expose to a namespace (use expose to toplevel, then rename)",
+                );
+            }
+        }
     }
+    // Hiding a missing command, or exposing a non-hidden one, is a silent
+    // no-op (as is a child path that does not resolve), matching the prior
+    // single-level behaviour.
+    interp.with_child_path(&path, |c| match op {
+        HideOp::Hide => c.hide_command(&cmd),
+        HideOp::Expose => c.expose_command(&cmd),
+    });
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -249,7 +443,7 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
     }
-    let path = obj_bytes(argv[2]);
+    let path = interp_path(argv[2]);
     // Skip leading option flags (`-namespace ns`, `-global`).
     let mut i = 3;
     while i < argv.len() {
@@ -267,6 +461,9 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if i >= argv.len() {
         return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
     }
+    if interp.is_safe() {
+        return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
+    }
     let cmd = obj_bytes(argv[i]);
     // Build the hidden command's argv (cmd + remaining args).
     let mut hidden_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() - i);
@@ -274,19 +471,16 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         unsafe { obj::incr_ref_count(a) };
         hidden_argv.push(a);
     }
-    let code = if path.is_empty() {
-        interp.invoke_hidden(&cmd, &hidden_argv)
-    } else {
-        // Run in the child; copy its result back.
-        match interp.with_child(&path, |c| {
-            (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
-        }) {
-            Some((code, res)) => {
-                interp.set_result_bytes(&res);
-                code
-            }
-            None => interp.set_error(b"could not find interpreter"),
+    // Run in the addressed interp (the current one for an empty path), copying
+    // its result back up the path.
+    let code = match interp.with_child_path(&path, |c| {
+        (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
+    }) {
+        Some((code, res)) => {
+            interp.set_result_bytes(&res);
+            code
         }
+        None => not_found_path(interp, &path),
     };
     for a in hidden_argv {
         unsafe { obj::decr_ref_count(a) };
@@ -299,7 +493,7 @@ fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"interp eval path arg ?arg ...?");
     }
-    let path = obj_bytes(argv[2]);
+    let path = interp_path(argv[2]);
     let mut script = Vec::new();
     for (k, &a) in argv[3..].iter().enumerate() {
         if k > 0 {
@@ -307,23 +501,35 @@ fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         script.extend_from_slice(&obj_bytes(a));
     }
-    // `interp eval {} script` runs in the current interp; else in the child.
-    if path.is_empty() {
-        interp.eval_str(&script)
-    } else {
-        interp.eval_in_child(&path, &script)
+    // `interp eval {} script` runs in the current interp; otherwise descend the
+    // path to the target's parent and eval in the leaf child.
+    let Some((leaf, parent)) = path.split_last() else {
+        return interp.eval_str(&script);
+    };
+    let leaf = leaf.clone();
+    match interp.with_child_path(parent, |a| {
+        let code = a.eval_in_child(&leaf, &script);
+        (code, a.result_bytes())
+    }) {
+        Some((code, result)) => {
+            interp.set_result_bytes(&result);
+            code
+        }
+        None => not_found_path(interp, &path),
     }
 }
 
 /// `interp delete ?path ...?` — delete each named child interpreter.
 fn interp_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[2..] {
-        let path = obj_bytes(a);
-        if path.is_empty() || !interp.delete_child(&path) {
-            let mut m = b"could not find interpreter \"".to_vec();
-            m.extend_from_slice(&path);
-            m.push(b'"');
-            return interp.set_error(&m);
+        let path = interp_path(a);
+        let Some((leaf, parent)) = path.split_last() else {
+            return not_found_path(interp, &path);
+        };
+        let leaf = leaf.clone();
+        match interp.with_child_path(parent, |p| p.delete_child(&leaf)) {
+            Some(true) => {}
+            _ => return not_found_path(interp, &path),
         }
     }
     interp.set_result_bytes(b"");

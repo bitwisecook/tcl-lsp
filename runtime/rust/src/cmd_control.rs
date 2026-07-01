@@ -151,6 +151,9 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cond = argv[1];
     let body = argv[2];
     loop {
+        if let Some(code) = interp.limit_check_tick() {
+            return code;
+        }
         match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,
@@ -199,6 +202,9 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         other => return other,
     }
     loop {
+        if let Some(code) = interp.limit_check_tick() {
+            return code;
+        }
         match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,

@@ -269,3 +269,106 @@ pub trait Host {
         None
     }
 }
+
+/// Backend introspection for the `tcl_platform` keys the test-suite
+/// backend-constraint overlay reads to decide which upstream tcltest tests a
+/// given build can run.
+///
+/// The compiled-in values below are detected from the build's `cfg`, so they
+/// describe *this* binary truthfully. A runtime publishes them under the
+/// canonical [`Key`] names after the standard `tcl_platform` fields; it may
+/// override any one from its environment seam first (e.g. `TCL_EBPF_SPEC`), so
+/// a native binary can be asked to evaluate the skip lists as if it were a
+/// different backend — the only way to reason about the eBPF target, which
+/// cannot host a full interpreter at all.
+///
+/// Schema (all string-valued; an empty string means "not this target"):
+///
+/// | key              | meaning                                              |
+/// |------------------|------------------------------------------------------|
+/// | `runtime`        | interpreter implementation: `bytecode`/`treewalk`/`ebpf` |
+/// | `runtimeVersion` | that implementation's host (crate) version           |
+/// | `wasm`           | wasm spec version when a wasm build, else empty      |
+/// | `wasi`           | WASI spec version when a WASI build, else empty      |
+/// | `wasiVersion`    | WASI host/preview identifier, else empty            |
+/// | `ebpf`           | eBPF target version when an eBPF build, else empty  |
+pub mod backend {
+    /// Canonical `tcl_platform` key names, so every runtime publishes one schema.
+    pub mod key {
+        /// Interpreter implementation kind (`bytecode`/`treewalk`/`ebpf`).
+        pub const RUNTIME: &str = "runtime";
+        /// The implementation's host (crate) version.
+        pub const RUNTIME_VERSION: &str = "runtimeVersion";
+        /// wasm spec version (empty when not a wasm build).
+        pub const WASM: &str = "wasm";
+        /// WASI spec version (empty when not a WASI build).
+        pub const WASI: &str = "wasi";
+        /// WASI host/preview identifier (empty when not a WASI build).
+        pub const WASI_VERSION: &str = "wasiVersion";
+        /// eBPF target version (empty when not an eBPF build).
+        pub const EBPF: &str = "ebpf";
+    }
+
+    /// The wasm spec version this build targets, or `""` when not a wasm build.
+    /// The runtime currently targets the wasm 2.0 feature set under WASI.
+    #[must_use]
+    pub const fn compiled_wasm_spec() -> &'static str {
+        if cfg!(target_arch = "wasm32") {
+            "2.0"
+        } else {
+            ""
+        }
+    }
+
+    /// The WASI spec version this build targets, or `""` when not a WASI build.
+    /// `preview1` (wasm32-wasip1) vs `0.2` (wasm32-wasip2) is read from the
+    /// target environment.
+    #[must_use]
+    pub const fn compiled_wasi_spec() -> &'static str {
+        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+            if cfg!(target_env = "p2") {
+                "0.2"
+            } else {
+                "preview1"
+            }
+        } else {
+            ""
+        }
+    }
+
+    /// The WASI host/preview identifier this build targets, or `""` otherwise.
+    #[must_use]
+    pub const fn compiled_wasi_host() -> &'static str {
+        if cfg!(all(target_arch = "wasm32", target_os = "wasi")) {
+            if cfg!(target_env = "p2") {
+                "wasip2"
+            } else {
+                "wasip1"
+            }
+        } else {
+            ""
+        }
+    }
+
+    /// The eBPF target version this build targets. No `cfg` target hosts a full
+    /// interpreter, so this is always `""` at compile time; an eBPF evaluation
+    /// is declared through the `TCL_EBPF_SPEC` environment override instead.
+    #[must_use]
+    pub const fn compiled_ebpf_spec() -> &'static str {
+        ""
+    }
+
+    /// The environment-variable name a runtime consults to override each fact
+    /// before publishing it (so a native binary can evaluate another backend's
+    /// skip lists). Returns `None` for keys that are never overridden.
+    #[must_use]
+    pub fn override_env_var(key: &str) -> Option<&'static str> {
+        match key {
+            self::key::WASM => Some("TCL_WASM_SPEC"),
+            self::key::WASI => Some("TCL_WASI_SPEC"),
+            self::key::WASI_VERSION => Some("TCL_WASI_VERSION"),
+            self::key::EBPF => Some("TCL_EBPF_SPEC"),
+            _ => None,
+        }
+    }
+}

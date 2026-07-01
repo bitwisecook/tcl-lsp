@@ -230,9 +230,17 @@ impl Value {
                 Number::Big { .. } | Number::Nan { .. } => true,
             });
         }
-        match t.to_ascii_lowercase().as_str() {
-            "true" | "yes" | "on" => Ok(true),
-            "false" | "no" | "off" => Ok(false),
+        // C's `ParseBoolean` accepts any unambiguous case-insensitive *prefix*
+        // of true / false / yes / no / on / off (`tclObj.c`). A bare `o` is
+        // ambiguous between `on` and `off`, so it needs at least two characters.
+        let lower = t.to_ascii_lowercase();
+        match lower.chars().next() {
+            Some('t') if "true".starts_with(lower.as_str()) => Ok(true),
+            Some('y') if "yes".starts_with(lower.as_str()) => Ok(true),
+            Some('f') if "false".starts_with(lower.as_str()) => Ok(false),
+            Some('n') if "no".starts_with(lower.as_str()) => Ok(false),
+            Some('o') if lower.len() >= 2 && "on".starts_with(lower.as_str()) => Ok(true),
+            Some('o') if lower.len() >= 2 && "off".starts_with(lower.as_str()) => Ok(false),
             _ => Err(TclError::new(format!(
                 "expected boolean value but got {}",
                 list::describe_bad_value(&s)

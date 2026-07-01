@@ -83,7 +83,13 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match canon {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
-            [name] => ok(tcl_cmd_core::info::exists(vm, name)),
+            [name] => {
+                // `info exists` fires read traces first (a trace may create the
+                // variable — tcltest's lazy `SafeFetch` constraint init relies
+                // on this); a trace error does not abort the existence check.
+                let _ = vm.fire_var_traces(&name.to_str(), "read");
+                ok(tcl_cmd_core::info::exists(vm, name))
+            }
             _ => err("wrong # args: should be \"info exists varName\""),
         },
         "complete" => match rest {
@@ -213,10 +219,12 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"info cmdtype commandName\""),
         },
-        // `info library` is the script library directory — the `tcl_library`
-        // global the bootstrap seeds from `$env(TCL_LIBRARY)`. The autoloader
-        // (`auto_path` defaults to `[info library]`) and library procs read it.
-        "library" => match vm.get_var("tcl_library") {
+        // `info library` is the script library directory — the `::tcl_library`
+        // global the bootstrap seeds from `$env(TCL_LIBRARY)`. Read it as a
+        // global (the `::` prefix): C's `info library` returns the global
+        // regardless of the calling frame, so library procs (`::tcl::tm::path`,
+        // the Safe Base) reach it from inside a namespace/proc.
+        "library" => match vm.get_var("::tcl_library") {
             Some(v) if !v.to_str().is_empty() => ok(v),
             _ => err("no library has been specified for Tcl"),
         },

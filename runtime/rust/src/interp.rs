@@ -567,6 +567,10 @@ pub struct InterpState {
     /// recursion so an infinite proc loop raises a catchable error instead of
     /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
     recursion_depth: Cell<usize>,
+    /// Per-interp recursion bound (`interp recursionlimit`), default
+    /// [`RECURSION_LIMIT`]. Each child carries its own, so raising a child's
+    /// limit does not affect the parent.
+    recursion_limit: Cell<usize>,
     /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
     pub(crate) packages: RefCell<crate::cmd_package::PackageState>,
     /// The `source` script stack (`info script` — the file being sourced).
@@ -709,6 +713,15 @@ pub struct InterpState {
     /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
     /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
     cmd_arena: RefCell<CmdArena>,
+    /// `interp limit` configuration. The `time` limit is enforced by the loop
+    /// commands; `commands` is stored for query/set only.
+    limits: RefCell<LimitSet>,
+    /// Free-running counter that throttles wall-clock polling for the `time`
+    /// limit (see [`Interp::limit_check_tick`]).
+    limit_tick: Cell<u32>,
+    /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
+    /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
+    debug_frame: Cell<bool>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -728,8 +741,143 @@ pub(crate) struct EnsembleRewrite {
     pub inserted: usize,
 }
 
+/// `interp limit` configuration for one interpreter — the `commands` and `time`
+/// limit types. The `time` limit is enforced (polled by the loop commands);
+/// `commands` is stored for query/set only.
+#[derive(Clone)]
+pub(crate) struct LimitSet {
+    cmd_command: Vec<u8>,
+    cmd_granularity: i64,
+    cmd_value: Option<i64>,
+    time_command: Vec<u8>,
+    time_granularity: i64,
+    /// Absolute wall-clock deadline as `(seconds, milliseconds)`; `None` unset.
+    time_value: Option<(i64, i64)>,
+}
+
+impl Default for LimitSet {
+    fn default() -> Self {
+        Self {
+            cmd_command: Vec::new(),
+            cmd_granularity: 1,
+            cmd_value: None,
+            time_command: Vec::new(),
+            time_granularity: 10,
+            time_value: None,
+        }
+    }
+}
+
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 const RECURSION_LIMIT: usize = 1000;
+
+/// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
+/// reports: a decimal that overflows `i64` is "too large to represent", a
+/// non-numeric value is "expected integer but got …".
+fn parse_recursion_limit(bytes: &[u8]) -> Result<i64, Vec<u8>> {
+    let not_int = || {
+        let mut m = b"expected integer but got \"".to_vec();
+        m.extend_from_slice(bytes);
+        m.push(b'"');
+        m
+    };
+    let s = match std::str::from_utf8(bytes) {
+        Ok(s) => s.trim(),
+        Err(_) => return Err(not_int()),
+    };
+    if let Ok(n) = s.parse::<i64>() {
+        return Ok(n);
+    }
+    // A run of decimal digits (with an optional sign) that failed to parse
+    // overflowed the integer range; anything else is simply not an integer.
+    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
+    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(b"integer value too large to represent".to_vec());
+    }
+    Err(not_int())
+}
+
+/// Build a Tcl dict (flat key/value list) object from `pairs`, releasing the
+/// builder's references once the list has taken its own.
+fn dict_obj(pairs: &[(&[u8], Vec<u8>)]) -> *mut TclObj {
+    let mut elems: Vec<*mut TclObj> = Vec::with_capacity(pairs.len() * 2);
+    for (k, v) in pairs {
+        elems.push(obj::new_string_bytes(k));
+        elems.push(obj::new_string_bytes(v));
+    }
+    let list = crate::list::new_list_obj(&elems);
+    for e in elems {
+        drop_fresh(e);
+    }
+    list
+}
+
+/// Render an optional limit integer: the decimal bytes, or empty when unset.
+fn opt_int(v: Option<i64>) -> Vec<u8> {
+    v.map(|n| n.to_string().into_bytes()).unwrap_or_default()
+}
+
+/// Resolve an `interp limit` option by unambiguous prefix against `opts`
+/// (mirroring C's `Tcl_GetIndexFromObj`). Returns the canonical spelling or a
+/// `bad option "X": must be …` error.
+fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
+    let matches: Vec<&[u8]> = opts
+        .iter()
+        .copied()
+        .filter(|o| o.starts_with(arg))
+        .collect();
+    if matches.len() == 1 {
+        return Ok(matches[0].to_vec());
+    }
+    if opts.contains(&arg) {
+        return Ok(arg.to_vec());
+    }
+    let mut m = b"bad option \"".to_vec();
+    m.extend_from_slice(arg);
+    m.extend_from_slice(b"\": must be ");
+    for (i, o) in opts.iter().enumerate() {
+        if i == opts.len() - 1 && i > 0 {
+            m.extend_from_slice(b", or ");
+        } else if i > 0 {
+            m.extend_from_slice(b", ");
+        }
+        m.extend_from_slice(o);
+    }
+    Err(m)
+}
+
+/// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
+fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
+    let o = obj_bytes(opt);
+    if !o.is_empty() && b"-frame".starts_with(o.as_slice()) {
+        return Ok(());
+    }
+    let mut m = b"bad debug option \"".to_vec();
+    m.extend_from_slice(&o);
+    m.extend_from_slice(b"\": must be -frame");
+    Err(m)
+}
+
+/// Whether `bytes` is a truthy boolean literal (for the `-frame` latch).
+fn parse_truth(bytes: &[u8]) -> bool {
+    matches!(
+        bytes.to_ascii_lowercase().as_slice(),
+        b"1" | b"true" | b"yes" | b"on"
+    )
+}
+
+/// Parse an `interp limit` integer option value (`expected integer but got "X"`).
+fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        if let Ok(n) = s.trim().parse::<i64>() {
+            return Ok(n);
+        }
+    }
+    let mut m = b"expected integer but got \"".to_vec();
+    m.extend_from_slice(bytes);
+    m.push(b'"');
+    Err(m)
+}
 
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
@@ -755,6 +903,7 @@ impl Interp {
             namespaces: RefCell::new(Namespaces::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
+            recursion_limit: Cell::new(RECURSION_LIMIT),
             packages: RefCell::new(crate::cmd_package::PackageState::with_core()),
             script_stack: RefCell::new(Vec::new()),
             channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
@@ -788,6 +937,9 @@ impl Interp {
             during: Cell::new(None),
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
+            limits: RefCell::new(LimitSet::default()),
+            limit_tick: Cell::new(0),
+            debug_frame: Cell::new(false),
         }));
         builtins::install(&mut interp);
         interp
@@ -1215,6 +1367,46 @@ impl Interp {
             let o = new_string(v);
             if self.var_set_elem(b"tcl_platform", k, o).is_err() {
                 drop_fresh(o);
+            }
+        }
+        // Backend-introspection keys (the test-suite constraint overlay reads
+        // these). The tree-walk runtime targets native or wasm32-wasip*, so the
+        // wasm / WASI facts come from the build's `cfg`; an environment override
+        // (read through the host seam) lets a native binary evaluate another
+        // backend's skip lists.
+        {
+            use tcl_platform::backend::{self, key};
+            let detected = |k: &str, compiled: &str| -> String {
+                backend::override_env_var(k)
+                    .and_then(|var| self.host().env().get(var))
+                    .filter(|v| !v.is_empty())
+                    .unwrap_or_else(|| compiled.to_string())
+            };
+            let backend_keys = [
+                (key::RUNTIME, "treewalk".to_string()),
+                (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
+                (
+                    key::WASM,
+                    detected(key::WASM, backend::compiled_wasm_spec()),
+                ),
+                (
+                    key::WASI,
+                    detected(key::WASI, backend::compiled_wasi_spec()),
+                ),
+                (
+                    key::WASI_VERSION,
+                    detected(key::WASI_VERSION, backend::compiled_wasi_host()),
+                ),
+                (
+                    key::EBPF,
+                    detected(key::EBPF, backend::compiled_ebpf_spec()),
+                ),
+            ];
+            for (k, v) in backend_keys {
+                let o = new_string(v.as_bytes());
+                if self.var_set_elem(b"tcl_platform", k.as_bytes(), o).is_err() {
+                    drop_fresh(o);
+                }
             }
         }
         // env array from the host environment (no quoting hazards via var_set_elem).
@@ -2641,6 +2833,23 @@ impl Interp {
     /// Set the `interp bgerror` handler command prefix.
     pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
         *self.bgerror.borrow_mut() = prefix.to_vec();
+    }
+
+    /// `interp bgerror` get / set on this interp. With no `prefix` it returns
+    /// the current handler; with one it must be a list of length ≥ 1 (set, then
+    /// returned). Returns the handler bytes, or the error message.
+    pub(crate) fn bgerror_apply(&self, prefix: Option<*mut TclObj>) -> Result<Vec<u8>, Vec<u8>> {
+        match prefix {
+            None => Ok(self.bgerror_handler()),
+            Some(p) => {
+                if crate::list::list_length(p).unwrap_or(0) < 1 {
+                    return Err(b"cmdPrefix must be list of length >= 1".to_vec());
+                }
+                let bytes = obj_bytes(p);
+                self.set_bgerror_handler(&bytes);
+                Ok(bytes)
+            }
+        }
     }
 
     /// Queue a background error (a destructor failing during implicit teardown,
@@ -4271,6 +4480,15 @@ impl Interp {
             }
             b"hide" | b"expose" if argv.len() == 3 => {
                 let hide = obj_bytes(argv[1]) == b"hide";
+                // A safe interpreter may not touch any hidden-command table
+                // (checked on the executing interp).
+                if self.is_safe() {
+                    return self.error(if hide {
+                        b"permission denied: safe interpreter cannot hide commands"
+                    } else {
+                        b"permission denied: safe interpreter cannot expose commands"
+                    });
+                }
                 let cmd = obj_bytes(argv[2]);
                 self.with_child(name, |c| {
                     if hide {
@@ -4283,6 +4501,10 @@ impl Interp {
                 Code::Ok
             }
             b"invokehidden" if argv.len() >= 3 => {
+                if self.is_safe() {
+                    return self
+                        .error(b"not allowed to invoke hidden commands from safe interpreter");
+                }
                 let cmd = obj_bytes(argv[2]);
                 let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
                 for &a in &hidden_argv {
@@ -4331,6 +4553,89 @@ impl Interp {
                 self.set_result(obj::new_string_bytes(&alias));
                 Code::Ok
             }
+            // `$child recursionlimit ?newlimit?` — the path-less child form.
+            b"recursionlimit" => {
+                if argv.len() > 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" recursionlimit ?newlimit?\"");
+                    return self.error(&m);
+                }
+                let newlimit = argv.get(2).map(|&a| obj_bytes(a));
+                match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
+                    Some(Ok(n)) => {
+                        self.set_result_bytes(n.to_string().as_bytes());
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            // `$child bgerror ?cmdPrefix?` — get/set the child's background-error
+            // handler.
+            b"bgerror" => {
+                if argv.len() < 2 || argv.len() > 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" bgerror ?cmdPrefix?\"");
+                    return self.error(&m);
+                }
+                let prefix = argv.get(2).copied();
+                match self.with_child(name, |c| c.bgerror_apply(prefix)) {
+                    Some(Ok(h)) => {
+                        self.set_result_bytes(&h);
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            // `$child marktrusted` — clear the child's safe flag (denied from a
+            // safe interpreter).
+            b"marktrusted" => {
+                if self.is_safe() {
+                    return self.error(b"permission denied: safe interpreter cannot mark trusted");
+                }
+                self.with_child(name, |c| c.mark_trusted());
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
+            b"debug" => {
+                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
+                if argv.len() > 4 {
+                    return self
+                        .error(b"wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+                }
+                match self.with_child(name, |c| c.debug_apply(&opts)) {
+                    Some(Ok(o)) => {
+                        self.set_result(o);
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            // `$child limit limitType ?-option value …?` — query/configure the
+            // child's commands/time limit.
+            b"limit" => {
+                if argv.len() < 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" limit limitType ?-option value ...?\"");
+                    return self.error(&m);
+                }
+                let ltype = obj_bytes(argv[2]);
+                let opts: Vec<*mut TclObj> = argv[3..].to_vec();
+                match self.with_child(name, |c| c.limit_apply(&ltype, &opts)) {
+                    Some(Ok(o)) => {
+                        self.set_result(o);
+                        Code::Ok
+                    }
+                    Some(Err(m)) => self.error(&m),
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
             other => {
                 let mut m = b"interp subcommand \"".to_vec();
                 m.extend_from_slice(other);
@@ -4352,6 +4657,15 @@ impl Interp {
         // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
         // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
         child.set_startup_globals();
+        // `interp debug -frame` is seeded from the creating interp's
+        // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
+        if self
+            .var_get_elem(b"env", b"TCL_INTERP_DEBUG_FRAME")
+            .map(|o| parse_truth(&obj_bytes(o)))
+            .unwrap_or(false)
+        {
+            child.0.debug_frame.set(true);
+        }
         self.children.borrow_mut().insert(name.clone(), child);
         self.namespaces
             .borrow_mut()
@@ -4396,6 +4710,25 @@ impl Interp {
             self.namespaces.borrow_mut().delete(GLOBAL, name);
         }
         Some(r)
+    }
+
+    /// Run `f` against the interpreter addressed by a (possibly multi-level)
+    /// path — a list of child names descending from this interp. An empty path
+    /// is this interp itself; otherwise each name is resolved through
+    /// [`with_child`] in turn. Returns `None` if any name in the chain is not a
+    /// child of its predecessor (`interp create {a b}`, `interp eval {a b} …`).
+    pub(crate) fn with_child_path<R>(
+        &mut self,
+        path: &[Vec<u8>],
+        f: impl FnOnce(&mut Interp) -> R,
+    ) -> Option<R> {
+        match path {
+            [] => Some(f(self)),
+            [name] => self.with_child(name, f),
+            [name, rest @ ..] => self
+                .with_child(name, |c| c.with_child_path(rest, f))
+                .flatten(),
+        }
     }
 
     /// `interp hide name`: move command `name` out of the command table into the
@@ -4467,12 +4800,281 @@ impl Interp {
         for &c in UNSAFE {
             self.hide_command(c);
         }
+        // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
+        // unsets os/osVersion/machine/user) plus our backend-introspection keys,
+        // so a safe interp exposes only the portable subset (byteOrder, engine,
+        // pathSeparator, platform, pointerSize, wordSize).
+        const UNSAFE_PLATFORM: &[&[u8]] = &[
+            b"os",
+            b"osVersion",
+            b"machine",
+            b"user",
+            b"threaded",
+            b"runtime",
+            b"runtimeVersion",
+            b"wasm",
+            b"wasi",
+            b"wasiVersion",
+            b"ebpf",
+        ];
+        for &k in UNSAFE_PLATFORM {
+            self.var_unset_elem(b"tcl_platform", k);
+        }
+        // A safe interp has no `env` array and no real library/package paths
+        // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.
+        for v in [
+            &b"env"[..],
+            b"tcl_library",
+            b"tclDefaultLibrary",
+            b"tcl_pkgPath",
+        ] {
+            self.var_unset(v);
+        }
+        // A safe interp's `clock` is aliased to the parent's, so date/time
+        // formatting works without the child reaching the timezone files.
+        self.ns_register(
+            b"clock",
+            Command::ParentAlias {
+                target: b"clock".to_vec(),
+                prefix: Vec::new(),
+            },
+        );
         self.is_safe.set(true);
     }
 
     /// Whether this interp is safe (`interp issafe`).
     pub(crate) fn is_safe(&self) -> bool {
         self.is_safe.get()
+    }
+
+    /// `interp marktrusted` — clear this interp's safe flag (a parent demoting a
+    /// child from safe to trusted). Future children it creates are trusted too.
+    pub(crate) fn mark_trusted(&self) {
+        self.is_safe.set(false);
+    }
+
+    /// `interp debug ?-frame ?bool??` on this interp. Returns the fresh result
+    /// object (the `-frame N` dict, or the bool), or the error-message bytes.
+    /// `-frame` is a one-way latch: setting it to false once true keeps it true.
+    pub(crate) fn debug_apply(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
+        match opts.len() {
+            0 => Ok(dict_obj(&[(b"-frame", frame_byte.to_vec())])),
+            1 => {
+                check_debug_opt(opts[0])?;
+                Ok(obj::new_string_bytes(frame_byte))
+            }
+            _ => {
+                check_debug_opt(opts[0])?;
+                if parse_truth(&obj_bytes(opts[1])) {
+                    self.debug_frame.set(true);
+                }
+                let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
+                Ok(obj::new_string_bytes(frame_byte))
+            }
+        }
+    }
+
+    /// `interp recursionlimit` get / set on this interp. `newlimit` is the
+    /// optional new-limit bytes; returns the resulting limit, or the error
+    /// message the caller should raise (`expected integer …` / `… too large …`
+    /// / `recursion limit must be > 0`). Each interp keeps its own limit, so a
+    /// child raising its limit leaves the parent's untouched.
+    pub(crate) fn recursion_limit_apply(&self, newlimit: Option<&[u8]>) -> Result<i64, Vec<u8>> {
+        match newlimit {
+            None => Ok(self.recursion_limit.get() as i64),
+            Some(bytes) => {
+                let n = parse_recursion_limit(bytes)?;
+                if n <= 0 {
+                    return Err(b"recursion limit must be > 0".to_vec());
+                }
+                self.recursion_limit.set(n as usize);
+                Ok(n)
+            }
+        }
+    }
+
+    /// `interp limit limitType ?-option value …?` on this interp. Returns the
+    /// fresh result object on success, or the error-message bytes the caller
+    /// should raise.
+    pub(crate) fn limit_apply(
+        &self,
+        ltype: &[u8],
+        opts: &[*mut TclObj],
+    ) -> Result<*mut TclObj, Vec<u8>> {
+        match ltype {
+            b"commands" => self.limit_commands(opts),
+            b"time" => self.limit_time(opts),
+            other => {
+                let mut m = b"bad limit type \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be commands or time");
+                Err(m)
+            }
+        }
+    }
+
+    fn limit_commands(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        const OPTS: &[&[u8]] = &[b"-command", b"-granularity", b"-value"];
+        if opts.is_empty() {
+            let l = self.limits.borrow();
+            return Ok(dict_obj(&[
+                (b"-command", l.cmd_command.clone()),
+                (b"-granularity", l.cmd_granularity.to_string().into_bytes()),
+                (b"-value", opt_int(l.cmd_value)),
+            ]));
+        }
+        if opts.len() == 1 {
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)?;
+            let l = self.limits.borrow();
+            let val = match opt.as_slice() {
+                b"-command" => l.cmd_command.clone(),
+                b"-granularity" => l.cmd_granularity.to_string().into_bytes(),
+                _ => opt_int(l.cmd_value),
+            };
+            return Ok(obj::new_string_bytes(&val));
+        }
+        // A trailing option with no value is a catchable error, not a silent
+        // drop (`interp limit c commands -value 1 -granularity`).
+        if opts.len() % 2 != 0 {
+            return Err(
+                b"wrong # args: should be \"interp limit path commands ?-option value ...?\""
+                    .to_vec(),
+            );
+        }
+        let mut i = 0;
+        while i + 1 < opts.len() {
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
+            let val = obj_bytes(opts[i + 1]);
+            match opt.as_slice() {
+                b"-command" => self.limits.borrow_mut().cmd_command = val,
+                b"-granularity" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 1 {
+                        return Err(b"granularity must be at least 1".to_vec());
+                    }
+                    self.limits.borrow_mut().cmd_granularity = n;
+                }
+                _ => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"command limit value must be at least 0".to_vec());
+                    }
+                    self.limits.borrow_mut().cmd_value = Some(n);
+                }
+            }
+            i += 2;
+        }
+        Ok(obj::new_string_bytes(b""))
+    }
+
+    fn limit_time(&self, opts: &[*mut TclObj]) -> Result<*mut TclObj, Vec<u8>> {
+        const OPTS: &[&[u8]] = &[b"-command", b"-granularity", b"-milliseconds", b"-seconds"];
+        if opts.is_empty() {
+            let l = self.limits.borrow();
+            let (secs, millis) = match l.time_value {
+                Some((s, m)) => (s.to_string().into_bytes(), m.to_string().into_bytes()),
+                None => (Vec::new(), Vec::new()),
+            };
+            return Ok(dict_obj(&[
+                (b"-command", l.time_command.clone()),
+                (b"-granularity", l.time_granularity.to_string().into_bytes()),
+                (b"-milliseconds", millis),
+                (b"-seconds", secs),
+            ]));
+        }
+        if opts.len() == 1 {
+            let opt = resolve_limit_opt(&obj_bytes(opts[0]), OPTS)?;
+            let l = self.limits.borrow();
+            let val = match opt.as_slice() {
+                b"-command" => l.time_command.clone(),
+                b"-granularity" => l.time_granularity.to_string().into_bytes(),
+                b"-seconds" => opt_int(l.time_value.map(|(s, _)| s)),
+                _ => opt_int(l.time_value.map(|(_, m)| m)),
+            };
+            return Ok(obj::new_string_bytes(&val));
+        }
+        if opts.len() % 2 != 0 {
+            return Err(
+                b"wrong # args: should be \"interp limit path time ?-option value ...?\"".to_vec(),
+            );
+        }
+        let (mut sec, mut ms) = self.limits.borrow().time_value.unwrap_or((0, 0));
+        let mut touched = self.limits.borrow().time_value.is_some();
+        let mut i = 0;
+        while i + 1 < opts.len() {
+            let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
+            let val = obj_bytes(opts[i + 1]);
+            match opt.as_slice() {
+                b"-command" => self.limits.borrow_mut().time_command = val,
+                b"-granularity" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 1 {
+                        return Err(b"granularity must be at least 1".to_vec());
+                    }
+                    self.limits.borrow_mut().time_granularity = n;
+                }
+                b"-seconds" => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"seconds must be non-negative".to_vec());
+                    }
+                    sec = n;
+                    touched = true;
+                }
+                _ => {
+                    let n = parse_limit_int(&val)?;
+                    if n < 0 {
+                        return Err(b"milliseconds must be non-negative".to_vec());
+                    }
+                    ms = n;
+                    touched = true;
+                }
+            }
+            i += 2;
+        }
+        if touched {
+            // Normalise excess milliseconds into seconds.
+            sec += ms.div_euclid(1000);
+            ms = ms.rem_euclid(1000);
+            self.limits.borrow_mut().time_value = Some((sec, ms));
+        }
+        Ok(obj::new_string_bytes(b""))
+    }
+
+    /// Whether this interp's `time` limit has elapsed (an absolute wall-clock
+    /// deadline). `false` when no time limit is set.
+    pub(crate) fn time_limit_exceeded(&self) -> bool {
+        match self.limits.borrow().time_value {
+            Some((secs, millis)) => {
+                let deadline = i128::from(secs) * 1000 + i128::from(millis);
+                self.host().clock().now_millis() >= deadline
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a `time` limit is configured at all — the cheap guard the loop
+    /// commands check before paying for a wall-clock read.
+    pub(crate) fn has_time_limit(&self) -> bool {
+        self.limits.borrow().time_value.is_some()
+    }
+
+    /// Advance the limit-poll counter and, when a `time` limit is armed and the
+    /// throttle window elapses, set the `time limit exceeded` error and return
+    /// its `Code`. Called from the loop commands (`while`/`for`) each iteration
+    /// so an unbounded loop under `interp limit $i time` terminates. A guarded
+    /// no-op when no time limit is set.
+    pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
+        if !self.has_time_limit() {
+            return None;
+        }
+        let t = self.limit_tick.get().wrapping_add(1);
+        self.limit_tick.set(t);
+        if t & 0x0FFF == 0 && self.time_limit_exceeded() {
+            return Some(self.error(b"time limit exceeded"));
+        }
+        None
     }
 
     /// The names of this interp's direct child interpreters (sorted).
@@ -4645,7 +5247,7 @@ impl Interp {
             return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
         }
         // Recursion bound (catchable, not a stack overflow).
-        if self.recursion_depth.get() >= RECURSION_LIMIT {
+        if self.recursion_depth.get() >= self.recursion_limit.get() {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);

@@ -22,17 +22,50 @@ fn num_arg(v: &Value) -> Result<f64, String> {
 /// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
 /// NaN/Inf is their purpose — even though a bare `NaN` is a domain error as an
 /// ordinary operand.
+/// `fpclassify floatValue` — the top-level command (`tclBasic.c`
+/// `FloatClassifyObjCmd`): classify a number as zero / subnormal / normal /
+/// infinite / nan. An integer coerces to its double value first (so `0` is
+/// `zero`, any other integer `normal`); a non-number errors.
+fn cmd_fpclassify(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [v] = args else {
+        return err("wrong # args: should be \"fpclassify floatValue\"");
+    };
+    match num_or_nan(v) {
+        Ok(d) => ok(Value::string(match d.classify() {
+            std::num::FpCategory::Nan => "nan",
+            std::num::FpCategory::Infinite => "infinite",
+            std::num::FpCategory::Zero => "zero",
+            std::num::FpCategory::Subnormal => "subnormal",
+            std::num::FpCategory::Normal => "normal",
+        })),
+        Err(m) => err(m),
+    }
+}
+
 fn num_or_nan(v: &Value) -> Result<f64, String> {
     if let Ok(d) = v.as_double() {
         return Ok(d);
     }
-    if matches!(
-        number::parse_whole(v.to_str().trim()),
-        Some(Number::Nan { .. })
-    ) {
-        return Ok(f64::NAN);
+    match number::parse_whole(v.to_str().trim()) {
+        Some(Number::Nan { .. }) => Ok(f64::NAN),
+        // A bignum coerces to its nearest double (overflowing to ±Inf past the
+        // double range), matching C's `Tcl_GetDoubleFromObj`.
+        Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) => {
+            let base = radix as u32;
+            let mut acc = 0.0f64;
+            for c in digits.chars() {
+                if let Some(d) = c.to_digit(base) {
+                    acc = acc * f64::from(base) + f64::from(d);
+                }
+            }
+            Ok(if negative { -acc } else { acc })
+        }
+        _ => Err(format!("expected number but got \"{}\"", v.to_str())),
     }
-    Err(format!("expected number but got \"{}\"", v.to_str()))
 }
 
 /// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
@@ -109,6 +142,8 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::isunordered", |_, a| {
         pred_fn2(a, "isunordered", |x, y| x.is_nan() || y.is_nan())
     });
+    // `fpclassify` is a top-level command, not a math function.
+    vm.register("fpclassify", cmd_fpclassify);
 }
 
 /// A one-`double` classification predicate (`isnan`/`isinf`/…): coerce the

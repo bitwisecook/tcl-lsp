@@ -487,7 +487,7 @@ fn info_dispatch_and_abbreviation() {
 ///   info hostname   -> the host name
 ///   info coroutine  -> "" at top level (or the coroutine name)
 ///   info frame      -> a frame count / dict
-///   info object / info class -> TclOO introspection
+///   info object / info class -> `TclOO` introspection
 /// UNIMPLEMENTED in the VM (coverage limit, not a correctness bug on supported
 /// input): asserting the VM's actual error so the gap is pinned and visible.
 #[test]
@@ -628,7 +628,7 @@ fn namespace_which_command() {
 /// `namespace which -variable name` — tclsh resolves the variable's FQN, and the
 /// VM now honours the `-variable` flag and resolves the variable table.
 ///   script `namespace eval foo {variable v 1}; namespace which -variable ::foo::v`
-///   tclsh (both): "::foo::v" — matched by the VM (guards regression).
+///   tclsh (both): `::foo::v` — matched by the VM (guards regression).
 #[test]
 fn namespace_which_variable_bug() {
     let (ok, res, _) = run("namespace eval foo {variable v 1}; namespace which -variable ::foo::v");
@@ -730,34 +730,38 @@ fn namespace_dispatch_unknown_subcommand() {
     );
 }
 
-/// `namespace forget` is accepted as a no-op in the VM, so an imported command
-/// stays callable. In tclsh, `forget` removes the import (the command then
-/// errors). UNIMPLEMENTED no-op (metadata only).
+/// `namespace forget` removes a previously imported command, so a bare call to
+/// it then errors, matching tclsh.
 ///   tclsh (both): after forget, `catch {bar}` -> 1 (command removed)
-///   VM:           after forget, `catch {bar}` -> 0 (still imported)
-/// Asserting the VM's actual behaviour so the stub is pinned.
+///   VM:           after forget, `catch {bar}` -> 1 (command removed)
 #[test]
-fn namespace_forget_is_noop_in_vm() {
+fn namespace_forget_removes_imported_command() {
     let (ok, res, _) = run(concat!(
         "namespace eval foo {namespace export bar; proc bar {} {return B}}; ",
         "namespace import foo::bar; namespace forget foo::bar; catch {bar}",
     ));
     assert!(ok, "must not error: {res}");
-    // VM keeps the import (no-op); tclsh would yield "1" here.
-    assert_eq!(res, "0");
+    // `namespace forget` removes the imported `bar`, so the bare call errors
+    // (catch → 1), matching tclsh.
+    assert_eq!(res, "1");
 }
 
-/// `namespace ensemble` is accepted as a no-op returning empty. In tclsh,
-/// `namespace ensemble create` builds an ensemble and returns its command name
-/// (`::` at the global scope). UNIMPLEMENTED no-op.
+/// `namespace ensemble create` builds an ensemble command and returns its
+/// fully-qualified name (`::` at the global scope), and the command dispatches
+/// subcommands to the namespace's exported procs.
 ///   tclsh (both): namespace ensemble create -> "::"
-///   VM:           namespace ensemble create -> ""
 #[test]
-fn namespace_ensemble_is_noop_in_vm() {
+fn namespace_ensemble_create_dispatches() {
     let (ok, res, _) = run("namespace ensemble create");
     assert!(ok, "must not error: {res}");
-    // VM no-op returns empty; tclsh returns "::".
-    assert_eq!(res, "");
+    assert_eq!(res, "::");
+    // A named ensemble dispatches `cmd sub` to the exported `ns::sub`.
+    let (ok, res, _) = run(concat!(
+        "namespace eval ns {namespace export greet; proc greet {} {return hi}; ",
+        "namespace ensemble create}; ns greet",
+    ));
+    assert!(ok, "must not error: {res}");
+    assert_eq!(res, "hi");
 }
 
 /// `namespace upvar` links a namespace variable into the current frame in tclsh.
@@ -983,9 +987,9 @@ fn namespace_eval_global_and_body_parse_error() {
 
 /// `namespace inscope` / `eval` bare (missing the script/body args). The VM's
 /// usage wording diverges slightly from tclsh9.0 — it reads `namespace`/`name`
-/// + `?arg ...?` where tclsh reads `name` + `?arg...?`. Asserting the VM's
-/// actual message and recording the divergence.
-/// Divergence (error text only), e.g. `namespace inscope foo`:
+/// plus `?arg ...?` where tclsh reads `name` plus `?arg...?`. Asserting the
+/// VM's actual message and recording the divergence (error text only), e.g.
+/// `namespace inscope foo`:
 ///   tclsh9.0: `wrong # args: should be "namespace inscope name arg ?arg...?"`
 ///   VM:       `wrong # args: should be "namespace inscope namespace arg ?arg ...?"`
 #[test]
