@@ -162,7 +162,15 @@ class TestConfigToggleParity:
         uri = uri_factory()
         lsp_server.open_ready(uri, "proc f {} {\n  set x 1\n  set y 2\n}\n")
         assert lsp_server.folding_range(uri)  # present by default
+        # foldingRange is a plain request with nothing to block on, so it can
+        # race ahead of the async didChangeConfiguration apply.  Don't poll the
+        # effective config — instead wait for the message that proves the toggle
+        # landed: a config change reschedules every open doc, so the server
+        # re-publishes this document's diagnostics *after* applying the config.
+        # Waiting for that publish orders the folding request behind the apply.
+        lsp_server.clear_diagnostics_log()
         with lsp_server.config_session({"features": {"folding": False}}, settle_uri=uri):
+            lsp_server.await_diagnostics(uri, version=1, timeout=15)
             # An authoritative empty set (not `None`) so the client does not fall
             # back to built-in indentation folding.
             assert lsp_server.folding_range(uri) == []
