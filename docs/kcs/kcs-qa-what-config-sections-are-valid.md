@@ -33,7 +33,7 @@ when this section appears in the **global** XDG `config.ini`; a
 `[global]` section in `.tcl-lsp.ini` is logged and ignored.
 
 - `dialect` — default dialect for files that have no per-file hint.
-  One of `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `expect`.
+  One of `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `expect`.
 - `extraCommands` — comma- or newline-separated list of extra Tcl
   command names the analyser should recognise.
 - `libraryPaths` — one path per line, or comma-separated for one-line

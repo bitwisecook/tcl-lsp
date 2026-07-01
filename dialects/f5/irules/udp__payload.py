@@ -24,6 +24,7 @@ class UdpPayloadCommand(CommandDef):
         return CommandSpec(
             name="UDP::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Returns the content or length of the current UDP payload.",
                 synopsis=(

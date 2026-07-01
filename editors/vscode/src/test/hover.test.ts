@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Hover", () => {
   const docUri = getDocUri("procs.tcl");
@@ -14,10 +14,10 @@ suite("Hover", () => {
     // proc fib {n} {  -- "fib" starts at col 5
     const position = new vscode.Position(1, 6);
 
-    const hovers = (await vscode.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      docUri,
-      position,
+    const hovers = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, position),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "hover for proc call" },
     )) as vscode.Hover[];
 
     assert.ok(hovers, "Hover result should not be null");

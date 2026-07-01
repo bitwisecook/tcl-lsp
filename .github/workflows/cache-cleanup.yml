@@ -21,8 +21,10 @@ on:
     - cron: "0 4 * * 1" # Mondays 04:00 UTC
   workflow_dispatch:
 
+# Default the workflow token to read-only; the single job that deletes
+# caches elevates to `actions: write` at job scope (least privilege — a
+# compromised step elsewhere never inherits cache-delete rights).
 permissions:
-  actions: write
   contents: read
 
 concurrency:
@@ -32,6 +34,9 @@ concurrency:
 jobs:
   prune:
     runs-on: ubuntu-24.04
+    permissions:
+      actions: write   # gh cache delete
+      contents: read
     steps:
       - name: Delete caches for the closed PR
         if: github.event_name == 'pull_request'

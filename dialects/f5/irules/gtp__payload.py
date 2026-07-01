@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from compiler.registry._base import CommandDef, make_av
 from compiler.registry.models import (
+    BytePayloadSpec,
     CommandSpec,
     FormKind,
     FormSpec,
@@ -34,6 +35,9 @@ class GtpPayloadCommand(CommandDef):
         return CommandSpec(
             name="GTP::payload",
             dialects=_IRULES_ONLY,
+            # `GTP::payload replace ('-message' MESSAGE)? OFFSET COUNT NEW_VALUE`
+            # — data at index 3, shifted to 5 when `-message MESSAGE` is present.
+            byte_array_payload=BytePayloadSpec(replace_data_index=3, message_flag_shift=True),
             hover=HoverSnippet(
                 summary="Returns the entire payload for G-PDU message.",
                 synopsis=(

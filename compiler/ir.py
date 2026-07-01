@@ -379,6 +379,11 @@ class IRTryHandler:
     options_var: str | None  # variable bound to options dict
     body: IRScript
     body_range: Range
+    # ``True`` when the handler body is the literal ``-`` fallthrough
+    # marker: the handler shares the next non-fallthrough handler's
+    # body (Tcl ``try`` semantics, mirroring ``switch``).  ``body`` is
+    # an empty script in that case — the ``-`` is *not* a command call.
+    fallthrough: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -32,7 +32,11 @@ def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
             roles[i] = _KEYWORD
-            roles[i + 3] = _BODY
+            # A handler body of literal ``-`` is a fallthrough marker
+            # (shares the next handler's body, like ``switch``); it is
+            # not a script, so it gets no BODY role.
+            if args[i + 3] != "-":
+                roles[i + 3] = _BODY
             i += 4
         else:
             i += 1

@@ -24,6 +24,7 @@ class SctpPayloadCommand(CommandDef):
         return CommandSpec(
             name="SCTP::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Returns or replaces SCTP data content.",
                 synopsis=("SCTP::payload ( (PAYLOAD_LENGTH) |",),

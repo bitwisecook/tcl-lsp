@@ -622,6 +622,33 @@ for {set i 0} {$i < 100} {incr i} {
 }
 ```
 
+S100–S102 are *performance* warnings.  **S110** is a *correctness* warning for
+byte-array corruption: binary data (a `binary format` result or an iRules
+`*::payload` byte array) that is forced through character-string semantics and
+then written back as bytes silently re-encodes every byte `≥ 0x80`.  This is the
+canonical iRules payload-rewrite bug ([F5 KB K22406348](https://my.f5.com/manage/s/article/K22406348)).
+
+```tcl
+# S110 — byte-array corruption (warning):
+when HTTP_REQUEST_DATA {
+    set body [HTTP::payload]
+    set body "$body INJECTED"          ;# byte array decoded to a character string
+    HTTP::payload replace 0 100 $body  ;# ✗ written back: UTF-8 re-encodes high bytes
+}
+
+# Fix — re-binarify before writing back (or avoid the string detour):
+when HTTP_REQUEST_DATA {
+    set body [HTTP::payload]
+    set body "$body INJECTED"
+    binary scan $body c* -             ;# forces a byte-array intrep
+    HTTP::payload replace 0 100 $body  ;# ✓ written byte-for-byte
+}
+
+# Plain Tcl — string case folding mangles a byte array directly:
+set ba [binary format c* {128 195 255}]
+set up [string toupper $ba]            ;# ✗ S110: 0xFF → U+0178 corrupts the bytes
+```
+
 ### Taint analysis
 
 Colour-aware data provenance tracking follows untrusted I/O through
@@ -1626,6 +1653,7 @@ different Tcl versions without manual switching.
 | `tcl8.5` | Tcl 8.5 core commands (adds `{*}`, `lassign`, `dict`, etc.) |
 | `tcl8.6` | Tcl 8.6 core commands (adds `try`/`finally`, `tailcall`, coroutines) -- **default** |
 | `tcl9.0` | Tcl 9.0 core commands (adds `lpop`, zipfs, updated `encoding`) |
+| `tcl9.1` | Tcl 9.1 core commands (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
 | `f5-bigip` | F5 BIG-IP configuration (`bigip.conf`) commands |

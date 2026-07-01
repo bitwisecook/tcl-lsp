@@ -78,6 +78,7 @@ const DIALECT_LABELS: Record<string, string> = {
   "tcl8.5": "Tcl 8.5",
   "tcl8.6": "Tcl 8.6",
   "tcl9.0": "Tcl 9.0",
+  "tcl9.1": "Tcl 9.1",
   "f5-irules": "F5 iRules",
   "f5-iapps": "F5 iApps",
   "f5-bigip": "F5 BIG-IP Config",
@@ -99,6 +100,7 @@ const TCL_LANGUAGE_IDS = new Set([
   "tcl8.4",
   "tcl8.5",
   "tcl9.0",
+  "tcl9.1",
   "tcl-synopsys",
   "tcl-cadence",
   "tcl-xilinx",
@@ -119,6 +121,7 @@ const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl8.4": "tcl8.4",
   "tcl8.5": "tcl8.5",
   "tcl9.0": "tcl9.0",
+  "tcl9.1": "tcl9.1",
   "tcl-synopsys": "synopsys-eda-tcl",
   "tcl-cadence": "cadence-eda-tcl",
   "tcl-xilinx": "xilinx-eda-tcl",
@@ -132,6 +135,7 @@ const TCL_VERSION_DIALECTS: Record<string, string> = {
   "8.5": "tcl8.5",
   "8.6": "tcl8.6",
   "9.0": "tcl9.0",
+  "9.1": "tcl9.1",
 };
 
 // LSP wire types (used by rename partitioning)

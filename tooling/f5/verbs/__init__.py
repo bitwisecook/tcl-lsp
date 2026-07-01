@@ -27,7 +27,6 @@ def load_verbs() -> None:
         push,
         query,
         redact,
-        registry,
         rename,
         secrets,
         split,

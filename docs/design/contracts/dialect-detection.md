@@ -27,7 +27,7 @@ Place a comment in the first 5 lines of any Tcl file:
 ```
 
 The directive name is case-insensitive.  The dialect value must be one of the
-known dialect strings (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`,
+known dialect strings (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`,
 `f5-iapps`, `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`,
 `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`).
 
@@ -50,6 +50,7 @@ The first line is checked for shebang patterns:
 - `#!/usr/bin/tclsh8.5` or `#!/usr/bin/env tclsh8.5` -> `tcl8.5`
 - `#!/usr/bin/tclsh8.6` or `#!/usr/bin/env tclsh8.6` -> `tcl8.6`
 - `#!/usr/bin/tclsh9.0` or `#!/usr/bin/env tclsh9.0` -> `tcl9.0`
+- `#!/usr/bin/tclsh9.1` or `#!/usr/bin/env tclsh9.1` -> `tcl9.1`
 
 A plain `#!/usr/bin/tclsh` without a version number does not select a
 specific dialect and falls through to the user setting.
@@ -101,6 +102,7 @@ Dialect is re-evaluated when:
 | `tcl8.4` | `tcl8.4` |
 | `tcl8.5` | `tcl8.5` |
 | `tcl9.0` | `tcl9.0` |
+| `tcl9.1` | `tcl9.1` |
 | `tcl-synopsys` | `synopsys-eda-tcl` |
 | `tcl-cadence` | `cadence-eda-tcl` |
 | `tcl-xilinx` | `xilinx-eda-tcl` |

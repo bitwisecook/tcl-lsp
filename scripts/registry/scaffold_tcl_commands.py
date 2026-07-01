@@ -38,7 +38,7 @@ from compiler.registry.signatures import Arity  # noqa: E402
 
 # Man page parsing (reused from generate_tcl_core_from_manpages.py)
 
-DIALECTS = ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0")
+DIALECTS = ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1")
 
 MARKUP_RE = re.compile(r"\\f[BRIUP]")
 MARKER_RE = re.compile(r'^\s*\.\\"\s+(OPTION|METHOD|COMMAND):\s*(\S+)')
@@ -669,8 +669,8 @@ def scaffold_commands(
     pages, command_to_page = _build_page_index(doc_dir)
     by_dialect = _collect_dialect_membership()
 
-    # Get tcl9.0 signatures (broadest set)
-    configure_signatures(dialect="tcl9.0", extra_commands=[])
+    # Get tcl9.1 signatures (broadest set)
+    configure_signatures(dialect="tcl9.1", extra_commands=[])
     tcl9_signatures = dict(SIGNATURES)
     configure_signatures(dialect="tcl8.6", extra_commands=[])
 

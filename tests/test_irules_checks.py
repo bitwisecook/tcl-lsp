@@ -263,7 +263,31 @@ class TestIrule2001:
         assert len(diags) == 1
         assert len(diags[0].fixes) == 1
         fix = diags[0].fixes[0]
-        assert "class match" in fix.new_text
+        # 2-arg shorthand expands with the default ``equals`` operator.
+        assert fix.new_text == "class match [HTTP::uri] equals my_class"
+
+    def test_matchclass_three_arg_warns(self):
+        src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri] starts_with $::admin_paths\n}"
+        diags = _diag_with_code(src, "IRULE2001")
+        assert len(diags) == 1
+        assert "matchclass" in diags[0].message
+
+    def test_matchclass_three_arg_fix_preserves_operator_and_class(self):
+        # The 3-arg form is ``matchclass <item> <operator> <class>`` and must
+        # not be forced to ``equals`` nor drop the real class.
+        src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri] starts_with $::admin_paths\n}"
+        diags = _diag_with_code(src, "IRULE2001")
+        assert len(diags) == 1
+        assert len(diags[0].fixes) == 1
+        fix = diags[0].fixes[0]
+        assert fix.new_text == "class match [HTTP::uri] starts_with $::admin_paths"
+
+    def test_matchclass_one_arg_warns_without_fix(self):
+        # Ambiguous arity: still warn, but offer no (corrupting) quick-fix.
+        src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri]\n}"
+        diags = _diag_with_code(src, "IRULE2001")
+        assert len(diags) == 1
+        assert len(diags[0].fixes) == 0
 
     def test_no_matchclass_no_warning(self):
         src = "when HTTP_REQUEST {\n    class match [HTTP::uri] equals my_class\n}"
@@ -407,6 +431,63 @@ class TestIrule1201:
         )
         warnings = _flow_with_code(src, "IRULE1201")
         assert len(warnings) == 0
+
+    def test_respond_then_return_inside_catch_warns(self):
+        # Flow option (2): ``catch`` swallows the ``return``, so control
+        # continues past the catch with the response already committed — the
+        # post-catch HTTP::header insert must still be flagged, and the
+        # at-catch-return ``responded`` state must propagate out.
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    catch { HTTP::respond 200 content ok; return }\n"
+            '    HTTP::header insert X-Debug "yes"\n'
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1201")
+        assert len(warnings) == 1
+        assert "HTTP::header" in warnings[0].message
+
+    def test_catch_body_without_return_still_continues(self):
+        # Regression: a catch whose body does not return continues normally,
+        # carrying the responded state to flag the post-catch command.
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    catch { HTTP::respond 200 content ok }\n"
+            '    HTTP::header insert X-Debug "yes"\n'
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1201")
+        assert len(warnings) == 1
+        assert "HTTP::header" in warnings[0].message
+
+    def test_catch_without_respond_no_warning(self):
+        # Regression: a benign catch body must not spuriously flag post-catch
+        # HTTP commands.
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    catch { set x 1; return }\n"
+            "    HTTP::header insert X-Debug 1\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1201")
+        assert len(warnings) == 0
+
+    def test_finally_runs_on_returning_try_body_inside_catch(self):
+        # ``finally`` always runs in Tcl, even when the ``try`` body returns.
+        # The at-return ``responded`` state must reach the finally block so the
+        # HTTP::header insert there is flagged (Codex review, PR #662).
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    catch {\n"
+            "        try { HTTP::respond 200; return } finally {\n"
+            "            HTTP::header insert X-Debug yes\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1201")
+        assert len(warnings) == 1
+        assert "HTTP::header" in warnings[0].message
 
 
 # IRULE1202: Multiple respond/redirect calls
@@ -1440,6 +1521,44 @@ class TestIrule5002:
         warnings = _flow_with_code(src, "IRULE5002")
         assert len(warnings) == 1
 
+    def test_drop_and_return_inside_catch_still_warns(self):
+        # Flow option (2): the ``return`` is swallowed by ``catch``, so it does
+        # NOT stop iRule processing — the unguarded ``drop`` still leaks past
+        # the catch and must be flagged.
+        src = "when CLIENT_ACCEPTED {\n    catch { drop; return }\n}"
+        warnings = _flow_with_code(src, "IRULE5002")
+        assert len(warnings) == 1
+        assert "drop" in warnings[0].message
+
+    def test_catch_body_without_return_still_warns_drop(self):
+        # Regression: a catch whose body does not return continues normally and
+        # the unguarded drop still leaks out.
+        src = "when CLIENT_ACCEPTED {\n    catch { drop }\n}"
+        warnings = _flow_with_code(src, "IRULE5002")
+        assert len(warnings) == 1
+        assert "drop" in warnings[0].message
+
+    def test_catch_without_drop_no_warning(self):
+        # Regression: a benign catch body must not spuriously warn.
+        src = "when CLIENT_ACCEPTED {\n    catch { set x 1; return }\n}"
+        warnings = _flow_with_code(src, "IRULE5002")
+        assert len(warnings) == 0
+
+    def test_finally_guard_on_returning_try_body_inside_catch(self):
+        # ``finally`` always runs in Tcl, even when the ``try`` body returns, so
+        # ``finally { event disable all }`` guards the drop — the at-return drop
+        # state must flow through finally before reaching the catch, otherwise
+        # IRULE5002 false-positives (Codex review, PR #662).
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    catch {\n"
+            "        try { drop; return } finally { event disable all }\n"
+            "    }\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE5002")
+        assert len(warnings) == 0
+
     def test_has_codefix(self):
         src = "when CLIENT_ACCEPTED {\n    reject\n}"
         warnings = _flow_with_code(src, "IRULE5002")
@@ -1474,6 +1593,14 @@ class TestIrule5004:
         src = "when DNS_REQUEST {\n    if {$x} {\n        DNS::return\n        return\n    }\n}"
         warnings = _flow_with_code(src, "IRULE5004")
         assert len(warnings) == 0
+
+    def test_dns_return_and_return_inside_catch_still_warns(self):
+        # Flow option (2): the ``return`` is swallowed by ``catch`` so it does
+        # not stop processing — the unguarded ``DNS::return`` still leaks out.
+        src = "when DNS_REQUEST {\n    catch { DNS::return; return }\n}"
+        warnings = _flow_with_code(src, "IRULE5004")
+        assert len(warnings) == 1
+        assert "DNS::return" in warnings[0].message
 
     def test_has_codefix(self):
         src = "when DNS_REQUEST {\n    DNS::return\n}"

@@ -5,18 +5,7 @@
 | E001 | error | Missing subcommand — e.g. bare `string` without a subcommand. | ✓ |
 | E002 | error | Too few arguments for command. | ✓ |
 | E003 | error | Too many arguments for command. | ✓ |
-| E004 | error | Malformed `if` command — missing clauses or extra words after `else`. | ✓ |
-| E100 | error | Unmatched `]` — missing opening `[`? | ✓ |
-| E101 | error | Missing `{` after `switch` — case bodies follow without braces. | ✓ |
-| E102 | error | Unmatched `}` — missing opening `{`? | ✓ |
-| E103 | error | Missing `}` — a nested body consumed this closing brace. | ✓ |
 | E200 | error | Shimmer parse error — internal representation cannot be determined. | ✓ |
-| E201 | error | Unterminated command substitution — missing close bracket `]`. | ✓ |
-| E202 | error | Unterminated double-quoted string — missing closing `"`. | ✓ |
-| E203 | error | Unterminated braced word — missing closing `}`. | ✓ |
-| E204 | error | Extra characters after the close brace of a `${name}` variable reference. | ✓ |
-| E205 | error | Extra characters after the close quote in a variable name. | ✓ |
-| E206 | error | Missing close brace for a `${name}` variable reference. | ✓ |
 | W001 | warning | Unknown subcommand. | ✓ |
 | W002 | warning | Command is disabled in active dialect profile. | ✓ |
 | W003 | warning | Expression operator not available in active dialect. | ✓ |
@@ -71,9 +60,6 @@
 | W307 | security | Non-literal command name — variable or command substitution as command. | ✓ |
 | W308 | security | `subst` without `-nocommands` — risk of unintended command execution. | ✓ |
 | W309 | security | `eval`/`uplevel` with `subst` — double substitution risk. | ✓ |
-| W310 | security | Hardcoded credential in a password/auth argument — store secrets outside source. | ✓ |
-| W311 | security | Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks. | ✓ |
-| W312 | security | `interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk. | ✓ |
 | W313 | security | Destructive file operation with variable path — path-traversal risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
@@ -83,17 +69,10 @@
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
 | S102 | shimmer | Variable oscillates between two types across loop iterations. | ✓ |
-| S110 | shimmer | Byte-array value coerced to a string by a string operation — binary representation corrupted. | ✓ |
+| S110 | shimmer | Byte array corrupted by a string operation before being written back as bytes. | ✓ |
 | T100 | taint | Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion). | ✓ |
 | T101 | taint | Tainted data flows into an output command (`puts`). | ✓ |
 | T102 | taint | Tainted data in option position without `--` terminator — option injection risk. | ✓ |
-| T103 | taint | Tainted data in a `regexp`/`regsub` pattern — regex-injection or ReDoS risk. | ✓ |
-| T104 | taint | Tainted data in a network-address argument (e.g. `socket`) — SSRF risk. | ✓ |
-| T105 | taint | Tainted data in a cross-interpreter eval subcommand (`interp eval`/`invokehidden`) — code-execution risk. | ✓ |
-| T106 | taint | Already-encoded value passed through a command that re-encodes it — double-encoding. | ✓ |
-| TK1001 | tk | Geometry-manager conflict — `pack` and `grid` used on the same parent. | ✓ |
-| TK1002 | tk | Widget path references a non-existent parent widget. | ✓ |
-| TK1003 | tk | Unknown option for a widget command. | ✓ |
 | IRULE1001 | irules | Command invalid or ineffective in this iRules event. | ✓ |
 | IRULE1002 | irules | Unknown iRules event name. | ✓ |
 | IRULE1003 | irules | Deprecated iRules event. | ✓ |
@@ -110,19 +89,15 @@
 | IRULE2101 | irules | Heavy `regexp` in a high-frequency event — consider `string match` or data-group. | ✓ |
 | IRULE5001 | irules | Ungated `log` in a high-frequency event. | ✓ |
 | IRULE5002 | irules | `drop`/`reject`/`discard` without `event disable all` or `return`. | ✓ |
-| IRULE5003 | irules | Loop condition `$x != 0` can skip zero when decremented past it — use `$x > 0`. | ✓ |
 | IRULE5004 | irules | `DNS::return` without `return`. | ✓ |
 | IRULE5005 | irules | Direct proc invocation without `call` — use `call proc_name`. | ✓ |
 | IRULE5006 | irules | Top-level-only command used inside a nested body. | ✓ |
 | IRULE5007 | irules | Event-context command used at top level outside a `when` block. | ✓ |
-| IRULE6001 | irules | `global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`. | ✓ |
 | IRULE3001 | irules_security | Tainted data in HTTP response body. | ✓ |
 | IRULE3002 | irules_security | Tainted data in HTTP header or cookie value. | ✓ |
 | IRULE3003 | irules_security | Tainted data in `log` command — log injection risk. | ✓ |
-| IRULE3004 | irules_security | Tainted data in an `HTTP::redirect` URL — open-redirect risk. | ✓ |
 | IRULE3101 | irules_security | `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`. | ✓ |
 | IRULE3102 | irules_security | `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`. | ✓ |
-| IRULE3103 | irules_security | Manual split/match of an un-normalised URI getter — parse-differential / traversal risk. | ✓ |
 | IRULE4001 | irules_variable | Write to `static::` variable outside `RULE_INIT`. | ✓ |
 | IRULE4002 | irules_variable | Generic `static::` variable name — collision likely across iRules. | ✓ |
 | IRULE4003 | irules_variable | Variable scoping concern across events. | ✓ |
