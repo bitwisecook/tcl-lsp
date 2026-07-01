@@ -27,6 +27,14 @@ by the plan's five dependency stages, with the specific residual for each.
 Status legend (from the plan): ✅ done · 🟢 done bar listed residuals ·
 🟡 partial · 🔴 not started.
 
+> **Scope (2026-07-01):** the **runtime & execution** layers — WASM codegen
+> (RT-WASM), the bytecode VM (RT-VM / `tcl-vm`), and the `runtime/rust`
+> tree-walking port — are **tracked separately** and have been removed from this
+> audit. See `docs/design/runtime/rust-vm-tier-parity.md`,
+> `docs/design/runtime/tclvm-opcode-status.md`, and
+> `docs/design/runtime/rust-runtime-port.md` (on the `rust` branch). What remains
+> below is the front-end / analyser / server / API / tooling gap list.
+
 ## Executive summary
 
 The foundation (lexer, segmenter, CST, IR/CFG/SSA, dataflow, type/shimmer,
@@ -37,16 +45,15 @@ number of areas:
 
 | # | Gap | Track | Status | Size |
 |---|---|---|---|---|
-| 1 | WASM codegen emitter + `tcl-wasm` bundling | RT-WASM | 🟡 | **Largest single gap** |
-| 2 | Bytecode VM command surface + tcltest parity | RT-VM | 🟡 | Large |
-| 3 | `runtime/rust` tree-walking runtime port | (runtime, off-workspace) | 🟡 | Large |
 | 4 | Per-edit / cross-file incrementality (Tasks 1/2/4/6 shipped; only Task 3 remains; 5/7 dropped — rope) | SRV-INCREMENTAL | 🟡 | M |
 | 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
-| 7 | Tooling residuals (explorer, fuzzer, irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
+| 7 | Tooling residuals (irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
 | 8 | FP precision divergences (5 `#[ignore]`s) + astral-output columns | FE-DIAG/FP | residuals | Small |
 
-Everything else in the plan's subsystem table is ✅.
+The runtime & execution gaps (WASM / bytecode VM / `runtime/rust`) are tracked
+separately (see the scope note above). Everything else in the plan's subsystem
+table is ✅.
 
 ---
 
@@ -73,7 +80,8 @@ Every O-code pass and the full inliner (v0 verbatim **and** v3 α-rename +
 parameter binding + return-as-break wrap) are ported. Two items are explicitly
 **not** counted as port gaps:
 
-- v3's execution-differential verification is owned by its consumer (RT-WASM).
+- v3's execution-differential verification is owned by its consumer (the
+  execution/WASM track, tracked separately).
 - The optional, non-correctness **O110** rewrites are gated on the iRules
   `MatchesGlob` / `MatchesRegex` expr operators landing first.
 
@@ -106,102 +114,12 @@ branch for the live worklist):
 
 ## Stage 2 — Runtime & execution
 
-### 1. RT-WASM — WASM codegen + runtime 🟡 — **largest single gap**
-
-Owns `tcl-compiler::codegen::wasm`, `runtime/zig`, and a new `tcl-wasm` bin.
-The eval-fallback emitter and `tcl compwasm` wiring have landed (binary/WAT
-output, `wasmtime`-validated). **Scale of the gap:** the Rust emitter is
-~1.5 K LOC across 4 files
-(`codegen/wasm/{backend,encoding,ir,mod}.rs`); the Python package it must reach
-parity with is **~20.6 K LOC across 49 modules** (`compiler/codegen/wasm/`),
-including a per-command emitter for each of
-`append`, `apply`, `array`, `catch`, `clock`, `concat`, `dict`, `error`,
-`fconfigure`, `fcopy`, `format`, `info`, `lappend`, `linsert`, `list`,
-`lreplace`, `lsearch`, `lsort`, `puts`, `regexp`, `return`, `runtime`, `scope`,
-`set`, `string`, and `uplevel`. **Remaining:**
-
-- **(large)** Finish the WASM emitter (`wasm_codegen_module`) — only the Phase-1
-  IR + encoding is ported vs the ~13-module Python emitter package.
-- The `IRInterpBoundary` IR node + its insert pass.
-- The IR-rewriting `passes/dce.py` and `passes/gvn.py`.
-- `source_inliner` / `stdlib_prelude` (WASM-bundle self-containment).
-- The `tcl-wasm` CLI + `--link` (Binaryen) bundling — standalone self-contained
-  module.
-
-### 2. RT-VM — bytecode VM 🟡
-
-Owns `tcl-vm` (+ the `tcl-vm-cli` / `tclvm` driver). The engine core is solid
-(loads the real Tcl 9 `tcltest.tcl` end-to-end) and the **VM-vs-tclsh
-differential `bug_*` cmd-tests are all closed** (2026-06-25: math/`expr`,
-`string`/`format`, dict/array/`lsort`, `try`/control, `namespace which
--variable`). **Open — tcltest-suite parity vs the more-complete `runtime/rust`,
-both pinned against C Tcl 9.0.3:**
-
-- **(P1) Uncaught-error abort / error-propagation gap.** A test-body error that
-  escapes tcltest's `catch` propagates to the module top and aborts the whole
-  `run_test` driver (e.g. `info.test` halts at info-8.3, `proc.test` on a bare
-  `VM error:`). This — an `uplevel`/`catch`/error-propagation gap, not a
-  deadlock — is what zeroes the remainder of those suites. (Re-baseline the
-  parity harness in `--release` first: debug-build slowness × the harness
-  timeout masquerades as a hang.)
-- `namespace` / `var` / `upvar` **depth** (~290 failures combined) —
-  namespace-name canonicalisation of multiple/trailing `::` runs; deeper
-  variable-scoping / introspection. The three share the model.
-- `error.test` (29 failing) — 22 are `[try]`-coverage tests needing the
-  **`-level` countdown** (only `-level 0` is immediate today); the rest are
-  `info errorstack` / the `-errorstack` option (unimplemented) and errorInfo
-  edge cases.
-- Smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6), `incr` (3),
-  `if`/`set` (2), `while` (1).
-- **Structural** — give the bytecode backend real exception ranges
-  (`beginCatch`) and a fixed nested-complex-`foreach` / `lmap`-collecting
-  codegen, then drop the `for_bytecode` barriers (`try` / nested-`foreach` /
-  `lmap` run via runtime builtins today — correct but not inline).
-- **Missing command surface** — **TclOO** (largest), `clock`, full `interp`,
-  real I/O (`open` / `gets` / `seek`), `after` / `vwait`, **coroutine**, and
-  residual `file` / `info` / `namespace` subcommands. Concretely, `info` is
-  missing `cmdcount` / `frame` / `functions` / `hostname`. (`info cmdcount`
-  cannot reach exact-count parity without per-bytecode command counting — an
-  "exists but approximate" subcommand.)
-
-### 3. `runtime/rust` — tree-walking runtime port 🟡 (off-workspace)
-
-`runtime/rust/` is the standalone Rust port of the Zig WASM runtime (the
-`runtime/zig/` tree), kept out of `cargo test --workspace` (it needs raw-pointer
-`unsafe` over shared linear memory) and gated via `make runtime-rust-test`. It
-is the eventual in-process tree-walking interpreter and the wasm32 runtime the
-emitted modules link against. Per
-`docs/design/runtime/rust-runtime-port.md` (on the `rust` branch), most
-subsystems are **partial**:
-
-- **`TclObj` + refcount / shimmer** (T1.1) — partial; round-trips leak-clean,
-  but the full typed-rep machinery is incomplete.
-- **valtypes** — list, dict, and string capacity/char-ops landed; **array,
-  arith, format, encoding, hash_table, bs, chars, arena, parse_cache** still to
-  port (each with a representation-decision note).
-- **bignum** — `obj` carries `i64` today; the **libtommath-style arbitrary
-  precision tower** (never-wraps integer arithmetic) is an open representation
-  decision, `cfg`-gated off behind `have_tommath` on wasm32.
-- **parse / subst** (T1.2) — partial; unit parity only.
-- **interp eval loop** (T1.4) — parse→subst→dispatch + `{*}` landed; full
-  control-flow / proc depth follows.
-- **frames / namespaces / procs** — partial; `namespace delete`, `rand`/`srand`
-  RNG state, and deeper proc/catch handling remain.
-- **dispatch** — partial; resolves through the namespace tree, builtin surface
-  fills in incrementally.
-- **builtins (`cmds/`)** — a large surface runs (drives the unmodified Tcl 9
-  library to `package require tcltest`), but the tcltest sweep is incomplete:
-  e.g. `dict.test` 272/373, `lrange` 1759/1766; per-command parity ongoing.
-- **regex** — the **C** Henry-Spencer ARE engine is linked today (`have_regex`,
-  `build.rs` + FFI shim); the **Rust port of the algorithm is the end-stage
-  swap** (`tcl-regex` already exists workspace-side, so this is a convergence,
-  not a fresh port).
-- **coroutines** — native stack-swap + threads are `cfg`-gated off under the
-  `BrowserHost` capability host on wasm32.
-- **lib root / ABI** — compiles and links for `wasm32-unknown-unknown` and an
-  emitted module runs against it end-to-end, but the **rest of the
-  `tcl_*`/`obj_*` symbol set** and **true PIC** (drop the per-program reserved
-  constant-pool gap for `__memory_base`) remain.
+**Tracked separately — removed from this audit (2026-07-01).** The WASM codegen
+emitter (RT-WASM), the bytecode VM (RT-VM / `tcl-vm`), and the `runtime/rust`
+tree-walking port are owned by the runtime track; see
+`docs/design/runtime/rust-vm-tier-parity.md`,
+`docs/design/runtime/tclvm-opcode-status.md`, and
+`docs/design/runtime/rust-runtime-port.md` (on the `rust` branch).
 
 ---
 
@@ -255,21 +173,9 @@ walk used). Everything else in the de-roped track (Tasks 1/2/4/6) is shipped.
 ## Stage 4 — Tooling residuals
 
 Most of Stage 4 is ✅ (TOOL-TCLPKG, TOOL-REFACTOR, TOOL-F5, TOOL-DEBUGGER,
-TOOL-CLI, formatter/minifier/diagram). The 🟢 residuals:
-
-### 7a. TOOL-EXPLORER 🟢 (gated on RT-WASM)
-
-The compiler explorer's rich per-instruction web-GUI shape (`to_explorer_json` →
-`tcl_explorer::wasm_explorer`) has landed (resolved call/branch targets,
-block-pairing, ranges). It **densifies automatically as RT-WASM emits real
-instructions** — there is no separate explorer work, only the RT-WASM dependency.
-
-### 7b. TOOL-FUZZ 🟢 (gated on RT-WASM)
-
-The differential fuzzer (campaign runner, seeded generator, findings registry,
-`wasm-check` runnability arm, `wasm-diff` value-differential arm) has landed.
-**Residual:** re-back the `wasm-diff` arm with the **real linked Zig runtime**
-for a full value differential (gated on RT-WASM).
+TOOL-CLI, formatter/minifier/diagram). The compiler-explorer (TOOL-EXPLORER) and
+differential-fuzzer (TOOL-FUZZ) residuals are **WASM-gated and tracked separately**
+with the runtime track. The remaining 🟢 residuals:
 
 ### 7c. TOOL-IRULE-TEST 🟢
 
@@ -316,15 +222,15 @@ The designed public facade surface has **landed**
   predominantly CI/release plumbing plus minor fixes (BIG-IP code-action wiring,
   positional `%n$` format-spec handling, `try`-handler arity), none of which
   open or close a subsystem-level gap. The plan is therefore current.
-- Where the audit could measure a gap directly it did: the RT-WASM emitter LOC
-  ratio (1.5 K Rust vs 20.6 K Python / 49 modules) and the dialect-pack
+- Where the audit could measure a gap directly it did: the dialect-pack
   coverage (all `eda/<vendor>`, `expect`, `tcllib`, `tk`, `stdlib`, `tcl`, and
-  `f5/*` packs present under `tcl-registry/src/commands/`) were verified from
+  `f5/*` packs present under `tcl-registry/src/commands/`) was verified from
   source rather than taken from the plan.
 - Per-item evidence behind the gaps lives on the `rust` branch:
   `docs/design/rust/compiler-pipeline-parity.md` (FE residuals);
   `docs/design/rust/fp-rust-port-status.md` (FP worklist);
-  `docs/design/runtime/rust-runtime-port.md` (runtime detail);
-  `docs/design/srv-incremental/README.md` (incrementality design).
+  `docs/design/srv-incremental/README.md` (incrementality design). The
+  runtime & execution detail (WASM / bytecode VM / `runtime/rust`) is tracked
+  separately under `docs/design/runtime/`.
 </content>
 </invoke>
