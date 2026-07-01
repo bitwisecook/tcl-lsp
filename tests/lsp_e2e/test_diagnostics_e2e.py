@@ -47,6 +47,21 @@ class TestPushDiagnostics:
         diags = lsp_server.open_ready(uri, "proc a {} {return 1}\na\nrename a b\na\n")
         assert "W128" in _codes(diags)
 
+    def test_unbraced_expr_inside_catch_body_is_w100(self, lsp_server, uri_factory):
+        # The analyser must recurse into `catch { ... }` bodies, so the unbraced
+        # `expr` inside is a W100 just as at the top level (catch-body-walk fix).
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "catch { set y [expr $a + $b] } msg\n")
+        assert "W100" in _codes(diags)
+        assert _on_line(diags, "W100") == {0}
+
+    def test_unbraced_expr_inside_tcltest_body_is_w100(self, lsp_server, uri_factory):
+        # `tcltest::test` evaluates its body as Tcl, so diagnostics inside it are
+        # real (tcltest body-role resolver fix).
+        uri = uri_factory()
+        src = "package require tcltest\ntcltest::test t {d} { set y [expr $a + $b] } {}\n"
+        assert "W100" in _codes(lsp_server.open_ready(uri, src))
+
 
 class TestSubcommandOptionArity:
     """End-to-end arity checks for per-subcommand option flags (issue #581).

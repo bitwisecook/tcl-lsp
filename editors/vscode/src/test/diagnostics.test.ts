@@ -165,4 +165,23 @@ suite("Diagnostics", () => {
       );
     }
   });
+
+  test("W100 fires inside a catch body (analyser recurses into catch)", async () => {
+    const uri = getDocUri("catchBody.tcl");
+    await activate(uri);
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
+
+    // The unbraced `expr` lives inside `catch { ... }`; the analyser must walk
+    // the catch body and report W100 there (catch-body-walk parity fix).
+    assert.ok(
+      codes.includes("W100"),
+      `expected W100 inside the catch body, got [${codes}]`,
+    );
+    const w100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W100";
+    });
+    assert.ok(w100 && w100.range.start.line === 3, `W100 should anchor to the catch body line, got ${w100?.range.start.line}`);
+  });
 });
