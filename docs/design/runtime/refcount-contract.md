@@ -8,9 +8,9 @@ the implementation.
 
 > Status: **scaffolding** — categories and conventions are fixed;
 > the per-subsystem rows fill in incrementally as the audit
-> proceeds. See the lint script
-> `scripts/check/refcount_contract.py` for which exports are still
-> missing rows.
+> proceeds. See the lint verb `cargo xtask refcount-contract` (the Python
+> `scripts/check/refcount_contract.py` was removed 2026-07-01 in favour of it)
+> for which exports are still missing rows.
 
 ## Categories
 
@@ -178,8 +178,9 @@ to MM-B discipline; audit confirms.)
 
 ## Lint script
 
-`scripts/check/refcount_contract.py` (S0.1 deliverable) walks every
-`pub export fn` in `runtime/zig/` and warns if a row is missing.
+`cargo xtask refcount-contract` (S0.1 deliverable; the Python
+`scripts/check/refcount_contract.py` it was ported from was removed 2026-07-01)
+walks every `pub export fn` in `runtime/zig/` and warns if a row is missing.
 Initially warning-only; escalates to error after every export has a
 row.
 
