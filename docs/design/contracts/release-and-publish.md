@@ -44,7 +44,8 @@ local action.
 │ scripts/<purpose>/*.py + *.sh                                │
 │   - build/      build_zipapps.py, build_kcs_db.py, …         │
 │   - codegen/    catalogs.py, editor_settings.py, port_names.py │
-│   - check/      kcs_index_links.py, wasm_command_parity.py, … │
+│   - check/      wasm_command_parity.py, … (kcs-index-links →   │
+│                 cargo xtask; refcount/audit ported to xtask)  │
 │   - capture/    tcltest bytecode + result capture            │
 │   - release/    tag.sh, publish_*.sh, jetbrains_token.sh, …  │
 │   - install/    install.sh, hooks.sh, filter-readme.mjs      │
