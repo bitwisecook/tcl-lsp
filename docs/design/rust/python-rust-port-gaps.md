@@ -6,7 +6,8 @@
 A single consolidated inventory of **every feature not yet completely ported
 from Python to Rust**, verified against source on the day of writing:
 
-- Rust side: `rust` branch, HEAD `0d25edb1` (2026-06-27).
+- Rust side: `rust` branch, HEAD `0d25edb1` (2026-06-27); SRV-INCREMENTAL row
+  refreshed 2026-07-01 (Task 3 gated v1 shipped).
 - Python oracle: `main`, HEAD `717815ad` (2026-06-25).
 
 > **Note on links:** this report lives on a `main`-based branch (the Python
@@ -43,7 +44,7 @@ number of areas:
 
 | # | Gap | Track | Status | Size |
 |---|---|---|---|---|
-| 4 | Per-edit / cross-file incrementality (Tasks 1/2/4/6 shipped; only Task 3 remains; 5/7 dropped — rope) | SRV-INCREMENTAL | 🟡 | M |
+| 4 | Per-edit / cross-file incrementality (Tasks 1/2/3/4/6 shipped byte-identical; 5/7 dropped — rope); residual: broaden the Task 3 body-cache gate | SRV-INCREMENTAL | 🟢 | S |
 | 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
 | 7 | Tooling residuals (irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
@@ -120,19 +121,24 @@ are enumerated in
 
 ## Stage 3 — Server
 
-### 4. SRV-INCREMENTAL — per-edit / cross-file incrementality 🟡
+### 4. SRV-INCREMENTAL — per-edit / cross-file incrementality 🟢
 
 The LSP server/core/db (SRV-LSP) is ✅. The per-edit incremental pipeline is now
-**substantially shipped** — the original 🔴 was stale. Measured headline: warm
-per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
-`run_all_checks` was ~405 ms (~99%). The track's seven tasks:
+**shipped** — the original 🔴 was stale. Measured headline: warm per-edit latency
+on `linalg.tcl` started at ~411 ms, of which whole-file `run_all_checks` was
+~405 ms (~99%). The track's seven tasks:
 
 1. ✅ Persisted incremental `LineIndex` on the `String` store (no rope).
 2. ✅ **The prize** — per-function check memo (`function_checks`, 2a) **and**
    incremental interprocedural-taint memo (`proc_taint_solve` /
    `proc_summary_cascade`, 2b). Warm `compiler_check_diagnostics` fell ~445 → ~83 ms.
-3. 🔴 Approach A — incremental per-item IR lowering (the ~59 ms lowering floor;
-   blocked by whole-module passes coupling one body's IR to others).
+3. ✅ **Approach A — incremental per-item IR lowering** (`lower_proc_body` memo
+   keyed on `ProcBodyKey`, gated by `file_body_cache_eligible`). Byte-identical
+   incremental == fresh over the corpus + in-crate fuzzers; an unrelated body
+   edit reuses every other proc's lowered IR. The eligibility gate is
+   conservative (disqualifies bodies touching
+   `namespace`/`interp`/`rename`/OO/`apply`/nested-proc); broadening it to
+   recover more reuse is the one remaining residual.
 4. ✅ **Per-procedure `optimise_unit` memo** — optimisations assembled from a
    per-proc memo (`function_optimisations`) on single-procedure offset-0 CUs +
    whole-module `finalise_optimisations`, byte-identical to `optimise_unit`
@@ -155,13 +161,14 @@ per-edit latency on `linalg.tcl` started at ~411 ms, of which whole-file
 Also shipped this session: the **Task 2b random-edit differential fuzzer** (the
 named "still to build" verification gate — in-crate 250-edit + corpus `--ignored`,
 asserting the memoised checks path stays byte-identical to a fresh build across
-fuzzed edit sequences) **and Task 4 (the per-procedure `optimise_unit` memo)**.
+fuzzed edit sequences), **Task 4 (the per-procedure `optimise_unit` memo)**, and
+**Task 3 (per-item IR lowering) gated v1**.
 
-**De-roped remaining (Tasks 5 + 7 dropped, Task 4 shipped 2026-06-30):** only
-**Task 3** — incremental per-item IR lowering (the ~59 ms `CompilationUnit`
-build floor; blocked by whole-module lowering passes that couple one body's IR to
-others, resolved with the same "cross-item facts as inputs" split the analyser
-walk used). Everything else in the de-roped track (Tasks 1/2/4/6) is shipped.
+**Remaining (de-roped):** only a **residual** — broaden the Task 3 body-cache
+eligibility gate (`file_body_cache_eligible`) to recover warm-edit IR reuse for
+bodies it currently disqualifies, keeping the per-item memo byte-identical to a
+whole-module lowering. Tasks 5 + 7 are dropped (rope-dependent); everything else
+(Tasks 1/2/3/4/6) is shipped byte-identical.
 
 ---
 
