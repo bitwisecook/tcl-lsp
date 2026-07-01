@@ -8,10 +8,15 @@
 //! reuse — extend it as new incremental paths land.
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::segmenter::segment_commands;
+
+mod common;
+use common::{Progress, describe_analysis_divergence};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -118,55 +123,63 @@ fn incremental_matches_fresh_over_corpus() {
     for v in ["tcl8.6.16/library", "tcllib-2.0/modules"] {
         gather(&repo_root().join("tmp").join(v), &mut files, 200);
     }
+    // Chunk / resume support (env `TCL_FUZZ_SKIP` / `TCL_FUZZ_LIMIT`).
+    let (files, start0, total) = Progress::slice(&files);
+    // Durable, flushed progress + full-detail findings (survive a `SIGKILL`).
+    let prog = Mutex::new(Progress::new("differential_incremental"));
+    let done = AtomicUsize::new(start0);
+
     // Files are independent (each round chain uses fresh `Analyser::new()`
     // instances), so parallelise across files; the per-file seed/round walk
     // stays sequential because each edit feeds the next.
     let outcomes: Vec<(usize, Vec<String>)> = files
         .par_iter()
-        .filter_map(|path| {
-            let orig = std::fs::read_to_string(path).ok()?;
-            if orig.len() > 60_000 {
-                return None;
-            }
-            let mut checked = 0usize;
-            let mut mismatches: Vec<String> = Vec::new();
-            for seed in [1u64, 7, 42] {
-                let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).max(1));
-                let mut text = orig.clone();
-                let mut cmds = segment_commands(&text);
-                for round in 0..40 {
-                    let new_text = random_edit(&text, &mut rng);
-                    let inc = Analyser::new().analyse_incremental(&text, &cmds, &new_text, dialect);
-                    let fresh = Analyser::new().analyse(&new_text, dialect);
-                    checked += 1;
-                    if inc != fresh {
-                        // Pinpoint the first divergent field cheaply.
-                        let field = if inc.all_procs != fresh.all_procs {
-                            "all_procs"
-                        } else if inc.diagnostics != fresh.diagnostics {
-                            "diagnostics"
-                        } else if inc.global_scope != fresh.global_scope {
-                            "global_scope"
-                        } else if inc.command_invocations != fresh.command_invocations {
-                            "command_invocations"
-                        } else {
-                            "other"
-                        };
-                        mismatches.push(format!(
-                            "{} seed={seed} round={round} field={field}",
-                            path.file_name().unwrap().to_string_lossy()
-                        ));
+        .map(|path| {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let (mut checked, mut mismatches) = (0usize, Vec::<String>::new());
+            match std::fs::read_to_string(path) {
+                Ok(orig) if orig.len() <= 60_000 => {
+                    for seed in [1u64, 7, 42] {
+                        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).max(1));
+                        let mut text = orig.clone();
+                        let mut cmds = segment_commands(&text);
+                        for round in 0..40 {
+                            let new_text = random_edit(&text, &mut rng);
+                            let inc =
+                                Analyser::new().analyse_incremental(&text, &cmds, &new_text, dialect);
+                            let fresh = Analyser::new().analyse(&new_text, dialect);
+                            checked += 1;
+                            if inc != fresh {
+                                let detail = describe_analysis_divergence(
+                                    &format!("{name} seed={seed} round={round}"),
+                                    &inc,
+                                    &fresh,
+                                );
+                                prog.lock().unwrap().finding(&detail);
+                                mismatches.push(detail);
+                            }
+                            text = new_text;
+                            cmds = segment_commands(&text);
+                        }
                     }
-                    text = new_text;
-                    cmds = segment_commands(&text);
                 }
+                _ => {}
             }
-            Some((checked, mismatches))
+            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if n % 20 == 0 || n == total {
+                prog.lock()
+                    .unwrap()
+                    .tick(n, total, &format!("last={name} steps={checked}"));
+            }
+            (checked, mismatches)
         })
         .collect();
 
     let checked: usize = outcomes.iter().map(|(c, _)| *c).sum();
     let mismatches: Vec<String> = outcomes.into_iter().flat_map(|(_, m)| m).take(10).collect();
+    prog.into_inner()
+        .unwrap()
+        .finish(&format!("{checked} steps, {} findings", mismatches.len()));
     assert!(
         mismatches.is_empty(),
         "incremental != fresh in {} / {checked} steps:\n{}",

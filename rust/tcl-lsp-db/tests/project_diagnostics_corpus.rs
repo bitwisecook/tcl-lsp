@@ -22,6 +22,9 @@ use tcl_compiler::analyser::NonAsciiMode;
 use tcl_compiler::analyser::types::Diagnostic;
 use tcl_lsp_db::{AnalyserConfig, Project, SourceFile, TclDatabase, project_diagnostics};
 
+mod common;
+use common::Progress;
+
 /// Synthetic library / caller function count.
 const N_FN: usize = 6;
 
@@ -147,6 +150,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     let mut params: Vec<usize> = (0..N_FN).map(|i| i % 3).collect();
     let mut calls: Vec<(usize, usize)> = (0..N_FN).map(|i| (i, i % 3)).collect();
 
+    let mut prog = Progress::new("project_diagnostics_fuzz");
     let (mut db, cfg, files, project) = build(&lib_text(&params), &caller_text(&calls));
     let lib_file = files[0];
     let caller_file = files[1];
@@ -190,6 +194,14 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
             fresh_project,
         ));
 
+        if inc_caller != fresh_caller {
+            prog.finding(&format!(
+                "iter {iter}: caller incremental != fresh params={params:?} calls={calls:?} inc={inc_caller:?} fresh={fresh_caller:?}"
+            ));
+        }
+        if inc_real != fresh_real {
+            prog.finding(&format!("iter {iter}: sampled real-file incremental != fresh"));
+        }
         assert_eq!(
             inc_caller, fresh_caller,
             "iter {iter}: caller incremental != fresh\n  params={params:?}\n  calls={calls:?}"
@@ -198,5 +210,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
             inc_real, fresh_real,
             "iter {iter}: sampled real-file incremental != fresh"
         );
+        prog.tick(iter + 1, 120, "");
     }
+    prog.finish("120 iterations");
 }
