@@ -762,30 +762,34 @@ Python behaviour it mirrors. Per-task workflow: rebase the touched files off
 plus the `test_fp_*` ground-truth battery), and keep `make prep-pr` green. The
 full historical drift log is in the [history archive](rust-rewrite-history.md).
 
-**Outstanding `main` deltas not yet synced (baseline 2026-06-22; behind-count
-re-checked 2026-07-01: now 12 commits behind `main`, the 2 newest not yet
-characterised here).** Most are already delta-ported in place (the
-`#662` catch/return flow fix is in **FE-DIAG**; `#656`/`#661` S110 byte-array
-corruption is in **FE-TYPESHIM**), or are rust-branch-irrelevant (release notes,
-CI/security, the `#664` registry-dump demotion). One is a **real, unported
-language-surface delta the whole stack must absorb** (re-verified 2026-07-01:
-still unported — no `tcl9.1` in the registry, no `timer`/`unicode` specs):
+**Main-sync status (last synced 2026-07-01 via PR #732 — `main` merged up
+through `v1.11.4`/`#705`, so `main` is once again an ancestor of `rust` and the
+behind-count is 0).** The Python-side deltas that PR carried in are all present
+in-tree now: `#662` catch/return flow (also delta-ported in **FE-DIAG**),
+`#656`/`#661` S110 byte-array corruption (also in **FE-TYPESHIM**), and — new
+with this sync — the full **Tcl 9.1** Python surface (see below). The
+rust-branch-irrelevant deltas (release notes, CI/security, the `#664`
+registry-dump demotion) came across as ordinary merge content. One
+language-surface delta is now **half-ported**: the Python side landed with the
+merge, but the **Rust crates still lack it**:
 
-- **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`).** `main` added a
-  `tcl9.1` entry to `KNOWN_DIALECTS` (`compiler/registry/dialects.py`) plus three
-  new 9.1-only command specs — `timer` (`compiler/.../timer.py`), `unicode`
-  (`unicode_.py`), and the `subst -backslashes/-commands/-variables` options
-  (`subst_.py`), all gated on the `tcl9.1` dialect. **None of this exists on the
-  `rust` branch yet** — neither the Python tree (no `timer.py`/`unicode_.py`, no
-  `tcl9.1` in `dialects.py`) nor any Rust crate. This is a cross-cutting sync:
-  the registry needs the new dialect flag + command specs, `LexerConfig`/dialect
-  gating must learn `tcl9.1`, and the analyser/codegen must treat the new
-  commands and `subst` options as dialect-gated. Until it lands, the rewrite
-  silently lags `main`'s dialect surface. Note this also bears on principle §0
-  ("C Tcl 9.0.3 is the reference standard"): 9.0.3 stays the pinned reference (no
-  9.1 source tree is fetched under `tmp/`), so 9.1 support is a *dialect-flag*
-  addition, not a reference-standard bump — but a future task may need to decide
-  whether to advance the differential oracle once a 9.1 `tclsh` is available.
+- **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`) — Python present, Rust
+  pending.** `main` added a `tcl9.1` entry to `KNOWN_DIALECTS`
+  (`compiler/registry/dialects.py`) plus three 9.1-only command specs — `timer`
+  (`dialects/tcl/timer.py`), `unicode` (`dialects/tcl/unicode_.py`), and the
+  `subst -backslashes/-commands/-variables` options (`subst_.py`), all gated on
+  the `tcl9.1` dialect. As of the 2026-07-01 sync **all of this now exists in the
+  Python tree** (`tcl9.1` is in `dialects.py`; `timer.py`/`unicode_.py` are
+  present), but **no Rust crate carries it yet** (`git grep -i tcl9.1 -- rust/`
+  is empty). The remaining port is Rust-only: the `tcl-registry` crate needs the
+  new dialect flag + command specs, `LexerConfig`/dialect gating must learn
+  `tcl9.1`, and the analyser/codegen must treat the new commands and `subst`
+  options as dialect-gated. Until that lands, the Rust analyser lags the Python
+  oracle's dialect surface. Note this also bears on principle §0 ("C Tcl 9.0.3 is
+  the reference standard"): 9.0.3 stays the pinned reference (no 9.1 source tree
+  is fetched under `tmp/`), so 9.1 support is a *dialect-flag* addition, not a
+  reference-standard bump — but a future task may need to decide whether to
+  advance the differential oracle once a 9.1 `tclsh` is available.
 
 ## Testing strategy
 
