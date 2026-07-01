@@ -17,41 +17,57 @@ should be added alongside this one against the same ``lsp_server``.
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
+
+import tomllib
 
 from .harness import server_kind
 
 
-@pytest.mark.skipif(
-    server_kind() == "rust",
-    reason=(
-        "version banner is python-pyz-specific: the native Rust server reports "
-        "its crate version (CARGO_PKG_VERSION), not the packaged build version"
-    ),
-)
-def test_initialize_reports_packaged_build_version(lsp_server, lsp_full_version):
-    """serverInfo.version from the live server is the build version, not 'dev'."""
+def _rust_crate_version() -> str:
+    """The ``[workspace.package] version`` the native binary reports back.
+
+    The Rust server advertises ``env!("CARGO_PKG_VERSION")``, which
+    ``rust/tcl-lsp-server`` inherits from the workspace root — so this reads the
+    same source of truth the compiled banner comes from.
+    """
+    root = Path(__file__).resolve().parents[2]
+    with (root / "Cargo.toml").open("rb") as f:
+        return tomllib.load(f)["workspace"]["package"]["version"]
+
+
+def test_initialize_reports_version(lsp_server, request):
+    """serverInfo.version from the live server is the real version, not 'dev'.
+
+    Python packaged ``.pyz``: the banner is ``v{FULL_VERSION}`` (a regression to
+    ``vdev`` means build-info was imported from a path the build never
+    generates).  Native Rust: the banner is the workspace crate version
+    (``CARGO_PKG_VERSION``).  Either way it must be a real, non-fallback value.
+    """
     info = lsp_server.server_info
     assert info is not None, "initialize result had no serverInfo — cannot read the version banner"
     reported = info.get("version")
+    assert reported, "server reported no version banner"
+    assert reported not in ("vdev", "dev"), (
+        f"server fell back to a dev version banner: {reported!r}"
+    )
     if server_kind() == "rust":
-        # The native binary reports its own (Cargo) version, not the Python
-        # zipapp build string, so the exact ``v{FULL_VERSION}`` match is
-        # pyz-specific.  Still guard the regression class the test exists for:
-        # a real, non-empty, non-fallback version banner.
-        assert reported, "native server reported no version banner"
-        assert reported not in ("vdev", "dev"), (
-            f"native server fell back to a dev version banner: {reported!r}"
+        # The native binary reports the workspace crate version verbatim (no
+        # leading ``v``), so match it against the same Cargo source of truth.
+        expected = _rust_crate_version()
+        assert reported == expected, (
+            f"native server reported version {reported!r}, expected the workspace "
+            f"crate version {expected!r} (CARGO_PKG_VERSION)"
         )
         return
-    # The banner is f"v{FULL_VERSION}"; a broken build-info import yields "vdev".
+    # The pyz banner is f"v{FULL_VERSION}"; a broken build-info import yields "vdev".
+    lsp_full_version = request.getfixturevalue("lsp_full_version")
     assert reported == f"v{lsp_full_version}", (
         f"running server reported version {reported!r}, expected "
         f"{'v' + lsp_full_version!r}. A regression to 'vdev' means a module "
         f"imported build-info from a path the build never generates, so the "
         f"server fell back to the 'dev' default."
     )
-    assert reported != "vdev", "version banner fell back to the 'dev' default"
 
 
 def test_server_info_name(lsp_server):
