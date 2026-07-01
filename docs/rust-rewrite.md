@@ -827,8 +827,12 @@ rows (✅ / 🟢).
 > **separate scope** enumerated in their own index:
 > [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).
 > Their rows survive in the subsystem-status / track-map tables below as
-> pointers, but the detail is not duplicated here. `ai/` (MCP server + Claude
-> skills) stays Python by design and is not a port gap.
+> pointers, but the detail is not duplicated here. The `ai/` **shell** (MCP
+> server + Claude skills, prompts, templates) stays Python by design, but `ai/`
+> is a **consumer** of the retiring Python engine (7 of 13 files import
+> `analyser`/`compiler`/`tooling`/`server.features`/`dialects`), so re-pointing
+> it off that engine is real **PYTHON-RETIRE** work under **API-PYO3** — the ai
+> *port* is n/a, the ai *re-pointing* is not.
 
 ### Vocabulary
 
@@ -913,16 +917,16 @@ listed residuals · 🟡 partial · 🔴 not started.
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟢 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)**, **Task 4 (per-procedure `optimise_unit` memo)**, and **Task 3 (incremental per-item IR lowering, `lower_proc_body` memo) gated v1** all landed byte-identical (full-corpus-verified); **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; residual: broaden the Task 3 body-cache eligibility gate → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
-| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
-| Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
+| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed; residual: `f5 irule lint/context/trace/pgo` sub-verbs not implemented (parse + exit 2), SSH/scp fetch transport not ported (REST works; falls back to Python CLI), `registry-dump --section commands` not implemented → **TOOL-F5** |
+| Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | 🟢 | minifier + diagram byte-parity; formatter engine ported, residual: the **docstring rewriter** is unimplemented (config flags carried but not engine-consumed) |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
-| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
+| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. Residual: auto-broadening coverage **plus** the session's `event dispatch` / `class match` handlers (not yet implemented) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🟡 | designed public surface **landed** (`parse_tcl`/`compile_tcl`/`analyse_tcl`/`format_tcl`/`parse_bigip_config`/`query_bigip` facades + `TclLspError` hierarchy, `tcl-lsp-py::public`); residual: TEST-MIGRATE; `scripts`→`xtask`; PYTHON-RETIRE → **API-PYO3** |
-| `ai/` (MCP + skills) | — | n/a | stays Python by design |
+| `ai/` (MCP + skills) | — | n/a (port) / 🟡 (re-point) | shell stays Python by design, but `ai/` imports the retiring engine (`analyser`/`compiler`/`tooling`/`server.features`/`dialects`) — re-pointing it onto Rust is **PYTHON-RETIRE** work → **API-PYO3** |
 
 ### Track map (dependency order)
 
@@ -941,7 +945,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SRV | **SRV-INCREMENTAL** 🟢 | per-edit pipeline: Tasks 1/2a/2b (`LineIndex` + per-function check + interproc-taint memos), Task 6 (cross-file cascade, incl. per-symbol `command_arity` cutoff + corpus fuzzer), Task 4 (`optimise_unit` memo), and Task 3 (per-item IR-lowering `lower_proc_body` memo, gated v1) all landed byte-identical; **Tasks 5 + 7 dropped (rope-dependent, 2026-06-30)**; residual: broaden the Task 3 body-cache eligibility gate | FE-LEX (structural-state index), SRV-LSP | L |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
-| TOOL | **TOOL-F5** ✅ | `f5-cli` | RT-VM, TOOL-IRULE-TEST | XS |
+| TOOL | **TOOL-F5** 🟢 | `f5-cli` | RT-VM, TOOL-IRULE-TEST | S |
 | TOOL | **TOOL-EXPLORER** 🟢 | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
@@ -1157,13 +1161,24 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 - **TOOL-IRULE-TEST** 🟢 *(depends on RT-VM + `tcl-registry`)* — the orchestrator
   runs **live** on `tcl-vm` (`LiveSession`: load iRule, fire events, read
   pool/logs/decisions; 14 integration tests incl. live routing/reject all
-  green), so the RT-VM-gated work is **complete**. The only remaining motion is
-  coverage that broadens automatically as the VM command surface grows — not a
-  discrete task. Note `tcl-irules` is the BIG-IP reference-extractor, **not**
-  this. *(XL)*
+  green). Coverage broadens automatically as the VM command surface grows;
+  residual: the session's `event dispatch` / `class match` handlers are not yet
+  implemented (`tcl-irule-test/src/session.rs`). Note `tcl-irules` is the BIG-IP
+  reference-extractor, **not** this. *(XL)*
+- **TOOL-F5** 🟢 *(depends on RT-VM, TOOL-IRULE-TEST)* — the `f5` verbs
+  (`event-order`/`extract`/`format`/`minify`/`event-info`, `explain-flow`,
+  `--simulate`) landed. Residuals in `f5-cli`: the `irule lint`/`context`/
+  `trace`/`pgo` sub-verbs are not implemented (arg-parse then error + exit 2);
+  the SSH/scp fetch transport is not ported (`--transport rest` works, SSH falls
+  back to the Python CLI); `registry-dump --section commands` is not implemented.
+- **Formatter — docstring rewriter** 🟢 — the formatter engine, minifier, and
+  diagram extractor are byte-parity ported (`tcl-lsp-core::{formatting,minify}`,
+  `tcl-cli`); residual: the docstring rewriter is unimplemented — its config
+  flags are carried through `formatting::config` but the engine does not consume
+  them.
 
-**TOOL-TCLPKG**, **TOOL-REFACTOR**, **TOOL-F5**, **TOOL-DEBUGGER**, and
-**TOOL-CLI** are ✅ complete (their landing logs are in the
+**TOOL-TCLPKG**, **TOOL-REFACTOR**, **TOOL-DEBUGGER**, and **TOOL-CLI** are ✅
+complete (their landing logs are in the
 [history archive](rust-rewrite-history.md)).
 
 ### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3 — last)
@@ -1226,15 +1241,27 @@ final track** — every consumer above must port first.
   byte-for-byte identical to the Python (verified against the one tclsh tree
   built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
   `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
-  table / version order are transcribed 1:1). Remaining: port the other
-  build-artifact scripts (`build/{kcs_db,zipapps}.py` — SQLite / zipapp
-  builders) and the environment-coupled `check/wasm_command_parity.py`, then
-  flip the Makefile/CI invocations and retire the Python originals.
-  (`bigip_kind_differential.py` stays Python — it is a Python-vs-Rust
-  differential oracle, not a toolchain script.)
+  table / version order are transcribed 1:1). **Remaining is the bulk: only 6 of
+  ~26+ scripts are ported.** Still Python: the build-artifact scripts
+  (`build/{kcs_db,zipapps}.py` — SQLite / zipapp builders), the
+  environment-coupled `check/wasm_command_parity.py`, the whole
+  `codegen/*` generator family (editor catalogs / settings, `gen_bigip_model_rust.py`,
+  the `gen_f5_query_*` fixture generators, `registry_baselines.py`), the
+  `registry-audit/*` generators, and the `dev/*` bench/profile/triage helpers.
+  A decision is owed per script — the artifact-producing generators (checked-in
+  output) need porting or frozen artifacts; the `dev/*` measurement helpers may
+  stay Python as dev-only. Then flip the Makefile/CI invocations and retire the
+  ported originals. (`bigip_kind_differential.py` stays Python — it is a
+  Python-vs-Rust differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
-  ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
-  Claude skills) stays Python by design.
+  ported `tooling/` subtrees once their consumers are Rust. **`ai/` is one such
+  consumer:** its shell (MCP server + Claude skills) stays Python by design, but
+  it imports the in-tree engine (`analyser`/`compiler`/`tooling.refactoring`/
+  `server.features`/`dialects`) well beyond the six landed `tcl-lsp-py::public`
+  facades, so this task must first re-point `ai/` onto Rust — either by widening
+  the PyO3 surface to cover its call set or by thinning `ai/` to the public
+  facades / a subprocess LSP. Deleting the engine before that re-point breaks the
+  MCP tools.
 
 ### Cross-cutting (fold into the owning track)
 

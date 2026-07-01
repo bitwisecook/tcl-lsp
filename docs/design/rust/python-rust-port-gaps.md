@@ -45,9 +45,9 @@ number of areas:
 | # | Gap | Track | Status | Size |
 |---|---|---|---|---|
 | 4 | Per-edit / cross-file incrementality (Tasks 1/2/3/4/6 shipped byte-identical; 5/7 dropped — rope); residual: broaden the Task 3 body-cache gate | SRV-INCREMENTAL | 🟢 | S |
-| 5 | PyO3 public API finish + Python retirement | API-PYO3 | 🟡 | Large |
+| 5 | PyO3 public API finish + Python retirement (incl. `scripts`→`xtask`: only 6 of ~26+ done; **`ai/` re-pointing off the retiring engine**) | API-PYO3 | 🟡 | Large |
 | 6 | Bytecode codegen bare-statement specialisations | FE-CODEGEN | 🟢 | Small |
-| 7 | Tooling residuals (irule-test, regex cmd-plumbing) | TOOL-* | 🟢 | Small |
+| 7 | Tooling residuals (irule-test event dispatch, formatter docstring rewriter, `f5-cli` irule sub-verbs + SSH + registry-dump `commands`, regex cmd-plumbing) | TOOL-* | 🟢 | Small–Med |
 | 8 | FP precision divergences (5 `#[ignore]`s) + astral-output columns | FE-DIAG/FP | residuals | Small |
 
 The runtime & execution gaps (WASM / bytecode VM / `runtime/rust`) are tracked
@@ -174,21 +174,41 @@ whole-module lowering. Tasks 5 + 7 are dropped (rope-dependent); everything else
 
 ## Stage 4 — Tooling residuals
 
-Most of Stage 4 is ✅ (TOOL-TCLPKG, TOOL-REFACTOR, TOOL-F5, TOOL-DEBUGGER,
-TOOL-CLI, formatter/minifier/diagram). The compiler-explorer (TOOL-EXPLORER) and
-differential-fuzzer (TOOL-FUZZ) residuals are **WASM-gated and tracked separately**
-with the runtime track. The remaining 🟢 residuals:
+Most of Stage 4 is ✅ (TOOL-TCLPKG, TOOL-REFACTOR, TOOL-DEBUGGER, TOOL-CLI,
+minifier/diagram). The compiler-explorer (TOOL-EXPLORER) and differential-fuzzer
+(TOOL-FUZZ) residuals are **WASM-gated and tracked separately** with the runtime
+track. The remaining 🟢 residuals, verified against crate source:
 
 ### 7c. TOOL-IRULE-TEST 🟢
 
 SCF→orchestrator topology generator + `LiveSession` on `tcl-vm` landed (14
-integration tests green). **Residual:** auto-broadening coverage only.
+integration tests green). **Residual:** auto-broadening coverage, **plus** the
+session's `event dispatch` / `class match` handlers, which are not yet
+implemented (`tcl-irule-test/src/session.rs`).
 
 ### 7d. Regex command-plumbing 🟢
 
 The ARE engine (`tcl-regex`) is ✅ (passes `reg.test` 544/544). **Residual,**
 living in `tcl-cmd-core`: the `-about` option, `regsub -command`, and
 `-start`-validation cmd-plumbing gaps.
+
+### 7e. Formatter — docstring rewriter 🟢
+
+The formatter engine + minifier are ported (`tcl-lsp-core::{formatting,minify}`,
+byte-parity). **Residual:** the **docstring rewriter is not yet implemented** —
+its config flags are carried through `formatting::config` but the engine does
+not consume them (`rust/tcl-lsp-core/src/formatting/config.rs`).
+
+### 7f. TOOL-F5 — `f5-cli` residuals 🟢
+
+The core `f5` verbs are ported (`event-order` / `extract` / `format` / `minify` /
+`event-info`, plus `explain-flow` and `--simulate` on `tcl-vm`). **Residuals in
+`f5-cli`:** the `irule lint` / `context` / `trace` / `pgo` sub-subcommands are
+**not yet implemented** (they parse args so `--help` works, then error + exit 2 —
+`f5-cli/src/commands/irule.rs`); the **SSH/scp fetch transport** is not ported
+(REST works; an SSH request falls back to the Python CLI —
+`f5-cli/src/commands/remote/ssh.rs`); and `registry-dump --section commands` is
+not implemented (`f5-cli/src/commands/registry_dump.rs`).
 
 ---
 
@@ -205,15 +225,35 @@ The designed public facade surface has **landed**
   (the 473-file classification has started); the legacy `tests/` directory
   shrinks to zero at the final retirement task.
 - **`scripts` → `xtask`** — rewrite the build/release scripts under `scripts/`
-  as `cargo xtask` subcommands (one verb already ported:
-  `audit_option_dialects`).
+  as `cargo xtask` subcommands. **Only 6 of ~26+ are ported**
+  (`refcount-contract`, `kcs-index-links`, `version`, `tzdata-bundle`,
+  `audit-option-dialects`, `diag-tables`); **40+ remain Python** — the
+  `scripts/codegen/*` generators (catalogs, editor settings, BIG-IP model /
+  F5-query fixtures), `scripts/registry-audit/*`, `scripts/build/{zipapps,kcs_db}.py`,
+  `scripts/check/wasm_command_parity.py`, and the `scripts/dev/*` bench/profile/
+  triage helpers. This is the largest chunk of remaining tooling work by count.
 - **PYTHON-RETIRE** — delete the in-tree Python once every consumer above has
   moved to Rust. This is intentionally **last** and can only close after Stages
-  1–4 are complete.
+  1–4 are complete. **Note the `ai/` coupling below** — it is a real consumer of
+  the retiring engine, not an independent Python island.
 
-### `ai/` (MCP server + Claude skills) — n/a
+### `ai/` (MCP server + Claude skills) — glue stays Python, but it is a consumer
 
-`ai/` **stays Python by design** — it is not a port gap.
+The ai **shell** stays Python by design — the MCP JSON-RPC framing, the CLI
+arg-parsing, the ~25 skill manifests (markdown), the prompt composition, and the
+Jinja templates are language-agnostic glue that will not port.
+
+**But `ai/` is not independent of the Python analysis engine that PYTHON-RETIRE
+deletes.** 7 of 13 `ai/*.py` files import the in-tree engine directly —
+`analyser` (23×), `tooling.refactoring` (20×), `compiler` / `compiler.registry`
+(28×), `server.features` (8×), and `dialects.f5/xc/tk` (16×) — and they reach
+**deep internals** (`semantic_graph`, `memory_ssa`, `taint`, optimiser internals,
+`server.features.*`), well beyond the six landed `tcl-lsp-py::public` facades.
+So retiring the in-tree Python forces one of: (a) expand the PyO3 surface to cover
+`ai/`'s full call set (the ~39 legacy shims grow to match), or (b) thin `ai/` to
+route through the narrow public facades / a subprocess LSP. **This handoff is a
+PYTHON-RETIRE blocker, not a no-op** — the ai *port* is n/a, but the ai
+*re-pointing* is real work owned by API-PYO3.
 
 ---
 
