@@ -812,13 +812,23 @@ This is the live plan. Everything below is **not yet done**; landed work lives
 in the [history archive](rust-rewrite-history.md), and the deep per-item
 evidence behind each front-end gap is in
 [`design/rust/compiler-pipeline-parity.md`](design/rust/compiler-pipeline-parity.md).
-The plan reflects current source as of 2026-06-22 (`rust` branch, HEAD
-`8d887c2f`), re-verified that day against the crate source and cross-checked
-against the Python oracle on `main`. The **FE-DATAFLOW**, **FE-TYPESHIM**,
-**FE-VARESCAPE**, **FE-DIAG** front-end tracks and **SRV-LSP** have landed since
-the last audit; their detail moved to the
+The plan reflects current source as of 2026-07-01 (`rust` branch), re-verified
+that day against the crate source and cross-checked against the Python oracle on
+`main`. The **FE-DATAFLOW**, **FE-TYPESHIM**, **FE-VARESCAPE**, **FE-DIAG**
+front-end tracks and **SRV-LSP** have landed; their detail moved to the
 [history archive](rust-rewrite-history.md) and they survive here only as table
 rows (✅ / 🟢).
+
+> **Scope of this plan.** The gaps tracked here are the **tooling, LSP,
+> compiler/analysis, and public-API** port — the target is to finish these
+> first. The **runtime & execution** layers (WASM codegen **RT-WASM**, the
+> bytecode VM **RT-VM**, and the `runtime/rust` tree-walking port), **including
+> the tiered plan for bringing the VMs and runtime to C-Tcl parity**, are a
+> **separate scope** enumerated in their own index:
+> [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).
+> Their rows survive in the subsystem-status / track-map tables below as
+> pointers, but the detail is not duplicated here. `ai/` (MCP server + Claude
+> skills) stays Python by design and is not a port gap.
 
 ### Vocabulary
 
@@ -828,6 +838,8 @@ archive):
 
 - **Stage** — a dependency layer (1 Front-end → 2 Runtime → 3 Server →
   4 Tooling → 5 Public API). Stages are ordered; tracks within a stage are not.
+  **Stage 2 (Runtime & execution) is tracked in its own scope** — see
+  [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).
 - **Track** — a parallel workstream that owns a bounded set of crates/modules
   and can be progressed independently of the other tracks in its stage.
 - **Task** — a discrete, PR-sized unit of work within a track.
@@ -895,11 +907,11 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes); `ProcArgTrait::DynamicNameLocal` added so caller-side W211/W214/dead-store false positives stay suppressed (parity-audit gap #6, 2026-06-25) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
-| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
-| Bytecode VM | `tcl-vm` | 🟡 | the VM-vs-tclsh **differential cmd-test divergences** (the `bug_*` tests in `tcl-vm/tests/cmd_{math_expr,string,collections,control,info_prefix}_e2e.rs`) are **all closed** (2026-06-25) — math/`expr`, `string`/`format`, dict/array/`lsort`, `try`/control, and `namespace which -variable` now match tclsh 8.6/9.0 on valid input. Still open: tcltest-suite parity vs `runtime/rust` (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
+| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §1 (RT-WASM). Headline: eval-fallback emitter + `tcl compwasm` wiring landed; ~1.5 K Rust LOC vs the ~20.6 K-LOC / 49-module Python emitter — the largest single gap |
+| Bytecode VM | `tcl-vm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §2 (RT-VM). Headline: differential `bug_*` cmd-tests all closed (2026-06-25); 98/39/54 of 191 opcodes; 28/59/10 of 97 tcltest stems; TclOO/coroutine still VM-absent |
 | Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
-| Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟡 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **and the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)** all landed; **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; **Task 4 (per-procedure `optimise_unit` memo) shipped byte-identical (full-corpus-verified)**; remaining (de-roped): only Approach A incremental per-item IR-lowering (Task 3) → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
+| Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟢 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)**, **Task 4 (per-procedure `optimise_unit` memo)**, and **Task 3 (incremental per-item IR lowering, `lower_proc_body` memo) gated v1** all landed byte-identical (full-corpus-verified); **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; residual: broaden the Task 3 body-cache eligibility gate → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -923,10 +935,10 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** ✅ | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` (all four families ported + consumer-wired) | `tcl-bigip`, `f5-xc` | L |
-| RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
-| RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
+| RT | **RT-WASM** 🟡 *(separate scope — [runtime-execution-gaps.md](design/runtime/runtime-execution-gaps.md))* | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
+| RT | **RT-VM** 🟡 *(separate scope — [runtime-execution-gaps.md](design/runtime/runtime-execution-gaps.md))* | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
-| SRV | **SRV-INCREMENTAL** 🟡 | per-edit pipeline: Tasks 1/2a/2b (`LineIndex` + per-function check + interproc-taint memos) and Task 6 (cross-file cascade, incl. per-symbol `command_arity` cutoff + corpus fuzzer) landed; **Tasks 5 + 7 dropped (rope-dependent, 2026-06-30)**; Task 4 (`optimise_unit` memo) shipped; residual (de-roped): only IR-lowering floor (Task 3) | FE-LEX (structural-state index), SRV-LSP | L |
+| SRV | **SRV-INCREMENTAL** 🟢 | per-edit pipeline: Tasks 1/2a/2b (`LineIndex` + per-function check + interproc-taint memos), Task 6 (cross-file cascade, incl. per-symbol `command_arity` cutoff + corpus fuzzer), Task 4 (`optimise_unit` memo), and Task 3 (per-item IR-lowering `lower_proc_body` memo, gated v1) all landed byte-identical; **Tasks 5 + 7 dropped (rope-dependent, 2026-06-30)**; residual: broaden the Task 3 body-cache eligibility gate | FE-LEX (structural-state index), SRV-LSP | L |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** ✅ | `f5-cli` | RT-VM, TOOL-IRULE-TEST | XS |
@@ -947,43 +959,18 @@ parallelise cleanly.
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
-specialisations, integer `expr` const-folding, and the byte-wise disassembly
-escaping have landed, each verified byte-true against tclsh9.0 with golden
-fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/`tailcall`/`concat`;
-`expr {1+2}`; `esc` astral/C0). Their bytecode VM counterparts (appendScalar/
-Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
-were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
-- **landed (2026-06-22)** `set x [cmd]` pure-command-substitution assign. The
-  assign value now routes through the inline command-substitution emitter
-  (scoped to the assign position, mirroring the oracle's `IRAssignValue` arm —
-  bare command args keep the literal + `subst_word` path), unblocked by the
-  RT-VM value opcodes **and** a real inline-emitter fix: `emit_cmd_subst_arg`
-  pushed a composite arg like `$opt*` / `x$y` as a literal instead of
-  substituting it (the bug that miscompiled tcltest's `MatchingOption` →
-  `can't read "debug"`). Specialised commands emit byte-true opcodes;
-  unspecialised ones use a correct generic invoke. Full `tcl-vm` suite (incl.
-  the real `tcltest.tcl` load + run), the revived differential gate, and a
-  byte-true golden vs tclsh all green (see [history](rust-rewrite-history.md)).
+specialisations, integer `expr` const-folding, byte-wise disassembly escaping,
+the `set x [cmd]` pure-command-substitution assign, the non-proc `dict` mutators
+(ensemble `invokeReplace`), and `{*}` expansion inside command substitutions
+have all landed byte-true vs tclsh 9.0 (their bytecode-VM opcode counterparts
+implemented in `tcl-vm` so codegen runs end-to-end; detail in the
+[history archive](rust-rewrite-history.md)). **Residual:**
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
   is value-emit + `pop`, gated on threading the per-arg braced-flag through the
   hook). Low frequency; `regexp` with match-vars is the one with real
   statement-position semantics.
-- **landed (2026-06-22)** non-proc `dict` — top-level (and qualified-var)
-  `dict set`/`unset`/`incr`/`append`/`lappend` now compile to the **ensemble
-  `invokeReplace`** form (`push dict <sub> <args…> ::tcl::dict::<sub>;
-  invokeReplace objc 2`), byte-true vs tclsh 9.0, running on the VM via the new
-  `INVOKE_REPLACE` opcode against the registered `::tcl::dict::<sub>` impls (the
-  proc-local scalar path keeps its `DICT_*` opcodes). The shared ensemble-rewrite
-  mechanism could extend to other top-level ensembles (e.g. `string`); only the
-  `dict` mutators are wired so far.
-- **landed (2026-06-22)** `{*}` expansion inside a *command substitution* in
-  value position (`set x [cmd {*}$args]` → `expandStart … expandStkTop N;
-  invokeExpanded`), byte-true vs tclsh 9.0 via `parse_cmd_parts_expand` +
-  `emit_expanded_cmd_subst` (`[list {*}…]` stays on its `LIST_CONCAT` fold).
-  (The `builtin_is_trusted` rename gate originally filed here is a
-  **WASM-emitter** concern — belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `f5-xc` and the tk dialect. The
@@ -1019,109 +1006,36 @@ a BIG-IP-config document publishes `BIGIP6001-6011` and an iApp APL
 presentation publishes `IAPP7001-7003` (with sibling-implementation
 cross-checking) on both the push and pull diagnostics paths, the analogue
 of `server/diagnostics_pipeline.py`'s `_publish_bigip_diagnostics` /
-`_publish_apl_diagnostics` dispatch. The sole remaining residual is the
-deferred, gated `tcl-xc` translator below.
+`_publish_apl_diagnostics` dispatch. The previously-deferred `f5-xc` (BIG-IP→
+F5-XC) translator has since landed (the `XC100-301` bullet above), so this track
+carries no remaining residual.
 
-### Stage 2 — Runtime & execution (RT-*)
+### Stage 2 — Runtime & execution (RT-*) — separate scope
 
-#### RT-WASM — WASM codegen + runtime
-Owns `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` bin. The
-eval-fallback emitter + `tcl compwasm` wiring have landed (binary/WAT output,
-`wasmtime`-validated; the `_write_binary_output` analogue is
-`tcl_cli_support::write_binary_output`); what remains:
-- **open** finish the WASM emitter (`wasm_codegen_module`) — only the Phase-1 IR
-  + encoding (~1 K LOC) is ported vs the ~13-module Python package. *(large)*
-- **open** `IRInterpBoundary` IR node + insert pass; the IR-rewriting
-  `passes/dce.py` / `passes/gvn.py`; `source_inliner` / `stdlib_prelude`
-  (WASM-bundle self-containment).
-- **open** `tcl-wasm` CLI + `--link` (Binaryen) bundling (standalone
-  self-contained module via `source_inliner` / `stdlib_prelude`).
+The **runtime & execution** tracks — **RT-WASM** (WASM codegen emitter +
+`tcl-wasm` bundling), **RT-VM** (the `tcl-vm` bytecode VM), and the
+`runtime/rust` tree-walking port — are enumerated in their own index, together
+with the **tiered capability-ladder plan** for bringing the VMs and runtime to
+C-Tcl 9.0.3 parity:
 
-#### RT-VM — bytecode VM
-Owns `tcl-vm` (+ the `tcl-vm-cli` / `tclvm` CLI driver).
+> [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md)
 
-The engine core is solid (loads the real Tcl 9 `tcltest.tcl` end-to-end). The
-active workstream is **tcltest pass/fail/skip parity** with the more-complete
-tree-walking `runtime/rust`, both pinned against C Tcl 9.0.3 (§0). Harness:
-`tmp/parity.sh` runs `tcl-vm`'s `run_test` example and `runtime/rust`'s
-`run_script --init` over each `tmp/tcl9.0.3/tests/*.test` and tabulates P/S/F; a
-suite is at parity when the two columns match. The landing log is in the
-[history](rust-rewrite-history.md) (2026-06-19); the per-suite snapshot + gaps
-below are the live state.
-
-The 2026-06-19 parity push and the 2026-06-21/22 follow-on fixes (the runtime
-`while`/`for` frozen-loop spin, composite array-index substitution, the six
-orchestrator bugs, the dict opcodes, and the `tclvm` CLI/REPL binary) are
-archived in the [history](rust-rewrite-history.md). The live open gaps:
-
-- **open (P1) "suite-zeroing hangs" are mostly mis-attributed** (diagnosed
-  2026-06-21). The `info.test` / `proc.test` "hangs" are **not** deadlocks: built
-  `--release`, `info.test` runs to *info-8.3* in ~12 s and `proc.test` runs to
-  `cleanupTests` in ~8 s. Two real effects masquerade as a hang under the
-  harness, in priority order:
-  - **(a) Debug-build slowness × the harness timeout.** A `--release` worker is
-    ~10–30× faster; the `run_test`/`run_script` parity harness must build
-    `--release` (a trivial tcltest case costs ≈1 s/test in `debug`, so a
-    ~200-test suite blows any timeout in `debug` while finishing in seconds in
-    `release`). **First action: switch `tmp/parity.sh` to `--release`** and
-    re-baseline — several "hung" suites likely already score.
-  - **(b) Uncaught-error abort.** A test-body error that escapes tcltest's
-    `catch` propagates to the module top and aborts the *whole* `run_test`
-    driver (e.g. `info.test` halts at info-8.3 with `can't read "text": no such
-    variable`; `proc.test` ends on a bare `VM error:`). That single escape, not
-    a loop, is what zeros the remainder of the suite — the real P1 to chase
-    (an `uplevel`/`catch`/error-propagation gap), and far more tractable than a
-    deadlock hunt. (The 2026-06-22 `unknown`/`exit`/error-propagation work bears
-    on this — re-baseline the parity harness in `--release`.)
-- **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
-  namespace-eval-frame fix corrected the *mechanism*; the remainder is
-  feature/semantics depth (namespace-name canonicalisation of multiple/trailing
-  `::` runs; deeper variable-scoping / introspection). The three share the model
-  and likely move together.
-- **open** `error.test` (29 failing) — 22 are the `[try]` coverage generated
-  tests (`return -level $level -code $code`), which need the **`-level`
-  countdown** the VM simplifies (only `-level 0` is immediate today); the rest
-  are `info errorstack` / the `-errorstack` option (unimplemented) and errorInfo
-  edge cases.
-- **landed (2026-06-22)** several reachable opcode gaps that trapped real
-  programs: `lset` (`LSET_LIST` single-index/index-path + `LSET_FLAT` multi-
-  index, plus a non-proc multi-index **codegen** fix so only-last-index no
-  longer reaches the opcode), `tailcall` (true caller-frame tail call via the
-  trampoline — a tail-recursive loop neither grows the activation stack nor
-  counts against the recursion limit — plus a runtime `tailcall` builtin for the
-  no-args / dynamically-built forms), and the `string is` / `regexp` value
-  opcodes `NUMERIC_TYPE` / `STR_CLASS` / `REGEXP`. All verified against tclsh 9.0
-  (detail in [history](rust-rewrite-history.md)).
-- **landed (2026-06-25)** the VM-vs-tclsh **differential cmd-test divergences**
-  are all closed — every `bug_*` test in
-  `tcl-vm/tests/cmd_{math_expr,string,collections,control,info_prefix}_e2e.rs`
-  (which compile real Tcl through `tcl-compiler` and pin results against tclsh
-  8.6/9.0) now passes. Math/`expr`: `rand()`/`srand()` (Park–Miller PRNG),
-  bare-literal normalisation + NaN-result domain errors (a real
-  `tryCvtToNumeric`), `abs()` of the most-negative wide promoting to `i128`.
-  Collections: `array set` element-named error, `dict get` no-key validation,
-  `::tcl::dict::map` registration, `dict map` `break` discarding the result,
-  `lsort -unique` keeping the last of an equal run. Control: `try` handler
-  array-element binds via `var_set`, and the differential harness now compiles
-  via `lower_to_ir_for_bytecode` (the production lowering, so literal `try`
-  exercises the runtime-barrier path rather than the unimplemented `beginCatch`).
-  These are a separate surface from tcltest-suite parity below — see
-  [history](rust-rewrite-history.md), 2026-06-25.
-- **open** smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6),
-  `incr` (3), `if`/`set` (2), `while` (1): individual bugs to chase after the
-  structural items.
-- **open** structural follow-up — give the bytecode backend real exception
-  ranges (`beginCatch`) and a fixed nested-complex-foreach / lmap-collecting
-  codegen, then drop the `for_bytecode` barriers (`try`/nested-`foreach`/`lmap`
-  run via runtime builtins today — correct but not inline).
-- **open** the missing command surface: **TclOO** (largest), `clock`,
-  full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`vwait`,
-  **coroutine**, residual `file`/`info`/`namespace` subcommands (`time` and
-  `encoding` — UTF-8 pass-through, oracle-parity — landed 2026-06-22). Concretely, `info` is missing
-  `cmdcount` / `frame` / `functions` / `hostname` (they error "unknown or
-  ambiguous subcommand" today); note `info cmdcount` cannot reach exact-count
-  parity with C Tcl without matching its per-bytecode command counting, so it
-  is a "exists but approximate" subcommand rather than a parity win.
+That index is the single entry point for the runtime scope. It links the live,
+regenerable trackers (VM opcode coverage in
+[`design/runtime/tclvm-opcode-status.md`](design/runtime/tclvm-opcode-status.md),
+per-stem tcltest parity in
+[`design/runtime/rust-vm-tier-parity.md`](design/runtime/rust-vm-tier-parity.md),
+the tree-walking-port breakdown in
+[`design/runtime/rust-runtime-port.md`](design/runtime/rust-runtime-port.md)) and
+the tiered delivery plan (the capability ladder in
+[`design/runtime/tcl-test-tiers.md`](design/runtime/tcl-test-tiers.md), the
+`tcltest` bring-up plan in
+[`design/runtime/tcltest-bringup.md`](design/runtime/tcltest-bringup.md), and the
+Zig-runtime roadmap in
+[`design/runtime/zig-runtime-roadmap.md`](design/runtime/zig-runtime-roadmap.md)).
+The landed runtime work (the 2026-06-19 parity push, the 2026-06-21/22
+follow-ons, and the 2026-06-25 differential-cmd-test closures) is in the
+[history archive](rust-rewrite-history.md).
 
 ### Stage 3 — LSP server (SRV-LSP) — complete
 
@@ -1165,30 +1079,44 @@ headline:
   (**0.02%**). Two workspace-excluded harnesses
   ([`design/srv-incremental/experiment/`](design/srv-incremental/experiment/))
   measure both halves.
-- **The prize is per-procedure check incrementality.** The shipped firewall makes
-  the analyser walk + per-proc lattices incremental, but `run_all_checks` /
-  `optimise_unit` re-run over the **whole unit** every edit (~99% of latency).
+- **The prize was per-procedure check incrementality — now landed.** The firewall
+  made the analyser walk + per-proc lattices incremental, but `run_all_checks` /
+  `optimise_unit` had re-run over the **whole unit** every edit (~99% of latency).
   Memoising them per-proc (keyed on the offset-invariant `FnLatticeKey` the
-  lattices already use) is the highest-leverage change.
-- **Cross-file cascade is greenfield.** The `WorkspaceIndex` is off the salsa
-  graph, `resolve_proc_call` is per-file, and editing file A recomputes nothing in
-  file B. The design lifts the project signature table into salsa so cross-file
-  resolution / arity become tracked edges — reverse-dependency invalidation for
-  free, bounded by Tcl's dynamic dispatch.
-- **open** Tasks (smallest-first, each independently shippable, each fuzzer-gated):
-  (1) persisted incremental `LineIndex` on the `String` store — *do first, no
-  rope*; (2) **the prize** — per-proc `run_all_checks` / `optimise_unit` salsa
-  memo; (3) Approach A (incremental per-item IR lowering); (4) Approach B
-  follow-ups (deep-clone removal + `optimise_unit` memo); (5) wire the
-  `reparse_window` / structural-state index into the live re-lex path; (6)
-  cross-file cascade (project signature table in salsa + a multi-file differential
-  fuzzer); (7) **optional, gated** — rope store + chunk-addressable `SourceFile`
-  input.
-- **Exit criterion:** Tasks 1–2 capture the bulk of the win with no rope and no
-  cross-file work; 3–5 close the lowering / re-lex floor; 6 is the cross-file
-  feature, built incremental-first. The rope (7) lands only if its 0.02% slice has
-  grown measurable *and* many-small-doc memory stays under ~1.2× — otherwise the
-  `String` store is retained. The experiment is the gate.
+  lattices already use) was the highest-leverage change and shipped as Tasks
+  2a/2b/4 — warm `compiler_check_diagnostics` fell ~445 → ~83 ms; an unrelated
+  body edit now re-checks and re-optimises exactly one proc.
+- **Cross-file cascade — now landed (Task 6).** The `WorkspaceIndex` had been off
+  the salsa graph (`resolve_proc_call` per-file, editing file A recomputed nothing
+  in file B). A `Project` salsa input now lifts the project signature table into
+  salsa so cross-file resolution / arity are tracked edges — reverse-dependency
+  invalidation for free, bounded by Tcl's dynamic dispatch, with the per-symbol
+  `command_arity` early-cutoff so an unrelated proc's signature edit no longer
+  wakes a file.
+- **Task status** (each independently shippable, each fuzzer-gated):
+  - **landed** (1) persisted incremental `LineIndex` on the `String` store;
+    (2) **the prize** — per-proc `run_all_checks` / `optimise_unit` salsa memo
+    (`function_checks` 2a + `proc_taint_solve` / `proc_summary_cascade` 2b);
+    (4) the per-procedure `optimise_unit` memo (`function_optimisations` +
+    whole-module `finalise_optimisations`, byte-identical); (3) **Approach A —
+    incremental per-item IR lowering** (`lower_proc_body` memo keyed on
+    `ProcBodyKey`, gated by `file_body_cache_eligible`, byte-identical
+    incremental == fresh, corpus-verified); (6) the cross-file cascade (project
+    signature table in salsa — W123 + cross-file arity, per-symbol
+    `command_arity` early-cutoff, corpus-scale multi-file differential fuzzer).
+  - **dropped 2026-06-30 (rope-dependent):** (5) windowed re-lex via
+    `reparse_window` / the structural-state index; (7) rope store +
+    chunk-addressable `SourceFile` input. The `String` store is retained.
+  - **open (residual):** broaden the Task 3 body-cache eligibility gate
+    (`file_body_cache_eligible` conservatively disqualifies bodies touching
+    `namespace`/`interp`/`rename`/OO/`apply`/nested-proc so the per-item memo
+    stays byte-identical to a whole-module lowering; widening it recovers more
+    warm-edit reuse).
+- **Exit criterion:** met for the shipped tasks — every landed task is gated by
+  an `incremental == fresh` differential fuzzer (in-crate + corpus `--ignored`)
+  asserting byte-identity with a from-scratch build. The rope (7) would only
+  re-open if its measured 0.02% per-edit slice grew *and* many-small-doc memory
+  stayed under ~1.2× — otherwise the `String` store is retained.
 
 ### Stage 4 — Tooling (TOOL-*)
 
