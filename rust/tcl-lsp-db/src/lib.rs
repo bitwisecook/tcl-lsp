@@ -1530,6 +1530,14 @@ pub struct OptDepsKey<'db> {
     pub callees: Vec<OptCalleeSummary>,
     #[returns(ref)]
     pub redefined: Vec<String>,
+    /// The procedure's `name` field exactly as the whole-module lowering records
+    /// it — the *written* name (a fully-qualified `proc ::ns::p` keeps its `::`
+    /// prefix; a short `proc p` inside `namespace eval` stays short). Name-bearing
+    /// optimisation messages (e.g. O121 "tailcall for self-recursion in proc
+    /// '<name>'") echo this verbatim, so the single-proc memo must reconstruct the
+    /// same `proc.name` rather than deriving a short name from the qualified key.
+    #[returns(ref)]
+    pub proc_name: String,
 }
 
 /// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
@@ -1548,6 +1556,7 @@ fn opt_deps_key<'db>(
     ia: &InterproceduralAnalysis,
     redefined: &HashSet<String>,
     body_source: &str,
+    proc_name: &str,
 ) -> OptDepsKey<'db> {
     let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
     proc_names.sort();
@@ -1559,7 +1568,14 @@ fn opt_deps_key<'db>(
     callees.sort_by(|a, b| a.qname.cmp(&b.qname));
     let mut redef: Vec<String> = redefined.iter().cloned().collect();
     redef.sort();
-    OptDepsKey::new(db, body_source.to_owned(), proc_names, callees, redef)
+    OptDepsKey::new(
+        db,
+        body_source.to_owned(),
+        proc_names,
+        callees,
+        redef,
+        proc_name.to_owned(),
+    )
 }
 
 /// Memoised offset-0 raw optimisations for one procedure (SRV-INCREMENTAL Task 4).
@@ -1597,10 +1613,9 @@ pub fn function_optimisations<'db>(
     }
     let redefined: HashSet<String> = deps.redefined(db).iter().cloned().collect();
 
-    let short = qname.rsplit("::").next().unwrap_or(&qname).to_owned();
     let body_len = u32::try_from(body_source.len()).unwrap_or(u32::MAX);
     let proc = tcl_compiler::ir::Procedure {
-        name: short,
+        name: deps.proc_name(db).clone(),
         qualified_name: qname.clone(),
         params: params.clone(),
         span: tcl_lexer::Span::new(0, body_len),
@@ -1726,7 +1741,7 @@ fn solve_optimisations<'db>(
             .get(body_offset as usize..body_end as usize)
             .unwrap_or("")
             .to_owned();
-        let deps = opt_deps_key(db, &ia, redefined, &body_source);
+        let deps = opt_deps_key(db, &ia, redefined, &body_source, &proc.name);
         let mut max_group: Option<u32> = None;
         for opt in function_optimisations(db, key, deps).iter() {
             let mut opt = opt.clone();

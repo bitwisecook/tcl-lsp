@@ -819,6 +819,17 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
             if w == "variable" && words.clone().any(|a| a.contains("::")) {
                 return true;
             }
+            // A `namespace import` *inside a body* leaks into the whole-file walk's
+            // global `namespace_imports` (the DFS records every import it walks,
+            // wherever it sits), so a later sibling body resolves a bare imported
+            // command (e.g. `test` ⇒ `::tcltest::test`) and walks its body-role
+            // args — a cross-body effect the isolated per-item walk can't reproduce
+            // from this body alone.  Rare (imports are normally top-level, where the
+            // shell pass records them and the deferred bodies inherit them), so a
+            // fallback here costs only a redundant rebuild.
+            if w == "namespace" && words.clone().next() == Some("import") {
+                return true;
+            }
         }
     }
     false
@@ -837,6 +848,17 @@ mod tests {
     #[test]
     fn two_top_level_procs() {
         eq("proc a {} { set x 1 }\nproc b {} { puts hi }\n");
+    }
+
+    #[test]
+    fn namespace_import_inside_body_falls_back() {
+        // A `namespace import` buried in a proc body leaks into the whole-file
+        // walk's global import set (reached by a later sibling body's bare
+        // imported command); the per-item decomposition can't reproduce that
+        // cross-body effect from the isolated body alone, so it falls back to a
+        // full rebuild — still byte-identical. See `body_needs_enclosing_context`.
+        eq("proc setup {} { namespace import -force ::tcltest::* }\n\
+            proc p {cmd} { test t desc -body { {*}$cmd } -result {} }\n");
     }
 
     #[test]
