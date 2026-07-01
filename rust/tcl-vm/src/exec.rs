@@ -17,7 +17,7 @@ use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{RECURSION_LIMIT, Vm, err, ok};
+use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -499,6 +499,15 @@ impl Vm {
     fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
         let mut acts: Vec<Frame> = vec![initial];
         loop {
+            // Enforce `interp limit $i time` for unbounded bytecode loops: the
+            // counter is Vm-scoped so it survives the short activations a
+            // command-driven loop re-enters (see `limit_check_tick`).
+            if let Some(c) = self.limit_check_tick() {
+                if let Some(done) = self.unwind(&mut acts, c) {
+                    return done;
+                }
+                continue;
+            }
             let tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
@@ -677,7 +686,7 @@ impl Vm {
     fn enter_proc(&mut self, proc: &ProcDef, argv: &[Value]) -> Result<(), Completion<Value>> {
         // Recursion bound (catchable, not a host stack overflow). Checked before
         // the frame push, matching C's `interp recursionlimit`.
-        if self.recursion_depth() >= RECURSION_LIMIT {
+        if self.recursion_depth() >= self.recursion_limit() {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
         let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
@@ -907,10 +916,14 @@ impl Vm {
                 // into the LVT (the codegen names the slot `a(x)`), so resolve
                 // it element-aware.
                 let name = lvt_name(imm0(instr));
+                // `info exists` fires read traces (a trace may create the
+                // variable); a trace error does not abort the existence check.
+                let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
             }
             Op::EXIST_STK => {
                 let name = pop(f).to_str();
+                let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
             }
 
@@ -2071,6 +2084,24 @@ impl Vm {
                     Err(e) => Err(err(e.message)),
                 }
             }
+            Some(Command::ChildInterp(child)) => {
+                let res = self.dispatch_child(&child, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
+            Some(Command::Ensemble(e)) => {
+                let res = self.dispatch_ensemble(&name, &e, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
             // Tcl's `unknown` fallback: an unresolved command name is handed to
             // the user-defined `unknown` proc as `unknown name arg…` (the basis
             // for auto-loading, ensembles, and the iRule command mocks). Only
@@ -2115,6 +2146,8 @@ impl Vm {
                     Err(e) => err(e.message),
                 }
             }
+            Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
+            Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
             // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
             None if name != "unknown" && self.lookup_command("unknown").is_some() => {
                 let mut full = Vec::with_capacity(argv.len() + 1);

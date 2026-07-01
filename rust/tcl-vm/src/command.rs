@@ -18,6 +18,7 @@ use crate::value::Value;
 pub type BuiltinFn = fn(&mut Vm, &[Value]) -> Completion<Value>;
 
 /// A procedure parameter: a name with an optional default.
+#[derive(Clone)]
 pub struct Param {
     /// Parameter name.
     pub name: String,
@@ -26,6 +27,7 @@ pub struct Param {
 }
 
 /// A user procedure: parameters plus the pre-compiled body.
+#[derive(Clone)]
 pub struct ProcDef {
     /// Canonical (namespace-qualified, no leading `::`) proc name.
     pub name: String,
@@ -57,6 +59,30 @@ pub enum Command {
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
     Alias(Rc<Vec<Value>>),
+    /// A child interpreter addressable as a command (`$child eval …`): the name
+    /// keys into the parent's `children` table. Invoking it dispatches the
+    /// `interp` ensemble restricted to that child.
+    ChildInterp(String),
+    /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
+    /// the ensemble's subcommands and dispatches to the mapped target.
+    Ensemble(Rc<EnsembleDef>),
+}
+
+/// A `namespace ensemble create`d command (`tclEnsemble.c`).
+#[derive(Clone)]
+pub struct EnsembleDef {
+    /// The namespace whose exported commands form the default subcommand set and
+    /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
+    pub namespace: String,
+    /// `-map`: subcommand → target command prefix (already qualified).
+    pub map: std::collections::HashMap<String, Vec<Value>>,
+    /// `-subcommands`: the explicit subcommand list, or `None` to use the
+    /// namespace's exported commands.
+    pub subcommands: Option<Vec<String>>,
+    /// `-prefixes`: whether an unambiguous prefix of a subcommand resolves.
+    pub prefixes: bool,
+    /// `-unknown`: a handler prefix invoked when no subcommand matches.
+    pub unknown: Option<Vec<Value>>,
 }
 
 /// Register the builtin set on `vm`.
@@ -150,6 +176,13 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [name] => {
             let n = name.to_str();
+            // `set varName` is a variable read, so it fires read traces (like
+            // the `$var` opcode path) — and a trace may create the variable
+            // before the read resolves (tcltest's `SafeFetch` lazily
+            // initialises a constraint this way).
+            if let Err(c) = vm.fire_var_traces(&n, "read") {
+                return c;
+            }
             vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
         [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
@@ -344,19 +377,296 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             vm.qualify_name(&new_name)
         };
+        // A proc executes in the namespace it currently lives in, so renaming
+        // it across namespaces re-homes its body (C `TclRenameCommand` updates
+        // the command's `nsPtr`). `namespace current` inside the body then
+        // reports the destination namespace (proc-3.4).
+        let cmd = match cmd {
+            Command::Proc(def) => {
+                let canon = key.strip_prefix("::").unwrap_or(&key);
+                let new_ns = canon.rsplit_once("::").map_or("", |(ns, _)| ns);
+                if new_ns == def.namespace && canon == def.name {
+                    Command::Proc(def)
+                } else {
+                    let mut relocated = (*def).clone();
+                    relocated.namespace = new_ns.to_string();
+                    relocated.name = canon.to_string();
+                    Command::Proc(Rc::new(relocated))
+                }
+            }
+            other => other,
+        };
         vm.register_command(&key, cmd);
     }
     ok(Value::empty())
 }
 
-/// `interp` — the subset the stdlib/test suite needs in a single-interpreter
-/// VM. Only the current interpreter (`{}` path) is modelled, so `slaves`/`exists`
-/// answer for it and the unsupported sub-interpreter operations are rejected.
+/// `interp create ?-safe? ?--? ?name?` — make a child interpreter.
+fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    // C's "weird historical rule": `-safe` is accepted anywhere before `--`
+    // (`interp create a -safe` is valid), and the path is the lone non-option
+    // word — so scan all args rather than stopping at the first non-flag.
+    let mut safe = false;
+    let mut last = false;
+    let mut name: Option<String> = None;
+    let mut i = 0;
+    while i < rest.len() {
+        let a = rest[i].to_str();
+        if !last && a.starts_with('-') {
+            match &*a {
+                "-safe" => {
+                    safe = true;
+                    i += 1;
+                    continue;
+                }
+                "--" => {
+                    i += 1;
+                    last = true;
+                }
+                s => return err(format!("bad option \"{s}\": must be -safe or --")),
+            }
+        }
+        if name.is_some() {
+            return err("wrong # args: should be \"interp create ?-safe? ?--? ?path?\"");
+        }
+        if let Some(n) = rest.get(i) {
+            name = Some(n.to_str().to_string());
+        }
+        i += 1;
+    }
+    if let Some(n) = name.as_ref().filter(|n| vm.child_exists(n)) {
+        return err(format!(
+            "interpreter named \"{n}\" already exists, cannot create"
+        ));
+    }
+    ok(Value::string(vm.create_child(name, safe)))
+}
+
+/// `interp recursionlimit path ?newlimit?` — get/set a (possibly child) interp's
+/// recursion bound.
+fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, newlimit) = match rest {
+        [path] => (path.to_str(), None),
+        [path, nl] => (path.to_str(), Some(nl.to_str().to_string())),
+        _ => return err("wrong # args: should be \"interp recursionlimit path ?newlimit?\""),
+    };
+    let result = if path.is_empty() {
+        vm.recursion_limit_apply(newlimit.as_deref())
+    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit.as_deref()) {
+        r
+    } else {
+        return err(format!("could not find interpreter \"{path}\""));
+    };
+    match result {
+        Ok(n) => ok(Value::int(n)),
+        Err(m) => err(m),
+    }
+}
+
+/// `interp limit path limitType ?-option value ...?` — query/configure the
+/// `commands` or `time` limit on a child interp (stored, not enforced).
+fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, ltype, opts) = match rest {
+        [path, ltype, opts @ ..] => (path.to_str(), ltype.to_str(), opts),
+        _ => {
+            return err(
+                "wrong # args: should be \"interp limit path limitType ?-option value ...?\"",
+            );
+        }
+    };
+    // Validate the limit type before the current-interp guard so that a bad
+    // type is reported ahead of the inaccessibility error (interp-35.3 vs .23).
+    if &*ltype != "commands" && &*ltype != "time" {
+        return err(format!("bad limit type \"{ltype}\": must be commands or time"));
+    }
+    if path.is_empty() {
+        return err("limits on current interpreter inaccessible");
+    }
+    match vm.child_mut(&path) {
+        Some(child) => match child.limit_apply(&ltype, opts) {
+            Ok(v) => ok(v),
+            Err(m) => err(m),
+        },
+        None => err(format!("could not find interpreter \"{path}\"")),
+    }
+}
+
+/// `interp bgerror path ?cmdPrefix?` — get/set the background-error handler.
+/// `interp children ?path?` — children of the current interp, or (one level
+/// down) of the named child.
+fn interp_children_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let names = match rest {
+        [] => vm.child_names(),
+        [path] if path.to_str().is_empty() => vm.child_names(),
+        [path] => match vm.child_child_names(&path.to_str()) {
+            Some(names) => names,
+            None => return err(format!("could not find interpreter \"{}\"", path.to_str())),
+        },
+        _ => return err("wrong # args: should be \"interp children ?path?\""),
+    };
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
+fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let (path, bargs) = match rest {
+        [path] | [path, _] => (path.to_str(), &rest[1..]),
+        _ => return err("wrong # args: should be \"interp bgerror path ?cmdPrefix?\""),
+    };
+    if path.is_empty() {
+        ok(vm.bgerror_apply(bargs))
+    } else if let Some(child) = vm.child_mut(&path) {
+        ok(child.bgerror_apply(bargs))
+    } else {
+        err(format!("could not find interpreter \"{path}\""))
+    }
+}
+
+/// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
+fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((path, dargs)) = rest.split_first() else {
+        return err("wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+    };
+    let p = path.to_str();
+    let res = if p.is_empty() {
+        vm.debug_apply(dargs)
+    } else if let Some(child) = vm.child_mut(&p) {
+        child.debug_apply(dargs)
+    } else {
+        return err(format!("could not find interpreter \"{p}\""));
+    };
+    match res {
+        Ok(v) => ok(v),
+        Err(m) => err(m),
+    }
+}
+
+/// `interp hidden ?path?` — the hidden-command names of the current or named
+/// interp.
+fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let path = rest
+        .first()
+        .map(|v| v.to_str().to_string())
+        .unwrap_or_default();
+    let names = if path.is_empty() {
+        vm.own_hidden_names()
+    } else {
+        match vm.child_hidden_names(&path) {
+            Some(n) => n,
+            None => return err(format!("could not find interpreter \"{path}\"")),
+        }
+    };
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
+/// `interp hide|expose path cmd` — move a command between the (current or
+/// child) interp's visible and hidden tables.
+fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Value> {
+    // `interp hide   path cmdName     ?hiddenCmdName?`
+    // `interp expose path hiddenName  ?cmdName?`
+    let (path, cmd, token) = match rest {
+        [path, cmd] => (path.to_str(), cmd.to_str(), cmd.to_str()),
+        [path, cmd, token] => (path.to_str(), cmd.to_str(), token.to_str()),
+        _ => {
+            let usage = if hide {
+                "wrong # args: should be \"interp hide path cmdName ?hiddenCmdName?\""
+            } else {
+                "wrong # args: should be \"interp expose path hiddenCmdName ?cmdName?\""
+            };
+            return err(usage);
+        }
+    };
+    // A safe interpreter may not touch the hidden-command table of itself or
+    // any of its children (the check is on the *executing* interp).
+    if vm.is_safe() {
+        let verb = if hide { "hide" } else { "expose" };
+        return err(format!(
+            "permission denied: safe interpreter cannot {verb} commands"
+        ));
+    }
+    // The hidden-command token may never carry namespace qualifiers, and only
+    // global-namespace commands can be hidden / exposed-from.
+    if hide {
+        if token.contains("::") {
+            return err("cannot use namespace qualifiers in hidden command token (rename)");
+        }
+        if !is_global_command(&cmd) {
+            return err("can only hide global namespace commands (use rename then hide)");
+        }
+    } else {
+        if cmd.contains("::") {
+            return err("cannot use namespace qualifiers in hidden command token (rename)");
+        }
+        if !is_global_command(&token) {
+            return err("cannot expose to a namespace (use expose to toplevel, then rename)");
+        }
+    }
+    if path.is_empty() {
+        if hide {
+            if let Some(command) = vm.take_command(&cmd) {
+                vm.hide_own_command(&token, command);
+            }
+        } else {
+            vm.expose_own_command(&cmd, &token);
+        }
+        ok(Value::empty())
+    } else if vm.child_hide(&path, &cmd, &token, hide) {
+        ok(Value::empty())
+    } else {
+        err(format!("could not find interpreter \"{path}\""))
+    }
+}
+
+/// Whether `name` resolves in the global namespace — i.e. it carries no
+/// namespace qualifiers beyond an optional leading `::`.
+fn is_global_command(name: &str) -> bool {
+    !name.strip_prefix("::").unwrap_or(name).contains("::")
+}
+
+/// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
+/// hidden command in the named child.
+fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let usage =
+        "wrong # args: should be \"interp invokehidden path ?-namespace ns? ?--? cmd ?arg ..?\"";
+    let [path, tail @ ..] = rest else {
+        return err(usage);
+    };
+    if tail.is_empty() {
+        return err(usage);
+    }
+    if vm.is_safe() {
+        return err("not allowed to invoke hidden commands from safe interpreter");
+    }
+    // Skip the option flags we don't model (`-namespace ns`, `--`).
+    let mut i = 0;
+    while i < tail.len() {
+        match &*tail[i].to_str() {
+            "-namespace" => i += 2,
+            "--" => {
+                i += 1;
+                break;
+            }
+            s if s.starts_with('-') => i += 1,
+            _ => break,
+        }
+    }
+    let Some(cmd) = tail.get(i) else {
+        return err(usage);
+    };
+    let p = path.to_str();
+    vm.invoke_hidden_in_child(&p, &cmd.to_str(), &tail[i + 1..])
+        .unwrap_or_else(|| err(format!("could not find interpreter \"{p}\"")))
+}
+
+/// `interp` — child-interpreter creation, evaluation, and the single-interp
+/// alias form. A child is a full `Vm` sharing the parent's output and compile
+/// service (see [`Vm::create_child`]); `interp eval`/`delete`/`issafe`/… address
+/// the current interp (empty path) or a named child.
 fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"interp cmd ?arg ...?\"");
     };
     match &*sub.to_str() {
+        "create" => interp_create_cmd(vm, rest),
         // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
         "alias" => match rest {
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
@@ -373,33 +683,89 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "exists" => match rest {
             [] => ok(Value::int(1)),
-            [path] => ok(Value::bool(path.to_str().is_empty())),
+            [path] => {
+                let p = path.to_str();
+                ok(Value::bool(p.is_empty() || vm.child_exists(&p)))
+            }
             _ => err("wrong # args: should be \"interp exists ?path?\""),
         },
-        // interp eval path arg ?arg ...? — only the current interpreter (an
-        // empty path) exists; its scripts (concatenated) evaluate in the current
-        // frame, exactly like `eval` (verified against tclsh 9.0).
+        // interp eval path arg ?arg ...? — empty path is the current interp
+        // (evaluate like `eval`); a named path routes into that child.
         "eval" => match rest {
             [path, scripts @ ..] if !scripts.is_empty() => {
                 let p = path.to_str();
-                if !p.is_empty() {
-                    return err(format!("could not find interpreter \"{p}\""));
-                }
                 let script = scripts
                     .iter()
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                match vm.eval_source(&script) {
-                    Ok(c) => c,
-                    Err(e) => err(e.message),
+                if p.is_empty() {
+                    match vm.eval_source(&script) {
+                        Ok(c) => c,
+                        Err(e) => err(e.message),
+                    }
+                } else {
+                    vm.eval_in_child(&p, &script)
                 }
             }
             _ => err("wrong # args: should be \"interp eval path arg ?arg ...?\""),
         },
-        "slaves" | "children" => ok(Value::empty()),
+        // interp delete ?path ...?
+        "delete" => {
+            for path in rest {
+                let p = path.to_str();
+                if p.is_empty() || !vm.delete_child(&p) {
+                    return err(format!("could not find interpreter \"{p}\""));
+                }
+            }
+            ok(Value::empty())
+        }
+        "issafe" => match rest {
+            [] => ok(Value::bool(vm.is_safe())),
+            [path] => {
+                let p = path.to_str();
+                if p.is_empty() {
+                    ok(Value::bool(vm.is_safe()))
+                } else {
+                    match vm.child_is_safe(&p) {
+                        Some(s) => ok(Value::bool(s)),
+                        None => err(format!("could not find interpreter \"{p}\"")),
+                    }
+                }
+            }
+            _ => err("wrong # args: should be \"interp issafe ?path?\""),
+        },
+        "slaves" | "children" => interp_children_cmd(vm, rest),
+        "recursionlimit" => interp_recursionlimit_cmd(vm, rest),
+        // interp hide path cmd / interp expose path cmd
+        "hide" | "expose" => interp_hidectl_cmd(vm, &*sub.to_str() == "hide", rest),
+        "hidden" => interp_hidden_cmd(vm, rest),
+        "invokehidden" => interp_invokehidden_cmd(vm, rest),
+        "debug" => interp_debug_cmd(vm, rest),
+        "bgerror" => interp_bgerror_cmd(vm, rest),
+        "limit" => interp_limit_cmd(vm, rest),
+        // `interp marktrusted path` — clear a child's safe flag. A safe
+        // interpreter may not mark anything trusted (checked on the executor).
+        "marktrusted" => match rest {
+            [path] => {
+                if vm.is_safe() {
+                    return err("permission denied: safe interpreter cannot mark trusted");
+                }
+                vm.child_mark_trusted(&path.to_str());
+                ok(Value::empty())
+            }
+            _ => err("wrong # args: should be \"interp marktrusted path\""),
+        },
+        // Channel sharing/transfer between interps. Channels are per-interp in
+        // this model; accept the operation so a script that wires up shared
+        // channels at top level runs to completion (the dependent reads are
+        // covered by the per-interp channel table, not a global one).
+        "share" | "transfer" => ok(Value::empty()),
         other => err(format!(
-            "bad option \"{other}\": only alias, eval, exists, and slaves are supported"
+            "bad option \"{other}\": must be alias, aliases, bgerror, cancel, \
+             children, create, debug, delete, eval, exists, expose, hide, \
+             hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, \
+             share, slaves, target, or transfer"
         )),
     }
 }

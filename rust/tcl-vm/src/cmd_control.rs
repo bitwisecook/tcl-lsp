@@ -129,6 +129,9 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let cond = args[0].clone();
     let body = args[1].clone();
     loop {
+        if let Some(c) = vm.limit_check_tick() {
+            return c;
+        }
         match cond_bool(vm, &cond) {
             Ok(true) => {}
             Ok(false) => break,
@@ -167,6 +170,9 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return c;
     }
     loop {
+        if let Some(c) = vm.limit_check_tick() {
+            return c;
+        }
         match cond_bool(vm, &cond) {
             Ok(true) => {}
             Ok(false) => break,

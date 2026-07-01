@@ -37,7 +37,9 @@ impl CompileService for Svc {
 struct Stdout;
 impl Write for Stdout {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        std::io::stdout().write(b)
+        let n = std::io::stdout().write(b)?;
+        std::io::stdout().flush()?;
+        Ok(n)
     }
     fn flush(&mut self) -> std::io::Result<()> {
         std::io::stdout().flush()
@@ -70,8 +72,21 @@ fn run() -> i32 {
     // guards on `::tcltest` not already existing — which it does here — so the
     // driver performs the import the file would otherwise do.
     let registry = CommandRegistry::build_default();
-    let src =
-        format!("source {tcltest}\nnamespace import -force ::tcltest::*\nsource {testfile}\n");
+    // Optionally source the backend-constraint overlay (after tcltest, before
+    // the test file) so tests the running backend cannot support are skipped.
+    let overlay = match std::env::var("TCL_BACKEND_CONSTRAINTS") {
+        Ok(p) if !p.is_empty() => format!("source {p}\n"),
+        _ => String::new(),
+    };
+    // Diagnostic: `TCL_TEST_VERBOSE=1` makes tcltest announce each test as it
+    // starts, so a hanging test can be pinpointed.
+    let verbose = match std::env::var("TCL_TEST_VERBOSE") {
+        Ok(v) if !v.is_empty() => "::tcltest::configure -verbose {body start}\n",
+        _ => "",
+    };
+    let src = format!(
+        "source {tcltest}\nnamespace import -force ::tcltest::*\n{verbose}{overlay}source {testfile}\n"
+    );
     let ir = lower_to_ir(&src, &registry);
     let cfg = build_cfg(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);

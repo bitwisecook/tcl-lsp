@@ -14,7 +14,7 @@ use tcl_runtime_api::{
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
-use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
+use crate::command::{BuiltinFn, Command, EnsembleDef, ProcDef, register_builtins};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
@@ -24,6 +24,55 @@ use crate::value::Value;
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
+
+/// Render a subcommand list as C's ensemble `must be …` clause — note the
+/// ensemble formatter puts a comma before `or` even for two items
+/// (`x1, or x2`), unlike `Tcl_GetIndexFromObj`.
+fn oxford_or(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [a] => a.clone(),
+        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+    }
+}
+
+/// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
+/// reports: a decimal that overflows `i64` is "too large to represent", a
+/// non-numeric value is "expected integer but got …".
+fn parse_recursion_limit(s: &str) -> Result<i64, String> {
+    let t = s.trim();
+    if let Ok(n) = t.parse::<i64>() {
+        return Ok(n);
+    }
+    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
+    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("integer value too large to represent".to_string());
+    }
+    Err(format!("expected integer but got \"{s}\""))
+}
+
+/// Resolve an `interp limit` option by unambiguous prefix against `opts`,
+/// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
+/// `bad option "X": must be …` error.
+fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
+    let matches: Vec<&str> = opts.iter().copied().filter(|o| o.starts_with(arg)).collect();
+    match matches.as_slice() {
+        [exact] => Ok(exact),
+        _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
+        _ => Err(format!(
+            "bad option \"{arg}\": must be {}",
+            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
+        )),
+    }
+}
+
+/// Parse an `interp limit` integer option value, mirroring `parse_recursion_limit`'s
+/// `expected integer but got "X"` wording.
+fn parse_limit_int(s: &str) -> Result<i64, String> {
+    s.trim()
+        .parse::<i64>()
+        .map_err(|_| format!("expected integer but got \"{s}\""))
+}
 
 /// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
 /// subset of C's `init.tcl`: `auto_load_index` reads each `tclIndex` on
@@ -115,6 +164,13 @@ pub struct Vm {
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
     ns_exports: HashMap<String, Vec<String>>,
+    /// Import provenance: canonical key of a command created by `namespace
+    /// import` → the canonical FQN of its origin (source) command. Lets
+    /// `namespace forget` remove *only* imported commands (C
+    /// `Tcl_ForgetImport`, which matches on `deleteProc == DeleteImportedCmd`),
+    /// leaving a real command of the same name intact. Cleared whenever the key
+    /// is re-registered (a redefine) or taken (a `rename`).
+    imported_commands: HashMap<String, String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -148,8 +204,11 @@ pub struct Vm {
     /// variables); inside a proc called from one, the depths differ and
     /// unqualified names are proc locals.
     ns_script_frames: Vec<usize>,
-    out: Box<dyn Write>,
-    compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
+    // Shared with child interpreters (`interp create`): a child writes `puts`
+    // output to the same sink and compiles dynamic scripts with the same
+    // (stateless) compile service, so both are `Rc` rather than owned.
+    out: Rc<RefCell<Box<dyn Write>>>,
+    compiler: Option<Rc<dyn CompileService<Module = ModuleAsm>>>,
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
@@ -219,6 +278,59 @@ pub struct Vm {
     /// generator's 31-bit seed (`tclExecute.c`). Seeded deterministically so a
     /// fresh VM is reproducible; `srand(n)` resets it.
     rand_seed: i64,
+    /// Child interpreters (`interp create`), keyed by name. Each is a full `Vm`
+    /// sharing this one's output sink and compile service; their command tables,
+    /// namespaces, variables, and channels are isolated. A child is reachable
+    /// both here and as a command (`Command::ChildInterp`) in this interp.
+    children: HashMap<String, Vm>,
+    /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
+    is_safe: bool,
+    /// Per-interp recursion bound (`interp recursionlimit`), default
+    /// [`RECURSION_LIMIT`]. A child carries its own, independent of the parent's.
+    recursion_limit: usize,
+    /// Commands hidden by `interp create -safe` / `interp hide`, keyed by name —
+    /// invocable via `interp invokehidden`, restorable with `interp expose`.
+    hidden_commands: HashMap<String, Command>,
+    /// Monotonic counter minting auto-generated child names (`interp0`, …).
+    interp_counter: u64,
+    /// `interp debug -frame` — a one-way switch (once on, stays on).
+    debug_frame: bool,
+    /// `interp bgerror` — the background-error handler command prefix.
+    bgerror_handler: Value,
+    /// `interp limit` configuration. The `time` limit is enforced; `commands`
+    /// is stored for query/set only.
+    limits: LimitSet,
+    /// Free-running counter that throttles wall-clock polling for the `time`
+    /// limit (see [`Vm::limit_check_tick`]). Vm-scoped, not per-activation, so
+    /// it accumulates across the short-lived activations a command-driven loop
+    /// (`$while {1} {…}`) spins through.
+    limit_tick: u32,
+}
+
+/// `interp limit` configuration for one interpreter — the `commands` and `time`
+/// limit types. Stored and queried, but not enforced.
+#[derive(Clone)]
+pub(crate) struct LimitSet {
+    cmd_command: Value,
+    cmd_granularity: i64,
+    cmd_value: Option<i64>,
+    time_command: Value,
+    time_granularity: i64,
+    /// Combined seconds + milliseconds, normalised; `None` when unset.
+    time_value: Option<(i64, i64)>,
+}
+
+impl Default for LimitSet {
+    fn default() -> Self {
+        Self {
+            cmd_command: Value::string(""),
+            cmd_granularity: 1,
+            cmd_value: None,
+            time_command: Value::string(""),
+            time_granularity: 10,
+            time_value: None,
+        }
+    }
 }
 
 /// The command-identity arena backing `Namespaces::find_command` /
@@ -249,6 +361,13 @@ impl Vm {
     /// A VM writing `puts` output to `out` (tests pass a capture buffer).
     #[must_use]
     pub fn with_output(out: Box<dyn Write>) -> Self {
+        Self::with_shared_output(Rc::new(RefCell::new(out)))
+    }
+
+    /// A VM writing to an already-shared output sink — the path
+    /// [`fork_child`](Self::fork_child) uses so a child interpreter's `puts`
+    /// reaches the same place as its parent's.
+    fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let mut vm = Self {
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
@@ -256,6 +375,7 @@ impl Vm {
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
+            imported_commands: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -279,6 +399,15 @@ impl Vm {
             script_stack: Vec::new(),
             recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
+            children: HashMap::new(),
+            is_safe: false,
+            recursion_limit: RECURSION_LIMIT,
+            hidden_commands: HashMap::new(),
+            interp_counter: 0,
+            debug_frame: false,
+            bgerror_handler: Value::string("::tcl::Bgerror"),
+            limits: LimitSet::default(),
+            limit_tick: 0,
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
@@ -319,6 +448,7 @@ impl Vm {
     /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
     /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
+        use tcl_platform::backend::{self, key};
         let plat = [
             ("platform", "unix"),
             ("os", "Linux"),
@@ -334,6 +464,35 @@ impl Vm {
         ];
         for (k, v) in plat {
             let _ = self.write_array_raw("tcl_platform", k, Value::string(v));
+        }
+        // Backend-introspection keys (the test-suite constraint overlay reads
+        // these). The bytecode VM is a native interpreter, so the wasm / WASI /
+        // eBPF facts come from the build's `cfg` (empty on a native build) and
+        // may be overridden from the environment to evaluate another backend's
+        // skip lists.
+        let detected = |k: &str| -> String {
+            backend::override_env_var(k)
+                .and_then(|var| std::env::var(var).ok())
+                .unwrap_or_else(|| {
+                    match k {
+                        key::WASM => backend::compiled_wasm_spec(),
+                        key::WASI => backend::compiled_wasi_spec(),
+                        key::WASI_VERSION => backend::compiled_wasi_host(),
+                        key::EBPF => backend::compiled_ebpf_spec(),
+                        _ => "",
+                    }
+                    .to_string()
+                })
+        };
+        for (k, v) in [
+            (key::RUNTIME, "bytecode".to_string()),
+            (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
+            (key::WASM, detected(key::WASM)),
+            (key::WASI, detected(key::WASI)),
+            (key::WASI_VERSION, detected(key::WASI_VERSION)),
+            (key::EBPF, detected(key::EBPF)),
+        ] {
+            let _ = self.write_array_raw("tcl_platform", k, Value::string(v.as_str()));
         }
         for (k, v) in std::env::vars() {
             let _ = self.write_array_raw("env", &k, Value::string(v));
@@ -474,7 +633,7 @@ impl Vm {
 
     /// Inject the compiler used for runtime `eval` / command substitution.
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
-        self.compiler = Some(compiler);
+        self.compiler = Some(Rc::from(compiler));
     }
 
     /// The host environment (capability seam) backing the platform commands.
@@ -501,6 +660,9 @@ impl Vm {
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
         // The table is keyed by canonical names (no leading `::`).
         let key = name.strip_prefix("::").unwrap_or(name);
+        // A direct (re)definition at this key is not an import — drop any stale
+        // import provenance so `namespace forget` won't later remove it.
+        self.imported_commands.remove(key);
         self.commands.insert(key.to_owned(), cmd);
     }
 
@@ -523,6 +685,7 @@ impl Vm {
     /// Resolve and remove the command `name`, returning it (for `rename`).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
         let key = self.command_key(name)?;
+        self.imported_commands.remove(&key);
         self.commands.remove(&key)
     }
 
@@ -545,7 +708,671 @@ impl Vm {
             Command::Builtin(_) => "native",
             Command::Proc(_) => "proc",
             Command::Alias(_) => "alias",
+            Command::ChildInterp(_) => "interp",
+            Command::Ensemble(_) => "ensemble",
         })
+    }
+
+    /// A fresh child interpreter sharing this one's output sink, compile
+    /// service, and host — its command table, namespaces, variables, and
+    /// channels are otherwise independent (`interp create`).
+    fn fork_child(&self) -> Vm {
+        let mut child = Vm::with_shared_output(Rc::clone(&self.out));
+        child.compiler.clone_from(&self.compiler);
+        child.host = Rc::clone(&self.host);
+        child
+    }
+
+    /// `interp create ?-safe? ?name?` — make a child interpreter, registering it
+    /// as a command in this interp. Returns the (possibly auto-generated) name.
+    pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
+        let name = name.unwrap_or_else(|| {
+            let n = format!("interp{}", self.interp_counter);
+            self.interp_counter += 1;
+            n
+        });
+        let mut child = self.fork_child();
+        if safe {
+            child.make_safe();
+        }
+        self.children.insert(name.clone(), child);
+        self.register_command(&name, Command::ChildInterp(name.clone()));
+        name
+    }
+
+    /// Whether a child interpreter `name` exists.
+    pub(crate) fn child_exists(&self, name: &str) -> bool {
+        self.children.contains_key(name)
+    }
+
+    /// Mutable access to a child interpreter (for the per-interp `debug` /
+    /// `bgerror` settings).
+    pub(crate) fn child_mut(&mut self, name: &str) -> Option<&mut Vm> {
+        self.children.get_mut(name)
+    }
+
+    /// `interp debug ?-frame ?bool??` on this interp. `-frame` is a one-way
+    /// switch (once on, stays on); returns the settings list / the frame bool.
+    pub(crate) fn debug_apply(&mut self, args: &[Value]) -> Result<Value, String> {
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-frame"),
+                Value::int(i64::from(self.debug_frame)),
+            ])),
+            [opt] if &*opt.to_str() == "-frame" => Ok(Value::int(i64::from(self.debug_frame))),
+            [opt, val] if &*opt.to_str() == "-frame" => {
+                if val.as_bool().unwrap_or(false) {
+                    self.debug_frame = true;
+                }
+                Ok(Value::int(i64::from(self.debug_frame)))
+            }
+            _ => Err(format!(
+                "bad option \"{}\": must be -frame",
+                args.first()
+                    .map(|v| v.to_str().to_string())
+                    .unwrap_or_default()
+            )),
+        }
+    }
+
+    /// `interp bgerror ?cmdPrefix?` on this interp — get/set the background-error
+    /// handler.
+    pub(crate) fn bgerror_apply(&mut self, args: &[Value]) -> Value {
+        if let [prefix] = args {
+            self.bgerror_handler = prefix.clone();
+        }
+        self.bgerror_handler.clone()
+    }
+
+    /// Whether this interp's `time` limit has elapsed. The stored time value is
+    /// an absolute wall-clock deadline (`-seconds`/`-milliseconds`); the
+    /// execution trampoline polls this so an unbounded bytecode loop still
+    /// honours `interp limit $i time`. Returns `false` when no time limit is set.
+    pub(crate) fn time_limit_exceeded(&self) -> bool {
+        match self.limits.time_value {
+            Some((secs, millis)) => {
+                let deadline = i128::from(secs) * 1000 + i128::from(millis);
+                self.host_rc().clock().now_millis() >= deadline
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a `time` limit is configured at all — the cheap guard the
+    /// trampoline checks before paying for a wall-clock read.
+    pub(crate) fn has_time_limit(&self) -> bool {
+        self.limits.time_value.is_some()
+    }
+
+    /// Advance the limit-poll counter and, when a `time` limit is armed and the
+    /// throttle window elapses, return the `time limit exceeded` error. Called
+    /// from the bytecode trampoline (per tick) and the loop commands (per
+    /// iteration) so both pure-bytecode and command-driven infinite loops are
+    /// trapped. A no-op (beyond the guard) when no time limit is set.
+    pub(crate) fn limit_check_tick(&mut self) -> Option<Completion<Value>> {
+        if !self.has_time_limit() {
+            return None;
+        }
+        self.limit_tick = self.limit_tick.wrapping_add(1);
+        // Poll roughly every 4096 ticks (the low 12 bits clear).
+        if self.limit_tick.trailing_zeros() >= 12 && self.time_limit_exceeded() {
+            return Some(err("time limit exceeded"));
+        }
+        None
+    }
+
+    /// `interp limit limitType ?-option value …?` on this interp (query / set;
+    /// enforced for `time`).
+    pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
+        match ltype {
+            "commands" => self.limit_commands(args),
+            "time" => self.limit_time(args),
+            other => Err(format!(
+                "bad limit type \"{other}\": must be commands or time"
+            )),
+        }
+    }
+
+    fn limit_commands(&mut self, args: &[Value]) -> Result<Value, String> {
+        const OPTS: &[&str] = &["-command", "-granularity", "-value"];
+        let l = &self.limits;
+        let query = |opt: &str| match opt {
+            "-command" => l.cmd_command.clone(),
+            "-granularity" => Value::int(l.cmd_granularity),
+            _ => l.cmd_value.map_or_else(|| Value::string(""), Value::int),
+        };
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-command"),
+                l.cmd_command.clone(),
+                Value::string("-granularity"),
+                Value::int(l.cmd_granularity),
+                Value::string("-value"),
+                l.cmd_value.map_or_else(|| Value::string(""), Value::int),
+            ])),
+            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            _ => {
+                for pair in args.chunks(2) {
+                    // A trailing option with no value is a catchable error, not a
+                    // panic (`interp limit c commands -value 1 -granularity`).
+                    let [opt, val] = pair else {
+                        return Err("wrong # args: should be \"interp limit path commands \
+                                    ?-option value ...?\""
+                            .into());
+                    };
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
+                    match opt {
+                        "-command" => self.limits.cmd_command = val.clone(),
+                        "-granularity" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 1 {
+                                return Err("granularity must be at least 1".into());
+                            }
+                            self.limits.cmd_granularity = n;
+                        }
+                        _ => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("command limit value must be at least 0".into());
+                            }
+                            self.limits.cmd_value = Some(n);
+                        }
+                    }
+                }
+                Ok(Value::string(""))
+            }
+        }
+    }
+
+    fn limit_time(&mut self, args: &[Value]) -> Result<Value, String> {
+        const OPTS: &[&str] = &["-command", "-granularity", "-milliseconds", "-seconds"];
+        let l = &self.limits;
+        let query = |opt: &str| match opt {
+            "-command" => l.time_command.clone(),
+            "-granularity" => Value::int(l.time_granularity),
+            "-seconds" => l
+                .time_value
+                .map_or_else(|| Value::string(""), |(s, _)| Value::int(s)),
+            _ => l
+                .time_value
+                .map_or_else(|| Value::string(""), |(_, m)| Value::int(m)),
+        };
+        match args {
+            [] => Ok(Value::list(vec![
+                Value::string("-command"),
+                l.time_command.clone(),
+                Value::string("-granularity"),
+                Value::int(l.time_granularity),
+                Value::string("-milliseconds"),
+                l.time_value
+                    .map_or_else(|| Value::string(""), |(_, m)| Value::int(m)),
+                Value::string("-seconds"),
+                l.time_value
+                    .map_or_else(|| Value::string(""), |(s, _)| Value::int(s)),
+            ])),
+            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            _ => {
+                let (mut sec, mut ms) = self.limits.time_value.unwrap_or((0, 0));
+                let mut touched = self.limits.time_value.is_some();
+                for pair in args.chunks(2) {
+                    let [opt, val] = pair else {
+                        return Err("wrong # args: should be \"interp limit path time \
+                                    ?-option value ...?\""
+                            .into());
+                    };
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
+                    match opt {
+                        "-command" => self.limits.time_command = val.clone(),
+                        "-granularity" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 1 {
+                                return Err("granularity must be at least 1".into());
+                            }
+                            self.limits.time_granularity = n;
+                        }
+                        "-seconds" => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("seconds must be non-negative".into());
+                            }
+                            sec = n;
+                            touched = true;
+                        }
+                        _ => {
+                            let n = parse_limit_int(&val.to_str())?;
+                            if n < 0 {
+                                return Err("milliseconds must be non-negative".into());
+                            }
+                            ms = n;
+                            touched = true;
+                        }
+                    }
+                }
+                if touched {
+                    // Normalise excess milliseconds into seconds.
+                    sec += ms.div_euclid(1000);
+                    ms = ms.rem_euclid(1000);
+                    self.limits.time_value = Some((sec, ms));
+                }
+                Ok(Value::string(""))
+            }
+        }
+    }
+
+    /// Sorted names of this interp's direct children (`interp children`).
+    pub(crate) fn child_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.children.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    /// `interp children path` — the direct child names of the named child interp
+    /// (one level down), or `None` when that child does not exist.
+    pub(crate) fn child_child_names(&self, name: &str) -> Option<Vec<String>> {
+        self.children.get(name).map(Vm::child_names)
+    }
+
+    /// `interp issafe ?path?` for the current interp.
+    pub(crate) fn is_safe(&self) -> bool {
+        self.is_safe
+    }
+
+    /// Whether the named child is safe (`$child issafe` / `interp issafe path`).
+    pub(crate) fn child_is_safe(&self, name: &str) -> Option<bool> {
+        self.children.get(name).map(|c| c.is_safe)
+    }
+
+    /// Get/set a child's recursion limit; `None` if the child does not exist.
+    pub(crate) fn child_recursion_limit_apply(
+        &mut self,
+        name: &str,
+        newlimit: Option<&str>,
+    ) -> Option<Result<i64, String>> {
+        let child = self.children.get_mut(name)?;
+        Some(child.recursion_limit_apply(newlimit))
+    }
+
+    /// Sorted hidden-command names of a child (`interp hidden path`).
+    pub(crate) fn child_hidden_names(&self, name: &str) -> Option<Vec<String>> {
+        self.children.get(name).map(|c| {
+            let mut names: Vec<String> = c.hidden_commands.keys().cloned().collect();
+            names.sort();
+            names
+        })
+    }
+
+    /// `interp invokehidden path cmd ?arg ...?` — invoke a hidden command inside
+    /// the child. The command is temporarily restored to the child's visible
+    /// table for the call (then the previous binding is put back), so it runs in
+    /// the child without permanently un-hiding it. `None` if the child is gone.
+    pub(crate) fn invoke_hidden_in_child(
+        &mut self,
+        name: &str,
+        cmd: &str,
+        args: &[Value],
+    ) -> Option<Completion<Value>> {
+        let mut child = self.children.remove(name)?;
+        let result = match child.hidden_commands.get(cmd).cloned() {
+            None => err(format!("invalid hidden command name \"{cmd}\"")),
+            Some(hidden) => {
+                let saved = child.commands.insert(cmd.to_string(), hidden);
+                let r = child.invoke_command(cmd, args);
+                match saved {
+                    Some(prev) => {
+                        child.commands.insert(cmd.to_string(), prev);
+                    }
+                    None => {
+                        child.commands.remove(cmd);
+                    }
+                }
+                r
+            }
+        };
+        self.children.insert(name.to_string(), child);
+        Some(result)
+    }
+
+    /// `interp marktrusted path` — clear a child's safe flag (exposing every
+    /// hidden command). A no-op if the child does not exist.
+    pub(crate) fn child_mark_trusted(&mut self, name: &str) {
+        if let Some(child) = self.children.get_mut(name) {
+            for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
+                child.commands.insert(cmd_name, cmd);
+            }
+            child.is_safe = false;
+        }
+    }
+
+    /// `interp hide name` / `interp expose name` on a child: move a command
+    /// between its visible and hidden tables. Returns `false` if the child is
+    /// missing.
+    /// `interp hide {} cmd` — move one of *this* interp's commands into its
+    /// hidden table.
+    pub(crate) fn hide_own_command(&mut self, cmd: &str, command: Command) {
+        self.hidden_commands.insert(cmd.to_string(), command);
+    }
+
+    /// `interp expose {} hidden ?token?` — restore one of *this* interp's
+    /// hidden commands, optionally under a new name (`token`).
+    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) {
+        if let Some(c) = self.hidden_commands.remove(cmd) {
+            self.commands.insert(token.to_string(), c);
+        }
+    }
+
+    /// Sorted hidden-command names of *this* interp (`interp hidden {}`).
+    pub(crate) fn own_hidden_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.hidden_commands.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    /// `interp hide|expose path cmd ?token?` on a child. When hiding, the
+    /// command `cmd` is filed under `token`; when exposing, the hidden `cmd` is
+    /// restored as the command `token`.
+    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, token: &str, hide: bool) -> bool {
+        let Some(child) = self.children.get_mut(name) else {
+            return false;
+        };
+        if hide {
+            if let Some(c) = child.commands.remove(cmd) {
+                child.hidden_commands.insert(token.to_string(), c);
+            }
+        } else if let Some(c) = child.hidden_commands.remove(cmd) {
+            child.commands.insert(token.to_string(), c);
+        }
+        true
+    }
+
+    /// Make this interp safe (`interp create -safe`): hide the commands that
+    /// reach the host (filesystem, processes, sockets, the interpreter loader).
+    /// Hidden commands move to `hidden_commands`, invocable via
+    /// `interp invokehidden` and restorable with `interp expose`.
+    fn make_safe(&mut self) {
+        const UNSAFE: &[&str] = &[
+            "exec",
+            "exit",
+            "cd",
+            "pwd",
+            "glob",
+            "open",
+            "socket",
+            "source",
+            "load",
+            "file",
+            "fconfigure",
+            "encoding",
+            "after",
+            "vwait",
+        ];
+        // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
+        // os/osVersion/machine/user) plus our backend-introspection keys, so a
+        // safe interp exposes only the portable subset.
+        const UNSAFE_PLATFORM: &[&str] = &[
+            "os",
+            "osVersion",
+            "machine",
+            "user",
+            "threaded",
+            "runtime",
+            "runtimeVersion",
+            "wasm",
+            "wasi",
+            "wasiVersion",
+            "ebpf",
+        ];
+        for &c in UNSAFE {
+            if let Some(cmd) = self.commands.remove(c) {
+                self.hidden_commands.insert(c.to_string(), cmd);
+            }
+        }
+        for &k in UNSAFE_PLATFORM {
+            let _ = self.unset_one(&format!("tcl_platform({k})"), false);
+        }
+        // A safe interp has no `env` array and no real library/package paths
+        // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.
+        for v in ["env", "tcl_library", "tclDefaultLibrary", "tcl_pkgPath"] {
+            let _ = self.unset_one(v, false);
+        }
+        self.is_safe = true;
+    }
+
+    /// Evaluate `script` in the named child interpreter (`interp eval path …` /
+    /// `$child eval …`). The child is taken out of the table for the call so the
+    /// parent is free, then restored.
+    pub(crate) fn eval_in_child(&mut self, name: &str, script: &str) -> Completion<Value> {
+        let Some(mut child) = self.children.remove(name) else {
+            return err(format!("could not find interpreter \"{name}\""));
+        };
+        let res = match child.eval_source(script) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        };
+        // Restore the child unless it tore itself down (no parent re-entry in
+        // this model, so it is always still present).
+        self.children.insert(name.to_string(), child);
+        res
+    }
+
+    /// `interp delete path …` / `$child delete` — destroy a child and its
+    /// command. Returns whether it existed.
+    pub(crate) fn delete_child(&mut self, name: &str) -> bool {
+        let existed = self.children.remove(name).is_some();
+        if existed {
+            self.commands
+                .remove(name.strip_prefix("::").unwrap_or(name));
+        }
+        existed
+    }
+
+    /// Dispatch a child-as-command call (`$child sub ?arg …?`) — the `interp`
+    /// ensemble restricted to that child.
+    /// The exported command tails of namespace `ns` (the default ensemble
+    /// subcommand set): commands directly in `ns` whose tail matches an export
+    /// pattern.
+    fn exported_command_tails(&self, ns: &str) -> Vec<String> {
+        let prefix = if ns.is_empty() {
+            String::new()
+        } else {
+            format!("{ns}::")
+        };
+        let patterns = self.ns_exports.get(ns).cloned().unwrap_or_default();
+        let mut out = Vec::new();
+        for key in self.commands.keys() {
+            let Some(tail) = key.strip_prefix(&prefix) else {
+                continue;
+            };
+            if tail.is_empty() || tail.contains("::") {
+                continue;
+            }
+            if patterns
+                .iter()
+                .any(|p| tcl_syntax::glob::string_match(p, tail))
+            {
+                out.push(tail.to_string());
+            }
+        }
+        out
+    }
+
+    /// Dispatch a `namespace ensemble` call (`ens sub ?arg …?`): resolve `sub`
+    /// (exact, or unambiguous prefix) against the ensemble's subcommands and
+    /// invoke the mapped target (`-map`, else `namespace::sub`).
+    pub(crate) fn dispatch_ensemble(
+        &mut self,
+        ens_name: &str,
+        e: &EnsembleDef,
+        argv: &[Value],
+    ) -> Completion<Value> {
+        let Some((sub_val, rest)) = argv.split_first() else {
+            return err(format!(
+                "wrong # args: should be \"{ens_name} subcommand ?arg ...?\""
+            ));
+        };
+        let sub = sub_val.to_str().to_string();
+        let mut subs: Vec<String> = match &e.subcommands {
+            Some(list) => list.clone(),
+            None => self.exported_command_tails(&e.namespace),
+        };
+        for k in e.map.keys() {
+            if !subs.contains(k) {
+                subs.push(k.clone());
+            }
+        }
+        subs.sort();
+        subs.dedup();
+        let resolved = if subs.iter().any(|s| s == &sub) {
+            Some(sub.clone())
+        } else if e.prefixes {
+            let m: Vec<&String> = subs.iter().filter(|s| s.starts_with(&sub)).collect();
+            if m.len() == 1 {
+                Some(m[0].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        match resolved {
+            Some(s) => {
+                let mut full: Vec<Value> = match e.map.get(&s) {
+                    Some(words) => words.clone(),
+                    None => vec![Value::string(if e.namespace.is_empty() {
+                        s.clone()
+                    } else {
+                        format!("{}::{s}", e.namespace)
+                    })],
+                };
+                full.extend_from_slice(rest);
+                let target = full[0].to_str().to_string();
+                self.invoke_command(&target, &full[1..])
+            }
+            None if e.unknown.is_some() => {
+                let mut full = e.unknown.clone().unwrap();
+                full.push(Value::string(ens_name));
+                full.extend_from_slice(argv);
+                let target = full[0].to_str().to_string();
+                self.invoke_command(&target, &full[1..])
+            }
+            None => err(format!(
+                "unknown or ambiguous subcommand \"{sub}\": must be {}",
+                oxford_or(&subs)
+            )),
+        }
+    }
+
+    pub(crate) fn dispatch_child(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        let Some((sub, rest)) = argv.split_first() else {
+            return err(format!("wrong # args: should be \"{name} cmd ?arg ...?\""));
+        };
+        match &*sub.to_str() {
+            "eval" => {
+                let script = rest
+                    .iter()
+                    .map(|v| v.to_str().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                self.eval_in_child(name, &script)
+            }
+            "issafe" => ok(Value::bool(self.child_is_safe(name).unwrap_or(false))),
+            "delete" => {
+                self.delete_child(name);
+                ok(Value::empty())
+            }
+            "hidden" => {
+                let mut names: Vec<String> = self
+                    .children
+                    .get(name)
+                    .map(|c| c.hidden_commands.keys().cloned().collect())
+                    .unwrap_or_default();
+                names.sort();
+                ok(Value::list(names.into_iter().map(Value::string).collect()))
+            }
+            "hide" | "expose" if rest.len() == 1 => {
+                let hide = &*sub.to_str() == "hide";
+                if self.is_safe() {
+                    let verb = if hide { "hide" } else { "expose" };
+                    return err(format!(
+                        "permission denied: safe interpreter cannot {verb} commands"
+                    ));
+                }
+                let c = rest[0].to_str();
+                self.child_hide(name, &c, &c, hide);
+                ok(Value::empty())
+            }
+            "marktrusted" => {
+                if self.is_safe() {
+                    return err("permission denied: safe interpreter cannot mark trusted");
+                }
+                self.child_mark_trusted(name);
+                ok(Value::empty())
+            }
+            "invokehidden" if !rest.is_empty() => {
+                if self.is_safe() {
+                    return err(
+                        "not allowed to invoke hidden commands from safe interpreter",
+                    );
+                }
+                // Skip unmodelled `-namespace ns` / `--` flags.
+                let mut i = 0;
+                while i < rest.len() {
+                    match &*rest[i].to_str() {
+                        "-namespace" => i += 2,
+                        "--" => {
+                            i += 1;
+                            break;
+                        }
+                        s if s.starts_with('-') => i += 1,
+                        _ => break,
+                    }
+                }
+                match rest.get(i) {
+                    Some(cmd) => self
+                        .invoke_hidden_in_child(name, &cmd.to_str(), &rest[i + 1..])
+                        .unwrap_or_else(|| err(format!("could not find interpreter \"{name}\""))),
+                    None => err(format!(
+                        "wrong # args: should be \"{name} invokehidden ?-namespace ns? ?--? cmd ?arg ..?\""
+                    )),
+                }
+            }
+            "recursionlimit" if rest.len() <= 1 => {
+                let nl = rest.first().map(|v| v.to_str().to_string());
+                match self.child_recursion_limit_apply(name, nl.as_deref()) {
+                    Some(Ok(n)) => ok(Value::int(n)),
+                    Some(Err(m)) => err(m),
+                    None => err(format!("could not find interpreter \"{name}\"")),
+                }
+            }
+            "recursionlimit" => err(format!(
+                "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
+            )),
+            "limit" => self.child_limit_cmd(name, rest),
+            other => err(format!(
+                "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
+                 expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
+                 recursionlimit, or transfer"
+            )),
+        }
+    }
+
+    /// `$child limit limitType ?-option value …?` — query/configure the named
+    /// child's commands/time limit (the `$child` form of `interp limit`).
+    fn child_limit_cmd(&mut self, name: &str, rest: &[Value]) -> Completion<Value> {
+        let (ltype, opts) = match rest {
+            [ltype, opts @ ..] => (ltype.to_str(), opts),
+            _ => {
+                return err(format!(
+                    "wrong # args: should be \"{name} limit limitType ?-option value ...?\""
+                ));
+            }
+        };
+        match self.children.get_mut(name) {
+            Some(child) => match child.limit_apply(&ltype, opts) {
+                Ok(v) => ok(v),
+                Err(m) => err(m),
+            },
+            None => err(format!("could not find interpreter \"{name}\"")),
+        }
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
@@ -768,10 +1595,68 @@ impl Vm {
         let mut imported = Vec::new();
         for (tail, cmd) in to_import {
             let alias = self.qualify_name(&tail);
+            let origin = format!("{prefix}{tail}");
             self.register_command(&alias, cmd);
+            // `register_command` cleared any stale provenance; now stamp this key
+            // as an import so `namespace forget` can target it.
+            self.imported_commands.insert(alias, origin);
             imported.push(tail);
         }
         imported
+    }
+
+    /// `namespace forget pattern` — remove previously imported commands matching
+    /// `pattern` from the current namespace (C `Tcl_ForgetImport`). Only commands
+    /// created by `namespace import` are removed; a real command of the same name
+    /// is left intact. A simple (unqualified) pattern matches imported commands
+    /// in the current namespace by name; a qualified `ns::pat` pattern matches
+    /// those whose origin lives in `ns` and whose origin tail matches `pat`.
+    /// Returns `Err` for an unknown namespace in a qualified pattern.
+    pub(crate) fn forget_imports(&mut self, pattern: &str) -> Result<(), String> {
+        // Split a canonical command key into (namespace, tail).
+        fn split_key(key: &str) -> (&str, &str) {
+            match key.rsplit_once("::") {
+                Some((ns, tail)) => (ns, tail),
+                None => ("", key),
+            }
+        }
+        let cur = self.current_ns().to_string();
+        let abs = pattern.strip_prefix("::").unwrap_or(pattern);
+        let victims: Vec<String> = if pattern.contains("::") {
+            // Qualified pattern: source namespace + simple pattern on the origin.
+            let (src_ns, simple) = abs.rsplit_once("::").unwrap();
+            if !self.namespace_exists(src_ns) {
+                return Err(format!(
+                    "unknown namespace in namespace forget pattern \"{pattern}\""
+                ));
+            }
+            self.imported_commands
+                .iter()
+                .filter(|(key, origin)| {
+                    split_key(key).0 == cur && {
+                        let (o_ns, o_tail) = split_key(origin);
+                        o_ns == src_ns && tcl_syntax::glob::string_match(simple, o_tail)
+                    }
+                })
+                .map(|(key, _)| key.clone())
+                .collect()
+        } else {
+            // Simple pattern: imported commands in the current namespace whose
+            // own name matches.
+            self.imported_commands
+                .keys()
+                .filter(|key| {
+                    let (ns, tail) = split_key(key);
+                    ns == cur && tcl_syntax::glob::string_match(abs, tail)
+                })
+                .cloned()
+                .collect()
+        };
+        for key in victims {
+            self.imported_commands.remove(&key);
+            self.commands.remove(&key);
+        }
+        Ok(())
     }
 
     /// Delete namespace `canonical` (no leading `::`) and every descendant,
@@ -789,6 +1674,8 @@ impl Vm {
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
         self.commands.retain(|k, _| !k.starts_with(&prefix));
+        self.imported_commands
+            .retain(|k, _| !k.starts_with(&prefix));
         if let Some(g) = self.frames.first_mut() {
             g.locals.retain(|k, _| !k.starts_with(&prefix));
         }
@@ -1064,6 +1951,28 @@ impl Vm {
     /// The current call-nesting depth (proc recursion bound).
     pub(crate) fn recursion_depth(&self) -> usize {
         self.recursion_depth
+    }
+
+    /// This interp's recursion bound (`interp recursionlimit`).
+    pub(crate) fn recursion_limit(&self) -> usize {
+        self.recursion_limit
+    }
+
+    /// `interp recursionlimit` get / set on this interp. `newlimit` is the
+    /// optional new-limit string; returns the resulting limit or the error
+    /// message the caller should raise.
+    pub(crate) fn recursion_limit_apply(&mut self, newlimit: Option<&str>) -> Result<i64, String> {
+        match newlimit {
+            None => Ok(i64::try_from(self.recursion_limit).unwrap_or(i64::MAX)),
+            Some(s) => {
+                let n = parse_recursion_limit(s)?;
+                if n <= 0 {
+                    return Err("recursion limit must be > 0".to_string());
+                }
+                self.recursion_limit = usize::try_from(n).unwrap_or(usize::MAX);
+                Ok(n)
+            }
+        }
     }
 
     /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
@@ -1917,11 +2826,12 @@ impl Vm {
     }
 
     pub(crate) fn write_output(&mut self, s: &str, newline: bool) {
-        let _ = self.out.write_all(s.as_bytes());
+        let mut out = self.out.borrow_mut();
+        let _ = out.write_all(s.as_bytes());
         if newline {
-            let _ = self.out.write_all(b"\n");
+            let _ = out.write_all(b"\n");
         }
-        let _ = self.out.flush();
+        let _ = out.flush();
     }
 
     /// Register a freshly opened channel, returning its minted id (`file3`, …).

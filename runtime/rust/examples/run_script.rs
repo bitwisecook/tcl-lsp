@@ -66,6 +66,22 @@ fn run() -> i32 {
         );
         return 1;
     }
+    // Optionally pre-load tcltest and source the backend-constraint overlay so
+    // tests the running backend cannot support are skipped. Loading tcltest
+    // here makes the test file's own `package require tcltest` a no-op.
+    let overlay = std::env::var("TCL_BACKEND_CONSTRAINTS").unwrap_or_default();
+    if init && !overlay.is_empty() {
+        let pre = format!(
+            "package require tcltest\nnamespace import -force ::tcltest::*\nsource {overlay}\n"
+        );
+        if interp.eval_str(pre.as_bytes()) == Code::Error {
+            eprintln!(
+                "backend-constraint overlay error: {}",
+                String::from_utf8_lossy(&interp.result_bytes())
+            );
+            return 1;
+        }
+    }
     let code = match &path {
         Some(p) => interp.eval_sourced(&src, p.as_bytes()),
         None => interp.eval_str(&src),
