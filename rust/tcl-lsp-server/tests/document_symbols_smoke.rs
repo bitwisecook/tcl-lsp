@@ -141,3 +141,88 @@ async fn document_symbol_smoke() {
 
     let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
 }
+
+/// `append` / `lappend` create their target variable, so it must surface as a
+/// `Variable`-kind document symbol — the same as `set`. Guards the parity fix
+/// that made the analyser record `append`/`lappend` targets.
+#[tokio::test]
+async fn document_symbol_includes_append_lappend_vars() {
+    let (client_side, server_side) = tokio::io::duplex(8192);
+    let (server_read, server_write) = tokio::io::split(server_side);
+    let (client_read, mut client_write) = tokio::io::split(client_side);
+
+    let (service, socket) = LspService::new(Backend::new);
+    let server = tokio::spawn(async move {
+        Server::new(server_read, server_write, socket)
+            .serve(service)
+            .await;
+    });
+    let mut reader = BufReader::new(client_read);
+
+    let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#;
+    client_write
+        .write_all(frame(init).as_bytes())
+        .await
+        .unwrap();
+    let _ = read_frame(&mut reader).await;
+    let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+    client_write
+        .write_all(frame(initialized).as_bytes())
+        .await
+        .unwrap();
+    let _ = tokio::time::timeout(Duration::from_millis(500), read_frame(&mut reader)).await;
+
+    // Top-level `lappend` / `append` targets are global variables.
+    let did_open = concat!(
+        r#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"#,
+        r#""uri":"file:///vars.tcl","languageId":"tcl","version":1,"#,
+        r#""text":"lappend safe 1\nappend note hi\n"}}}"#,
+    );
+    client_write
+        .write_all(frame(did_open).as_bytes())
+        .await
+        .unwrap();
+
+    let sym_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///vars.tcl"}}}"#;
+    client_write
+        .write_all(frame(sym_req).as_bytes())
+        .await
+        .unwrap();
+
+    let mut sym_resp = String::new();
+    for _ in 0..5 {
+        let frame_body = read_frame(&mut reader).await;
+        if frame_body.contains("\"id\":2") {
+            sym_resp = frame_body;
+            break;
+        }
+    }
+    assert!(!sym_resp.is_empty(), "no id=2 documentSymbol response");
+    assert!(
+        sym_resp.contains("\"name\":\"safe\""),
+        "expected `safe` (lappend target) symbol, got {sym_resp}",
+    );
+    assert!(
+        sym_resp.contains("\"name\":\"note\""),
+        "expected `note` (append target) symbol, got {sym_resp}",
+    );
+    // SymbolKind::VARIABLE = 13 in the LSP spec.
+    assert!(
+        sym_resp.contains("\"kind\":13"),
+        "expected Variable kind (13) in response, got {sym_resp}",
+    );
+
+    let shutdown = r#"{"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}"#;
+    client_write
+        .write_all(frame(shutdown).as_bytes())
+        .await
+        .unwrap();
+    let _ = tokio::time::timeout(Duration::from_millis(500), read_frame(&mut reader)).await;
+    let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
+    client_write
+        .write_all(frame(exit).as_bytes())
+        .await
+        .unwrap();
+    drop(client_write);
+    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+}
