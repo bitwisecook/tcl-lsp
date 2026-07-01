@@ -443,7 +443,7 @@ fn dict_for() {
 /// `dict_map_indirect_path_works`.)
 ///   script:        set d {a 1 b 2}; dict map {k v} $d {expr {$v*2}}
 ///   tclsh (8.6+9.0): a 2 b 4
-///   VM (wrong):      invalid command name "::tcl::dict::map"
+///   VM (wrong):      invalid command name `::tcl::dict::map`
 /// This test asserts the correct tclsh behaviour, now fixed (guards regression).
 #[test]
 fn dict_map_compiled_path_bug() {
