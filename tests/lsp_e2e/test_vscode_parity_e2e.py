@@ -62,7 +62,9 @@ class TestDiagnosticsParity:
         uri = uri_factory()
         src = "set arr(name) 1\nset foo bar\nset r [puts ${arr}(name)]\n"
         diags = lsp_server.open_ready(uri, src)
-        w216 = [d for d in diags if str(d.get("code")) == "W216" and "scalar" in d.get("message", "")]
+        w216 = [
+            d for d in diags if str(d.get("code")) == "W216" and "scalar" in d.get("message", "")
+        ]
         assert w216
         rng = w216[0]["range"]
         actions = lsp_server.code_actions(
@@ -105,16 +107,16 @@ class TestCompletionParity:
         # hyphen forces the brace form.
         uri = uri_factory()
         lines = [
-            'set ::globalvar 9',
+            "set ::globalvar 9",
             'set "foo-bar" 1',
-            'namespace eval ::myns {',
-            '    proc helper {arg} {',
-            '        puts $',
-            '    }',
-            '}',
+            "namespace eval ::myns {",
+            "    proc helper {arg} {",
+            "        puts $",
+            "    }",
+            "}",
         ]
         lsp_server.open_ready(uri, "\n".join(lines) + "\n")
-        items = lsp_server.completion(uri, 4, len('        puts $'))
+        items = lsp_server.completion(uri, 4, len("        puts $"))
         if isinstance(items, dict):
             items = items.get("items", [])
         item = next((i for i in items if i.get("label") == "$::foo-bar"), None)
@@ -252,10 +254,10 @@ class TestCodeActionParity:
         diags = lsp_server.open_ready(uri, "expr $a + $b\n")
         # VS Code invokes refactors at the caret (column 0 on the `expr` word).
         actions = lsp_server.code_actions(uri, (0, 0), (0, 0), diagnostics=diags)
-        brace = next(
-            (a for a in (actions or []) if "Brace expr" in (a.get("title") or "")), None
+        brace = next((a for a in (actions or []) if "Brace expr" in (a.get("title") or "")), None)
+        assert brace is not None, (
+            f"no Brace expr action: {[a.get('title') for a in (actions or [])]}"
         )
-        assert brace is not None, f"no Brace expr action: {[a.get('title') for a in (actions or [])]}"
         assert brace.get("kind") == "refactor.rewrite"
         assert any(e.get("newText") == "{$a + $b}" for e in _edits_of(brace))
 
