@@ -23,6 +23,9 @@ use tcl_lsp_db::{
     compiler_check_diagnostics_uncached,
 };
 
+mod common;
+use common::Progress;
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -129,10 +132,13 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
 
+    let (files, start0, total) = Progress::slice(&files);
+    let mut prog = Progress::new("compiler_check_gate");
     let db = TclDatabase::default();
     let mut checked = 0usize;
     let mut bad: Vec<String> = Vec::new();
-    for path in &files {
+    for (idx, path) in files.iter().enumerate() {
+        let name = path.strip_prefix(repo_root()).unwrap_or(path).display().to_string();
         let Ok(src) = std::fs::read_to_string(path) else {
             continue;
         };
@@ -144,16 +150,24 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
         let registry = db.registry(dialect);
         let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
         checked += 1;
-        if (got.checks != want.checks || got.optimisations != want.optimisations) && bad.len() < 40
-        {
-            bad.push(
-                path.strip_prefix(repo_root())
-                    .unwrap_or(path)
-                    .display()
-                    .to_string(),
+        if got.checks != want.checks || got.optimisations != want.optimisations {
+            let detail = format!(
+                "{name}: checks {}->{} opts {}->{}",
+                want.checks.len(),
+                got.checks.len(),
+                want.optimisations.len(),
+                got.optimisations.len()
             );
+            prog.finding(&detail);
+            if bad.len() < 40 {
+                bad.push(detail);
+            }
+        }
+        if (idx + 1) % 25 == 0 || idx + 1 == files.len() {
+            prog.tick(start0 + idx + 1, total, &format!("last={name}"));
         }
     }
+    prog.finish(&format!("{checked} files, {} mismatches", bad.len()));
 
     assert!(
         bad.is_empty(),
@@ -206,9 +220,12 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
         rng
     };
 
+    let (files, start0, total) = Progress::slice(&files);
+    let mut prog = Progress::new("compiler_check_edit_fuzz");
     let mut bad: Vec<String> = Vec::new();
     let mut checked = 0usize;
-    for path in &files {
+    for (idx, path) in files.iter().enumerate() {
+        let name = path.strip_prefix(repo_root()).unwrap_or(path).display().to_string();
         let Ok(base) = std::fs::read_to_string(path) else {
             continue;
         };
@@ -228,19 +245,25 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
             let got = compiler_check_diagnostics(&db, file, default_config(&db));
             let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
             checked += 1;
-            if (got.checks != want.checks || got.optimisations != want.optimisations)
-                && bad.len() < 40
-            {
-                bad.push(
-                    path.strip_prefix(repo_root())
-                        .unwrap_or(path)
-                        .display()
-                        .to_string(),
+            if got.checks != want.checks || got.optimisations != want.optimisations {
+                let detail = format!(
+                    "{name} (blanks={blanks} tail_len={}): checks {}->{} opts {}->{}",
+                    tail.len(),
+                    want.checks.len(),
+                    got.checks.len(),
+                    want.optimisations.len(),
+                    got.optimisations.len()
                 );
+                prog.finding(&detail);
+                if bad.len() < 40 {
+                    bad.push(detail);
+                }
                 break; // one report per file is enough
             }
         }
+        prog.tick(start0 + idx + 1, total, &format!("last={name} steps={checked}"));
     }
+    prog.finish(&format!("{checked} steps, {} findings", bad.len()));
 
     assert!(
         bad.is_empty(),

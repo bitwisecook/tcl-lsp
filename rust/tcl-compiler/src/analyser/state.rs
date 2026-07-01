@@ -1207,6 +1207,16 @@ impl Analyser {
         self.result
             .regex_patterns
             .sort_by_key(|r| (r.range.start(), r.range.end()));
+        // `unresolved_command_sites` is a set of call sites consumed
+        // order-independently (the cross-file arity resolver collects tail names +
+        // per-site ranges); sort by `(span, name)` so the whole-file DFS and the
+        // per-item shell+graft walks record it in the same order.
+        self.result.unresolved_command_sites.sort_by(|a, b| {
+            a.0.start()
+                .cmp(&b.0.start())
+                .then(a.0.end().cmp(&b.0.end()))
+                .then_with(|| a.1.cmp(&b.1))
+        });
     }
 
     /// Reset transient run state so the next ``analyse`` call
