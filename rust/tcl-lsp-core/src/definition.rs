@@ -427,11 +427,21 @@ pub(crate) fn global_vars_needing_qualification(
     if !in_local_context {
         return None;
     }
+    // Collect root/global names, but drop any that a closer (proc / namespace /
+    // uplevel) scope also defines: a local of the same name *shadows* the
+    // global, so the bare `$name` correctly resolves to the local and must not
+    // be rewritten to `$::name` (which would silently retarget the reference).
     let mut globals = FxHashSet::default();
+    let mut shadows = FxHashSet::default();
     for sc in &chain {
         if matches!(sc.kind, ScopeKind::Global) {
             globals.extend(sc.variables.keys().cloned());
+        } else {
+            shadows.extend(sc.variables.keys().cloned());
         }
+    }
+    for name in &shadows {
+        globals.remove(name);
     }
     Some(globals)
 }
