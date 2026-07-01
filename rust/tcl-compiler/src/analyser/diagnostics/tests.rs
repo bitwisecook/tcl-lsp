@@ -4619,3 +4619,45 @@ fn nested_catch_result_var_is_defined() {
     // The binding is a side effect of catch, not a "set but unused" target.
     assert_eq!(count_code("if {[catch {foo} e]} {puts $e}\n", "W211"), 0);
 }
+
+#[test]
+fn catch_body_package_require_is_conditional() {
+    // `catch { package require Foo }` is a guarded optional-dependency probe, so
+    // the package requirement recorded from inside the catch body must be marked
+    // conditional (not promoted to an unconditional fact). Codex review P2.
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse("catch { package require Foo 1.2 }\n", "tcl8.6");
+    let foo = r
+        .package_requires
+        .iter()
+        .find(|p| p.name == "Foo")
+        .expect("Foo package require recorded");
+    assert!(foo.conditional, "catch-body package require must be conditional");
+
+    // A top-level `package require` stays unconditional.
+    let mut b = crate::analyser::Analyser::new();
+    let r2 = b.analyse("package require Bar\n", "tcl8.6");
+    let bar = r2.package_requires.iter().find(|p| p.name == "Bar").unwrap();
+    assert!(!bar.conditional, "top-level package require must be unconditional");
+}
+
+#[test]
+fn tcltest_import_is_namespace_scoped() {
+    // A `namespace import ::tcltest::*` made *inside* a namespace must not
+    // resolve a bare `test` call in a sibling/parent namespace. Codex review P2.
+    let inside_ns_top_level_call = "package require tcltest\n\
+        namespace eval ns { namespace import -force ::tcltest::* }\n\
+        test t {d} { expr $x+1 } {}\n";
+    assert_eq!(count_code(inside_ns_top_level_call, "W100"), 0);
+
+    // Same-namespace call still resolves and recurses.
+    let same_ns = "package require tcltest\n\
+        namespace eval ns { namespace import -force ::tcltest::* ; test t {d} { expr $x+1 } {} }\n";
+    assert_eq!(count_code(same_ns, "W100"), 1);
+
+    // A global-scope import still applies at top level (Tcl's `::` fallback).
+    let top_level = "package require tcltest\n\
+        namespace import -force ::tcltest::*\n\
+        test t {d} { expr $x+1 } {}\n";
+    assert_eq!(count_code(top_level, "W100"), 1);
+}
