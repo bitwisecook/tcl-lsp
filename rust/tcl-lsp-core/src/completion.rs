@@ -309,7 +309,7 @@ pub fn completions(
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
     if let Some(registry) = registry {
-        items.extend(builtin_completions(registry, &partial, &usage));
+        items.extend(builtin_completions(registry, dialect, &partial, &usage));
     }
     // Workspace-wide proc enumeration: surface procs defined in
     // *other* analysed documents that aren't already in the
@@ -479,6 +479,17 @@ fn var_is_substitutable(name: &str) -> bool {
     !name.contains('}') && !name.contains('\\') && !name.contains('\n')
 }
 
+/// `::`-qualify a global variable name reached from a local (proc / nested
+/// namespace) context; leave already-qualified names and locals untouched.
+/// `qualify_globals` is the set of root-scope names that need it (`None` at
+/// global scope, where bare names are correct).
+fn qualified_var_name(name: &str, qualify_globals: Option<&FxHashSet<String>>) -> String {
+    match qualify_globals {
+        Some(globals) if globals.contains(name) && !name.starts_with("::") => format!("::{name}"),
+        _ => name.to_owned(),
+    }
+}
+
 fn variable_completions(
     source: &str,
     line: u32,
@@ -569,15 +580,23 @@ fn variable_completions(
     names.sort_unstable();
     names.dedup();
 
+    // Inside a proc / nested namespace, a global variable is only reachable
+    // via its `::`-qualified name (a bare `$foo` there is a local / namespace
+    // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
+    let qualify_globals = crate::definition::global_vars_needing_qualification(scope, byte_offset);
+
     let mut items = Vec::new();
     for name in names {
+        // `::`-qualify a global reached from a local context; leave already
+        // qualified names and locals untouched.
+        let qname = qualified_var_name(&name, qualify_globals.as_ref());
         // Force the `${…}` form when the user already typed `${`, or when the
         // bare `$name` syntax can't carry the name (hyphens, dots, …).
-        let use_brace = has_open_brace || !is_bare_var_name(&name);
+        let use_brace = has_open_brace || !is_bare_var_name(&qname);
         let new_text = if use_brace {
-            format!("${{{name}}}")
+            format!("${{{qname}}}")
         } else {
-            format!("${name}")
+            format!("${qname}")
         };
         let text_edit = edit_start.map(|start_char| CompletionEdit {
             start_char,
@@ -585,7 +604,7 @@ fn variable_completions(
             new_text: new_text.clone(),
         });
         items.push(CompletionItem {
-            label: format!("${name}"),
+            label: format!("${qname}"),
             insert_text: new_text,
             kind: CompletionKind::Variable,
             detail: None,
@@ -978,13 +997,26 @@ fn builtin_sort_text(name: &str, usage: usize) -> String {
 
 fn builtin_completions(
     registry: &CommandRegistry,
+    dialect: &str,
     partial: &str,
     usage: &FxHashMap<String, usize>,
 ) -> Vec<CompletionItem> {
+    // Version-gate the command list: a command whose spec restricts itself to
+    // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
+    // in an earlier-dialect buffer.  `load_dialect` only *adds* dialect command
+    // sets (iRules / Tk / …); it never removes a version-gated core command, so
+    // `command_names()` still lists `try` under `tcl8.4`/`tcl8.5` — filter it
+    // here via the same `supports_dialect` check the analyser uses.  An
+    // unparseable dialect (custom / non-Tcl) applies no version filter.
+    let dialect_set = tcl_registry::dialects::DialectSet::parse(dialect);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
         .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
+        .filter(|n| {
+            dialect_set
+                .is_none_or(|ds| registry.get(n).is_none_or(|spec| spec.supports_dialect(ds)))
+        })
         .collect();
     names.sort_unstable();
     names

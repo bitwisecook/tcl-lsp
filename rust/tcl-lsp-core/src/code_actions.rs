@@ -134,6 +134,51 @@ impl CodeAction {
     }
 }
 
+/// `refactor.rewrite` — "Brace expr for safety and performance".  Offered
+/// whenever the request range touches a line carrying an unbraced-expr (W100)
+/// diagnostic, matching the Python refactoring catalogue (which finds the
+/// `expr` command at the cursor).  Keyed on *line* overlap rather than the
+/// diagnostic's argument span so it is available with the cursor on the `expr`
+/// keyword itself (VS Code invokes refactors at the caret, e.g. column 0), not
+/// only over the arguments.  Reuses the diagnostic's own brace-wrapping fix, so
+/// `expr $a + $b` rewrites to `expr {$a + $b}`.
+fn push_brace_expr_refactors(
+    actions: &mut Vec<CodeAction>,
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) {
+    for diag in &analysis.diagnostics {
+        if diag.code != DiagCode::W100 {
+            continue;
+        }
+        let Some(fix) = diag.fixes.first() else {
+            continue;
+        };
+        let fix_start = line_index.position_at_utf16(fix.span.start(), source);
+        let fix_end = line_index.position_at_utf16(fix.span.end(), source);
+        if range.start_line > fix_end.line || range.end_line < fix_start.line {
+            continue;
+        }
+        actions.push(CodeAction {
+            title: "Brace expr for safety and performance".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: fix_start.line,
+                    start_character: fix_start.character.get(),
+                    end_line: fix_end.line,
+                    end_character: fix_end.character.get(),
+                },
+                new_text: fix.new_text.clone(),
+            }],
+            kind: ActionKind::RefactorRewrite,
+            command: None,
+            data_group_definition: None,
+        });
+    }
+}
+
 /// Compute code actions for `range` in `source`.
 ///
 /// `analysis`, when `Some`, is the analyser result the caller
@@ -151,6 +196,8 @@ pub fn code_actions(
     };
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
+
+    push_brace_expr_refactors(&mut actions, source, range, analysis, &line_index);
 
     for diag in &analysis.diagnostics {
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);

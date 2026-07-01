@@ -69,38 +69,38 @@ use tower_lsp_server::ls_types::{
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, ConfigurationItem,
-    DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWatchedFilesRegistrationOptions, DidChangeWorkspaceFoldersParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChanges,
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentFilter, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
-    DocumentHighlightParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
-    DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
-    Documentation, ExecuteCommandOptions, ExecuteCommandParams, FileChangeType,
-    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FileSystemWatcher,
-    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
-    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
-    MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
-    ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
-    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentRegistrationOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit,
-    TypeDefinitionProviderCapability, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
-    Uri, WatchKind, WillSaveTextDocumentParams, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
-    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    DeclarationCapability, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
+    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
+    DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
+    DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
+    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
+    FileSystemWatcher, FoldingRange, FoldingRangeKind, FoldingRangeParams,
+    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
+    InitializedParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
+    LinkedEditingRangeParams, LinkedEditingRanges, Location, MarkupContent, MarkupKind,
+    MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, ParameterInformation,
+    ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse, Range, ReferenceParams,
+    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
+    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
+    UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
+    WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
+    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceFullDocumentDiagnosticReport, WorkspaceServerCapabilities, WorkspaceSymbolParams,
     WorkspaceSymbolResponse, WorkspaceUnchangedDocumentDiagnosticReport,
     request::{
@@ -237,6 +237,14 @@ struct DiagSlot {
     dirty: bool,
     /// A worker task is currently draining this document.
     running: bool,
+    /// The freshest analyser inputs (registry + per-URI config toggles),
+    /// refreshed by every [`Backend::schedule_diagnostics`] call.  The worker
+    /// reads this at drain time rather than a snapshot captured when it spawned,
+    /// so a config change (optimiser / diagnostics toggle) that arrives while
+    /// the worker is mid-flight is analysed under the *new* toggles, not the
+    /// stale ones — otherwise a disabled optimiser would keep emitting O-codes
+    /// until the next document edit.
+    latest_inputs: Option<DiagInputs>,
 }
 
 /// The per-run analyser feature toggles for a diagnostics run, grouped so the
@@ -969,6 +977,23 @@ async fn publish_diagnostics_result(
     // cheap `Unchanged` report.
     delivery.cache_and_deliver(diags).await;
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
+    // The Rust analyser runs a single, full ("deep") pass per publish — there is
+    // no separate fast/deep split like the retired Python pipeline.  Emit the
+    // `[timing] deep diagnostics` marker anyway so tooling that waits for the
+    // deep pass to finish (the VS Code test harness' `waitForDeepDiagnostics`,
+    // which keys on this exact line + `uri=`) has a reliable signal that O1xx /
+    // analysis-level diagnostics for this URI have been published.
+    delivery
+        .client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] deep diagnostics {elapsed_ms:.0}ms \
+                 (uri={uri_str}, diags={diag_count})",
+                uri_str = timing.uri_str,
+            ),
+        )
+        .await;
     delivery
         .client
         .log_message(
@@ -1526,14 +1551,21 @@ impl Backend {
         // Snapshot `(uri, language_id, current dialect)` first — the async
         // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
         // so they must not run while the `documents` lock is held.
-        let snapshot: Vec<(Uri, String, String)> = {
+        let snapshot: Vec<(Uri, String, String, String)> = {
             let docs = self.documents.lock().await;
             docs.iter()
-                .map(|(uri, doc)| (uri.clone(), doc.language_id.clone(), doc.dialect.clone()))
+                .map(|(uri, doc)| {
+                    (
+                        uri.clone(),
+                        doc.language_id.clone(),
+                        doc.dialect.clone(),
+                        doc.text.clone(),
+                    )
+                })
                 .collect()
         };
-        for (uri, language_id, old_dialect) in snapshot {
-            let new_dialect = self.dialect_for_open(&uri, &language_id).await;
+        for (uri, language_id, old_dialect, text) in snapshot {
+            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
             if new_dialect == old_dialect {
                 continue;
             }
@@ -1554,7 +1586,7 @@ impl Backend {
                     .await
                     .remove_document(uri.as_str());
             }
-            self.schedule_diagnostics(uri, new_dialect).await;
+            self.reschedule_diagnostics(uri, new_dialect).await;
         }
     }
 
@@ -1781,7 +1813,7 @@ impl Backend {
     ///    the document URI sits under one of the configured folder
     ///    URLs, use the deepest-matching folder's dialect.
     /// 3. The session-wide ``default_dialect`` fallback.
-    async fn dialect_for_open(&self, uri: &Uri, language_id: &str) -> String {
+    async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
@@ -1806,6 +1838,23 @@ impl Backend {
         let explicit_non_tcl = matches!(lang_dialect, Some(d) if !d.starts_with("tcl"));
         if !explicit_non_tcl && core_bigip::is_bigip_conf_name(uri.as_str()) {
             return "f5-bigip".to_owned();
+        }
+        // In-source dialect hints — a `# tcl-dialect:` directive, a
+        // `#!…tclshX.Y` shebang, or a `package require Tcl X.Y` line — are
+        // authoritative for a *generically* opened Tcl buffer.  VS Code always
+        // sends `languageId: "tcl"` for `.tcl` files (both `"tcl"` and the
+        // explicit `"tcl8.6"` id map to `tcl8.6` above), so an in-file
+        // directive is the only way a user can pin 8.4 / 8.5 / 9.x, and it must
+        // win over the generic `tcl8.6` default — otherwise completion offers
+        // 8.6+-only commands like `try` in an 8.4/8.5 file.  An explicit
+        // versioned or non-Tcl `languageId` still takes precedence (it is a
+        // deliberate editor choice), so only the bare `"tcl"` id defers here.
+        // Mirrors the Python oracle `detect_dialect_from_source`
+        // (directive > shebang > `package require Tcl`).
+        if language_id == "tcl"
+            && let Some(d) = tcl_registry::detect_dialect_from_source(text)
+        {
+            return d.to_owned();
         }
         if let Some(d) = lang_dialect {
             return d.to_owned();
@@ -2014,7 +2063,7 @@ impl Backend {
         };
         for (uri, dialect) in snapshot {
             if self.xc_diagnostics_enabled(&uri).await {
-                self.schedule_diagnostics(uri, dialect).await;
+                self.reschedule_diagnostics(uri, dialect).await;
             }
         }
     }
@@ -2029,7 +2078,7 @@ impl Backend {
                 .collect()
         };
         for (uri, dialect) in snapshot {
-            self.schedule_diagnostics(uri, dialect).await;
+            self.reschedule_diagnostics(uri, dialect).await;
         }
     }
 
@@ -2931,6 +2980,73 @@ impl Backend {
         })))
     }
 
+    /// Handle `tcl-lsp.setDialect`: switch the session default dialect and
+    /// re-resolve every open document under it (so buffers that fell back to
+    /// the default re-analyse immediately).  Returns `{success, dialect}`, or
+    /// `{success: false, error}` for an unknown dialect.  Drives the VS Code
+    /// `tclLsp.selectDialect` command.
+    async fn set_dialect_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(dialect) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": "setDialect requires a dialect-name argument",
+            })));
+        };
+        if !tcl_registry::dialects::available_dialects().contains(&dialect) {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": format!("unknown dialect: {dialect}"),
+            })));
+        }
+        *self.default_dialect.lock().await = dialect.to_owned();
+        self.reresolve_open_document_dialects().await;
+        Ok(Some(
+            serde_json::json!({ "success": true, "dialect": dialect }),
+        ))
+    }
+
+    /// Handle `tcl-lsp.compilerExplorer`: run the compiler pipeline
+    /// (lexer → green tree → IR → CFG → SSA → codegen) on `args[0]` under the
+    /// dialect in `args[1]` (default: the session dialect) and return the same
+    /// serialised JSON the `tcl explore` CLI produces.  Empty/blank source
+    /// returns `{error}` — the front-end's "nothing to compile" contract.
+    async fn compiler_explorer_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let source = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if source.trim().is_empty() {
+            return Ok(Some(serde_json::json!({ "error": "no source to compile" })));
+        }
+        let dialect = match args.get(1).and_then(serde_json::Value::as_str) {
+            Some(d) => d.to_owned(),
+            None => self.default_dialect.lock().await.clone(),
+        };
+        // The pipeline is heavy pure-CPU work — run it off the LSP event loop.
+        // A parser panic is contained and surfaced as an `{error}` object
+        // rather than tearing down the worker.
+        let value = tokio::task::spawn_blocking(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let result = tcl_explorer::run_pipeline(&source, &dialect);
+                tcl_explorer::serialise_result(&result)
+            }))
+        })
+        .await;
+        match value {
+            Ok(Ok(v)) => Ok(Some(v)),
+            _ => Ok(Some(serde_json::json!({
+                "error": "compiler explorer failed to analyse the source",
+            }))),
+        }
+    }
+
     /// Pull the `tclLsp` configuration section from the client and apply it.
     ///
     /// The editor (and the e2e harness) answer `workspace/configuration` with
@@ -3125,9 +3241,15 @@ impl Backend {
         }
         // Per-code overrides: any `optimiser.<CODE>` boolean other than the
         // `enabled` / `profile` keys force-enables (true) or force-disables
-        // (false) that O-code on top of the profile.
+        // (false) that O-code on top of the profile.  The pulled `optimiser`
+        // section is *authoritative* — rebuild the map from scratch so a code
+        // whose override was cleared (the setting reverted to its default)
+        // reverts to the profile default instead of retaining the last value.
+        // Merging (insert-only) would leak a one-off `optimiser.O100 = true`
+        // into every later document once the override is removed.
         if let Some(opt) = cfg.get("optimiser").and_then(serde_json::Value::as_object) {
             let mut overrides = self.optimiser_code_overrides.lock().await;
+            overrides.clear();
             for (key, val) in opt {
                 if key == "enabled" || key == "profile" {
                     continue;
@@ -3923,41 +4045,77 @@ impl Backend {
     /// on a loaded machine, and never runs two analyses for one document
     /// concurrently (so an edit's write is never blocked behind a stale read).
     async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
-        let start_worker = {
+        // Edit path: config is unchanged, so reuse the slot's cached inputs (the
+        // worker still reads the document's *current* content at drain time).
+        self.schedule_diagnostics_impl(uri, dialect, false).await;
+    }
+
+    /// Like [`Self::schedule_diagnostics`] but forces a re-resolve of the
+    /// config-sensitive inputs, so an already-running worker drains under the
+    /// *new* toggles.  Used by the config-change paths (`optimiser.enabled`,
+    /// `features.diagnostics`, dialect switch) where the cached inputs are stale
+    /// even though the document text has not changed.
+    async fn reschedule_diagnostics(&self, uri: Uri, dialect: String) {
+        self.schedule_diagnostics_impl(uri, dialect, true).await;
+    }
+
+    async fn schedule_diagnostics_impl(&self, uri: Uri, dialect: String, force_refresh: bool) {
+        // Mark dirty first, with no `await` before it, so a storm of rapid edits
+        // coalesces predictably (an `await` here would let a later edit interleave
+        // and drop an intermediate version's publish).  Only (re)resolve the
+        // relatively expensive `diag_inputs` when the worker has none yet or a
+        // config change forces it — an edit reuses the cached inputs.
+        let (start_worker, need_inputs) = {
             let mut slots = self.diag_slots.lock().await;
             let slot = slots.entry(uri.clone()).or_default();
             slot.dirty = true;
+            let need_inputs = force_refresh || slot.latest_inputs.is_none();
             if slot.running {
-                false
+                (false, need_inputs)
             } else {
                 slot.running = true;
-                true
+                (true, true)
             }
         };
+        if need_inputs {
+            let inputs = self.diag_inputs(&uri, &dialect).await;
+            if let Some(slot) = self.diag_slots.lock().await.get_mut(&uri) {
+                slot.latest_inputs = Some(inputs);
+            }
+        }
         if !start_worker {
             return;
         }
-        let inputs = self.diag_inputs(&uri, &dialect).await;
         let slots = Arc::clone(&self.diag_slots);
         tokio::spawn(async move {
             loop {
-                // Debounce, then claim the dirty flag.  A burst collapses to one
-                // run; with nothing dirty we retire the worker (under the lock,
-                // so a concurrent edit either sees `running` and skips the spawn
-                // while we run, or sees `!running` and starts a fresh one).
+                // Debounce, then claim the dirty flag *and* the freshest inputs.
+                // A burst collapses to one run; with nothing dirty we retire the
+                // worker (under the lock, so a concurrent edit either sees
+                // `running` and skips the spawn while we run, or sees
+                // `!running` and starts a fresh one).
                 tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
-                {
+                let inputs = {
                     let mut guard = slots.lock().await;
                     let Some(slot) = guard.get_mut(&uri) else {
                         return;
                     };
                     if slot.dirty {
                         slot.dirty = false;
+                        slot.latest_inputs.clone()
                     } else {
                         slot.running = false;
                         return;
                     }
-                }
+                };
+                // `latest_inputs` is set alongside `dirty`, so this is `Some`;
+                // guard defensively and retire if it is somehow absent.
+                let Some(inputs) = inputs else {
+                    if let Some(slot) = slots.lock().await.get_mut(&uri) {
+                        slot.running = false;
+                    }
+                    return;
+                };
                 // Capture + analyse the document's current state.  If it is gone
                 // (closed) there is nothing to publish — retire.
                 let Some(job) = inputs.capture_job(&uri).await else {
@@ -3967,7 +4125,7 @@ impl Backend {
                     }
                     return;
                 };
-                let settled = run_diagnostics_core(inputs.clone(), &uri, job).await;
+                let settled = run_diagnostics_core(inputs, &uri, job).await;
                 if !settled {
                     // Cancelled mid-flight — re-mark dirty so we retry the latest
                     // state next loop.
@@ -4002,35 +4160,6 @@ impl Backend {
                 .log_message(
                     MessageType::LOG,
                     format!("file-watcher registration declined by client: {err}"),
-                )
-                .await;
-        }
-    }
-
-    /// Best-effort dynamic registration of
-    /// `textDocument/prepareTypeHierarchy` for Tcl source files.
-    /// `ServerCapabilities` carries no static type-hierarchy field, so the
-    /// capability is advertised through `client/registerCapability` instead.
-    /// A client without dynamic-registration support rejects the request;
-    /// that is logged and ignored.
-    async fn register_type_hierarchy(&self) {
-        let registration = Registration {
-            id: "tcl-lsp-type-hierarchy".to_owned(),
-            method: "textDocument/prepareTypeHierarchy".to_owned(),
-            register_options: serde_json::to_value(TextDocumentRegistrationOptions {
-                document_selector: Some(vec![DocumentFilter {
-                    language: Some("tcl".to_owned()),
-                    scheme: None,
-                    pattern: None,
-                }]),
-            })
-            .ok(),
-        };
-        if let Err(err) = self.client.register_capability(vec![registration]).await {
-            self.client
-                .log_message(
-                    MessageType::LOG,
-                    format!("type-hierarchy registration declined by client: {err}"),
                 )
                 .await;
         }
@@ -4187,14 +4316,19 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
-        // Record whether the client will *pull* diagnostics
-        // (`textDocument/diagnostic`).  If it does, the worker stops pushing
-        // them — pushing and pulling the same set makes such clients render
-        // every diagnostic twice (#721).
-        self.client_supports_pull_diagnostics.store(
-            client_supports_pull_diagnostics(&params),
-            std::sync::atomic::Ordering::Relaxed,
-        );
+        // Push is the sole diagnostics channel by default: pull is opt-in and
+        // the server does not advertise `diagnosticProvider` (see
+        // `build_server_capabilities`).  A client that *supports* pull will not
+        // actually pull unless the server advertises it, so the #721
+        // "stop pushing when the client pulls" suppression must stay OFF here —
+        // otherwise a pull-capable client (VS Code advertises the capability)
+        // gets neither push (suppressed) nor pull (unadvertised), i.e. zero
+        // diagnostics.  When pull is opted back in this flag is set from the
+        // client's actual `textDocument/diagnostic` support via
+        // `client_supports_pull_diagnostics(&params)`.
+        let _ = client_supports_pull_diagnostics(&params);
+        self.client_supports_pull_diagnostics
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         let position_encoding = negotiate_position_encoding(&params);
         if client_lacks_utf16_support(&params) {
             // The client advertised position encodings without UTF-16. The
@@ -4237,9 +4371,10 @@ impl LanguageServer for Backend {
         // Best-effort: clients without dynamic-registration support reject
         // this, which is harmless — the startup scan still seeds the index.
         self.register_file_watchers().await;
-        // Advertise type-hierarchy support; `ServerCapabilities` has no
-        // static field for it, so register it dynamically here.
-        self.register_type_hierarchy().await;
+        // Type-hierarchy support is advertised statically by the
+        // `inject_type_hierarchy_provider` service layer (see `main.rs`) — a
+        // dynamic `client/registerCapability` here would both duplicate it and
+        // fail to surface in the client's `initializeResult.capabilities`.
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
@@ -4251,7 +4386,11 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let dialect = self
-            .dialect_for_open(&params.text_document.uri, &params.text_document.language_id)
+            .dialect_for_open(
+                &params.text_document.uri,
+                &params.text_document.language_id,
+                &params.text_document.text,
+            )
             .await;
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
@@ -4380,6 +4519,26 @@ impl LanguageServer for Backend {
         // settings — the inline `params.settings` handling above covers the
         // flat MCP-bridge shape that carries the values directly.
         self.pull_and_apply_config().await;
+        // The re-pull may have flipped `features.diagnostics`,
+        // `optimiser.enabled`, or the disabled-diagnostics set — none of which
+        // changes a document's dialect, so `reresolve_open_document_dialects`
+        // above skips them.  Re-run diagnostics for every open buffer so the
+        // new toggles take effect immediately (clearing squiggles when the
+        // master switch goes off, dropping O-codes when the optimiser goes off)
+        // rather than lingering until the next keystroke.
+        self.reschedule_all_open_documents().await;
+        // On-demand providers cache their last result client-side and only
+        // re-request on a document edit — a bare config change (e.g. toggling
+        // `features.folding` off) would otherwise leave stale folding ranges /
+        // code lenses on screen.  Ask the client to refresh them.  Best-effort:
+        // a client without refresh support rejects the request, which is
+        // harmless.  `foldingRange/refresh` (LSP 3.18) is not in ls-types, so it
+        // is sent through a locally-defined request type.
+        let _ = self
+            .client
+            .send_request::<FoldingRangeRefreshRequest>(())
+            .await;
+        let _ = self.client.code_lens_refresh().await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -4564,7 +4723,12 @@ impl LanguageServer for Backend {
             .feature_enabled("folding", &params.text_document.uri)
             .await
         {
-            return Ok(None);
+            // Return an authoritative *empty* set, not `None`: a `None` result
+            // makes VS Code fall back to its built-in indentation folding (so
+            // the ranges reappear), whereas an empty list is honoured as "this
+            // provider has no folding ranges", suppressing folding as the toggle
+            // intends.
+            return Ok(Some(Vec::new()));
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
@@ -5916,20 +6080,31 @@ impl LanguageServer for Backend {
         }
         let lifted = lenses
             .into_iter()
-            .map(|l| CodeLens {
-                range: lift_lsp_range(l.range),
-                // Carry the qualified name *and* the document URI so
-                // `codeLens/resolve` can recompute the count against the live
-                // workspace.
-                // Method / class-member lenses have no qname and stay
-                // informational (their eager title is authoritative).
-                data: (!l.qname.is_empty())
-                    .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
-                command: Some(tower_lsp_server::ls_types::Command {
-                    title: l.command_title,
-                    command: l.command,
-                    arguments: None,
-                }),
+            .map(|l| {
+                let has_qname = !l.qname.is_empty();
+                CodeLens {
+                    range: lift_lsp_range(l.range),
+                    // Carry the qualified name *and* the document URI so
+                    // `codeLens/resolve` can recompute the count against the
+                    // live workspace and attach the clickable command.
+                    // Method / class-member lenses have no qname and stay
+                    // informational (their eager title is authoritative).
+                    data: has_qname
+                        .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
+                    // A reference-count lens is returned WITHOUT a command so the
+                    // client calls `codeLens/resolve`, which attaches the
+                    // clickable `tcl-lsp.showReferences` command with its
+                    // `[uri, position, locations]` arguments.  Setting a command
+                    // here would mark the lens resolved, the client would skip
+                    // `resolve`, and the lens would render as an inert bare title
+                    // (#724 — "reference is not active").  Informational lenses
+                    // keep their eager title+command (they are never resolved).
+                    command: (!has_qname).then_some(tower_lsp_server::ls_types::Command {
+                        title: l.command_title,
+                        command: l.command,
+                        arguments: None,
+                    }),
+                }
             })
             .collect();
         Ok(Some(lifted))
@@ -6144,6 +6319,8 @@ impl LanguageServer for Backend {
             )),
             "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
             "tcl-lsp.listTclInstallations" => Ok(Some(self.list_tcl_installations_command().await)),
+            "tcl-lsp.setDialect" => self.set_dialect_command(&params.arguments).await,
+            "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
             _ => Ok(None),
         }
     }
@@ -8327,6 +8504,21 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
         .is_some()
 }
 
+/// The `workspace/foldingRange/refresh` server→client request (LSP 3.18).
+///
+/// `ls-types` 0.0.6 predates this method, so it is declared locally to be sent
+/// via [`Client::send_request`].  Params and result are both `()` per the spec.
+/// Asks the client to re-request folding ranges for all editors — used after a
+/// config change flips `features.folding`, since the client otherwise keeps its
+/// cached ranges until the next document edit.
+enum FoldingRangeRefreshRequest {}
+
+impl tower_lsp_server::ls_types::request::Request for FoldingRangeRefreshRequest {
+    type Params = ();
+    type Result = ();
+    const METHOD: &'static str = "workspace/foldingRange/refresh";
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
@@ -8387,28 +8579,30 @@ fn build_server_capabilities(
         }),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
-        // `ServerCapabilities` carries no `type_hierarchy_provider` field, so
-        // the type-hierarchy core provider (`tcl-lsp-core::type_hierarchy`) is
-        // advertised through dynamic `client/registerCapability` in
-        // `register_type_hierarchy` instead.
+        // `ServerCapabilities` (ls-types 0.0.6) carries no
+        // `type_hierarchy_provider` field, and dynamic
+        // `client/registerCapability` does not surface in the client's
+        // `initializeResult.capabilities` (which editors inspect to decide the
+        // provider is present).  The type-hierarchy capability is therefore
+        // injected into the serialised `initialize` response by the
+        // `inject_type_hierarchy_provider` service layer in `main.rs`; the
+        // request handlers (`prepare_type_hierarchy` / `supertypes` /
+        // `subtypes`) back it here.
         semantic_tokens_provider: Some(semantic_tokens_capability()),
         workspace_symbol_provider: Some(OneOf::Left(true)),
         linked_editing_range_provider: Some(
             tower_lsp_server::ls_types::LinkedEditingRangeServerCapabilities::Simple(true),
         ),
-        // `S-diagnostics-pipeline`: advertise pull-based
-        // diagnostics so editors that support it can request
-        // diagnostics on demand alongside the existing
-        // push-based `publish_diagnostics`.
-        diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
-            identifier: Some("tcl-lsp".to_string()),
-            inter_file_dependencies: false,
-            // Workspace pull is backed by the per-URI pull-diagnostic cache the
-            // push pipeline maintains (`workspace_diagnostic` reports each open
-            // document's last-published set).
-            workspace_diagnostics: true,
-            work_done_progress_options: WorkDoneProgressOptions::default(),
-        })),
+        // Pull-model diagnostics are **opt-in** and intentionally NOT
+        // advertised by default: `vscode-languageclient` (and most clients)
+        // switch to pull mode the moment `diagnosticProvider` is present, which
+        // silently disables our richer push pipeline (`publish_diagnostics`)
+        // and makes clients render each diagnostic twice (#721).  The
+        // `textDocument/diagnostic` + `workspace/diagnostic` handlers still
+        // exist for a client that opts in via `tclLsp.features.pullDiagnostics`
+        // (registered dynamically on that path), but the default capability set
+        // leaves this absent so push stays the sole delivery channel.
+        diagnostic_provider: None,
         // Editor-invoked workspace commands (currently the
         // minify-document command family).
         execute_command_provider: Some(ExecuteCommandOptions {
@@ -8427,6 +8621,8 @@ fn build_server_capabilities(
                 "tcl-lsp.suggestPackagesForSymbol".to_owned(),
                 "tcl-lsp.exportConfig".to_owned(),
                 "tcl-lsp.listTclInstallations".to_owned(),
+                "tcl-lsp.setDialect".to_owned(),
+                "tcl-lsp.compilerExplorer".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -12291,13 +12487,13 @@ mod tests {
         // folder override is *not* consulted (language_id is the
         // most specific signal we have).
         assert_eq!(
-            backend.dialect_for_open(&doc, "tcl").await,
+            backend.dialect_for_open(&doc, "tcl", "").await,
             "tcl8.6".to_owned(),
         );
         // An unknown language id (`plaintext`) lets the folder
         // override take effect.
         assert_eq!(
-            backend.dialect_for_open(&doc, "plaintext").await,
+            backend.dialect_for_open(&doc, "plaintext", "").await,
             "f5-irules".to_owned(),
         );
     }
@@ -12311,17 +12507,17 @@ mod tests {
         let backend = test_backend();
         let doc = Uri::from_str("file:///workspace/device_config.txt").unwrap();
         assert_eq!(
-            backend.dialect_for_open(&doc, "tcl-bigip").await,
+            backend.dialect_for_open(&doc, "tcl-bigip", "").await,
             "f5-bigip".to_owned(),
         );
         assert_eq!(
-            backend.dialect_for_open(&doc, "f5-bigip").await,
+            backend.dialect_for_open(&doc, "f5-bigip", "").await,
             "f5-bigip".to_owned(),
         );
         // A generic Tcl language id on the same non-conf name does not get the
         // BIG-IP dialect (no basename match, no explicit BIG-IP id).
         assert_ne!(
-            backend.dialect_for_open(&doc, "tcl").await,
+            backend.dialect_for_open(&doc, "tcl", "").await,
             "f5-bigip".to_owned(),
         );
     }
