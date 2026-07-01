@@ -709,6 +709,14 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
+        // Current namespace for the imported-command fallback below. Computed
+        // before the immutable `registry` borrow (it needs `&mut self`), and
+        // only when imports were recorded — `namespace_from_scope_path` caches.
+        let cur_ns = if self.result.namespace_imports.is_empty() {
+            String::new()
+        } else {
+            self.namespace_from_scope_path(scope_path)
+        };
         let Some(registry) = self.registry.as_ref() else {
             return;
         };
@@ -734,6 +742,14 @@ impl Analyser {
         // and only against a namespace explicitly imported in this document.
         if body_indices.is_empty() && !cmd_name.contains("::") {
             for imp in &self.result.namespace_imports {
+                // An import is only in effect where it was made: in its own
+                // namespace, or — for an import at global scope — everywhere, via
+                // Tcl's unqualified-name fallback to `::`. An import inside
+                // `namespace eval ns { … }` must NOT resolve a bare call made in a
+                // sibling or parent namespace.
+                if imp.ns != cur_ns && imp.ns != "::" {
+                    continue;
+                }
                 let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
                     format!("{prefix}{cmd_name}")
                 } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
