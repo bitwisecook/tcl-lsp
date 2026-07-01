@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, pollUntil } from "./helper";
+import { activate, getDocUri, pollUntil, sleep } from "./helper";
 
 suite("Code Lens", () => {
   const docUri = getDocUri("procs.tcl");

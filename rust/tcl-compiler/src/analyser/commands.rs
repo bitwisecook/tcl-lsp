@@ -442,6 +442,10 @@ impl Analyser {
         self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_namespace_upvar_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_dict_var_command(cmd_name, args, arg_tokens, scope_path);
+        // `lassign` / `scan` / `regexp` / `regsub` write their results into
+        // trailing variable arguments; bind them so completion/hover/definition
+        // see the destructured / captured names.
+        self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
@@ -1070,6 +1074,13 @@ impl Analyser {
             scope_path,
         });
         self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
+        // W216 (broken brace-form array access, `${arr}(idx)` / `${arr($i)}`)
+        // must reach substitution commands too: `set v [puts ${arr}(name)]`
+        // hides the offending word inside a `[…]`, which the main `walk_body`
+        // pass treats as an opaque value.  Without this the nested word escapes
+        // the check entirely (matching the Python analyser, which runs the
+        // brace-then-paren emitter on substitution commands).
+        self.emit_w216_brace_then_paren(seg);
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch

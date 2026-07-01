@@ -489,19 +489,20 @@ mod diagnostics {
         assert_eq!(w210_for("lassign {a b c} x y z\nputs \"$x $y $z\"", "x"), 0);
     }
 
-    // DIVERGENCE (noted): the Python suite also expects `regsub … result` to
-    // suppress W210 on `result`. In Rust, the top-level `regsub` output var is
-    // NOT recognised as a definite write here, so `result` DOES fire W210.
-    // This is captured below as the actual Rust behaviour rather than skipped,
-    // because both the `$text` read and the `result` read are unset at module
-    // scope (tclsh would error on `$text` first).
+    // `regsub … result` writes its trailing `result` variable (recognised via
+    // the registry's `VarWrite` arg-role, like `set`/`lassign`/`scan`), so a
+    // later `$result` read is NOT read-before-set — matching the Python suite.
+    // The `$text` argument is still unset and fires its own W210 (tclsh would
+    // error on that first at runtime).
     #[test]
-    fn regsub_result_var_fires_w210_at_top_level_rust_behaviour() {
-        // Rust verdict: regsub output var is reported (divergence from Python's
-        // suppression expectation; see module-level note). Both reads of unset
-        // vars are real `can't read` errors in tclsh.
+    fn regsub_result_var_suppresses_w210_at_top_level() {
         assert_eq!(
             w210_for("regsub {old} $text new result\nputs $result", "result"),
+            0
+        );
+        // The unset input `$text` still reports read-before-set.
+        assert_eq!(
+            w210_for("regsub {old} $text new result\nputs $result", "text"),
             1
         );
     }

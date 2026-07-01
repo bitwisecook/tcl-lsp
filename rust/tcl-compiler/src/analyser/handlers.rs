@@ -803,6 +803,56 @@ impl Analyser {
         true
     }
 
+    /// Bind the output variables of commands that write results into named
+    /// trailing arguments — `lassign`, `scan`, `regexp`, `regsub`.
+    ///
+    /// The registry's `VarWrite` arg-role resolver already encodes each
+    /// command's option/positional shape (leading `-switches`, the `--`
+    /// terminator, the pattern / format / subSpec positionals, and the
+    /// variadic capture tail), so this reuses it rather than re-deriving the
+    /// layout per command.  Binding these makes the destructured / captured
+    /// names visible to completion, hover, and go-to-definition in the
+    /// enclosing scope — matching the Python analyser, which collects var-defs
+    /// from these commands.  `warn_if_unused = false`: like `catch`'s result
+    /// variable, the binding is a documented side effect, not a "set but never
+    /// read" target, so it must not raise W211.
+    ///
+    /// Void-returning (self-guards on `cmd_name`) so it composes with the other
+    /// side-effect handlers — `regexp` / `regsub` also feed
+    /// `handle_regex_pattern_capture`, which must still run.
+    pub fn handle_var_binding_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if !matches!(cmd_name, "lassign" | "scan" | "regexp" | "regsub") {
+            return;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::VarWrite,
+        );
+        for idx in indices {
+            let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                continue;
+            };
+            // Only a plain literal names a definite scope variable.  A computed
+            // target (`scan $s $fmt $dyn`), an array element (`arr(i)`), or a
+            // brace/bracket-bearing word is not a simple local to bind.
+            if name.is_empty() || name.contains(['$', '[', ']', '(', ')', '{', '}', ' ']) {
+                continue;
+            }
+            self.define_var(name, *tok, scope_path, false, None);
+        }
+    }
+
     /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
     ///
     /// Walks the main try body and every handler / finally clause;
