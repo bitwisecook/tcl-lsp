@@ -27,13 +27,11 @@ by the plan's five dependency stages, with the specific residual for each.
 Status legend (from the plan): ✅ done · 🟢 done bar listed residuals ·
 🟡 partial · 🔴 not started.
 
-> **Scope (2026-07-01):** the **runtime & execution** layers — WASM codegen
-> (RT-WASM), the bytecode VM (RT-VM / `tcl-vm`), and the `runtime/rust`
-> tree-walking port — are **tracked separately** and have been removed from this
-> audit. See `docs/design/runtime/rust-vm-tier-parity.md`,
-> `docs/design/runtime/tclvm-opcode-status.md`, and
-> `docs/design/runtime/rust-runtime-port.md` (on the `rust` branch). What remains
-> below is the front-end / analyser / server / API / tooling gap list.
+> **Scope:** this audit covers the **front-end / analyser / server / API /
+> tooling** port gaps — the target is to finish these first. The **runtime &
+> execution** layers (WASM codegen, the bytecode VM, and the `runtime/rust`
+> port) are enumerated separately and completely in
+> [`../runtime/runtime-execution-gaps.md`](../runtime/runtime-execution-gaps.md).
 
 ## Executive summary
 
@@ -114,12 +112,9 @@ branch for the live worklist):
 
 ## Stage 2 — Runtime & execution
 
-**Tracked separately — removed from this audit (2026-07-01).** The WASM codegen
-emitter (RT-WASM), the bytecode VM (RT-VM / `tcl-vm`), and the `runtime/rust`
-tree-walking port are owned by the runtime track; see
-`docs/design/runtime/rust-vm-tier-parity.md`,
-`docs/design/runtime/tclvm-opcode-status.md`, and
-`docs/design/runtime/rust-runtime-port.md` (on the `rust` branch).
+Moved out of this audit — the WASM codegen, bytecode VM, and `runtime/rust` gaps
+are enumerated in
+[`../runtime/runtime-execution-gaps.md`](../runtime/runtime-execution-gaps.md).
 
 ---
 
