@@ -260,6 +260,46 @@ class TestCodeActionParity:
         assert any(e.get("newText") == "{$a + $b}" for e in _edits_of(brace))
 
 
+# ── follow-ups from PR #733 review (Codex bot) ───────────────────────────────
+
+
+class TestReviewFollowups:
+    def test_local_shadowing_global_stays_bare(self, lsp_server, uri_factory):
+        # A proc-local `foo` shadows the global `foo`, so completion must keep
+        # `$foo` (the local) and NOT rewrite it to `$::foo` (the global).
+        uri = uri_factory()
+        src = "set foo global\nproc p {} {\n    set foo local\n    puts $\n}\n"
+        lsp_server.open_ready(uri, src)
+        labels = set(_labels(lsp_server.completion(uri, 3, len("    puts $"))))
+        assert "$foo" in labels and "$::foo" not in labels, sorted(labels)
+
+    def test_var_binders_fire_inside_command_substitutions(self, lsp_server, uri_factory):
+        # `regexp` inside an `if` condition and `scan` inside a `set` value are
+        # `[…]` substitutions; their output vars must still be bound.
+        uri = uri_factory()
+        src = (
+            "proc p {s} {\n"
+            "    if {[regexp {(\\w+)} $s m]} {\n"
+            '        set n [scan $s "%d" x]\n'
+            "        puts $\n"
+            "    }\n"
+            "}\n"
+        )
+        lsp_server.open_ready(uri, src)
+        labels = set(_labels(lsp_server.completion(uri, 3, len("        puts $"))))
+        assert "$m" in labels and "$x" in labels, sorted(labels)
+
+    def test_dialect_reresolves_after_edit(self, lsp_server, uri_factory):
+        # Adding a `# tcl-dialect:` directive to an already-open buffer must take
+        # effect without reopening: `try` (8.6+) disappears from completion.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "tr\n")
+        assert "try" in set(_labels(lsp_server.completion(uri, 0, 2)))
+        lsp_server.replace_document(uri, 2, "# tcl-dialect: tcl8.4\ntr\n")
+        lsp_server.await_diagnostics(uri, version=2, timeout=10)
+        assert "try" not in set(_labels(lsp_server.completion(uri, 1, 2)))
+
+
 def _edits_of(action):
     edit = action.get("edit") or {}
     changes = edit.get("changes") or {}
