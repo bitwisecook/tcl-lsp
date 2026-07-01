@@ -1,9 +1,10 @@
 //! Tcl 9.1 dialect sync — verified against the **C Tcl 9.1b0 source**
-//! (`tmp/tcl9.1-src`, `TCL_VERSION "9.1"`): `doc/unicode.n`, `doc/timer.n`,
-//! `doc/subst.n`, `doc/ledit.n`, `doc/coroutine.n`.  These assert registry
-//! facts (dialect membership, command availability, side effects) that are not
-//! directly observable over LSP; the observable completion / W003 behaviour is
-//! covered by the `lsp_e2e` suite.
+//! (`tmp/tcl9.1-src`, `TCL_VERSION "9.1"`): the built-in command table in
+//! `generic/tclBasic.c` and `doc/{unicode,timer,subst,ledit,coroutine,divmod,
+//! frexp,modf,remquo,lfilter}.n`.  These assert registry facts (dialect
+//! membership, command availability, side effects) that are not directly
+//! observable over LSP; the observable completion / W003 behaviour is covered
+//! by the `lsp_e2e` suite.
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::{DialectSet, available_dialects};
@@ -110,6 +111,53 @@ fn tcl90_commands_persist_in_91() {
             "{name} NOT in 8.6"
         );
     }
+}
+
+#[test]
+fn tcl91_math_commands_are_pure_and_91_only() {
+    // C Tcl 9.1b0 generic/tclBasic.c: DivModObjCmd / FracExpObjCmd / ModFObjCmd
+    // / RemQuoObjCmd — pure numeric ops returning a two-element list.  The
+    // Python oracle did not carry these — the C source is the truth.
+    use tcl_registry::traits::Traits;
+    use tcl_registry::types::TclType;
+    let r = reg();
+    for name in ["divmod", "frexp", "modf", "remquo"] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        assert!(
+            !spec.supports_dialect(DialectSet::TCL90),
+            "{name} NOT in 9.0"
+        );
+        assert!(spec.traits.contains(Traits::PURE), "{name} is pure");
+        assert_eq!(spec.return_type, Some(TclType::List));
+    }
+    // `divmod x y` / `remquo x y` take 2 args; `frexp value` / `modf value` 1.
+    assert!(r.get("divmod").unwrap().arity.accepts(2));
+    assert!(!r.get("divmod").unwrap().arity.accepts(1));
+    assert!(r.get("frexp").unwrap().arity.accepts(1));
+    assert!(!r.get("frexp").unwrap().arity.accepts(2));
+}
+
+#[test]
+fn lfilter_is_a_91_list_loop() {
+    // C Tcl 9.1b0 generic/tclBasic.c: `Tcl_LfilterObjCmd` / `TclCompileLfilterCmd`
+    // — a byte-compiled loop (like `lmap`) returning the filtered sublist.
+    use tcl_registry::traits::Traits;
+    use tcl_registry::types::TclType;
+    let r = reg();
+    let spec = r.get("lfilter").expect("lfilter registered");
+    assert!(spec.supports_dialect(DialectSet::TCL91));
+    assert!(!spec.supports_dialect(DialectSet::TCL90));
+    assert!(spec.traits.contains(Traits::HAS_LOOP_BODY));
+    assert!(spec.traits.contains(Traits::LOOP_LIST_HEADER));
+    assert_eq!(spec.return_type, Some(TclType::List));
+    // `lfilter varname list body` — the last (body) arg carries `ArgRole::Body`.
+    let roles = r.arg_indices_for_role(
+        "lfilter",
+        &["v", "{1 2 3}", "$v"],
+        tcl_registry::arg_role::ArgRole::Body,
+    );
+    assert_eq!(roles, vec![2], "the predicate body is a Body arg");
 }
 
 #[test]
