@@ -1225,9 +1225,15 @@ final track** — every consumer above must port first.
   **deletion** of the `test_*.py` is the terminal PYTHON-RETIRE sweep — gated,
   since the pytest suite is the behavioural oracle while the Python layer ships.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
-  Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
-  scaffold **landed**, with five scripts ported and parity-checked against the
-  Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
+  Python toolchain dependency). Full triage of the ~110 `scripts/` tools —
+  which retire with Python vs which survive and how — is in
+  [`design/rust/scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md).
+  ⚠ **Reality check: `xtask` is not wired into the Makefile or CI at all**
+  (`grep xtask Makefile .github/` is empty), so the ported verbs are dormant
+  code — "flip the invocations" means *wiring each verb into CI*, not just
+  deleting the Python. The `rust/xtask` crate + `cargo xtask` alias scaffold
+  **landed**, with five scripts ported and parity-checked against the Python
+  originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
   and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
   identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
   whose `git describe` → setuptools-scm scheme is unit-pinned against real
@@ -1242,16 +1248,23 @@ final track** — every consumer above must port first.
   built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
   `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
   table / version order are transcribed 1:1). **Remaining is the bulk: only 6 of
-  ~26+ scripts are ported.** Still Python: the build-artifact scripts
-  (`build/{kcs_db,zipapps}.py` — SQLite / zipapp builders), the
-  environment-coupled `check/wasm_command_parity.py`, the whole
-  `codegen/*` generator family (editor catalogs / settings, `gen_bigip_model_rust.py`,
-  the `gen_f5_query_*` fixture generators, `registry_baselines.py`), the
-  `registry-audit/*` generators, and the `dev/*` bench/profile/triage helpers.
-  A decision is owed per script — the artifact-producing generators (checked-in
-  output) need porting or frozen artifacts; the `dev/*` measurement helpers may
-  stay Python as dev-only. Then flip the Makefile/CI invocations and retire the
-  ported originals. (`bigip_kind_differential.py` stays Python — it is a
+  ~26+ scripts are ported.** Triage decisions (per
+  [`scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md)):
+  the `refcount_contract` / `audit_option_dialects` / `tzdata_bundle` Python
+  originals — fully orphaned (no live Makefile/CI invocation) — were **deleted
+  2026-07-01**, leaving the xtask verbs as the successors (which still need
+  wiring into CI). `kcs_index_links.py` and `print_version.py` are **kept** —
+  both are still live (lint gate / wheel-version) and flipping them needs the
+  Rust toolchain in those CI paths. The **artifact generators** (`codegen/*`
+  editor catalogs/settings + `port_names`, `dev/gen_query_builtins_doc`,
+  `build/kcs_db`, the `gen_f5_query_*` / `gen_bigip_model_rust` /
+  `registry-audit/*` families) are **port-to-Rust** targets so the shipped
+  artifacts keep regenerating off the Rust registry. The `build/zipapps.py` +
+  `zipapp-main/*` Python distribution **retires with Python** once native-binary
+  distribution reaches parity. The `dev/*` measurement + `*_differential` /
+  `diag_parity` tools are Bucket A (retire with Python, not ported). Then flip
+  the Makefile/CI invocations to the xtask verbs and retire the ported originals.
+  (`bigip_kind_differential.py` stays Python until retirement — it is a
   Python-vs-Rust differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. **`ai/` is one such
