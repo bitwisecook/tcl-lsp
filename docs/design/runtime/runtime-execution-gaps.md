@@ -26,6 +26,22 @@ index does not duplicate its per-row detail, to avoid staleness):
 - **runtime/rust detail:** [`rust-runtime-port.md`](rust-runtime-port.md) — the
   per-subsystem T-task breakdown.
 
+**Tiered delivery plan** — how the VMs and the runtime are brought to C-Tcl
+parity, bottom-up. These are the *plan* documents (the trackers above are the
+*scoreboard*):
+
+- **The capability ladder:** [`tcl-test-tiers.md`](tcl-test-tiers.md) — the
+  semantic tier grouping (which upstream `.test` files belong to each tier and
+  why a lower tier gates the ones above it). The delivery order: bring the
+  runtime to C parity one tier at a time, bottom-up, and lock each green tier
+  so later work can't silently regress it.
+- **The `tcltest` bring-up plan:** [`tcltest-bringup.md`](tcltest-bringup.md) —
+  running the unmodified pure-Tcl standard library and real C Tcl 9 `*.test`
+  files on `runtime/rust` by porting the C command surface the library assumes.
+- **The Zig-runtime roadmap:** [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md)
+  — the residual Zig WASM-runtime phases (the WASM link target the emitted
+  modules run against).
+
 Status legend: ✅ done · 🟢 done bar listed residuals · 🟡 partial · 🔴 not started.
 
 ## Headline (snapshot 2026-06-30/07-01 — regenerate the trackers for live numbers)
