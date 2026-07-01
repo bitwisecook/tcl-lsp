@@ -151,7 +151,7 @@ Add to your Zed `settings.json` to configure the language server:
 
 ### Dialect options
 
-`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`,
+`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`,
 `f5-bigip`, `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`,
 `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `expect`
 

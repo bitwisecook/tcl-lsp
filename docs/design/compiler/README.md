@@ -92,6 +92,9 @@ User-facing compiler troubleshooting and how-tos live in
   character-string semantics).
 - [taint-analysis.md](taint-analysis.md) — sources, sinks, colours, and
   propagation.
+- [byte-array-corruption.md](byte-array-corruption.md) — S110: the
+  byte-array damage taxonomy (intrinsic vs round-trip) and why byte
+  provenance is a dedicated dataflow, not a type-lattice state.
 - [var-escape-analysis.md](var-escape-analysis.md) — which Tcl vars stay
   on WASM locals vs spill to the runtime frame.
 - [interprocedural-analysis.md](interprocedural-analysis.md) —

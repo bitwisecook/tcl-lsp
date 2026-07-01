@@ -139,34 +139,7 @@ git checkout main
 git pull origin main
 ```
 
-### 7. Security gate (CodeQL on tag candidate)
-
-CodeQL is the release gate, not a pre-merge PR check. After pulling the
-merged release-notes commit, HEAD on `main` is the commit the tag will
-point at. Wait for CodeQL on that commit and verify no open high/critical
-alerts remain on `main`:
-
-```bash
-tag_sha="$(git rev-parse HEAD)"
-make release-codeql-gate SHA="$tag_sha"
-```
-
-`release-codeql-gate` runs `scripts/release/codeql_gate.sh`, which:
-
-1. Locates the push-triggered CodeQL run for `$tag_sha` (polling for up to
-   2 min; dispatches `workflow_dispatch` as a fallback if none appears).
-2. Watches the run with `gh run watch --exit-status` and fails if it does
-   not succeed.
-3. Queries the Code Scanning API for open alerts on `refs/heads/main` and
-   fails if any have `security_severity_level` of `high` or `critical`.
-
-If the gate fails, **do not tag**. Investigate the alerts, fix or dismiss
-them via PR (dismissals must include a justification), pull `main` again,
-and re-run the gate. Override the severity threshold only with strong
-justification by setting `CODEQL_GATE_MIN_SEVERITY=critical` in the
-environment.
-
-### 8. Create and push the tag
+### 7. Create and push the tag
 
 `make release-tag` handles validation (clean tree, correct branch, no
 existing tag) and pushes only the tag — no source-file edits, no commit on
@@ -179,7 +152,7 @@ make release-tag V=X.Y.Z
 The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
 `publish-checksums`, and publish the GitHub release.
 
-### 9. Verify published artefacts
+### 8. Verify published artefacts
 
 After `make release-tag` pushes the tag, CI builds and uploads every
 artefact, then the `publish-checksums` job aggregates them into a
@@ -189,7 +162,7 @@ installer (`scripts/install/install.sh`) verifies downloads against this file.
 **Wait for CI to finish, then verify locally** before publishing to any
 editor marketplace. A SUMS mismatch means an artefact was modified
 after upload or the build was non-reproducible — either way, **do not
-proceed to step 10**.
+proceed to step 9**.
 
 ```bash
 tag="vX.Y.Z"
@@ -246,18 +219,19 @@ job. The post-install checks above catch the next failure modes after
 that: a successfully-completed installer that nevertheless landed
 stale or version-skewed binaries (e.g. cached artefact, partial
 upload, dev build leaking through). All checks must pass before
-step 10.
+step 9.
 
-### 10. Editor publishing
+### 9. Editor publishing
 
-**VS Code is published by CI, not here.** When the tag's CI run reaches the
-`publish-vsix-marketplace` job it pauses on the `marketplace-vscode`
-Environment for your approval. After the step 9 verification passes, approve
-that deployment in the Actions run and CI publishes VSCE keylessly via OIDC —
-no token, no `make publish-vsix`. Only if the CI federated path fails, fall
-back to the laptop: `az login --allow-no-subscriptions && make publish-vsix`.
-The targets below cover the remaining editors (JetBrains, Sublime, Zed),
-which still publish from the laptop.
+**VS Code and JetBrains are published by CI, not here.** When the tag's CI
+run reaches the `publish-vsix-marketplace` and `publish-jetbrains-marketplace`
+jobs, each pauses on its protected Environment (`marketplace-vscode` /
+`marketplace-jetbrains`) for your approval. After the step 8 verification
+passes, approve both deployments in the Actions run; CI then publishes the
+released, checksum-verified `.vsix` / plugin `.zip` using the Environment
+secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`). The laptop targets
+`make publish-vsix` / `make publish-jetbrains` remain only as fallbacks if
+the CI job fails. This step's own work is just **Sublime and Zed**.
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
@@ -269,26 +243,23 @@ make publish-verify
 
 `publish-verify` prints one of `[ok] / [warn] / [fail]` per editor; it
 exits non-zero only on `[fail]` (tool missing or remote unreachable).
-`[warn]` lines (e.g. `JETBRAINS_TOKEN not set`) are recoverable — note
-them back to the user and let them decide whether to set the token now
-or skip that target.
+`[warn]` lines are recoverable — note them back to the user.
 
 Then ask which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: jetbrains, sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: sublime, zed)
 > Default: None
 
-(VS Code is excluded — CI publishes it via the approval gate above. Only
-add `vscode` here if you are deliberately invoking the laptop fallback.)
+(VS Code and JetBrains are excluded — CI publishes both via the approval
+gates above. Only add `vscode` / `jetbrains` here if you are deliberately
+invoking the laptop fallback because a CI job failed.)
 
 Based on the response:
 
 - **None** (default): Skip publishing entirely.
-- **All**: Run the laptop editor targets **except VS Code** —
-  `make publish-jetbrains publish-sublime publish-zed`. Do **not** run
-  `make publish-all`: it includes `publish-vsix`, which would try to
-  re-publish the version CI already shipped (vsce errors on a duplicate
-  version without `--skip-duplicate`).
+- **All**: Run `make publish-sublime publish-zed`. Do **not** run
+  `make publish-all`: it includes `publish-vsix` and `publish-jetbrains`,
+  which would try to re-publish the versions CI already shipped.
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
@@ -298,10 +269,11 @@ Available targets:
   and runs `vsce publish --azure-credential`. Set `VSCE_PAT` only to force
   the legacy stored-PAT path (discouraged; Azure DevOps global PATs retire
   2026-12-01).
-- `make publish-jetbrains` — JetBrains Marketplace. Runs
-  `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. The
-  first-ever publish must be done interactively via the JetBrains web
-  UI; `publishPlugin` only updates an already-listed plugin.
+- `make publish-jetbrains` — JetBrains Marketplace **laptop fallback only**
+  (normally CI publishes it). Runs `./gradlew publishPlugin`. Requires
+  `JETBRAINS_TOKEN` env var. The first-ever publish must be done
+  interactively via the JetBrains web UI; `publishPlugin` only updates an
+  already-listed plugin.
 - `make publish-sublime` — Sublime Text / Package Control. Pushes the
   built `build/sublime-stage/` tree (the same contents that go into the
   `.sublime-package`) to the dedicated mirror repo
@@ -333,7 +305,7 @@ external repositories — any external-repo PR (JetBrains first-time
 upload, Package Control channel submission, Zed extensions registry,
 nvim-lspconfig, Helix) is raised by the user.
 
-### 11. Summary
+### 10. Summary
 
 Print a summary of what was done:
 

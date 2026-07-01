@@ -68,7 +68,7 @@ TCL_OPERATOR_HOVER: dict[str, HoverSnippet] = {
 }
 
 
-_8_5_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0"})
+_8_5_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"})
 
 # Per-operator dialect restrictions.  ``None`` (or absent) means available
 # in every Tcl dialect.
@@ -80,10 +80,10 @@ _8_5_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0"})
 TCL_OPERATOR_DIALECTS: dict[str, frozenset[str]] = {
     "in": _8_5_PLUS,
     "ni": _8_5_PLUS,
-    "lt": frozenset({"tcl9.0"}),
-    "le": frozenset({"tcl9.0"}),
-    "gt": frozenset({"tcl9.0"}),
-    "ge": frozenset({"tcl9.0"}),
+    "lt": frozenset({"tcl9.0", "tcl9.1"}),
+    "le": frozenset({"tcl9.0", "tcl9.1"}),
+    "gt": frozenset({"tcl9.0", "tcl9.1"}),
+    "ge": frozenset({"tcl9.0", "tcl9.1"}),
 }
 
 

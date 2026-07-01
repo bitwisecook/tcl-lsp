@@ -225,8 +225,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: smoke-zipapps smoke-vsix
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
-.PHONY: release release-tag release-codeql-gate release-sums
+.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow check-publish-env
+.PHONY: release release-tag release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
 # Rust runtime port
@@ -253,12 +253,13 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace (keyless; CI is the primary path)
+publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace (laptop fallback; CI is the primary path)
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
-	@# Releases normally publish VSCE from CI (keyless OIDC, behind the
-	@# marketplace-vscode Environment).  This laptop target is the fallback.
-	@# Primary fallback path is also keyless: an Azure Entra session via the
-	@# Azure CLI (`az login --allow-no-subscriptions`) feeds vsce's
+	@# Releases normally publish VSCE from CI (job publish-vsix-marketplace,
+	@# secrets.VSCE_PAT on the protected marketplace-vscode Environment).
+	@# This laptop target is the fallback for when that CI job fails.
+	@# It prefers a keyless Azure Entra session via the Azure CLI
+	@# (`az login --allow-no-subscriptions`), feeding vsce's
 	@# DefaultAzureCredential through `--azure-credential` — no PAT at rest.
 	@# Set VSCE_PAT to force the legacy stored-PAT path (discouraged; Azure
 	@# DevOps global PATs retire 2026-12-01).
@@ -654,7 +655,7 @@ _ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
 # Python-only check phase for ci-fast (no TS lint/typecheck — those run in
 # test-slow locally and on push:main in GitHub Actions).  Uses the full
 # ruff/ty scope (lsp + core + explorer + tests + scripts) to match prep-pr.
-_ci-fast-checks: lint-py typecheck-py check-editor-settings check-wasm-parity
+_ci-fast-checks: lint-py typecheck-py check-editor-settings check-wasm-parity check-publish-env
 
 ci-fast: $(UV_STAMP) $(BUILD_INFO) ## Fast CI gate — lint + typecheck + LSP e2e (mirrors GitHub Actions PR job)
 	@$(MAKE) -j $(NPROC) _ci-fast-checks _ci-fast-pytest
@@ -1428,7 +1429,7 @@ check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 
 # Registry contract fixtures — the language-agnostic command/event/profile/
 # object shape snapshots under tests/baselines/registry/, regenerated from
-# the registries via the same builders the registry-dump front-end verbs use.
+# the registries via the same builders in tooling/registry_snapshot.py.
 gen-registry-baselines: $(UV_STAMP) ## Regenerate tests/baselines/registry/ from the registries
 	@echo "==> Regenerating registry contract fixtures"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py
@@ -1749,19 +1750,19 @@ release-sums: zipapp-explorer-cli zipapp-tcl zipapp-f5 zipapp-explorer-gui-cdn z
 	    fi
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
-release-tag: ## Create + push the annotated release tag (V=x.y.z); run release-codeql-gate first
+release-tag: ## Create + push the annotated release tag (V=x.y.z)
 	@bash $(ROOT)scripts/release/tag.sh $(V)
-
-release-codeql-gate: ## Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
-	@bash $(ROOT)scripts/release/codeql_gate.sh $(SHA)
 
 publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
 
+check-publish-env: ## Enforce that every workflow job using secrets.* binds to a protected environment
+	@python3 $(ROOT)scripts/release/check_publish_env.py
+
 publish-flow: ## Print the release + marketplace publish cheat-sheet
-	@echo "Release + publish flow — no marketplace tokens go into CI."
+	@echo "Release + publish flow."
 	@echo ""
 	@echo "  Channels (the tag decides — scripts/release/prerelease.sh):"
 	@echo "    stable / default   v1.x, v2.2.0 (even 2.x minor)  cut from main"
@@ -1772,15 +1773,19 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
 	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"
 	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
-	@echo "     # (sigstore OIDC, no marketplace tokens; see docs/design/contracts/release-and-publish.md)"
-	@echo "  3. wait for ci.yml to finish on the tag"
-	@echo "  4. make publish-all                # local; pushes each artefact to its marketplace"
+	@echo "     # then VS Code + JetBrains publish from CI behind the approval gate"
+	@echo "     # (see docs/design/contracts/release-and-publish.md)"
+	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode"
+	@echo "     and marketplace-jetbrains deployments when prompted"
+	@echo "  4. make publish-sublime publish-zed   # local; Sublime + Zed only"
 	@echo ""
-	@echo "  Individual marketplaces (each runs from your laptop, never from CI):"
-	@echo "    make publish-vsix         # VS Code Marketplace      (needs VSCE_PAT)"
-	@echo "    make publish-jetbrains    # JetBrains Marketplace    (needs JETBRAINS_TOKEN)"
-	@echo "    make publish-sublime      # Package Control (Sublime) (uses git push credentials)"
-	@echo "    make publish-zed          # zed-industries/extensions (preps a local PR for review)"
+	@echo "  Marketplaces:"
+	@echo "    VS Code    -> CI job publish-vsix-marketplace      (secrets.VSCE_PAT, marketplace-vscode)"
+	@echo "    JetBrains  -> CI job publish-jetbrains-marketplace (secrets.JETBRAINS_TOKEN, marketplace-jetbrains)"
+	@echo "    Sublime    -> make publish-sublime  (laptop; git push to mirror)"
+	@echo "    Zed        -> make publish-zed       (laptop; preps a local PR for review)"
+	@echo ""
+	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-jetbrains"
 
 # KCS help database
 

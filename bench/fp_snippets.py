@@ -2796,6 +2796,113 @@ register(
 )
 
 
+register(
+    "FP-SH-09",
+    _Entry(
+        label="byte array case-folded / re-encoded by a string op corrupts high bytes (S110)",
+        proc="::top",
+        vars=("ba", "up"),
+        show=("ssa", "types"),
+        notes=(
+            "tclsh ground truth (8.6.14 and 9.0.3, verified): a byte array forced\n"
+            "through a character-string operation reinterprets every byte as a\n"
+            "Unicode code point.  ``string toupper`` of the bytes ``80 c3 ff``::\n"
+            "\n"
+            "    8.6: 80 c3 ff  ->  80 c3 78   ;# 0xFF (y-umlaut) uppercased to\n"
+            "                                   ;# U+0178 then truncated -> data loss\n"
+            "    9.0: binary scan of the result raises\n"
+            "         'expected byte sequence but character 2 was ...'\n"
+            "\n"
+            "``ba`` is typed BYTEARRAY (``binary format`` return type); ``up`` is\n"
+            "typed STRING (``string toupper`` return type).  The byte-provenance\n"
+            "pass in ``compiler/shimmer.py`` (``_find_byte_array_corruption``) sees\n"
+            "the BINARY -> case-fold edge and fires S110 at the ``string toupper``\n"
+            "use site.  This is a *correctness* shimmer (Warning), distinct from the\n"
+            "S100/S101 performance family."
+        ),
+        source=_dedent(
+            """
+            # binary format -> string toupper -> corrupted bytes (S110).
+            set ba [binary format c* {128 195 255}]
+            set up [string toupper $ba]
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-10",
+    _Entry(
+        label="*::payload round-trip: string-coerced binary written back corrupts it (S110)",
+        proc="::when::HTTP_REQUEST_DATA",
+        vars=("original_data", "new_data"),
+        show=("ssa", "types"),
+        dialect="f5-irules",
+        notes=(
+            "F5 KB K22406348 (verified): ``HTTP::payload`` reads the wire bytes as a\n"
+            'byte array.  Interpolating it into a string (``"$original_data ..."``)\n'
+            "decodes each byte as latin-1; writing the string back with\n"
+            "``HTTP::payload replace`` re-encodes it as UTF-8, so every byte >= 0x80\n"
+            "double-encodes (``c3 b3`` -> ``c3 83 c2 b3``).\n"
+            "\n"
+            "The compiler types ``original_data`` OVERDEFINED (the payload getter has\n"
+            "no SCCP-visible return) and ``new_data`` STRING (interpolation).  The\n"
+            "byte-provenance pass tracks ``original_data`` as BINARY from the\n"
+            "``HTTP::payload`` getter (registry flag ``byte_array_payload``),\n"
+            "marks ``new_data`` DAMAGED at the interpolation, and fires S110 at the\n"
+            "``HTTP::payload replace`` sink.  The documented fix —\n"
+            "``binary scan $new_data c* -`` before the sink — re-binarifies the\n"
+            "value and clears the warning."
+        ),
+        source=_dedent(
+            """
+            when HTTP_REQUEST_DATA {
+                set original_data [HTTP::payload]
+                set new_data "$original_data MODIFIED"
+                HTTP::payload replace 0 100 $new_data
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-11",
+    _Entry(
+        label="*::payload replace data-arg layout is per-protocol, not always index 3 (S110)",
+        proc="::when::MQTT_MESSAGE",
+        vars=("p", "bad"),
+        show=("ssa", "types"),
+        dialect="f5-irules",
+        notes=(
+            "PR #658 review gap: ``<proto>::payload replace`` does not share one\n"
+            "argument layout.  TCP/HTTP/SCTP/UDP use ``replace OFFSET LENGTH DATA``\n"
+            "(data at index 3), but MQTT (``replace <data> ?offset? ?length?``) and\n"
+            "DIAMETER (``replace PAYLOAD``) carry the data at index 1, and GTP\n"
+            "(``replace ('-message' MSG)? OFFSET COUNT NEW_VALUE``) shifts it from\n"
+            "index 3 to 5 when the optional ``-message`` flag is present.\n"
+            "\n"
+            "S110 derives the data-operand index from the registry\n"
+            "(``BytePayloadSpec`` on ``CommandSpec.byte_array_payload``) instead of\n"
+            "hardcoding 3, so the damaged interpolation reaches the MQTT sink and\n"
+            "fires.  The documented fix -- ``binary scan $bad c* -`` before the sink\n"
+            "-- re-binarifies and clears it, exactly as for the index-3 sinks."
+        ),
+        source=_dedent(
+            """
+            when MQTT_MESSAGE {
+                set p [MQTT::payload]
+                set bad "$p x"
+                MQTT::payload replace $bad
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # STY family (01..08) -- style/usage suppressions
 # ----------------------------------------------------------------------
