@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         required_package: Some("tcl::idna"),
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,

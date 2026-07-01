@@ -14,7 +14,7 @@ pub fn spec() -> CommandSpec {
         // `ledit` reads the list variable's current value, replaces a range,
         // and writes the result back — a read-before-write of `listVar`.
         traits: Traits::READS_BEFORE_WRITE,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(3),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

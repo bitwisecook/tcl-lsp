@@ -1313,8 +1313,8 @@ in the active dialect ({}).",
         // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
         let pre_85 = !DialectSet::TCL85_PLUS.contains(active);
         // Pre-Tcl-9.0 dialects don't accept `lt` / `le` / `gt` / `ge`
-        // (TIP 461).
-        let pre_90 = !DialectSet::from_iter([DialectSet::TCL90]).contains(active);
+        // (TIP 461); 9.0 and 9.1 both do.
+        let pre_90 = !DialectSet::TCL90_PLUS.contains(active);
         if !pre_85 && !pre_90 {
             return;
         }

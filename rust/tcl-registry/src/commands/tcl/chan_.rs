@@ -66,21 +66,21 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         takes_value: true,
         value_hint: "boolean",
         detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
     OptionSpec {
         name: "-keepalive",
         takes_value: true,
         value_hint: "boolean",
         detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
     OptionSpec {
         name: "-inputmode",
         takes_value: true,
         value_hint: "mode",
         detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
 ];
 

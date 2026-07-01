@@ -10,7 +10,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lseq",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::new(1, 5),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {
