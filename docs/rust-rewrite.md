@@ -762,12 +762,14 @@ Python behaviour it mirrors. Per-task workflow: rebase the touched files off
 plus the `test_fp_*` ground-truth battery), and keep `make prep-pr` green. The
 full historical drift log is in the [history archive](rust-rewrite-history.md).
 
-**Outstanding `main` deltas not yet synced (as of 2026-06-22).** The `rust`
-branch is 10 commits behind `main`. Most are already delta-ported in place (the
+**Outstanding `main` deltas not yet synced (baseline 2026-06-22; behind-count
+re-checked 2026-07-01: now 12 commits behind `main`, the 2 newest not yet
+characterised here).** Most are already delta-ported in place (the
 `#662` catch/return flow fix is in **FE-DIAG**; `#656`/`#661` S110 byte-array
 corruption is in **FE-TYPESHIM**), or are rust-branch-irrelevant (release notes,
 CI/security, the `#664` registry-dump demotion). One is a **real, unported
-language-surface delta the whole stack must absorb**:
+language-surface delta the whole stack must absorb** (re-verified 2026-07-01:
+still unported — no `tcl9.1` in the registry, no `timer`/`unicode` specs):
 
 - **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`).** `main` added a
   `tcl9.1` entry to `KNOWN_DIALECTS` (`compiler/registry/dialects.py`) plus three
