@@ -997,7 +997,7 @@ contexts.  Known dialects (`dialects.py:5`):
 
 ```python
 KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0",   # Tcl version dialects
+    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
     "f5-irules",                                 # F5 iRules
     "f5-iapps",                                  # F5 iApps
     "f5-bigip",                                  # F5 BIG-IP config

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from compiler.registry._base import CommandDef, make_av
 from compiler.registry.models import (
+    BytePayloadSpec,
     CommandSpec,
     FormKind,
     FormSpec,
@@ -48,6 +49,8 @@ class MqttPayloadCommand(CommandDef):
         return CommandSpec(
             name="MQTT::payload",
             dialects=_IRULES_ONLY,
+            # `MQTT::payload replace <data> ?offset? ?length?` — data at index 1.
+            byte_array_payload=BytePayloadSpec(replace_data_index=1),
             hover=HoverSnippet(
                 summary="Manipulate payload of MQTT PUBLISH message",
                 synopsis=(

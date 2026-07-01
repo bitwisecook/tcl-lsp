@@ -3,33 +3,46 @@
 ## Symptom
 
 A new contributor opens the Makefile, sees `publish-vsix` next to a CI
-workflow that builds VSIX files, and assumes the publish step should
-move into CI ("isn't that what CI is for?").  Or someone adds a
-marketplace `secrets.VSCE_PAT` to CI in good faith, not realising the
-maintainer is deliberately keeping every marketplace credential off
-the GitHub Actions runner.
+workflow that builds VSIX files, and wonders where publishing actually
+happens.  Or someone adds a marketplace `secrets.VSCE_PAT` as a plain
+*repository* secret — available to every workflow run — not realising
+the maintainer requires every publish secret to be an **Environment**
+secret reachable only by a protected, manually-approved publish job.
 
 ## Invariant
 
-**No marketplace tokens go into CI.  Publishing to VS Code, JetBrains,
-Sublime, and Zed marketplaces always runs from the maintainer's
-laptop, using credentials that live in environment variables /
-keychain — never on a GitHub Actions runner.**
+**A publish secret used in a workflow must be a GitHub *Environment*
+secret on a protected, manually-approved Environment — never a plain
+repo/org secret available to every workflow run.**
+
+VS Code and JetBrains publish *from CI*; Package Control (Sublime) and
+Zed publish from the maintainer's laptop (they need no token — they push
+to a maintainer-owned mirror / open a PR).  A marketplace token may live
+in CI only when, stored as an Environment secret, it is reachable solely
+by the one job that targets that Environment — which has a required
+reviewer and a `v*`-tag-only deployment policy, so it pauses for human
+approval and cannot run on a non-tag ref.
 
 This is enforced by:
 
-* `grep -rE "secrets\.[A-Z_]+" .github/workflows/` returning nothing.
-* The publish targets (`make publish-vsix`, `make publish-jetbrains`,
-  `make publish-sublime`, `make publish-zed`) being defined only in
-  the Makefile, not in any GitHub Actions workflow.
-* Every marketplace SDK invocation living in `scripts/release/`,
-  invoked exclusively by `make publish-*` — never by `.github/workflows/`.
+* Every `secrets.*` reference in `.github/workflows/` appearing only
+  inside a job that declares a protected `environment:` (a required
+  reviewer + a `v*`-tag-only deployment policy).  A `secrets.*` use in a
+  job with no such `environment:` violates the contract.
+* The publish secret being an **Environment** secret (e.g. `VSCE_PAT` on
+  `marketplace-vscode`, `JETBRAINS_TOKEN` on `marketplace-jetbrains`),
+  not a repository or organisation secret.
+* The secret being scoped to the publish step's `env:` only, so
+  freshly-fetched code earlier in the job never runs with it in scope.
+* The published bytes being the exact artefact attached to the GitHub
+  Release (checksum-verified against the cosign-signed `SHA256SUMS`),
+  not a fresh rebuild.
 
-CI still does plenty: it builds release artefacts, attests them with
-sigstore (using GitHub's built-in OIDC — no token), generates SBOMs,
-and attaches everything to a GitHub Release.  But the last hop —
-pushing those artefacts to an external marketplace — is always a
-local action.
+CI still does plenty besides publishing: it builds release artefacts,
+attests them with sigstore (using GitHub's built-in OIDC — no token),
+generates SBOMs, and attaches everything to a GitHub Release.  The
+publish jobs then push those same signed artefacts to the marketplaces
+behind the approval gate.
 
 ## The four layers
 
@@ -44,11 +57,10 @@ local action.
 │ scripts/<purpose>/*.py + *.sh                                │
 │   - build/      build_zipapps.py, build_kcs_db.py, …         │
 │   - codegen/    catalogs.py, editor_settings.py, port_names.py │
-│   - check/      wasm_command_parity.py, … (kcs-index-links →   │
-│                 cargo xtask; refcount/audit ported to xtask)  │
+│   - check/      kcs_index_links.py, wasm_command_parity.py, … │
 │   - capture/    tcltest bytecode + result capture            │
 │   - release/    tag.sh, publish_*.sh, jetbrains_token.sh, …  │
-│   - install/    install.sh, hooks.sh, filter-readme.mjs      │
+│   - install/    install.sh, hooks.sh, filter_readme.py       │
 │   - zipapp-main/  3-line entry-point shims                   │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ invoked by both
@@ -57,18 +69,21 @@ local action.
 │   - pr-gate    runs `make ci-fast` on every PR + main        │
 │   - test-py    full Python suite on push to main and tags    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-server-matrix (native LSP per    │
-│       platform) → build-vsix (universal) + build-zipapp      │
-│       (matrix) + build-claude-skills + build-jetbrains       │
-│       + build-sublime + build-zed + publish-checksums        │
-│       — tag-only                                             │
-│   - never holds a marketplace token                          │
+│   - create-release  + build-vsix + build-zipapp (matrix)     │
+│     + build-claude-skills + build-jetbrains + build-sublime  │
+│     + build-zed + publish-checksums       — tag-only         │
+│   - publish-vsix-marketplace + publish-jetbrains-marketplace │
+│     publish from CI behind a protected Environment           │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ produces signed artefacts that
-┌─ Publishing (local-only) ────────────────────────────────────┐
-│ make publish-* → scripts/release/publish_*.sh                │
-│   - reads tokens from local env / keychain                   │
-│   - pushes to marketplaces; CI never sees these              │
+┌─ Publishing ─────────────────────────────────────────────────┐
+│ CI (behind a protected, approval-gated Environment):         │
+│   - VS Code   → secrets.VSCE_PAT      on marketplace-vscode  │
+│   - JetBrains → secrets.JETBRAINS_TOKEN on marketplace-jetbrains │
+│ Laptop (no token needed):                                    │
+│   - make publish-sublime → push to the mirror repo           │
+│   - make publish-zed     → open a PR on zed-industries       │
+│ make publish-vsix / publish-jetbrains remain laptop fallbacks│
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,34 +98,38 @@ Each layer does one job:
 
 ## The end-to-end flow
 
-A release rolls out in four manual steps from the maintainer's laptop:
+A release rolls out from a single annotated tag; VS Code and JetBrains
+publish from CI behind the approval gate, and only Sublime + Zed run from
+the laptop:
 
 ```
 1. make publish-verify          # checks that local credentials + tools are ready
 2. make release-tag V=X.Y.Z     # creates + pushes the annotated tag
                                 # (no source-file edits, no commit — hatch-vcs reads the tag)
-3. wait for ci.yml to finish on tag refs/tags/vX.Y.Z
-                                # CI builds + signs + attaches every artefact to the GitHub Release
-4. make publish-all             # local; pushes each artefact to its marketplace
-                                # (or pick individual: publish-vsix, publish-jetbrains, …)
+3. wait for ci.yml on refs/tags/vX.Y.Z; it builds + signs + attaches every
+   artefact to the GitHub Release, then PAUSES the publish-vsix-marketplace
+   and publish-jetbrains-marketplace jobs for approval — approve the
+   marketplace-vscode and marketplace-jetbrains deployments when prompted
+4. make publish-sublime publish-zed   # local; Sublime + Zed only (no token)
 ```
 
 `make publish-flow` prints this cheat-sheet on demand so a tired
-maintainer doesn't have to remember the sequence.
+maintainer doesn't have to remember the sequence.  `make publish-vsix` /
+`make publish-jetbrains` remain laptop fallbacks if a CI publish job fails.
 
 The publish-verify step (`scripts/release/publish_verify.sh`, 179
-lines) checks every published-from-laptop credential and tool
-non-destructively — it never ships anything.  Designed for a quick
-pre-flight check the week before a planned release.
+lines) checks every publish credential and tool non-destructively — it
+never ships anything.  Designed for a quick pre-flight check the week
+before a planned release.
 
 ## Stable vs pre-release channels (odd/even-minor)
 
 Two release lines run in parallel and the **tag alone** decides which:
 
-| Line | Tags | Cut from | GitHub Release | VS Code Marketplace |
-|---|---|---|---|---|
-| **Stable** (default) | `v1.x`, `v2.2.0`, … (even 2.x minor) | `main` | normal / `latest` | normal channel |
-| **Pre-release** ("for the brave") | `v2.1.x` (odd 2.x minor) | `rust` | `--prerelease` (never `latest`) | `--pre-release` channel |
+| Line | Tags | Cut from | GitHub Release | VS Code Marketplace | JetBrains Marketplace |
+|---|---|---|---|---|---|
+| **Stable** (default) | `v1.x`, `v2.2.0`, … (even 2.x minor) | `main` | normal / `latest` | normal channel | Stable channel |
+| **Pre-release** ("for the brave") | `v2.1.x` (odd 2.x minor) | `rust` | `--prerelease` (never `latest`) | `--pre-release` channel | `eap` channel |
 
 This is the VS Code Marketplace
 [odd/even-minor convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions):
@@ -128,27 +147,32 @@ the Makefile, and `tag.sh` can never disagree:
 * `tag.sh` expects an odd-minor 2.x tag to be cut from `rust`, an even /
   1.x tag from `main` (override with `ALLOW_NON_MAIN_RELEASE=1`).
 * the `create-release` CI job adds `--prerelease` to `gh release create`.
-* the Makefile's `VSCE_PRERELEASE_FLAG` adds `--pre-release` to both
-  `vsce package` (so the `.vsix` self-describes) and the laptop
-  `make publish-vsix`.
-* the `publish-vsix-marketplace` CI job adds `--pre-release` to
-  `vsce publish`.
+* the `publish-vsix-marketplace` CI job (and the laptop `make publish-vsix`)
+  add `--pre-release` to `vsce publish` for odd-minor 2.x tags.
+* the `publish-jetbrains-marketplace` CI job sets `JETBRAINS_CHANNEL=eap`
+  for odd-minor 2.x tags, so pre-release plugins land on the JetBrains
+  `eap` channel instead of the default Stable channel.
 
 No source-file edits or per-version config are needed: tag `v2.1.0`
 from `rust`, and the whole pipeline routes it to the pre-release
 channel automatically.
 
-## Marketplace token table
+## Marketplace credential table
 
-Each marketplace's credential lives in exactly one place on the
-maintainer's machine.  None of them exist in GitHub Actions secrets.
+VS Code and JetBrains publish from CI using an **Environment** secret on
+a protected, approval-gated Environment.  Sublime and Zed need no token.
+The laptop publish targets remain as fallbacks.
 
-| Marketplace | Local env var | Source on the laptop | Used by |
+| Marketplace | Primary path | Credential | Fallback |
 |---|---|---|---|
-| VS Code Marketplace | `VSCE_PAT` | `~/.vsce/keytar` cache, or interactively from `dev.azure.com` PAT | `make publish-vsix` |
-| JetBrains Marketplace | `JETBRAINS_TOKEN` | macOS Keychain via `scripts/release/jetbrains_token.sh` | `make publish-jetbrains` |
-| Package Control (Sublime) | (none; uses `git push` to a mirror repo) | `~/.ssh/` ssh keys | `make publish-sublime` |
-| Zed Extensions | (none; opens a local PR branch for the maintainer to review and push) | — | `make publish-zed` |
+| VS Code Marketplace | CI job `publish-vsix-marketplace` | `secrets.VSCE_PAT` (Environment secret on `marketplace-vscode`) | `make publish-vsix` (keyless `az login`, or local `VSCE_PAT`) |
+| JetBrains Marketplace | CI job `publish-jetbrains-marketplace` | `secrets.JETBRAINS_TOKEN` (Environment secret on `marketplace-jetbrains`) | `make publish-jetbrains` (token via Keychain / `jetbrains_token.sh`) |
+| Package Control (Sublime) | `make publish-sublime` (laptop) | none — `git push` to the mirror repo | — |
+| Zed Extensions | `make publish-zed` (laptop) | none — opens a local PR branch | — |
+
+Both CI publish jobs target a protected Environment (required reviewer +
+`v*`-tag-only deployment policy), so they pause for manual approval and
+the secret is reachable by no other job.
 
 ## What CI may do
 
@@ -160,63 +184,59 @@ maintainer's machine.  None of them exist in GitHub Actions secrets.
 * Attach everything to a GitHub Release with `gh release upload`
   (uses `github.token`).
 * Verify checksums with cosign keyless OIDC signing.
+* Publish VS Code / JetBrains to their marketplaces — but **only** from a
+  job that targets a protected, approval-gated Environment, using that
+  Environment's secret, publishing the Release's checksum-verified
+  artefact.
 
 ## What CI may NOT do
 
-* Push to any external marketplace (VS Code, JetBrains, Package
-  Control, zed-industries/extensions).
-* Hold any `secrets.VSCE_PAT`, `secrets.JETBRAINS_TOKEN`, or
-  similar.  These never enter the Actions runner.
+* Reference a marketplace `secrets.*` from a job that does **not** declare
+  a protected `environment:` (required reviewer + `v*`-tag-only policy).
+* Store a publish token as a plain **repository** or **organisation**
+  secret (available to every workflow), rather than an Environment secret.
+* Publish Sublime or Zed (they push to a mirror / open a PR — laptop-only).
 * Replicate logic that lives in `scripts/release/`.  CI is allowed
   to *invoke* `scripts/release/*.sh`, but not duplicate its body.
 
-If a future change requires CI to publish something for which CI
-would need a token, that's a design conversation, not a unilateral
-edit.  The "Add a marketplace token to CI" path is closed by design;
-opening it requires updating this contract and `AGENTS.md`.
+Changing which marketplaces publish from CI, or how their secrets are
+stored, is a design conversation: it requires updating this contract and
+`AGENTS.md` together.
 
 ## File-path anchors
 
 - [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-jetbrains`,
   `publish-sublime`, `publish-zed`, `publish-all`, `publish-verify`,
-  `publish-flow`, `release-tag`, `release-codeql-gate`.
+  `publish-flow`, `release-tag`.
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) —
-  builds artefacts, attests them, attaches them to the Release.  No
-  `secrets.*` references.
+  builds artefacts, attests them, attaches them to the Release, and runs
+  the two marketplace publish jobs.  Every `secrets.*` reference sits in a
+  job that declares a protected `environment:`.
+- [`scripts/release/publish_jetbrains_upload.sh`](../../../scripts/release/publish_jetbrains_upload.sh) —
+  uploads the released JetBrains `.zip` to the Marketplace REST API
+  (invoked by the CI publish job; reuses `jetbrains_token.sh`).
 - [`.github/actions/setup-build/action.yml`](../../../.github/actions/setup-build/action.yml)
   and [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
   composite actions for the CI build/sign tail.
 - [`scripts/release/`](../../../scripts/release/) — every script that
   takes a marketplace credential or pushes to a marketplace.
-- [`scripts/release/prerelease.sh`](../../../scripts/release/prerelease.sh) —
-  the single source of truth for the stable-vs-pre-release decision
-  (odd/even-minor convention), read by CI, the Makefile, and `tag.sh`.
-- [`scripts/release/github_release.sh`](../../../scripts/release/github_release.sh) —
-  the body of the CI `create-release` step: idempotent `gh release create`
-  with `--prerelease` for odd-minor 2.x tags.  CI *invokes* it (one-line
-  `run:`) rather than inlining the logic.
-- [`scripts/release/vsce_publish.sh`](../../../scripts/release/vsce_publish.sh) —
-  the body of the CI `publish-vsix-marketplace` step: runs the local vsce
-  binary with `--pre-release` for odd-minor 2.x tags.  Still keyless (no
-  PAT); CI invokes it via one-line `run:`.
-- [`scripts/release/tag.sh`](../../../scripts/release/tag.sh) — creates +
-  pushes the annotated tag; enforces the per-channel source branch.
 - [`scripts/release/publish_verify.sh`](../../../scripts/release/publish_verify.sh) —
   pre-flight credential check.
 
 ## Test anchors
 
-The invariant is machine-verifiable:
+The invariant is machine-verifiable.  Every job that references a
+marketplace `secrets.*` must declare a protected `environment:`:
 
 ```bash
-# No marketplace secrets in CI:
-! grep -rE "secrets\.[A-Z_]+" .github/workflows/ \
-  || (echo "FAIL: a marketplace secret leaked into CI" && exit 1)
+# Each workflow job that uses secrets.VSCE_PAT / secrets.JETBRAINS_TOKEN
+# must bind to an Environment (manual gate).  scripts/release/check_publish_env.py
+# parses ci.yml and fails if any such job lacks an `environment:` key.
+python3 scripts/release/check_publish_env.py
 
-# Every marketplace push happens from a make publish-* target:
-grep -rln "publish-vsix\|publish-jetbrains\|publish-sublime\|publish-zed" \
-  .github/workflows/ | grep -v "scripts/release" \
-  && echo "FAIL: CI workflow invokes a publish target" && exit 1 || true
+# Sublime and Zed are never published from CI:
+! grep -rE "publish-sublime|publish-zed" .github/workflows/ \
+  || (echo "FAIL: Sublime/Zed must publish from the laptop" && exit 1)
 ```
 
 ## Discoverability

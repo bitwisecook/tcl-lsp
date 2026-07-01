@@ -23,7 +23,14 @@ from shared.ranges import word_closer_offset
 from shared.tokens import Token, TokenType
 
 from .command_registry import REGISTRY
-from .models import CommandSpec, DialectStatus, PatternType, SubCommand, ValidationSpec
+from .models import (
+    BytePayloadSpec,
+    CommandSpec,
+    DialectStatus,
+    PatternType,
+    SubCommand,
+    ValidationSpec,
+)
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
@@ -223,6 +230,8 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     storage_type_commands.cache_clear()
     normalized_flag_commands.cache_clear()
     variable_writing_commands.cache_clear()
+    byte_array_payload_commands.cache_clear()
+    byte_array_payload_layouts.cache_clear()
     loop_list_header_commands.cache_clear()
     scope_alias_commands.cache_clear()
     options_with_value.cache_clear()
@@ -371,6 +380,43 @@ def normalized_flag_commands() -> frozenset[str]:
             if spec.supports_normalized_flag:
                 names.add(name)
     return frozenset(names)
+
+
+@lru_cache(maxsize=1)
+def byte_array_payload_commands() -> frozenset[str]:
+    """Return command names whose getter returns a raw byte-array payload.
+
+    These ``*::payload`` iRule commands (``TCP::payload``, ``HTTP::payload``,
+    …) read the on-the-wire bytes as a byte array and rewrite them via their
+    ``replace`` form.  The byte-array corruption check (S110) treats the
+    getter as a binary source and ``<cmd> replace`` as a byte sink.
+    Derived from ``byte_array_payload`` on :class:`CommandSpec`.
+    """
+    names: set[str] = set()
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if spec.byte_array_payload:
+                names.add(name)
+    return frozenset(names)
+
+
+@lru_cache(maxsize=1)
+def byte_array_payload_layouts() -> dict[str, BytePayloadSpec]:
+    """Return ``{command: BytePayloadSpec}`` for ``*::payload`` byte commands.
+
+    The layout describes where the ``replace`` form's ``<data>`` operand lives
+    (it differs per protocol), so the S110 byte-corruption check stays
+    registry-driven instead of hardcoding the TCP/HTTP layout.  A bare
+    ``byte_array_payload=True`` maps to the default :class:`BytePayloadSpec`.
+    """
+    layouts: dict[str, BytePayloadSpec] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            flag = spec.byte_array_payload
+            if not flag:
+                continue
+            layouts[name] = flag if isinstance(flag, BytePayloadSpec) else BytePayloadSpec()
+    return layouts
 
 
 @lru_cache(maxsize=1)
@@ -708,7 +754,7 @@ def _build_signatures(
     signatures: dict[str, CommandSig | SubcommandSig]
 
     match dialect:
-        case "tcl8.4" | "tcl8.5" | "tcl8.6" | "tcl9.0":
+        case "tcl8.4" | "tcl8.5" | "tcl8.6" | "tcl9.0" | "tcl9.1":
             signatures = _registry_signatures_for_dialect(dialect)
         case "f5-irules":
             signatures = _registry_signatures_for_dialect("tcl8.6")

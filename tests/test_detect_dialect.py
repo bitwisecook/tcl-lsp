@@ -26,6 +26,18 @@ def test_shebang_tclsh90():
     assert detect_dialect_from_source("#!/usr/bin/env tclsh9.0\nset x 1\n") == "tcl9.0"
 
 
+def test_shebang_tclsh91():
+    assert detect_dialect_from_source("#!/usr/bin/env tclsh9.1\nset x 1\n") == "tcl9.1"
+
+
+def test_directive_tcl91():
+    assert detect_dialect_from_source("# tcl-dialect: tcl9.1\nset x 1\n") == "tcl9.1"
+
+
+def test_package_require_tcl91():
+    assert detect_dialect_from_source("package require Tcl 9.1\nset x 1\n") == "tcl9.1"
+
+
 def test_shebang_expect():
     assert detect_dialect_from_source("#!/usr/bin/expect\nspawn ssh\n") == "expect"
 

@@ -430,21 +430,42 @@ def _analyse_when_body(
                     return command, _translate_range(stmt.range)
         return None
 
-    def _analyse_script(script: IRScript, in_states: list[_FlowState]) -> list[_FlowState]:
+    def _analyse_script(
+        script: IRScript,
+        in_states: list[_FlowState],
+        return_sink: list[_FlowState] | None = None,
+    ) -> list[_FlowState]:
+        # Flow option (2): Tcl ``catch`` catches *all* exceptional return codes
+        # from its body (including TCL_RETURN from ``return``), so control
+        # always continues past the ``catch`` — and the state as of the
+        # swallowed ``return`` must survive so post-catch code is analysed with
+        # the correct ``responded`` flag.  ``return_sink`` is the nearest
+        # enclosing ``catch`` body's collection point: when set, an ``IRReturn``
+        # records its accumulated states there (instead of silently discarding
+        # them) and the ``IRCatch`` arm folds them back into the continuing
+        # paths.  ``return_sink`` is threaded through every nested walk so a
+        # ``return`` buried in an ``if``/``switch``/loop/``try`` inside the
+        # catch body still propagates out to the catch.  At proc/event scope
+        # ``return_sink`` is ``None`` and a ``return`` terminates the path as
+        # before.
         states = list(in_states)
         for stmt in script.statements:
             next_states: list[_FlowState] = []
             if isinstance(stmt, IRReturn):
-                # return terminates the current path.
+                # return terminates the current path; if we are inside a catch
+                # body, hand the at-return state to the catch so it continues
+                # past the catch.
+                if return_sink is not None:
+                    return_sink.extend(states)
                 states = []
                 break
             if isinstance(stmt, IRIf):
                 for st in states:
                     branch_out: list[_FlowState] = []
                     for clause in stmt.clauses:
-                        branch_out.extend(_analyse_script(clause.body, [st]))
+                        branch_out.extend(_analyse_script(clause.body, [st], return_sink))
                     if stmt.else_body is not None:
-                        branch_out.extend(_analyse_script(stmt.else_body, [st]))
+                        branch_out.extend(_analyse_script(stmt.else_body, [st], return_sink))
                     else:
                         # condition false path
                         branch_out.append(st)
@@ -456,49 +477,71 @@ def _analyse_when_body(
                     branch_out: list[_FlowState] = [st]
                     for arm in stmt.arms:
                         if arm.body is not None:
-                            branch_out.extend(_analyse_script(arm.body, [st]))
+                            branch_out.extend(_analyse_script(arm.body, [st], return_sink))
                     if stmt.default_body is not None:
-                        branch_out.extend(_analyse_script(stmt.default_body, [st]))
+                        branch_out.extend(_analyse_script(stmt.default_body, [st], return_sink))
                     next_states.extend(branch_out)
                 states = _dedupe(next_states)
                 continue
             if isinstance(stmt, IRFor):
                 for st in states:
-                    iter_states = _analyse_script(stmt.body, [st])
+                    iter_states = _analyse_script(stmt.body, [st], return_sink)
                     next_states.append(st)  # zero iterations
                     next_states.extend(iter_states)
                 states = _dedupe(next_states)
                 continue
             if isinstance(stmt, IRWhile):
                 for st in states:
-                    iter_states = _analyse_script(stmt.body, [st])
+                    iter_states = _analyse_script(stmt.body, [st], return_sink)
                     next_states.append(st)  # zero iterations
                     next_states.extend(iter_states)
                 states = _dedupe(next_states)
                 continue
             if isinstance(stmt, IRForeach):
                 for st in states:
-                    iter_states = _analyse_script(stmt.body, [st])
+                    iter_states = _analyse_script(stmt.body, [st], return_sink)
                     next_states.append(st)
                     next_states.extend(iter_states)
                 states = _dedupe(next_states)
                 continue
             if isinstance(stmt, IRCatch):
                 for st in states:
-                    next_states.extend(_analyse_script(stmt.body, [st]))
+                    # catch swallows TCL_RETURN: both the body's normal exits
+                    # and any at-return states continue past the catch.  Fall
+                    # back to the incoming state if the body yields nothing.
+                    catch_returns: list[_FlowState] = []
+                    body_out = _analyse_script(stmt.body, [st], catch_returns)
+                    next_states.extend(body_out + catch_returns or [st])
                 states = _dedupe(next_states)
                 continue
             if isinstance(stmt, IRTry):
                 for st in states:
+                    # A ``return`` inside the ``try`` body or its handlers must
+                    # still run ``finally`` (which always executes in Tcl)
+                    # before the return propagates to any enclosing ``catch``.
+                    # Collect those at-return states in a *local* sink rather
+                    # than handing them straight to ``return_sink`` — otherwise
+                    # ``finally`` is skipped on the returning path.
+                    try_returns: list[_FlowState] = []
                     branch_out: list[_FlowState] = []
-                    branch_out.extend(_analyse_script(stmt.body, [st]))
+                    branch_out.extend(_analyse_script(stmt.body, [st], try_returns))
                     for handler in stmt.handlers:
-                        branch_out.extend(_analyse_script(handler.body, [st]))
+                        branch_out.extend(_analyse_script(handler.body, [st], try_returns))
                     if stmt.finally_body is not None:
+                        # ``finally`` runs on every path: normal completions
+                        # continue as normal flow; at-return paths run finally
+                        # and then keep propagating the return to the catch.
                         final_out: list[_FlowState] = []
                         for mid in branch_out:
-                            final_out.extend(_analyse_script(stmt.finally_body, [mid]))
+                            final_out.extend(_analyse_script(stmt.finally_body, [mid], return_sink))
+                        for mid in try_returns:
+                            returned = _analyse_script(stmt.finally_body, [mid], return_sink)
+                            if return_sink is not None:
+                                return_sink.extend(returned)
                         branch_out = final_out
+                    elif return_sink is not None:
+                        # No finally: at-return states propagate to the catch.
+                        return_sink.extend(try_returns)
                     next_states.extend(branch_out or [st])
                 states = _dedupe(next_states)
                 continue
@@ -904,14 +947,32 @@ def _analyse_drop_without_disable(
                 out.append(s)
         return out
 
-    def _walk(script: IRScript, in_states: list[_DropState]) -> list[_DropState]:
+    def _walk(
+        script: IRScript,
+        in_states: list[_DropState],
+        return_sink: list[_DropState] | None = None,
+    ) -> list[_DropState]:
+        # Flow option (2): Tcl ``catch`` swallows TCL_RETURN, so a ``return``
+        # inside a catch body does NOT stop iRule processing — control
+        # continues past the catch carrying any pending drop/DNS::return.
+        # ``return_sink`` is the nearest enclosing catch body's collection
+        # point: when set, an ``IRReturn`` records its accumulated states there
+        # (so the unguarded drop/DNS::return keeps firing for post-catch code)
+        # instead of discarding them.  It is threaded through every nested walk
+        # so a ``return`` buried in an ``if``/``switch``/loop/``try`` inside the
+        # catch body still propagates out.  At event scope ``return_sink`` is
+        # ``None`` and a ``return`` genuinely stops processing as before.
         states = list(in_states)
         for stmt in script.statements:
             next_states: list[_DropState] = []
 
             if isinstance(stmt, IRReturn):
-                # return terminates this path — any pending drop/dns_return
-                # is safe because the rule stops here.
+                # return terminates this path — at event scope any pending
+                # drop/dns_return is safe because the rule stops here.  Inside a
+                # catch body the return is swallowed, so hand the at-return
+                # state to the catch to continue past it.
+                if return_sink is not None:
+                    return_sink.extend(states)
                 states = []
                 break
 
@@ -919,9 +980,9 @@ def _analyse_drop_without_disable(
                 for st in states:
                     branch_out: list[_DropState] = []
                     for clause in stmt.clauses:
-                        branch_out.extend(_walk(clause.body, [st]))
+                        branch_out.extend(_walk(clause.body, [st], return_sink))
                     if stmt.else_body is not None:
-                        branch_out.extend(_walk(stmt.else_body, [st]))
+                        branch_out.extend(_walk(stmt.else_body, [st], return_sink))
                     else:
                         branch_out.append(st)
                     next_states.extend(branch_out)
@@ -933,16 +994,16 @@ def _analyse_drop_without_disable(
                     branch_out: list[_DropState] = [st]
                     for arm in stmt.arms:
                         if arm.body is not None:
-                            branch_out.extend(_walk(arm.body, [st]))
+                            branch_out.extend(_walk(arm.body, [st], return_sink))
                     if stmt.default_body is not None:
-                        branch_out.extend(_walk(stmt.default_body, [st]))
+                        branch_out.extend(_walk(stmt.default_body, [st], return_sink))
                     next_states.extend(branch_out)
                 states = _dedupe(next_states)
                 continue
 
             if isinstance(stmt, (IRFor, IRWhile, IRForeach)):
                 for st in states:
-                    iter_states = _walk(stmt.body, [st])
+                    iter_states = _walk(stmt.body, [st], return_sink)
                     next_states.append(st)
                     next_states.extend(iter_states)
                 states = _dedupe(next_states)
@@ -950,21 +1011,44 @@ def _analyse_drop_without_disable(
 
             if isinstance(stmt, IRCatch):
                 for st in states:
-                    next_states.extend(_walk(stmt.body, [st]))
+                    # catch swallows TCL_RETURN: both the body's normal exits
+                    # and any at-return states continue past the catch.  Fall
+                    # back to the incoming state if the body yields nothing.
+                    catch_returns: list[_DropState] = []
+                    body_out = _walk(stmt.body, [st], catch_returns)
+                    next_states.extend(body_out + catch_returns or [st])
                 states = _dedupe(next_states)
                 continue
 
             if isinstance(stmt, IRTry):
                 for st in states:
+                    # A ``return`` inside the ``try`` body or its handlers must
+                    # still run ``finally`` (which always executes in Tcl)
+                    # before the return propagates to any enclosing ``catch``.
+                    # Collect those at-return states in a *local* sink rather
+                    # than handing them straight to ``return_sink`` — otherwise
+                    # ``finally`` is skipped on the returning path (e.g. a
+                    # ``finally { event disable all }`` that guards a drop).
+                    try_returns: list[_DropState] = []
                     branch_out: list[_DropState] = []
-                    branch_out.extend(_walk(stmt.body, [st]))
+                    branch_out.extend(_walk(stmt.body, [st], try_returns))
                     for handler in stmt.handlers:
-                        branch_out.extend(_walk(handler.body, [st]))
+                        branch_out.extend(_walk(handler.body, [st], try_returns))
                     if stmt.finally_body is not None:
+                        # ``finally`` runs on every path: normal completions
+                        # continue as normal flow; at-return paths run finally
+                        # and then keep propagating the return to the catch.
                         final_out: list[_DropState] = []
                         for mid in branch_out:
-                            final_out.extend(_walk(stmt.finally_body, [mid]))
+                            final_out.extend(_walk(stmt.finally_body, [mid], return_sink))
+                        for mid in try_returns:
+                            returned = _walk(stmt.finally_body, [mid], return_sink)
+                            if return_sink is not None:
+                                return_sink.extend(returned)
                         branch_out = final_out
+                    elif return_sink is not None:
+                        # No finally: at-return states propagate to the catch.
+                        return_sink.extend(try_returns)
                     next_states.extend(branch_out or [st])
                 states = _dedupe(next_states)
                 continue

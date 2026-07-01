@@ -112,10 +112,10 @@ suite("Configuration Settings", () => {
     await activate(docUri);
     const pos = new vscode.Position(1, 6);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      docUri,
-      pos,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, pos),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "hover before disable (editor global)" },
     )) as vscode.Hover[];
     assert.ok(before && before.length > 0, "Hover should work with default editor globals");
 
@@ -124,10 +124,10 @@ suite("Configuration Settings", () => {
       await editorCfg.update("hover.enabled", false, undefined);
       await waitForFeatureToggle(docUri, "hover", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeHoverProvider",
-        docUri,
-        pos,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, pos),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "hover suppressed (editor global)" },
       )) as vscode.Hover[];
       assert.ok(
         !after || after.length === 0,
@@ -151,10 +151,10 @@ suite("Configuration Settings", () => {
       await featureCfg.update("hover", true, undefined);
       await waitForFeatureToggle(docUri, "hover", true);
 
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeHoverProvider",
-        docUri,
-        pos,
+      const result = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, pos),
+        (r) => Array.isArray(r) && r.length > 0,
+        { timeout: 10_000, label: "hover overrides editor global" },
       )) as vscode.Hover[];
       assert.ok(
         result && result.length > 0,
@@ -173,9 +173,10 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("folding.tcl");
     await activate(docUri);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "folding before disable (editor global)" },
     )) as vscode.FoldingRange[];
     assert.ok(before && before.length > 0, "Folding should work with default editor globals");
 
@@ -184,9 +185,10 @@ suite("Configuration Settings", () => {
       await editorCfg.update("folding", false, undefined);
       await waitForFeatureToggle(docUri, "folding", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeFoldingRangeProvider",
-        docUri,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "folding suppressed (editor global)" },
       )) as vscode.FoldingRange[];
       assert.ok(
         !after || after.length === 0,
@@ -222,10 +224,10 @@ suite("Configuration Settings", () => {
       await editorCfg.update("codeLens", false, undefined);
       await waitForFeatureToggle(docUri, "codeLens", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeCodeLensProvider",
-        docUri,
-        100,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", docUri, 100),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "code lenses suppressed (editor global)" },
       )) as vscode.CodeLens[] | undefined;
       assert.ok(
         !after || after.length === 0,
@@ -280,9 +282,13 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("simple.tcl");
     await activate(docUri);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.provideDocumentSemanticTokens",
-      docUri,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.provideDocumentSemanticTokens", docUri),
+      (r) => {
+        const t = r as vscode.SemanticTokens | undefined;
+        return !!t && t.data.length > 0;
+      },
+      { timeout: 10_000, label: "semantic tokens before disable (editor global)" },
     )) as vscode.SemanticTokens | undefined;
     assert.ok(
       before && before.data.length > 0,
@@ -294,9 +300,13 @@ suite("Configuration Settings", () => {
       await editorCfg.update("semanticHighlighting.enabled", false, undefined);
       await waitForFeatureToggle(docUri, "semanticTokens", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.provideDocumentSemanticTokens",
-        docUri,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.provideDocumentSemanticTokens", docUri),
+        (r) => {
+          const t = r as vscode.SemanticTokens | undefined;
+          return !t || t.data.length === 0;
+        },
+        { timeout: 10_000, label: "semantic tokens suppressed (editor global)" },
       )) as vscode.SemanticTokens | undefined;
       assert.ok(
         !after || after.data.length === 0,
@@ -623,10 +633,10 @@ suite("Configuration Settings", () => {
     const pos = new vscode.Position(1, 6);
 
     // Baseline: hover works with default (true)
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      docUri,
-      pos,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, pos),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "hover before disable (feature)" },
     )) as vscode.Hover[];
     assert.ok(before && before.length > 0, "Hover should return results by default");
 
@@ -635,10 +645,10 @@ suite("Configuration Settings", () => {
       await config.update("hover", false, undefined);
       await waitForFeatureToggle(docUri, "hover", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeHoverProvider",
-        docUri,
-        pos,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeHoverProvider", docUri, pos),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "hover suppressed (feature)" },
       )) as vscode.Hover[];
       assert.ok(
         !after || after.length === 0,
@@ -660,10 +670,13 @@ suite("Configuration Settings", () => {
       typeof item.label === "string" ? item.label : item.label.label;
 
     // Baseline: our LSP provides Tcl command completions like "puts"
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeCompletionItemProvider",
-      docUri,
-      pos,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCompletionItemProvider", docUri, pos),
+      (r) => {
+        const list = r as vscode.CompletionList | undefined;
+        return !!list && list.items.some((i) => labelOf(i) === "puts");
+      },
+      { timeout: 10_000, label: "completion before disable (feature)" },
     )) as vscode.CompletionList;
     const hasPutsBefore = before.items.some((i) => labelOf(i) === "puts");
     assert.ok(hasPutsBefore, "LSP should provide 'puts' completion by default");
@@ -673,10 +686,16 @@ suite("Configuration Settings", () => {
       await config.update("completion", false, undefined);
       await waitForFeatureToggle(docUri, "completion", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeCompletionItemProvider",
-        docUri,
-        pos,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeCompletionItemProvider", docUri, pos),
+        (r) => {
+          const list = r as vscode.CompletionList | undefined;
+          return (
+            !!list &&
+            !list.items.find((i) => labelOf(i) === "puts" && (i.detail || i.documentation))
+          );
+        },
+        { timeout: 10_000, label: "completion suppressed (feature)" },
       )) as vscode.CompletionList;
       // VS Code may still provide word-based completions, but our LSP
       // command completions (like "puts" with detail/docs) should be gone.
@@ -695,9 +714,10 @@ suite("Configuration Settings", () => {
     await activate(docUri);
 
     // Baseline: our LSP provides rich proc symbols with children/detail
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeDocumentSymbolProvider",
-      docUri,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri),
+      (r) => Array.isArray(r) && (r as vscode.DocumentSymbol[]).some((s) => s.name === "fib"),
+      { timeout: 10_000, label: "document symbols before disable (feature)" },
     )) as vscode.DocumentSymbol[];
     const fibBefore = before.find((s) => s.name === "fib");
     assert.ok(fibBefore, "LSP should provide 'fib' symbol by default");
@@ -734,10 +754,10 @@ suite("Configuration Settings", () => {
     // "fib" call at line 16: puts "fib(10) = [fib 10]"
     const pos = new vscode.Position(16, 17);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeDefinitionProvider",
-      docUri,
-      pos,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDefinitionProvider", docUri, pos),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "definition before disable (feature)" },
     )) as vscode.Location[];
     assert.ok(before && before.length > 0, "Definition should work by default");
 
@@ -746,10 +766,10 @@ suite("Configuration Settings", () => {
       await config.update("definition", false, undefined);
       await waitForFeatureToggle(docUri, "definition", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeDefinitionProvider",
-        docUri,
-        pos,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeDefinitionProvider", docUri, pos),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "definition suppressed (feature)" },
       )) as vscode.Location[];
       assert.ok(
         !after || after.length === 0,
@@ -767,10 +787,10 @@ suite("Configuration Settings", () => {
     // Position on "fib" proc definition at line 1
     const pos = new vscode.Position(1, 5);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeReferenceProvider",
-      docUri,
-      pos,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", docUri, pos),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "references before disable (feature)" },
     )) as vscode.Location[];
     assert.ok(before && before.length > 0, "References should work by default");
 
@@ -779,10 +799,10 @@ suite("Configuration Settings", () => {
       await config.update("references", false, undefined);
       await waitForFeatureToggle(docUri, "references", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeReferenceProvider",
-        docUri,
-        pos,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeReferenceProvider", docUri, pos),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "references suppressed (feature)" },
       )) as vscode.Location[];
       assert.ok(
         !after || after.length === 0,
@@ -835,9 +855,10 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("folding.tcl");
     await activate(docUri);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "folding before disable (feature)" },
     )) as vscode.FoldingRange[];
     assert.ok(before && before.length > 0, "Folding should work by default");
 
@@ -846,9 +867,10 @@ suite("Configuration Settings", () => {
       await config.update("folding", false, undefined);
       await waitForFeatureToggle(docUri, "folding", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeFoldingRangeProvider",
-        docUri,
+      const after = (await pollUntil(
+        () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+        (r) => !r || (Array.isArray(r) ? r.length === 0 : true),
+        { timeout: 10_000, label: "folding suppressed (feature)" },
       )) as vscode.FoldingRange[];
       assert.ok(
         !after || after.length === 0,
@@ -891,10 +913,10 @@ suite("Configuration Settings", () => {
     const pos = new vscode.Position(3, 8);
 
     // Baseline: our LSP provides nested selection ranges (proc body → proc → file)
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeSelectionRangeProvider",
-      docUri,
-      [pos],
+    const before = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeSelectionRangeProvider", docUri, [pos]),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "selection ranges before disable (feature)" },
     )) as vscode.SelectionRange[];
     assert.ok(before && before.length > 0, "Selection ranges should work by default");
     // Our provider returns deeply nested ranges (parent chain)

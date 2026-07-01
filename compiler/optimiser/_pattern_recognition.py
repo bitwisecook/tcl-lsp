@@ -618,8 +618,8 @@ def optimise_multi_set_packing(ctx: PassContext, cfg, ssa) -> None:
     """O119: Pack interspersed ``set var literal`` into ``lassign``/``foreach``."""
     source = ctx.source
     dialect = active_dialect()
-    # In Tcl 9.0 individual set commands are faster than lassign/foreach
-    if dialect == "tcl9.0":
+    # In Tcl 9.x individual set commands are faster than lassign/foreach
+    if dialect.startswith("tcl9"):
         return
     use_lassign = dialect in ("tcl8.5", "tcl8.6")
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)

@@ -84,6 +84,7 @@ object DiagnosticCatalog {
         DiagnosticDef("S100", "shimmer", "S100: Single shimmer outside a loop", true),
         DiagnosticDef("S101", "shimmer", "S101: Shimmer inside a loop body", true),
         DiagnosticDef("S102", "shimmer", "S102: Variable oscillates between two types across loop it...", true),
+        DiagnosticDef("S110", "shimmer", "S110: Byte array corrupted by a string operation before be...", true),
         DiagnosticDef("T100", "taint", "T100: Tainted data flows into a dangerous sink: eval/uplev...", true),
         DiagnosticDef("T101", "taint", "T101: Tainted data flows into an output command (puts)", true),
         DiagnosticDef("T102", "taint", "T102: Tainted data in option position without -- terminator", true),
