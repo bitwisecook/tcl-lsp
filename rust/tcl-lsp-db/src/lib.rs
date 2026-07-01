@@ -736,23 +736,40 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
 /// by the corpus differential gates.
 #[must_use]
 fn file_body_cache_eligible(source: &str) -> bool {
-    // Any of these constructs (at *any* position) means some body could carry a
-    // cross-item effect the isolated lowering would drop — disable wholesale.
-    const DISQUALIFIERS: &[&str] = &[
-        "namespace ",
-        "oo::",
-        "::oo",
-        "itcl",
-        "interp ",
-        "rename ",
-        "method ",
-        "when ",
-        "apply ",
+    // A command keyword whose body-level use carries a cross-item effect the
+    // isolated lowering would drop. Matched as a **word followed by Tcl
+    // whitespace** — Tcl separates a command from its args with any run of spaces
+    // *or tabs* (or a newline via `\`-continuation), so a literal-space check
+    // would let `interp\talias` (tab-separated) slip through and enable the body
+    // cache for a file whose sibling body relies on that alias table.
+    const WORD_DISQUALIFIERS: &[&str] = &[
+        "namespace", "interp", "rename", "method", "when", "apply", "alias",
     ];
-    if DISQUALIFIERS.iter().any(|kw| source.contains(kw)) {
+    // Substring disqualifiers (no trailing arg — the token itself is the marker).
+    const SUBSTR_DISQUALIFIERS: &[&str] = &["oo::", "::oo", "itcl"];
+    if SUBSTR_DISQUALIFIERS.iter().any(|kw| source.contains(kw))
+        || WORD_DISQUALIFIERS
+            .iter()
+            .any(|kw| contains_word_followed_by_ws(source, kw))
+    {
         return false;
     }
     !has_nested_proc(source)
+}
+
+/// True when `word` occurs followed by Tcl inter-word whitespace (space, tab, CR,
+/// newline, or a `\`-newline continuation) — i.e. used as a command with an
+/// argument, tab or space alike.  Deliberately ignores the character *before* the
+/// word (a preceding non-boundary only over-disqualifies, which is safe), so
+/// `interp\talias` and `interp alias` both trip it.
+#[must_use]
+fn contains_word_followed_by_ws(source: &str, word: &str) -> bool {
+    source.match_indices(word).any(|(i, _)| {
+        source
+            .as_bytes()
+            .get(i + word.len())
+            .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'\\'))
+    })
 }
 
 /// True when a whole-word `proc` keyword appears at brace-nesting depth > 0 —
@@ -1538,6 +1555,19 @@ pub struct OptDepsKey<'db> {
     /// same `proc.name` rather than deriving a short name from the qualified key.
     #[returns(ref)]
     pub proc_name: String,
+    /// The procedure's `body_source` exactly as the whole-module lowering records
+    /// it — the **body text only** (`args[2]`), *not* the whole-command slice used
+    /// for `Module.source` span alignment. O122's loop-conversion rewrite
+    /// (`emit_loop_conversion`) locates `body_source` inside the proc text and
+    /// wraps it in `proc … { while {1} { <body> } }`, so it must be the body — a
+    /// whole-`proc …` slice would nest the entire declaration into the replacement.
+    #[returns(ref)]
+    pub proc_body_source: String,
+    /// The procedure's `params_raw` (`args[1]`) as written, so O122's replacement
+    /// reproduces the original parameter-list text verbatim (spacing, defaults)
+    /// rather than a `params.join(" ")` reconstruction.
+    #[returns(ref)]
+    pub proc_params_raw: String,
 }
 
 /// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
@@ -1551,12 +1581,15 @@ pub struct OptDepsKey<'db> {
 /// `pure` / …) change — **not** on every body edit, since most edits leave those
 /// summary fields untouched (a `set y 1` → `set y 2` edit re-keys only the edited
 /// proc's own `FnLatticeKey`, not every caller's `OptDepsKey`).
+#[allow(clippy::too_many_arguments)]
 fn opt_deps_key<'db>(
     db: &'db dyn TclDb,
     ia: &InterproceduralAnalysis,
     redefined: &HashSet<String>,
     body_source: &str,
     proc_name: &str,
+    proc_body_source: &str,
+    proc_params_raw: &str,
 ) -> OptDepsKey<'db> {
     let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
     proc_names.sort();
@@ -1575,6 +1608,8 @@ fn opt_deps_key<'db>(
         callees,
         redef,
         proc_name.to_owned(),
+        proc_body_source.to_owned(),
+        proc_params_raw.to_owned(),
     )
 }
 
@@ -1620,8 +1655,12 @@ pub fn function_optimisations<'db>(
         params: params.clone(),
         span: tcl_lexer::Span::new(0, body_len),
         body,
-        params_raw: params.join(" "),
-        body_source: Some(body_source.clone()),
+        // `params_raw` / `body_source` are the *written* param-list and body text
+        // (matching the whole-module `Procedure`), NOT the whole-command slice held
+        // in `body_source` for `Module.source` span alignment — O122's rewrite wraps
+        // the body verbatim, so a slice here would nest the whole `proc …`.
+        params_raw: deps.proc_params_raw(db).clone(),
+        body_source: Some(deps.proc_body_source(db).clone()),
         namespace_scoped: false,
         base_priority: 0,
     };
@@ -1741,7 +1780,19 @@ fn solve_optimisations<'db>(
             .get(body_offset as usize..body_end as usize)
             .unwrap_or("")
             .to_owned();
-        let deps = opt_deps_key(db, &ia, redefined, &body_source, &proc.name);
+        // `body_source` (the whole-command slice) is `Module.source` for span
+        // alignment; the proc's real `body_source` (`args[2]`) + `params_raw`
+        // (`args[1]`) are threaded separately so O122's rewrite matches the
+        // whole-module `Procedure` (see `OptDepsKey`).
+        let deps = opt_deps_key(
+            db,
+            &ia,
+            redefined,
+            &body_source,
+            &proc.name,
+            proc.body_source.as_deref().unwrap_or(""),
+            &proc.params_raw,
+        );
         let mut max_group: Option<u32> = None;
         for opt in function_optimisations(db, key, deps).iter() {
             let mut opt = opt.clone();
@@ -2050,6 +2101,49 @@ mod tests {
     }
 
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
+
+    #[test]
+    fn body_cache_gate_is_whitespace_aware() {
+        // Plain context-free file: eligible.
+        assert!(file_body_cache_eligible(
+            "proc a {} { set x 1 }\nproc b {} { puts hi }\n"
+        ));
+        // A `namespace import` / `interp alias` with a *tab* between words must
+        // still disqualify (Codex #731 review): the isolated lowerer would drop
+        // the alias/import side effect a sibling body relies on.
+        assert!(!file_body_cache_eligible(
+            "proc a {} { interp\talias {} x {} y }\nproc b {} { x }\n"
+        ));
+        assert!(!file_body_cache_eligible(
+            "proc a {} { namespace\timport ::ns::* }\nproc b {} { foo }\n"
+        ));
+        // Space-separated still disqualifies (unchanged).
+        assert!(!file_body_cache_eligible("namespace eval ns { proc p {} {} }\n"));
+    }
+
+    #[test]
+    fn compiler_check_o122_tailrec_memo_matches_uncached() {
+        // An impure (side-effecting) tail-recursive proc fires O122
+        // (recursion→loop). The per-proc optimise memo must reconstruct
+        // `proc.body_source` as the *body text* — not the whole-command slice used
+        // for span alignment — so the loop-conversion replacement wraps only the
+        // body, not the entire `proc …` declaration (Codex #731 review, lib.rs:1743).
+        let dialect = "tcl8.6";
+        let src = "proc countdown {n} {\n    puts $n\n    if {$n <= 0} { return }\n    countdown [expr {$n - 1}]\n}\n";
+        let db = TclDatabase::default();
+        let registry = db.registry(dialect);
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
+        let got = compiler_check_diagnostics(&db, file, cfg(&db));
+        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+        assert!(
+            got.optimisations.iter().any(|o| o.code == DiagCode::O122),
+            "expected O122 to fire on the tail-recursive proc"
+        );
+        assert_eq!(
+            got.optimisations, want.optimisations,
+            "per-proc optimise memo diverged from the whole-module build"
+        );
+    }
 
     #[test]
     fn file_analysis_matches_direct_analyse() {
