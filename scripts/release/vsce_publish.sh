@@ -3,20 +3,20 @@
 # using the local (committed-lockfile) vsce binary.
 #
 # Invoked by the `publish-vsix-marketplace` job in .github/workflows/ci.yml
-# AFTER azure/login has minted a short-lived Entra credential (keyless — no
-# PAT at rest).  Runs ONLY the local node_modules vsce binary and never
-# fetches npm code, preserving the job's hardening invariant that no
-# freshly-fetched code executes while the marketplace-capable Azure session
-# is live.  Kept as a committed script (not inline YAML) so the workflow
-# stays thin and this credential-adjacent step is reviewable in one place.
+# with VSCE_PAT in the environment (an approval-gated marketplace-vscode
+# Environment secret).  Runs ONLY the local node_modules vsce binary and
+# never fetches npm code, so no freshly-fetched code executes while VSCE_PAT
+# is in the environment.  Kept as a committed script (not inline YAML) so the
+# workflow stays thin and this credential-adjacent step is reviewable in one
+# place.
 #
 # Usage:  scripts/release/vsce_publish.sh [TAG] [VSIX]
 #         TAG  defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).
 #         VSIX defaults to the single *.vsix under dist/ (downloaded and
 #              checksum-verified by the workflow before this runs).
 #
-# Authenticates via vsce --azure-credential, which reads the ambient
-# DefaultAzureCredential established by azure/login — no token argument.
+# Authenticates via VSCE_PAT, which `vsce publish` reads from the environment
+# (the keyless Azure/OIDC path was rolled back after it proved unreliable).
 #
 # Channel (scripts/release/prerelease.sh is the single source of truth): an
 # odd-minor 2.x tag (v2.1.x) publishes with --pre-release so it lands on the
@@ -35,5 +35,6 @@ if [ "$(bash "$here/prerelease.sh" "$tag")" = "true" ]; then
     prerelease_flag="--pre-release"
 fi
 
-echo "Publishing $vsix via vsce --azure-credential (no PAT)"
-editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --azure-credential --packagePath "$vsix"
+: "${VSCE_PAT:?VSCE_PAT must be set (marketplace-vscode Environment secret)}"
+echo "Publishing $vsix via vsce (VSCE_PAT)"
+editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --packagePath "$vsix"
