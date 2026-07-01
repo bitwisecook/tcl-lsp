@@ -79,6 +79,14 @@ class TestDocumentSymbols:
         var_syms = [s for s in _top(lsp_server, uri) if s["kind"] == VARIABLE]
         assert any(s["name"] == "myvar" for s in var_syms)
 
+    def test_append_and_lappend_targets_are_variables(self, lsp_server, uri_factory):
+        # `append` / `lappend` create their target variable, so it surfaces as a
+        # VARIABLE symbol just like `set` (append/lappend var-definition fix).
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "lappend safe 1\nappend note hi\n")
+        names = {s["name"] for s in _top(lsp_server, uri) if s["kind"] == VARIABLE}
+        assert {"safe", "note"} <= names, names
+
     def test_empty_file(self, lsp_server, uri_factory):
         uri = uri_factory()
         lsp_server.open_ready(uri, "")
