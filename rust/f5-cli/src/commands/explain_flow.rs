@@ -98,18 +98,9 @@ struct SessionExplain {
 }
 
 /// The dynamic outcome of running a matched session's iRule(s) under the
-/// embedded TMM-sim orchestrator on `tcl-vm`.
-#[derive(Default, Clone)]
-struct SimOutcome {
-    pool: String,
-    node: String,
-    response_committed: bool,
-    logs: Vec<String>,
-    decisions: Vec<(String, String, String)>,
-    /// Non-empty when the simulation could not run (the static report still
-    /// renders).
-    error: String,
-}
+/// embedded TMM-sim orchestrator on `tcl-vm`. The simulation itself lives in
+/// the shared, config-agnostic [`tcl_irule_test::simulate_irule`].
+use tcl_irule_test::SimOutcome;
 
 /// Owns the [`Session`] referenced by a [`SessionExplain`].
 struct SessionHolder(Session);
@@ -722,236 +713,61 @@ fn last_segment(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-/// Quote `s` as a Tcl double-quoted word, escaping the substitution / quoting
-/// metacharacters so an arbitrary captured value can't break the command.
-fn tcl_quote(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        if matches!(c, '$' | '[' | ']' | '"' | '\\') {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out.push('"');
-    out
-}
-
 /// Run the matched VS's iRule(s) under the embedded orchestrator with the
-/// captured request state. Best-effort: any failure standing the orchestrator
-/// up or running the request lands in [`SimOutcome::error`] so the static
-/// report still renders.
-#[allow(clippy::too_many_lines)] // setup + load + pools + request + readback, read top-to-bottom
+/// captured request state. Extracts the iRule sources, orchestrator profiles,
+/// pools, and request from the config/session, then delegates to the shared,
+/// config-agnostic [`tcl_irule_test::simulate_irule`] (best-effort: any failure
+/// lands in [`SimOutcome::error`] so the static report still renders).
 fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Session) -> SimOutcome {
-    use std::fmt::Write as _;
-
-    use tcl_irule_test::LiveSession;
-
-    let mut out = SimOutcome::default();
-
     // Collect every attached iRule's source, resolving short refs.
-    let mut rules: Vec<String> = Vec::new();
-    for rref in vs.rules.paths() {
-        let resolved = resolve_name(cfg, &rref, "rules").unwrap_or_else(|| rref.clone());
-        if let Some(rule) = find_rule(cfg, &resolved) {
-            rules.push(rule.source.clone());
-        }
-    }
-    if rules.is_empty() {
-        out.error = String::from("no iRules attached to VS — nothing to simulate");
-        return out;
+    let sources: Vec<String> = vs
+        .rules
+        .paths()
+        .iter()
+        .filter_map(|rref| {
+            let resolved = resolve_name(cfg, rref, "rules").unwrap_or_else(|| rref.clone());
+            find_rule(cfg, &resolved).map(|rule| rule.source.clone())
+        })
+        .collect();
+    if sources.is_empty() {
+        return SimOutcome {
+            error: String::from("no iRules attached to VS — nothing to simulate"),
+            ..SimOutcome::default()
+        };
     }
 
-    let front = &session.front.client;
-    let method = if front.http_method.is_empty() {
-        "GET"
-    } else {
-        &front.http_method
-    };
-    let uri = if front.http_uri.is_empty() {
-        "/"
-    } else {
-        &front.http_uri
-    };
     let profiles = profiles_for_orchestrator(cfg, vs);
 
-    let mut sess = match LiveSession::embedded() {
-        Ok(s) => s,
-        Err(e) => {
-            out.error = format!("cannot start orchestrator: {e}");
-            return out;
-        }
+    // Every config pool (a `pool foo` call inside an iRule resolves through
+    // this set) as `(short-name, member-node-names)`.
+    let pools: Vec<(String, Vec<String>)> = cfg
+        .objects
+        .iter()
+        .filter_map(|placed| {
+            let ModelObject::Pool(pool) = &placed.object else {
+                return None;
+            };
+            let members: Vec<String> = pool
+                .members
+                .paths()
+                .iter()
+                .filter(|m| !m.is_empty())
+                .map(|m| last_segment(m).to_owned())
+                .collect();
+            (!members.is_empty()).then(|| (last_segment(&pool.full_path).to_owned(), members))
+        })
+        .collect();
+
+    let front = &session.front.client;
+    let request = tcl_irule_test::SimRequest {
+        method: front.http_method.clone(),
+        uri: front.http_uri.clone(),
+        host: front.http_host.clone(),
+        sni: front.tls_sni.clone(),
+        headers: front.http_request_headers.clone(),
     };
 
-    macro_rules! guard {
-        ($e:expr) => {
-            if let Err(e) = $e {
-                out.error = e.to_string();
-                return out;
-            }
-        };
-    }
-
-    guard!(sess.eval(&format!(
-        "::orch::configure -profiles {{{}}}",
-        profiles.join(" ")
-    )));
-    for src in &rules {
-        guard!(sess.load_irule(src));
-    }
-
-    // Register every pool referenced by the config (a `pool foo` call inside an
-    // iRule resolves through this set), plus the VS default pool.
-    for placed in &cfg.objects {
-        let ModelObject::Pool(pool) = &placed.object else {
-            continue;
-        };
-        let members: Vec<String> = pool
-            .members
-            .paths()
-            .iter()
-            .filter(|m| !m.is_empty())
-            .map(|m| last_segment(m).to_owned())
-            .collect();
-        if members.is_empty() {
-            continue;
-        }
-        let name = last_segment(&pool.full_path);
-        let member_list = members
-            .iter()
-            .map(|m| tcl_quote(m))
-            .collect::<Vec<_>>()
-            .join(" ");
-        guard!(sess.eval(&format!(
-            "::orch::add_pool {} [list {member_list}]",
-            tcl_quote(name)
-        )));
-    }
-
-    if profiles.iter().any(|p| p == "HTTP") {
-        let mut args = format!("-method {} -uri {}", tcl_quote(method), tcl_quote(uri));
-        if !front.http_host.is_empty() {
-            let _ = write!(args, " -host {}", tcl_quote(&front.http_host));
-        }
-        if !front.tls_sni.is_empty() {
-            let _ = write!(args, " -sni {}", tcl_quote(&front.tls_sni));
-        }
-        if !front.http_request_headers.is_empty() {
-            let hdr_tokens: Vec<String> = front
-                .http_request_headers
-                .iter()
-                .flat_map(|(k, v)| [tcl_quote(k), tcl_quote(v)])
-                .collect();
-            let _ = write!(args, " -headers [list {}]", hdr_tokens.join(" "));
-        }
-        guard!(sess.run_http_request(&args));
-    } else {
-        // Non-HTTP: fire CLIENT_ACCEPTED to exercise any L4 logic, no result.
-        guard!(sess.eval("::orch::fire CLIENT_ACCEPTED"));
-        return out;
-    }
-
-    out.pool = sess.pool_selected().unwrap_or_default();
-    let node_addr = sess.eval("set ::state::lb::node_addr").unwrap_or_default();
-    if !node_addr.is_empty() {
-        let node_port = sess.eval("set ::state::lb::node_port").unwrap_or_default();
-        out.node = format!("{node_addr}:{node_port}");
-    }
-    out.response_committed = sess
-        .eval("set ::state::http::response::response_committed")
-        .is_ok_and(|v| v == "1" || v == "true");
-    out.decisions = parse_decisions(&sess.decisions().unwrap_or_default());
-    out.logs = parse_log_entries(&sess.logs().unwrap_or_default());
-    out
-}
-
-/// Parse the orchestrator's decision log (a Tcl list of `{category action args}`)
-/// into `(category, action, value)` triples.
-fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
-    tcl_list_split(list)
-        .into_iter()
-        .filter_map(|entry| {
-            let parts = tcl_list_split(&entry);
-            match parts.as_slice() {
-                [cat, act, rest @ ..] => Some((
-                    cat.clone(),
-                    act.clone(),
-                    rest.iter()
-                        .map(|v| tcl_list_split(v).join(" "))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                )),
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-/// Parse the captured log list (each entry a `{facility level message …}` Tcl
-/// list) into `" | "`-joined display strings.
-fn parse_log_entries(list: &str) -> Vec<String> {
-    tcl_list_split(list)
-        .into_iter()
-        .map(|entry| {
-            let parts = tcl_list_split(&entry);
-            if parts.is_empty() {
-                entry
-            } else {
-                parts.join(" | ")
-            }
-        })
-        .collect()
-}
-
-/// Split a Tcl list string into its top-level elements, honouring `{…}` braces
-/// and a single level of backslash escaping. Sufficient for the orchestrator's
-/// well-formed decision / log lists.
-fn tcl_list_split(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut chars = s.chars().peekable();
-    loop {
-        while matches!(chars.peek(), Some(c) if c.is_whitespace()) {
-            chars.next();
-        }
-        let Some(&c) = chars.peek() else { break };
-        let mut elem = String::new();
-        if c == '{' {
-            chars.next();
-            let mut depth = 1;
-            for ch in chars.by_ref() {
-                match ch {
-                    '{' => depth += 1,
-                    '}' => {
-                        depth -= 1;
-                        if depth == 0 {
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                if depth > 0 {
-                    elem.push(ch);
-                }
-            }
-        } else {
-            while let Some(&ch) = chars.peek() {
-                if ch.is_whitespace() {
-                    break;
-                }
-                if ch == '\\' {
-                    chars.next();
-                    if let Some(esc) = chars.next() {
-                        elem.push(esc);
-                    }
-                    continue;
-                }
-                elem.push(ch);
-                chars.next();
-            }
-        }
-        out.push(elem);
-    }
-    out
+    tcl_irule_test::simulate_irule(&sources, &profiles, &pools, Some(&request))
 }
 
 #[allow(
@@ -1814,9 +1630,9 @@ fn session_to_value(se: &SessionExplain) -> Value {
 }
 
 /// Serialise the full report as 2-space-indented JSON.
-fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
+fn report_to_value(report: &ExplainFlowReport) -> Value {
     let sessions: Vec<Value> = report.sessions.iter().map(session_to_value).collect();
-    let value = obj(vec![
+    obj(vec![
         ("pcap_path", Value::String(report.pcap_path.clone())),
         ("flow_count", Value::from(report.flow_count)),
         ("session_count", Value::from(report.session_count)),
@@ -1825,9 +1641,74 @@ fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
         ("keylog_path", Value::String(report.keylog_path.clone())),
         ("tshark_filter", Value::String(report.tshark_filter.clone())),
         ("sessions", Value::Array(sessions)),
-    ]);
+    ])
+}
+
+fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
+    let value = report_to_value(report);
     let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
     Ok(format!("{}\n", tcl_cli_support::ensure_ascii(&pretty)))
+}
+
+/// Options for [`explain_flow_value`] — the request config as one value so the
+/// entry point stays a clean two-argument call.
+#[derive(Debug, Default, Clone)]
+pub struct ExplainFlowOptions<'a> {
+    /// BIG-IP config files to load + merge for VS / iRule resolution.
+    pub paths: &'a [std::path::PathBuf],
+    /// Force the tshark overlay (also implied by `keylog` / `tshark_filter`).
+    pub tshark: bool,
+    /// TLS keylog file, forwarded to tshark for decryption.
+    pub keylog: Option<&'a Path>,
+    /// Extra tshark display filter.
+    pub tshark_filter: Option<&'a str>,
+    /// Run the iRule simulation pass.
+    pub simulate: bool,
+    /// Omit per-event iRule body listings.
+    pub no_event_bodies: bool,
+    /// Cap on event-body lines shown per event.
+    pub max_event_lines: usize,
+}
+
+/// Compute the explain-flow report for a pcap + BIG-IP configs and return it as
+/// a JSON value (the `f5 explain-flow --json` shape). For embedders — the
+/// native MCP `explain_flow` tool calls this directly.
+///
+/// # Errors
+/// Returns a message when the pcap isn't a readable file or config loading /
+/// flow computation fails.
+pub fn explain_flow_value(pcap: &Path, options: &ExplainFlowOptions<'_>) -> Result<Value, String> {
+    if !pcap.is_file() {
+        return Err(format!("not a file: {}", pcap.display()));
+    }
+    let use_tshark = options.tshark || options.keylog.is_some() || options.tshark_filter.is_some();
+    let keylog_path =
+        options.keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let tshark_filter = options.tshark_filter.unwrap_or("");
+
+    let opts = crate::cli::PassphraseArgs::default().to_options();
+    let path_strs: Vec<String> =
+        options.paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&path_strs, &opts)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|loaded| loaded.config)
+        .collect();
+
+    let pcap_bytes = std::fs::read(pcap).map_err(|e| e.to_string())?;
+    let report = compute_explain_flow(
+        &pcap.display().to_string(),
+        pcap,
+        &pcap_bytes,
+        &configs,
+        !options.no_event_bodies,
+        options.max_event_lines,
+        use_tshark,
+        &keylog_path,
+        tshark_filter,
+        options.simulate,
+    )?;
+    Ok(report_to_value(&report))
 }
 
 /// Entry point for `f5 explain-flow` (built-in walker / static path).

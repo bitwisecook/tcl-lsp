@@ -4277,7 +4277,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**S110:** Byte array corrupted by a string operation before being written back as bytes.",
+            "markdownDescription": "**S110:** Byte-array value coerced to a string by a string operation — binary representation corrupted.",
             "order": 3
           }
         }
@@ -4306,6 +4306,20 @@
             "default": true,
             "markdownDescription": "**T102:** Tainted data in option position without `--` terminator — option injection risk.",
             "order": 2
+          },
+          "tclLsp.diagnostics.T104": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T104:** Tainted data in a network-address argument (e.g. `socket`) — SSRF risk.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.T105": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**T105:** Tainted data in a cross-interpreter eval subcommand (`interp eval`/`invokehidden`) — code-execution risk.",
+            "order": 4
           }
         }
       },
@@ -4474,54 +4488,61 @@
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
             "order": 22
           },
+          "tclLsp.diagnostics.IRULE3004": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE3004:** Tainted data in an `HTTP::redirect` URL — open-redirect risk.",
+            "order": 23
+          },
           "tclLsp.diagnostics.IRULE3101": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.diagnostics.IRULE3102": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.diagnostics.IRULE4001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.diagnostics.IRULE4002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnostics.IRULE4003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnostics.IRULE4004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnostics.IRULE4005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
             "scope": "resource",
@@ -4531,7 +4552,7 @@
             },
             "default": [],
             "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via the tcl-lsp config file (see docs/kcs/kcs-xdg-config.md).",
-            "order": 30
+            "order": 31
           }
         }
       },

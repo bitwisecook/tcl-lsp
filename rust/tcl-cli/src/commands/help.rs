@@ -88,6 +88,86 @@ impl Feature {
         let hay = self.dialect_haystack();
         terms.iter().any(|t| hay.contains(t))
     }
+
+    /// JSON view for embedders (the MCP `help` tool). `rank` is included only
+    /// for search results.
+    fn to_json(&self) -> serde_json::Value {
+        let mut v = serde_json::json!({
+            "name": self.name,
+            "summary": self.summary,
+            "category": self.category,
+            "how_to_use": self.how_to_use,
+            "file": self.file,
+            "applies_to": self.applies_to,
+        });
+        if let Some(rank) = self.rank {
+            v.as_object_mut()
+                .expect("json object")
+                .insert("rank".to_owned(), serde_json::json!(rank));
+        }
+        v
+    }
+}
+
+/// Structured KCS help lookup for embedders (the native MCP `help` tool).
+///
+/// Searches for `query` (empty → the full feature catalogue), filtered by
+/// `dialect`, capped at `limit` matches. Returns a JSON value:
+/// `{query, matches, count}` on a hit, `{error, available_sections}` when a
+/// non-empty query matches nothing, or `{sections}` for the empty-query
+/// catalogue.
+#[must_use]
+pub fn help_json(query: &str, dialect: &str, limit: usize) -> serde_json::Value {
+    let (conn, path) = match load_db() {
+        Ok(pair) => pair,
+        Err(e) => return serde_json::json!({ "error": format!("KCS help DB: {e}") }),
+    };
+    let result = help_json_impl(&conn, query, dialect, limit);
+    drop(conn);
+    let _ = std::fs::remove_file(&path);
+    result
+}
+
+fn help_json_impl(conn: &Connection, query: &str, dialect: &str, limit: usize) -> serde_json::Value {
+    if query.trim().is_empty() {
+        let grouped = match list_features(conn) {
+            Ok(g) => g,
+            Err(e) => return serde_json::json!({ "error": e.to_string() }),
+        };
+        let sections: Vec<serde_json::Value> = grouped
+            .into_iter()
+            .filter_map(|(category, feats)| {
+                let feats: Vec<serde_json::Value> = feats
+                    .iter()
+                    .filter(|f| f.matches_dialect(dialect))
+                    .map(Feature::to_json)
+                    .collect();
+                (!feats.is_empty())
+                    .then(|| serde_json::json!({ "category": category, "features": feats }))
+            })
+            .collect();
+        return serde_json::json!({ "sections": sections });
+    }
+
+    let feats = match search_help(conn, query, limit) {
+        Ok(f) => f,
+        Err(e) => return serde_json::json!({ "error": e.to_string() }),
+    };
+    let matches: Vec<serde_json::Value> = feats
+        .iter()
+        .filter(|f| f.matches_dialect(dialect))
+        .map(Feature::to_json)
+        .collect();
+    if matches.is_empty() {
+        let available: Vec<String> = list_features(conn)
+            .map(|g| g.into_iter().map(|(category, _)| category).collect())
+            .unwrap_or_default();
+        return serde_json::json!({
+            "error": format!("No features match '{query}'"),
+            "available_sections": available,
+        });
+    }
+    serde_json::json!({ "query": query, "matches": matches, "count": matches.len() })
 }
 
 /// Write the embedded DB to a unique temp file and open it read-only. Returns

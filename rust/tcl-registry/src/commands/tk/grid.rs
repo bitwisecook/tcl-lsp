@@ -205,7 +205,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "grid",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Geometry manager that arranges widgets in a grid.",

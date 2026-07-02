@@ -17,6 +17,9 @@ mod commands;
 #[cfg(feature = "tui")]
 mod tui;
 
+/// Structured KCS help lookup for embedders (the native MCP `help` tool).
+pub use commands::help::help_json;
+
 use std::ffi::OsString;
 use std::process::ExitCode;
 

@@ -83,7 +83,7 @@ class TestUtf16OutputColumns:
         # Request on the name; the returned highlight on line 1 must sit at the
         # UTF-16 column of either the `$` or the name — never the byte column.
         cols = {c for line, c in starts(lsp_server.document_highlight(uri, 1, name)) if line == 1}
-        assert cols, f"expected a highlight on line 1 for $z; got none"
+        assert cols, "expected a highlight on line 1 for $z; got none"
         assert cols <= {dollar, name}, (
             f"highlight column must be UTF-16 ({dollar} or {name}), not the byte "
             f"column ({byte_col}); got {cols}"

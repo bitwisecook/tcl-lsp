@@ -69,8 +69,16 @@ namespace eval ::tmm {
         auto_mkindex_old
         auto_qualify
         auto_reset
+        bell
         bgerror
+        bind
+        button
+        canvas
         cd
+        checkbutton
+        clipboard
+        destroy
+        entry
         eof
         eq
         exec
@@ -82,32 +90,55 @@ namespace eval ::tmm {
         fileevent
         filename
         flush
+        focus
+        font
+        frame
         gets
         glob
+        grab
+        grid
         http
+        image
         in
         interp
+        label
+        labelframe
+        listbox
         load
+        lower
         max
         memory
+        menu
+        menubutton
+        message
         min
         namespace
         ne
         ni
         open
+        option
+        pack
         package
+        panedwindow
         pid
         pkg_mkindex
+        place
         pwd
+        radiobutton
+        raise
         re_quote
         regex::quote
         regex_quote
         regexp::quote
         registry
         rename
+        scale
+        scrollbar
         seek
+        selection
         socket
         source
+        spinbox
         tcl::build-info
         tcl::mathop::!
         tcl::mathop::!=
@@ -139,12 +170,35 @@ namespace eval ::tmm {
         tcl::mathop::~
         tcl_findLibrary
         tell
+        text
         time
         timerate
+        tk
+        tk_chooseColor
+        tk_chooseDirectory
+        tk_getOpenFile
+        tk_getSaveFile
+        tk_messageBox
+        tk_popup
+        toplevel
+        ttk::button
+        ttk::combobox
+        ttk::entry
+        ttk::frame
+        ttk::label
+        ttk::notebook
+        ttk::progressbar
+        ttk::scale
+        ttk::separator
+        ttk::sizegrip
+        ttk::style
+        ttk::treeview
         unknown
         unload
         update
         vwait
+        winfo
+        wm
         |
         ||
         ~
@@ -227,7 +281,7 @@ namespace eval ::tmm::expr_ops {
 namespace eval ::itest::cmd {
 
     # All f5-irules namespaced commands (NS::subcommand).
-    # Count: 1238
+    # Count: 1226
 
     variable _gen_namespaced_commands {
         # AAA::
@@ -1717,20 +1771,6 @@ namespace eval ::itest::cmd {
         {textutil::untabify}
         {textutil::untabify2}
 
-        # ttk::
-        {ttk::button}
-        {ttk::combobox}
-        {ttk::entry}
-        {ttk::frame}
-        {ttk::label}
-        {ttk::notebook}
-        {ttk::progressbar}
-        {ttk::scale}
-        {ttk::separator}
-        {ttk::sizegrip}
-        {ttk::style}
-        {ttk::treeview}
-
         # uri::
         {uri::canonicalize}
         {uri::geturl}
@@ -1754,7 +1794,7 @@ namespace eval ::itest::cmd {
     }
 
     # All f5-irules top-level commands.
-    # Count: 315
+    # Count: 273
 
     variable _gen_toplevel_commands {
         accumulate
@@ -1766,22 +1806,16 @@ namespace eval ::itest::cmd {
         array
         b64decode
         b64encode
-        bell
         binary
-        bind
         break
-        button
         call
-        canvas
         catch
         chan
         check
-        checkbutton
         class
         client_addr
         client_port
         clientside
-        clipboard
         clock
         clone
         close
@@ -1792,12 +1826,10 @@ namespace eval ::itest::cmd {
         cpu
         crc32
         decode_uri
-        destroy
         discard
         domain
         drop
         encoding
-        entry
         error
         eval
         event
@@ -1805,18 +1837,13 @@ namespace eval ::itest::cmd {
         fasthash
         findclass
         findstr
-        focus
-        font
         for
         foreach
         format
         forward
-        frame
         getfield
         gettimes
         global
-        grab
-        grid
         history
         html_encode
         html_escape
@@ -1833,7 +1860,6 @@ namespace eval ::itest::cmd {
         http_version
         if
         ifile
-        image
         imid
         incr
         info
@@ -1842,8 +1868,6 @@ namespace eval ::itest::cmd {
         ip_tos
         ip_ttl
         join
-        label
-        labelframe
         lappend
         lasthop
         lgen
@@ -1851,14 +1875,12 @@ namespace eval ::itest::cmd {
         link_qos
         linsert
         list
-        listbox
         listen
         llength
         llookup
         local_addr
         local_port
         log
-        lower
         lrange
         lrepeat
         lreplace
@@ -1871,31 +1893,22 @@ namespace eval ::itest::cmd {
         md4
         md5
         members
-        menu
-        menubutton
-        message
         nexthop
         node
         nodes
         noop
         ntohl
         ntohs
-        option
-        pack
-        panedwindow
         parray
         peer
         pem_dtos
         persist
         pkg_mkIndex
-        place
         pool
         priority
         proc
         puts
-        radiobutton
         radius_authenticate
-        raise
         rateclass
         read
         recv
@@ -1909,10 +1922,7 @@ namespace eval ::itest::cmd {
         remote_port
         return
         rmd160
-        scale
         scan
-        scrollbar
-        selection
         send
         server_addr
         server_port
@@ -1926,7 +1936,6 @@ namespace eval ::itest::cmd {
         sharedvar
         snat
         snatpool
-        spinbox
         split
         string
         subst
@@ -2040,16 +2049,7 @@ namespace eval ::itest::cmd {
         testutfnext
         testutfprev
         testwrongnumargs
-        text
         timing
-        tk
-        tk_chooseColor
-        tk_chooseDirectory
-        tk_getOpenFile
-        tk_getSaveFile
-        tk_messageBox
-        tk_popup
-        toplevel
         trace
         traffic_group
         translate
@@ -2067,8 +2067,6 @@ namespace eval ::itest::cmd {
         when
         whereis
         while
-        winfo
-        wm
         xff_list
         xff_uniq_ordered_ip_list
         xff_uniq_sorted_ip_list

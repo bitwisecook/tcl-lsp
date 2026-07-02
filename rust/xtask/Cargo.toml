@@ -18,6 +18,9 @@ clap = { version = "4", features = ["derive", "wrap_help"] }
 anyhow = "1"
 regex = "1"
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-registry = { path = "../tcl-registry" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [lints]
 workspace = true

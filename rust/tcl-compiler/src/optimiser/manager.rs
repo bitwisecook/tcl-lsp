@@ -804,6 +804,47 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 }
 
 /// Iteratively optimise `source` until a fixpoint or `max_iterations` is
+/// reached, skipping any optimisation whose code is in `disabled` (upper-cased
+/// code strings) on **every** pass.
+///
+/// Returns `(final_source, applied_optimisations, iterations_used)` — the
+/// iteration count matches the Python `optimise_source_multipass`: one per pass
+/// attempted, including the final pass that finds nothing new. A single-pass
+/// profile is simply `max_iterations == 1`.
+///
+/// This is the shared core behind the `tcl opt` CLI verb and the
+/// `tcl_lsp_py` optimiser facade.
+#[must_use]
+pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    max_iterations: usize,
+    disabled: &std::collections::HashSet<String, S>,
+) -> (String, Vec<Optimisation>, usize) {
+    let mut current = source.to_owned();
+    let mut all: Vec<Optimisation> = Vec::new();
+    let mut iterations = 0;
+    for _ in 0..max_iterations {
+        iterations += 1;
+        let kept: Vec<Optimisation> = optimise_with_dialect(&current, registry, dialect)
+            .into_iter()
+            .filter(|o| !disabled.contains(o.code.as_str()))
+            .collect();
+        if kept.is_empty() {
+            break;
+        }
+        let next = apply_optimisations(&current, &kept);
+        all.extend(kept);
+        if next == current {
+            break;
+        }
+        current = next;
+    }
+    (current, all, iterations)
+}
+
+/// Iteratively optimise `source` until a fixpoint or `max_iterations` is
 /// reached: each pass recompiles the rewritten source so optimisations
 /// exposed by an earlier pass (constant folding enabling further folding /
 /// dead-store removal) are discovered.  Returns `(final_source,

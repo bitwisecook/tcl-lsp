@@ -940,7 +940,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string insert string index insertString",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arg_types: &[(
             1,
             ArgTypeHint {

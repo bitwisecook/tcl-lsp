@@ -25,7 +25,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array default subcommand arrayName args...",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arg_values: &[(
             0,
             &[
@@ -75,7 +75,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarRead), (2, ArgRole::Body)],
         loop_list_header: true,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

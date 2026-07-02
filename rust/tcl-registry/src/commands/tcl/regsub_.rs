@@ -109,7 +109,7 @@ pub fn spec() -> CommandSpec {
                 takes_value: false,
                 value_hint: "",
                 detail: "Treat subSpec as a command prefix to call per match.",
-                dialects: Some(DialectSet::TCL90),
+                dialects: Some(DialectSet::TCL90_PLUS),
             },
             OptionSpec {
                 name: "--",

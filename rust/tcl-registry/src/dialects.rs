@@ -37,16 +37,39 @@ bitflags! {
         const MENTOR    = 1 << 12;
         /// BPF-Tcl (the eBPF framework dialect)
         const BPF       = 1 << 13;
+        /// Tcl 9.1
+        const TCL91     = 1 << 14;
 
         /// All standard Tcl versions.
         const ALL_TCL = Self::TCL84.bits() | Self::TCL85.bits()
-                      | Self::TCL86.bits() | Self::TCL90.bits();
+                      | Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Tcl 8.5 and later.
-        const TCL85_PLUS = Self::TCL85.bits() | Self::TCL86.bits() | Self::TCL90.bits();
+        const TCL85_PLUS = Self::TCL85.bits() | Self::TCL86.bits()
+                         | Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Tcl 8.6 and later.
-        const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits();
+        const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
+
+        /// Tcl 9.0 and later.  A command/option gated to "9.0" persists in
+        /// 9.1 (a `.1` release is additive), matching the Python oracle's
+        /// membership inheritance (`{tcl9.0}` is available under `tcl9.1`).
+        const TCL90_PLUS = Self::TCL90.bits() | Self::TCL91.bits();
+
+        /// Dialects in which the Tk widget/window commands (`button`,
+        /// `pack`, `wm`, `winfo`, the `ttk::` forms, …) are available:
+        /// standard Tcl (a `wish`/`package require Tk` interpreter) plus the
+        /// pure-`tk` dialect.
+        ///
+        /// Tk is *not* part of the restricted embedded dialects (F5 iRules /
+        /// iApps) or the vendor EDA shells, so its commands must never be
+        /// offered or accepted there.  Membership in `ALL_TCL` (not `TK`
+        /// alone) is deliberate: a plain `.tcl` file that does
+        /// `package require Tk` keeps its `tcl8.6`/`tcl9.0` dialect, so the
+        /// commands have to resolve under a Tcl version — the *loaded*
+        /// gating (only present once `package require Tk` ran) is layered on
+        /// top by the LSP, not by this dialect set.
+        const TK_AND_TCL = Self::ALL_TCL.bits() | Self::TK.bits();
 
         /// Every modelled dialect *except* F5 iRules and Tk.
         ///
@@ -88,6 +111,7 @@ pub const KNOWN_DIALECTS: &[&str] = &[
     "tcl8.5",
     "tcl8.6",
     "tcl9.0",
+    "tcl9.1",
     "xilinx-eda-tcl",
 ];
 
@@ -109,6 +133,7 @@ fn tcl_version_dialect(ver: &str) -> Option<&'static str> {
         "8.5" => "tcl8.5",
         "8.6" => "tcl8.6",
         "9.0" => "tcl9.0",
+        "9.1" => "tcl9.1",
         _ => return None,
     })
 }
@@ -225,6 +250,223 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
     None
 }
 
+#[cfg(test)]
+mod detect_tests {
+    use super::detect_dialect;
+
+    const DEF: &str = "tcl9.0";
+
+    #[test]
+    fn directive_wins() {
+        assert_eq!(detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF), "tcl8.5");
+    }
+
+    #[test]
+    fn extension_beats_generic_content() {
+        assert_eq!(detect_dialect("puts hi\n", Some("x.irule"), DEF), "f5-irules");
+        assert_eq!(detect_dialect("spawn ssh host\n", Some("y.exp"), DEF), "expect");
+        assert_eq!(detect_dialect("read_xdc c.xdc\n", Some("c.xdc"), DEF), "xilinx-eda-tcl");
+    }
+
+    #[test]
+    fn shebang_detected() {
+        assert_eq!(detect_dialect("#!/usr/bin/expect -f\nspawn ssh\n", None, DEF), "expect");
+        assert_eq!(detect_dialect("#!/usr/bin/tclsh8.6\nputs hi\n", None, DEF), "tcl8.6");
+    }
+
+    #[test]
+    fn irules_when_detected() {
+        assert_eq!(
+            detect_dialect("when HTTP_REQUEST {\n  pool web\n}\n", None, DEF),
+            "f5-irules"
+        );
+    }
+
+    #[test]
+    fn eda_and_f5_content_signatures() {
+        assert_eq!(detect_dialect("synth_design -top foo\n", None, DEF), "xilinx-eda-tcl");
+        assert_eq!(detect_dialect("compile_ultra -gate_clock\n", None, DEF), "synopsys-eda-tcl");
+        assert_eq!(detect_dialect("set_db init_design\ninit_design\n", None, DEF), "cadence-eda-tcl");
+        assert_eq!(detect_dialect("tmsh::create ltm pool p\n", None, DEF), "f5-tmsh");
+    }
+
+    #[test]
+    fn expect_content_without_shebang() {
+        assert_eq!(detect_dialect("spawn ssh host\nexpect_before timeout\n", None, DEF), "expect");
+    }
+
+    #[test]
+    fn plain_tcl_falls_back_to_default() {
+        assert_eq!(detect_dialect("set x 1\nputs $x\n", None, DEF), "tcl9.0");
+        assert_eq!(detect_dialect("package require Tcl 8.6\n", None, DEF), "tcl8.6");
+    }
+}
+
+/// Maximum bytes of a file inspected by [`detect_dialect`]. Detection reads
+/// only the head of a document — enough to catch a directive / shebang /
+/// signature line without scanning a large file.
+pub const DETECT_SCAN_BYTES: usize = 8192;
+
+/// The dialect implied by a filename extension, or `None` when the extension
+/// is generic (`.tcl`) or unknown — in which case content heuristics decide.
+#[must_use]
+pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
+    let ext = filename.rsplit('.').next().map(str::to_ascii_lowercase)?;
+    Some(match ext.as_str() {
+        "irul" | "irule" | "irules" => "f5-irules",
+        "iapp" => "f5-iapps",
+        "tmsh" => "f5-tmsh",
+        "exp" | "expect" => "expect",
+        "xdc" => "xilinx-eda-tcl",
+        "sdc" => "synopsys-eda-tcl",
+        // Generic `.tcl`, HDL (`.sv`/`.svh`), or unknown → let content decide.
+        _ => return None,
+    })
+}
+
+/// Truncate `source` to at most [`DETECT_SCAN_BYTES`] on a UTF-8 char boundary.
+fn scan_head(source: &str) -> &str {
+    if source.len() <= DETECT_SCAN_BYTES {
+        return source;
+    }
+    let mut end = DETECT_SCAN_BYTES;
+    while end > 0 && !source.is_char_boundary(end) {
+        end -= 1;
+    }
+    &source[..end]
+}
+
+/// Whether `head` contains an iRules `when EVENT {` handler (the strongest
+/// iRules signal). Mirrors `^\s*when\s+[A-Z][A-Z0-9_]{2,}\s*\{`.
+fn has_irules_when(head: &str) -> bool {
+    for line in head.lines() {
+        let t = line.trim_start();
+        let Some(rest) = t.strip_prefix("when") else {
+            continue;
+        };
+        if !rest.starts_with(char::is_whitespace) {
+            continue;
+        }
+        let name = rest.trim_start();
+        let mut chars = name.chars();
+        // `[A-Z]` then `[A-Z0-9_]{2,}`.
+        if !matches!(chars.next(), Some(c) if c.is_ascii_uppercase()) {
+            continue;
+        }
+        let ident: String = name
+            .chars()
+            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+            .collect();
+        if ident.len() >= 3 && name[ident.len()..].trim_start().starts_with('{') {
+            return true;
+        }
+    }
+    false
+}
+
+/// Content signatures for the non-Tcl-core dialects, checked in priority order.
+/// Each entry is `(dialect, &[marker words])`; a marker matches when it appears
+/// as a whole word anywhere in the scanned head. Ordered most-specific first so
+/// an EDA-tool script never falls through to a weaker signal.
+const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
+    // F5 tmsh / iApp management scripts.
+    ("f5-iapps", &["iapp::", "tmsh::create_app", "sys application template"]),
+    ("f5-tmsh", &["tmsh::", "tmsh create", "tmsh modify", "tmsh list"]),
+    // EDA-tool Tcl (synthesis / P&R / simulation).
+    ("xilinx-eda-tcl", &["synth_design", "launch_runs", "create_project", "read_xdc"]),
+    ("synopsys-eda-tcl", &["compile_ultra", "dc_shell", "link_design", "set_max_area"]),
+    ("cadence-eda-tcl", &["set_db", "innovus", "genus", "init_design"]),
+    ("intel-quartus-eda-tcl", &["quartus_", "project_new", "set_global_assignment"]),
+    ("mentor-eda-tcl", &["vsim", "vlog", "vcom", "questa"]),
+    // Expect automation.
+    ("expect", &["spawn", "expect_before", "send_user", "interact"]),
+];
+
+/// Whether `marker` appears in `haystack` at a word boundary on its **left**
+/// (start-of-string or a non-word byte before it). Unlike [`has_word`] this
+/// puts no constraint on the byte after the marker, so command-prefix markers
+/// like `tmsh::` / `quartus_` (followed by more identifier) still match.
+fn contains_token(haystack: &str, marker: &str) -> bool {
+    let hbytes = haystack.as_bytes();
+    let mut i = 0;
+    while let Some(off) = haystack[i..].find(marker) {
+        let start = i + off;
+        if start == 0 || !is_word_byte(hbytes[start - 1]) {
+            return true;
+        }
+        i = start + 1;
+    }
+    false
+}
+
+/// Detect a dialect from a script's *content* signatures (iRules `when`,
+/// F5 tmsh/iApp, EDA-tool commands, expect), over the scanned `head`.
+fn detect_from_content(head: &str) -> Option<&'static str> {
+    if has_irules_when(head) {
+        return Some("f5-irules");
+    }
+    for (dialect, markers) in CONTENT_SIGNATURES {
+        if markers.iter().any(|m| contains_token(head, m)) {
+            return Some(dialect);
+        }
+    }
+    None
+}
+
+/// The canonical dialect detector shared by the LSP, editors, CLI tooling, and
+/// AI integrations. Given a document's `source` and optional `filename`,
+/// returns a best-guess dialect (never fails — falls back to `default` when no
+/// heuristic fires).
+///
+/// Heuristics are applied in priority order over the first
+/// [`DETECT_SCAN_BYTES`] bytes:
+/// 1. an explicit `# tcl-dialect: <name>` directive;
+/// 2. the filename extension ([`dialect_from_extension`]);
+/// 3. the `#!…` shebang (`expect`, `tclsh<x.y>`);
+/// 4. content signatures — iRules `when EVENT {`, F5 `tmsh::` / iApp, EDA-tool
+///    commands (Xilinx / Synopsys / Cadence / Quartus / Mentor), `expect`;
+/// 5. a `package require ?-exact? Tcl <x.y>` line.
+#[must_use]
+pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static str) -> &'static str {
+    let head = scan_head(source);
+
+    // 1. Explicit directive always wins.
+    if let Some(d) = detect_dialect_directive(head) {
+        return d;
+    }
+    // 2. Extension (a decisive `.irule` / `.exp` beats ambiguous content).
+    if let Some(d) = filename.and_then(dialect_from_extension) {
+        return d;
+    }
+    // 3. Shebang.
+    if let Some(first) = head.lines().next()
+        && first.starts_with("#!")
+    {
+        let lower = first.to_ascii_lowercase();
+        if has_word(&lower, "expect") {
+            return "expect";
+        }
+        if let Some(ver) = shebang_tclsh_version(&lower)
+            && let Some(d) = tcl_version_dialect(&ver)
+        {
+            return d;
+        }
+    }
+    // 4. Content signatures.
+    if let Some(d) = detect_from_content(head) {
+        return d;
+    }
+    // 5. `package require Tcl <x.y>`.
+    for line in head.lines().take(PKG_REQUIRE_SCAN_LINES) {
+        if let Some(ver) = package_require_tcl_version(line)
+            && let Some(d) = tcl_version_dialect(&ver)
+        {
+            return d;
+        }
+    }
+    default
+}
+
 /// Detect a Tcl dialect from a script's *content* — used when no explicit
 /// dialect is configured. Checks, in priority order: a `# tcl-dialect:`
 /// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a
@@ -294,6 +536,7 @@ impl DialectSet {
             "tcl8.5" => Self::TCL85,
             "tcl8.6" => Self::TCL86,
             "tcl9.0" => Self::TCL90,
+            "tcl9.1" => Self::TCL91,
             "f5-irules" => Self::IRULES,
             "f5-iapps" => Self::IAPPS,
             "tk" => Self::TK,
@@ -315,7 +558,7 @@ mod tests {
     #[test]
     fn available_dialects_is_sorted_and_complete() {
         let d = available_dialects();
-        assert_eq!(d.len(), 15);
+        assert_eq!(d.len(), 16);
         let mut sorted = d.to_vec();
         sorted.sort_unstable();
         assert_eq!(d, sorted.as_slice(), "must be pre-sorted");
@@ -323,6 +566,7 @@ mod tests {
         assert!(d.contains(&"bpf"));
         assert!(d.contains(&"f5-bigip"));
         assert!(d.contains(&"f5-tmsh"));
+        assert!(d.contains(&"tcl9.1"));
         assert!(!d.contains(&"tk"));
     }
 

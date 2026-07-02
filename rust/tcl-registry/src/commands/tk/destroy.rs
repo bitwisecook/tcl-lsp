@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "destroy",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Destroy one or more windows and all their descendants.",

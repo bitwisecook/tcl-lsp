@@ -28,9 +28,14 @@
 //! implemented.
 
 pub mod config;
+pub mod docstring;
 pub mod engine;
 
-pub use config::{FormatterConfig, IndentStyle};
+pub use config::{DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle};
+pub use docstring::{
+    DocstringInfo, ParamDoc, generate_stub_for_proc, parse_docstring, render_comment_block,
+    resolve_tag_style,
+};
 pub use engine::format_tcl;
 
 use crate::definition::LspRange;

@@ -13,6 +13,9 @@ mod cli;
 mod commands;
 pub mod f5mku;
 
+/// Explain-flow computation for embedders (the native MCP `explain_flow` tool).
+pub use commands::explain_flow::{ExplainFlowOptions, explain_flow_value};
+
 use std::ffi::OsString;
 use std::process::ExitCode;
 

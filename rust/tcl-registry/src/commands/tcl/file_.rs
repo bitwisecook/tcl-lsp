@@ -143,7 +143,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the home directory of the current user.",
         synopsis: "file home ?username?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         returns_path: true,
         ..SubCommand::DEFAULT
     },
@@ -426,7 +426,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file tempdir ?template?",
         return_type: Some(TclType::String),
         mutator: true,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,
@@ -460,7 +460,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the result of performing tilde substitution on name.",
         synopsis: "file tildeexpand name",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         returns_path: true,
         ..SubCommand::DEFAULT
     },

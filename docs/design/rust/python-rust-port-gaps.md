@@ -224,14 +224,22 @@ The designed public facade surface has **landed**
 - **TEST-MIGRATE** — port the pytest suite to cargo unit + integration tests
   (the 473-file classification has started); the legacy `tests/` directory
   shrinks to zero at the final retirement task.
-- **`scripts` → `xtask`** — rewrite the build/release scripts under `scripts/`
-  as `cargo xtask` subcommands. **Only 6 of ~26+ are ported**
+- **`scripts` → `xtask`** — **essentially done.** The check/build verbs
   (`refcount-contract`, `kcs-index-links`, `version`, `tzdata-bundle`,
-  `audit-option-dialects`, `diag-tables`); **40+ remain Python** — the
-  `scripts/codegen/*` generators (catalogs, editor settings, BIG-IP model /
-  F5-query fixtures), `scripts/registry-audit/*`, `scripts/build/{zipapps,kcs_db}.py`,
-  `scripts/check/wasm_command_parity.py`, and the `scripts/dev/*` bench/profile/
-  triage helpers. This is the largest chunk of remaining tooling work by count.
+  `audit-option-dialects`, `diag-tables`) plus the full **editor/AI codegen**
+  suite are now `cargo xtask` verbs generating from the Rust registries:
+  `gen-editor-catalogs`, `gen-editor-settings` (`diagnosticCatalog.ts`),
+  `gen-vscode-package` (`package.json`), `gen-jetbrains-catalog` (all 3 Kotlin
+  files), `gen-ai-diagnostics` (`ai/shared/diagnostics.json` + the 4 AI
+  prompt/skill files); `gen-kcs-db` is handled natively by `tcl-cli/build.rs`.
+  **`scripts/codegen/editor_settings.py` is fully retired** (`render_all` empty).
+  The remaining `scripts/*` are **Bucket A "retire-with-Python"** (measurement,
+  Python↔Rust differentials, Python-oracle→Rust generators frozen at retirement)
+  or **Bucket B4–B7 keep-forever** shell helpers — see
+  [`scripts-retirement-triage.md`](scripts-retirement-triage.md). `gen-query-builtins-doc`
+  is resolved as freeze-and-drop: the 184 KB of builtin *prose* is documentation
+  that stays in `docs/` (the Rust `BuiltinSpec` omits prose by design), so its
+  Python generator retires without a byte-exact Rust replacement.
 - **PYTHON-RETIRE** — delete the in-tree Python once every consumer above has
   moved to Rust. This is intentionally **last** and can only close after Stages
   1–4 are complete. **Note the `ai/` coupling below** — it is a real consumer of

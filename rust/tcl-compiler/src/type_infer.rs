@@ -363,12 +363,18 @@ fn expr_call_type(
         // integer 4.0` → 0), unlike `round`/`int`/`entier` which round to an
         // integer. Verified against tclsh8.6/9.0.
         "int" | "round" | "isqrt" | "wide" | "entier" => TypeLattice::of(TclType::Int),
-        // Double-returning math (incl. ceil/floor, which yield N.0).
+        // Double-returning math (incl. ceil/floor, which yield N.0).  The
+        // Tcl 9.1 C99 additions (TIP 745, verified against tmp/tcl9.1-src) are
+        // all double-valued except the `signbit` predicate below.
         "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
         | "atan2" | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow"
-        | "hypot" | "fmod" | "rand" | "srand" => TypeLattice::of(TclType::Double),
-        // Boolean-returning predicates.
-        "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
+        | "hypot" | "fmod" | "rand" | "srand" | "acosh" | "asinh" | "atanh" | "cbrt"
+        | "copysign" | "dim" | "erf" | "erfc" | "exp2" | "expm1" | "fma" | "gamma" | "ldexp"
+        | "lgamma" | "log1p" | "log2" | "logb" | "nextafter" | "remainder" | "trunc" => {
+            TypeLattice::of(TclType::Double)
+        }
+        // Boolean-returning predicates.  `signbit` yields 0/1 (Tcl 9.1, TIP 745).
+        "bool" | "isnan" | "isinf" | "signbit" => TypeLattice::of(TclType::Boolean),
         // Unknown function — conservative.
         _ => TypeLattice::of(TclType::Numeric),
     }
@@ -949,6 +955,17 @@ mod tests {
         assert_eq!(infer_str("abs(2)").tcl_type, Some(TclType::Int));
         // max/min join operands: max(1, 2) stays Int.
         assert_eq!(infer_str("max(1, 2)").tcl_type, Some(TclType::Int));
+        // Tcl 9.1 C99 functions (TIP 745): double-valued, except `signbit`.
+        for f in [
+            "acosh", "cbrt", "exp2", "log2", "trunc", "erf", "expm1", "logb",
+        ] {
+            assert_eq!(
+                infer_str(&format!("{f}($x)")).tcl_type,
+                Some(TclType::Double),
+                "{f} should infer Double",
+            );
+        }
+        assert_eq!(infer_str("signbit($x)").tcl_type, Some(TclType::Boolean));
         // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type, Some(TclType::Numeric));
     }

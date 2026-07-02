@@ -12,7 +12,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "readFile",
         traits: Traits::TAINT_SOURCE,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

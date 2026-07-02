@@ -59,6 +59,31 @@ fn events_section_matches_golden() {
 }
 
 #[test]
+fn commands_section_produces_snapshot() {
+    // The `f5-irules` command-registry snapshot (core Tcl + iRules commands).
+    // Its byte-parity against Python is gated by tcl-registry's `snapshot_port`
+    // and tcl-cli's `cli_parity` tests (the same `command_registry_snapshot`),
+    // so here we only assert the verb is wired and emits the canonical shape —
+    // a full golden would duplicate that ~140k-line snapshot.
+    let out = run_f5(&["registry-dump", "--section", "commands"]);
+    assert_eq!(out.status.code(), Some(0), "commands exit: {:?}", out.status);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.starts_with("{\n  \"commandCount\": "), "canonical header");
+    assert!(text.contains("\"f5-irules\""), "f5-irules dialect");
+    assert!(text.contains("\"summary\":"), "hover prose catalogue");
+}
+
+#[test]
+fn all_section_bundles_every_subsection() {
+    let out = run_f5(&["registry-dump", "--section", "all"]);
+    assert_eq!(out.status.code(), Some(0), "all exit: {:?}", out.status);
+    let text = String::from_utf8_lossy(&out.stdout);
+    for key in ["\"commands\":", "\"events\":", "\"objects\":", "\"profiles\":"] {
+        assert!(text.contains(key), "all is missing {key}");
+    }
+}
+
+#[test]
 fn profiles_section_to_file_matches_golden() {
     // `--output FILE` writes the same canonical JSON plus a trailing newline.
     let expected =
@@ -81,25 +106,19 @@ fn profiles_section_to_file_matches_golden() {
 }
 
 #[test]
-fn deferred_sections_fail_cleanly() {
-    for section in ["commands", "all"] {
-        let output = run_f5(&["registry-dump", "--section", section]);
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "registry-dump --section {section} should exit 2 (deferred)"
-        );
-        assert!(
-            output.stdout.is_empty(),
-            "deferred section {section} should emit no stdout"
-        );
-    }
+fn unknown_section_fails_cleanly() {
+    // A genuinely unknown section still exits 2 with no stdout; `commands` and
+    // `all` are now implemented (see the tests above).
+    let output = run_f5(&["registry-dump", "--section", "bogus"]);
+    assert_eq!(output.status.code(), Some(2), "unknown section exits 2");
+    assert!(output.stdout.is_empty(), "unknown section emits no stdout");
 }
 
 #[test]
-fn default_section_is_all_and_deferred() {
-    // The default `--section all` includes the unimplemented commands
-    // snapshot, so the bare verb also exits 2.
+fn default_section_is_all_and_serialises() {
+    // The default `--section all` now emits the full bundle (commands + the
+    // graph snapshots), so the bare verb succeeds.
     let output = run_f5(&["registry-dump"]);
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("\"commands\":"));
 }
