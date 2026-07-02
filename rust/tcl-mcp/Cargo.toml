@@ -1,0 +1,26 @@
+[package]
+name = "tcl-mcp"
+publish.workspace = true
+description = "Native Rust MCP server exposing the tcl-lsp analysis engine over stdio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl-mcp"
+path = "src/main.rs"
+
+[dependencies]
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-lexer = { path = "../tcl-lexer" }
+serde_json = { version = "1", features = ["preserve_order"] }
+rmcp = { version = "2", features = ["server", "transport-io"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "io-std"] }
+
+[lints]
+workspace = true
