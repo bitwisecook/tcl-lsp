@@ -1,7 +1,7 @@
 ---
 name: tcl-validate
 description: "Run full LSP validation on a Tcl file and produce a categorised report of all issues: errors, security, style, and optimiser suggestions. Use when validating Tcl code, linting .tcl files, checking Tcl script quality, or running static analysis on Tcl scripts."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__validate, Read
 ---
 
 # Tcl Validate
@@ -10,12 +10,9 @@ Run full validation on a Tcl file and produce a categorised diagnostic report.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/tcl_system.md`
+1. Read the domain knowledge from `../_prompts/tcl_system.md`
 2. Read the Tcl file to validate
-3. Run the categorised validation:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py validate $FILE
-   ```
+3. Run the categorised validation: pass the file contents you read as `source` to `mcp__tcl-lsp__validate`
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. Present the results as a structured report:
    - Group by category (errors, security, style, optimiser)

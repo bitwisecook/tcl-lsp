@@ -16,7 +16,7 @@ GTM wide-IP) and produce a `tmsh` deletion script in the correct order.
    pointed at a directory, ask which file(s) to analyse.
 2. Run the cleanup tool:
    ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py bigip-cleanup $FILE
+   f5-query cleanup $FILE
    ```
    To analyse multiple files together (e.g. `bigip.conf` plus
    `bigip_base.conf`), pass them all on the command line.
@@ -25,7 +25,7 @@ GTM wide-IP) and produce a `tmsh` deletion script in the correct order.
      per-object metadata (`fullPath`, `kind`, `module`, `objectType`,
      `range`, `reason`).
    - `summary`: candidate counts grouped by kind.
-   - `tmshScript`: the ready-to-run script (also what `f5 cleanup`
+   - `tmshScript`: the ready-to-run script (also what `f5-query cleanup`
      prints).
 4. Present the report to the user in this shape:
    - **Headline counts** by kind (from `summary`).

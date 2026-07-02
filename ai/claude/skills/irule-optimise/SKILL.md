@@ -1,7 +1,7 @@
 ---
 name: irule-optimise
 description: "Apply LSP optimiser suggestions to an F5 iRule and explain why each optimisation is safe and beneficial. Covers constant folding, propagation, dead code elimination, strength reduction, and expression canonicalisation. Use when optimising iRule code, improving iRule performance, applying F5 iRule optimisations, or refactoring iRules for efficiency."
-allowed-tools: Bash, Read, Edit
+allowed-tools: mcp__tcl-lsp__optimize, mcp__tcl-lsp__analyze, Read, Edit
 ---
 
 # iRule Optimise
@@ -10,23 +10,20 @@ Apply LSP optimiser suggestions to iRule files with safety explanations for each
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule file to optimise
-3. Run the optimiser:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py optimize $FILE
-   ```
-4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+3. Run the optimiser: call the `mcp__tcl-lsp__optimize` MCP tool, passing the
+   file's contents as the `source` argument (optionally set `profile` to
+   `full` — the default — or `aggressive`)
+4. If the tool fails (e.g. parse error), report the error clearly and suggest fixes
 5. If no optimisations found, report the code is already well-optimised
-6. If the tool outputs an "Optimized Source" section, apply it to the file using the Edit tool
+6. If the tool returns an optimised-source rewrite, apply it to the file using the Edit tool
 7. For each optimisation applied, explain in 1-2 sentences:
    - Why it is safe (preserves behaviour)
    - What performance or clarity benefit it provides
 8. Show a summary of all optimisations applied
-9. Validate the optimised file to confirm no regressions:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
-   ```
+9. Validate the optimised file to confirm no regressions: call the
+   `mcp__tcl-lsp__analyze` MCP tool, passing the rewritten file's contents as `source`
 10. If validation finds new issues, revert the problematic optimisation and explain why
 
 ## Optimisation codes reference

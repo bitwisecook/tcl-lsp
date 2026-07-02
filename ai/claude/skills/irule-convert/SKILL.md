@@ -1,7 +1,7 @@
 ---
 name: irule-convert
 description: "Modernise legacy iRule patterns to current best practices. Detects unbraced expressions, string concatenation for lists, deprecated matchclass, ungated logs, and other convertible patterns. Use when modernising iRules, converting legacy F5 iRule code, upgrading iRule syntax, or applying iRule best practices."
-allowed-tools: Bash, Read, Edit
+allowed-tools: mcp__tcl-lsp__find-legacy, mcp__tcl-lsp__analyze, Read, Edit
 ---
 
 # iRule Convert (Modernise)
@@ -10,12 +10,9 @@ Detect and convert legacy iRule patterns to modern best practices.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule file to modernise
-3. Run the legacy pattern detection:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py find-legacy $FILE
-   ```
+3. Run the legacy pattern detection: pass the file contents you read as `source` to `mcp__tcl-lsp__find-legacy`
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. If no legacy patterns are found, report the iRule already follows best practices
 6. Otherwise, apply these conversions using the Edit tool:
@@ -25,10 +22,7 @@ Detect and convert legacy iRule patterns to modern best practices.
    - `==` / `!=` for strings -> `eq` / `ne` (W110)
    - Missing `--` option terminator -> add `--` (W304)
    - Ungated log in hot event -> add `CLIENT_ACCEPTED { set debug 0 }` and wrap with `if {$debug}` (IRULE5001)
-7. After editing, re-run diagnostics to verify the changes are clean:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
-   ```
+7. After editing, re-run diagnostics to verify the changes are clean: Read the file again and pass its contents as `source` to `mcp__tcl-lsp__analyze`
 8. If new issues appeared, fix them (up to 3 iterations)
 9. If issues persist after 3 iterations, report what was converted and what remains
 10. Report what was converted and the final validation status

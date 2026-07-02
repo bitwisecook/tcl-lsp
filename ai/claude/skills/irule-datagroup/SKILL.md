@@ -1,7 +1,7 @@
 ---
 name: irule-datagroup
 description: "Analyse an F5 iRule for opportunities to extract inline lookup patterns into BIG-IP data-groups. Uses the static extraction engine for mechanical conversions and AI reasoning for complex patterns. Type-aware: detects IP/CIDR, integer, and string data-groups. Use when extracting data-groups from iRules, optimising iRule lookup performance, converting inline iRule patterns to data-groups, or refactoring iRule switch/if chains."
-allowed-tools: Bash, Read, Edit
+allowed-tools: mcp__tcl-lsp__suggest_datagroup_extractions, mcp__tcl-lsp__extract_datagroup, Read, Edit
 ---
 
 # iRule Data-Group Analysis
@@ -10,12 +10,9 @@ Analyse an iRule for data-group extraction opportunities.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md` (includes data-groups reference)
+1. Read the domain knowledge from `../_prompts/irules_system.md` (includes data-groups reference)
 2. Read the iRule file to analyse
-3. Run the AI-enhanced data-group scanner to find all candidates:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py suggest-datagroups $FILE
-   ```
+3. Find all candidates by calling `mcp__tcl-lsp__suggest_datagroup_extractions`, passing the file contents you just read as `source`.
    This returns structured context for each candidate:
    - Pattern type (if_chain, switch, or_chain)
    - Inferred value type (ip, integer, string)
@@ -23,10 +20,7 @@ Analyse an iRule for data-group extraction opportunities.
    - Body shape (identical, set_mapping, return_mapping, complex)
    - Confidence level (high = mechanical, medium = needs review, low = use judgement)
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
-5. For **high-confidence** candidates, run the static extractor:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py extract-datagroup $FILE --line <LINE>
-   ```
+5. For **high-confidence** candidates, run the static extractor by calling `mcp__tcl-lsp__extract_datagroup`, passing the file contents as `source` plus the candidate's cursor position as `line` and `character` (and optionally `dg_name`). Unlike the old `--line` argument, this tool takes the `line`/`character` cursor coordinates of the candidate.
    This produces both the rewritten iRule code and the tmsh data-group definition.
 6. For **medium/low-confidence** candidates, use AI reasoning to:
    - Choose an appropriate data-group name based on the domain context

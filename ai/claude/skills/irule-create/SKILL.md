@@ -1,7 +1,7 @@
 ---
 name: irule-create
 description: "Create a new F5 iRule from a natural-language description. Generates the code following security best practices, validates with the LSP analyser, and iterates until clean. Use when creating new iRules, generating F5 iRule code from descriptions, writing iRule event handlers, or scaffolding iRule logic."
-allowed-tools: Bash, Read, Write
+allowed-tools: mcp__tcl-lsp__analyze, Read, Write
 ---
 
 # iRule Create
@@ -10,17 +10,14 @@ Generate a new iRule from a user description, validate with LSP, and iterate unt
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Generate an iRule based on the user's description. Requirements:
    - Use appropriate event handlers (`when` blocks)
    - Follow security best practices (braced expressions, option terminators, no eval with user data)
    - Include comments explaining the logic
    - Use K&R brace style, 4-space indentation
 3. Write the generated code to a `.tcl` file (ask the user for the filename, or use a sensible default)
-4. Validate the generated code:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
-   ```
+4. Validate the generated code: Read the file, then call `mcp__tcl-lsp__analyze` with its contents as `source`
 5. If the tool fails (e.g. parse error), report the error and adjust the generated code
 6. If there are errors or warnings, fix them and re-validate (up to 5 iterations)
 7. If validation still fails after 5 iterations, report remaining issues and explain what could not be resolved
