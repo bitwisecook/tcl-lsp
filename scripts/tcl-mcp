@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#
+# Launch the native Rust tcl-lsp MCP server (`tcl-mcp`).
+#
+# Prefers a release build, then a debug build; if neither exists it builds a
+# release binary on first use. Build output goes to stderr so it never
+# corrupts the JSON-RPC stream on stdout.
+#
+# Referenced by the repo `.mcp.json` so Claude Code / Codex use the native
+# server (no Python, no PyO3) when working in this repository.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "$here/.." && pwd)"
+
+for cand in "$root/target/release/tcl-mcp" "$root/target/debug/tcl-mcp"; do
+    if [ -x "$cand" ]; then
+        exec "$cand" "$@"
+    fi
+done
+
+# Neither build present — build a release binary (stderr only; stdout is the
+# MCP channel). This one-time cost is avoided by running `make tcl-mcp` first.
+echo "tcl-mcp: no built binary found; building release (one-time)…" >&2
+cargo build --release -p tcl-mcp --manifest-path "$root/Cargo.toml" 1>&2
+exec "$root/target/release/tcl-mcp" "$@"

@@ -2141,8 +2141,20 @@ ensure_unzip() {
 }
 
 MCP_PATH=""
+# When set to 1, MCP_PATH is a native `tcl-mcp` binary (launched directly, no
+# Python interpreter). Left 0 for the default Python zipapp.
+MCP_NATIVE=0
 install_mcp_zipapp() {
     if [ -n "$MCP_PATH" ] && [ -x "$MCP_PATH" ]; then return 0; fi
+    # Opt-in: register a prebuilt native `tcl-mcp` binary instead of the Python
+    # zipapp (e.g. `TCL_LSP_MCP_BIN=$(pwd)/target/release/tcl-mcp ./install.sh`,
+    # or after `make rust-mcp`). Skips the download entirely.
+    if [ -n "${TCL_LSP_MCP_BIN:-}" ] && [ -x "${TCL_LSP_MCP_BIN}" ]; then
+        MCP_PATH="${TCL_LSP_MCP_BIN}"
+        MCP_NATIVE=1
+        log "using native MCP server -> $MCP_PATH"
+        return 0
+    fi
     ensure_tag
     asset="tcl-lsp-mcp-server-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -2156,10 +2168,16 @@ install_mcp_zipapp() {
 }
 
 register_mcp_claude() {
+    # Native binary launches directly; the Python zipapp needs the interpreter.
+    if [ "$MCP_NATIVE" = "1" ]; then
+        set -- "$MCP_PATH"
+    else
+        set -- "$PYTHON" "$MCP_PATH"
+    fi
     # Capture prior entry so a failed add can be restored.
     if ! have_claude_cli; then
         warn "claude CLI not on PATH — add the MCP server manually:"
-        warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
+        warn "  claude mcp add tcl-lsp -- $*"
         return
     fi
     prior=""
@@ -2169,7 +2187,7 @@ register_mcp_claude() {
         prior="$(claude mcp list 2>/dev/null | awk '$1=="tcl-lsp" {sub(/^tcl-lsp[[:space:]]+/,""); print; exit}')"
         claude mcp remove tcl-lsp >/dev/null 2>&1 || true
     fi
-    if claude mcp add tcl-lsp -- "$PYTHON" "$MCP_PATH" >/dev/null 2>&1; then
+    if claude mcp add tcl-lsp -- "$@" >/dev/null 2>&1; then
         log "registered MCP server with Claude Code (tcl-lsp)"
         return
     fi
@@ -2178,7 +2196,7 @@ register_mcp_claude() {
         warn "prior registration was: $prior"
         warn "restore it manually if needed"
     fi
-    warn "or register fresh with: claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
+    warn "or register fresh with: claude mcp add tcl-lsp -- $*"
 }
 
 register_mcp_codex() {
@@ -2193,12 +2211,17 @@ register_mcp_codex() {
     fi
     cp "$cfg" "${cfg}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
     # Escape \ and " so a path with TOML-meaningful chars can't break the file.
-    py_escaped="$(toml_basic_escape "$PYTHON")"
     mcp_escaped="$(toml_basic_escape "$MCP_PATH")"
     {
         printf '\n[mcp_servers.tcl_lsp]\n'
-        printf 'command = "%s"\n' "$py_escaped"
-        printf 'args = ["%s"]\n'  "$mcp_escaped"
+        if [ "$MCP_NATIVE" = "1" ]; then
+            # Native binary: run it directly, no interpreter, no args.
+            printf 'command = "%s"\n' "$mcp_escaped"
+            printf 'args = []\n'
+        else
+            printf 'command = "%s"\n' "$(toml_basic_escape "$PYTHON")"
+            printf 'args = ["%s"]\n'  "$mcp_escaped"
+        fi
     } >> "$cfg"
     log "registered MCP server with Codex in $cfg"
 }
