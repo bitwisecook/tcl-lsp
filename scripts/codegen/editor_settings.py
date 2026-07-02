@@ -958,15 +958,17 @@ def generate_ai_files(*, dry_run: bool = False) -> list[tuple[Path, str]]:
 
 def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
     """Render all generated files. Returns list of (path, content) pairs."""
-    results = [
-        generate_jetbrains_catalog(dry_run=dry_run),
-        generate_jetbrains_settings(dry_run=dry_run),
-        generate_jetbrains_panel(dry_run=dry_run),
-        generate_vscode_catalog(dry_run=dry_run),
-        generate_vscode_package_json(dry_run=dry_run),
-    ]
-    results.extend(generate_ai_files(dry_run=dry_run))
-    return results
+    # NOTE: every artifact this script used to own is now generated from the
+    # Rust `DiagCode` + formatter catalogues (the rewrite's source of truth) by
+    # `cargo xtask`:
+    #   - VS Code `diagnosticCatalog.ts`  → `gen-editor-settings`
+    #   - VS Code `package.json` sections → `gen-vscode-package`
+    #   - JetBrains `*.kt`                → `gen-jetbrains-catalog`
+    #   - `ai/shared/diagnostics.json` + AI prompt/skill files → `gen-ai-diagnostics`
+    # so `render_all` is now empty; the `generate_*` helpers are retained only
+    # for reference/tests. This script is fully superseded by `cargo xtask`.
+    del dry_run
+    return []
 
 
 # CLI

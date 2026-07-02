@@ -309,7 +309,18 @@ pub fn completions(
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
     if let Some(registry) = registry {
-        items.extend(builtin_completions(registry, dialect, &partial, &usage));
+        // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
+        // only *present* once the Tk package is loaded — the `tk` dialect (a
+        // `wish` document) or a `package require Tk` in this file.  Without
+        // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
+        let tk_loaded = dialect == "tk"
+            || analysis
+                .package_requires
+                .iter()
+                .any(|req| req.name == "Tk");
+        items.extend(builtin_completions(
+            registry, dialect, &partial, &usage, tk_loaded,
+        ));
     }
     // Workspace-wide proc enumeration: surface procs defined in
     // *other* analysed documents that aren't already in the
@@ -1000,6 +1011,7 @@ fn builtin_completions(
     dialect: &str,
     partial: &str,
     usage: &FxHashMap<String, usize>,
+    tk_loaded: bool,
 ) -> Vec<CompletionItem> {
     // Version-gate the command list: a command whose spec restricts itself to
     // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
@@ -1016,6 +1028,14 @@ fn builtin_completions(
         .filter(|n| {
             dialect_set
                 .is_none_or(|ds| registry.get(n).is_none_or(|spec| spec.supports_dialect(ds)))
+        })
+        // Tk commands (`required_package == "Tk"`) are only offered once Tk is
+        // loaded — see the `tk_loaded` computation in `completions`.
+        .filter(|n| {
+            tk_loaded
+                || registry
+                    .get(n)
+                    .is_none_or(|spec| spec.required_package != Some("Tk"))
         })
         .collect();
     names.sort_unstable();
@@ -1700,6 +1720,61 @@ mod tests {
         assert!(
             !labels.contains(&"puts"),
             "`puts` is a built-in; should not surface in `call` context: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn tk_commands_only_offered_when_tk_is_loaded() {
+        let registry = CommandRegistry::build_default();
+
+        // Plain `.tcl` (tcl8.6) with no `package require Tk`: Tk widget
+        // commands must NOT be offered, even though the registry knows them.
+        let src = "butt\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 4, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"button"),
+            "Tk `button` must not surface without `package require Tk`: {labels:?}",
+        );
+
+        // Once `package require Tk` is declared, `button` becomes available.
+        let src = "package require Tk\nbutt\n";
+        let analysis = analyse(src);
+        let items = completions(src, 1, 4, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"button"),
+            "Tk `button` should surface after `package require Tk`: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn tk_commands_offered_in_wish_tk_dialect() {
+        // A `wish`-labelled document (`tk` dialect) is implicitly Tk-loaded.
+        let registry = CommandRegistry::build_default();
+        let src = "butt\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 4, &analysis, Some(&registry), None, "tk");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"button"),
+            "Tk `button` should surface in the `tk` dialect: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn tk_commands_never_offered_in_irules() {
+        // Even a stray `package require Tk` cannot make Tk valid in iRules —
+        // the command is dialect-gated out.
+        let registry = CommandRegistry::build_default();
+        let src = "package require Tk\nbutt\n";
+        let analysis = analyse(src);
+        let items = completions(src, 1, 4, &analysis, Some(&registry), None, "f5-irules");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"button"),
+            "Tk `button` must never surface in iRules: {labels:?}",
         );
     }
 

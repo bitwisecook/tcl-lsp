@@ -311,6 +311,14 @@ impl EventRegistry {
         known.into_iter().map(|(_, e)| e).chain(unknown).collect()
     }
 
+    /// Scan the `when EVENT` handler names from `source` and return them in
+    /// canonical firing order. Mirrors Python `order_events_for_file`
+    /// (`order_events(scan_file_events(source))`).
+    #[must_use]
+    pub fn order_events_for_file(&self, source: &str) -> Vec<String> {
+        self.order_events(&scan_when_events(source))
+    }
+
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
@@ -352,6 +360,54 @@ impl EventRegistry {
     pub fn event_index(&self, event: &str) -> Option<usize> {
         self.master_order_index(event)
     }
+}
+
+/// Scan the distinct `when EVENT` handler names from `source` — the
+/// consume-free equivalent of the Python regex `\bwhen\s+([A-Z_][A-Z0-9_]*)`.
+/// Names are returned in first-seen order (deduplicated); the caller orders
+/// them canonically via [`EventRegistry::order_events`].
+#[must_use]
+pub fn scan_when_events(source: &str) -> Vec<String> {
+    fn is_word(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || b == b'_'
+    }
+    fn is_upper_start(b: u8) -> bool {
+        b.is_ascii_uppercase() || b == b'_'
+    }
+    fn is_upper_rest(b: u8) -> bool {
+        b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
+    }
+
+    let bytes = source.as_bytes();
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut i = 0usize;
+    while i + 4 <= bytes.len() {
+        // `\bwhen`: the four chars "when" with a word boundary before.
+        if &bytes[i..i + 4] == b"when" && (i == 0 || !is_word(bytes[i - 1])) {
+            let mut j = i + 4;
+            // `\s+`
+            let ws_start = j;
+            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            if j > ws_start && j < bytes.len() && is_upper_start(bytes[j]) {
+                let name_start = j;
+                j += 1;
+                while j < bytes.len() && is_upper_rest(bytes[j]) {
+                    j += 1;
+                }
+                let name = &source[name_start..j];
+                if seen.insert(name) {
+                    out.push(name.to_owned());
+                }
+                i = j;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 /// True when an event's [`EventProps`] satisfy a command's [`EventRequires`].
