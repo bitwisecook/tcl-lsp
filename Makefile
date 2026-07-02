@@ -205,7 +205,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -380,21 +380,8 @@ test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python t
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/lsp_e2e
 
-test-lsp-e2e: $(UV_STAMP) ensure-python-test-deps $(ZIPAPP_LSP) ## Run the backend-neutral lsp_e2e suite against the Python server
-	@echo "==> Running lsp_e2e against the Python server"
-	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
-
-test-lsp-e2e-rust: $(UV_STAMP) ensure-python-test-deps ## Run the lsp_e2e suite against the native Rust server (TCL_LSP_SERVER_BIN or target/{release,debug})
-	@set -eu; \
-	BIN="$${TCL_LSP_SERVER_BIN:-$(ROOT)target/release/tcl-lsp-server}"; \
-	if [ ! -x "$$BIN" ]; then BIN="$(ROOT)target/debug/tcl-lsp-server"; fi; \
-	if [ ! -x "$$BIN" ]; then \
-		echo "ERROR: no native tcl-lsp-server binary — set TCL_LSP_SERVER_BIN or run 'make rust-server'."; \
-		exit 1; \
-	fi; \
-	echo "==> Running lsp_e2e against the Rust server ($$BIN)"; \
-	cd $(ROOT) && TCL_LSP_SERVER_KIND=rust TCL_LSP_SERVER_BIN="$$BIN" \
-		$(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+# The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
+# `cargo test` (see test-rust). The old Python pytest drivers were retired.
 
 test-wasm: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the WASM codegen/runtime test suite (rebuilds the Zig runtime if its sources changed)
 	@echo "==> Running WASM tests against the Zig runtime"
@@ -703,11 +690,9 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		echo "       Set SKIP_TEST_RUST=1 to skip this target."; \
 		exit 1; \
 	fi; \
-	echo "==> Running Rust workspace tests"; \
+	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
 	cd $(ROOT) && cargo test --workspace --all-features
-	@echo "==> Building the native server + running lsp_e2e against it"
-	$(MAKE) rust-server
-	$(MAKE) test-lsp-e2e-rust
+	@echo "==> lsp_e2e ran natively as rust/tcl-lsp-server/tests/*_e2e.rs (no Python)"
 
 # Build the native Rust LSP server binary (target/release/tcl-lsp-server).
 # This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust
