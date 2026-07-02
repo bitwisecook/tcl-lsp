@@ -303,17 +303,16 @@ fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> 
     })
 }
 
-/// Call-site positions of `callee_qname` within `caller_qname`'s body.
-#[allow(clippy::similar_names)] // caller_qname / callee_qname mirror the domain
+/// Call-site positions of `callee_qname` within `containing_proc`'s body.
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
     callee_qname: &str,
-    caller_qname: &str,
+    containing_proc: &str,
     ir_module: &IrModule,
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some((proc_start, proc_end)) = proc_line_span(ir_module, caller_qname, line_index) else {
+    let Some((proc_start, proc_end)) = proc_line_span(ir_module, containing_proc, line_index) else {
         return Vec::new();
     };
     let short = callee_qname.trim_start_matches(':');

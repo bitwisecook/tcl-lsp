@@ -513,7 +513,6 @@ pub(crate) fn refactor_switch_to_dict(
 /// `tcl_lsp_core::refactor::extract_variable`.
 #[pyfunction]
 #[pyo3(signature = (source, start_line, start_character, end_line, end_character, var_name = "result", *, dialect = DEFAULT_DIALECT))]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn refactor_extract_variable(
     source: &str,
     start_line: u32,
@@ -826,6 +825,8 @@ pub(crate) fn order_events_for_file(source: &str) -> Vec<String> {
 /// decision is `{category, action, value}`.
 #[pyfunction]
 #[pyo3(signature = (source, *, method = "GET", uri = "/", host = "", sni = "", profiles = None, pools = None))]
+// The parameters are the request config as pythonic kwargs (+ `py` for the GIL
+// release); grouping them into a struct would only make the Python API worse.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn simulate_irule<'py>(
     py: Python<'py>,

@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
-use tcl_compiler::ir::{Procedure, Script, Statement, when_event_name};
+use tcl_compiler::ir::{Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name};
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 
@@ -128,9 +128,171 @@ fn action_node(display: &str, args: &[String]) -> Value {
     })
 }
 
+/// Build the `switch` flow-node dict from its subject, arms and default body.
+fn walk_switch(
+    subject: &str,
+    arms: &[SwitchArm],
+    default_body: Option<&Script>,
+    proc_names: &HashSet<&str>,
+    depth: usize,
+    registry: &CommandRegistry,
+) -> Value {
+    let mut serialised_arms: Vec<Value> = Vec::new();
+    let mut fallthrough_patterns: Vec<String> = Vec::new();
+    for arm in arms {
+        if arm.fallthrough {
+            fallthrough_patterns.push(arm.pattern.clone());
+            continue;
+        }
+        let mut patterns = std::mem::take(&mut fallthrough_patterns);
+        patterns.push(arm.pattern.clone());
+        let body = arm
+            .body
+            .as_ref()
+            .map_or_else(Vec::new, |b| walk_script(b, proc_names, depth + 1, registry));
+        let pattern = if patterns.len() > 1 {
+            patterns.join(" | ")
+        } else {
+            patterns[0].clone()
+        };
+        serialised_arms.push(json!({ "pattern": pattern, "body": body }));
+    }
+    if let Some(body) = default_body {
+        let body = walk_script(body, proc_names, depth + 1, registry);
+        serialised_arms.push(json!({ "pattern": "default", "body": body }));
+    }
+    json!({
+        "kind": "switch",
+        "subject": truncate(subject, 80),
+        "arms": serialised_arms,
+    })
+}
+
+/// Build the `try` flow-node dict from its body, handlers and finally body.
+fn walk_try(
+    body: &Script,
+    handlers: &[TryHandler],
+    finally_body: Option<&Script>,
+    proc_names: &HashSet<&str>,
+    depth: usize,
+    registry: &CommandRegistry,
+) -> Value {
+    let child = walk_script(body, proc_names, depth + 1, registry);
+    let mut result = Map::new();
+    result.insert("kind".to_owned(), json!("try"));
+    result.insert("body".to_owned(), json!(child));
+    if !handlers.is_empty() {
+        let handler_nodes: Vec<Value> = handlers
+            .iter()
+            .map(|h| {
+                json!({
+                    "kind_handler": h.kind,
+                    "match": h.match_arg,
+                    "body": walk_script(&h.body, proc_names, depth + 1, registry),
+                })
+            })
+            .collect();
+        result.insert("handlers".to_owned(), Value::Array(handler_nodes));
+    }
+    if let Some(finally_body) = finally_body {
+        result.insert(
+            "finally".to_owned(),
+            json!(walk_script(finally_body, proc_names, depth + 1, registry)),
+        );
+    }
+    Value::Object(result)
+}
+
+/// Build the `if` flow-node dict from its clauses and optional `else` body.
+fn walk_if(
+    clauses: &[tcl_compiler::ir::IfClause],
+    else_body: Option<&Script>,
+    proc_names: &HashSet<&str>,
+    depth: usize,
+    registry: &CommandRegistry,
+) -> Value {
+    let mut branches: Vec<Value> = Vec::new();
+    for clause in clauses {
+        let body = walk_script(&clause.body, proc_names, depth + 1, registry);
+        branches.push(json!({
+            "condition": condition_text(&clause.condition),
+            "body": body,
+        }));
+    }
+    if let Some(else_body) = else_body {
+        let body = walk_script(else_body, proc_names, depth + 1, registry);
+        branches.push(json!({ "condition": "else", "body": body }));
+    }
+    json!({ "kind": "if", "branches": branches })
+}
+
+/// Build the flow node for a `Call` statement, or `None` when it isn't notable.
+fn walk_call(
+    command: &str,
+    canonical_command: Option<&str>,
+    args: &[String],
+    proc_names: &HashSet<&str>,
+    registry: &CommandRegistry,
+) -> Option<Value> {
+    // Matching is on `IRCall.canonical_command` (the stamped
+    // namespace-qualified form). The Rust lowerer only stamps it for
+    // alias / namespace resolution, leaving plain calls `None`; for
+    // those the source spelling *is* the canonical (modulo a leading
+    // `::`, which `is_diagram_action` / the registry strip), so fall
+    // back to it to reproduce the resolution.
+    let canonical = canonical_command.unwrap_or(command);
+    let display = command;
+    // Skip the top-level `when` calls — their bodies are in procedures.
+    if canonical == "::when" {
+        return None;
+    }
+    // Procedure calls.
+    if proc_names.contains(display) || proc_names.contains(canonical) {
+        return Some(json!({
+            "kind": "proc_call",
+            "label": format!("call {display}"),
+            "command": display,
+        }));
+    }
+    // Notable action commands.
+    if registry.is_diagram_action(canonical) {
+        return Some(action_node(display, args));
+    }
+    None
+}
+
+/// Build a `loop` flow node with the given rendered label.
+fn loop_node(
+    label: &str,
+    body: &Script,
+    proc_names: &HashSet<&str>,
+    depth: usize,
+    registry: &CommandRegistry,
+) -> Value {
+    let child = walk_script(body, proc_names, depth + 1, registry);
+    json!({ "kind": "loop", "label": label, "body": child })
+}
+
+/// Flow node for a notable assignment, or `None` when the value isn't notable.
+fn assign_node(name: &str, value: &str) -> Option<Value> {
+    is_notable_assign(value)
+        .then(|| json!({ "kind": "assign", "var": name, "value": truncate(value, 80) }))
+}
+
+/// Build the `return` flow node, appending the returned value when present.
+fn return_node(value: Option<&String>) -> Value {
+    let mut label = "return".to_owned();
+    if let Some(v) = value
+        && !v.is_empty()
+    {
+        label.push(' ');
+        label.push_str(&truncate(v, MAX_ARG_LEN));
+    }
+    json!({ "kind": "return", "label": label })
+}
+
 /// Convert one IR statement to a flow-node dict, or `None` to skip it.
 /// One arm per IR statement kind, so the length tracks the statement set.
-#[allow(clippy::too_many_lines)]
 fn walk_statement(
     stmt: &Statement,
     proc_names: &HashSet<&str>,
@@ -147,69 +309,34 @@ fn walk_statement(
             arms,
             default_body,
             ..
-        } => {
-            let mut serialised_arms: Vec<Value> = Vec::new();
-            let mut fallthrough_patterns: Vec<String> = Vec::new();
-            for arm in arms {
-                if arm.fallthrough {
-                    fallthrough_patterns.push(arm.pattern.clone());
-                    continue;
-                }
-                let mut patterns = std::mem::take(&mut fallthrough_patterns);
-                patterns.push(arm.pattern.clone());
-                let body = arm.body.as_ref().map_or_else(Vec::new, |b| {
-                    walk_script(b, proc_names, depth + 1, registry)
-                });
-                let pattern = if patterns.len() > 1 {
-                    patterns.join(" | ")
-                } else {
-                    patterns[0].clone()
-                };
-                serialised_arms.push(json!({ "pattern": pattern, "body": body }));
-            }
-            if let Some(body) = default_body {
-                let body = walk_script(body, proc_names, depth + 1, registry);
-                serialised_arms.push(json!({ "pattern": "default", "body": body }));
-            }
-            Some(json!({
-                "kind": "switch",
-                "subject": truncate(subject, 80),
-                "arms": serialised_arms,
-            }))
-        }
+        } => Some(walk_switch(
+            subject,
+            arms,
+            default_body.as_ref(),
+            proc_names,
+            depth,
+            registry,
+        )),
 
         Statement::If {
             clauses, else_body, ..
-        } => {
-            let mut branches: Vec<Value> = Vec::new();
-            for clause in clauses {
-                let body = walk_script(&clause.body, proc_names, depth + 1, registry);
-                branches.push(json!({
-                    "condition": condition_text(&clause.condition),
-                    "body": body,
-                }));
-            }
-            if let Some(else_body) = else_body {
-                let body = walk_script(else_body, proc_names, depth + 1, registry);
-                branches.push(json!({ "condition": "else", "body": body }));
-            }
-            Some(json!({ "kind": "if", "branches": branches }))
-        }
+        } => Some(walk_if(
+            clauses,
+            else_body.as_ref(),
+            proc_names,
+            depth,
+            registry,
+        )),
 
         Statement::For { body, .. } => {
-            let child = walk_script(body, proc_names, depth + 1, registry);
-            Some(json!({ "kind": "loop", "label": "for", "body": child }))
+            Some(loop_node("for", body, proc_names, depth, registry))
         }
 
         Statement::While {
             condition, body, ..
         } => {
-            let child = walk_script(body, proc_names, depth + 1, registry);
-            Some(json!({
-                "kind": "loop",
-                "label": format!("while {}", condition_text(condition)),
-                "body": child,
-            }))
+            let label = format!("while {}", condition_text(condition));
+            Some(loop_node(&label, body, proc_names, depth, registry))
         }
 
         Statement::Foreach {
@@ -220,12 +347,8 @@ fn walk_statement(
                 .map(|it| it.vars.join(" "))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let child = walk_script(body, proc_names, depth + 1, registry);
-            Some(json!({
-                "kind": "loop",
-                "label": format!("foreach {}", truncate(&vars_part, MAX_ARG_LEN)),
-                "body": child,
-            }))
+            let label = format!("foreach {}", truncate(&vars_part, MAX_ARG_LEN));
+            Some(loop_node(&label, body, proc_names, depth, registry))
         }
 
         Statement::Call {
@@ -233,33 +356,13 @@ fn walk_statement(
             canonical_command,
             args,
             ..
-        } => {
-            // Matching is on `IRCall.canonical_command` (the stamped
-            // namespace-qualified form). The Rust lowerer only stamps it for
-            // alias / namespace resolution, leaving plain calls `None`; for
-            // those the source spelling *is* the canonical (modulo a leading
-            // `::`, which `is_diagram_action` / the registry strip), so fall
-            // back to it to reproduce the resolution.
-            let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
-            let display = command.as_str();
-            // Skip the top-level `when` calls — their bodies are in procedures.
-            if canonical == "::when" {
-                return None;
-            }
-            // Procedure calls.
-            if proc_names.contains(display) || proc_names.contains(canonical) {
-                return Some(json!({
-                    "kind": "proc_call",
-                    "label": format!("call {display}"),
-                    "command": display,
-                }));
-            }
-            // Notable action commands.
-            if registry.is_diagram_action(canonical) {
-                return Some(action_node(display, args));
-            }
-            None
-        }
+        } => walk_call(
+            command,
+            canonical_command.as_deref(),
+            args,
+            proc_names,
+            registry,
+        ),
 
         Statement::Barrier {
             command,
@@ -268,37 +371,17 @@ fn walk_statement(
             ..
         } => {
             let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
-            if registry.is_diagram_action(canonical) {
-                return Some(action_node(command, args));
-            }
-            None
+            registry
+                .is_diagram_action(canonical)
+                .then(|| action_node(command, args))
         }
 
-        Statement::Return { value, .. } => {
-            let mut label = "return".to_owned();
-            if let Some(v) = value
-                && !v.is_empty()
-            {
-                label.push(' ');
-                label.push_str(&truncate(v, MAX_ARG_LEN));
-            }
-            Some(json!({ "kind": "return", "label": label }))
-        }
+        Statement::Return { value, .. } => Some(return_node(value.as_ref())),
 
-        Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. }
-            if is_notable_assign(value) =>
-        {
-            Some(json!({ "kind": "assign", "var": name, "value": truncate(value, 80) }))
-        }
+        Statement::AssignConst { name, value, .. }
+        | Statement::AssignValue { name, value, .. } => assign_node(name, value),
 
-        Statement::AssignExpr { name, expr, .. } => {
-            let text = render_expr(expr);
-            if is_notable_assign(&text) {
-                Some(json!({ "kind": "assign", "var": name, "value": truncate(&text, 80) }))
-            } else {
-                None
-            }
-        }
+        Statement::AssignExpr { name, expr, .. } => assign_node(name, &render_expr(expr)),
 
         Statement::Catch { body, .. } => {
             let child = walk_script(body, proc_names, depth + 1, registry);
@@ -310,32 +393,14 @@ fn walk_statement(
             handlers,
             finally_body,
             ..
-        } => {
-            let child = walk_script(body, proc_names, depth + 1, registry);
-            let mut result = Map::new();
-            result.insert("kind".to_owned(), json!("try"));
-            result.insert("body".to_owned(), json!(child));
-            if !handlers.is_empty() {
-                let handler_nodes: Vec<Value> = handlers
-                    .iter()
-                    .map(|h| {
-                        json!({
-                            "kind_handler": h.kind,
-                            "match": h.match_arg,
-                            "body": walk_script(&h.body, proc_names, depth + 1, registry),
-                        })
-                    })
-                    .collect();
-                result.insert("handlers".to_owned(), Value::Array(handler_nodes));
-            }
-            if let Some(finally_body) = finally_body {
-                result.insert(
-                    "finally".to_owned(),
-                    json!(walk_script(finally_body, proc_names, depth + 1, registry)),
-                );
-            }
-            Some(Value::Object(result))
-        }
+        } => Some(walk_try(
+            body,
+            handlers,
+            finally_body.as_ref(),
+            proc_names,
+            depth,
+            registry,
+        )),
 
         _ => None,
     }
