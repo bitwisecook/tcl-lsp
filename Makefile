@@ -32,7 +32,10 @@ PY_PKGS  := shared compiler dialects analyser server tooling ai
 EXT_DIR         := $(ROOT)editors/vscode
 TEST_DIR        := $(ROOT)tests
 OUT_DIR         := $(EXT_DIR)/out
-EXPLORER_STATIC := $(ROOT)tooling/explorer/static
+# The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
+# builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
+# bundle into the `tcl` binary (served by `tcl explore --serve`).
+EXPLORER_STATIC := $(ROOT)rust/tcl-cli/gui
 TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 
 # Zig runtime WASM — single source of truth for the artifact path and
@@ -128,7 +131,7 @@ VSCE_PUBLISHER := bitwisecook
 
 # Build-info files (generated, gitignored)
 BUILD_INFO      := $(ROOT)shared/_build_info.py
-BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
+BUILD_INFO_JSON := $(BUILD_DIR)/build_info.json
 
 # Zipapps — name → output filename mapping.  The pattern rule below
 # drives every zipapp from this list.
@@ -1512,26 +1515,16 @@ logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
 codegen: generate gen-editor-settings gen-registry-baselines ## Regenerate ALL generated files (catalogs + editor settings + registry fixtures + AI prompts)
 
 # Compiler Explorer (WASM GUI)
+#
+# The GUI is a static web app embedded into the `tcl` binary: a checked-in shell
+# (`rust/tcl-cli/gui/index.html` + `explorer-core.js` + `worker.js` + assets)
+# plus the Rust → WASM compiler core and Mermaid, which the targets below build
+# into that same dir. `build.rs` then embeds the whole bundle, and
+# `tcl explore --serve` serves it from memory — no Python, no CDN, no Pyodide.
 
-PYODIDE_VERSION  := 0.27.3
-PYODIDE_DIR      := $(EXPLORER_STATIC)/pyodide
-PYODIDE_TARBALL  := $(BUILD_DIR)/cache/pyodide-$(PYODIDE_VERSION).tar.bz2
-PYODIDE_CDN      := https://github.com/pyodide/pyodide/releases/download/$(PYODIDE_VERSION)/pyodide-$(PYODIDE_VERSION).tar.bz2
 MERMAID_VERSION  := 11
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
 MERMAID_CDN      := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
-
-$(PYODIDE_TARBALL):
-	@echo "==> Downloading Pyodide $(PYODIDE_VERSION)"
-	@mkdir -p $(BUILD_DIR)/cache
-	curl -fSL -o $@ $(PYODIDE_CDN)
-
-$(PYODIDE_DIR)/pyodide.js: $(PYODIDE_TARBALL)
-	@echo "==> Extracting Pyodide to $(PYODIDE_DIR)"
-	@rm -rf $(PYODIDE_DIR)
-	@mkdir -p $(PYODIDE_DIR)
-	tar xjf $(PYODIDE_TARBALL) --strip-components=1 -C $(PYODIDE_DIR)
-	@touch $@
 
 $(MERMAID_JS):
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
@@ -1539,7 +1532,7 @@ $(MERMAID_JS):
 
 EXPLORER_WASM_DIR := $(ROOT)rust/tcl-explorer-wasm
 
-explorer-wasm: ## Build the Rust → WASM compiler-explorer module into static/
+explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GUI dir
 	@command -v wasm-pack >/dev/null 2>&1 || { \
 		echo "wasm-pack not found — run 'make ensure-rust-deps' or 'cargo install wasm-pack'"; \
 		exit 1; }
@@ -1552,35 +1545,12 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer module into static/
 	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm.js
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
-explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler explorer (Rust → WASM, offline, no Python)
-	@echo "==> Compiler explorer ready in $(EXPLORER_STATIC) (Rust → WASM, no Pyodide)"
+explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline, no Python)
+	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
-compiler-explorer-gui: explorer-build ## Build and serve the static compiler explorer
-	@echo "==> Serving compiler explorer at http://localhost:8080"
-	cd $(EXPLORER_STATIC) && $(PYTHON) -m http.server 8080
-
-# CDN variant — lightweight build that loads Mermaid from CDN (the Rust → WASM
-# compiler module has no CDN, so it is bundled alongside the worker).
-EXPLORER_CDN_DIR := $(BUILD_DIR)/explorer-cdn
-MERMAID_CDN_URL  := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
-
-explorer-build-cdn: explorer-wasm $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (Mermaid from CDN, WASM bundled)
-	@echo "==> Building CDN explorer"
-	@rm -rf $(EXPLORER_CDN_DIR)
-	@mkdir -p $(EXPLORER_CDN_DIR)
-	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_CDN_DIR)
-	cp $(BUILD_INFO_JSON) $(EXPLORER_CDN_DIR)/
-	cp $(EXPLORER_STATIC)/explorer-core.js $(EXPLORER_CDN_DIR)/
-	@# The Rust → WASM compiler module has no CDN, so it is bundled in both
-	@# the local and CDN explorers (built by the explorer-wasm prerequisite).
-	cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_CDN_DIR)/
-	cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(EXPLORER_CDN_DIR)/
-	sed 's|<script src="mermaid.min.js"></script>|<script src="$(MERMAID_CDN_URL)"></script>|' \
-		$(EXPLORER_STATIC)/index.html > $(EXPLORER_CDN_DIR)/index.html
-	@# worker.js loads the bundled WASM relative to itself; the CDN variant
-	@# only swaps Mermaid (in index.html), so the worker is copied verbatim.
-	cp $(EXPLORER_STATIC)/worker.js $(EXPLORER_CDN_DIR)/worker.js
-	@echo "CDN explorer built in $(EXPLORER_CDN_DIR)"
+compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
+	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"
+	cargo run -p tcl-cli --release --bin tcl -- explore --serve --open
 	@ls -lh $(EXPLORER_CDN_DIR)/
 
 # ---------------------------------------------------------------------------

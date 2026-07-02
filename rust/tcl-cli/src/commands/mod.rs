@@ -11,6 +11,7 @@ pub mod diff;
 pub mod docker;
 pub mod explore;
 pub mod graphs;
+pub mod gui;
 pub mod help;
 pub mod highlight;
 pub mod lookup;
