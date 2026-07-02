@@ -4,61 +4,29 @@ tcl-lsp works with Emacs via **eglot** (built-in since Emacs 29) or **lsp-mode**
 
 ## Prerequisites
 
-**Python 3.10+** is required. We recommend the latest stable Python
-(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
+The server is the native `tcl-lsp-server` binary — no Python, interpreter,
+or runtime dependencies are required. Download the binary for your platform
+from the
+[latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest),
+or build it from source with `make rust-server` (or
+`cargo build -p tcl-lsp-server`, producing `target/release/tcl-lsp-server`).
 
-The `.pyz` zipapp bundles all Python dependencies internally — no
-`pip install` is needed. You only need a Python interpreter on your system.
+See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
-See the [Installation Guide](../../INSTALL-editors.md#python) for
-full details on Python setup across platforms.
-
-The default backend is the native Rust server (`tcl-lsp-server`); the Python
-reference server is the opt-out.  The server needs to be accessible via one of:
-
-```sh
-# Default — native Rust server (build with `make rust-server`)
-/path/to/tcl-lsp/target/release/tcl-lsp-server
-
-# Python opt-out A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m server
-
-# Python opt-out B — standalone zipapp (just needs Python 3.10+)
-python3 /path/to/tcl-lsp-server.pyz
-```
-
-For the Python backend, point to a specific interpreter by using its full path
-as the first element of the command list (e.g. `"/opt/homebrew/bin/python3.14"`).
+Point the server command at the binary — either its name (`tcl-lsp-server`)
+if it is on your PATH, or an absolute path to it.
 
 ## eglot (Emacs 29+)
 
-Add to your `init.el` (native Rust server, the default):
+Add to your `init.el`:
 
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("/path/to/tcl-lsp/target/release/tcl-lsp-server"))))
+               '(tcl-mode . ("/path/to/tcl-lsp-server"))))
 
 ;; Auto-start on Tcl files
 (add-hook 'tcl-mode-hook #'eglot-ensure)
-```
-
-Or opt into the Python reference server, from source:
-
-```elisp
-(with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("uv" "run" "--directory" "/path/to/tcl-lsp"
-                             "--no-dev" "python" "-m" "server"))))
-```
-
-...or the standalone zipapp:
-
-```elisp
-(with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("python3" "/path/to/tcl-lsp-server.pyz"))))
 ```
 
 ## lsp-mode
@@ -67,9 +35,7 @@ Or opt into the Python reference server, from source:
 (with-eval-after-load 'lsp-mode
   (lsp-register-client
    (make-lsp-client
-    :new-connection (lsp-stdio-connection
-                     '("uv" "run" "--directory" "/path/to/tcl-lsp"
-                       "--no-dev" "python" "-m" "server"))
+    :new-connection (lsp-stdio-connection '("/path/to/tcl-lsp-server"))
     :activation-fn (lsp-activate-on "tcl")
     :server-id 'tcl-lsp)))
 
