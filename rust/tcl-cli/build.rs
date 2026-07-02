@@ -94,8 +94,10 @@ fn embed_gui(manifest: &Path) {
     for name in &names {
         let abs = gui_dir.join(name);
         println!("cargo:rerun-if-changed={}", abs.display());
+        let abs = abs.to_str().expect("gui asset path is valid UTF-8");
         // `name` is a plain filesystem entry name and `abs` an absolute path we
-        // just enumerated, so `{:?}` produces valid string literals.
+        // just enumerated, so `{:?}` on each `&str` produces valid Rust string
+        // literals for the generated table.
         let _ = writeln!(out, "    ({name:?}, include_bytes!({abs:?})),");
     }
     out.push_str("];\n");
