@@ -44,9 +44,7 @@ def _complete(lsp_server, uri, src, line, char):
 class TestTkLoadedGating:
     def test_button_absent_in_plain_tcl(self, lsp_server, uri_factory):
         # No `package require Tk` — Tk commands must not surface.
-        labels = _complete(
-            lsp_server, uri_factory(), "# tcl-dialect: tcl8.6\nbutt\n", 1, 4
-        )
+        labels = _complete(lsp_server, uri_factory(), "# tcl-dialect: tcl8.6\nbutt\n", 1, 4)
         assert "button" not in labels
 
     def test_button_offered_after_package_require_tk(self, lsp_server, uri_factory):

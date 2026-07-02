@@ -522,7 +522,9 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     # The Rust facade runs the profile-filtered (multi-)pass optimiser and
     # returns the raw, ungrouped suggestions; grouping into logical
     # optimisations for presentation stays here (AI-facing glue).
-    opt = require_rust().optimise(source, dialect=dialect or _detect_dialect(source), profile=profile)
+    opt = require_rust().optimise(
+        source, dialect=dialect or _detect_dialect(source), profile=profile
+    )
     items = opt["optimizations"]
 
     # Build grouped view: each group is a single logical optimisation.
@@ -1042,7 +1044,9 @@ def _tool_call_graph(source: str, dialect: str = "") -> str:
 def _tool_symbol_graph(source: str, dialect: str = "") -> str:
     from ai.shared.rust_bridge import require_rust
 
-    return json.dumps(require_rust().symbol_graph(source, dialect=dialect or _detect_dialect(source)))
+    return json.dumps(
+        require_rust().symbol_graph(source, dialect=dialect or _detect_dialect(source))
+    )
 
 
 @tool(
@@ -1461,9 +1465,7 @@ def _tool_generate_docstring(
     from ai.shared.rust_bridge import require_rust
 
     dec = decoration.lower() in ("true", "1", "yes")
-    stub = require_rust().generate_docstring_stub(
-        source, proc_name, style=style, decoration=dec
-    )
+    stub = require_rust().generate_docstring_stub(source, proc_name, style=style, decoration=dec)
     if stub is None:
         return json.dumps({"error": f"Proc '{proc_name}' not found"})
     return json.dumps({"proc": proc_name, "docstring": stub})
@@ -2015,9 +2017,9 @@ def _tool_irule_with_context(
         context_bundle_to_dict,
         context_bundle_to_text,
     )
+    from dialects.f5.bigip.inputs import load_irule_inputs
     from dialects.f5.bigip.lint import _merge_configs
     from dialects.f5.bigip.parser import parse_bigip_conf
-    from dialects.f5.bigip.inputs import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:

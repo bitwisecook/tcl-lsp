@@ -339,7 +339,9 @@ def _analyse_if_chain(texts: list[str], line: int) -> dict | None:
     body_set = {b.strip() for b in bodies}
     body_shape = "identical" if len(body_set) == 1 else _classify_body_shape(bodies)
 
-    confidence = "high" if body_shape in ("identical", "set_mapping", "return_mapping") else "medium"
+    confidence = (
+        "high" if body_shape in ("identical", "set_mapping", "return_mapping") else "medium"
+    )
 
     return {
         "line": line,
@@ -395,7 +397,9 @@ def _analyse_switch(texts: list[str], line: int) -> dict | None:
     bodies = [b.strip() for _, b in regular]
     body_shape = "identical" if len(set(bodies)) == 1 else _classify_body_shape(bodies)
 
-    confidence = "high" if body_shape in ("identical", "set_mapping", "return_mapping") else "medium"
+    confidence = (
+        "high" if body_shape in ("identical", "set_mapping", "return_mapping") else "medium"
+    )
 
     return {
         "line": line,

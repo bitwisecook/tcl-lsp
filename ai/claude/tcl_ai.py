@@ -58,7 +58,11 @@ from ai.shared.diagnostics import (
 def cmd_diagnostics(source: str, file_path: str) -> None:
     from ai.shared.rust_bridge import require_rust
 
-    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
+    diags = (
+        require_rust()
+        .analyse_tcl(source, dialect=_dialect_from_path(file_path, source))
+        .diagnostics
+    )
 
     print(f"=== Diagnostics ({len(diags)} items) ===")
     if not diags:
@@ -79,9 +83,7 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 def cmd_symbols(source: str, file_path: str) -> None:
     from ai.shared.rust_bridge import require_rust
 
-    symbols = require_rust().document_symbols(
-        source, dialect=_dialect_from_path(file_path, source)
-    )
+    symbols = require_rust().document_symbols(source, dialect=_dialect_from_path(file_path, source))
     events = _detect_events(source)
 
     # Buffer output to print header with count first
@@ -322,7 +324,11 @@ def cmd_command_info(command_name: str) -> None:
 def cmd_validate(source: str, file_path: str) -> None:
     from ai.shared.rust_bridge import require_rust
 
-    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
+    diags = (
+        require_rust()
+        .analyse_tcl(source, dialect=_dialect_from_path(file_path, source))
+        .diagnostics
+    )
 
     if not diags:
         print("=== Validation Report ===")
@@ -347,7 +353,9 @@ def cmd_validate(source: str, file_path: str) -> None:
             continue
         print(f"\n  --- {cat_label} ({len(cat_diags)}) ---")
         for d in cat_diags:
-            print(f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}")
+            print(
+                f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}"
+            )
 
 
 # Subcommand: review (security-focused diagnostics)
@@ -356,7 +364,11 @@ def cmd_validate(source: str, file_path: str) -> None:
 def cmd_review(source: str, file_path: str) -> None:
     from ai.shared.rust_bridge import require_rust
 
-    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
+    diags = (
+        require_rust()
+        .analyse_tcl(source, dialect=_dialect_from_path(file_path, source))
+        .diagnostics
+    )
 
     security_diags = [d for d in diags if d.code in REVIEW_CODES]
 
@@ -375,7 +387,9 @@ def cmd_review(source: str, file_path: str) -> None:
             continue
         print(f"\n  --- {label} ({len(group)}) ---")
         for d in group:
-            print(f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}")
+            print(
+                f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}"
+            )
 
     print(f"\n  Total security-related issues: {len(security_diags)}")
 
@@ -388,7 +402,11 @@ def cmd_review(source: str, file_path: str) -> None:
 def cmd_find_legacy(source: str, file_path: str) -> None:
     from ai.shared.rust_bridge import require_rust
 
-    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
+    diags = (
+        require_rust()
+        .analyse_tcl(source, dialect=_dialect_from_path(file_path, source))
+        .diagnostics
+    )
 
     convertible = [d for d in diags if d.code in CONVERTIBLE_CODES]
 
@@ -2253,7 +2271,10 @@ def cmd_refactor(source: str, file_path: str) -> None:
             ("if_to_switch", r.refactor_if_to_switch(source, line, char, dialect=resolved)),
             ("switch_to_dict", r.refactor_switch_to_dict(source, line, char, dialect=resolved)),
             ("brace_expr", r.refactor_brace_expr(source, line, char, dialect=resolved)),
-            ("extract_datagroup", r.refactor_extract_datagroup(source, line, char, dialect=resolved)),
+            (
+                "extract_datagroup",
+                r.refactor_extract_datagroup(source, line, char, dialect=resolved),
+            ),
         ):
             if result:
                 available.append({"line": line, "tool": tool_name, "title": result.title})
