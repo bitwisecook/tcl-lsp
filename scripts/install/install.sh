@@ -1582,7 +1582,10 @@ find_existing_mcp() {
     if have claude; then
         line="$(claude mcp list 2>/dev/null | awk '$1 == "tcl-lsp"' | head -n 1)"
         if [ -n "$line" ]; then
-            p="$(printf '%s\n' "$line" | grep -oE '/[A-Za-z0-9._/+~:-]+\.pyz' | head -n 1)"
+            # The registered command is either `python …/….pyz` (zipapp) or an
+            # absolute `…/tcl-mcp` (native binary) — match both.
+            p="$(printf '%s\n' "$line" | grep -oE '/[A-Za-z0-9._/+~:-]+' \
+                | grep -E '(\.pyz|/tcl-mcp)$' | head -n 1)"
             if [ -n "$p" ] && [ -r "$p" ]; then
                 printf '%s\n' "$p"; return 0
             fi
@@ -1593,8 +1596,10 @@ find_existing_mcp() {
         p="$(awk '
             /^[[:space:]]*\[mcp_servers\.tcl_lsp\]/ { inside=1; next }
             inside && /^[[:space:]]*\[/             { inside=0 }
-            inside && /\.pyz/ {
-                if (match($0, /"[^"]+\.pyz"/)) {
+            # `command`/`args` may hold a `…/….pyz` (zipapp) or a native
+            # `…/tcl-mcp` path — match either.
+            inside && /"[^"]*(\.pyz|tcl-mcp)"/ {
+                if (match($0, /"[^"]*(\.pyz|tcl-mcp)"/)) {
                     print substr($0, RSTART+1, RLENGTH-2); exit
                 }
             }' "$cfg")"
@@ -1624,18 +1629,67 @@ mcp_target_basename() {
 
 # Detect an existing MCP zipapp and offer to update it in place.
 # Sets MCP_PREFIX_OVERRIDE.
+looks_like_our_native_mcp() {
+    # Our native MCP server is an executable named `tcl-mcp`.  Unlike the
+    # zipapp (whose structure looks_like_our_zipapp inspects), a native binary
+    # can't be introspected the same way, so match on the artefact name the
+    # installer itself writes / registers.
+    f="$1"
+    [ -f "$f" ] && [ -x "$f" ] || return 1
+    case "$(basename "$f")" in
+        tcl-mcp | tcl-mcp.exe) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 propose_update_mcp() {
     [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
     p="$(find_existing_mcp)" || return 0
-    if ! looks_like_our_zipapp "$p"; then
-        warn "found '$(basename "$p")' at $p but it doesn't look like our zipapp"
+    if ! looks_like_our_zipapp "$p" && ! looks_like_our_native_mcp "$p"; then
+        warn "found '$(basename "$p")' at $p but it doesn't look like our MCP server"
         return 0
     fi
+    # Remember the prior install so cleanup_stale_mcp can remove it if this run
+    # installs the other flavour (native ⇄ zipapp) or a copy elsewhere.
+    PRIOR_MCP_PATH="$p"
     log "found existing MCP server at $p"
     if ask_optout "Update existing MCP server at $p (in place)? [Y/n]"; then
         MCP_PREFIX_OVERRIDE="$(dirname "$p")"
     fi
     return 0
+}
+
+# After a successful MCP install + registration, remove leftover copies so a
+# machine doesn't accumulate stale MCP servers when switching flavours or
+# locations:
+#   * the OTHER flavour's artefact at the install prefix (old Python zipapp when
+#     we just installed native, or an old native binary when we installed the
+#     zipapp);
+#   * a prior install detected elsewhere (PRIOR_MCP_PATH), when it's ours and
+#     isn't the copy we just wrote.
+# Only ever removes files we positively recognise as ours.
+cleanup_stale_mcp() {
+    [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
+    [ -n "${MCP_PATH:-}" ] || return 0
+    prefix="$(prefix_for mcp)"
+    if [ "$MCP_NATIVE" = "1" ]; then
+        other="$prefix/tcl-lsp-mcp-server.pyz"
+    else
+        other="$prefix/tcl-mcp"
+    fi
+    # The superseded other-flavour artefact at our prefix.
+    if [ -e "$other" ] && [ "$other" != "$MCP_PATH" ]; then
+        if looks_like_our_zipapp "$other" || looks_like_our_native_mcp "$other"; then
+            rm -f "$other" && log "removed superseded MCP server $other"
+        fi
+    fi
+    # A prior install elsewhere that we've now replaced.
+    if [ -n "${PRIOR_MCP_PATH:-}" ] && [ "$PRIOR_MCP_PATH" != "$MCP_PATH" ] \
+        && [ -e "$PRIOR_MCP_PATH" ]; then
+        if looks_like_our_zipapp "$PRIOR_MCP_PATH" || looks_like_our_native_mcp "$PRIOR_MCP_PATH"; then
+            rm -f "$PRIOR_MCP_PATH" && log "removed prior MCP server $PRIOR_MCP_PATH"
+        fi
+    fi
 }
 
 propose_update_clis() {
@@ -1903,8 +1957,11 @@ plan_overwrite_check() {
     dst="$1"
     [ -e "$dst" ] || return 0
     looks_like_our_zipapp "$dst" && return 0
-    warn "$dst already exists and is not a tcl-lsp zipapp"
-    warn "(no Python shebang or ZIP signature in first 2KB)"
+    # The native MCP binary isn't a zipapp — recognise it as ours too so an
+    # in-place update of `tcl-mcp` doesn't trip the "unrelated file" prompt.
+    looks_like_our_native_mcp "$dst" && return 0
+    warn "$dst already exists and is not a recognised tcl-lsp artefact"
+    warn "(not our zipapp, and not the native tcl-mcp binary)"
     if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
         die "aborted: existing $dst is unrelated and overwrite declined.
 Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
@@ -2158,6 +2215,9 @@ MCP_PATH=""
 # When set to 1, MCP_PATH is a native `tcl-mcp` binary (launched directly, no
 # Python interpreter). Left 0 for the default Python zipapp.
 MCP_NATIVE=0
+# A prior MCP install detected during planning (propose_update_mcp), removed by
+# cleanup_stale_mcp if this run replaces it.
+PRIOR_MCP_PATH=""
 
 # Map the host OS/arch to the Rust target triple used in the `tcl-mcp-<triple>`
 # release asset names (see the publish-mcp-binaries CI job). Prints the triple,
@@ -2363,6 +2423,7 @@ install_ai_integrations() {
         install_mcp_zipapp
         [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
         [ "$HAS_CODEX"  = "1" ] && register_mcp_codex
+        cleanup_stale_mcp
     fi
     if [ "$WANT_SKILLS" = "1" ]; then
         install_claude_skills
