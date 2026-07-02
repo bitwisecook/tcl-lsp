@@ -19,6 +19,7 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-bigip = { path = "../tcl-bigip" }
+tcl-cli = { path = "../tcl-cli" }
 serde_json = { version = "1", features = ["preserve_order"] }
 rmcp = { version = "2", features = ["server", "transport-io"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "io-std"] }

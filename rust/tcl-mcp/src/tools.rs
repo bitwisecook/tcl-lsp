@@ -966,6 +966,22 @@ fn unminify_error(args: &Value) -> Value {
     })
 }
 
+// ── Help tool ─────────────────────────────────────────────────────────
+
+fn help(args: &Value) -> Value {
+    let topic = arg_str(args, "topic");
+    let dialect = match args.get("dialect").and_then(Value::as_str) {
+        Some(d) if !d.is_empty() => d,
+        _ => "",
+    };
+    let limit = args
+        .get("limit")
+        .and_then(Value::as_u64)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(20);
+    tcl_cli::help_json(topic, dialect, limit)
+}
+
 // ── Registry table ────────────────────────────────────────────────────
 
 type Handler = fn(&Value) -> Value;
@@ -1032,6 +1048,7 @@ const TOOLS: &[ToolDef] = &[
     ToolDef { name: "fakecmp_which_tmm", description: "Which TMM a connection 4-tuple hashes to under the fakeCMP disaggregator.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("src_addr", "string", "Source IPv4"), ("src_port", "integer", "Source port (0-65535)"), ("dst_addr", "string", "Destination IPv4"), ("dst_port", "integer", "Destination port (0-65535)")], required: &["tmm_count", "src_addr", "src_port", "dst_addr", "dst_port"], handler: crate::fakecmp::which_tmm },
     ToolDef { name: "fakecmp_suggest_sources", description: "Source tuples that spread test traffic across every TMM.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("count", "integer", "Tuples per TMM (default 1)"), ("dst_addr", "string", "Destination IPv4 (default 192.168.1.100)"), ("dst_port", "integer", "Destination port (default 443)")], required: &["tmm_count"], handler: crate::fakecmp::suggest_sources },
     ToolDef { name: "irule_with_context", description: "Bundle each iRule in a BIG-IP config with the objects it references (pools, data-groups, profiles, monitors, …).", params: &[("config_text", "string", "BIG-IP config text (bigip.conf/scf)"), ("config_paths", "array", "Paths to config files to merge (optional)"), ("rule_path", "string", "Full path of a single rule to bundle (optional)"), ("format", "string", "'json' (default) or 'text'"), ("transitive", "boolean", "Follow transitive references (default true)")], required: &[], handler: crate::bigip::irule_with_context },
+    ToolDef { name: "help", description: "Search the KCS feature knowledge base (empty topic → full catalogue).", params: &[("topic", "string", "Search query; empty lists all features"), ("dialect", "string", "Filter features by dialect (optional)"), ("limit", "integer", "Max matches (default 20)")], required: &[], handler: help },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
