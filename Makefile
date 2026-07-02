@@ -206,7 +206,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -814,6 +814,20 @@ server-cross-build-all: ## Cross-compile tcl-lsp-server for all 7 targets (CI fa
 	for t in $(SERVER_TARGETS_ALL); do \
 		echo "  building $$t..."; \
 		cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $$t --quiet \
+			|| { echo "    (skipped $$t — not buildable on this host)"; continue; }; \
+	done; \
+	echo "==> Done"
+
+# Cross-compile the native `tcl-mcp` MCP server for all release targets — local
+# parity with the CI build-server-matrix job that publishes the per-triple
+# `tcl-mcp-<triple>` release assets fetched by install.sh / the launcher.
+mcp-cross-build-all: ## Cross-compile tcl-mcp for all 7 targets (release-asset parity)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
+	echo "==> Cross-compiling tcl-mcp for all targets: $(SERVER_TARGETS_ALL)"; \
+	for t in $(SERVER_TARGETS_ALL); do \
+		echo "  building $$t..."; \
+		cd $(ROOT) && cargo build -p tcl-mcp --release --target $$t --quiet \
 			|| { echo "    (skipped $$t — not buildable on this host)"; continue; }; \
 	done; \
 	echo "==> Done"

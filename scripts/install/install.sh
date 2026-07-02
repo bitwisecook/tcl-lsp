@@ -1602,10 +1602,24 @@ find_existing_mcp() {
             printf '%s\n' "$p"; return 0
         fi
     fi
+    if p="$(find_on_path tcl-mcp)"; then
+        printf '%s\n' "$p"; return 0
+    fi
     if p="$(find_on_path tcl-lsp-mcp-server.pyz)"; then
         printf '%s\n' "$p"; return 0
     fi
     return 1
+}
+
+# The MCP artefact filename the install will write: the native `tcl-mcp`
+# binary when a native build is available/selected, else the Python zipapp.
+mcp_target_basename() {
+    if [ "${TCL_LSP_MCP_PYZ:-0}" != "1" ] \
+        && { [ -n "${TCL_LSP_MCP_BIN:-}" ] || mcp_host_triple >/dev/null 2>&1; }; then
+        echo "tcl-mcp"
+    else
+        echo "tcl-lsp-mcp-server.pyz"
+    fi
 }
 
 # Detect an existing MCP zipapp and offer to update it in place.
@@ -2144,6 +2158,63 @@ MCP_PATH=""
 # When set to 1, MCP_PATH is a native `tcl-mcp` binary (launched directly, no
 # Python interpreter). Left 0 for the default Python zipapp.
 MCP_NATIVE=0
+
+# Map the host OS/arch to the Rust target triple used in the `tcl-mcp-<triple>`
+# release asset names (see the publish-mcp-binaries CI job). Prints the triple,
+# or returns 1 for a platform without a published native binary.
+mcp_host_triple() {
+    _os="$(uname -s 2>/dev/null || echo unknown)"
+    _arch="$(uname -m 2>/dev/null || echo unknown)"
+    case "$_os" in
+        Linux)
+            case "$_arch" in
+                x86_64 | amd64)  echo "x86_64-unknown-linux-gnu" ;;
+                aarch64 | arm64) echo "aarch64-unknown-linux-gnu" ;;
+                riscv64)         echo "riscv64gc-unknown-linux-gnu" ;;
+                *) return 1 ;;
+            esac ;;
+        Darwin)
+            case "$_arch" in
+                arm64 | aarch64) echo "aarch64-apple-darwin" ;;
+                x86_64)          echo "x86_64-apple-darwin" ;;
+                *) return 1 ;;
+            esac ;;
+        *) return 1 ;;
+    esac
+}
+
+# Try to fetch + install the native `tcl-mcp` binary for the host platform.
+# Returns 0 (and sets MCP_PATH + MCP_NATIVE) on success, 1 to fall back to the
+# Python zipapp. Set TCL_LSP_MCP_PYZ=1 to force the zipapp.
+install_mcp_native() {
+    [ "${TCL_LSP_MCP_PYZ:-0}" = "1" ] && return 1
+    triple="$(mcp_host_triple)" || {
+        warn "no native tcl-mcp binary for $(uname -sm 2>/dev/null) — using Python zipapp"
+        return 1
+    }
+    ensure_tag
+    asset="tcl-mcp-${triple}"
+    tmpfile="$WORKDIR/$asset"
+    log "trying native MCP binary $asset"
+    if ! try_download "$(asset_url "$asset")" "$tmpfile"; then
+        warn "native MCP binary $asset not published for this release — using Python zipapp"
+        return 1
+    fi
+    # Verify against SHA256SUMS when the asset is listed (fatal on mismatch);
+    # otherwise install unverified with a warning.
+    if ensure_sums && awk -v a="$asset" '$2==a || $2=="*"a {f=1} END{exit !f}' "$SUMS_PATH" 2>/dev/null; then
+        verify_artefact "$asset" "$tmpfile"
+    else
+        warn "no checksum entry for $asset — installing unverified"
+    fi
+    MCP_PATH="$(prefix_for mcp)/tcl-mcp"
+    write_target "$tmpfile" "$MCP_PATH"
+    chmod +x "$MCP_PATH" 2>/dev/null || true
+    MCP_NATIVE=1
+    log "installed native MCP server -> $MCP_PATH"
+    return 0
+}
+
 install_mcp_zipapp() {
     if [ -n "$MCP_PATH" ] && [ -x "$MCP_PATH" ]; then return 0; fi
     # Opt-in: register a prebuilt native `tcl-mcp` binary instead of the Python
@@ -2155,6 +2226,9 @@ install_mcp_zipapp() {
         log "using native MCP server -> $MCP_PATH"
         return 0
     fi
+    # Default: fetch the native binary for this platform; fall back to the
+    # Python zipapp when unavailable (unsupported arch / older release).
+    if install_mcp_native; then return 0; fi
     ensure_tag
     asset="tcl-lsp-mcp-server-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -2346,7 +2420,7 @@ main() {
             need_root "write the MCP zipapp to ${mcp_target_dir}" \
                       "pick a writable MCP directory"
         fi
-        plan_overwrite_check "${mcp_target_dir}/tcl-lsp-mcp-server.pyz"
+        plan_overwrite_check "${mcp_target_dir}/$(mcp_target_basename)"
     fi
     plan_unzip_if_needed
 
