@@ -38,6 +38,35 @@ pub enum XCConstructKind {
     Note,
 }
 
+impl TranslateStatus {
+    /// Lower-case status name — matches the Python `status.name.lower()` used
+    /// in the JSON-API / MCP output.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Translated => "translated",
+            Self::Partial => "partial",
+            Self::Untranslatable => "untranslatable",
+            Self::Advisory => "advisory",
+        }
+    }
+}
+
+impl XCConstructKind {
+    /// Lower-case construct-kind name — matches the Python `kind.name.lower()`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Route => "route",
+            Self::ServicePolicyRule => "service_policy_rule",
+            Self::HeaderAction => "header_action",
+            Self::OriginPool => "origin_pool",
+            Self::WafExclusion => "waf_exclusion",
+            Self::Note => "note",
+        }
+    }
+}
+
 // Match criteria
 
 /// XC path match criterion. `match_type` is `"prefix"` | `"exact"` |
