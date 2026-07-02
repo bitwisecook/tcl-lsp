@@ -1,4 +1,6 @@
-//! BIG-IP–specific MCP tools backed by the `tcl-bigip` engine.
+//! BIG-IP–specific MCP tools backed by the `tcl-bigip` / `f5-cli` engines.
+
+use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use tcl_bigip::irule_context::{build_irule_context, context_bundle_to_json, context_bundle_to_text};
@@ -80,4 +82,51 @@ pub fn irule_with_context(args: &Value) -> Value {
 
     let bundle_values: Vec<Value> = bundles.into_iter().map(|(_path, value)| value).collect();
     json!({ "format": format, "bundles": bundle_values })
+}
+
+/// `explain_flow` — narrate a captured session against a BIG-IP config: matched
+/// virtual server, profiles, HTTP/TLS, ordered iRule events, pool decision, and
+/// (optionally) a simulated outcome. Over `f5_cli::explain_flow_value`.
+pub fn explain_flow(args: &Value) -> Value {
+    let pcap_path = args.get("pcap_path").and_then(Value::as_str).unwrap_or("");
+    if pcap_path.is_empty() {
+        return json!({ "error": "pcap_path is required" });
+    }
+
+    // Config file paths, plus inline `config_text` staged to a temp file.
+    let mut paths: Vec<PathBuf> = Vec::new();
+    let mut tempfile: Option<PathBuf> = None;
+    if let Some(text) = args.get("config_text").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        let mut p = std::env::temp_dir();
+        p.push(format!("tcl_mcp_bigip_{}.conf", std::process::id()));
+        if std::fs::write(&p, text).is_ok() {
+            paths.push(p.clone());
+            tempfile = Some(p);
+        }
+    }
+    if let Some(arr) = args.get("config_paths").and_then(Value::as_array) {
+        paths.extend(arr.iter().filter_map(Value::as_str).map(PathBuf::from));
+    }
+
+    let keylog = args.get("keylog_path").and_then(Value::as_str).filter(|s| !s.is_empty());
+    let tshark_filter = args.get("tshark_filter").and_then(Value::as_str).filter(|s| !s.is_empty());
+    let options = f5_cli::ExplainFlowOptions {
+        paths: &paths,
+        tshark: args.get("use_tshark").and_then(Value::as_bool).unwrap_or(false),
+        keylog: keylog.map(Path::new),
+        tshark_filter,
+        simulate: args.get("simulate").and_then(Value::as_bool).unwrap_or(false),
+        no_event_bodies: false,
+        max_event_lines: args
+            .get("max_event_body_lines")
+            .and_then(Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok())
+            .unwrap_or(8),
+    };
+
+    let result = f5_cli::explain_flow_value(Path::new(pcap_path), &options);
+    if let Some(p) = tempfile {
+        let _ = std::fs::remove_file(p);
+    }
+    result.unwrap_or_else(|e| json!({ "error": e }))
 }

@@ -3224,6 +3224,7 @@ dependencies = [
 name = "tcl-mcp"
 version = "0.1.0"
 dependencies = [
+ "f5-cli",
  "f5-xc",
  "rmcp",
  "serde_json",

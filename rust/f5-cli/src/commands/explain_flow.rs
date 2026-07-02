@@ -1630,9 +1630,9 @@ fn session_to_value(se: &SessionExplain) -> Value {
 }
 
 /// Serialise the full report as 2-space-indented JSON.
-fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
+fn report_to_value(report: &ExplainFlowReport) -> Value {
     let sessions: Vec<Value> = report.sessions.iter().map(session_to_value).collect();
-    let value = obj(vec![
+    obj(vec![
         ("pcap_path", Value::String(report.pcap_path.clone())),
         ("flow_count", Value::from(report.flow_count)),
         ("session_count", Value::from(report.session_count)),
@@ -1641,9 +1641,74 @@ fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
         ("keylog_path", Value::String(report.keylog_path.clone())),
         ("tshark_filter", Value::String(report.tshark_filter.clone())),
         ("sessions", Value::Array(sessions)),
-    ]);
+    ])
+}
+
+fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
+    let value = report_to_value(report);
     let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
     Ok(format!("{}\n", tcl_cli_support::ensure_ascii(&pretty)))
+}
+
+/// Options for [`explain_flow_value`] — the request config as one value so the
+/// entry point stays a clean two-argument call.
+#[derive(Debug, Default, Clone)]
+pub struct ExplainFlowOptions<'a> {
+    /// BIG-IP config files to load + merge for VS / iRule resolution.
+    pub paths: &'a [std::path::PathBuf],
+    /// Force the tshark overlay (also implied by `keylog` / `tshark_filter`).
+    pub tshark: bool,
+    /// TLS keylog file, forwarded to tshark for decryption.
+    pub keylog: Option<&'a Path>,
+    /// Extra tshark display filter.
+    pub tshark_filter: Option<&'a str>,
+    /// Run the iRule simulation pass.
+    pub simulate: bool,
+    /// Omit per-event iRule body listings.
+    pub no_event_bodies: bool,
+    /// Cap on event-body lines shown per event.
+    pub max_event_lines: usize,
+}
+
+/// Compute the explain-flow report for a pcap + BIG-IP configs and return it as
+/// a JSON value (the `f5 explain-flow --json` shape). For embedders — the
+/// native MCP `explain_flow` tool calls this directly.
+///
+/// # Errors
+/// Returns a message when the pcap isn't a readable file or config loading /
+/// flow computation fails.
+pub fn explain_flow_value(pcap: &Path, options: &ExplainFlowOptions<'_>) -> Result<Value, String> {
+    if !pcap.is_file() {
+        return Err(format!("not a file: {}", pcap.display()));
+    }
+    let use_tshark = options.tshark || options.keylog.is_some() || options.tshark_filter.is_some();
+    let keylog_path =
+        options.keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let tshark_filter = options.tshark_filter.unwrap_or("");
+
+    let opts = crate::cli::PassphraseArgs::default().to_options();
+    let path_strs: Vec<String> =
+        options.paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&path_strs, &opts)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|loaded| loaded.config)
+        .collect();
+
+    let pcap_bytes = std::fs::read(pcap).map_err(|e| e.to_string())?;
+    let report = compute_explain_flow(
+        &pcap.display().to_string(),
+        pcap,
+        &pcap_bytes,
+        &configs,
+        !options.no_event_bodies,
+        options.max_event_lines,
+        use_tshark,
+        &keylog_path,
+        tshark_filter,
+        options.simulate,
+    )?;
+    Ok(report_to_value(&report))
 }
 
 /// Entry point for `f5 explain-flow` (built-in walker / static path).
