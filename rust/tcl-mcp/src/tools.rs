@@ -1054,6 +1054,7 @@ const TOOLS: &[ToolDef] = &[
     ToolDef { name: "tk_layout", description: "Extract the Tk widget tree (types, geometry managers, visual options) + pack/grid conflicts for preview.", params: &[SRC], required: &["source"], handler: crate::tk::tk_layout },
     ToolDef { name: "irule_cfg_paths", description: "Enumerate CFG paths through an iRule to terminal actions (pool/reject/redirect/…), each annotated with priority, relevant taint warnings, and test-generation questions.", params: &[SRC], required: &["source"], handler: crate::irule_test::irule_cfg_paths },
     ToolDef { name: "suggest_datagroup_extractions", description: "Scan iRules source for if/switch patterns extractable to data-groups; returns per-candidate value type, CIDR flag, body-shape, confidence, and whether the static extractor applies.", params: &[SRC], required: &["source"], handler: crate::datagroup::suggest_datagroup_extractions },
+    ToolDef { name: "generate_irule_test", description: "Generate a runnable iRule test scaffold (per-event + per-CFG-path cases, multi-TMM scenario) with extracted events/profiles/commands/pools/datagroups.", params: &[SRC], required: &["source"], handler: crate::irule_gen::generate_irule_test },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
