@@ -28,12 +28,14 @@
 //! and converts to UTF-16 [`LspRange`] only when building the final
 //! edits, via the document's [`LineIndex`].
 
+mod brace_expr;
 mod datagroup;
 mod extract_variable;
 mod if_to_switch;
 mod inline_variable;
 mod switch_to_dict;
 
+pub use brace_expr::brace_expr;
 pub use datagroup::{
     DataGroupDefinition, data_group_tcl, extract_to_datagroup, extract_to_datagroup_from_if,
     extract_to_datagroup_from_switch,
@@ -205,6 +207,53 @@ pub fn find_command_at(
     registry: &CommandRegistry,
 ) -> Option<SegmentedCommand> {
     find_command_at_inner(source, cursor, predicate, registry, 0)
+}
+
+/// Recursively walk every command in `source`, including those nested inside
+/// registry-resolved body arguments (proc / when / if / while / foreach
+/// bodies, …). Returns `(texts, line, character)` per command — `texts` is the
+/// command's words (name first), `(line, character)` is the 0-based
+/// (UTF-16-counted) position of its start. Mirrors the Python
+/// `walk_all_commands`.
+#[must_use]
+pub fn walk_commands(source: &str, registry: &CommandRegistry) -> Vec<(Vec<String>, u32, u32)> {
+    let line_index = LineIndex::new(source);
+    let mut out = Vec::new();
+    walk_commands_inner(source, source, 0, registry, &line_index, 0, &mut out);
+    out
+}
+
+fn walk_commands_inner(
+    full: &str,
+    slice: &str,
+    offset: u32,
+    registry: &CommandRegistry,
+    line_index: &LineIndex,
+    depth: u32,
+    out: &mut Vec<(Vec<String>, u32, u32)>,
+) {
+    if depth > MAX_COMMAND_SEARCH_DEPTH {
+        return;
+    }
+    for cmd in segment_commands_with_offset(slice, offset) {
+        let pos = line_index.position_at_utf16(cmd.span.start(), full);
+        out.push((cmd.texts.clone(), pos.line, pos.character.get()));
+        for body in body_words(&cmd, registry) {
+            let Some(body_slice) = full.get(body.inner_start as usize..body.inner_end as usize)
+            else {
+                continue;
+            };
+            walk_commands_inner(
+                full,
+                body_slice,
+                body.inner_start,
+                registry,
+                line_index,
+                depth + 1,
+                out,
+            );
+        }
+    }
 }
 
 /// Defensive recursion bound for the nested-command search, set to match the

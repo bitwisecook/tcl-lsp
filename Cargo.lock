@@ -2085,6 +2085,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pythonize"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ec376e1216e0c929a74964ce2020012a1a39f32d80e78aa688721219ea7fb89"
+dependencies = [
+ "pyo3",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3050,6 +3060,7 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "rustc-hash",
+ "serde_json",
  "tcl-compiler",
  "tcl-irules",
  "tcl-lexer",
@@ -3073,10 +3084,12 @@ name = "tcl-lsp-py"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "pythonize",
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-query",
  "tcl-compiler",
+ "tcl-irule-test",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
@@ -4334,7 +4347,10 @@ dependencies = [
  "anyhow",
  "clap",
  "regex",
+ "serde",
+ "serde_json",
  "tcl-core-types",
+ "tcl-registry",
 ]
 
 [[package]]

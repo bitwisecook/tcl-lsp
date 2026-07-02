@@ -211,7 +211,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
 .PHONY: check-wasm-parity snapshot-wasm-parity capture-bytecode-refs
-.PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust rust-deny
 # Coverage
@@ -600,7 +600,7 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables ## Rust-side check gates (docs index coverage + refcount rows + generated-table drift)
+xtask-check: xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + refcount rows + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -613,6 +613,26 @@ xtask-refcount-contract: ## Lint runtime/zig refcount-contract rows (warning-onl
 xtask-diag-tables: ## Verify docs/generated/ code tables are in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated DiagCode tables are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask diag-tables --check
+
+xtask-gen-editor-catalogs: ## Verify the Zed/VS Code editor catalogs are in sync with the registry (drift gate)
+	@echo "==> Checking generated editor catalogs are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+
+xtask-gen-editor-settings: ## Verify the VS Code diagnosticCatalog.ts is in sync with the DiagCode catalogue (drift gate)
+	@echo "==> Checking generated diagnosticCatalog.ts is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-settings --check
+
+xtask-gen-vscode-package: ## Verify the VS Code package.json tclLsp.* sections are in sync with the registries (drift gate)
+	@echo "==> Checking generated package.json sections are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-vscode-package --check
+
+xtask-gen-jetbrains-catalog: ## Verify the JetBrains Kotlin catalog/settings/panel are in sync with the DiagCode catalogue (drift gate)
+	@echo "==> Checking generated JetBrains files are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-jetbrains-catalog --check
+
+xtask-gen-ai-diagnostics: ## Verify ai/shared/diagnostics.json + AI prompt/skill files are in sync with the DiagCode catalogue (drift gate)
+	@echo "==> Checking generated AI files are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
@@ -1372,13 +1392,16 @@ $(BUILD_INFO_JSON): .FORCE
 
 # Generated editor catalogs
 #
-# Depends on: the generator script + command registry runtime + dialect spec packs.
-REGISTRY_SRCS := $(shell find $(ROOT)compiler/registry $(ROOT)dialects -name '*.py' -not -path '*__pycache__*')
-_CATALOG_DEPS := $(UV_STAMP) scripts/codegen/catalogs.py $(REGISTRY_SRCS)
+# Depends on: the Rust generator (xtask) + the command/event registries.
+# Ported from scripts/codegen/catalogs.py to `cargo xtask gen-editor-catalogs`
+# (tcl-registry is now the source of truth; the catalog carries the full
+# command surface, including Tk).
+REGISTRY_SRCS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/xtask/src -name '*.rs')
+_CATALOG_DEPS := $(REGISTRY_SRCS)
 
 editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
-	@echo "==> Generating editor catalogs"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/catalogs.py
+	@echo "==> Generating editor catalogs (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-catalogs
 
 dialects/f5/bigip/_port_names_table.py: scripts/codegen/port_names.py dialects/f5/bigip/data/scf_port_names.csv $(UV_STAMP)
 	@echo "==> Generating BIG-IP port-name table"
@@ -1387,15 +1410,8 @@ dialects/f5/bigip/_port_names_table.py: scripts/codegen/port_names.py dialects/f
 generate: editors/zed/src/generated/tcl_commands.json dialects/f5/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
 
 check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
-	@echo "==> Checking generated catalogs are up to date"
-	@TMPDIR=$$(mktemp -d) && \
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/catalogs.py --output-dir "$$TMPDIR" && \
-	diff -q "$$TMPDIR/tcl_commands.json" editors/zed/src/generated/tcl_commands.json && \
-	diff -q "$$TMPDIR/irule_events.json" editors/zed/src/generated/irule_events.json && \
-	diff -q "$$TMPDIR/iruleEvents.json" editors/vscode/src/generated/iruleEvents.json && \
-	rm -rf "$$TMPDIR" && \
-	echo "Generated catalogs are up to date." || \
-	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
+	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
 	@echo "==> Checking generated BIG-IP port-name table is up to date"
 	@cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/port_names.py --check
 
@@ -1417,15 +1433,21 @@ SETTINGS_SRCS := \
 SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
 _SETTINGS_DEPS := $(UV_STAMP) scripts/codegen/editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
 
-editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS)
-	@echo "==> Generating editor settings from code registry"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py
+editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS) $(REGISTRY_SRCS)
+	@echo "==> Generating editor settings + AI files (cargo xtask, from the Rust registries)"
+	cd $(ROOT) && cargo xtask gen-editor-settings
+	cd $(ROOT) && cargo xtask gen-vscode-package
+	cd $(ROOT) && cargo xtask gen-jetbrains-catalog
+	cd $(ROOT) && cargo xtask gen-ai-diagnostics
 
 gen-editor-settings: editors/vscode/src/generated/diagnosticCatalog.ts ## Regenerate editor diagnostic/optimiser settings from code registry
 
 check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
-	@echo "==> Checking editor settings are up to date"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py --check
+	@echo "==> Checking editor settings + AI files are up to date"
+	cd $(ROOT) && cargo xtask gen-editor-settings --check
+	cd $(ROOT) && cargo xtask gen-vscode-package --check
+	cd $(ROOT) && cargo xtask gen-jetbrains-catalog --check
+	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
 # Registry contract fixtures — the language-agnostic command/event/profile/
 # object shape snapshots under tests/baselines/registry/, regenerated from

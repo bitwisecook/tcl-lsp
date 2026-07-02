@@ -158,6 +158,11 @@ pub enum DocRow {
         /// Whether the diagnostic is emitted by default (the table's `Default`
         /// column: `✓` when true, `✗` when opt-in).
         default_on: bool,
+        /// Whether the code is *internal* — always active and not exposed as a
+        /// user-configurable toggle (parse/structure errors, host-config
+        /// validators, translation markers). Excluded from the editor-settings
+        /// catalogue, mirroring the Python registry's `internal` flag.
+        internal: bool,
         /// The one-line description.
         description: &'static str,
     },
@@ -211,6 +216,18 @@ macro_rules! diagnostic_codes {
             pub const fn doc_row(self) -> DocRow {
                 match self { $(DiagCode::$variant => diagnostic_codes!(@row $kind ( $($meta)* )),)+ }
             }
+
+            /// Whether this is an *internal* diagnostic — always active and not
+            /// exposed as a user-configurable toggle. Optimisations are never
+            /// internal. Drives the editor-settings catalogue's exclusion set,
+            /// mirroring the Python registry's `internal` flag.
+            #[must_use]
+            pub const fn is_internal(self) -> bool {
+                matches!(
+                    self.doc_row(),
+                    DocRow::Diagnostic { internal: true, .. }
+                )
+            }
         }
 
         impl FromStr for DiagCode {
@@ -228,6 +245,15 @@ macro_rules! diagnostic_codes {
         DocRow::Diagnostic {
             section: DiagSection::$sec,
             default_on: $default,
+            internal: false,
+            description: $desc,
+        }
+    };
+    (@row diag_internal ( $sec:ident, $default:literal, $desc:literal )) => {
+        DocRow::Diagnostic {
+            section: DiagSection::$sec,
+            default_on: $default,
+            internal: true,
             description: $desc,
         }
     };
@@ -243,18 +269,18 @@ diagnostic_codes! {
     E001 => "E001", diag(Error, true, "Missing subcommand — e.g. bare `string` without a subcommand.");
     E002 => "E002", diag(Error, true, "Too few arguments for command.");
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
-    E004 => "E004", diag(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
-    E100 => "E100", diag(Error, true, "Unmatched `]` — missing opening `[`?");
-    E101 => "E101", diag(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
-    E102 => "E102", diag(Error, true, "Unmatched `}` — missing opening `{`?");
-    E103 => "E103", diag(Error, true, "Missing `}` — a nested body consumed this closing brace.");
+    E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
+    E100 => "E100", diag_internal(Error, true, "Unmatched `]` — missing opening `[`?");
+    E101 => "E101", diag_internal(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
+    E102 => "E102", diag_internal(Error, true, "Unmatched `}` — missing opening `{`?");
+    E103 => "E103", diag_internal(Error, true, "Missing `}` — a nested body consumed this closing brace.");
     E200 => "E200", diag(Error, true, "Shimmer parse error — internal representation cannot be determined.");
-    E201 => "E201", diag(Error, true, "Unterminated command substitution — missing close bracket `]`.");
-    E202 => "E202", diag(Error, true, "Unterminated double-quoted string — missing closing `\"`.");
-    E203 => "E203", diag(Error, true, "Unterminated braced word — missing closing `}`.");
-    E204 => "E204", diag(Error, true, "Extra characters after the close brace of a `${name}` variable reference.");
-    E205 => "E205", diag(Error, true, "Extra characters after the close quote in a variable name.");
-    E206 => "E206", diag(Error, true, "Missing close brace for a `${name}` variable reference.");
+    E201 => "E201", diag_internal(Error, true, "Unterminated command substitution — missing close bracket `]`.");
+    E202 => "E202", diag_internal(Error, true, "Unterminated double-quoted string — missing closing `\"`.");
+    E203 => "E203", diag_internal(Error, true, "Unterminated braced word — missing closing `}`.");
+    E204 => "E204", diag_internal(Error, true, "Extra characters after the close brace of a `${name}` variable reference.");
+    E205 => "E205", diag_internal(Error, true, "Extra characters after the close quote in a variable name.");
+    E206 => "E206", diag_internal(Error, true, "Missing close brace for a `${name}` variable reference.");
     H300 => "H300", diag(Hint, true, "Possible paste error — repeated assignment to same variable with same value.");
     I230 => "I230", diag(Hint, true, "Constant branch condition — the alternate branch is provably unreachable.");
     I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
@@ -278,7 +304,7 @@ diagnostic_codes! {
     Irule3004 => "IRULE3004", diag(IrulesSecurity, true, "Tainted data in an `HTTP::redirect` URL — open-redirect risk.");
     Irule3101 => "IRULE3101", diag(IrulesSecurity, true, "`HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.");
     Irule3102 => "IRULE3102", diag(IrulesSecurity, true, "`HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.");
-    Irule3103 => "IRULE3103", diag(IrulesSecurity, true, "Manual split/match of an un-normalised URI getter — parse-differential / traversal risk.");
+    Irule3103 => "IRULE3103", diag_internal(IrulesSecurity, true, "Manual split/match of an un-normalised URI getter — parse-differential / traversal risk.");
     Irule4001 => "IRULE4001", diag(IrulesVariable, true, "Write to `static::` variable outside `RULE_INIT`.");
     Irule4002 => "IRULE4002", diag(IrulesVariable, true, "Generic `static::` variable name — collision likely across iRules.");
     Irule4003 => "IRULE4003", diag(IrulesVariable, true, "Variable scoping concern across events.");
@@ -286,12 +312,12 @@ diagnostic_codes! {
     Irule4005 => "IRULE4005", diag(IrulesVariable, true, "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.");
     Irule5001 => "IRULE5001", diag(Irules, true, "Ungated `log` in a high-frequency event.");
     Irule5002 => "IRULE5002", diag(Irules, true, "`drop`/`reject`/`discard` without `event disable all` or `return`.");
-    Irule5003 => "IRULE5003", diag(Irules, true, "Loop condition `$x != 0` can skip zero when decremented past it — use `$x > 0`.");
+    Irule5003 => "IRULE5003", diag_internal(Irules, true, "Loop condition `$x != 0` can skip zero when decremented past it — use `$x > 0`.");
     Irule5004 => "IRULE5004", diag(Irules, true, "`DNS::return` without `return`.");
     Irule5005 => "IRULE5005", diag(Irules, true, "Direct proc invocation without `call` — use `call proc_name`.");
     Irule5006 => "IRULE5006", diag(Irules, true, "Top-level-only command used inside a nested body.");
     Irule5007 => "IRULE5007", diag(Irules, true, "Event-context command used at top level outside a `when` block.");
-    Irule6001 => "IRULE6001", diag(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
+    Irule6001 => "IRULE6001", diag_internal(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
     O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
     O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");
     O102 => "O102", opt(ConstantFolding, "Fold constant `[expr {...}]` command substitutions.");
@@ -330,13 +356,13 @@ diagnostic_codes! {
     T100 => "T100", diag(Taint, true, "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).");
     T101 => "T101", diag(Taint, true, "Tainted data flows into an output command (`puts`).");
     T102 => "T102", diag(Taint, true, "Tainted data in option position without `--` terminator — option injection risk.");
-    T103 => "T103", diag(Taint, true, "Tainted data in a `regexp`/`regsub` pattern — regex-injection or ReDoS risk.");
+    T103 => "T103", diag_internal(Taint, true, "Tainted data in a `regexp`/`regsub` pattern — regex-injection or ReDoS risk.");
     T104 => "T104", diag(Taint, true, "Tainted data in a network-address argument (e.g. `socket`) — SSRF risk.");
     T105 => "T105", diag(Taint, true, "Tainted data in a cross-interpreter eval subcommand (`interp eval`/`invokehidden`) — code-execution risk.");
-    T106 => "T106", diag(Taint, true, "Already-encoded value passed through a command that re-encodes it — double-encoding.");
-    Tk1001 => "TK1001", diag(Tk, true, "Geometry-manager conflict — `pack` and `grid` used on the same parent.");
-    Tk1002 => "TK1002", diag(Tk, true, "Widget path references a non-existent parent widget.");
-    Tk1003 => "TK1003", diag(Tk, true, "Unknown option for a widget command.");
+    T106 => "T106", diag_internal(Taint, true, "Already-encoded value passed through a command that re-encodes it — double-encoding.");
+    Tk1001 => "TK1001", diag_internal(Tk, true, "Geometry-manager conflict — `pack` and `grid` used on the same parent.");
+    Tk1002 => "TK1002", diag_internal(Tk, true, "Widget path references a non-existent parent widget.");
+    Tk1003 => "TK1003", diag_internal(Tk, true, "Unknown option for a widget command.");
     W001 => "W001", diag(Warning, true, "Unknown subcommand.");
     W002 => "W002", diag(Warning, true, "Command is disabled in active dialect profile.");
     W003 => "W003", diag(Warning, true, "Expression operator not available in active dialect.");
@@ -398,9 +424,9 @@ diagnostic_codes! {
     W307 => "W307", diag(Security, true, "Non-literal command name — variable or command substitution as command.");
     W308 => "W308", diag(Security, true, "`subst` without `-nocommands` — risk of unintended command execution.");
     W309 => "W309", diag(Security, true, "`eval`/`uplevel` with `subst` — double substitution risk.");
-    W310 => "W310", diag(Security, true, "Hardcoded credential in a password/auth argument — store secrets outside source.");
-    W311 => "W311", diag(Security, true, "Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks.");
-    W312 => "W312", diag(Security, true, "`interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk.");
+    W310 => "W310", diag_internal(Security, true, "Hardcoded credential in a password/auth argument — store secrets outside source.");
+    W311 => "W311", diag_internal(Security, true, "Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks.");
+    W312 => "W312", diag_internal(Security, true, "`interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk.");
     W313 => "W313", diag(Security, true, "Destructive file operation with variable path — path-traversal risk.");
 }
 
@@ -584,6 +610,44 @@ mod tests {
             let on = code.default_on();
             if code.is_optimisation() {
                 assert!(on, "{} optimisation must be default-on", code.as_str());
+            }
+        }
+    }
+
+    #[test]
+    fn internal_flag_classifies_non_configurable_codes() {
+        use core::str::FromStr;
+        // Internal — always-on parse/structure errors, host-config validators,
+        // and translation markers; excluded from the user-configurable editor
+        // settings.  Matches the Python registry's `internal` flag for the
+        // shared codes (E20x/E10x/E004 parse errors, IRULE3103/5003/6001 flow
+        // internals, TK100x, W31x); E204–E206 are the Rust-only parse-error
+        // siblings of E201–E203.
+        for s in [
+            "E004", "E100", "E101", "E102", "E103", "E201", "E202", "E203", "E204", "E205",
+            "E206", "IRULE3103", "IRULE5003", "IRULE6001", "T103", "T106", "TK1001", "TK1002",
+            "TK1003", "W310", "W311", "W312",
+        ] {
+            assert!(
+                DiagCode::from_str(s).unwrap().is_internal(),
+                "{s} must be internal"
+            );
+        }
+        // User-configurable — regular lints, taint/security warnings (including
+        // the Rust-only IRULE3004/T104/T105 that Python lacks), and iRules flow
+        // checks are all togglable, so never internal.
+        for s in [
+            "E001", "W001", "W210", "IRULE1001", "IRULE3001", "IRULE3004", "T101", "T104", "T105",
+        ] {
+            assert!(
+                !DiagCode::from_str(s).unwrap().is_internal(),
+                "{s} must be user-configurable (not internal)"
+            );
+        }
+        // Optimisations are never internal.
+        for &code in DiagCode::ALL {
+            if code.is_optimisation() {
+                assert!(!code.is_internal(), "{} opt is not internal", code.as_str());
             }
         }
     }

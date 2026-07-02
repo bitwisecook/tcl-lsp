@@ -246,7 +246,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "wm",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Communicate with the window manager.",

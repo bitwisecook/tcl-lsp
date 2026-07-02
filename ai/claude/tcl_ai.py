@@ -56,10 +56,9 @@ from ai.shared.diagnostics import (
 
 
 def cmd_diagnostics(source: str, file_path: str) -> None:
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    diags = result.diagnostics
+    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
 
     print(f"=== Diagnostics ({len(diags)} items) ===")
     if not diags:
@@ -67,10 +66,10 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
         return
 
     for d in diags:
-        sev = d.severity.name
-        code = d.code or ""
-        line = d.range.start.line + 1
-        col = d.range.start.character
+        sev = d.severity.upper()
+        code = d.code
+        line = d.start[0] + 1
+        col = d.start[1]
         print(f"  {sev:<8s}  {code:<12s}  line {line}:{col}  {d.message}")
 
 
@@ -78,16 +77,18 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 
 
 def cmd_symbols(source: str, file_path: str) -> None:
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
+    symbols = require_rust().document_symbols(
+        source, dialect=_dialect_from_path(file_path, source)
+    )
     events = _detect_events(source)
 
     # Buffer output to print header with count first
     lines: list[str] = []
     for name, line in events:
         lines.append(f"  Event {name} (line {line})")
-    _count_scope_symbols(result.global_scope, lines)
+    _format_doc_symbols(symbols, lines)
 
     print(f"=== Symbol Definitions ({len(lines)} symbols) ===")
     if not lines:
@@ -95,6 +96,22 @@ def cmd_symbols(source: str, file_path: str) -> None:
     else:
         for ln in lines:
             print(ln)
+
+
+def _format_doc_symbols(symbols: list[dict], lines: list[str], depth: int = 0) -> None:
+    """Format the ``document_symbols`` facade tree into display lines."""
+    indent = "  " * depth
+    for s in symbols:
+        kind = s["kind"]
+        name = s["name"]
+        line = s["range"]["start"]["line"] + 1
+        if kind == "Function":
+            detail = s.get("detail") or "()"
+            lines.append(f"  {indent}Function {name} {detail} (line {line})")
+        else:
+            lines.append(f"  {indent}{kind} {name} (line {line})")
+        if s.get("children"):
+            _format_doc_symbols(s["children"], lines, depth + 1)
 
 
 def _detect_events(source: str) -> list[tuple[str, int]]:
@@ -158,51 +175,29 @@ def cmd_diagram(source: str, file_path: str) -> None:
 
 
 def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
-    from compiler.optimiser import (
-        Optimisation,
-        apply_optimisations,
-        find_optimisations,
-        optimise_source_multipass,
-    )
-    from shared.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-        profile_spec,
-        profile_to_disabled,
-    )
+    from ai.shared.rust_bridge import require_rust
 
-    try:
-        prof = profile_from_name(profile)
-    except ValueError:
-        prof = DEFAULT_ACTION_PROFILE
-    spec = profile_spec(prof)
-    disabled = profile_to_disabled(prof)
-
-    optimized: str | None = None  # set by multi-pass path
-    if spec.multi_pass:
-        optimized, opts, iters = optimise_source_multipass(
-            source,
-            max_iterations=spec.max_iterations,
-            disabled=disabled,
-        )
-        print(f"(profile={spec.name}, {iters} iteration(s))")
-    else:
-        all_opts = find_optimisations(source)
-        opts = [o for o in all_opts if o.code not in disabled]
+    opt = require_rust().optimise(
+        source, dialect=_dialect_from_path(file_path, source), profile=profile
+    )
+    opts = opt["optimizations"]
+    if opt["multi_pass"]:
+        print(f"(profile={opt['profile']}, {opt['iterations']} iteration(s))")
 
     # Group related optimisations for display.
     _ELIM_CODES = frozenset(("O107", "O108", "O109"))
-    groups: dict[int, list[Optimisation]] = {}
-    ungrouped: list[Optimisation] = []
+    groups: dict[int, list[dict]] = {}
+    ungrouped: list[dict] = []
     for o in opts:
-        if o.group is not None:
-            groups.setdefault(o.group, []).append(o)
+        gid = o.get("group")
+        if gid is not None:
+            groups.setdefault(gid, []).append(o)
         else:
             ungrouped.append(o)
 
-    display_items: list[tuple[Optimisation, list[Optimisation]]] = []  # (primary, members)
+    display_items: list[tuple[dict, list[dict]]] = []  # (primary, members)
     for _gid, members in sorted(groups.items()):
-        primary = next((m for m in members if m.code not in _ELIM_CODES), members[0])
+        primary = next((m for m in members if m["code"] not in _ELIM_CODES), members[0])
         display_items.append((primary, members))
     for o in ungrouped:
         display_items.append((o, [o]))
@@ -213,34 +208,33 @@ def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
         return
 
     for primary, members in display_items:
-        line = primary.range.start.line + 1
-        col = primary.range.start.character
+        line = primary["range"]["start"]["line"] + 1
+        col = primary["range"]["start"]["character"]
         if len(members) > 1:
-            elim_count = sum(1 for m in members if m.code in _ELIM_CODES)
+            elim_count = sum(1 for m in members if m["code"] in _ELIM_CODES)
             suffix = (
                 f"  (+{elim_count} dead store{'s' if elim_count > 1 else ''} eliminated)"
                 if elim_count
                 else ""
             )
             print(
-                f"  {primary.code:<5s}  line {line}:{col}  {primary.message}  \u2192  {primary.replacement!r}{suffix}"
+                f"  {primary['code']:<5s}  line {line}:{col}  {primary['message']}  \u2192  {primary['replacement']!r}{suffix}"
             )
             for m in members:
                 if m is not primary:
-                    ml = m.range.start.line + 1
-                    mc = m.range.start.character
+                    ml = m["range"]["start"]["line"] + 1
+                    mc = m["range"]["start"]["character"]
                     print(
-                        f"    \u2514\u2500 {m.code:<5s}  line {ml}:{mc}  {m.message}  \u2192  {m.replacement!r}"
+                        f"    \u2514\u2500 {m['code']:<5s}  line {ml}:{mc}  {m['message']}  \u2192  {m['replacement']!r}"
                     )
-        elif getattr(primary, "hint_only", False):
-            print(f"  {primary.code:<5s}  line {line}:{col}  {primary.message}  (hint)")
+        elif primary.get("hintOnly"):
+            print(f"  {primary['code']:<5s}  line {line}:{col}  {primary['message']}  (hint)")
         else:
             print(
-                f"  {primary.code:<5s}  line {line}:{col}  {primary.message}  \u2192  {primary.replacement!r}"
+                f"  {primary['code']:<5s}  line {line}:{col}  {primary['message']}  \u2192  {primary['replacement']!r}"
             )
 
-    if optimized is None:
-        optimized = apply_optimisations(source, opts)
+    optimized = opt["optimized_source"]
     if optimized != source:
         print()
         print("=== Optimized Source ===")
@@ -268,9 +262,10 @@ def cmd_event_order(source: str, file_path: str) -> None:
 
 
 def cmd_event_info(event_name: str) -> None:
-    from compiler.registry.info import lookup_event_info
+    from ai.shared.rust_bridge import require_rust
 
-    info = lookup_event_info(event_name, dialect="f5-irules")
+    info = require_rust().lookup_event_info(event_name, dialect="f5-irules")
+    valid_command_count = len(info.valid_commands)
 
     print("=== Event Info ===")
     print(f"  Event: {info.event}")
@@ -284,21 +279,21 @@ def cmd_event_info(event_name: str) -> None:
         print(f"  Transport: {info.transport}")
     if info.implied_profiles:
         print(f"  Profiles: {', '.join(info.implied_profiles)}")
-    print(f"  Valid commands: {info.valid_command_count}")
+    print(f"  Valid commands: {valid_command_count}")
     if info.valid_commands:
         show = list(info.valid_commands[:20])
         print(f"  Sample commands: {', '.join(show)}")
-        if info.valid_command_count > 20:
-            print(f"    ... and {info.valid_command_count - 20} more")
+        if valid_command_count > 20:
+            print(f"    ... and {valid_command_count - 20} more")
 
 
 # Subcommand: command-info
 
 
 def cmd_command_info(command_name: str) -> None:
-    from compiler.registry.info import lookup_command_info
+    from ai.shared.rust_bridge import require_rust
 
-    info = lookup_command_info(command_name, dialect="f5-irules")
+    info = require_rust().lookup_command_info(command_name, dialect="f5-irules")
 
     print("=== Command Info ===")
     if not info.found:
@@ -325,10 +320,9 @@ def cmd_command_info(command_name: str) -> None:
 
 
 def cmd_validate(source: str, file_path: str) -> None:
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    diags = result.diagnostics
+    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
 
     if not diags:
         print("=== Validation Report ===")
@@ -338,11 +332,10 @@ def cmd_validate(source: str, file_path: str) -> None:
     # Group by category
     groups: dict[str, list] = {}
     for d in diags:
-        code = d.code or ""
-        if code in CONTROL_FLOW_CODES:
+        if d.code in CONTROL_FLOW_CODES:
             cat = "irules"
         else:
-            cat = _categorise(code)
+            cat = _categorise(d.code)
         groups.setdefault(cat, []).append(d)
 
     total = len(diags)
@@ -354,23 +347,18 @@ def cmd_validate(source: str, file_path: str) -> None:
             continue
         print(f"\n  --- {cat_label} ({len(cat_diags)}) ---")
         for d in cat_diags:
-            sev = d.severity.name
-            code = d.code or ""
-            line = d.range.start.line + 1
-            col = d.range.start.character
-            print(f"  {sev:<8s}  {code:<12s}  line {line}:{col}  {d.message}")
+            print(f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}")
 
 
 # Subcommand: review (security-focused diagnostics)
 
 
 def cmd_review(source: str, file_path: str) -> None:
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    diags = result.diagnostics
+    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
 
-    security_diags = [d for d in diags if (d.code or "") in REVIEW_CODES]
+    security_diags = [d for d in diags if d.code in REVIEW_CODES]
 
     print("=== Security Review ===")
     if not security_diags:
@@ -378,20 +366,18 @@ def cmd_review(source: str, file_path: str) -> None:
         return
 
     # Group into sub-categories
-    sec = [d for d in security_diags if (d.code or "") in SECURITY_CODES]
-    taint = [d for d in security_diags if (d.code or "") in TAINT_CODES]
-    thread = [d for d in security_diags if (d.code or "") in THREAD_CODES]
+    sec = [d for d in security_diags if d.code in SECURITY_CODES]
+    taint = [d for d in security_diags if d.code in TAINT_CODES]
+    thread = [d for d in security_diags if d.code in THREAD_CODES]
 
     for label, group in [("Security", sec), ("Taint Analysis", taint), ("Thread Safety", thread)]:
         if not group:
             continue
         print(f"\n  --- {label} ({len(group)}) ---")
         for d in group:
-            sev = d.severity.name
-            code = d.code or ""
-            line = d.range.start.line + 1
-            col = d.range.start.character
-            print(f"  {sev:<8s}  {code:<12s}  line {line}:{col}  {d.message}")
+            print(f"  {d.severity.upper():<8s}  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}")
+
+    print(f"\n  Total security-related issues: {len(security_diags)}")
 
     print(f"\n  Total security-related issues: {len(security_diags)}")
 
@@ -400,12 +386,11 @@ def cmd_review(source: str, file_path: str) -> None:
 
 
 def cmd_find_legacy(source: str, file_path: str) -> None:
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    diags = result.diagnostics
+    diags = require_rust().analyse_tcl(source, dialect=_dialect_from_path(file_path, source)).diagnostics
 
-    convertible = [d for d in diags if (d.code or "") in CONVERTIBLE_CODES]
+    convertible = [d for d in diags if d.code in CONVERTIBLE_CODES]
 
     print("=== Legacy Pattern Detection ===")
     if not convertible:
@@ -414,11 +399,8 @@ def cmd_find_legacy(source: str, file_path: str) -> None:
 
     print(f"  Found {len(convertible)} convertible pattern(s):\n")
     for d in convertible:
-        code = d.code or ""
-        line = d.range.start.line + 1
-        col = d.range.start.character
-        conversion = CONVERSION_MAP.get(code, "modernise")
-        print(f"  {code:<12s}  line {line}:{col}  {d.message}")
+        conversion = CONVERSION_MAP.get(d.code, "modernise")
+        print(f"  {d.code:<12s}  line {d.start[0] + 1}:{d.start[1]}  {d.message}")
         print(f"               Conversion: {conversion}")
 
 
@@ -427,11 +409,11 @@ def cmd_find_legacy(source: str, file_path: str) -> None:
 
 def cmd_context(source: str, file_path: str) -> None:
     from ai.shared.irule_analysis import ordered_events as _ordered_events
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
+    r = require_rust()
     basename = os.path.basename(file_path)
-    ext = os.path.splitext(file_path)[1].lower()
-    dialect = "f5-irules" if ext in (".irul", ".irule") else "tcl8.6"
+    dialect = _dialect_from_path(file_path, source)
     line_count = len(source.split("\n"))
 
     print("=== Context Pack ===")
@@ -440,19 +422,15 @@ def cmd_context(source: str, file_path: str) -> None:
     print(f"  Lines: {line_count}")
 
     # Diagnostics
-    result = analyse(source)
-    diags = result.diagnostics
-    actionable = [d for d in diags if d.severity.name in ("ERROR", "WARNING")]
+    diags = r.analyse_tcl(source, dialect=dialect).diagnostics
+    actionable = [d for d in diags if d.severity in ("error", "warning")]
 
     print()
     if actionable:
         print(f"=== Diagnostics ({len(actionable)}) ===")
         for d in actionable[:12]:
-            sev = d.severity.name
-            code = d.code or ""
-            line = d.range.start.line + 1
-            cat = _categorise(code)
-            print(f"  {sev} {code} line {line}: {d.message}  [{cat}]")
+            cat = _categorise(d.code)
+            print(f"  {d.severity.upper()} {d.code} line {d.start[0] + 1}: {d.message}  [{cat}]")
         if len(actionable) > 12:
             print(f"  ... and {len(actionable) - 12} more")
     else:
@@ -462,12 +440,12 @@ def cmd_context(source: str, file_path: str) -> None:
     # Symbols
     print()
     events_found = _detect_events(source)
-    scope_count = 0
-
     symbols_lines = []
     for name, line in events_found:
         symbols_lines.append(f"  Event {name} (line {line})")
-    scope_count = _count_scope_symbols(result.global_scope, symbols_lines)
+    before = len(symbols_lines)
+    _format_doc_symbols(r.document_symbols(source, dialect=dialect), symbols_lines)
+    scope_count = len(symbols_lines) - before
     total = len(events_found) + scope_count
 
     if symbols_lines:
@@ -492,14 +470,12 @@ def cmd_context(source: str, file_path: str) -> None:
         print()
         print(f"=== Event Metadata ({len(evt_list)} events) ===")
         try:
-            from compiler.registry.info import lookup_event_info
-
             for evt in evt_list[:8]:
-                info = lookup_event_info(evt.name, dialect="f5-irules")
+                info = r.lookup_event_info(evt.name, dialect="f5-irules")
                 samples = list(info.valid_commands[:8])
                 print(
                     f"  {evt.name}: known={'yes' if info.known else 'no'}, "
-                    f"validCommands={info.valid_command_count}"
+                    f"validCommands={len(info.valid_commands)}"
                 )
                 if samples:
                     print(f"    sample: {', '.join(samples)}")
@@ -509,44 +485,13 @@ def cmd_context(source: str, file_path: str) -> None:
             print(f"  (event metadata unavailable: {exc})")
 
 
-def _count_scope_symbols(scope, lines: list[str], depth: int = 0) -> int:
-    """Count and format scope symbols into lines list."""
-    count = 0
-    indent = "  " * depth
-
-    for proc in scope.procs.values():
-        params = [p.name for p in proc.params]
-        param_str = f"({', '.join(params)})" if params else "()"
-        line = proc.name_range.start.line + 1 if proc.name_range else "?"
-        lines.append(f"  {indent}Function {proc.name} {param_str} (line {line})")
-        count += 1
-
-    if scope.kind in ("global", "namespace"):
-        for var in scope.variables.values():
-            if var.definition_range:
-                line = var.definition_range.start.line + 1
-                lines.append(f"  {indent}Variable {var.name} (line {line})")
-                count += 1
-
-    for child in scope.children:
-        if child.kind == "namespace" and child.body_range:
-            line = child.body_range.start.line + 1
-            lines.append(f"  {indent}Namespace {child.name} (line {line})")
-            count += 1
-            count += _count_scope_symbols(child, lines, depth + 1)
-        elif child.kind == "proc":
-            count += _count_scope_symbols(child, lines, depth + 1)
-
-    return count
-
-
 # Subcommand: call-graph
 
 
 def cmd_call_graph(source: str, file_path: str) -> None:
-    from analyser.semantic_graph import build_call_graph
+    from ai.shared.rust_bridge import require_rust
 
-    data = build_call_graph(source)
+    data = require_rust().call_graph(source, dialect=_dialect_from_path(file_path, source))
     nodes = data.get("nodes", [])
     edges = data.get("edges", [])
     roots = data.get("roots", [])
@@ -591,9 +536,9 @@ def cmd_call_graph(source: str, file_path: str) -> None:
 
 
 def cmd_symbol_graph(source: str, file_path: str) -> None:
-    from analyser.semantic_graph import build_symbol_graph
+    from ai.shared.rust_bridge import require_rust
 
-    data = build_symbol_graph(source)
+    data = require_rust().symbol_graph(source, dialect=_dialect_from_path(file_path, source))
     summary = data.get("summary", {})
     tp = summary.get("total_procs", 0)
     tv = summary.get("total_variables", 0)
@@ -652,9 +597,9 @@ def _print_scope(scope: dict, depth: int) -> None:
 
 
 def cmd_dataflow_graph(source: str, file_path: str) -> None:
-    from analyser.semantic_graph import build_dataflow_graph
+    from ai.shared.rust_bridge import require_rust
 
-    data = build_dataflow_graph(source)
+    data = require_rust().dataflow_graph(source, dialect=_dialect_from_path(file_path, source))
     summary = data.get("summary", {})
     tw = summary.get("total_taint_warnings", 0)
     tv = summary.get("tainted_variable_count", 0)
@@ -706,12 +651,9 @@ def cmd_dataflow_graph(source: str, file_path: str) -> None:
 
 def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
     """Show def-use chains from compiler SSA analysis."""
-    _configure_dialect_from_path(file_path)
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
-
-    graph = extract_dataflow_graph(source)
-    result = dataflow_graph_to_dict(graph)
+    result = require_rust().def_use_chains(source, dialect=_dialect_from_path(file_path, source))
 
     s = result["summary"]
     print(
@@ -760,39 +702,25 @@ def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
 
 def cmd_memory_aliases(source: str, file_path: str) -> None:
     """Show memory alias information from memory-SSA analysis."""
-    _configure_dialect_from_path(file_path)
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.compilation_unit import ensure_compilation_unit
-
-    cu = ensure_compilation_unit(source, context="cli.memory_aliases")
-    if cu is None:
-        print("  Compilation failed — no alias information available.")
-        return
+    result = require_rust().memory_aliases(source, dialect=_dialect_from_path(file_path, source))
 
     total_aliases = 0
-
-    def _show_mem(name, analysis):
-        nonlocal total_aliases
-        mem = analysis.memory_ssa
-        if mem is None:
-            return
-        if not mem.alias_sets and not mem.memory_ops:
-            return
-        print(f"\n  {name}:")
-        for aset in mem.alias_sets:
-            total_aliases += 1
-            print(f"    ALIAS SET ({aset.reason}): {', '.join(sorted(aset.names))}")
-        if mem.memory_ops:
-            print(
-                f"    memory ops: {mem.total_memory_defs} defs, "
-                f"{mem.total_memory_uses} uses, {mem.total_clobbers} clobbers"
-            )
-
     print("=== Memory-SSA Alias Analysis ===")
-    _show_mem("::top", cu.top_level.analysis)
-    for qname in sorted(cu.procedures):
-        fu = cu.procedures[qname]
-        _show_mem(qname, fu.analysis)
+    for func in result["functions"]:
+        alias_sets = func["alias_sets"]
+        if not alias_sets and not func.get("memory_ops"):
+            continue
+        print(f"\n  {func['name']}:")
+        for aset in alias_sets:
+            total_aliases += 1
+            print(f"    ALIAS SET ({aset['reason']}): {', '.join(aset['names'])}")
+        if func.get("memory_ops"):
+            print(
+                f"    memory ops: {func.get('memory_defs', 0)} defs, "
+                f"{func.get('memory_uses', 0)} uses, {func.get('clobbers', 0)} clobbers"
+            )
 
     if total_aliases == 0:
         print("  (no aliases detected)")
@@ -2017,13 +1945,26 @@ def cmd_bigip_cleanup(
 # CLI
 
 
-def _configure_dialect_from_path(file_path: str) -> None:
-    """Configure the command registry dialect based on file extension."""
-    from compiler.registry.runtime import configure_signatures
+def _dialect_from_path(file_path: str, source: str = "") -> str:
+    """The dialect for a file, via the centralised Rust detector.
 
-    ext = os.path.splitext(file_path)[1].lower()
-    dialect = "f5-irules" if ext in (".irul", ".irule") else "tcl8.6"
-    configure_signatures(dialect=dialect)
+    Combines the filename extension with (when given) the source content
+    heuristics — the same detector the LSP, editors, and tooling use. Falls
+    back to ``tcl8.6`` when nothing matches. Pass the result as the
+    ``dialect=`` argument to the ``tcl_lsp_py`` facades.
+    """
+    from ai.shared.rust_bridge import require_rust
+
+    return require_rust().detect_dialect(source, filename=file_path, default="tcl8.6")
+
+
+def _configure_dialect_from_path(file_path: str, source: str = "") -> None:
+    """Deprecated no-op shim — the facades take an explicit ``dialect=``.
+
+    Retained only for the not-yet-re-pointed subcommands; new code should call
+    :func:`_dialect_from_path` and pass the result to the facade.
+    """
+    del file_path, source
 
 
 def _read_file(path: str) -> str:
@@ -2259,83 +2200,63 @@ examples:
 
 def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
-    _configure_dialect_from_path(file_path)
-    from ai.shared.docstring_ops import collect_proc_docs
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
+    procs = require_rust().proc_docs(source, dialect=_dialect_from_path(file_path, source))
+    print(json.dumps({"procs": procs}, indent=2))
 
 
 def cmd_generate_docstring(
     source: str, file_path: str, proc_name: str, style: str, decoration: bool
 ) -> None:
     """Generate a docstring stub for a specific proc."""
-    _configure_dialect_from_path(file_path)
-    from analyser import analyse
-    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    proc_def = result.find_proc(proc_name)
-    if proc_def is None:
+    stub = require_rust().generate_docstring_stub(
+        source,
+        proc_name,
+        style=style,
+        decoration=decoration,
+        dialect=_dialect_from_path(file_path, source),
+    )
+    if stub is None:
         print(json.dumps({"error": f"Proc '{proc_name}' not found"}))
         return
-
-    stub = generate_stub_for_proc(
-        proc_def, tag_style=resolve_tag_style(style), decoration=decoration
-    )
     print(stub)
 
 
 def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: bool) -> None:
     """Add docstring stubs to all undocumented procs."""
-    _configure_dialect_from_path(file_path)
-    from ai.shared.docstring_ops import insert_docstring_stubs
-    from analyser import analyse
-    from tooling.formatter.docstring import resolve_tag_style
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    modified, _count = insert_docstring_stubs(
-        source, result, tag_style=resolve_tag_style(style), decoration=decoration
+    out = require_rust().insert_docstring_stubs(
+        source,
+        style=style,
+        decoration=decoration,
+        dialect=_dialect_from_path(file_path, source),
     )
-    print(modified, end="")
+    print(out["source"], end="")
 
 
 def cmd_refactor(source: str, file_path: str) -> None:
     """List all available refactorings in the source file."""
-    _configure_dialect_from_path(file_path)
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.parsing.command_segmenter import segment_commands
-    from tooling.refactoring._brace_expr import brace_expr
-    from tooling.refactoring._extract_datagroup import extract_to_datagroup
-    from tooling.refactoring._if_to_switch import if_to_switch
-    from tooling.refactoring._inline_variable import inline_variable
-    from tooling.refactoring._switch_to_dict import switch_to_dict
+    r = require_rust()
+    resolved = _dialect_from_path(file_path, source)
 
     available: list[dict] = []
-    for seg in segment_commands(source):
-        line = seg.range.start.line
-        char = seg.range.start.character
-
-        r = inline_variable(source, line, char)
-        if r:
-            available.append({"line": line, "tool": "inline_variable", "title": r.title})
-
-        r2 = if_to_switch(source, line, char)
-        if r2:
-            available.append({"line": line, "tool": "if_to_switch", "title": r2.title})
-
-        r3 = switch_to_dict(source, line, char)
-        if r3:
-            available.append({"line": line, "tool": "switch_to_dict", "title": r3.title})
-
-        r4 = brace_expr(source, line, char)
-        if r4:
-            available.append({"line": line, "tool": "brace_expr", "title": r4.title})
-
-        r5 = extract_to_datagroup(source, line, char)
-        if r5:
-            available.append({"line": line, "tool": "extract_datagroup", "title": r5.title})
+    for cmd in r.parse_tcl(source, dialect=resolved).commands:
+        line, char = cmd.start
+        for tool_name, result in (
+            ("inline_variable", r.refactor_inline_variable(source, line, char, dialect=resolved)),
+            ("if_to_switch", r.refactor_if_to_switch(source, line, char, dialect=resolved)),
+            ("switch_to_dict", r.refactor_switch_to_dict(source, line, char, dialect=resolved)),
+            ("brace_expr", r.refactor_brace_expr(source, line, char, dialect=resolved)),
+            ("extract_datagroup", r.refactor_extract_datagroup(source, line, char, dialect=resolved)),
+        ):
+            if result:
+                available.append({"line": line, "tool": tool_name, "title": result.title})
 
     print(f"## Available Refactorings ({len(available)})\n")
     if not available:
@@ -2347,9 +2268,7 @@ def cmd_refactor(source: str, file_path: str) -> None:
 
 def cmd_suggest_datagroups(source: str, file_path: str) -> None:
     """AI-enhanced data-group extraction scan."""
-    _configure_dialect_from_path(file_path)
-
-    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from ai.shared.datagroup_suggest import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     print(f"## Data-Group Extraction Candidates ({len(candidates)})\n")
@@ -2376,11 +2295,11 @@ def cmd_suggest_datagroups(source: str, file_path: str) -> None:
 
 def cmd_extract_datagroup(source: str, file_path: str, line: int, dg_name: str) -> None:
     """Static data-group extraction at a specific line."""
-    _configure_dialect_from_path(file_path)
+    from ai.shared.rust_bridge import require_rust
 
-    from tooling.refactoring._extract_datagroup import extract_to_datagroup
-
-    result = extract_to_datagroup(source, line, 0, dg_name=dg_name)
+    result = require_rust().refactor_extract_datagroup(
+        source, line, 0, dg_name, dialect=_dialect_from_path(file_path, source)
+    )
     if result is None:
         print("No data-group extraction possible at this line.")
         return
@@ -2388,11 +2307,11 @@ def cmd_extract_datagroup(source: str, file_path: str, line: int, dg_name: str) 
     print(f"## {result.title}\n")
     print("### Data-group definition (tmsh)\n")
     print("```")
-    print(result.data_group_tcl())
+    print(result.data_group_definition)
     print("```\n")
     print("### Rewritten iRule code\n")
     print("```tcl")
-    print(result.apply(source))
+    print(result.rewritten)
     print("```")
 
 

@@ -60,6 +60,35 @@ impl OptimisationProfile {
         }
     }
 
+    /// The canonical lower-case profile name (round-trips through [`parse`]).
+    ///
+    /// [`parse`]: OptimisationProfile::parse
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Readability => "readability",
+            Self::Standard => "standard",
+            Self::Full => "full",
+            Self::Aggressive => "aggressive",
+        }
+    }
+
+    /// Whether this profile runs the optimiser to a multi-pass fixpoint. Only
+    /// `aggressive` is multi-pass; every other profile is a single pass.
+    #[must_use]
+    pub fn is_multi_pass(self) -> bool {
+        matches!(self, Self::Aggressive)
+    }
+
+    /// The maximum optimiser passes for this profile: 5 for the multi-pass
+    /// `aggressive` tier, 1 for every single-pass profile. Mirrors the Python
+    /// `profile_spec(...).max_iterations`.
+    #[must_use]
+    pub fn max_iterations(self) -> usize {
+        if self.is_multi_pass() { 5 } else { 1 }
+    }
+
     /// Whether this profile enables `category`. The `readability` / `standard`
     /// membership lives on [`OptCategory`] so the doc-table columns and this
     /// gate stay in lock-step.

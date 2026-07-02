@@ -89,14 +89,22 @@ def test_vscode_settings_match_catalogue() -> None:
     _assert_complete_unique(codes, context="editors/vscode/package.json")
 
 
-def test_jetbrains_generated_catalog_is_fresh() -> None:
-    """JetBrains DiagnosticCatalog.kt matches generator dry_run output."""
-    from scripts.codegen.editor_settings import generate_jetbrains_catalog
+def test_jetbrains_generated_catalog_contains_all_python_codes() -> None:
+    """DiagnosticCatalog.kt is now generated from the Rust `DiagCode` catalogue
+    by `cargo xtask gen-jetbrains-catalog` (a superset of this Python registry),
+    so it must carry a `DiagnosticDef` for every Python diagnostic code — extra
+    Rust-only codes are fine. Byte-exact freshness is enforced Rust-side by
+    `cargo xtask gen-jetbrains-catalog --check`."""
+    import re
 
-    path, expected = generate_jetbrains_catalog(dry_run=True)
-    assert path.exists(), f"Missing generated file: {path}"
-    actual = path.read_text(encoding="utf-8")
-    assert actual == expected, "DiagnosticCatalog.kt is stale — run 'make gen-editor-settings'"
+    from shared.codes import diagnostic_codes
+
+    kt = _read(
+        "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/DiagnosticCatalog.kt"
+    )
+    kt_codes = set(re.findall(r'DiagnosticDef\("([^"]+)"', kt))
+    missing = diagnostic_codes() - kt_codes
+    assert not missing, f"DiagnosticCatalog.kt is missing diagnostics: {sorted(missing)}"
 
 
 def test_ai_prompts_match_catalogue() -> None:

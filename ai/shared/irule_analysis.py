@@ -36,13 +36,11 @@ def event_multiplicity(event_name: str) -> str:
     Returns one of ``"init"``, ``"once_per_connection"``,
     ``"per_request"``, or ``"unknown"``.
 
-    Delegates to :func:`compiler.registry.namespace_data.event_multiplicity`.
+    Delegates to the Rust ``tcl_lsp_py.event_multiplicity`` facade.
     """
-    from compiler.registry.namespace_data import (
-        event_multiplicity as _event_multiplicity,
-    )
+    from ai.shared.rust_bridge import require_rust
 
-    return _event_multiplicity(event_name)
+    return require_rust().event_multiplicity(event_name)
 
 
 def ordered_events(source: str) -> list[EventInfo]:
@@ -50,11 +48,12 @@ def ordered_events(source: str) -> list[EventInfo]:
 
     Each entry includes its 1-based index and multiplicity.
     """
-    from compiler.registry.namespace_data import order_events_for_file
+    from ai.shared.rust_bridge import require_rust
 
-    names = order_events_for_file(source)
+    rust = require_rust()
+    names = rust.order_events_for_file(source)
     return [
-        EventInfo(index=i, name=name, multiplicity=event_multiplicity(name))
+        EventInfo(index=i, name=name, multiplicity=rust.event_multiplicity(name))
         for i, name in enumerate(names, 1)
     ]
 
@@ -82,25 +81,12 @@ def taint_warnings(source: str) -> list[dict[str, Any]]:
     ``sink_command``.
     """
     try:
-        from compiler.compilation_unit import compile_source
-        from compiler.taint import find_taint_warnings
+        from ai.shared.rust_bridge import require_rust
 
-        cu = compile_source(source)
-        warnings = find_taint_warnings(source, cu)
-        result: list[dict[str, Any]] = []
-        for w in warnings:
-            d: dict[str, Any] = {
-                "code": getattr(w, "code", ""),
-                "message": getattr(w, "message", ""),
-            }
-            if hasattr(w, "range") and w.range:
-                d["range"] = range_to_dict(w.range)
-            if hasattr(w, "variable"):
-                d["variable"] = w.variable
-            if hasattr(w, "sink_command"):
-                d["sink_command"] = w.sink_command
-            result.append(d)
-        return result
+        # The Rust dataflow graph carries the taint warnings (0-based `line`,
+        # not a full range) plus the tainted variable and sink command.
+        graph = require_rust().dataflow_graph(source, dialect="f5-irules")
+        return list(graph.get("taint_warnings", []))
     except Exception:
         return []
 
@@ -115,9 +101,9 @@ def diagram_data(source: str) -> dict[str, Any]:
     dict with an ``"error"`` key on failure.
     """
     try:
-        from tooling.diagram.extract import extract_diagram_data
+        from ai.shared.rust_bridge import require_rust
 
-        return extract_diagram_data(source)
+        return require_rust().diagram_data(source, dialect="f5-irules")
     except Exception as exc:
         return {"error": str(exc), "events": {}}
 

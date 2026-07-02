@@ -72,13 +72,32 @@ from . import (
 from ._base import _REGISTRY
 
 
+# Dialects in which the Tk widget/window commands are valid: standard Tcl
+# (a ``wish`` / ``package require Tk`` interpreter) plus the pure-``tk``
+# dialect.  Tk is *not* part of the restricted embedded dialects (F5 iRules /
+# iApps) or the vendor EDA shells, so its commands must never be counted valid
+# there.  Mirrors the Rust ``DialectSet::TK_AND_TCL`` gate — kept explicit (no
+# inheritance) because ``dialect_membership`` does not fold Tcl versions into
+# one another.
+_TK_DIALECTS = frozenset({"tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "tk"})
+
+
 def tk_command_specs() -> tuple[CommandSpec, ...]:
     """Return Tk command specs from all registered classes.
 
     Tk commands set ``warn_missing_import=False`` because ``wish``
     auto-loads Tk — requiring an explicit ``package require Tk`` would
     generate noisy false positives.
+
+    Each spec is also dialect-gated to :data:`_TK_DIALECTS` (unless it already
+    declares its own ``dialects``) so a Tk spec left with ``dialects=None``
+    does not leak into every dialect — a Tk widget must never appear as a
+    valid command in an F5 iRules / iApps context.
     """
     from dataclasses import replace
 
-    return tuple(replace(cls.spec(), warn_missing_import=False) for cls in _REGISTRY)
+    def _gate(spec: CommandSpec) -> CommandSpec:
+        dialects = spec.dialects if spec.dialects is not None else _TK_DIALECTS
+        return replace(spec, dialects=dialects, warn_missing_import=False)
+
+    return tuple(_gate(cls.spec()) for cls in _REGISTRY)

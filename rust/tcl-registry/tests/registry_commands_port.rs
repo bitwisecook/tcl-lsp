@@ -799,6 +799,44 @@ fn default_registry_has_core_but_not_irules() {
     );
 }
 
+/// Tk widget/window commands are dialect-gated to standard Tcl + the `tk`
+/// dialect (`DialectSet::TK_AND_TCL`) — they must resolve in a `wish` /
+/// `package require Tk` `.tcl` file but never in the restricted embedded
+/// dialects (F5 iRules / iApps), where Tk does not exist.  (The *loaded*
+/// gating — only offered once `package require Tk` ran — is layered on in
+/// the LSP completion path, not here.)
+#[test]
+fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
+    let reg = CommandRegistry::build_default();
+    for name in ["button", "pack", "wm", "winfo", "ttk::treeview", "tkwait"] {
+        let spec = reg.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert_eq!(spec.required_package, Some("Tk"), "{name} requires Tk");
+        // Available in standard Tcl (a `.tcl` that loads Tk) and the `tk`
+        // dialect.
+        assert!(
+            spec.supports_dialect(DialectSet::TCL86),
+            "{name} available under tcl8.6 (wish / package require Tk)"
+        );
+        assert!(
+            spec.supports_dialect(DialectSet::TCL90),
+            "{name} available under tcl9.0"
+        );
+        assert!(
+            spec.supports_dialect(DialectSet::TK),
+            "{name} available under the tk dialect"
+        );
+        // NOT available in the F5 embedded dialects.
+        assert!(
+            !spec.supports_dialect(DialectSet::IRULES),
+            "{name} must NOT be offered in iRules"
+        );
+        assert!(
+            !spec.supports_dialect(DialectSet::IAPPS),
+            "{name} must NOT be offered in iApps"
+        );
+    }
+}
+
 /// `test_get_auto_loads_dialect` / `test_command_names_auto_loads_dialect` —
 /// `load_dialect` makes iRules commands resolvable and listed.
 ///

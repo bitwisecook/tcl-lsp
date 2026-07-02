@@ -134,6 +134,31 @@ impl ParsedCommand {
 
 /// One analyser diagnostic: a stable code, message, severity, and the
 /// source range it anchors to.
+/// A suggested fix attached to a [`Diagnostic`] — a text replacement over a
+/// span (zero-width for an insertion) with a human-readable description.
+#[pyclass(frozen, module = "tcl_lsp_py", name = "DiagnosticFix")]
+pub(crate) struct DiagnosticFix {
+    /// 0-based `(line, character)` of the replaced span's start.
+    #[pyo3(get)]
+    start: (u32, u32),
+    /// 0-based `(line, character)` of the replaced span's end (exclusive).
+    #[pyo3(get)]
+    end: (u32, u32),
+    /// Replacement / inserted text.
+    #[pyo3(get)]
+    new_text: String,
+    /// Human-readable description of the fix.
+    #[pyo3(get)]
+    description: String,
+}
+
+#[pymethods]
+impl DiagnosticFix {
+    fn __repr__(&self) -> String {
+        format!("DiagnosticFix(description={:?})", self.description)
+    }
+}
+
 #[pyclass(frozen, module = "tcl_lsp_py", name = "Diagnostic")]
 pub(crate) struct Diagnostic {
     /// The stable diagnostic code (e.g. `"W101"`, `"IRULE5002"`).
@@ -151,6 +176,9 @@ pub(crate) struct Diagnostic {
     /// 0-based `(line, character)` of the diagnostic end (exclusive).
     #[pyo3(get)]
     end: (u32, u32),
+    /// Suggested fixes (zero or more); empty when the emitter supplied none.
+    #[pyo3(get)]
+    fixes: Vec<Py<DiagnosticFix>>,
 }
 
 #[pymethods]
@@ -172,6 +200,22 @@ impl Diagnostic {
         d: &CoreDiagnostic,
     ) -> PyResult<Py<Diagnostic>> {
         let (start, end) = range_of(sm, d.span);
+        let fixes = d
+            .fixes
+            .iter()
+            .map(|fix| {
+                let (fstart, fend) = range_of(sm, fix.span);
+                Py::new(
+                    py,
+                    DiagnosticFix {
+                        start: fstart,
+                        end: fend,
+                        new_text: fix.new_text.clone(),
+                        description: fix.description.clone(),
+                    },
+                )
+            })
+            .collect::<PyResult<Vec<_>>>()?;
         Py::new(
             py,
             Diagnostic {
@@ -180,6 +224,7 @@ impl Diagnostic {
                 severity: d.severity.as_str().to_owned(),
                 start,
                 end,
+                fixes,
             },
         )
     }
@@ -335,10 +380,151 @@ impl QueryResult {
     }
 }
 
+/// The result of [`lookup_event_info`](super::facades::lookup_event_info) — a
+/// projection of `tcl_registry::EventInfo` (the same data the `f5 irule
+/// event-info` verb serialises).
+#[pyclass(frozen, module = "tcl_lsp_py", name = "EventInfo")]
+pub(crate) struct EventInfo {
+    #[pyo3(get)]
+    pub(crate) event: String,
+    #[pyo3(get)]
+    pub(crate) dialect: String,
+    #[pyo3(get)]
+    pub(crate) known: bool,
+    #[pyo3(get)]
+    pub(crate) deprecated: bool,
+    #[pyo3(get)]
+    pub(crate) multiplicity: String,
+    #[pyo3(get)]
+    pub(crate) description: String,
+    #[pyo3(get)]
+    pub(crate) side: String,
+    /// The transport(s) as a `/`-joined string, or `None` for no transport.
+    #[pyo3(get)]
+    pub(crate) transport: Option<String>,
+    #[pyo3(get)]
+    pub(crate) implied_profiles: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) valid_commands: Vec<String>,
+}
+
+#[pymethods]
+impl EventInfo {
+    fn __repr__(&self) -> String {
+        format!(
+            "EventInfo(event={:?}, known={}, valid_commands={})",
+            self.event,
+            self.known,
+            self.valid_commands.len()
+        )
+    }
+}
+
+/// The result of [`lookup_command_info`](super::facades::lookup_command_info) —
+/// registry metadata for one command in a dialect.
+#[pyclass(frozen, module = "tcl_lsp_py", name = "CommandInfo")]
+pub(crate) struct CommandInfo {
+    #[pyo3(get)]
+    pub(crate) found: bool,
+    #[pyo3(get)]
+    pub(crate) command: String,
+    #[pyo3(get)]
+    pub(crate) dialect: String,
+    #[pyo3(get)]
+    pub(crate) summary: String,
+    #[pyo3(get)]
+    pub(crate) synopsis: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) switches: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) valid_events: Vec<String>,
+    #[pyo3(get)]
+    pub(crate) valid_in_any_event: bool,
+}
+
+#[pymethods]
+impl CommandInfo {
+    fn __repr__(&self) -> String {
+        format!(
+            "CommandInfo(command={:?}, found={}, valid_events={})",
+            self.command,
+            self.found,
+            self.valid_events.len()
+        )
+    }
+}
+
+/// The result of a refactoring facade (`refactor_*`) — the applied rewrite of
+/// the source plus its title and edit count. A facade returns `None` (Python
+/// `None`) when the transform does not apply at the cursor.
+#[pyclass(frozen, module = "tcl_lsp_py", name = "RefactorResult")]
+pub(crate) struct RefactorResult {
+    /// The editor-facing title (e.g. `"Inline variable"`).
+    #[pyo3(get)]
+    pub(crate) title: String,
+    /// The full source with the refactoring's edits applied.
+    #[pyo3(get)]
+    pub(crate) rewritten: String,
+    /// How many text edits the transform produced.
+    #[pyo3(get)]
+    pub(crate) edit_count: usize,
+}
+
+#[pymethods]
+impl RefactorResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "RefactorResult(title={:?}, edit_count={})",
+            self.title, self.edit_count
+        )
+    }
+}
+
+/// The result of the extract-to-datagroup refactoring — the rewritten iRule
+/// plus the generated tmsh data-group definition and its structured records.
+/// A facade returns `None` when the transform does not apply at the cursor.
+#[pyclass(frozen, module = "tcl_lsp_py", name = "DataGroupResult")]
+pub(crate) struct DataGroupResult {
+    /// The editor-facing title.
+    #[pyo3(get)]
+    pub(crate) title: String,
+    /// The full source with the extraction applied.
+    #[pyo3(get)]
+    pub(crate) rewritten: String,
+    /// The rendered tmsh `ltm data-group internal …` definition.
+    #[pyo3(get)]
+    pub(crate) data_group_definition: String,
+    /// The generated data-group name.
+    #[pyo3(get)]
+    pub(crate) name: String,
+    /// Value type: `"string"`, `"ip"`, or `"integer"`.
+    #[pyo3(get)]
+    pub(crate) value_type: String,
+    /// `(key, value)` records (value empty for a pure-membership group).
+    #[pyo3(get)]
+    pub(crate) records: Vec<(String, String)>,
+    /// How many text edits the transform produced.
+    #[pyo3(get)]
+    pub(crate) edit_count: usize,
+}
+
+#[pymethods]
+impl DataGroupResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "DataGroupResult(name={:?}, value_type={:?}, records={})",
+            self.name,
+            self.value_type,
+            self.records.len()
+        )
+    }
+}
+
 /// Register every public result class on the module.
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LexToken>()?;
     m.add_class::<ParsedCommand>()?;
+    m.add_class::<DiagnosticFix>()?;
     m.add_class::<Diagnostic>()?;
     m.add_class::<ParseResult>()?;
     m.add_class::<AnalysisResult>()?;
@@ -346,5 +532,9 @@ pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<QueryFile>()?;
     m.add_class::<QueryEdit>()?;
     m.add_class::<QueryResult>()?;
+    m.add_class::<EventInfo>()?;
+    m.add_class::<CommandInfo>()?;
+    m.add_class::<RefactorResult>()?;
+    m.add_class::<DataGroupResult>()?;
     Ok(())
 }
