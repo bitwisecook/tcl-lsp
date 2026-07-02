@@ -2408,10 +2408,12 @@ install_claude_skills() {
         fi
     fi
 
-    [ -d "$inner/skills" ]  && cp -R "$inner/skills"  "$HOME/.claude/"
-    [ -d "$inner/prompts" ] && cp -R "$inner/prompts" "$HOME/.claude/"
-    [ -f "$inner/tcl-ai.pyz" ] && cp "$inner/tcl-ai.pyz" "$HOME/.claude/tcl-ai.pyz"
-    chmod 0755 "$HOME/.claude/tcl-ai.pyz" 2>/dev/null || true
+    # Native skills bundle: just the skills tree (domain-knowledge prompts live
+    # in skills/_prompts/; no Python tcl-ai.pyz — the skills drive the native
+    # tcl-mcp MCP server + tcl/f5-query CLIs).
+    [ -d "$inner/skills" ] && cp -R "$inner/skills" "$HOME/.claude/"
+    # Remove a stale Python AI CLI left by an older installer.
+    rm -f "$HOME/.claude/tcl-ai.pyz" 2>/dev/null || true
     n="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
     log "installed Claude Code skills -> $HOME/.claude/skills/ ($n skills)"
 }
