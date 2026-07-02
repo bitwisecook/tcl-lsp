@@ -1,15 +1,15 @@
 """Resolve BIG-IP config / iRule file inputs into the F5 model.
 
-The home for turning CLI-style paths (``.conf`` / ``.scf`` / ``.ucs`` /
+The one loader for turning CLI-style paths (``.conf`` / ``.scf`` / ``.ucs`` /
 ``.irule`` / ``-``) and inline snippets into parsed :class:`BigipConfig`
-objects + iRule bodies. It lives with the F5 model (``dialects.f5.bigip``)
-rather than the ``tooling.f5`` verb layer so any F5-model consumer — the CLI
-verbs, ``explain_flow``, and the AI context tools — shares one loader without
-depending on the retiring analysis-engine tooling.
+objects + iRule bodies, shared by the CLI verbs, ``explain_flow``, and the AI
+context tools.
 
-The only non-model dependency is the UCS archive crypto in
-``tooling.f5.f5_remote`` (OpenPGP / gzip-tar handling), which is F5
-remote-transport infrastructure.
+It lives under ``tooling.f5`` rather than ``dialects.f5.bigip`` because it
+needs the UCS-archive crypto in ``tooling.f5.f5_remote`` (OpenPGP / gzip-tar
+handling): ``dialects/`` is a pure parsing layer that must not depend on
+``tooling/`` (the ``dialects-direction`` import-linter contract), whereas
+``tooling/`` may freely depend on ``dialects/``.
 """
 
 from __future__ import annotations

@@ -2017,9 +2017,9 @@ def _tool_irule_with_context(
         context_bundle_to_dict,
         context_bundle_to_text,
     )
-    from dialects.f5.bigip.inputs import load_irule_inputs
     from dialects.f5.bigip.lint import _merge_configs
     from dialects.f5.bigip.parser import parse_bigip_conf
+    from tooling.f5.bigip.inputs import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:
