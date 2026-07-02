@@ -637,6 +637,18 @@ is incomplete and must not be merged.
 
 - Python style is enforced by **Ruff** (`make lint-py` / `make format-py`).
 - TypeScript style is enforced by **ESLint + Prettier** (`make lint-ts`).
+- Rust must pass **`cargo clippy` cleanly**, including the workspace-enabled
+  `clippy::pedantic`. **Do not add `#[allow(...)]` / `#[expect(...)]` to silence
+  a lint** — an allow is a code smell with a very high bar. Fix the underlying
+  issue instead (e.g. `too_many_lines` → extract helpers; `similar_names` →
+  rename; `too_many_arguments` on a PyO3 `#[pyfunction]` → return a `#[pyclass]`
+  instead of pythonising a dict, dropping the `py` param, or group params). Only
+  when a lint is genuinely wrong *and* no reasonable refactor exists may you
+  allow it, with a comment saying why. Pre-existing allows are not licence to
+  add more. The one clear pass of the bar: a **config/options constructor or
+  pythonic-kwargs `#[pyfunction]`** where the many parameters *are* the config —
+  `too_many_arguments` there is fine to allow (with a one-line comment), because
+  grouping into a struct only makes the API worse.
 - Use **UK spelling** in identifiers and comments (`normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous single-letter variables outside tiny loops.
 - Prefer `match/case` for enum/token dispatch with 3+ branches.
