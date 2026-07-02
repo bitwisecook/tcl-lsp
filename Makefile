@@ -1657,12 +1657,22 @@ $(ZIPAPP_EXPLORER_GUI_CDN): explorer-build-cdn
 
 claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
-$(CLAUDE_SKILLS): $(ZIPAPP_AI)
-	@echo "==> Building Claude skills release zip"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py claude-skills \
-		--version $(VERSION) \
-		--output $@ \
-		--ai-pyz $(ZIPAPP_AI)
+# Native skills bundle: a plain zip of the (native, MCP-driven) skills tree —
+# no Python `tcl-ai.pyz`, no separate prompts/ (the domain-knowledge prompts
+# live in skills/_prompts/). Layout: tcl-lsp-claude-skills-<v>/skills/<skill>/…
+# which install.sh extracts into ~/.claude/skills/.
+$(CLAUDE_SKILLS): $(shell find $(ROOT)ai/claude/skills -type f)
+	@echo "==> Building Claude skills release zip (native, no Python)"
+	@command -v zip >/dev/null 2>&1 || { echo "ERROR: 'zip' not found."; exit 1; }
+	@rm -rf $(BUILD_DIR)/claude-skills-stage
+	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills
+	@cp -R $(ROOT)ai/claude/skills/. \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/
+	@mkdir -p $(BUILD_DIR)
+	@rm -f $@
+	@cd $(BUILD_DIR)/claude-skills-stage && zip -qr $(abspath $@) tcl-lsp-claude-skills-$(VERSION)
+	@rm -rf $(BUILD_DIR)/claude-skills-stage
+	@echo "==> Built $@"
 
 package-vsix: compile $(VSIX_FILE) verify-vsix ## Package VSIX (skip lint/test, for CI)
 
