@@ -1,0 +1,282 @@
+//! Native port of `tests/lsp_e2e/test_config_e2e.py`.
+//!
+//! Effective-config + per-feature toggles, end-to-end against the packaged
+//! server. Drives the `workspace/configuration` path: `getEffectiveConfig` must
+//! expose a resolved `features` map (plus dialect, line length, optimiser
+//! switch), a disabled provider must return empty/None, the optimiser master
+//! switch must round-trip, and formatting must honour the request's indent width.
+//!
+//! Each Rust test owns its server, so there is no shared state to restore — the
+//! pytest `config_session` restore/round-trip is dropped; each test just applies.
+
+mod common;
+
+use common::{Lsp, unique_uri};
+
+use serde_json::{Value, json};
+
+/// Feature toggles whose handler must return empty/None when disabled, keyed by
+/// the camelCase `tclLsp.features.*` name.
+const TOGGLEABLE_FEATURES: &[&str] = &[
+    "hover",
+    "completion",
+    "documentSymbols",
+    "definition",
+    "references",
+    "signatureHelp",
+    "folding",
+    "selectionRange",
+    "documentLinks",
+];
+
+/// LSP "no result": null, an empty list, or an empty completion/`items` list.
+fn is_empty(result: &Value) -> bool {
+    match result {
+        Value::Null => true,
+        Value::Array(a) => a.is_empty(),
+        Value::Object(o) => {
+            if let Some(items) = o.get("items").and_then(Value::as_array) {
+                items.is_empty()
+            } else {
+                o.is_empty()
+            }
+        }
+        _ => false,
+    }
+}
+
+/// Whether `cfg.features.<feature>` is exactly `false`.
+fn feature_disabled(cfg: &Value, feature: &str) -> bool {
+    cfg.get("features").and_then(|f| f.get(feature)) == Some(&Value::Bool(false))
+}
+
+// -- TestEffectiveConfigShape --------------------------------------------
+
+#[test]
+fn reports_resolved_feature_map() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 1\n");
+    let cfg = lsp.effective_config(&uri);
+    assert!(cfg.is_object());
+    let features = cfg.get("features").cloned().unwrap_or(Value::Null);
+    assert!(features.is_object(), "{cfg}");
+    let missing: Vec<&str> = TOGGLEABLE_FEATURES
+        .iter()
+        .copied()
+        .filter(|k| features.get(*k).is_none())
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "effective config missing feature keys {missing:?}: {features}"
+    );
+    for (_k, v) in features.as_object().unwrap() {
+        assert!(v.is_boolean(), "{features}");
+    }
+}
+
+#[test]
+fn reports_dialect_and_scalars() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 1\n");
+    let cfg = lsp.effective_config(&uri);
+    let dialect = cfg.get("dialect").and_then(Value::as_str).unwrap_or("");
+    assert!(!dialect.is_empty(), "{cfg}");
+    assert!(cfg.get("line_length").map(Value::is_i64).unwrap_or(false), "{cfg}");
+    assert!(
+        cfg.get("optimiser_enabled").map(Value::is_boolean).unwrap_or(false),
+        "{cfg}"
+    );
+}
+
+// -- Per-provider disable contract — one case per toggleable feature. -----
+//
+// Each test opens a document that yields a non-empty result for its feature,
+// asserts the enabled baseline is non-empty, disables just that feature (settling
+// on the effective-config reflecting it), then asserts the provider is empty.
+
+/// Open the document that yields a non-empty result for `feature`.
+fn open_probe(lsp: &mut Lsp, uri: &str, feature: &str) {
+    match feature {
+        "hover" => lsp.open_ready(uri, "puts hello\n"),
+        "completion" => lsp.open_ready(uri, "pu"),
+        "documentSymbols" => lsp.open_ready(uri, "proc greet {} { return }\n"),
+        "definition" | "references" => {
+            lsp.open_ready(uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n")
+        }
+        "signatureHelp" => lsp.open_ready(uri, "proc greet {name greeting} { return }\ngreet World\n"),
+        "folding" | "selectionRange" => {
+            lsp.open_ready(uri, "proc greet {} {\n    set x 1\n    return $x\n}\n")
+        }
+        "documentLinks" => lsp.open_ready(uri, "source other.tcl\nputs done\n"),
+        other => panic!("no probe for feature {other:?}"),
+    };
+}
+
+/// Re-run the request for `feature` against `uri` (handlers read the toggle at
+/// request time, so this is safe to call before and after disabling).
+fn query_probe(lsp: &mut Lsp, uri: &str, feature: &str) -> Value {
+    match feature {
+        "hover" => lsp.hover(uri, 0, 2),
+        "completion" => lsp.completion(uri, 0, 2),
+        "documentSymbols" => lsp.document_symbols(uri),
+        "definition" => lsp.definition(uri, 1, 2),
+        "references" => lsp.references(uri, 0, 6, true),
+        "signatureHelp" => lsp.signature_help(uri, 1, 12),
+        "folding" => lsp.folding_range(uri),
+        "selectionRange" => lsp.selection_range(uri, json!([{ "line": 2, "character": 11 }])),
+        "documentLinks" => lsp.document_links(uri),
+        other => panic!("no probe for feature {other:?}"),
+    }
+}
+
+/// The body of the parametrized `test_disabling_feature_suppresses_its_provider`.
+fn disabling_feature_suppresses_its_provider(feature: &str) {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    open_probe(&mut lsp, &uri, feature);
+
+    // Baseline: the provider produces a non-empty result with defaults on.
+    let baseline = query_probe(&mut lsp, &uri, feature);
+    assert!(
+        !is_empty(&baseline),
+        "{feature}: expected a non-empty baseline, got {baseline}"
+    );
+
+    // Disable just this feature; settle on the effective-config reflecting it.
+    let feat = feature.to_owned();
+    lsp.apply_configuration_settle(
+        json!({ "features": { feature: false } }),
+        &uri,
+        move |c| feature_disabled(c, &feat),
+    );
+
+    let disabled = query_probe(&mut lsp, &uri, feature);
+    assert!(
+        is_empty(&disabled),
+        "{feature}: provider must return empty/None when disabled, got {disabled}"
+    );
+}
+
+macro_rules! disable_feature_test {
+    ($name:ident, $feature:literal) => {
+        #[test]
+        fn $name() {
+            disabling_feature_suppresses_its_provider($feature);
+        }
+    };
+}
+
+disable_feature_test!(disabling_hover_suppresses_provider, "hover");
+disable_feature_test!(disabling_completion_suppresses_provider, "completion");
+disable_feature_test!(disabling_document_symbols_suppresses_provider, "documentSymbols");
+disable_feature_test!(disabling_definition_suppresses_provider, "definition");
+disable_feature_test!(disabling_references_suppresses_provider, "references");
+disable_feature_test!(disabling_signature_help_suppresses_provider, "signatureHelp");
+disable_feature_test!(disabling_folding_suppresses_provider, "folding");
+disable_feature_test!(disabling_selection_range_suppresses_provider, "selectionRange");
+disable_feature_test!(disabling_document_links_suppresses_provider, "documentLinks");
+
+// -- TestOptimiserToggle -------------------------------------------------
+
+#[test]
+fn optimiser_disable_round_trips() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // `llength` of a literal list folds to a constant — an O1xx optimiser offer
+    // when the optimiser is on.
+    lsp.open_ready(&uri, "puts [llength [list a b c]]\n");
+
+    let on = lsp.effective_config(&uri);
+    assert_eq!(on.get("optimiser_enabled"), Some(&Value::Bool(true)), "{on}");
+    let offers_on = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    let offers_source = offers_on.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(offers_source.contains("puts 3"), "{offers_on}");
+
+    let off = lsp.apply_configuration_settle(
+        json!({ "optimiser": { "enabled": false } }),
+        &uri,
+        |c| c.get("optimiser_enabled") == Some(&Value::Bool(false)),
+    );
+    assert_eq!(off.get("optimiser_enabled"), Some(&Value::Bool(false)), "{off}");
+}
+
+// -- TestFormattingIndentRoundTrip ---------------------------------------
+
+const FMT_SRC: &str = "proc f {} {\nputs hi\n}\n";
+
+/// The leading whitespace of the `puts` body line.
+fn body_indent(formatted: &str) -> String {
+    for line in formatted.lines() {
+        if line.trim_start().starts_with("puts") {
+            let trimmed = line.trim_start();
+            return line[..line.len() - trimmed.len()].to_owned();
+        }
+    }
+    panic!("no `puts` body line in {formatted:?}");
+}
+
+/// The `newText` of the first formatting edit.
+fn first_edit_text(edits: &Value) -> String {
+    edits
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(|e| e.get("newText"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned()
+}
+
+#[test]
+fn two_space_indent() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, FMT_SRC);
+    let edits = lsp.formatting(&uri, 2, true);
+    assert!(
+        edits.as_array().map(|a| !a.is_empty()).unwrap_or(false),
+        "expected formatting edits"
+    );
+    assert_eq!(body_indent(&first_edit_text(&edits)), "  ");
+}
+
+#[test]
+fn four_space_indent() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, FMT_SRC);
+    let edits = lsp.formatting(&uri, 4, true);
+    assert!(
+        edits.as_array().map(|a| !a.is_empty()).unwrap_or(false),
+        "expected formatting edits"
+    );
+    assert_eq!(body_indent(&first_edit_text(&edits)), "    ");
+}
+
+// -- TestToggleNoStickyState ---------------------------------------------
+//
+// pytest exercised this on the *shared* server (disable → restore → re-query,
+// twice). Each Rust test owns its server with no restore, so the meaningful
+// residue is: baseline non-empty, then disabled empty. Repeat the cycle to guard
+// against per-request sticky state within one server.
+
+#[test]
+fn repeated_cycles_keep_provider_working() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "puts hello\n");
+
+    // Enabled baseline.
+    assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
+
+    // Disable hover and settle; the provider must go empty and stay empty.
+    lsp.apply_configuration_settle(
+        json!({ "features": { "hover": false } }),
+        &uri,
+        |c| feature_disabled(c, "hover"),
+    );
+    for _ in 0..2 {
+        assert!(is_empty(&lsp.hover(&uri, 0, 2)));
+    }
+}
