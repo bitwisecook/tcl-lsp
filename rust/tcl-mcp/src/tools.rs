@@ -5,8 +5,15 @@
 //! matching what the Python server emitted so existing clients are unaffected.
 
 use serde_json::{Map, Value, json};
-use tcl_lexer::{LineIndex, Utf16Col};
+use tcl_compiler::analyser::{AnalysisResult, Analyser, Diagnostic};
+use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
+use tcl_lsp_core::definition::LspRange;
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::events::EventRegistry;
+use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
+
+const IRULES_DIALECT: &str = "f5-irules";
 
 const DEFAULT_DIALECT: &str = "tcl9.0";
 
@@ -47,6 +54,155 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
         "rewritten": r.apply(source),
         "edit_count": r.edits.len(),
     })
+}
+
+/// Analyse `source` under `dialect` (fresh analyser per call, like the facades).
+fn analyse(source: &str, dialect: &str) -> AnalysisResult {
+    Analyser::new().analyse(source, dialect)
+}
+
+/// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.
+fn arg_bool(args: &Value, key: &str) -> bool {
+    match args.get(key) {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes"),
+        _ => false,
+    }
+}
+
+/// `{line, character}` for a byte offset, using byte columns (matching the
+/// Python facade's `SourceMap`-based diagnostic ranges).
+fn byte_pos(sm: &SourceMap<'_>, offset: u32) -> Value {
+    let p = sm.position_at(offset);
+    json!({ "line": p.line, "character": p.character.get() })
+}
+
+fn byte_range(sm: &SourceMap<'_>, span: Span) -> Value {
+    json!({ "start": byte_pos(sm, span.start()), "end": byte_pos(sm, span.end()) })
+}
+
+/// The nested LSP range shape `{start:{line,character}, end:{…}}` (UTF-16).
+fn lsp_range_json(r: &LspRange) -> Value {
+    json!({
+        "start": { "line": r.start_line, "character": r.start_character },
+        "end": { "line": r.end_line, "character": r.end_character },
+    })
+}
+
+/// Serialise one analyser diagnostic to `{code, severity, message, range,
+/// category, fixes?}` (the Python `_facade_diagnostic_to_dict` wire shape).
+fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
+    let code = d.code.as_str();
+    let mut obj = json!({
+        "code": code,
+        "severity": d.severity.as_str(),
+        "message": d.message,
+        "range": byte_range(sm, d.span),
+        "category": crate::diag_meta::meta().categorise(code),
+    });
+    if !d.fixes.is_empty() {
+        let fixes: Vec<Value> = d
+            .fixes
+            .iter()
+            .map(|f| {
+                json!({
+                    "range": byte_range(sm, f.span),
+                    "new_text": f.new_text,
+                    "description": f.description,
+                })
+            })
+            .collect();
+        obj.as_object_mut()
+            .expect("json object")
+            .insert("fixes".to_owned(), Value::Array(fixes));
+    }
+    obj
+}
+
+/// Serialise a control-flow document symbol tree (nested-range shape).
+fn doc_symbol_to_json(sym: &tcl_lsp_core::document_symbols::DocumentSymbol) -> Value {
+    let range = |r: &tcl_lsp_core::document_symbols::LineRange| {
+        json!({
+            "start": { "line": r.start_line, "character": r.start_character },
+            "end": { "line": r.end_line, "character": r.end_character },
+        })
+    };
+    let mut node = json!({
+        "name": sym.name,
+        "kind": sym.kind.as_str(),
+        "range": range(&sym.range),
+        "selection_range": range(&sym.selection_range),
+        "children": sym.children.iter().map(doc_symbol_to_json).collect::<Vec<_>>(),
+    });
+    if let Some(detail) = &sym.detail {
+        node.as_object_mut()
+            .expect("json object")
+            .insert("detail".to_owned(), json!(detail));
+    }
+    node
+}
+
+/// iRule events in canonical firing order as `{index, name, multiplicity}`
+/// (1-based index) — the `ordered_events` shape.
+fn event_order_list(source: &str) -> Vec<Value> {
+    let events = EventRegistry::build();
+    events
+        .order_events_for_file(source)
+        .into_iter()
+        .enumerate()
+        .map(|(i, name)| {
+            let multiplicity = events.event_multiplicity(&name);
+            json!({ "index": i + 1, "name": name, "multiplicity": multiplicity })
+        })
+        .collect()
+}
+
+/// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
+/// appearance only — mirrors the Python `_detect_events` regex
+/// `^\s*when\s+([A-Z][A-Z0-9_]{2,})\b`.
+fn detect_events(source: &str) -> Vec<Value> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (line_no, line) in source.lines().enumerate() {
+        let Some(rest) = line.trim_start().strip_prefix("when") else {
+            continue;
+        };
+        // `when` must be followed by at least one whitespace character.
+        let after = rest.trim_start();
+        if after.len() == rest.len() {
+            continue;
+        }
+        // Capture the maximal `[A-Z0-9_]` run; `\b` then holds automatically.
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+            .collect();
+        if name.len() < 3 || !name.starts_with(|c: char| c.is_ascii_uppercase()) {
+            continue;
+        }
+        if seen.insert(name.clone()) {
+            out.push(json!({ "name": name, "line": line_no }));
+        }
+    }
+    out
+}
+
+/// Split `s` into lines keeping each trailing `\n` (like Python
+/// `splitlines(keepends=True)` over `\n`); re-joining with `concat()` is
+/// loss-free. Mirrors the `insert_docstring_stubs` facade helper.
+fn split_keep_ends(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    for (i, &b) in s.as_bytes().iter().enumerate() {
+        if b == b'\n' {
+            out.push(s[start..=i].to_owned());
+            start = i + 1;
+        }
+    }
+    if start < s.len() {
+        out.push(s[start..].to_owned());
+    }
+    out
 }
 
 // ── Individual tool handlers ──────────────────────────────────────────
@@ -111,17 +267,7 @@ fn detect_dialect(args: &Value) -> Value {
 }
 
 fn event_order(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let events = tcl_registry::events::EventRegistry::build();
-    let ordered: Vec<Value> = events
-        .order_events_for_file(source)
-        .into_iter()
-        .enumerate()
-        .map(|(i, name)| {
-            let multiplicity = events.event_multiplicity(&name);
-            json!({ "index": i + 1, "name": name, "multiplicity": multiplicity })
-        })
-        .collect();
+    let ordered = event_order_list(arg_str(args, "source"));
     json!({ "events": ordered, "total": ordered.len() })
 }
 
@@ -252,6 +398,549 @@ fn brace_expr(args: &Value) -> Value {
     }
 }
 
+// ── Diagnostics tools ─────────────────────────────────────────────────
+
+fn analyze(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let sm = SourceMap::new(source);
+    let diagnostics: Vec<Value> = analysis.diagnostics.iter().map(|d| diag_to_json(d, &sm)).collect();
+    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(source, &dialect)
+        .iter()
+        .map(doc_symbol_to_json)
+        .collect();
+    json!({
+        "diagnostics": diagnostics,
+        "diagnostic_count": analysis.diagnostics.len(),
+        "symbols": symbols,
+        "events": detect_events(source),
+        "event_order": event_order_list(source),
+    })
+}
+
+fn validate(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let sm = SourceMap::new(source);
+    let meta = crate::diag_meta::meta();
+    let mut categories = Map::new();
+    for (key, label) in &meta.category_order {
+        let items: Vec<Value> = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| meta.categorise(d.code.as_str()) == key)
+            .map(|d| diag_to_json(d, &sm))
+            .collect();
+        if !items.is_empty() {
+            categories.insert(key.clone(), json!({ "label": label, "items": items }));
+        }
+    }
+    json!({ "categories": Value::Object(categories), "total": analysis.diagnostics.len() })
+}
+
+fn review(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let sm = SourceMap::new(source);
+    let meta = crate::diag_meta::meta();
+    let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
+        analysis
+            .diagnostics
+            .iter()
+            .filter(|d| set.contains(d.code.as_str()))
+            .map(|d| diag_to_json(d, &sm))
+            .collect()
+    };
+    let security = filt(&meta.security_codes);
+    let taint = filt(&meta.taint_codes);
+    let thread = filt(&meta.thread_codes);
+    let total = security.len() + taint.len() + thread.len();
+    json!({ "security": security, "taint": taint, "thread_safety": thread, "total": total })
+}
+
+fn find_legacy(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let sm = SourceMap::new(source);
+    let meta = crate::diag_meta::meta();
+    let patterns: Vec<Value> = analysis
+        .diagnostics
+        .iter()
+        .filter(|d| meta.convertible_codes.contains(d.code.as_str()))
+        .map(|d| {
+            let mut obj = diag_to_json(d, &sm);
+            let conversion = meta
+                .conversion_map
+                .get(d.code.as_str())
+                .map_or("modernise", String::as_str);
+            obj.as_object_mut()
+                .expect("json object")
+                .insert("conversion".to_owned(), json!(conversion));
+            obj
+        })
+        .collect();
+    json!({ "total": patterns.len(), "patterns": patterns })
+}
+
+// ── Registry info tools ───────────────────────────────────────────────
+
+fn event_info(args: &Value) -> Value {
+    let event = arg_str(args, "event_name");
+    let reg = registry(IRULES_DIALECT);
+    let events = EventRegistry::build();
+    let profiles = ProfileRegistry::build();
+    let info = reg.event_info(event, &events, &profiles);
+    let valid_command_count = info.valid_commands.len();
+    json!({
+        "event": info.event,
+        "known": info.known,
+        "deprecated": info.deprecated,
+        "multiplicity": info.multiplicity,
+        "description": info.description,
+        "side": info.side,
+        "transport": info.transport,
+        "implied_profiles": info.implied_profiles,
+        "valid_commands": info.valid_commands,
+        "valid_command_count": valid_command_count,
+    })
+}
+
+fn command_info(args: &Value) -> Value {
+    let command = arg_str(args, "command_name").trim();
+    let reg = registry(IRULES_DIALECT);
+    let Some(spec) = reg.get_for_dialect(command, DialectSet::IRULES) else {
+        return json!({ "command": command, "found": false });
+    };
+    let events = EventRegistry::build();
+    let profiles = ProfileRegistry::build();
+    let mut obj = json!({ "command": command, "found": true });
+    let m = obj.as_object_mut().expect("json object");
+    if let Some(h) = spec.hover {
+        if !h.summary.is_empty() {
+            m.insert("summary".to_owned(), json!(h.summary));
+        }
+        if !h.synopsis.is_empty() {
+            m.insert("synopsis".to_owned(), json!(h.synopsis));
+        }
+    }
+    let switches = spec.switch_names(Some(DialectSet::IRULES));
+    if !switches.is_empty() {
+        m.insert("switches".to_owned(), json!(switches));
+    }
+    let valid_events = reg.irules_events_for_command(command, &events, &profiles);
+    if !valid_events.is_empty() {
+        m.insert("valid_events".to_owned(), json!(valid_events));
+    }
+    obj
+}
+
+// ── LSP-feature tools ─────────────────────────────────────────────────
+
+const SOURCE_URI: &str = "file:///source.tcl";
+
+fn symbols(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let syms: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(source, &dialect)
+        .iter()
+        .map(doc_symbol_to_json)
+        .collect();
+    json!({ "symbols": syms })
+}
+
+fn hover(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    match tcl_lsp_core::hover::hover(
+        source,
+        arg_u32(args, "line"),
+        arg_u32(args, "character"),
+        &analysis,
+        Some(registry(&dialect)),
+    ) {
+        Some(h) => json!({ "contents": h.value }),
+        None => Value::Null,
+    }
+}
+
+fn complete(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let items = tcl_lsp_core::completion::completions(
+        source,
+        arg_u32(args, "line"),
+        arg_u32(args, "character"),
+        &analysis,
+        Some(registry(&dialect)),
+        None,
+        &dialect,
+    );
+    let items_json: Vec<Value> = items
+        .iter()
+        .map(|i| {
+            let mut obj = json!({ "label": i.label, "kind": completion_kind_str(i.kind), "insert_text": i.insert_text });
+            let m = obj.as_object_mut().expect("json object");
+            if let Some(d) = &i.detail {
+                m.insert("detail".to_owned(), json!(d));
+            }
+            if let Some(d) = &i.documentation {
+                m.insert("documentation".to_owned(), json!(d));
+            }
+            if let Some(s) = &i.sort_text {
+                m.insert("sort_text".to_owned(), json!(s));
+            }
+            obj
+        })
+        .collect();
+    json!({ "items": items_json, "total": items_json.len() })
+}
+
+fn completion_kind_str(k: tcl_lsp_core::completion::CompletionKind) -> &'static str {
+    use tcl_lsp_core::completion::CompletionKind::{EnumValue, Function, Snippet, Variable};
+    match k {
+        Variable => "variable",
+        Function => "function",
+        EnumValue => "enum_member",
+        Snippet => "snippet",
+    }
+}
+
+fn goto_definition(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let ranges = tcl_lsp_core::definition::definition(
+        source,
+        arg_u32(args, "line"),
+        arg_u32(args, "character"),
+        &analysis,
+    );
+    let locations: Vec<Value> = ranges
+        .iter()
+        .map(|r| json!({ "uri": SOURCE_URI, "range": lsp_range_json(r) }))
+        .collect();
+    json!({ "locations": locations })
+}
+
+fn find_references(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let ranges = tcl_lsp_core::references::references(
+        source,
+        &dialect,
+        arg_u32(args, "line"),
+        arg_u32(args, "character"),
+        &analysis,
+        true,
+    );
+    let refs: Vec<Value> = ranges
+        .iter()
+        .map(|r| json!({ "uri": SOURCE_URI, "range": lsp_range_json(r) }))
+        .collect();
+    json!({ "references": refs, "total": refs.len() })
+}
+
+fn rename(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let edits = tcl_lsp_core::rename::rename(
+        source,
+        &dialect,
+        arg_u32(args, "line"),
+        arg_u32(args, "character"),
+        arg_str(args, "new_name"),
+        &analysis,
+        Some(registry(&dialect)),
+    );
+    if edits.is_empty() {
+        return Value::Null;
+    }
+    let edits_json: Vec<Value> = edits
+        .iter()
+        .map(|e| json!({ "range": lsp_range_json(&e.range), "new_text": e.new_text }))
+        .collect();
+    json!({ "edits": edits_json, "total": edits.len() })
+}
+
+fn code_actions(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let range = LspRange {
+        start_line: arg_u32(args, "start_line"),
+        start_character: arg_u32(args, "start_character"),
+        end_line: arg_u32(args, "end_line"),
+        end_character: arg_u32(args, "end_character"),
+    };
+    let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(source, range, Some(&analysis))
+        .iter()
+        .map(|a| {
+            let mut obj = json!({ "title": a.title, "kind": a.kind.as_str() });
+            let m = obj.as_object_mut().expect("json object");
+            if !a.edits.is_empty() {
+                let edits: Vec<Value> = a
+                    .edits
+                    .iter()
+                    .map(|e| json!({ "uri": SOURCE_URI, "range": lsp_range_json(&e.range), "new_text": e.new_text }))
+                    .collect();
+                m.insert("edits".to_owned(), Value::Array(edits));
+            }
+            if let Some(cmd) = &a.command {
+                m.insert(
+                    "command".to_owned(),
+                    json!({ "command": cmd.command, "args": cmd.args, "string_args": cmd.string_args }),
+                );
+            }
+            if let Some(dg) = &a.data_group_definition {
+                m.insert("data_group_definition".to_owned(), json!(dg));
+            }
+            obj
+        })
+        .collect();
+    json!({ "actions": actions })
+}
+
+// ── Refactor tools ────────────────────────────────────────────────────
+
+fn extract_variable(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let line_index = LineIndex::new(source);
+    let start_off = line_index.offset_at_utf16(
+        arg_u32(args, "start_line"),
+        Utf16Col::new(arg_u32(args, "start_character")),
+        source,
+    );
+    let end_off = line_index.offset_at_utf16(
+        arg_u32(args, "end_line"),
+        Utf16Col::new(arg_u32(args, "end_character")),
+        source,
+    );
+    let var_name = match arg_str(args, "var_name") {
+        "" => "result",
+        v => v,
+    };
+    match tcl_lsp_core::refactor::extract_variable(source, start_off, end_off, var_name, &line_index) {
+        Some(r) => refactoring_json(source, &r),
+        None => Value::Null,
+    }
+}
+
+fn extract_datagroup(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
+    let dg_name = arg_str(args, "dg_name");
+    let reg = registry(IRULES_DIALECT);
+    let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, reg, &line_index)
+    else {
+        return Value::Null;
+    };
+    let Some(dg) = r.data_group.as_ref() else {
+        return Value::Null;
+    };
+    let records: Vec<Value> = dg
+        .records
+        .iter()
+        .map(|(k, v)| json!({ "key": k, "value": v }))
+        .collect();
+    json!({
+        "title": r.title,
+        "rewritten": r.apply(source),
+        "data_group_definition": tcl_lsp_core::refactor::data_group_tcl(dg),
+        "data_group": {
+            "name": dg.name,
+            "value_type": dg.value_type,
+            "record_count": dg.records.len(),
+            "records": records,
+        },
+        "edit_count": r.edits.len(),
+    })
+}
+
+fn refactor(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let reg = registry(&dialect);
+    let line_index = LineIndex::new(source);
+    let start_off = line_index.offset_at_utf16(
+        arg_u32(args, "start_line"),
+        Utf16Col::new(arg_u32(args, "start_character")),
+        source,
+    );
+    let end_off = line_index.offset_at_utf16(
+        arg_u32(args, "end_line"),
+        Utf16Col::new(arg_u32(args, "end_character")),
+        source,
+    );
+    let analysis = analyse(source, &dialect);
+    let mut available: Vec<Value> = Vec::new();
+    let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
+        if let Some(r) = r {
+            available.push(json!({ "tool": tool, "title": r.title }));
+        }
+    };
+    // Extract-variable only applies to a non-empty selection.
+    if start_off != end_off {
+        push(
+            "extract_variable",
+            tcl_lsp_core::refactor::extract_variable(source, start_off, end_off, "result", &line_index),
+        );
+    }
+    push(
+        "inline_variable",
+        tcl_lsp_core::refactor::inline_variable(source, start_off, &analysis, reg, &line_index),
+    );
+    push(
+        "if_to_switch",
+        tcl_lsp_core::refactor::if_to_switch(source, start_off, reg, &line_index),
+    );
+    push(
+        "switch_to_dict",
+        tcl_lsp_core::refactor::switch_to_dict(source, start_off, reg, &line_index),
+    );
+    push("brace_expr", tcl_lsp_core::refactor::brace_expr(source, start_off, reg));
+    push(
+        "extract_datagroup",
+        tcl_lsp_core::refactor::extract_to_datagroup(source, start_off, "", reg, &line_index),
+    );
+    json!({ "total": available.len(), "available": available })
+}
+
+// ── Docstring tools ───────────────────────────────────────────────────
+
+fn generate_docstring(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let proc_name = arg_str(args, "proc_name");
+    let style = match arg_str(args, "style") {
+        "" => "doxygen",
+        s => s,
+    };
+    let decoration = arg_bool(args, "decoration");
+    let analysis = analyse(source, &dialect);
+    // Mirror `AnalysisResult.find_proc`: qualified (`::name`), then bare-name.
+    let qualified = format!("::{proc_name}");
+    let proc = analysis
+        .all_procs
+        .values()
+        .find(|p| p.qualified_name == qualified || p.qualified_name == proc_name)
+        .or_else(|| analysis.all_procs.values().find(|p| p.name == proc_name));
+    match proc {
+        Some(proc) => {
+            let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
+            let docstring =
+                tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");
+            json!({ "proc": proc_name, "docstring": docstring })
+        }
+        None => json!({ "error": format!("Proc '{proc_name}' not found") }),
+    }
+}
+
+fn read_proc_docs(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let analysis = analyse(source, &dialect);
+    let mut procs: Vec<_> = analysis.all_procs.values().collect();
+    procs.sort_by_key(|p| p.name_span.start());
+    let entries: Vec<Value> = procs
+        .into_iter()
+        .map(|proc| {
+            let params: Vec<Value> = proc
+                .params
+                .iter()
+                .map(|p| {
+                    if p.has_default {
+                        json!({ "name": p.name, "default": p.default_value })
+                    } else {
+                        json!({ "name": p.name })
+                    }
+                })
+                .collect();
+            let mut entry =
+                json!({ "name": proc.name, "qualified_name": proc.qualified_name, "params": params });
+            let m = entry.as_object_mut().expect("json object");
+            if proc.doc.is_empty() {
+                m.insert("doc".to_owned(), Value::Null);
+            } else {
+                m.insert("doc_raw".to_owned(), json!(proc.doc));
+                m.insert(
+                    "doc".to_owned(),
+                    tcl_lsp_core::formatting::parse_docstring(&proc.doc).to_json(),
+                );
+            }
+            if !proc.param_traits.is_empty() {
+                let mut traits = Map::new();
+                for (name, set) in &proc.param_traits {
+                    let mut names: Vec<&str> = set.iter().map(|t| t.as_str()).collect();
+                    names.sort_unstable();
+                    traits.insert(name.clone(), json!(names));
+                }
+                m.insert("param_traits".to_owned(), Value::Object(traits));
+            }
+            entry
+        })
+        .collect();
+    json!({ "procs": entries })
+}
+
+fn update_docstrings(args: &Value) -> Value {
+    let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let style = match arg_str(args, "style") {
+        "" => "doxygen",
+        s => s,
+    };
+    let decoration = arg_bool(args, "decoration");
+    let analysis = analyse(source, &dialect);
+    let line_index = LineIndex::new(source);
+    let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
+    let total_procs = analysis.all_procs.len();
+
+    // Undocumented procs, bottom-up so earlier insertions don't shift later
+    // line numbers.
+    let mut targets: Vec<_> = analysis.all_procs.values().filter(|p| p.doc.is_empty()).collect();
+    targets.sort_by_key(|p| std::cmp::Reverse(line_index.line_at(p.name_span.start())));
+
+    let mut lines: Vec<String> = split_keep_ends(source);
+    for proc in &targets {
+        let stub = tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");
+        let at = (line_index.line_at(proc.name_span.start()) as usize).min(lines.len());
+        lines.insert(at, format!("{stub}\n"));
+    }
+    json!({
+        "source": lines.concat(),
+        "procs_documented": targets.len(),
+        "total_procs": total_procs,
+    })
+}
+
+// ── Minification tool ─────────────────────────────────────────────────
+
+fn unminify_error(args: &Value) -> Value {
+    let error_message = arg_str(args, "error_message");
+    let symbol_map = arg_str(args, "symbol_map");
+    let minified = arg_str(args, "minified_source");
+    let original = arg_str(args, "original_source");
+    let map = tcl_lsp_core::minify::SymbolMap::parse(symbol_map);
+    let mut translated = error_message.to_owned();
+    if !minified.is_empty() && !original.is_empty() {
+        translated = tcl_lsp_core::minify::remap_line_references(&translated, minified, original);
+    }
+    let translated = tcl_lsp_core::minify::unminify_error(&translated, &map);
+    json!({
+        "original_error": error_message,
+        "translated_error": translated,
+        "changed": translated != error_message,
+    })
+}
+
 // ── Registry table ────────────────────────────────────────────────────
 
 type Handler = fn(&Value) -> Value;
@@ -265,10 +954,18 @@ struct ToolDef {
     handler: Handler,
 }
 
-const SRC: (&str, &str, &str) = ("source", "string", "Tcl or iRules source code");
-const DIALECT: (&str, &str, &str) = ("dialect", "string", "Language dialect; auto-detected if empty");
-const LINE: (&str, &str, &str) = ("line", "integer", "0-based line of the cursor");
-const CHAR: (&str, &str, &str) = ("character", "integer", "0-based character of the cursor");
+type Param = (&'static str, &'static str, &'static str);
+
+const SRC: Param = ("source", "string", "Tcl or iRules source code");
+const DIALECT: Param = ("dialect", "string", "Language dialect; auto-detected if empty");
+const LINE: Param = ("line", "integer", "0-based line of the cursor");
+const CHAR: Param = ("character", "integer", "0-based character of the cursor");
+const START_LINE: Param = ("start_line", "integer", "0-based start line of the selection");
+const START_CHAR: Param = ("start_character", "integer", "0-based start character of the selection");
+const END_LINE: Param = ("end_line", "integer", "0-based end line of the selection");
+const END_CHAR: Param = ("end_character", "integer", "0-based end character of the selection");
+const STYLE: Param = ("style", "string", "Docstring style: 'doxygen' (default) or 'plain'");
+const DECORATION: Param = ("decoration", "boolean", "Add '# ....' rule lines above/below the stub");
 
 const TOOLS: &[ToolDef] = &[
     ToolDef { name: "call_graph", description: "Proc caller→callee graph with call sites, roots, and leaf procs.", params: &[SRC, DIALECT], required: &["source"], handler: call_graph },
@@ -286,6 +983,26 @@ const TOOLS: &[ToolDef] = &[
     ToolDef { name: "if_to_switch", description: "Convert an if/elseif chain testing one variable to a switch.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: if_to_switch },
     ToolDef { name: "switch_to_dict", description: "Convert a switch whose arms set one variable to a dict lookup.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: switch_to_dict },
     ToolDef { name: "brace_expr", description: "Brace an unbraced expr argument for safety/performance.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: brace_expr },
+    ToolDef { name: "analyze", description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order.", params: &[SRC, DIALECT], required: &["source"], handler: analyze },
+    ToolDef { name: "validate", description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …).", params: &[SRC, DIALECT], required: &["source"], handler: validate },
+    ToolDef { name: "review", description: "Security, taint, and thread-safety diagnostics for a focused review.", params: &[SRC, DIALECT], required: &["source"], handler: review },
+    ToolDef { name: "find-legacy", description: "Auto-convertible legacy patterns with a modernisation hint per finding.", params: &[SRC, DIALECT], required: &["source"], handler: find_legacy },
+    ToolDef { name: "event_info", description: "iRules event metadata: multiplicity, side, transport, implied profiles, valid commands.", params: &[("event_name", "string", "iRules event name, e.g. HTTP_REQUEST")], required: &["event_name"], handler: event_info },
+    ToolDef { name: "command_info", description: "Registry metadata for a command: summary, synopsis, switches, valid events.", params: &[("command_name", "string", "Command name, e.g. HTTP::uri")], required: &["command_name"], handler: command_info },
+    ToolDef { name: "symbols", description: "Document symbol tree (procs, classes, methods, variables) with ranges.", params: &[SRC, DIALECT], required: &["source"], handler: symbols },
+    ToolDef { name: "hover", description: "Hover documentation (markdown) for the symbol at the cursor.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: hover },
+    ToolDef { name: "complete", description: "Completion items at the cursor (variables, procs, switches, subcommands, snippets).", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: complete },
+    ToolDef { name: "goto_definition", description: "Definition location(s) for the symbol at the cursor.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: goto_definition },
+    ToolDef { name: "find_references", description: "All references to the symbol at the cursor (including its declaration).", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: find_references },
+    ToolDef { name: "rename", description: "Text edits to rename the symbol at the cursor; null when not renameable.", params: &[SRC, LINE, CHAR, ("new_name", "string", "New symbol name"), DIALECT], required: &["source", "line", "character", "new_name"], handler: rename },
+    ToolDef { name: "code_actions", description: "Code actions (quick-fixes + refactors) for a selection range.", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: code_actions },
+    ToolDef { name: "extract_variable", description: "Extract a selected expression into a new `set var …` binding.", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, ("var_name", "string", "New variable name (default 'result')")], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: extract_variable },
+    ToolDef { name: "extract_datagroup", description: "Extract an if/switch over literals into an iRules data-group + lookup.", params: &[SRC, LINE, CHAR, ("dg_name", "string", "Data-group name; auto-generated if empty")], required: &["source", "line", "character"], handler: extract_datagroup },
+    ToolDef { name: "refactor", description: "List the refactorings available at a selection (probe of all refactors).", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: refactor },
+    ToolDef { name: "generate_docstring", description: "Generate a docstring stub for a named proc.", params: &[SRC, ("proc_name", "string", "Proc to document"), STYLE, DECORATION, DIALECT], required: &["source", "proc_name"], handler: generate_docstring },
+    ToolDef { name: "read_proc_docs", description: "Structured docs for every proc: params, parsed docstring, inferred param traits.", params: &[SRC, DIALECT], required: &["source"], handler: read_proc_docs },
+    ToolDef { name: "update_docstrings", description: "Insert docstring stubs above every undocumented proc; returns rewritten source.", params: &[SRC, STYLE, DECORATION, DIALECT], required: &["source"], handler: update_docstrings },
+    ToolDef { name: "unminify_error", description: "Translate a minified error back to original symbol names / line numbers.", params: &[("error_message", "string", "The error text to translate"), ("symbol_map", "string", "Minified→original symbol map"), ("minified_source", "string", "Minified source (optional, for line remapping)"), ("original_source", "string", "Original source (optional, for line remapping)")], required: &["error_message", "symbol_map"], handler: unminify_error },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
