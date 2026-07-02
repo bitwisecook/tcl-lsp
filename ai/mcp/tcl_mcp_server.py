@@ -930,6 +930,30 @@ def _tool_event_info(event_name: str) -> str:
 
 
 @tool(
+    "compile_wasm",
+    "Compile Tcl/iRules source to a WebAssembly module (eval-fallback tier — a "
+    "valid module that routes unsupported constructs through host-eval; wired up "
+    "and improving). Returns the WAT text, byte length, and function count.",
+    params={
+        "source": {**_STR, "description": "Tcl or iRules source code"},
+        "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
+    },
+    required=["source"],
+)
+def _tool_compile_wasm(source: str, dialect: str = "") -> str:
+    from ai.shared.rust_bridge import require_rust
+
+    out = require_rust().compile_wasm(source, dialect=dialect or _detect_dialect(source))
+    return json.dumps(
+        {
+            "wat": out.wat,
+            "byte_length": out.byte_length,
+            "function_count": out.function_count,
+        }
+    )
+
+
+@tool(
     "command_info",
     "Look up iRules/Tcl command metadata: synopsis, switches, valid events.",
     params={"command_name": {**_STR, "description": "Command name (e.g. HTTP::uri, string, set)"}},
