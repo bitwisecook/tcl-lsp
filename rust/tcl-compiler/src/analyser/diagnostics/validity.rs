@@ -1313,8 +1313,8 @@ in the active dialect ({}).",
         // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
         let pre_85 = !DialectSet::TCL85_PLUS.contains(active);
         // Pre-Tcl-9.0 dialects don't accept `lt` / `le` / `gt` / `ge`
-        // (TIP 461).
-        let pre_90 = !DialectSet::from_iter([DialectSet::TCL90]).contains(active);
+        // (TIP 461); 9.0 and 9.1 both do.
+        let pre_90 = !DialectSet::TCL90_PLUS.contains(active);
         if !pre_85 && !pre_90 {
             return;
         }
@@ -1343,9 +1343,63 @@ in the active dialect ({}).",
 /// Built-in `expr` math functions.  Used by the
 /// W117 stub-shadow check.
 const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
-    "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
-    "exp", "floor", "fmod", "hypot", "int", "isinf", "isnan", "isqrt", "log", "log10", "max",
-    "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+    "abs",
+    "acos",
+    "asin",
+    "atan",
+    "atan2",
+    "bool",
+    "ceil",
+    "cos",
+    "cosh",
+    "double",
+    "entier",
+    "exp",
+    "floor",
+    "fmod",
+    "hypot",
+    "int",
+    "isinf",
+    "isnan",
+    "isqrt",
+    "log",
+    "log10",
+    "max",
+    "min",
+    "pow",
+    "rand",
+    "round",
+    "sin",
+    "sinh",
+    "sqrt",
+    "srand",
+    "tan",
+    "tanh",
+    "wide",
+    // Tcl 9.1 C99 math functions (TIP 745), verified against
+    // `tmp/tcl9.1-src/changes.md`.  The multi-value C99 functions land as the
+    // `divmod`/`frexp`/`modf`/`remquo` *commands* instead.
+    "acosh",
+    "asinh",
+    "atanh",
+    "cbrt",
+    "copysign",
+    "dim",
+    "erf",
+    "erfc",
+    "exp2",
+    "expm1",
+    "fma",
+    "gamma",
+    "ldexp",
+    "lgamma",
+    "log1p",
+    "log2",
+    "logb",
+    "nextafter",
+    "remainder",
+    "signbit",
+    "trunc",
 ];
 
 /// Built-in `expr` operators.

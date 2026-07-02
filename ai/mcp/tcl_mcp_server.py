@@ -204,21 +204,41 @@ _CATEGORY_ORDER = CATEGORY_ORDER
 _categorise = categorise
 
 
-def _detect_dialect(source: str) -> str:
-    """Guess dialect from source content."""
-    if _IRULES_PATTERN.search(source):
-        return "f5-irules"
-    return _session_dialect
+def _detect_dialect(source: str, filename: str | None = None) -> str:
+    """Guess the dialect via the centralised Rust detector.
+
+    Uses the same heuristics (directive / extension / shebang / content
+    signatures / ``package require``) as the LSP, editors, and CLI tooling, so
+    detection stays consistent across every surface. Falls back to the session
+    dialect when no heuristic fires.
+    """
+    from ai.shared.rust_bridge import require_rust
+
+    return require_rust().detect_dialect(source, filename=filename, default=_session_dialect)
 
 
 def _configure_dialect(dialect: str | None = None) -> None:
-    """Configure the registry for the given dialect."""
-    from compiler.registry.runtime import configure_signatures
+    """Deprecated no-op — the Rust facades take an explicit ``dialect=``.
 
-    configure_signatures(dialect=dialect or _session_dialect)
+    The old Python registry global-configure is gone; every tool now passes its
+    resolved dialect straight to the facade, so this is retained only so the
+    not-yet-cleaned call sites keep working.
+    """
+    del dialect
 
 
 # Serialization helpers
+
+
+def _refactor_result_dict(result: Any) -> dict | None:
+    """Serialise a ``tcl_lsp_py.RefactorResult`` (or ``None``) to the wire dict."""
+    if result is None:
+        return None
+    return {
+        "title": result.title,
+        "rewritten": result.rewritten,
+        "edit_count": result.edit_count,
+    }
 
 
 def _range_to_dict(r: Any) -> dict:
@@ -237,19 +257,32 @@ def _lsp_range_to_dict(r: Any) -> dict:
     }
 
 
-def _diagnostic_to_dict(d: Any) -> dict:
-    """Convert a semantic_model.Diagnostic to a dict."""
+def _tuple_range_to_dict(start: tuple, end: tuple) -> dict:
+    """`(line, character)` tuple pair → the ``{start, end}`` range dict."""
+    return {
+        "start": {"line": start[0], "character": start[1]},
+        "end": {"line": end[0], "character": end[1]},
+    }
+
+
+def _facade_diagnostic_to_dict(d: Any) -> dict:
+    """Convert a ``tcl_lsp_py.Diagnostic`` (facade) to the wire dict.
+
+    The facade already exposes ``severity`` as the lowercase string and the
+    span as ``start`` / ``end`` ``(line, character)`` tuples, and carries the
+    emitter fixes on ``d.fixes``.
+    """
     result: dict[str, Any] = {
-        "code": d.code or "",
-        "severity": d.severity.name.lower(),
+        "code": d.code,
+        "severity": d.severity,
         "message": d.message,
-        "range": _range_to_dict(d.range),
-        "category": _categorise(d.code or ""),
+        "range": _tuple_range_to_dict(d.start, d.end),
+        "category": _categorise(d.code),
     }
     if d.fixes:
         result["fixes"] = [
             {
-                "range": _range_to_dict(f.range),
+                "range": _tuple_range_to_dict(f.start, f.end),
                 "new_text": f.new_text,
                 "description": f.description,
             }
@@ -267,61 +300,6 @@ def _lsp_diagnostic_to_dict(d: Any) -> dict:
         "message": d.message,
         "range": _lsp_range_to_dict(d.range),
     }
-
-
-def _proc_to_dict(proc_def: Any) -> dict:
-    """Serialize a ProcDef, including structured docstring info."""
-    from tooling.formatter.docstring import parse_docstring
-
-    params = []
-    for p in proc_def.params:
-        param: dict[str, Any] = {"name": p.name}
-        if p.has_default:
-            param["default"] = p.default_value
-        params.append(param)
-    result: dict[str, Any] = {
-        "name": proc_def.name,
-        "qualified_name": proc_def.qualified_name,
-        "params": params,
-    }
-    if proc_def.name_range:
-        result["range"] = _range_to_dict(proc_def.name_range)
-    if proc_def.doc:
-        result["doc"] = proc_def.doc
-        parsed = parse_docstring(proc_def.doc)
-        if not parsed.is_empty:
-            result["doc_structured"] = parsed.to_dict()
-    return result
-
-
-def _scope_symbols(scope: Any, depth: int = 0) -> list[dict]:
-    """Recursively collect symbols from a scope."""
-    symbols: list[dict] = []
-    for proc in scope.procs.values():
-        sym = _proc_to_dict(proc)
-        sym["kind"] = "function"
-        symbols.append(sym)
-    if scope.kind in ("global", "namespace"):
-        for var in scope.variables.values():
-            if var.definition_range:
-                symbols.append(
-                    {
-                        "kind": "variable",
-                        "name": var.name,
-                        "range": _range_to_dict(var.definition_range),
-                        "references": len(var.references),
-                    }
-                )
-    for child in scope.children:
-        if child.kind == "namespace" and child.body_range:
-            ns: dict[str, Any] = {
-                "kind": "namespace",
-                "name": child.name,
-                "range": _range_to_dict(child.body_range),
-                "children": _scope_symbols(child, depth + 1),
-            }
-            symbols.append(ns)
-    return symbols
 
 
 def _detect_events(source: str) -> list[dict]:
@@ -428,14 +406,14 @@ _INT = {"type": "integer"}
     required=["source"],
 )
 def _tool_analyze(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
     from ai.shared.irule_analysis import ordered_events_as_dicts
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    diags = [_diagnostic_to_dict(d) for d in result.diagnostics]
-    symbols = _scope_symbols(result.global_scope)
+    r = require_rust()
+    resolved = dialect or _detect_dialect(source)
+    result = r.analyse_tcl(source, dialect=resolved)
+    diags = [_facade_diagnostic_to_dict(d) for d in result.diagnostics]
+    symbols = r.document_symbols(source, dialect=resolved)
     events = _detect_events(source)
 
     return json.dumps(
@@ -459,16 +437,13 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_validate(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser import analyse
-
-    result = analyse(source)
+    result = require_rust().analyse_tcl(source, dialect=dialect or _detect_dialect(source))
     groups: dict[str, list[dict]] = {}
     for d in result.diagnostics:
-        code = d.code or ""
-        cat = _categorise(code)
-        groups.setdefault(cat, []).append(_diagnostic_to_dict(d))
+        cat = _categorise(d.code)
+        groups.setdefault(cat, []).append(_facade_diagnostic_to_dict(d))
 
     categories = {}
     for cat_key, cat_label in _CATEGORY_ORDER:
@@ -488,16 +463,14 @@ def _tool_validate(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_review(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser import analyse
-
-    result = analyse(source)
+    result = require_rust().analyse_tcl(source, dialect=dialect or _detect_dialect(source))
     security = [
-        _diagnostic_to_dict(d) for d in result.diagnostics if (d.code or "") in _SECURITY_CODES
+        _facade_diagnostic_to_dict(d) for d in result.diagnostics if d.code in _SECURITY_CODES
     ]
-    taint = [_diagnostic_to_dict(d) for d in result.diagnostics if (d.code or "") in _TAINT_CODES]
-    thread = [_diagnostic_to_dict(d) for d in result.diagnostics if (d.code or "") in _THREAD_CODES]
+    taint = [_facade_diagnostic_to_dict(d) for d in result.diagnostics if d.code in _TAINT_CODES]
+    thread = [_facade_diagnostic_to_dict(d) for d in result.diagnostics if d.code in _THREAD_CODES]
     total = len(security) + len(taint) + len(thread)
 
     return json.dumps(
@@ -515,17 +488,14 @@ def _tool_review(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_find_legacy(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser import analyse
-
-    result = analyse(source)
+    result = require_rust().analyse_tcl(source, dialect=dialect or _detect_dialect(source))
     patterns = []
     for d in result.diagnostics:
-        code = d.code or ""
-        if code in _CONVERTIBLE_CODES:
-            entry = _diagnostic_to_dict(d)
-            entry["conversion"] = _CONVERSION_MAP.get(code, "modernise")
+        if d.code in _CONVERTIBLE_CODES:
+            entry = _facade_diagnostic_to_dict(d)
+            entry["conversion"] = _CONVERSION_MAP.get(d.code, "modernise")
             patterns.append(entry)
 
     return json.dumps({"patterns": patterns, "total": len(patterns)})
@@ -547,52 +517,15 @@ def _tool_find_legacy(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.optimiser import (
-        apply_optimisations,
-        find_optimisations,
-        optimise_source_multipass,
+    # The Rust facade runs the profile-filtered (multi-)pass optimiser and
+    # returns the raw, ungrouped suggestions; grouping into logical
+    # optimisations for presentation stays here (AI-facing glue).
+    opt = require_rust().optimise(
+        source, dialect=dialect or _detect_dialect(source), profile=profile
     )
-    from shared.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-        profile_spec,
-        profile_to_disabled,
-    )
-
-    try:
-        prof = profile_from_name(profile)
-    except ValueError:
-        prof = DEFAULT_ACTION_PROFILE
-    spec = profile_spec(prof)
-    disabled = profile_to_disabled(prof)
-
-    if spec.multi_pass:
-        optimized, opts, iterations = optimise_source_multipass(
-            source,
-            max_iterations=spec.max_iterations,
-            disabled=disabled,
-        )
-    else:
-        all_opts = find_optimisations(source)
-        opts = [o for o in all_opts if o.code not in disabled]
-        optimized = apply_optimisations(source, opts) if opts else source
-        iterations = 1
-
-    items = []
-    for o in opts:
-        item: dict = {
-            "code": o.code,
-            "message": o.message,
-            "range": _range_to_dict(o.range),
-            "replacement": o.replacement,
-        }
-        if o.group is not None:
-            item["group"] = o.group
-        if o.hint_only:
-            item["hintOnly"] = True
-        items.append(item)
+    items = opt["optimizations"]
 
     # Build grouped view: each group is a single logical optimisation.
     groups: dict[int, list[dict]] = {}
@@ -622,12 +555,12 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     result: dict = {
         "optimizations": grouped_items,
         "total": len(grouped_items),
-        "optimized_source": optimized,
-        "changed": optimized != source,
-        "profile": spec.name,
+        "optimized_source": opt["optimized_source"],
+        "changed": opt["changed"],
+        "profile": opt["profile"],
     }
-    if spec.multi_pass:
-        result["iterations"] = iterations
+    if opt["multi_pass"]:
+        result["iterations"] = opt["iterations"]
     return json.dumps(result)
 
 
@@ -710,9 +643,9 @@ def _tool_explain_flow(
 ) -> str:
     from pathlib import Path
 
+    from ai.shared.rust_simulator import rust_irule_simulator as simulate_irule_for_session
     from dialects.f5.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
     from dialects.f5.bigip.parser import parse_bigip_conf
-    from tooling.f5.irule_simulation import simulate_irule_for_session
 
     pcap = Path(pcap_path).resolve()
     if not pcap.is_file():
@@ -928,16 +861,15 @@ def _tool_format_source(
     brace_style: str = "k_and_r",
     max_line_length: int = 120,
 ) -> str:
-    from tooling.formatter import format_tcl
-    from tooling.formatter.config import BraceStyle, FormatterConfig, IndentStyle
+    from ai.shared.rust_bridge import require_rust
 
-    config = FormatterConfig(
+    r = require_rust()
+    options = r.FormatOptions(
         indent_size=indent_size,
-        indent_style=IndentStyle.TABS if indent_style.lower() == "tabs" else IndentStyle.SPACES,
-        brace_style=BraceStyle.K_AND_R,
+        indent_style="tabs" if indent_style.lower() == "tabs" else "spaces",
         max_line_length=max_line_length,
     )
-    formatted = format_tcl(source, config)
+    formatted = r.format_tcl(source, options=options)
     return json.dumps({"formatted": formatted, "changed": formatted != source})
 
 
@@ -979,11 +911,9 @@ def _tool_rename(source: str, line: int, character: int, new_name: str, dialect:
     required=["event_name"],
 )
 def _tool_event_info(event_name: str) -> str:
-    _configure_dialect("f5-irules")
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.registry.info import lookup_event_info
-
-    info = lookup_event_info(event_name, dialect="f5-irules")
+    info = require_rust().lookup_event_info(event_name, dialect="f5-irules")
 
     return json.dumps(
         {
@@ -996,7 +926,31 @@ def _tool_event_info(event_name: str) -> str:
             "transport": info.transport,
             "implied_profiles": list(info.implied_profiles),
             "valid_commands": list(info.valid_commands),
-            "valid_command_count": info.valid_command_count,
+            "valid_command_count": len(info.valid_commands),
+        }
+    )
+
+
+@tool(
+    "compile_wasm",
+    "Compile Tcl/iRules source to a WebAssembly module (eval-fallback tier — a "
+    "valid module that routes unsupported constructs through host-eval; wired up "
+    "and improving). Returns the WAT text, byte length, and function count.",
+    params={
+        "source": {**_STR, "description": "Tcl or iRules source code"},
+        "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
+    },
+    required=["source"],
+)
+def _tool_compile_wasm(source: str, dialect: str = "") -> str:
+    from ai.shared.rust_bridge import require_rust
+
+    out = require_rust().compile_wasm(source, dialect=dialect or _detect_dialect(source))
+    return json.dumps(
+        {
+            "wat": out.wat,
+            "byte_length": out.byte_length,
+            "function_count": out.function_count,
         }
     )
 
@@ -1008,11 +962,9 @@ def _tool_event_info(event_name: str) -> str:
     required=["command_name"],
 )
 def _tool_command_info(command_name: str) -> str:
-    _configure_dialect("f5-irules")
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.registry.info import lookup_command_info
-
-    info = lookup_command_info(command_name, dialect="f5-irules")
+    info = require_rust().lookup_command_info(command_name, dialect="f5-irules")
     if not info.found:
         return json.dumps({"command": command_name, "found": False})
 
@@ -1075,11 +1027,9 @@ def _tool_diagram(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_call_graph(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser.semantic_graph import build_call_graph
-
-    return json.dumps(build_call_graph(source))
+    return json.dumps(require_rust().call_graph(source, dialect=dialect or _detect_dialect(source)))
 
 
 @tool(
@@ -1092,11 +1042,11 @@ def _tool_call_graph(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_symbol_graph(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser.semantic_graph import build_symbol_graph
-
-    return json.dumps(build_symbol_graph(source))
+    return json.dumps(
+        require_rust().symbol_graph(source, dialect=dialect or _detect_dialect(source))
+    )
 
 
 @tool(
@@ -1109,11 +1059,11 @@ def _tool_symbol_graph(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from analyser.semantic_graph import build_dataflow_graph
-
-    return json.dumps(build_dataflow_graph(source))
+    return json.dumps(
+        require_rust().dataflow_graph(source, dialect=dialect or _detect_dialect(source))
+    )
 
 
 @tool(
@@ -1130,12 +1080,9 @@ def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
     required=["source"],
 )
 def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
-
-    graph = extract_dataflow_graph(source)
-    result = dataflow_graph_to_dict(graph)
+    result = require_rust().def_use_chains(source, dialect=dialect or _detect_dialect(source))
 
     # Filter to specific variable if requested
     if variable:
@@ -1160,50 +1107,11 @@ def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> 
     required=["source"],
 )
 def _tool_memory_aliases(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from compiler.compilation_unit import ensure_compilation_unit
-    from compiler.memory_ssa import MemorySSAFunction
-
-    cu = ensure_compilation_unit(source, context="mcp.memory_aliases")
-    if cu is None:
-        return json.dumps({"error": "compilation failed", "alias_sets": [], "summary": {}})
-
-    result: dict = {"functions": []}
-
-    def _serialize_mem(name: str, mem: MemorySSAFunction | None) -> dict:
-        if mem is None:
-            return {"name": name, "alias_sets": [], "memory_ops": 0}
-        return {
-            "name": name,
-            "alias_sets": [
-                {
-                    "names": sorted(aset.names),
-                    "reason": aset.reason,
-                    "locations": [str(loc) for loc in aset.locations],
-                }
-                for aset in mem.alias_sets
-            ],
-            "memory_ops": len(mem.memory_ops),
-            "memory_defs": mem.total_memory_defs,
-            "memory_uses": mem.total_memory_uses,
-            "clobbers": mem.total_clobbers,
-        }
-
-    result["functions"].append(_serialize_mem("::top", cu.top_level.analysis.memory_ssa))
-    for qname in sorted(cu.procedures):
-        fu = cu.procedures[qname]
-        result["functions"].append(_serialize_mem(qname, fu.analysis.memory_ssa))
-
-    total_aliases = sum(len(f.get("alias_sets", [])) for f in result["functions"])
-    total_ops = sum(f.get("memory_ops", 0) for f in result["functions"])
-    result["summary"] = {
-        "total_alias_sets": total_aliases,
-        "total_memory_ops": total_ops,
-        "function_count": len(result["functions"]),
-    }
-
-    return json.dumps(result)
+    return json.dumps(
+        require_rust().memory_aliases(source, dialect=dialect or _detect_dialect(source))
+    )
 
 
 # Configuration
@@ -1313,20 +1221,12 @@ def _tool_extract_variable(
     end_character: int,
     var_name: str = "result",
 ) -> str:
-    from tooling.refactoring._extract_variable import extract_variable
+    from ai.shared.rust_bridge import require_rust
 
-    result = extract_variable(
+    result = require_rust().refactor_extract_variable(
         source, start_line, start_character, end_line, end_character, var_name
     )
-    if result is None:
-        return json.dumps(None)
-    return json.dumps(
-        {
-            "title": result.title,
-            "rewritten": result.apply(source),
-            "edit_count": len(result.edits),
-        }
-    )
+    return json.dumps(_refactor_result_dict(result))
 
 
 @tool(
@@ -1340,18 +1240,10 @@ def _tool_extract_variable(
     required=["source", "line", "character"],
 )
 def _tool_inline_variable(source: str, line: int, character: int) -> str:
-    from tooling.refactoring._inline_variable import inline_variable
+    from ai.shared.rust_bridge import require_rust
 
-    result = inline_variable(source, line, character)
-    if result is None:
-        return json.dumps(None)
-    return json.dumps(
-        {
-            "title": result.title,
-            "rewritten": result.apply(source),
-            "edit_count": len(result.edits),
-        }
-    )
+    result = require_rust().refactor_inline_variable(source, line, character)
+    return json.dumps(_refactor_result_dict(result))
 
 
 @tool(
@@ -1365,18 +1257,10 @@ def _tool_inline_variable(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_if_to_switch(source: str, line: int, character: int) -> str:
-    from tooling.refactoring._if_to_switch import if_to_switch
+    from ai.shared.rust_bridge import require_rust
 
-    result = if_to_switch(source, line, character)
-    if result is None:
-        return json.dumps(None)
-    return json.dumps(
-        {
-            "title": result.title,
-            "rewritten": result.apply(source),
-            "edit_count": len(result.edits),
-        }
-    )
+    result = require_rust().refactor_if_to_switch(source, line, character)
+    return json.dumps(_refactor_result_dict(result))
 
 
 @tool(
@@ -1390,18 +1274,10 @@ def _tool_if_to_switch(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
-    from tooling.refactoring._switch_to_dict import switch_to_dict
+    from ai.shared.rust_bridge import require_rust
 
-    result = switch_to_dict(source, line, character)
-    if result is None:
-        return json.dumps(None)
-    return json.dumps(
-        {
-            "title": result.title,
-            "rewritten": result.apply(source),
-            "edit_count": len(result.edits),
-        }
-    )
+    result = require_rust().refactor_switch_to_dict(source, line, character)
+    return json.dumps(_refactor_result_dict(result))
 
 
 @tool(
@@ -1415,18 +1291,10 @@ def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_brace_expr(source: str, line: int, character: int) -> str:
-    from tooling.refactoring._brace_expr import brace_expr
+    from ai.shared.rust_bridge import require_rust
 
-    result = brace_expr(source, line, character)
-    if result is None:
-        return json.dumps(None)
-    return json.dumps(
-        {
-            "title": result.title,
-            "rewritten": result.apply(source),
-            "edit_count": len(result.edits),
-        }
-    )
+    result = require_rust().refactor_brace_expr(source, line, character)
+    return json.dumps(_refactor_result_dict(result))
 
 
 @tool(
@@ -1448,25 +1316,25 @@ def _tool_extract_datagroup(
     character: int,
     dg_name: str = "",
 ) -> str:
-    _configure_dialect("f5-irules")
+    from ai.shared.rust_bridge import require_rust
 
-    from tooling.refactoring._extract_datagroup import extract_to_datagroup
-
-    result = extract_to_datagroup(source, line, character, dg_name=dg_name)
+    result = require_rust().refactor_extract_datagroup(
+        source, line, character, dg_name, dialect="f5-irules"
+    )
     if result is None:
         return json.dumps(None)
     return json.dumps(
         {
             "title": result.title,
-            "rewritten": result.apply(source),
-            "data_group_definition": result.data_group_tcl(),
+            "rewritten": result.rewritten,
+            "data_group_definition": result.data_group_definition,
             "data_group": {
-                "name": result.data_group.name,
-                "value_type": result.data_group.value_type,
-                "record_count": len(result.data_group.records),
-                "records": [{"key": k, "value": v} for k, v in result.data_group.records],
+                "name": result.name,
+                "value_type": result.value_type,
+                "record_count": len(result.records),
+                "records": [{"key": k, "value": v} for k, v in result.records],
             },
-            "edit_count": len(result.edits),
+            "edit_count": result.edit_count,
         }
     )
 
@@ -1485,7 +1353,7 @@ def _tool_extract_datagroup(
 def _tool_suggest_datagroup_extractions(source: str) -> str:
     _configure_dialect("f5-irules")
 
-    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from ai.shared.datagroup_suggest import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     # Serialise — strip the static_result (not JSON-safe, use extract_datagroup to get it).
@@ -1521,14 +1389,10 @@ def _tool_refactor(
     end_character: int,
     dialect: str = "",
 ) -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    from ai.shared.rust_bridge import require_rust
 
-    from tooling.refactoring._brace_expr import brace_expr as _be
-    from tooling.refactoring._extract_datagroup import extract_to_datagroup as _edg
-    from tooling.refactoring._extract_variable import extract_variable as _ev
-    from tooling.refactoring._if_to_switch import if_to_switch as _its
-    from tooling.refactoring._inline_variable import inline_variable as _iv
-    from tooling.refactoring._switch_to_dict import switch_to_dict as _std
+    r = require_rust()
+    resolved = dialect or _detect_dialect(source)
 
     available: list[dict] = []
     line = start_line
@@ -1536,29 +1400,24 @@ def _tool_refactor(
     has_selection = start_line != end_line or start_character != end_character
 
     if has_selection:
-        r = _ev(source, start_line, start_character, end_line, end_character)
-        if r:
-            available.append({"tool": "extract_variable", "title": r.title})
+        ev = r.refactor_extract_variable(
+            source, start_line, start_character, end_line, end_character, dialect=resolved
+        )
+        if ev:
+            available.append({"tool": "extract_variable", "title": ev.title})
 
-    r2 = _iv(source, line, char)
-    if r2:
-        available.append({"tool": "inline_variable", "title": r2.title})
+    for tool_name, result in (
+        ("inline_variable", r.refactor_inline_variable(source, line, char, dialect=resolved)),
+        ("if_to_switch", r.refactor_if_to_switch(source, line, char, dialect=resolved)),
+        ("switch_to_dict", r.refactor_switch_to_dict(source, line, char, dialect=resolved)),
+        ("brace_expr", r.refactor_brace_expr(source, line, char, dialect=resolved)),
+    ):
+        if result:
+            available.append({"tool": tool_name, "title": result.title})
 
-    r3 = _its(source, line, char)
-    if r3:
-        available.append({"tool": "if_to_switch", "title": r3.title})
-
-    r4 = _std(source, line, char)
-    if r4:
-        available.append({"tool": "switch_to_dict", "title": r4.title})
-
-    r5 = _be(source, line, char)
-    if r5:
-        available.append({"tool": "brace_expr", "title": r5.title})
-
-    r6 = _edg(source, line, char)
-    if r6:
-        available.append({"tool": "extract_datagroup", "title": r6.title})
+    dg = r.refactor_extract_datagroup(source, line, char, dialect=resolved)
+    if dg:
+        available.append({"tool": "extract_datagroup", "title": dg.title})
 
     return json.dumps({"available": available, "total": len(available)})
 
@@ -1603,17 +1462,12 @@ def _tool_generate_docstring(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
-    from analyser import analyse
-    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    proc_def = result.find_proc(proc_name)
-    if proc_def is None:
-        return json.dumps({"error": f"Proc '{proc_name}' not found"})
-
-    tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
-    stub = generate_stub_for_proc(proc_def, tag_style=tag, decoration=dec)
+    stub = require_rust().generate_docstring_stub(source, proc_name, style=style, decoration=dec)
+    if stub is None:
+        return json.dumps({"error": f"Proc '{proc_name}' not found"})
     return json.dumps({"proc": proc_name, "docstring": stub})
 
 
@@ -1627,11 +1481,9 @@ def _tool_generate_docstring(
     required=["source"],
 )
 def _tool_read_proc_docs(source: str) -> str:
-    from ai.shared.docstring_ops import collect_proc_docs
-    from analyser import analyse
+    from ai.shared.rust_bridge import require_rust
 
-    result = analyse(source)
-    return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
+    return json.dumps({"procs": require_rust().proc_docs(source)}, indent=2)
 
 
 @tool(
@@ -1656,20 +1508,16 @@ def _tool_update_docstrings(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
-    from ai.shared.docstring_ops import insert_docstring_stubs
-    from analyser import analyse
-    from tooling.formatter.docstring import resolve_tag_style
+    from ai.shared.rust_bridge import require_rust
 
-    tag = resolve_tag_style(style)
+    r = require_rust()
     dec = decoration.lower() in ("true", "1", "yes")
-    result = analyse(source)
-
-    modified, documented = insert_docstring_stubs(source, result, tag_style=tag, decoration=dec)
+    out = r.insert_docstring_stubs(source, style=style, decoration=dec)
     return json.dumps(
         {
-            "source": modified,
-            "procs_documented": documented,
-            "total_procs": len(result.all_procs),
+            "source": out["source"],
+            "procs_documented": out["documented"],
+            "total_procs": len(r.proc_docs(source)),
         }
     )
 
@@ -1735,12 +1583,11 @@ def _tool_help(topic: str = "") -> str:
 def _tool_set_dialect(dialect: str) -> str:
     global _session_dialect
 
-    from compiler.registry.runtime import configure_signatures
-
+    # The Rust facades take an explicit ``dialect=`` per call; the session
+    # dialect is just the default used when a tool auto-detects.
     old = _session_dialect
-    changed = configure_signatures(dialect=dialect)
-    if changed:
-        _session_dialect = dialect
+    changed = old != dialect
+    _session_dialect = dialect
     return json.dumps({"dialect": dialect, "previous": old, "changed": changed})
 
 
@@ -2092,13 +1939,13 @@ def _tool_unminify_error(
     minified_source: str = "",
     original_source: str = "",
 ) -> str:
-    from tooling.minifier import unminify_error
+    from ai.shared.rust_bridge import require_rust
 
-    translated = unminify_error(
+    translated = require_rust().unminify_error(
         error_message,
-        symbol_map=symbol_map,
-        minified_source=minified_source or None,
-        original_source=original_source or None,
+        symbol_map,
+        minified_source=minified_source,
+        original_source=original_source,
     )
     return json.dumps(
         {
@@ -2172,7 +2019,7 @@ def _tool_irule_with_context(
     )
     from dialects.f5.bigip.lint import _merge_configs
     from dialects.f5.bigip.parser import parse_bigip_conf
-    from tooling.f5.verbs._paths import load_irule_inputs
+    from tooling.f5.bigip.inputs import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:

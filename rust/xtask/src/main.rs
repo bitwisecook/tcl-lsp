@@ -22,6 +22,8 @@
 //!   tclsh 8.4/8.5/8.6/9.0.
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
+//! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
+//!   catalog JSON from the registry (`--check` to verify instead of write).
 
 #![forbid(unsafe_code)]
 
@@ -32,6 +34,11 @@ use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
 mod diag_tables;
+mod gen_ai;
+mod gen_editor_catalogs;
+mod gen_editor_settings;
+mod gen_jetbrains;
+mod gen_vscode_package;
 mod kcs_index_links;
 mod refcount_contract;
 mod tzdata_bundle;
@@ -87,6 +94,43 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Generate the Zed/VS Code editor catalog JSON from the command registry.
+    GenEditorCatalogs {
+        /// Verify the committed catalogs are in sync instead of rewriting them;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the VS Code diagnostic catalogue (`diagnosticCatalog.ts`).
+    GenEditorSettings {
+        /// Verify the committed catalogue is in sync instead of rewriting it;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Regenerate the `tclLsp.*` sections of the VS Code `package.json`.
+    GenVscodePackage {
+        /// Verify instead of rewriting; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the `JetBrains` `DiagnosticCatalog.kt` from the `DiagCode` catalogue.
+    GenJetbrainsCatalog {
+        /// Verify instead of rewriting; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate `ai/shared/diagnostics.json` from the `DiagCode` catalogue.
+    GenAiDiagnostics {
+        /// Verify instead of rewriting; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -102,5 +146,10 @@ fn main() -> anyhow::Result<ExitCode> {
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects => audit_option_dialects::run(),
         Command::DiagTables { check } => diag_tables::run(check),
+        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
+        Command::GenEditorSettings { check } => gen_editor_settings::run(check),
+        Command::GenVscodePackage { check } => gen_vscode_package::run(check),
+        Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
+        Command::GenAiDiagnostics { check } => gen_ai::run(check),
     }
 }

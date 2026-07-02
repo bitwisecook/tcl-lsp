@@ -13,7 +13,7 @@ pub fn spec() -> CommandSpec {
         name: "lpop",
         // `lpop` reads the list's current value before removing an element.
         traits: Traits::READS_BEFORE_WRITE,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

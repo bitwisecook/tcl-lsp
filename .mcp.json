@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tcl-lsp": {
+      "command": "./scripts/tcl-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}

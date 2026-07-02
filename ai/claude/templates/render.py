@@ -112,8 +112,8 @@ def _format_filter(source: str) -> str:
     or raises an error (e.g. on malformed generated output).
     """
     try:
-        from tooling.formatter import format_tcl
+        from ai.shared.rust_bridge import require_rust
 
-        return format_tcl(source)
+        return require_rust().format_tcl(source)
     except Exception:
         return source

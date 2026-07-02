@@ -148,9 +148,9 @@ def build_irule_context(
     :attr:`IruleContextBundle.source_slices`) so renderers can echo
     the operator's exact text rather than synthesising a stanza.
     """
-    from compiler.registry.runtime import configure_signatures
-
-    configure_signatures(dialect=dialect)
+    # (No registry configuration needed — the bundle is built purely from the
+    # BIG-IP model; the Rust facades take an explicit dialect per call.)
+    del dialect
 
     pools: dict[str, BigipPool] = {}
     data_groups: dict[str, BigipDataGroup] = {}

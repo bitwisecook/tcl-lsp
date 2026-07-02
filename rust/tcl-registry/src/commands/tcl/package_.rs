@@ -15,7 +15,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package files package",
         pure: true,
         return_type: Some(TclType::List),
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

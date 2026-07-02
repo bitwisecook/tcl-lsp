@@ -56,7 +56,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "grab",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Confine pointer and keyboard events to a window sub-tree.",

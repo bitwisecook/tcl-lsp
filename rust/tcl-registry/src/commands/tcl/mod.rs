@@ -63,6 +63,8 @@ mod join_;
 mod lappend_;
 mod lassign;
 mod ledit;
+mod lfilter;
+mod list_math_91;
 mod lindex;
 mod linsert;
 mod list_;
@@ -137,11 +139,13 @@ mod tclpkgunknown;
 mod tell_;
 mod throw_;
 mod time;
+mod timer;
 mod timerate;
 mod trace;
 mod try_;
 mod unknown;
 mod unload;
+mod unicode_;
 mod unset_;
 mod update;
 mod uplevel_;
@@ -244,6 +248,11 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         lappend_::spec(),
         lassign::spec(),
         ledit::spec(),
+        lfilter::spec(),
+        list_math_91::divmod(),
+        list_math_91::frexp(),
+        list_math_91::modf(),
+        list_math_91::remquo(),
         lindex::spec(),
         linsert::spec(),
         list_::spec(),
@@ -316,11 +325,13 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tell_::spec(),
         throw_::spec(),
         time::spec(),
+        timer::spec(),
         timerate::spec(),
         trace::spec(),
         try_::spec(),
         unknown::spec(),
         unload::spec(),
+        unicode_::spec(),
         unset_::spec(),
         update::spec(),
         uplevel_::spec(),

@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bind",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Arrange for X event bindings on windows or tags.",

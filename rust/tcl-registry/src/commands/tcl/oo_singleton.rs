@@ -16,7 +16,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::singleton",
         traits: Traits::IS_OO_METACLASS | Traits::LANGUAGE_KEYWORD | Traits::DEFINES_PROCEDURE,
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

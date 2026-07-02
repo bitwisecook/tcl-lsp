@@ -25,8 +25,10 @@
 pub mod embedded;
 pub mod live;
 pub mod session;
+pub mod sim;
 pub mod topology;
 
 pub use embedded::EmbeddedLib;
 pub use live::{LiveSession, SessionError};
+pub use sim::{SimOutcome, SimRequest, simulate_irule};
 pub use topology::{Topology, TopologyError};

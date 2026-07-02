@@ -45,7 +45,7 @@ pub fn spec() -> CommandSpec {
         // frame hash bucket — hence the FRAME_HASH_BUILTIN trait the
         // var-escape slot resolver keys on.
         traits: Traits::FRAME_HASH_BUILTIN,
-        dialects: Some(DialectSet::TK),
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::exact(2),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),

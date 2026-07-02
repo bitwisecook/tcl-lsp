@@ -74,7 +74,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_getSaveFile",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Pop up a dialogue for the user to select a file to save.",

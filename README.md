@@ -1253,8 +1253,35 @@ claude /irule-diagram complex_rule.tcl
 
 ### MCP server (Claude Desktop / AI agents)
 
-A Model Context Protocol server that exposes tcl-lsp analysis as 27 tools for
-any MCP-compatible client (Claude Desktop, custom agents, etc.).
+A Model Context Protocol server that exposes tcl-lsp analysis to any
+MCP-compatible client (Claude Code, Claude Desktop, Codex, custom agents).
+
+The server is the **native Rust `tcl-mcp`** binary — a single self-contained
+executable that calls the Rust analysis crates directly (no Python, no PyO3).
+It hosts the full tool surface (46 tools: analysis, LSP features, refactors,
+diagnostics, docstrings, iRule/BIG-IP tools, XC translation, Tk layout, test
+generation, …). The legacy Python zipapp (`tcl-lsp-mcp-server.pyz`) is a
+fallback for platforms without a published native binary.
+
+**Install / register.** The installer fetches the prebuilt native binary for
+your platform from the GitHub release (`tcl-mcp-<triple>`), verifies its
+checksum, and registers it with Claude Code (`claude mcp add`) and Codex:
+
+```bash
+./scripts/install/install.sh            # fetches + registers the native binary
+```
+
+- `TCL_LSP_MCP_PYZ=1 ./scripts/install/install.sh` — force the Python zipapp
+  (e.g. an architecture without a native build).
+- `TCL_LSP_MCP_BIN=/path/to/tcl-mcp ./scripts/install/install.sh` — register a
+  local build instead of downloading.
+
+Working **inside this repo**, Claude Code / Codex auto-discover the server via
+the committed [`.mcp.json`](.mcp.json), which launches
+[`scripts/tcl-mcp`](scripts/tcl-mcp): it prefers a local build
+(`make rust-mcp`), else a cached binary, else fetches the release asset for the
+host platform, else builds from source. Register globally without the installer
+with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"`.
 
 | Tool | Description |
 |------|-------------|
@@ -1287,15 +1314,18 @@ any MCP-compatible client (Claude Desktop, custom agents, etc.).
 | `set_dialect` | Set active Tcl dialect for the session |
 
 ```json
-// Claude Desktop — claude_desktop_config.json
+// Claude Desktop — claude_desktop_config.json (native binary)
 {
   "mcpServers": {
     "tcl-lsp": {
-      "command": "./tcl-lsp-mcp-server.pyz"
+      "command": "/absolute/path/to/target/release/tcl-mcp"
     }
   }
 }
 ```
+
+To use the Python zipapp instead, set `"command"` to
+`"./tcl-lsp-mcp-server.pyz"`.
 
 ## Packaging & environments
 

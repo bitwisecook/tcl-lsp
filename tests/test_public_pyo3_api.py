@@ -241,3 +241,264 @@ def test_query_bigip_malformed_query() -> None:
     # Positional (lex/parse) errors carry a resolved range.
     if err.code in ("BIGIP_QUERY_LEX", "BIGIP_QUERY_PARSE"):
         assert err.range is not None
+
+
+# --------------------------------------------------------------------------
+# Refactoring facades (over tcl-lsp-core::refactor)
+# --------------------------------------------------------------------------
+
+
+def test_refactor_inline_variable() -> None:
+    # Cursor on the `x` in the `set x 5` declaration.
+    r = t.refactor_inline_variable("set x 5\nputs $x\n", 0, 4)
+    assert r is not None
+    assert r.title == "Inline variable '$x'"
+    assert r.rewritten == "puts 5\n"
+    assert r.edit_count == 2
+    # Off-target (on `puts`) returns None.
+    assert t.refactor_inline_variable("set x 5\nputs $x\n", 1, 0) is None
+
+
+def test_refactor_if_to_switch() -> None:
+    src = 'if {$x eq "a"} {\n  puts one\n} elseif {$x eq "b"} {\n  puts two\n}\n'
+    r = t.refactor_if_to_switch(src, 0, 0)
+    assert r is not None
+    assert r.title == "Convert to switch on $x"
+    assert r.rewritten.startswith("switch -exact -")
+
+
+def test_refactor_extract_variable() -> None:
+    r = t.refactor_extract_variable("puts [expr {1 + 2}]\n", 0, 5, 0, 19, "result")
+    assert r is not None
+    assert r.title == "Extract into variable '$result'"
+    assert r.rewritten == "set result [expr {1 + 2}]\nputs $result\n"
+
+
+def test_refactor_brace_expr() -> None:
+    r = t.refactor_brace_expr('expr "$a + $b"\n', 0, 0)
+    assert r is not None
+    assert r.rewritten == "expr {$a + $b}\n"
+    assert t.refactor_brace_expr("expr {$a + $b}\n", 0, 0) is None
+
+
+def test_refactor_extract_datagroup() -> None:
+    src = (
+        "switch -exact -- $uri {\n"
+        "    /api { set pool api_pool }\n"
+        "    /web { set pool web_pool }\n"
+        "    /cdn { set pool cdn_pool }\n"
+        "}"
+    )
+    r = t.refactor_extract_datagroup(src, 0, 0, "uri_pool", dialect="f5-irules")
+    assert r is not None
+    assert r.name == "uri_pool"
+    assert r.value_type == "string"
+    assert r.records == [("/api", "api_pool"), ("/web", "web_pool"), ("/cdn", "cdn_pool")]
+    assert r.rewritten == "set pool [class lookup $uri uri_pool]"
+    assert r.data_group_definition.startswith("ltm data-group internal uri_pool {")
+
+
+# --------------------------------------------------------------------------
+# Analysis graphs (over tcl-lsp-core::graphs / ::diagram)
+# --------------------------------------------------------------------------
+
+
+def test_call_graph() -> None:
+    src = "proc a {} { b }\nproc b {} {}\na\n"
+    g = t.call_graph(src)
+    names = {n["name"] for n in g["nodes"]}
+    assert "::a" in names and "::b" in names
+    assert isinstance(g["edges"], list)
+    assert "<top-level>" in g["roots"]
+
+
+def test_symbol_graph() -> None:
+    g = t.symbol_graph("proc greet {name} { set x 1 }\n")
+    assert g["summary"]["total_procs"] == 1
+    assert isinstance(g["scopes"], list)
+
+
+def test_dataflow_graph() -> None:
+    g = t.dataflow_graph("proc f {} { set x 1 }\n")
+    assert "taint_warnings" in g
+    assert "proc_effects" in g
+    assert "summary" in g
+
+
+def test_diagram_data() -> None:
+    src = 'when HTTP_REQUEST {\n  if {[HTTP::uri] eq "/"} { pool web }\n}\n'
+    d = t.diagram_data(src, dialect="f5-irules")
+    assert isinstance(d["events"], list)
+    assert isinstance(d["procedures"], list)
+    assert any(e["name"] == "HTTP_REQUEST" for e in d["events"])
+
+
+# --------------------------------------------------------------------------
+# Optimiser (over tcl-compiler::optimiser)
+# --------------------------------------------------------------------------
+
+
+def test_optimise() -> None:
+    src = "proc f {} {\n    set x [expr {1 + 2}]\n    return $x\n}\n"
+    r = t.optimise(src, profile="full")
+    assert r["profile"] == "full"
+    assert r["multi_pass"] is False
+    assert r["iterations"] == 1
+    assert r["changed"] is True
+    assert isinstance(r["optimizations"], list)
+    for o in r["optimizations"]:
+        assert set(o) >= {"code", "message", "range", "replacement"}
+
+
+def test_optimise_aggressive_is_multipass() -> None:
+    src = "proc f {} {\n    set x [expr {1 + 2}]\n    set y $x\n    return $y\n}\n"
+    r = t.optimise(src, profile="aggressive")
+    assert r["multi_pass"] is True
+    assert r["iterations"] >= 1
+
+
+# --------------------------------------------------------------------------
+# Docstrings (over tcl-lsp-core::formatting::docstring)
+# --------------------------------------------------------------------------
+
+
+def test_generate_docstring_stub() -> None:
+    src = "proc greet {name {greeting hello} args} { return 1 }\n"
+    stub = t.generate_docstring_stub(src, "greet")
+    assert "# @brief TODO: describe greet" in stub
+    assert "# @param name" in stub
+    assert "# @param greeting - (default: hello)" in stub
+    assert "# @param args - Additional arguments" in stub
+    # Plain style differs.
+    plain = t.generate_docstring_stub(src, "greet", style="plain")
+    assert "# Arguments:" in plain
+    # Unknown proc → None.
+    assert t.generate_docstring_stub(src, "nope") is None
+
+
+def test_parse_docstring() -> None:
+    info = t.parse_docstring("@brief does x\n@param a - the a\n@param b\n@return sum")
+    assert info["brief"] == "does x"
+    assert info["params"] == [
+        {"name": "a", "description": "the a"},
+        {"name": "b", "description": ""},
+    ]
+    assert info["returns"] == "sum"
+
+
+# --------------------------------------------------------------------------
+# Minify / events (over tcl-lsp-core::minify, tcl-registry::events)
+# --------------------------------------------------------------------------
+
+
+def test_unminify_error() -> None:
+    sym = "# Procs\na <- greet\n# Variables in ::greet\nb <- name\n"
+    assert t.unminify_error('invalid command name "a"', sym) == 'invalid command name "greet"'
+    assert (
+        t.unminify_error('can\'t read "b": no such variable', sym)
+        == 'can\'t read "name": no such variable'
+    )
+
+
+def test_event_multiplicity() -> None:
+    assert t.event_multiplicity("RULE_INIT") == "init"
+    assert t.event_multiplicity("CLIENT_ACCEPTED") == "once_per_connection"
+    assert t.event_multiplicity("BOGUS") == "unknown"
+
+
+def test_order_events_for_file() -> None:
+    src = "when HTTP_RESPONSE {}\nwhen CLIENT_ACCEPTED {}\nwhen RULE_INIT {}\n"
+    ordered = t.order_events_for_file(src)
+    assert ordered.index("RULE_INIT") < ordered.index("CLIENT_ACCEPTED")
+    assert ordered.index("CLIENT_ACCEPTED") < ordered.index("HTTP_RESPONSE")
+
+
+# --------------------------------------------------------------------------
+# iRule simulation (over tcl-irule-test, on the bytecode VM)
+#
+# Runtime-ready but not yet fully runnable: the VM lights this up as it grows
+# the orchestrator command surface. The contract tested here is the *shape* and
+# graceful degradation — never a raise, always the documented keys.
+# --------------------------------------------------------------------------
+
+
+def test_simulate_irule_shape_and_graceful() -> None:
+    out = t.simulate_irule(
+        "when HTTP_REQUEST { pool web }",
+        method="GET",
+        uri="/",
+        profiles=["HTTP"],
+        pools=[("web", ["10.0.0.1:80"])],
+    )
+    assert set(out) == {"pool", "node", "response_committed", "logs", "decisions", "error"}
+    assert isinstance(out["logs"], list)
+    assert isinstance(out["decisions"], list)
+    assert isinstance(out["response_committed"], bool)
+    # Either it ran (error empty) or it degraded with a reason — never a raise.
+    if out["error"]:
+        assert out["pool"] == "" and out["node"] == ""
+
+
+# --------------------------------------------------------------------------
+# detect_dialect (centralised heuristic — over tcl-registry)
+# --------------------------------------------------------------------------
+
+
+def test_detect_dialect_heuristics() -> None:
+    assert t.detect_dialect("when HTTP_REQUEST { pool web }") == "f5-irules"
+    assert t.detect_dialect("spawn ssh host\nexpect_before timeout") == "expect"
+    assert t.detect_dialect("synth_design -top foo") == "xilinx-eda-tcl"
+    assert t.detect_dialect("compile_ultra") == "synopsys-eda-tcl"
+    assert t.detect_dialect("tmsh::create ltm pool p") == "f5-tmsh"
+    # Extension beats generic content.
+    assert t.detect_dialect("puts hi", filename="x.irule") == "f5-irules"
+    assert t.detect_dialect("spawn x", filename="y.exp") == "expect"
+    # Shebang.
+    assert t.detect_dialect("#!/usr/bin/tclsh8.6\nputs hi") == "tcl8.6"
+    # Fallback to the given default.
+    assert t.detect_dialect("set x 1", default="tcl8.6") == "tcl8.6"
+
+
+# --------------------------------------------------------------------------
+# SSA graphs + command walk (over tcl-lsp-core / tcl-compiler)
+# --------------------------------------------------------------------------
+
+
+def test_def_use_chains() -> None:
+    g = t.def_use_chains("proc f {x} { set y $x; return $y }\n")
+    assert "functions" in g and "summary" in g
+    assert {"totalDefs", "totalUses", "totalAliases", "functionCount"} <= set(g["summary"])
+    for func in g["functions"]:
+        assert {"name", "nodes", "edges", "aliases", "summary"} <= set(func)
+
+
+def test_memory_aliases() -> None:
+    g = t.memory_aliases("proc f {v} { upvar 1 $v local; set local 1 }\n")
+    assert "functions" in g and "summary" in g
+    assert {"total_alias_sets", "total_memory_ops", "function_count"} <= set(g["summary"])
+
+
+def test_walk_commands_recurses_bodies() -> None:
+    src = 'when HTTP_REQUEST {\n  if {$x eq "a"} { pool p1 }\n}\n'
+    cmds = t.walk_commands(src, dialect="f5-irules")
+    firsts = [c["texts"][0] for c in cmds]
+    # Nested `if` and `pool` inside the `when` body are walked.
+    assert "when" in firsts and "if" in firsts and "pool" in firsts
+    for c in cmds:
+        assert isinstance(c["texts"], list)
+        assert isinstance(c["line"], int) and isinstance(c["character"], int)
+
+
+# --------------------------------------------------------------------------
+# compile_wasm (eval-fallback WASM backend — over tcl-compiler::codegen::wasm)
+# --------------------------------------------------------------------------
+
+
+def test_compile_wasm() -> None:
+    out = t.compile_wasm("proc add {a b} { return [expr {$a + $b}] }\nputs [add 1 2]\n")
+    assert "WasmOutput" in repr(out)
+    assert out.function_count >= 1
+    assert out.byte_length > 0
+    assert out.wasm[:4] == b"\x00asm"  # WebAssembly binary magic
+    assert out.wat.lstrip().startswith("(module")
+    assert len(out.wasm) == out.byte_length

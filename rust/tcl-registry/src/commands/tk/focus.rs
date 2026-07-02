@@ -39,7 +39,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "focus",
-        dialects: None,
+        dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::new(0, 2),
         hover: Some(HoverSnippet {
             summary: "Manage the input focus.",

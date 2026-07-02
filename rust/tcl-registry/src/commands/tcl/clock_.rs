@@ -51,7 +51,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         takes_value: true,
         value_hint: "boolean",
         detail: "Validate the input date/time strictly (Tcl 9.0+).",
-        dialects: Some(DialectSet::TCL90),
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
 ];
 

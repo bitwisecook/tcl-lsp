@@ -17,8 +17,8 @@ use tcl_lsp_core::minify::{
 
 use std::collections::HashSet;
 
+use tcl_compiler::optimiser::optimise_source_multipass_filtered;
 use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
-use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 
 use crate::cli::{ColourArgs, InputArgs};
 
@@ -113,29 +113,13 @@ pub fn run_opt(
     // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5 iters);
     // every other profile (including `full`) is a single pass. Both honour the
     // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
-    let max_iterations = if matches!(profile, OptimisationProfile::Aggressive) {
-        5
-    } else {
-        1
-    };
-    let mut current = source;
-    let mut optimisations = Vec::new();
-    for _ in 0..max_iterations {
-        let kept: Vec<_> = optimise_with_dialect(&current, registry, dialect)
-            .into_iter()
-            .filter(|o| !disabled.contains(o.code.as_str()))
-            .collect();
-        if kept.is_empty() {
-            break;
-        }
-        let next = apply_optimisations(&current, &kept);
-        optimisations.extend(kept);
-        if next == current {
-            break;
-        }
-        current = next;
-    }
-    let optimised = current;
+    let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
+        &source,
+        registry,
+        dialect,
+        profile.max_iterations(),
+        &disabled,
+    );
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let mut rendered = optimised;

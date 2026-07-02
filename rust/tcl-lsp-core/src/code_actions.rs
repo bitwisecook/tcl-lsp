@@ -1012,26 +1012,21 @@ fn docstring_actions(
         if !proc_def.doc.is_empty() {
             continue;
         }
-        // Mirror Python `generate_stub` (DOXYGEN tag style): a
-        // `# @brief TODO: describe <proc>` header, then one `# @param`
-        // line per parameter — with a `- (default: <value>)` annotation
-        // for defaulted params and a `- Additional arguments` prose line
-        // for the `args` varargs sentinel.  No `@return` line (the stub
-        // never sets a return description).
-        let mut doc = format!("# @brief TODO: describe {}\n", proc_def.name);
-        for p in &proc_def.params {
-            doc.push_str("# @param ");
-            doc.push_str(&p.name);
-            if p.name == "args" {
-                doc.push_str(" - Additional arguments");
-            } else if p.has_default {
-                let default = p.default_value.as_deref().unwrap_or("");
-                doc.push_str(" - (default: ");
-                doc.push_str(default);
-                doc.push(')');
-            }
-            doc.push('\n');
-        }
+        // The DOXYGEN stub (`# @brief TODO: describe <proc>` + one `# @param`
+        // line per parameter) is rendered by the shared docstring generator;
+        // the code action inserts it as a block, so add the trailing newline
+        // that separates it from the `proc` line below.
+        let doc = format!(
+            "{}\n",
+            crate::formatting::generate_stub_for_proc(
+                proc_def,
+                crate::formatting::DocstringTagStyle::Doxygen,
+                false,
+                '.',
+                70,
+                "",
+            )
+        );
         out.push(CodeAction {
             title: format!("Generate docstring for '{}'", proc_def.name),
             edits: vec![crate::rename::TextEdit {

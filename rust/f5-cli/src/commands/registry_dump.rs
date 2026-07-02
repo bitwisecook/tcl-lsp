@@ -9,14 +9,25 @@
 //! - `objects` — emits the object graph snapshot.
 //! - `events` — emits the event graph snapshot (the per-event valid-command
 //!   list is content-addressed via `validCommandsDigest`).
-//! - `commands` — not implemented. It would embed the full per-command
-//!   traits/scalars dicts and the hover prose catalogue (`summary`).
-//!   It (and `all`, which contains it) exits with a
-//!   not-implemented error.
+//! - `commands` — the full per-command `traits`/`scalars` dicts and the hover
+//!   prose catalogue (`summary`) for the `f5-irules` dialect, from
+//!   [`tcl_registry::command_snapshot`] (the same byte-parity-tested snapshot
+//!   the `tcl registry-dump` verb serialises).
+//! - `all` — every section in one object (`commands`/`events`/`objects`/`profiles`).
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
-use tcl_registry::snapshot::{event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot};
+use tcl_cli_support::registry_for_dialect;
+use tcl_registry::command_snapshot::command_registry_snapshot;
+use tcl_registry::snapshot::{
+    Json, event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot,
+};
+
+/// The `f5-irules` command-registry snapshot (core Tcl + iRules commands).
+fn commands_snapshot() -> Json {
+    command_registry_snapshot(registry_for_dialect("f5-irules"), "f5-irules")
+}
 
 /// Run the `registry-dump` verb for `section`, writing to `output`
 /// (`None` = stdout).
@@ -25,13 +36,14 @@ pub fn run_registry_dump(section: &str, output: Option<&Path>) -> anyhow::Result
         "profiles" => profile_graph_snapshot(),
         "objects" => object_graph_snapshot(),
         "events" => event_graph_snapshot(),
-        "commands" | "all" => {
-            anyhow::bail!(
-                "`f5 registry-dump --section {section}` is not yet ported in the Rust port \
-                 (the `commands` snapshot embeds the full per-command traits/scalars dicts \
-                 and hover prose catalogue, which have no byte-identical Rust equivalent yet); \
-                 the `profiles`, `objects`, and `events` sections are available"
-            );
+        "commands" => commands_snapshot(),
+        "all" => {
+            let mut m = BTreeMap::new();
+            m.insert("commands".to_owned(), commands_snapshot());
+            m.insert("events".to_owned(), event_graph_snapshot());
+            m.insert("objects".to_owned(), object_graph_snapshot());
+            m.insert("profiles".to_owned(), profile_graph_snapshot());
+            Json::Object(m)
         }
         other => anyhow::bail!("unknown registry-dump section: {other}"),
     };

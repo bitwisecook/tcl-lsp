@@ -160,12 +160,14 @@ class TclLspSettingsPanel {
     private val diagS100 = JBCheckBox("S100: Single shimmer outside a loop")
     private val diagS101 = JBCheckBox("S101: Shimmer inside a loop body")
     private val diagS102 = JBCheckBox("S102: Variable oscillates between two types across loop it...")
-    private val diagS110 = JBCheckBox("S110: Byte array corrupted by a string operation before be...")
+    private val diagS110 = JBCheckBox("S110: Byte-array value coerced to a string by a string ope...")
 
     // Diagnostics — Taint
     private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous sink: eval/uplev...")
     private val diagT101 = JBCheckBox("T101: Tainted data flows into an output command (puts)")
     private val diagT102 = JBCheckBox("T102: Tainted data in option position without -- terminator")
+    private val diagT104 = JBCheckBox("T104: Tainted data in a network-address argument (e.g. soc...")
+    private val diagT105 = JBCheckBox("T105: Tainted data in a cross-interpreter eval subcommand ...")
 
     // Diagnostics — iRules
     private val diagIRULE1001 = JBCheckBox("IRULE1001: Command invalid or ineffective in this iRules event")
@@ -191,6 +193,7 @@ class TclLspSettingsPanel {
     private val diagIRULE3001 = JBCheckBox("IRULE3001: Tainted data in HTTP response body")
     private val diagIRULE3002 = JBCheckBox("IRULE3002: Tainted data in HTTP header or cookie value")
     private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in log command")
+    private val diagIRULE3004 = JBCheckBox("IRULE3004: Tainted data in an HTTP::redirect URL")
     private val diagIRULE3101 = JBCheckBox("IRULE3101: HTTP::uri/HTTP::path set to value not provably start...")
     private val diagIRULE3102 = JBCheckBox("IRULE3102: HTTP::path/HTTP::uri/HTTP::query getter used without...")
     private val diagIRULE4001 = JBCheckBox("IRULE4001: Write to static:: variable outside RULE_INIT")
@@ -388,7 +391,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Taint"))
         val diagTaintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagT100, diagT101, diagT102,
+            diagT100, diagT101, diagT102, diagT104, diagT105,
         ).forEach { diagTaintPanel.add(it) }
         builder.addComponent(diagTaintPanel)
 
@@ -398,8 +401,9 @@ class TclLspSettingsPanel {
             diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
             diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
             diagIRULE2003, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004, diagIRULE5005,
-            diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3101,
-            diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003, diagIRULE4004, diagIRULE4005,
+            diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3004,
+            diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003, diagIRULE4004,
+            diagIRULE4005,
         ).forEach { diagIRulePanel.add(it) }
         builder.addComponent(diagIRulePanel)
 
@@ -599,6 +603,8 @@ class TclLspSettingsPanel {
             diagT100.isSelected != s.diagnosticT100 ||
             diagT101.isSelected != s.diagnosticT101 ||
             diagT102.isSelected != s.diagnosticT102 ||
+            diagT104.isSelected != s.diagnosticT104 ||
+            diagT105.isSelected != s.diagnosticT105 ||
             diagIRULE1001.isSelected != s.diagnosticIRULE1001 ||
             diagIRULE1002.isSelected != s.diagnosticIRULE1002 ||
             diagIRULE1003.isSelected != s.diagnosticIRULE1003 ||
@@ -622,6 +628,7 @@ class TclLspSettingsPanel {
             diagIRULE3001.isSelected != s.diagnosticIRULE3001 ||
             diagIRULE3002.isSelected != s.diagnosticIRULE3002 ||
             diagIRULE3003.isSelected != s.diagnosticIRULE3003 ||
+            diagIRULE3004.isSelected != s.diagnosticIRULE3004 ||
             diagIRULE3101.isSelected != s.diagnosticIRULE3101 ||
             diagIRULE3102.isSelected != s.diagnosticIRULE3102 ||
             diagIRULE4001.isSelected != s.diagnosticIRULE4001 ||
@@ -826,6 +833,8 @@ class TclLspSettingsPanel {
         s.diagnosticT100 = diagT100.isSelected
         s.diagnosticT101 = diagT101.isSelected
         s.diagnosticT102 = diagT102.isSelected
+        s.diagnosticT104 = diagT104.isSelected
+        s.diagnosticT105 = diagT105.isSelected
         s.diagnosticIRULE1001 = diagIRULE1001.isSelected
         s.diagnosticIRULE1002 = diagIRULE1002.isSelected
         s.diagnosticIRULE1003 = diagIRULE1003.isSelected
@@ -849,6 +858,7 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE3001 = diagIRULE3001.isSelected
         s.diagnosticIRULE3002 = diagIRULE3002.isSelected
         s.diagnosticIRULE3003 = diagIRULE3003.isSelected
+        s.diagnosticIRULE3004 = diagIRULE3004.isSelected
         s.diagnosticIRULE3101 = diagIRULE3101.isSelected
         s.diagnosticIRULE3102 = diagIRULE3102.isSelected
         s.diagnosticIRULE4001 = diagIRULE4001.isSelected
@@ -1069,6 +1079,8 @@ class TclLspSettingsPanel {
         diagT100.isSelected = s.diagnosticT100
         diagT101.isSelected = s.diagnosticT101
         diagT102.isSelected = s.diagnosticT102
+        diagT104.isSelected = s.diagnosticT104
+        diagT105.isSelected = s.diagnosticT105
         diagIRULE1001.isSelected = s.diagnosticIRULE1001
         diagIRULE1002.isSelected = s.diagnosticIRULE1002
         diagIRULE1003.isSelected = s.diagnosticIRULE1003
@@ -1092,6 +1104,7 @@ class TclLspSettingsPanel {
         diagIRULE3001.isSelected = s.diagnosticIRULE3001
         diagIRULE3002.isSelected = s.diagnosticIRULE3002
         diagIRULE3003.isSelected = s.diagnosticIRULE3003
+        diagIRULE3004.isSelected = s.diagnosticIRULE3004
         diagIRULE3101.isSelected = s.diagnosticIRULE3101
         diagIRULE3102.isSelected = s.diagnosticIRULE3102
         diagIRULE4001.isSelected = s.diagnosticIRULE4001

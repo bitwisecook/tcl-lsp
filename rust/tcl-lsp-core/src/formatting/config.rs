@@ -1,9 +1,10 @@
 //! Formatter configuration.
 //!
-//! Defaults follow the F5 iRules Style Guide.  Only the fields the
-//! engine consults today are modelled; the docstring-related knobs
-//! are carried but the docstring rewriter itself is not yet
-//! implemented.
+//! Defaults follow the F5 iRules Style Guide.  Every field the Python
+//! formatter config exposes is modelled here for editor-settings/config
+//! parity; the docstring-related knobs (`docstring_*`) are carried but the
+//! docstring rewriter itself is not yet implemented, so they are not yet
+//! consulted by the engine.
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -20,6 +21,32 @@ pub enum IndentStyle {
     Spaces,
     /// Indent with tabs (one tab per level).
     Tabs,
+}
+
+/// Where a docstring comment block is placed relative to a `proc`.
+///
+/// Carried for editor-settings/config parity with the Python formatter; the
+/// docstring rewriter itself is not yet implemented, so the value is not yet
+/// consumed by the engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocstringStyle {
+    /// Comment block above the `proc` statement.
+    Preceding,
+    /// Comment block at the start of the `proc` body.
+    Body,
+    /// Do not generate or reformat docstrings.
+    None,
+}
+
+/// Tag format used inside docstrings for parameter/return documentation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocstringTagStyle {
+    /// Doxygen-style tags: `@param`, `@return`, `@brief`.
+    Doxygen,
+    /// Plain prose with an `Arguments:` section.
+    Plain,
+    /// Leave the tag format as-is.
+    None,
 }
 
 /// All configurable formatting options.
@@ -85,6 +112,19 @@ pub struct FormatterConfig {
     pub blank_lines_between_blocks: usize,
     /// Maximum consecutive blank lines to keep.
     pub max_consecutive_blank_lines: usize,
+    /// Where docstrings are placed relative to `proc` definitions.
+    /// Carried for editor-settings/config parity; not yet engine-consumed
+    /// (the docstring rewriter is unimplemented).
+    pub docstring_style: DocstringStyle,
+    /// Tag format used in docstrings. Carried for parity, not yet consumed.
+    pub docstring_tag_style: DocstringTagStyle,
+    /// Add decoration border lines (e.g. `# ......`) around docstrings.
+    /// Carried for parity, not yet consumed.
+    pub docstring_decoration: bool,
+    /// Character used for docstring decoration borders. Carried for parity.
+    pub docstring_decoration_char: char,
+    /// Width of docstring decoration border lines. Carried for parity.
+    pub docstring_decoration_width: usize,
 }
 
 impl Default for FormatterConfig {
@@ -110,6 +150,11 @@ impl Default for FormatterConfig {
             blank_lines_between_procs: 1,
             blank_lines_between_blocks: 1,
             max_consecutive_blank_lines: 2,
+            docstring_style: DocstringStyle::None,
+            docstring_tag_style: DocstringTagStyle::Doxygen,
+            docstring_decoration: false,
+            docstring_decoration_char: '.',
+            docstring_decoration_width: 70,
         }
     }
 }

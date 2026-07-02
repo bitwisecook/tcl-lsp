@@ -7212,6 +7212,51 @@ fn apply_formatting_object(
     if let Some(n) = obj.get("maxConsecutiveBlankLines").and_then(as_usize) {
         cfg.max_consecutive_blank_lines = n;
     }
+    apply_docstring_formatting(obj, cfg);
+}
+
+/// Read the `docstring*` `tclLsp.formatting.*` settings into `cfg`. Kept for
+/// config parity (round-tripped into the config) even though the docstring
+/// rewriter that would consume them is not yet implemented. Split out of
+/// [`apply_formatting_object`] to keep each per-key block under the
+/// `too_many_lines` lint.
+fn apply_docstring_formatting(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    cfg: &mut core_formatting::FormatterConfig,
+) {
+    if let Some(s) = obj.get("docstringStyle").and_then(serde_json::Value::as_str) {
+        cfg.docstring_style = match s.to_ascii_lowercase().as_str() {
+            "preceding" => core_formatting::DocstringStyle::Preceding,
+            "body" => core_formatting::DocstringStyle::Body,
+            _ => core_formatting::DocstringStyle::None,
+        };
+    }
+    if let Some(s) = obj.get("docstringTagStyle").and_then(serde_json::Value::as_str) {
+        cfg.docstring_tag_style = match s.to_ascii_lowercase().as_str() {
+            "plain" => core_formatting::DocstringTagStyle::Plain,
+            "none" => core_formatting::DocstringTagStyle::None,
+            _ => core_formatting::DocstringTagStyle::Doxygen,
+        };
+    }
+    if let Some(b) = obj
+        .get("docstringDecoration")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.docstring_decoration = b;
+    }
+    if let Some(c) = obj
+        .get("docstringDecorationChar")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|s| s.chars().next())
+    {
+        cfg.docstring_decoration_char = c;
+    }
+    if let Some(n) = obj
+        .get("docstringDecorationWidth")
+        .and_then(|v| v.as_u64().map(|n| usize::try_from(n).unwrap_or(0)))
+    {
+        cfg.docstring_decoration_width = n;
+    }
 }
 
 fn formatter_config_from(
@@ -10025,6 +10070,40 @@ mod tests {
         // A null formatting object falls back to defaults + LSP options.
         let dflt = formatter_config_from(&serde_json::Value::Null, &opts);
         assert_eq!(dflt.max_line_length, 120);
+    }
+
+    #[test]
+    fn formatter_config_round_trips_docstring_settings() {
+        // The docstring knobs are carried for config parity (not yet consumed
+        // by the engine); a settings object still flows them into the config.
+        let opts = tower_lsp_server::ls_types::FormattingOptions::default();
+        let cfg = formatter_config_from(
+            &serde_json::json!({
+                "docstringStyle": "preceding",
+                "docstringTagStyle": "plain",
+                "docstringDecoration": true,
+                "docstringDecorationChar": "=",
+                "docstringDecorationWidth": 80,
+            }),
+            &opts,
+        );
+        assert_eq!(cfg.docstring_style, core_formatting::DocstringStyle::Preceding);
+        assert_eq!(
+            cfg.docstring_tag_style,
+            core_formatting::DocstringTagStyle::Plain
+        );
+        assert!(cfg.docstring_decoration);
+        assert_eq!(cfg.docstring_decoration_char, '=');
+        assert_eq!(cfg.docstring_decoration_width, 80);
+        // Defaults match the Python config (style none, tag doxygen, char '.').
+        let dflt = core_formatting::FormatterConfig::default();
+        assert_eq!(dflt.docstring_style, core_formatting::DocstringStyle::None);
+        assert_eq!(
+            dflt.docstring_tag_style,
+            core_formatting::DocstringTagStyle::Doxygen
+        );
+        assert_eq!(dflt.docstring_decoration_char, '.');
+        assert_eq!(dflt.docstring_decoration_width, 70);
     }
 
     #[tokio::test]
