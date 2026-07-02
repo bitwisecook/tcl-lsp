@@ -18,6 +18,7 @@ use rmcp::transport::stdio;
 use rmcp::ServiceExt;
 use serde_json::{Value, json};
 
+mod diag_meta;
 mod tools;
 
 #[derive(Clone)]
