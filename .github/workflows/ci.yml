@@ -609,22 +609,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - profile: explorer-cli
-            artefact_glob: "build/tcl-lsp-explorer-cli-*.pyz"
-            smoke: |
-              python3 build/tcl-lsp-explorer-cli-*.pyz --help
-              # Verify the textual TUI dependency is bundled — without
-              # this, `--tui` mode dies at import with `No module named
-              # 'rich'` (the default surface on an interactive TTY).
-              python3 -c "
-              import zipfile, glob
-              path = glob.glob('build/tcl-lsp-explorer-cli-*.pyz')[0]
-              names = zipfile.ZipFile(path).namelist()
-              assert any(n.startswith('rich/') for n in names), 'rich not bundled (--tui will fail)'
-              assert any(n.startswith('textual/') for n in names), 'textual not bundled (--tui will fail)'
-              print(f'OK: {len(names)} entries (textual + rich bundled for --tui)')
-              "
-
           - profile: f5
             artefact_glob: "build/f5-*.pyz"
             smoke: |
@@ -666,29 +650,6 @@ jobs:
           - profile: mcp
             artefact_glob: "build/tcl-lsp-mcp-server-*.pyz"
             smoke: "python3 build/tcl-lsp-mcp-server-*.pyz --help"
-
-          # NOTE: the wasm profile is intentionally NOT in this matrix.  Unlike
-          # the other profiles, `make zipapp-wasm` builds the Zig runtime
-          # (RUNTIME_WASM → `zig build`), which needs the Zig toolchain and the
-          # vendored Tcl-regex sources that the shared `setup-build` action does
-          # not install.  It runs as the dedicated `build-zipapp-wasm` job below,
-          # which sets up Zig, fetches the regex sources, and additionally emits
-          # an SBOM + provenance attestation.  (Leaving it here produced a
-          # duplicate `zipapp-wasm` artefact upload and failed for lack of Zig.)
-
-          - profile: explorer-gui-cdn
-            artefact_glob: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
-            smoke: |
-              python3 -c "
-              import zipfile, glob
-              path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
-              zf = zipfile.ZipFile(path)
-              names = zf.namelist()
-              assert 'static/index.html' in names, 'missing index.html'
-              assert 'static/worker.js' in names, 'missing worker.js'
-              assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
-              print(f'OK: {len(names)} entries (CDN variant)')
-              "
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -702,26 +663,6 @@ jobs:
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - uses: ./.github/actions/setup-build
-
-      # The explorer-gui-cdn profile is the only one that compiles Rust → WASM
-      # (`make zipapp-explorer-gui-cdn` → `make explorer-wasm`).  setup-build
-      # provides only Python/uv, so this profile additionally needs a Rust
-      # toolchain with the wasm32 target, the wasm-pack binary, and binaryen's
-      # `wasm-opt` (the Makefile runs a standalone `wasm-opt -O3` after
-      # wasm-pack).  All gated to the profile so the pure-Python zipapps don't
-      # pay for it; mirrors `ensure_binaryen` in scripts/dev/ensure-test-deps.sh.
-      - name: Set up Rust toolchain (explorer-gui-cdn builds Rust → WASM)
-        if: matrix.profile == 'explorer-gui-cdn'
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-      - name: Install wasm-pack (explorer-gui-cdn)
-        if: matrix.profile == 'explorer-gui-cdn'
-        run: cargo install wasm-pack --locked
-      - name: Install binaryen / wasm-opt (explorer-gui-cdn)
-        if: matrix.profile == 'explorer-gui-cdn'
-        run: sudo apt-get update && sudo apt-get install -y binaryen
 
       - name: Build ${{ matrix.profile }} zipapp
         run: make zipapp-${{ matrix.profile }}
@@ -849,96 +790,6 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" build/tcl-lsp-mcp-server-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: WASM compiler zipapp
-  build-zipapp-wasm:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Set up Zig (needed for runtime auto-build)
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
-          use-cache: true
-
-      - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
-        run: bash scripts/fetch_tcl_regex.sh
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build WASM zipapp
-        run: make zipapp-wasm
-
-      - name: Smoke-test WASM zipapp
-        run: python3 build/tcl-wasm-compiler-*.pyz --help
-
-      - name: Attest WASM zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-wasm-compiler-*.pyz"
-
-      - name: Resolve WASM zipapp path
-        id: sbom_wasm
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-wasm-compiler-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate WASM SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_wasm.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_wasm.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest WASM SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_wasm.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_wasm.outputs.sbom }}
-
-      - name: Upload WASM zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-wasm
-          path: "build/tcl-wasm-compiler-*.pyz"
-          retention-days: 7
-
-      - name: Upload WASM zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_wasm.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-wasm-compiler-*.pyz "$SBOM_PATH" --clobber
 
   # Build: JetBrains plugin
   build-jetbrains:

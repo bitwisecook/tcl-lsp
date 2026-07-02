@@ -6,15 +6,15 @@ Usage:
 Profiles:
 
     tcl              Unified Tcl tools CLI       (entry: scripts/zipapp-main/tcl.py)
-    explorer-cli     Compiler-explorer CLI       (entry: tooling.explorer.cli)
     f5               F5 BIG-IP CLI               (entry: tooling.f5.main)
     lsp              LSP server                  (entry: scripts/zipapp-main/lsp.py)
     ai               AI analysis CLI             (entry: scripts/zipapp-main/ai.py)
     mcp              MCP server                  (entry: scripts/zipapp-main/mcp.py)
-    wasm             Tcl→WASM compiler CLI       (entry: tooling.wasm.main)
-    explorer-gui     Standalone web GUI          (--static-dir REQUIRED)
-    explorer-gui-cdn Web GUI (Pyodide from CDN)  (--static-dir REQUIRED)
     claude-skills    Bundled Claude Code skill set (--ai-pyz REQUIRED)
+
+The compiler-explorer CLI/GUI and the Tcl→WASM compiler are no longer Python
+zipapps: they ship inside the native `tcl` binary (`tcl explore`,
+`tcl explore --serve`, `tcl compwasm`).
 
 Each profile declares which of the seven concern packages it ships
 (`shared`, `compiler`, `dialects`, `analyser`, `server`, `tooling`,
@@ -80,46 +80,15 @@ class Profile:
     # When True, exclude the explorer's static/ web bundle from the copy.
     # Always exclude __pycache__ and *.pyc.
     exclude_explorer_static: bool = True
-    # When True, stage the prebuilt Zig runtime .wasm variants into
-    # ``compiler/_wasm_runtime/`` so the compiler can link a runnable
-    # binary without a source checkout (the resolver in
-    # compiler/codegen/wasm/extensions.py reads them from there).
-    bundle_wasm_runtime: bool = False
     # Extra description bytes to include in the smoke-test output.
     extra: dict[str, str] = field(default_factory=dict)
-
-
-def _bundle_wasm_runtime(stage: Path) -> None:
-    """Stage the prebuilt Zig runtime WASM variants into the zipapp.
-
-    The resolver in ``compiler/codegen/wasm/extensions.py`` reads these
-    from ``compiler._wasm_runtime`` when the dev build tree is
-    unavailable (i.e. inside a zipapp).
-    """
-    runtime_bin = ROOT / "runtime" / "zig" / "zig-out" / "bin"
-    runtime_dst = stage / "compiler" / "_wasm_runtime"
-    runtime_dst.mkdir(parents=True, exist_ok=True)
-    (runtime_dst / "__init__.py").write_text(
-        '"""Bundled Zig runtime WASM artifacts (zipapp only)."""\n'
-    )
-    for name in ("tcl_runtime.wasm", "tcl_runtime_with_tcltest.wasm"):
-        src = runtime_bin / name
-        if not src.is_file():
-            msg = (
-                f"build_wasm: runtime artifact {src} missing — "
-                f"build it via `cd runtime/zig && zig build` "
-                f"(the Makefile zipapp-wasm target depends on this)."
-            )
-            raise FileNotFoundError(msg)
-        shutil.copy2(src, runtime_dst / name)
 
 
 def _ignore_patterns(profile: Profile, package: str):
     base = ["__pycache__", "*.pyc"]
     if profile.exclude_explorer_static and package == "tooling":
-        # tooling/explorer/static/ contains the pyodide bundle (~5 MB) —
-        # only the explorer-gui / explorer-gui-cdn profiles want it;
-        # everyone else ships without the Pyodide payload.
+        # Any leftover tooling/*/static/ web assets are dev-only; no zipapp
+        # ships a web payload (the GUI lives in the native `tcl` binary).
         base.append("static")
     name_ignore = shutil.ignore_patterns(*base)
     if package != "tooling":
@@ -225,8 +194,6 @@ def build_profile(profile: Profile, version: str, output: Path) -> None:
     with tempfile.TemporaryDirectory(prefix=f"zipapp-{profile.name}-") as tmp:
         stage = Path(tmp)
         _copy_concern_packages(stage, profile)
-        if profile.bundle_wasm_runtime:
-            _bundle_wasm_runtime(stage)
         _pip_install_pure(stage, profile.pip_packages)
         _write_entry_point(stage, profile)
         _create_archive(stage, str(output))
@@ -252,21 +219,6 @@ _BASE_BACKEND = ("shared", "compiler", "dialects", "analyser")
 _TOMLI_FALLBACK: tuple[str, ...] = ("tomli>=2.0",)
 
 PROFILES: dict[str, Profile] = {
-    "explorer-cli": Profile(
-        name="explorer-cli",
-        # tooling.explorer.cli pulls in server._build_info for `--version`,
-        # so server/ comes along.
-        packages=_BASE_BACKEND + ("server", "tooling"),
-        # ``--tui`` mode imports ``tooling.explorer.tui`` which needs the
-        # ``textual`` library (and its dep ``rich``).  Without them the
-        # zipapp's ``--tui`` flag dies at import time with
-        # ``ModuleNotFoundError: No module named 'rich'``.  The flat
-        # ``--text`` mode still works without these, so the CLI degrades
-        # gracefully — but the default surface on an interactive TTY is
-        # the TUI, so ship the deps.
-        pip_packages=_TOMLI_FALLBACK + ("textual>=0.80",),
-        entry_module="tooling.explorer.cli:main",
-    ),
     "f5": Profile(
         name="f5",
         packages=_BASE_BACKEND + ("server", "tooling"),
@@ -301,46 +253,7 @@ PROFILES: dict[str, Profile] = {
         pip_packages=_TOMLI_FALLBACK + ("lsprotocol>=2024.0.0", "jinja2>=3.1"),
         entry_script=ROOT / "scripts" / "zipapp-main" / "mcp.py",
     ),
-    "wasm": Profile(
-        name="wasm",
-        # The WASM compiler CLI doesn't need analyser, server, or ai.
-        packages=("shared", "compiler", "dialects", "tooling"),
-        pip_packages=_TOMLI_FALLBACK,
-        entry_module="tooling.wasm.main:main",
-        bundle_wasm_runtime=True,
-    ),
 }
-
-
-# ---------------------------------------------------------------------------
-# GUI builders — these don't fit the concern-packages model.  They pack
-# a prebuilt static bundle and a thin Python launcher.
-# ---------------------------------------------------------------------------
-
-
-def build_gui(version: str, output: Path, static_dir: Path, *, cdn: bool) -> None:
-    """Bundle a prebuilt explorer static site into a zipapp."""
-    del version
-    if not (static_dir / "index.html").exists():
-        print(f"error: {static_dir}/index.html not found", file=sys.stderr)
-        target = "explorer-build-cdn" if cdn else "explorer-build"
-        print(f"Run 'make {target}' first.", file=sys.stderr)
-        sys.exit(1)
-
-    sentinel = "worker.js" if cdn else "pyodide/pyodide.js"
-    if not (static_dir / sentinel).exists():
-        print(f"error: {static_dir}/{sentinel} not found", file=sys.stderr)
-        target = "explorer-build-cdn" if cdn else "explorer-build"
-        print(f"Run 'make {target}' first.", file=sys.stderr)
-        sys.exit(1)
-
-    label = "explorer-gui-cdn" if cdn else "explorer-gui"
-    with tempfile.TemporaryDirectory(prefix=f"zipapp-{label}-") as tmp:
-        stage = Path(tmp)
-        shutil.copy2(ROOT / "scripts" / "zipapp-main" / "gui.py", stage / "__main__.py")
-        shutil.copytree(static_dir, stage / "static")
-        _create_archive(stage, str(output))
-    _report(output)
 
 
 def build_claude_skills(version: str, output: Path, ai_pyz: Path) -> None:
@@ -387,12 +300,6 @@ def main() -> int:
         p.add_argument("--version", required=True)
         p.add_argument("--output", required=True, type=Path)
 
-    for name in ("explorer-gui", "explorer-gui-cdn"):
-        p = sub.add_parser(name, help=f"Build the {name} zipapp")
-        p.add_argument("--version", required=True)
-        p.add_argument("--output", required=True, type=Path)
-        p.add_argument("--static-dir", required=True, type=Path)
-
     skills_p = sub.add_parser("claude-skills", help="Build Claude skills release zip")
     skills_p.add_argument("--version", required=True)
     skills_p.add_argument("--output", required=True, type=Path)
@@ -403,10 +310,6 @@ def main() -> int:
 
     if args.command in PROFILES:
         build_profile(PROFILES[args.command], args.version, args.output)
-    elif args.command == "explorer-gui":
-        build_gui(args.version, args.output, args.static_dir, cdn=False)
-    elif args.command == "explorer-gui-cdn":
-        build_gui(args.version, args.output, args.static_dir, cdn=True)
     elif args.command == "claude-skills":
         build_claude_skills(args.version, args.output, args.ai_pyz)
     else:  # pragma: no cover — argparse rejects unknown commands
