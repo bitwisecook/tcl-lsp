@@ -1,160 +1,91 @@
+#[cfg(any(bundled_lsp, bundled_mcp))]
 use std::fs;
+#[cfg(any(bundled_lsp, bundled_mcp))]
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use zed_extension_api::{self as zed, LanguageServerId, Result};
 
-const GITHUB_REPO: &str = "bitwisecook/tcl-lsp";
-const LSP_ASSET_PREFIX: &str = "tcl-lsp-server-";
-const MCP_ASSET_PREFIX: &str = "tcl-lsp-mcp-server-";
-
-/// Extension version used to namespace bundled asset directories.
+/// Extension version used to namespace bundled binary directories.
+#[cfg(any(bundled_lsp, bundled_mcp))]
 const BUNDLED_VERSION: &str = match option_env!("TCL_LSP_BUNDLED_VERSION") {
     Some(v) => v,
     None => env!("CARGO_PKG_VERSION"),
 };
 
-#[cfg(bundled_lsp)]
-const BUNDLED_LSP_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-server.pyz"));
-#[cfg(bundled_mcp)]
-const BUNDLED_MCP_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-mcp-server.pyz"));
+/// On Windows the bundled/dev binaries carry a `.exe` suffix.
+#[cfg(target_os = "windows")]
+const EXE_SUFFIX: &str = ".exe";
+#[cfg(not(target_os = "windows"))]
+const EXE_SUFFIX: &str = "";
 
-/// Python candidates in descending version order.
-const PYTHON_CANDIDATES: &[&str] = &[
-    "python3.15",
-    "python3.14",
-    "python3.14",
-    "python3.12",
-    "python3.11",
-    "python3.10",
-    "python3",
-];
+#[cfg(bundled_lsp)]
+const BUNDLED_LSP_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-server"));
+#[cfg(bundled_mcp)]
+const BUNDLED_MCP_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tcl-mcp"));
 
 struct TclExtension {
-    cached_server_path: Option<String>,
-    cached_mcp_path: Option<String>,
     cached_server_id: Option<LanguageServerId>,
 }
 
 // Helpers
 
-/// Find the best Python 3.10+ interpreter via the worktree PATH.
-fn find_python(worktree: &zed::Worktree) -> Result<String> {
-    for candidate in PYTHON_CANDIDATES {
-        if let Some(path) = worktree.which(candidate) {
-            return Ok(path);
-        }
-    }
-    Err("Python 3.10+ is required but was not found on PATH. \
-         The extension bundles all Python dependencies, but a Python interpreter \
-         must be installed on your system. Install from https://www.python.org/downloads/ \
-         or via Homebrew (brew install python@3.14), then restart Zed. \
-         See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
-        .into())
-}
-
-/// Find the best Python 3.10+ by probing common names without a worktree.
-fn find_python_global() -> Result<String> {
-    // Without a worktree we cannot call `which`, so try the most common name.
-    Ok("python3".to_string())
-}
-
 /// Convert a relative path in the extension sandbox to an absolute path.
 /// Zed runs language server commands with the project folder as CWD, so
 /// any paths we return from the extension must be absolute.
+#[cfg(any(bundled_lsp, bundled_mcp))]
 fn abs_path(relative: &str) -> String {
     let base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     base.join(relative).to_string_lossy().into_owned()
 }
 
-/// Download a .pyz asset from the latest GitHub release, caching by version.
-fn ensure_asset_downloaded(
-    language_server_id: &LanguageServerId,
-    asset_prefix: &str,
-    cached: &mut Option<String>,
-) -> Result<String> {
-    // Return cached path if still present on disk.
-    if let Some(ref path) = cached {
-        if fs::metadata(path).is_ok() {
-            return Ok(path.clone());
-        }
+/// Materialise a compile-time-embedded native binary to the extension's
+/// writable dir (once per version) with executable permissions, and return
+/// its absolute path.
+#[cfg(any(bundled_lsp, bundled_mcp))]
+fn ensure_bundled_binary(name: &str, bytes: &[u8]) -> Result<String> {
+    let file_name = format!("{name}{EXE_SUFFIX}");
+    let dir = format!("tcl-lsp-bundled-{BUNDLED_VERSION}");
+    let path = format!("{dir}/{file_name}");
+
+    if fs::metadata(&path).is_err() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("failed to create bundled dir {dir}: {e}"))?;
+        fs::write(&path, bytes).map_err(|e| format!("failed to write bundled {name}: {e}"))?;
     }
 
-    zed::set_language_server_installation_status(
-        language_server_id,
-        &zed::LanguageServerInstallationStatus::CheckingForUpdate,
-    );
-
-    let release = zed::latest_github_release(
-        GITHUB_REPO,
-        zed::GithubReleaseOptions {
-            require_assets: true,
-            pre_release: false,
-        },
-    )?;
-
-    let asset = release
-        .assets
-        .iter()
-        .find(|a| a.name.starts_with(asset_prefix) && a.name.ends_with(".pyz"))
-        .ok_or_else(|| {
-            format!(
-                "No {asset_prefix}*.pyz asset found in release {}",
-                release.version
-            )
-        })?;
-
-    let version_dir = format!("tcl-lsp-{}", release.version);
-    let download_path = format!("{version_dir}/{}", asset.name);
-
-    // Already have this version?
-    if fs::metadata(&download_path).is_ok() {
-        let absolute = abs_path(&download_path);
-        *cached = Some(absolute.clone());
-        zed::set_language_server_installation_status(
-            language_server_id,
-            &zed::LanguageServerInstallationStatus::None,
-        );
-        return Ok(absolute);
-    }
-
-    zed::set_language_server_installation_status(
-        language_server_id,
-        &zed::LanguageServerInstallationStatus::Downloading,
-    );
-
-    let _ = fs::create_dir_all(&version_dir);
-
-    zed::download_file(
-        &asset.download_url,
-        &download_path,
-        zed::DownloadedFileType::Uncompressed,
-    )?;
-
-    let absolute = abs_path(&download_path);
-    *cached = Some(absolute.clone());
-
-    zed::set_language_server_installation_status(
-        language_server_id,
-        &zed::LanguageServerInstallationStatus::None,
-    );
-
+    let absolute = abs_path(&path);
+    zed::make_file_executable(&absolute)
+        .map_err(|e| format!("failed to make bundled {name} executable: {e}"))?;
     Ok(absolute)
 }
 
-/// Write a compile-time-embedded .pyz to the working directory (once per version).
-#[allow(dead_code)]
-fn ensure_bundled_asset(name: &str, bytes: &[u8]) -> Option<String> {
-    let dir = format!("tcl-lsp-bundled-{BUNDLED_VERSION}");
-    let path = format!("{dir}/{name}");
-    if fs::metadata(&path).is_ok() {
-        return Some(abs_path(&path));
-    }
-    let _ = fs::create_dir_all(&dir);
-    match fs::write(&path, bytes) {
-        Ok(()) => Some(abs_path(&path)),
-        Err(_) => None,
-    }
+/// Resolve a dev native binary from the worktree PATH (non-bundled builds).
+#[cfg(not(bundled_lsp))]
+fn find_dev_binary(worktree: &zed::Worktree, name: &str) -> Result<String> {
+    let file_name = format!("{name}{EXE_SUFFIX}");
+    worktree.which(&file_name).ok_or_else(|| {
+        format!(
+            "`{file_name}` was not found on PATH. This is a dev build of the Tcl \
+             extension without a bundled native server. Build the native server \
+             (`make build` in the tcl-lsp repo) and install it on your PATH, or \
+             install a released build of the extension. \
+             See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md"
+        )
+    })
+}
+
+/// Resolve the language server binary path: bundled native binary if present,
+/// otherwise a dev binary on PATH.
+#[cfg(bundled_lsp)]
+fn resolve_lsp_path(_worktree: &zed::Worktree) -> Result<String> {
+    ensure_bundled_binary("tcl-lsp-server", BUNDLED_LSP_BYTES)
+}
+
+/// Resolve the language server binary path: bundled native binary if present,
+/// otherwise a dev binary on PATH.
+#[cfg(not(bundled_lsp))]
+fn resolve_lsp_path(worktree: &zed::Worktree) -> Result<String> {
+    find_dev_binary(worktree, "tcl-lsp-server")
 }
 
 // Tcl/iRules reference data for slash-command argument completions.
@@ -192,8 +123,6 @@ static IRULE_EVENTS: LazyLock<Vec<String>> = LazyLock::new(|| {
 impl zed::Extension for TclExtension {
     fn new() -> Self {
         TclExtension {
-            cached_server_path: None,
-            cached_mcp_path: None,
             cached_server_id: None,
         }
     }
@@ -204,31 +133,13 @@ impl zed::Extension for TclExtension {
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
         self.cached_server_id = Some(language_server_id.clone());
-        let python = find_python(worktree)?;
 
-        // Prefer workspace-local, then bundled, then auto-download.
-        let server_path = match worktree.which("tcl-lsp-server.pyz") {
-            Some(local) => local,
-            None => {
-                #[cfg(bundled_lsp)]
-                let bundled = ensure_bundled_asset("tcl-lsp-server.pyz", BUNDLED_LSP_BYTES);
-                #[cfg(not(bundled_lsp))]
-                let bundled: Option<String> = None;
-
-                match bundled {
-                    Some(path) => path,
-                    None => ensure_asset_downloaded(
-                        language_server_id,
-                        LSP_ASSET_PREFIX,
-                        &mut self.cached_server_path,
-                    )?,
-                }
-            }
-        };
+        // The native server speaks LSP over stdio with no args.
+        let server_path = resolve_lsp_path(worktree)?;
 
         Ok(zed::Command {
-            command: python,
-            args: vec![server_path],
+            command: server_path,
+            args: vec![],
             env: Default::default(),
         })
     }
@@ -531,28 +442,18 @@ impl zed::Extension for TclExtension {
         _context_server_id: &zed::ContextServerId,
         _project: &zed::Project,
     ) -> Result<zed::Command> {
-        let python = find_python_global()?;
-
-        // Prefer bundled MCP server, then fall back to auto-download.
+        // Prefer the bundled native MCP binary; in dev builds fall back to a
+        // `tcl-mcp` binary on PATH (resolved by the OS, since no worktree is
+        // available here to call `which`). The MCP server speaks over stdio
+        // with no args.
         #[cfg(bundled_mcp)]
-        let bundled = ensure_bundled_asset("tcl-lsp-mcp-server.pyz", BUNDLED_MCP_BYTES);
+        let mcp_path = ensure_bundled_binary("tcl-mcp", BUNDLED_MCP_BYTES)?;
         #[cfg(not(bundled_mcp))]
-        let bundled: Option<String> = None;
-
-        let mcp_path = match bundled {
-            Some(path) => path,
-            None => {
-                let server_id = self
-                    .cached_server_id
-                    .as_ref()
-                    .ok_or("language server not yet initialised")?;
-                ensure_asset_downloaded(server_id, MCP_ASSET_PREFIX, &mut self.cached_mcp_path)?
-            }
-        };
+        let mcp_path = format!("tcl-mcp{EXE_SUFFIX}");
 
         Ok(zed::Command {
-            command: python,
-            args: vec![mcp_path],
+            command: mcp_path,
+            args: vec![],
             env: Default::default(),
         })
     }

@@ -2,7 +2,7 @@
     // LSP client configuration for tcl-lsp.
     // See https://github.com/bitwisecook/tcl-lsp for documentation.
 
-    "command": ["${python}", "${server_path}"],
+    "command": ["${server_path}"],
     "selector": "source.tcl | source.irule | source.apl",
     "schemes": ["file", "buffer"],
 
@@ -88,10 +88,9 @@
         "hint": "stippled"
     },
 
-    // User-configurable overrides — leave empty to use auto-detection.
+    // User-configurable overrides — leave empty to use the bundled binary.
     //
-    // "server_path": "/path/to/tcl-lsp-server.pyz",
-    // "python_path": "/usr/bin/python3",
+    // "server_path": "/path/to/tcl-lsp-server",
 
     "initializationOptions": {}
 }

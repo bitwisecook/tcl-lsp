@@ -5,8 +5,8 @@ fn main() {
     let out = Path::new(&out_dir);
 
     for (name, cfg) in [
-        ("tcl-lsp-server.pyz", "bundled_lsp"),
-        ("tcl-lsp-mcp-server.pyz", "bundled_mcp"),
+        ("tcl-lsp-server", "bundled_lsp"),
+        ("tcl-mcp", "bundled_mcp"),
     ] {
         println!("cargo:rustc-check-cfg=cfg({cfg})");
         let src = Path::new("bundled").join(name);
