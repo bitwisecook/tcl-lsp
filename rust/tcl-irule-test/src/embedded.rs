@@ -16,7 +16,7 @@ macro_rules! bundled {
     ($name:literal) => {
         (
             $name,
-            include_str!(concat!("../../../tooling/irule_test/tcl/", $name)),
+            include_str!(concat!("../tcl/", $name)),
         )
     };
 }
