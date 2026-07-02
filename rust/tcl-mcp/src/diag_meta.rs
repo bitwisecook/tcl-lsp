@@ -1,17 +1,17 @@
 //! Diagnostic categorisation metadata.
 //!
-//! Mirrors `ai/shared/diagnostics.json` — the single canonical source of the
-//! code→category mapping, category ordering, convertible-code set, and
-//! conversion map shared with the Python AI layer. The JSON is compiled in via
-//! `include_str!` so the native MCP server and the Python one can never drift:
-//! if the file moves or changes shape, this crate stops compiling.
+//! The canonical source of the diagnostic code→category mapping, category
+//! ordering, convertible-code set, and conversion map, owned by this crate
+//! (`rust/tcl-mcp/diagnostics.json`) and compiled in via `include_str!`. It was
+//! previously shared with the Python AI layer; the native MCP server now owns
+//! its own copy so the Python tree can be retired.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use serde_json::Value;
 
-const DIAG_JSON: &str = include_str!("../../../ai/shared/diagnostics.json");
+const DIAG_JSON: &str = include_str!("../diagnostics.json");
 
 /// Parsed diagnostic categorisation tables.
 pub struct DiagMeta {
