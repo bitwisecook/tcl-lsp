@@ -1256,29 +1256,32 @@ claude /irule-diagram complex_rule.tcl
 A Model Context Protocol server that exposes tcl-lsp analysis to any
 MCP-compatible client (Claude Code, Claude Desktop, Codex, custom agents).
 
-Two implementations ship the same wire protocol and server identity
-(`tcl-lsp`):
+The server is the **native Rust `tcl-mcp`** binary — a single self-contained
+executable that calls the Rust analysis crates directly (no Python, no PyO3).
+It hosts the full tool surface (46 tools: analysis, LSP features, refactors,
+diagnostics, docstrings, iRule/BIG-IP tools, XC translation, Tk layout, test
+generation, …). The legacy Python zipapp (`tcl-lsp-mcp-server.pyz`) is a
+fallback for platforms without a published native binary.
 
-- **Native Rust — `tcl-mcp`** (default, recommended): a single self-contained
-  binary that calls the Rust analysis crates directly — no Python, no PyO3.
-  Build it with `make rust-mcp` (→ `target/release/tcl-mcp`). Working inside
-  this repo, Claude Code / Codex auto-discover it via the committed
-  [`.mcp.json`](.mcp.json), which launches [`scripts/tcl-mcp`](scripts/tcl-mcp)
-  (it builds the binary on first use if needed). It covers the full
-  compiler / analyser / LSP / refactor / diagnostics / docstring surface plus
-  the BIG-IP `irule_with_context` and `fakecmp_*` tools.
-- **Python zipapp — `tcl-lsp-mcp-server.pyz`** (legacy / fallback): still hosts
-  the handful of tools whose engines are Python-only (`xc_translate`,
-  `tk_layout`, `explain_flow`, `generate_irule_test`, `irule_cfg_paths`,
-  `suggest_datagroup_extractions`, `help`).
-
-Register the native server globally (outside this repo) with:
+**Install / register.** The installer fetches the prebuilt native binary for
+your platform from the GitHub release (`tcl-mcp-<triple>`), verifies its
+checksum, and registers it with Claude Code (`claude mcp add`) and Codex:
 
 ```bash
-make rust-mcp
-claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
-# or, via the installer:  TCL_LSP_MCP_BIN="$(pwd)/target/release/tcl-mcp" ./scripts/install/install.sh
+./scripts/install/install.sh            # fetches + registers the native binary
 ```
+
+- `TCL_LSP_MCP_PYZ=1 ./scripts/install/install.sh` — force the Python zipapp
+  (e.g. an architecture without a native build).
+- `TCL_LSP_MCP_BIN=/path/to/tcl-mcp ./scripts/install/install.sh` — register a
+  local build instead of downloading.
+
+Working **inside this repo**, Claude Code / Codex auto-discover the server via
+the committed [`.mcp.json`](.mcp.json), which launches
+[`scripts/tcl-mcp`](scripts/tcl-mcp): it prefers a local build
+(`make rust-mcp`), else a cached binary, else fetches the release asset for the
+host platform, else builds from source. Register globally without the installer
+with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"`.
 
 | Tool | Description |
 |------|-------------|

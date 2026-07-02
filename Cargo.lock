@@ -3226,6 +3226,7 @@ version = "0.1.0"
 dependencies = [
  "f5-cli",
  "f5-xc",
+ "regex",
  "rmcp",
  "serde_json",
  "tcl-bigip",
