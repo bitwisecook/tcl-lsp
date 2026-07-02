@@ -3,16 +3,14 @@
 # Quick reference (see `make help` for the full list, all docstrings are
 # the source of truth):
 #
-#   make ci-fast       Fast CI gate — mirrors GitHub PR job.
 #   make check-all     Pre-push gate — full lint+typecheck across all languages.
 #   make test-slow     Pre-PR gate — comprehensive (everything).
-#   make prep-pr       Fast pre-PR gate — format + codegen + lint + test-py.
+#   make prep-pr       Fast pre-PR gate — format + codegen + lint + tests.
 #   make build-editor-vsix          Build the VS Code .vsix (runs tests first).
-#   make zipapps       Build every zipapp.
 #   make release       Build every release artefact.
 #
 # Prerequisites:
-#   - Python 3.10+ with uv (https://docs.astral.sh/uv/)
+#   - Rust 1.95+ with cargo (via rustup)
 #   - Node.js 24+ with npm
 #
 
@@ -25,12 +23,7 @@ SHELL := /bin/bash
 
 ROOT     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-# Seven Python concern packages — see AGENTS.md "Repository layout" and
-# `.importlinter`.  Used to drive PY_SRCS for dependency tracking.
-PY_PKGS  := shared compiler dialects analyser server tooling ai
-
 EXT_DIR         := $(ROOT)editors/vscode
-TEST_DIR        := $(ROOT)tests
 OUT_DIR         := $(EXT_DIR)/out
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
@@ -62,12 +55,12 @@ RUNTIME_ZIG_SRCS := $(shell find $(RUNTIME_ZIG_DIR) -name '*.zig' -not -path '*/
 # which `scripts/release.sh` rejects — so the release flow stays robust.
 # Those ship targets instead *depend on* verify-test-slow-stamp below, so
 # they rely on the proof rather than destroying it.  `%` are filter
-# wildcards (release%, zipapp%, publish%, …).  Skipped under `make -n`.
+# wildcards (release%, publish%, …).  Skipped under `make -n`.
 STAMP_FILE       := $(ROOT).test-slow.stamp
 STAMP_KEEP_GOALS := test-slow verify-test-slow-stamp help \
-    release% publish% zipapp% smoke-% screenshot% explorer-build% \
+    release% publish% smoke-% screenshot% explorer-build% \
     package-vsix vsix verify-vsix jetbrains sublime zed claude-skills \
-    compiler-explorer-gui build-info
+    compiler-explorer-gui
 ifeq ($(findstring n,$(firstword $(MAKEFLAGS))),)
 ifneq ($(strip $(filter-out $(STAMP_KEEP_GOALS),$(MAKECMDGOALS))),)
 # drop-if-stale, NOT unconditional delete: a still-valid stamp survives
@@ -79,11 +72,8 @@ endif
 
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
-KCS_DB     := shared/help/kcs_help.db
 
 # Tools
-UV       := uv
-PYTHON   := $(UV) run python3
 NPM      := npm
 NODE_BIN := $(EXT_DIR)/node_modules/.bin
 TSC      := $(NODE_BIN)/tsc
@@ -93,7 +83,6 @@ VSCODE   ?= code
 # Stamps (used to avoid re-running expensive steps when deps haven't changed)
 STAMP_DIR  := $(BUILD_DIR)/stamps
 NPM_STAMP  := $(STAMP_DIR)/npm-install
-UV_STAMP   := $(STAMP_DIR)/uv-sync
 STAGE_DIR  := $(BUILD_DIR)/vsix-stage
 
 # Version — derived from git describe (fallback: dev when unavailable)
@@ -111,15 +100,6 @@ FULL_VERSION     := $(VERSION)
 # the same `vsce package` / `vsce publish` recipes serve both channels.
 IS_PRERELEASE       := $(shell bash $(ROOT)scripts/release/prerelease.sh "$(VERSION)" 2>/dev/null || echo false)
 VSCE_PRERELEASE_FLAG := $(if $(filter true,$(IS_PRERELEASE)),--pre-release,)
-# Hatch-vcs version — what ``uv build --wheel`` will embed in the wheel
-# filename and metadata. Identical to SEMVER_VERSION on a tagged commit
-# (e.g. ``1.10.5``) but PEP 440-formatted on dev commits (e.g.
-# ``1.10.5.dev9``), unlike SEMVER_VERSION which falls back to
-# ``0.0.0-dev`` on anything it can't parse. ``scripts/print_version.py``
-# loads hatch-vcs directly so the answer matches the build backend.
-HATCH_VCS_VERSION := $(shell $(UV) run --extra dev python $(ROOT)scripts/print_version.py 2>/dev/null || echo 0.0.0+unknown)
-WHEEL_FILENAME   := tcl_lsp-$(HATCH_VCS_VERSION)-py3-none-any.whl
-BUILD_TIMESTAMP := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Derived paths
 VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
@@ -128,17 +108,6 @@ README_SRC     := $(ROOT)README.md
 SCREENSHOT_DIR := $(ROOT)docs/screenshots
 SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
 VSCE_PUBLISHER := bitwisecook
-
-# Build-info files (generated, gitignored)
-BUILD_INFO      := $(ROOT)shared/_build_info.py
-BUILD_INFO_JSON := $(BUILD_DIR)/build_info.json
-
-# Zipapps — name → output filename mapping.  The pattern rule below
-# drives every zipapp from this list.
-ZIPAPP_TCL              := $(BUILD_DIR)/tcl-$(VERSION).pyz
-ZIPAPP_F5               := $(BUILD_DIR)/f5-$(VERSION).pyz
-ZIPAPP_LSP     := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
-ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
 
 # Cargo build profile for the native Rust LSP server (rust-server target).
 PROFILE ?= release
@@ -179,20 +148,12 @@ BUNDLED_TARGETS ?= $(SERVER_TARGETS_HOST)
 # native-only VSIX (the full multi-platform build is CI's job).
 SERVER_TARGET_NATIVE := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
 
-ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
 CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
 
 # Parallelism
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
-# Tcl script library discovery for VM gates.  The interpreter consumes
-# TCL_LIBRARY; this resolver owns platform/check-out detection.
-TCL_LIBRARY_RESOLVER := $(ROOT)scripts/dev/resolve-tcl-library.sh
-
-# Source-file lists for dependency tracking.  PY_SRCS walks every concern
-# package; build_zipapp.py picks the right subset per zipapp profile.
-PY_SRCS  := $(shell find $(addprefix $(ROOT),$(PY_PKGS)) -name '*.py' -not -path '*__pycache__*' -not -name '_build_info.py')
-PY_TESTS := $(shell find $(TEST_DIR) -name '*.py' -not -path '*__pycache__*')
+# Source-file lists for dependency tracking.
 TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # ---------------------------------------------------------------------------
@@ -203,43 +164,37 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 .PHONY: help
 # Top-level gates
-.PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
+.PHONY: rust-check check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
-.PHONY: test-tclpkg test-tclpkg-tcl
-.PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
-.PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
-.PHONY: check-wasm-parity snapshot-wasm-parity capture-bytecode-refs
+.PHONY: test test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
+.PHONY: test-tclpkg-tcl
+.PHONY: capture-bytecode-refs
 .PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
-.PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust rust-deny
+.PHONY: lint format lint-ts format-ts typecheck-ts check-zig check-rust rust-deny
 # Coverage
-.PHONY: coverage coverage-py coverage-ext
+.PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
-.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings gen-registry-baselines check-registry-baselines copy-canonical npm-env logo
+.PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-wasm explorer-build compiler-explorer-gui
-# Zipapps + smoke tests
-.PHONY: zipapps zipapp-tcl zipapp-f5 zipapp-lsp zipapp-ai zipapp-mcp claude-skills
-.PHONY: smoke-zipapps smoke-vsix
+# Skills bundle + smoke tests
+.PHONY: claude-skills
+.PHONY: smoke-vsix
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow check-publish-env
+.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Zig runtime + leak check
-.PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
+.PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-lint runtime-rust-sweep vm-test vm-lint
-# Sphinx docs
-.PHONY: docs docs-html docs-clean docs-linkcheck
+.PHONY: runtime-rust-test runtime-rust-lint vm-test vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
 .PHONY: clean distclean
 # Dep-installer helpers
-.PHONY: ensure-test-deps install-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
-# Always-run sentinel for rules that need to re-evaluate every invocation.
-.PHONY: .FORCE
+.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
@@ -370,123 +325,22 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-py test-ext test-zig ## Run all tests (Python + VS Code extension + Zig WASM runtime)
+test: test-rust test-ext test-zig ## Run all tests (Rust workspace + VS Code extension + Zig WASM runtime)
 
-lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
+lint: lint-ts ## Run all lint and style checks
 
-format: format-py format-ts ## Format Python and TypeScript code
-
-test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (PyO3 surfaces + tooling; excludes lsp_e2e, VM tcltest, fuzz campaigns)
-	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/lsp_e2e
+format: format-ts ## Format TypeScript code
 
 # The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
 # `cargo test` (see test-rust). The old Python pytest drivers were retired.
-
-test-wasm: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the WASM codegen/runtime test suite (rebuilds the Zig runtime if its sources changed)
-	@echo "==> Running WASM tests against the Zig runtime"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_wasm_*.py -q -n 4
-
-test-tclpkg: $(UV_STAMP) ensure-tcl-deps ## Run tclpkg package manager tests only
-	@echo "==> Running tclpkg tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/tclpkg/ tests/test_vm_safe_mode.py -v
 
 test-tclpkg-tcl: ensure-tcl-deps ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
 	@echo "==> Running pure-Tcl tclpkg tests"
 	cd $(TCLPKG_TCL_DIR) && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
 
-test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM); skip with SKIP_TEST_VM=1
-	@set -eu; \
-	if [ -n "$${SKIP_TEST_VM:-}" ]; then \
-		echo "==> SKIP_TEST_VM set — skipping VM tcltest suite"; \
-		exit 0; \
-	fi; \
-	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
-	echo "==> Running VM tcltest tests"; \
-	echo "==> TCL_LIBRARY=$$tcl_library"; \
-	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
-
-test-tcl9: $(UV_STAMP) test-tcl9-samples ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
-	@echo "==> Running Tcl 9 correctness harness"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
-		--tcl9-report=tmp/tcl9-report.json
-
-test-tcl9-samples: $(UV_STAMP) ## Run tcltest-free primitive smoke samples
-	@echo "==> Running Tcl 9 smoke samples"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_samples.py -q
-
-test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (nightly)
-	@echo "==> Running full Tcl 9 correctness harness"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
-		--tcl9-required --tcl9-report=tmp/tcl9-report-full.json
-
-test-tcl9-vm-core: $(UV_STAMP) ## Run the Tcl 9 core slice regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-vm/summary.json)
-	@set -eu; \
-	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
-	echo "==> Running Tcl 9 core slice regression gate (real init.tcl + tcltest.tcl)"; \
-	echo "==> TCL_LIBRARY=$$tcl_library"; \
-	mkdir -p $(ROOT)tmp; \
-	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" RUN_VM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_vm_tcl9_core_baseline.py -q
-
-refresh-tcl9-vm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-vm/ from the current VM (use after a confirmed fix)
-	@set -eu; \
-	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
-	echo "==> Refreshing Tcl 9 core slice baseline"; \
-	echo "==> TCL_LIBRARY=$$tcl_library"; \
-	mkdir -p $(ROOT)tmp; \
-	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" $(UV) run --extra dev python scripts/dev/run_tcl9_vm_core.py --refresh-baseline
-
-test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-wasm/summary.json — production ship gate)
-	@echo "==> Running Tcl 9 core slice WASM regression gate (Zig runtime + WASM codegen, real init.tcl + tcltest.tcl)"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && RUN_WASM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_wasm_tcl9_core_baseline.py -q
-
-refresh-tcl9-wasm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-wasm/ from the current WASM runtime (use after a confirmed runtime/codegen fix)
-	@echo "==> Refreshing Tcl 9 core slice WASM baseline"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/dev/run_tcl9_wasm_core.py \
-		--refresh-baseline --workers 4 --timeout 240 --run-timeout 180
-
-check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
-	@echo "==> Running Tcl 9 I/O tcltest suites (chan / chanio / io / ioCmd) against baseline"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
-		--tcl9-required --tcl9-report=tmp/tcl9-report-io.json \
-		-k "TestTcl9_chan or TestTcl9_chanio or TestTcl9_io or TestTcl9_ioCmd"
-
-tcl9-triage: $(UV_STAMP) ## Refresh docs/kcs/kcs-tcl9-triage.md from tmp/tcl9-report.json
-	@echo "==> Refreshing Tcl 9 triage table"
-	cd $(ROOT) && $(UV) run python scripts/dev/tcl9_triage_report.py tmp/tcl9-report.json
-
-lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
-	@echo "==> Checking KCS docs index links"
-	cd $(ROOT) && $(UV) run python scripts/check/kcs_index_links.py
-	@echo "==> Linting Python code with Ruff"
-	cd $(ROOT) && $(UV) run --extra dev ruff check .
-	@echo "==> Checking Python formatting with Ruff"
-	cd $(ROOT) && $(UV) run --extra dev ruff format --check .
-	@echo "==> Checking architectural dependency contracts with import-linter"
-	cd $(ROOT) && $(UV) run --extra dev lint-imports
-
-typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
-	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' --exclude 'server/commands.py' --exclude 'tooling/vm' --exclude 'tooling/debugger' --exclude 'tooling/fuzzing' server compiler analyser dialects shared tooling tests scripts/dev/tcl_test_client.py
-
-typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
-	@echo "==> Type-checking all Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' ai server compiler analyser dialects shared tooling tests scripts
-
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
 	cd $(EXT_DIR) && $(NPM) run lint
-
-format-py: $(UV_STAMP) ## Format and auto-fix Python code with Ruff
-	@echo "==> Auto-fixing Python lint issues with Ruff"
-	cd $(ROOT) && $(UV) run --extra dev ruff check --fix .
-	@echo "==> Formatting Python code with Ruff"
-	cd $(ROOT) && $(UV) run --extra dev ruff format .
 
 format-ts: $(NPM_STAMP) ## Format TypeScript extension code with Prettier
 	@echo "==> Formatting TypeScript code with Prettier"
@@ -536,16 +390,7 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 
 COV_DIR := $(ROOT)tmp/coverage
 
-coverage: coverage-py coverage-ext ## Generate coverage reports for Python and VS Code extension
-
-coverage-py: $(UV_STAMP) ## Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
-	@echo "==> Running Python tests with coverage"
-	@mkdir -p $(COV_DIR)/python
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q \
-		--ignore-glob='*/test_vm_*_test.py' \
-		--cov --cov-report=html --cov-report=xml --cov-report=term-missing
-	@echo ""
-	@echo "Python coverage report: $(COV_DIR)/python/index.html"
+coverage: coverage-ext ## Generate coverage reports for the VS Code extension
 
 coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
 	@echo "==> Bundling extension with esbuild"
@@ -568,19 +413,6 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 	cd $(EXT_DIR) && node scripts/coverage-report.cjs
 	@echo ""
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
-
-check-wasm-parity: $(UV_STAMP) ## Check WASM command parity (registry vs Zig runtime) against tests/baselines/wasm_command_parity.json; skip with SKIP_CHECK_WASM_PARITY=1
-	@set -eu; \
-	if [ -n "$${SKIP_CHECK_WASM_PARITY:-}" ]; then \
-		echo "==> SKIP_CHECK_WASM_PARITY set — skipping WASM command parity check"; \
-		exit 0; \
-	fi; \
-	echo "==> Checking WASM command parity"; \
-	cd $(ROOT) && $(UV) run python scripts/check/wasm_command_parity.py --check
-
-snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity.json from current sources
-	@echo "==> Snapshotting WASM command parity baseline"
-	cd $(ROOT) && $(UV) run python scripts/check/wasm_command_parity.py --snapshot
 
 # --- Native (cargo xtask) check gates — the Rust replacement for the retired
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
@@ -625,49 +457,14 @@ xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from bu
 	cd $(ROOT) && cargo xtask audit-option-dialects
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
-_prep-pr-tests: test-py test-opt
-_prep-pr-smoke: smoke-zipapps smoke-vsix
+_prep-pr-checks: lint-ts typecheck-ts check-editor-settings
+_prep-pr-tests: test-rust
+_prep-pr-smoke: smoke-vsix
 
-# Fast CI gate (target wall-clock < 20s) — what GitHub Actions runs on PRs.
-# Covers: lint + typecheck + structural invariants + a tightly scoped pytest
-# subset that exercises the LSP server end-to-end.  Everything else is the
-# responsibility of `make test-slow` (run locally, gated by the pre-push hook).
-# Use a fixed worker count (not NPROC) so we don't over-subscribe when this
-# runs in parallel with ty in _ci-fast-checks.  2 workers keeps the LSP
-# subset under 8s on its own while leaving CPU headroom for the typecheck.
-# Build the packaged LSP server once up front and point the e2e conftest at it
-# (TCL_LSP_SERVER_PYZ) so the parallel xdist workers reuse a single artifact
-# instead of each re-running `make zipapp-lsp` against the same output path.
-# The lsp_e2e suite drives that shipped pyz over JSON-RPC; the remaining
-# in-process files cover server-layer / per-folder config paths that have no
-# wire surface.
-_ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
-	@echo "==> Running LSP end-to-end pytest subset"
-	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
-		tests/lsp_e2e/ \
-		tests/test_server_commands.py \
-		tests/test_server_config.py \
-		tests/test_per_folder_config_e2e.py \
-		tests/test_proc_lookup_lsp_features.py \
-		tests/test_completion.py \
-		tests/test_hover.py \
-		tests/test_definition.py \
-		tests/test_diagnostics.py \
-		tests/test_semantic_tokens.py \
-		tests/test_document_symbols.py \
-		-m "not slow"
-
-# Python-only check phase for ci-fast (no TS lint/typecheck — those run in
-# test-slow locally and on push:main in GitHub Actions).  Uses the full
-# ruff/ty scope (lsp + core + explorer + tests + scripts) to match prep-pr.
-_ci-fast-checks: lint-py typecheck-py check-editor-settings check-wasm-parity check-publish-env
-
-ci-fast: $(UV_STAMP) $(BUILD_INFO) ## Fast CI gate — lint + typecheck + LSP e2e (mirrors GitHub Actions PR job)
-	@$(MAKE) -j $(NPROC) _ci-fast-checks _ci-fast-pytest
-	@mkdir -p $(ROOT)tmp
-	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/ci-fast.stamp
-	@echo "==> ci-fast: PASSED — stamped $(ROOT)tmp/ci-fast.stamp"
+# Rust-side check gate (fmt + clippy + generated-file drift) — the native
+# replacement for the retired Python `ci-fast`.  Mirrors the pr-gate job in
+# GitHub Actions (ci.yml).
+rust-check: check-rust xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
@@ -945,7 +742,7 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 # extra languages CI doesn't cover (Zig, Rust, full TS).  On success writes
 # tmp/check-all.stamp — the pre-push hook requires this stamp to match the
 # current worktree before allowing a push.
-check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, Rust); writes tmp/check-all.stamp on success
+check-all: ## Full lint + typecheck (TS, Zig, Rust); writes tmp/check-all.stamp on success
 	@$(MAKE) -j $(NPROC) _prep-pr-checks check-zig check-rust
 	@mkdir -p $(ROOT)tmp
 	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/check-all.stamp
@@ -955,13 +752,9 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # writes BOTH tmp/check-all.stamp and tmp/test-slow.stamp (since test-slow
 # subsumes check-all by running prep-pr).
 #
-# Covers: prep-pr (format/codegen/lint/typecheck/test-py/test-opt/parity) +
+# Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
 # Zig & Rust lint/typecheck + tclpkg + VS Code extension + Zig WASM
-# runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace
-# tests (when present).  The Python-VM tcltest sweep (``test-vm`` /
-# pyvm) is *not* included by default — it adds multi-minute CPU
-# pressure that makes the surrounding timing-sensitive suites flake;
-# set ``RUN_TEST_VM=1`` to include it.
+# runtime tests + Emacs eglot + VSIX smoke + Rust workspace tests.
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
@@ -969,7 +762,7 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	else \
 		echo "==> test-slow: dependency check (set AUTO_INSTALL_DEPS=1 to install missing tools)"; \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh --check || \
-			echo "    -> proceeding; the missing tools above will turn into pytest skips"; \
+			echo "    -> proceeding; the missing tools above will turn into test skips"; \
 	fi
 	@# Drive every phase through the runner, which keeps going past
 	@# failures, preserves full per-phase output, and prints a single
@@ -978,25 +771,10 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@# non-zero.  capture-bytecode-refs + prep-pr run serially first;
 	@# the cross-language lint/typecheck + heavy suites then run in
 	@# parallel.
-	@# pyvm (test-vm) is a multi-minute Python-VM tcltest sweep that's
-	@# slow enough to dominate the parallel batch's wall time.  Skip it by
-	@# default; opt in with RUN_TEST_VM=1.  When opting in, explicitly
-	@# unset SKIP_TEST_VM in the sub-make environment so a developer with
-	@# SKIP_TEST_VM=1 exported globally doesn't silently get a no-op
-	@# test-vm under what looks like an explicit opt-in run.
-	@if [ -n "$${RUN_TEST_VM:-}" ]; then \
-		echo "==> test-slow: RUN_TEST_VM set — including pyvm (test-vm) in the batch"; \
-		env -u SKIP_TEST_VM NPROC="$(NPROC)" MAKE="$(MAKE)" \
-			bash $(ROOT)scripts/dev/test-slow-runner.sh \
-				--serial "capture-bytecode-refs prep-pr" \
-				--parallel "check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust"; \
-	else \
-		echo "==> test-slow: skipping pyvm (test-vm) — set RUN_TEST_VM=1 to include it"; \
-		SKIP_TEST_VM=1 NPROC="$(NPROC)" MAKE="$(MAKE)" \
-			bash $(ROOT)scripts/dev/test-slow-runner.sh \
-				--serial "capture-bytecode-refs prep-pr" \
-				--parallel "check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust"; \
-	fi
+	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
+		bash $(ROOT)scripts/dev/test-slow-runner.sh \
+			--serial "capture-bytecode-refs prep-pr" \
+			--parallel "check-zig check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-zig test-emacs test-rust"
 	@mkdir -p $(ROOT)tmp
 	@# Committed proof for the CI PR gate (content fingerprint of the
 	@# tree, excluding the stamp itself).  Written before the local tmp
@@ -1015,22 +793,10 @@ install-hooks: ## Install project git hooks (pre-push gate enforcing check-all s
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-install-test-deps: ## Install EVERYTHING test-slow needs (system tools + uv + Python venv) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
-	@echo "==> install-test-deps: installing system toolchain + uv"
+install-test-deps: ## Install EVERYTHING test-slow needs (system toolchain) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
+	@echo "==> install-test-deps: installing system toolchain"
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
-	@echo "==> install-test-deps: creating the Python venv (.venv via uv sync)"
-	@# uv may have just landed in ~/.local/bin (Astral installer) — make
-	@# sure the sync step can find it regardless of the parent PATH.
-	@PATH="$$HOME/.local/bin:$$PATH" $(MAKE) $(UV_STAMP)
 	@echo "==> install-test-deps: done — run 'make test-slow' next"
-
-ensure-python-test-deps: ## Install host deps exercised by the full Python pytest suite
-	@env \
-		SKIP_RUST=1 \
-		SKIP_WASMTIME=1 \
-		SKIP_EMACS=1 \
-		SKIP_XVFB=1 \
-		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
 ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode capture
 	@env \
@@ -1215,108 +981,11 @@ test-zig: ensure-test-zig-deps ## Run Zig WASM runtime unit tests (test_*.zig un
 	fi; \
 	cd $(ROOT)runtime/zig && zig build test
 
-test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
-	@echo "==> Running optimiser coverage tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_optimiser_coverage.py tests/test_optimiser_vm_equivalence.py -v
-
-test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (generator + campaign + corpus; FUZZ_ITERATIONS=N for campaign size). Skips the saved-findings sweep — use test-fuzz-full.
-	@echo "==> Running differential fuzz tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
-
-test-fuzz-full: $(UV_STAMP) ## test-fuzz PLUS the full saved-findings regression sweep (hundreds of differential runs vs tclsh)
-	@echo "==> Running differential fuzz tests + full saved-findings sweep"
-	cd $(ROOT) && FUZZ_FULL=1 $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
-
-test-fuzz-recovery: $(UV_STAMP) ## Error-recovery fuzz campaign: single-pass == two-pass + no-dup diagnostics (N=cases, SEED=base_seed)
-	@echo "==> Running error-recovery fuzz campaign ($(or $(N),200000) cases)"
-	cd $(ROOT) && $(UV) run python tests/fuzz_recovery_campaign.py --cases $(or $(N),200000) $(if $(SEED),--seed $(SEED))
-
-fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
-	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m tooling.fuzzing -n $(or $(N),1000) $(if $(SEED),--seed $(SEED)) -v
-
-fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_seed)
-	@echo "==> Running coverage-guided fuzz campaign ($(or $(N),500) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m tooling.fuzzing -n $(or $(N),500) $(if $(SEED),--seed $(SEED)) --coverage-guided -v
-
 # ---------------------------------------------------------------------------
-# Zipapp smoke tests
-#
-# Each `_smoke-zipapp-<profile>` builds a fresh zipapp into build/ and
-# runs the bundled CLI against a sanity-check command sequence, then
-# deletes the throwaway artefacts.  Aggregated by `make smoke-zipapps`.
-#
-# Two profiles (mcp, lsp) only need `--help`; the
-# other three (ai, tcl, f5) exercise representative subcommands.
+# VSIX smoke test
 # ---------------------------------------------------------------------------
 
-# define smoke_help — build a zipapp and run `--help` only.
-#   $(1) = profile name (lsp, mcp, …)
-define smoke_help
-_smoke-zipapp-$(1): $$(BUILD_INFO)
-	@echo "==> Smoke-testing $(1) zipapp"
-	$$(PYTHON) $$(ROOT)scripts/build/zipapps.py $(1) --version $$(VERSION) --output $$(BUILD_DIR)/smoke-$(1).pyz
-	$$(PYTHON) $$(BUILD_DIR)/smoke-$(1).pyz --help > /dev/null
-	@rm -f $$(BUILD_DIR)/smoke-$(1).pyz
-.PHONY: _smoke-zipapp-$(1)
-endef
-
-$(eval $(call smoke_help,mcp))
-$(eval $(call smoke_help,lsp))
-
-# AI smoke: build and run the `context` verb against the sample iRule.
-_smoke-zipapp-ai: $(BUILD_INFO)
-	@echo "==> Smoke-testing ai zipapp"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-ai.pyz context samples/for_screenshots/ai-scene.irul > /dev/null
-	@rm -f $(BUILD_DIR)/smoke-ai.pyz
-.PHONY: _smoke-zipapp-ai
-
-# TCL + F5 smokes: build, run representative subcommands + completion
-# generators, then clean up everything.  TCL needs KCS_DB so `tcl help`
-# can resolve.
-_smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
-	@echo "==> Smoke-testing tcl zipapp"
-	@SAMPLE=samples/for_screenshots/ai-scene.irul; \
-	PYZ=$(BUILD_DIR)/smoke-tcl.pyz; \
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py tcl --version $(VERSION) --output $$PYZ; \
-	$(PYTHON) $$PYZ --help > /dev/null; \
-	$(PYTHON) $$PYZ format $$SAMPLE > /dev/null; \
-	$(PYTHON) $$PYZ lint --source "set x 1" > /dev/null; \
-	$(PYTHON) $$PYZ symbols $$SAMPLE --json > /dev/null; \
-	$(PYTHON) $$PYZ callgraph $$SAMPLE --json > /dev/null; \
-	$(PYTHON) $$PYZ command-info HTTP::uri --dialect f5-irules --json > /dev/null; \
-	$(PYTHON) $$PYZ find-legacy $$SAMPLE --json > /dev/null; \
-	$(PYTHON) $$PYZ highlight $$SAMPLE --no-colour > /dev/null; \
-	$(PYTHON) $$PYZ diff $$SAMPLE $$SAMPLE --show ast --json > /dev/null; \
-	$(PYTHON) $$PYZ help taint --dialect f5-irules > /dev/null; \
-	for sh in bash fish zsh; do \
-		$(PYTHON) $$PYZ completion $$sh > $(BUILD_DIR)/smoke-tcl.$$sh; \
-	done; \
-	bash -n $(BUILD_DIR)/smoke-tcl.bash; \
-	rm -f $$PYZ $(BUILD_DIR)/smoke-tcl.bash $(BUILD_DIR)/smoke-tcl.fish $(BUILD_DIR)/smoke-tcl.zsh
-.PHONY: _smoke-zipapp-tcl
-
-_smoke-zipapp-f5: $(BUILD_INFO)
-	@echo "==> Smoke-testing f5 zipapp"
-	@PYZ=$(BUILD_DIR)/smoke-f5.pyz; \
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py f5 --version $(VERSION) --output $$PYZ; \
-	$(PYTHON) $$PYZ --help > /dev/null; \
-	$(PYTHON) $$PYZ cleanup samples/bigip/bigip.conf > /dev/null; \
-	$(PYTHON) $$PYZ cleanup --json samples/bigip/bigip.conf > /dev/null; \
-	$(PYTHON) $$PYZ irule event-info HTTP_REQUEST --json > /dev/null; \
-	$(PYTHON) $$PYZ irule event-order --source 'when HTTP_REQUEST { return }' --json > /dev/null; \
-	for sh in bash fish zsh; do \
-		$(PYTHON) $$PYZ completion $$sh > $(BUILD_DIR)/smoke-f5.$$sh; \
-	done; \
-	bash -n $(BUILD_DIR)/smoke-f5.bash; \
-	rm -f $$PYZ $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
-.PHONY: _smoke-zipapp-f5
-
-smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-f5 ## Build and smoke-test all zipapps
-	@echo "All zipapp smoke tests passed."
-
-smoke-vsix: compile $(BUILD_INFO) ## Build and verify the VSIX packages without error
+smoke-vsix: compile ## Build and verify the VSIX packages without error
 	@echo "==> Smoke-testing VSIX build (native server only: $(SERVER_TARGET_NATIVE))"
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1 || [ -z "$(SERVER_TARGET_NATIVE)" ]; then \
@@ -1358,6 +1027,18 @@ $(CANONICAL_MANIFEST): $(ROOT)ai/prompts/manifest.json
 	@echo "==> Copying canonical manifest.json"
 	cp $< $@
 
+# The ai/prompts/*.md system prompts are GENERATED (not checked in) by
+# `cargo xtask gen-ai-diagnostics` from ai/shared/diagnostics.json +
+# ai/prompts/*.j2 + ai/prompts/manifest.json.  Generate them (grouped
+# target: one xtask run emits all three) so the copy rules below have a
+# source to copy for the VSIX build.
+AI_PROMPT_SRCS  := $(ROOT)ai/shared/diagnostics.json $(ROOT)ai/prompts/manifest.json \
+	$(wildcard $(ROOT)ai/prompts/*.j2)
+
+$(ROOT)ai/prompts/irules_system.md $(ROOT)ai/prompts/tcl_system.md $(ROOT)ai/prompts/tk_system.md &: $(AI_PROMPT_SRCS)
+	@echo "==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)"
+	cd $(ROOT) && cargo xtask gen-ai-diagnostics
+
 $(CANONICAL_IRULES_MD): $(ROOT)ai/prompts/irules_system.md
 	@mkdir -p $(CANONICAL_DIR)
 	@echo "==> Copying canonical irules_system.md"
@@ -1392,28 +1073,6 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
 	fi
 
-# Python environment
-
-$(UV_STAMP): $(ROOT)pyproject.toml
-	@echo "==> Syncing Python environment"
-	cd $(ROOT) && $(UV) sync --extra dev
-	@mkdir -p $(STAMP_DIR)
-	@touch $@
-
-# Build metadata
-
-.FORCE:
-
-build-info: $(BUILD_INFO) ## Generate build-info files
-
-$(BUILD_INFO): .FORCE
-	@printf '"""Generated at build time — do not edit."""\n\nVERSION: str = "%s"\nGIT_DESCRIBE: str = "%s"\nGIT_HASH: str = "%s"\nFULL_VERSION: str = "%s"\nBUILD_TIMESTAMP: str = "%s"\n' \
-		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" > $@
-
-$(BUILD_INFO_JSON): .FORCE
-	@printf '{"version":"%s","git_describe":"%s","git_hash":"%s","full_version":"%s","build_timestamp":"%s","wheel_filename":"%s"}\n' \
-		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" "$(WHEEL_FILENAME)" > $@
-
 # Generated editor catalogs
 #
 # Depends on: the Rust generator (xtask) + the command/event registries.
@@ -1427,35 +1086,18 @@ editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_even
 	@echo "==> Generating editor catalogs (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs
 
-dialects/f5/bigip/_port_names_table.py: scripts/codegen/port_names.py dialects/f5/bigip/data/scf_port_names.csv $(UV_STAMP)
-	@echo "==> Generating BIG-IP port-name table"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/port_names.py
+generate: editors/zed/src/generated/tcl_commands.json ## Regenerate editor catalog files from the registry
 
-generate: editors/zed/src/generated/tcl_commands.json dialects/f5/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
-
-check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
+check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
-	@echo "==> Checking generated BIG-IP port-name table is up to date"
-	@cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/port_names.py --check
 
-# Generated editor settings from code registry
+# Generated editor settings from the Rust code registry
 #
-# Depends on: the generator script + diagnostic/optimisation code
-# definitions + formatter config + Jinja2 templates.
-SETTINGS_SRCS := \
-	$(wildcard $(ROOT)shared/codes*.py) \
-	$(shell find $(ROOT)compiler/optimiser -name '*.py' -not -path '*__pycache__*') \
-	$(shell find $(ROOT)analyser/checks -name '*.py' -not -path '*__pycache__*') \
-	$(shell find $(ROOT)analyser/_analyser -name '*.py' -not -path '*__pycache__*') \
-	$(ROOT)tooling/formatter/config.py \
-	$(ROOT)shared/optimisation_profiles.py \
-	$(ROOT)analyser/irules_checks.py \
-	$(ROOT)analyser/compiler_checks.py \
-	$(ROOT)compiler/gvn.py \
-	$(ROOT)compiler/shimmer.py
+# Depends on: the Rust registries (source of truth) + the Jinja2 templates
+# the xtask generators render.
 SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
-_SETTINGS_DEPS := $(UV_STAMP) scripts/codegen/editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
+_SETTINGS_DEPS := $(SETTINGS_J2)
 
 editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS) $(REGISTRY_SRCS)
 	@echo "==> Generating editor settings + AI files (cargo xtask, from the Rust registries)"
@@ -1466,23 +1108,12 @@ editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS) $(REGISTRY_
 
 gen-editor-settings: editors/vscode/src/generated/diagnosticCatalog.ts ## Regenerate editor diagnostic/optimiser settings from code registry
 
-check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
+check-editor-settings: ## Verify editor settings match code registry
 	@echo "==> Checking editor settings + AI files are up to date"
 	cd $(ROOT) && cargo xtask gen-editor-settings --check
 	cd $(ROOT) && cargo xtask gen-vscode-package --check
 	cd $(ROOT) && cargo xtask gen-jetbrains-catalog --check
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
-
-# Registry contract fixtures — the language-agnostic command/event/profile/
-# object shape snapshots under tests/baselines/registry/, regenerated from
-# the registries via the same builders in tooling/registry_snapshot.py.
-gen-registry-baselines: $(UV_STAMP) ## Regenerate tests/baselines/registry/ from the registries
-	@echo "==> Regenerating registry contract fixtures"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py
-
-check-registry-baselines: $(UV_STAMP) ## Verify registry contract fixtures are up to date
-	@echo "==> Checking registry contract fixtures are up to date"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py --check
 
 # Logo assets — rasterise the canonical SVG logos to the shipped PNGs
 
@@ -1492,7 +1123,7 @@ logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
 
 # Unified codegen — regenerate ALL generated files from registries
 
-codegen: generate gen-editor-settings gen-registry-baselines ## Regenerate ALL generated files (catalogs + editor settings + registry fixtures + AI prompts)
+codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
 
 # Compiler Explorer (WASM GUI)
 #
@@ -1534,54 +1165,15 @@ compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via t
 	@ls -lh $(EXPLORER_CDN_DIR)/
 
 # ---------------------------------------------------------------------------
-# Zipapp targets
+# Native binaries have superseded the Python zipapps.
 #
-# Every zipapp boils down to:
-#
-#   scripts/build/zipapps.py <profile> --version <V> --output <OUT>
-#
-# The "plain" zipapps (tcl / f5 / lsp / ai / mcp) share the same dependency
-# set: PY_SRCS + BUILD_INFO (plus KCS_DB for the unified `tcl` zipapp because
-# it bundles help pages).
-#
-# Use `$(call zipapp_rule,profile,output-var,extra-deps,description)` to
-# add a new one — it generates the friendly `zipapp-<profile>` phony,
-# the recipe, and a `## help` line for `make help`.
+# The tcl / f5-query / tcl-lsp-server / tcl-mcp Python `.pyz` builds are gone;
+# the native `tcl` / `f5-query` / `tcl-lsp-server` / `tcl-mcp` binaries (see
+# rust-tcl / rust-f5 / rust-server / rust-mcp and the *-cross-build-all targets)
+# ship in their place.  The compiler-explorer CLI/GUI + WASM compiler ride
+# inside the native `tcl` binary (`tcl explore`, `tcl explore --serve`,
+# `tcl compwasm`); see the "Compiler Explorer" section.
 # ---------------------------------------------------------------------------
-
-zipapps: zipapp-tcl zipapp-f5 zipapp-lsp zipapp-ai zipapp-mcp ## Build every zipapp
-
-# Friendly aliases — kept as plain rules so `make help` sees the
-# docstring.  The actual build recipes are macro-generated below.
-zipapp-tcl:           $(ZIPAPP_TCL)          ## Build the unified Tcl tools zipapp
-zipapp-f5:            $(ZIPAPP_F5)           ## Build the F5 BIG-IP CLI zipapp
-zipapp-lsp:           $(ZIPAPP_LSP)          ## Build the LSP server zipapp
-zipapp-ai:            $(ZIPAPP_AI)           ## Build the AI analysis zipapp
-zipapp-mcp:           $(ZIPAPP_MCP)          ## Build the MCP server zipapp
-
-# define plain_zipapp_recipe — generate the file-producing recipe for
-# one of the plain zipapps (tcl / f5 / lsp / ai / mcp).
-#
-#   $(1) = profile passed to build_zipapp.py
-#   $(2) = name of the variable holding the output path (e.g. ZIPAPP_TCL)
-#   $(3) = extra dependencies (whitespace-separated)
-define plain_zipapp_recipe
-$$($(2)): $$(PY_SRCS) $$(BUILD_INFO) $(3)
-	@echo "==> Building $(1) zipapp"
-	$$(PYTHON) $$(ROOT)scripts/build/zipapps.py $(1) \
-		--version $$(VERSION) \
-		--output $$@
-endef
-
-$(eval $(call plain_zipapp_recipe,tcl,ZIPAPP_TCL,$(KCS_DB)))
-$(eval $(call plain_zipapp_recipe,f5,ZIPAPP_F5,))
-$(eval $(call plain_zipapp_recipe,lsp,ZIPAPP_LSP,))
-$(eval $(call plain_zipapp_recipe,ai,ZIPAPP_AI,))
-$(eval $(call plain_zipapp_recipe,mcp,ZIPAPP_MCP,))
-
-# The compiler-explorer CLI/GUI and the WASM compiler are no longer Python
-# zipapps: they ship inside the native `tcl` binary (`tcl explore`,
-# `tcl explore --serve`, `tcl compwasm`). See the "Compiler Explorer" section.
 
 claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
@@ -1611,25 +1203,21 @@ JB_PLUGIN  := $(BUILD_DIR)/tcl-lsp-jetbrains-$(VERSION).zip
 
 build-editor-jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
 
-$(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
+$(JB_PLUGIN): rust-server
 	@echo "==> Building JetBrains plugin"
 	@# build.gradle.kts reads RELEASE_VERSION from the environment first, so
 	@# the gradle.properties source file is never mutated by the build.
 	@# Copy shared resources into plugin resources
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
-	@# Build LSP server zipapp into a staging dir outside ``src/main/resources/``.
-	@# Files under ``src/main/resources/`` are bundled into the plugin jar by
-	@# Gradle's default Java conventions; placing the pyz there would force a
-	@# runtime extract from a ``jar:file:...!/...`` URL since Python can't
-	@# execute a zipapp from inside a jar.  ``build.gradle.kts`` registers a
-	@# ``prepareSandbox`` copy that picks the pyz up from here and drops it at
-	@# the plugin root in the distribution — same layout JetBrains' own
+	@# Bundle the native LSP server binary into a staging dir outside
+	@# ``src/main/resources/``.  ``build.gradle.kts`` registers a
+	@# ``prepareSandbox`` copy that picks the binary up from here and drops it
+	@# at the plugin root in the distribution — same layout JetBrains' own
 	@# Prisma ORM plugin uses to ship its bundled language server.
 	mkdir -p $(JB_DIR)/server
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
-		--version $(VERSION) \
-		--output $(JB_DIR)/server/tcl-lsp-server.pyz
+	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(JB_DIR)/server/tcl-lsp-server
+	chmod +x $(JB_DIR)/server/tcl-lsp-server
 	@# Extract compiler explorer HTML from VS Code extension
 	cd $(EXT_DIR) && node -e " \
 		const {getWebviewHtml} = require('./out/compilerExplorerHtml'); \
@@ -1657,7 +1245,7 @@ ST_PACKAGE  := $(BUILD_DIR)/tcl-lsp-sublime-$(VERSION).sublime-package
 
 build-editor-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
-$(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
+$(ST_PACKAGE): rust-server
 	@echo "==> Building Sublime Text package"
 	@rm -rf $(BUILD_DIR)/sublime-stage
 	@mkdir -p $(BUILD_DIR)/sublime-stage
@@ -1665,9 +1253,10 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	find $(BUILD_DIR)/sublime-stage -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage -name '.DS_Store' -delete 2>/dev/null || true
 	rm -f $(BUILD_DIR)/sublime-stage/README.md
-	@echo "==> Bundling LSP server as a single zipapp"
+	@echo "==> Bundling the native LSP server binary"
 	@mkdir -p $(BUILD_DIR)/sublime-stage/server
-	cp $(ZIPAPP_LSP) $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server.pyz
+	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
+	chmod +x $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@echo "==> Packaging .sublime-package"
 	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
@@ -1689,15 +1278,12 @@ ZED_BUNDLED := $(ZED_DIR)/bundled
 
 build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
-$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building LSP + MCP server zipapps for bundling"
+$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust-server rust-mcp
+	@echo "==> Bundling the native LSP + MCP server binaries"
 	@mkdir -p $(ZED_BUNDLED)
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
-		--version $(VERSION) \
-		--output $(ZED_BUNDLED)/tcl-lsp-server.pyz
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py mcp \
-		--version $(VERSION) \
-		--output $(ZED_BUNDLED)/tcl-lsp-mcp-server.pyz
+	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(ZED_BUNDLED)/tcl-lsp-server
+	cp $(ROOT)target/$(PROFILE)/tcl-mcp $(ZED_BUNDLED)/tcl-mcp
+	chmod +x $(ZED_BUNDLED)/tcl-lsp-server $(ZED_BUNDLED)/tcl-mcp
 	@echo "==> Building Zed extension WASM (with bundled servers)"
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
@@ -1710,7 +1296,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@rm -rf $(BUILD_DIR)/zed-stage
 	@mkdir -p $(BUILD_DIR)/zed-stage
 	cp $(ZED_DIR)/extension.toml $(BUILD_DIR)/zed-stage/
-	$(PYTHON) -c "import re,pathlib; p=pathlib.Path('$(BUILD_DIR)/zed-stage/extension.toml'); p.write_text(re.sub(r'^version = .*', 'version = \"$(SEMVER_VERSION)\"', p.read_text(), flags=re.MULTILINE))"
+	node -e "const f='$(BUILD_DIR)/zed-stage/extension.toml';const fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/^version = .*/m,'version = \"$(SEMVER_VERSION)\"'))"
 	cp $(ZED_DIR)/target/wasm32-wasip2/release/tcl_lsp_zed.wasm $(BUILD_DIR)/zed-stage/extension.wasm
 	cp -r $(ZED_DIR)/languages $(BUILD_DIR)/zed-stage/
 	cp -r $(ZED_DIR)/snippets $(BUILD_DIR)/zed-stage/
@@ -1727,7 +1313,7 @@ publish-zed: verify-test-slow-stamp build-editor-zed ## Publish Zed extension (p
 
 # Release
 
-release: verify-test-slow-stamp package-vsix zipapp-tcl zipapp-f5 zipapp-lsp claude-skills zipapp-mcp jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: verify-test-slow-stamp package-vsix claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
@@ -1736,7 +1322,7 @@ release: verify-test-slow-stamp package-vsix zipapp-tcl zipapp-f5 zipapp-lsp cla
 # SHA256SUMS itself and its signature bundle); this target mirrors that
 # selection so developers can compare locally-built SUMS against the
 # published file.
-release-sums: zipapp-tcl zipapp-f5 zipapp-lsp zipapp-mcp claude-skills package-vsix jetbrains sublime zed
+release-sums: claude-skills package-vsix build-editor-jetbrains build-editor-sublime build-editor-zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \
@@ -1758,9 +1344,6 @@ publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publi
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
-
-check-publish-env: ## Enforce that every workflow job using secrets.* binds to a protected environment
-	@python3 $(ROOT)scripts/release/check_publish_env.py
 
 publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "Release + publish flow."
@@ -1788,16 +1371,8 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo ""
 	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-jetbrains"
 
-# KCS help database
-
-kcs-db: $(KCS_DB) ## Build the KCS help database from docs/kcs/features/
-
-$(KCS_DB): $(wildcard docs/kcs/features/kcs-feature-*.md) $(wildcard docs/screenshots/*.png docs/screenshots/*.gif) scripts/build/kcs_db.py
-	@echo "==> Building KCS help database"
-	$(PYTHON) $(ROOT)scripts/build/kcs_db.py --out $@
-
-clean-kcs-db: ## Remove the generated KCS help database
-	rm -f $(KCS_DB)
+# The KCS help database is no longer a build step: the native `tcl` binary
+# embeds its help pages directly (see the tcl crate's build.rs).
 
 # Screenshots
 
@@ -1838,9 +1413,6 @@ clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
 	rm -rf $(RUNTIME_ZIG_DIR)/zig-out
-	rm -f  $(BUILD_INFO)
-	rm -f  $(BUILD_INFO_JSON)
-	rm -f  $(KCS_DB)
 	@# GUI build products embedded into the tcl binary (the checked-in shell stays).
 	rm -f  $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 	rm -f  $(MERMAID_JS)
@@ -1869,15 +1441,6 @@ $(RUNTIME_WASM): $(RUNTIME_ZIG_SRCS)
 build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
 	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true
 
-leakcheck: build-runtime-leakcheck ## Run the in-scope tcltest suite under the leak-check runtime; emit per-file alloc / double-free counts.
-	uv run --with pytest --with wasmtime python scripts/dev/leak_sweep.py
-
-leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_baseline.json
-	uv run python scripts/dev/diff_leak_sweep.py
-
-snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
-	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
-
 # Rust runtime port (runtime/rust) — standalone crate, excluded from the root
 # workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
 # rust-runtime-port doc + runtime/rust/README cite. Not wired into ci-fast /
@@ -1890,29 +1453,9 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
 
-runtime-rust-sweep: ## Sweep the Tcl 9 tcltest suite against the Rust runtime (scoreboard); JSON=path to dump --json
-	cd $(RUNTIME_RUST_DIR) && cargo build --release --example run_script
-	TCL_LIBRARY=$(ROOT)tmp/tcl9.0.3/library python3 $(ROOT)scripts/dev/rust_tcltest_sweep.py $(if $(JSON),--json $(JSON),)
-
 vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
 	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
 	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
 	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- -D warnings
-
-# ---------------------------------------------------------------------------
-# Sphinx — dialects.f5.query Python API reference
-# ---------------------------------------------------------------------------
-
-docs: docs-html  ## Build the Sphinx HTML docs (alias for docs-html)
-
-docs-html: $(UV_STAMP)  ## Build the f5q Sphinx API reference (docs/sphinx/_build/html)
-	uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html
-	@echo "==> docs built → docs/sphinx/_build/html/index.html"
-
-docs-linkcheck: $(UV_STAMP)  ## Check every external link in the f5q docs
-	uv run --extra docs sphinx-build -b linkcheck docs/sphinx docs/sphinx/_build/linkcheck
-
-docs-clean:  ## Remove generated Sphinx output
-	rm -rf docs/sphinx/_build
