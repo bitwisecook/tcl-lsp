@@ -56,8 +56,9 @@ struct Shared {
     /// Buffered notifications, guarded by `notify_cv`.
     notifications: Mutex<Vec<Value>>,
     notify_cv: Condvar,
-    /// The `tclLsp` configuration reply for `workspace/configuration`.
-    tcllsp_config: Value,
+    /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
+    /// so `apply_configuration` can change what the server re-pulls.
+    tcllsp_config: Mutex<Value>,
     /// Captured stderr text.
     stderr: Mutex<String>,
 }
@@ -144,7 +145,7 @@ impl Lsp {
             responses: Mutex::new(HashMap::new()),
             notifications: Mutex::new(Vec::new()),
             notify_cv: Condvar::new(),
-            tcllsp_config: config,
+            tcllsp_config: Mutex::new(config),
             stderr: Mutex::new(String::new()),
         });
 
@@ -601,6 +602,48 @@ impl Lsp {
             json!({ "command": command, "arguments": arguments }),
         )
     }
+
+    // -- configuration ---------------------------------------------------
+
+    /// The server's *resolved* config for `uri` (`tcl-lsp.getEffectiveConfig`) —
+    /// the view the analyser/formatter actually applies.
+    pub fn effective_config(&mut self, uri: &str) -> Value {
+        self.execute_command("tcl-lsp.getEffectiveConfig", json!([uri]))
+    }
+
+    /// Make the server adopt `config` as the `tclLsp` section: update the reply
+    /// this client returns for `workspace/configuration` and notify
+    /// `didChangeConfiguration` so the server re-pulls. Returns the resolved
+    /// config for `""`. Because each test owns its server, there is no shared
+    /// state to restore (unlike pytest's `config_session`).
+    pub fn apply_configuration(&mut self, config: Value) -> Value {
+        *self.shared.tcllsp_config.lock().unwrap() = config;
+        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        self.effective_config("")
+    }
+
+    /// Apply `config`, then poll `getEffectiveConfig` for `settle_uri` until
+    /// `predicate` holds (the deterministic barrier pytest's
+    /// `apply_configuration(settle=...)` provides). Returns the settled config.
+    pub fn apply_configuration_settle(
+        &mut self,
+        config: Value,
+        settle_uri: &str,
+        predicate: impl Fn(&Value) -> bool,
+    ) -> Value {
+        *self.shared.tcllsp_config.lock().unwrap() = config;
+        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        let deadline = Instant::now() + DEFAULT_TIMEOUT;
+        let mut last = Value::Null;
+        while Instant::now() < deadline {
+            last = self.effective_config(settle_uri);
+            if predicate(&last) {
+                return last;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("config did not settle within {DEFAULT_TIMEOUT:?}; last: {last}");
+    }
 }
 
 impl Drop for Lsp {
@@ -692,7 +735,7 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
                 .iter()
                 .map(|item| {
                     if item.get("section").and_then(Value::as_str) == Some("tclLsp") {
-                        shared.tcllsp_config.clone()
+                        shared.tcllsp_config.lock().unwrap().clone()
                     } else {
                         Value::Null
                     }
