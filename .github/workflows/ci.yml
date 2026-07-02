@@ -417,7 +417,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu qemu-user
 
-      - name: Cross-compile tcl-lsp-server + tcl-mcp
+      - name: Cross-compile native binaries (server + mcp + CLIs)
         shell: bash
         run: |
           set -euo pipefail
@@ -426,6 +426,8 @@ jobs:
             rustup target add "$t"
             cargo build -p tcl-lsp-server --release --target "$t"
             cargo build -p tcl-mcp --release --target "$t"
+            cargo build -p tcl-cli --release --target "$t"
+            cargo build -p f5-cli --release --target "$t"
           done
 
       - name: Smoke-test built binaries
@@ -437,24 +439,28 @@ jobs:
         with:
           name: server-bins-${{ matrix.id }}
           # Common ancestor of all matched files is `target/`, so the artifact
-          # stores `<triple>/release/<exe>` — build-vsix restores it under
-          # `target/` via download-artifact `path: target`.  The tcl-mcp
-          # binaries ride along for publish-mcp-binaries to attach as assets.
+          # stores `<triple>/release/<exe>` — build-vsix restores tcl-lsp-server
+          # under `target/`; the tcl-mcp / tcl / f5-query binaries ride along for
+          # publish-native-binaries to attach as standalone release assets.
           path: |
             target/*/release/tcl-lsp-server
             target/*/release/tcl-lsp-server.exe
             target/*/release/tcl-mcp
             target/*/release/tcl-mcp.exe
+            target/*/release/tcl
+            target/*/release/tcl.exe
+            target/*/release/f5-query
+            target/*/release/f5-query.exe
           if-no-files-found: error
           retention-days: 1
 
-  # Publish the native `tcl-mcp` MCP-server binary as per-triple release assets
-  # (`tcl-mcp-<triple>[.exe]`), so `install.sh` / the Claude skill can fetch a
-  # prebuilt binary for the host platform instead of a Python zipapp.  Unlike
-  # tcl-lsp-server (bundled inside the VSIX), tcl-mcp is a standalone asset.
-  # publish-checksums then sums + signs whatever is attached, so these assets
-  # are covered automatically.
-  publish-mcp-binaries:
+  # Publish the standalone native binaries as per-triple release assets
+  # (`<name>-<triple>[.exe]` for tcl-mcp, tcl, f5-query), so `install.sh` fetches
+  # a prebuilt binary for the host platform instead of a Python zipapp.
+  # (tcl-lsp-server ships bundled inside the VSIX, so it isn't a standalone
+  # asset.)  publish-checksums then sums + signs whatever is attached, so these
+  # assets are covered automatically.
+  publish-native-binaries:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release, build-server-matrix]
     runs-on: ubuntu-24.04
@@ -468,27 +474,32 @@ jobs:
           path: server-bins
           merge-multiple: true
 
-      - name: Stage + upload tcl-mcp per-triple assets
+      - name: Stage + upload native per-triple assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job has no checkout, so `gh` can't infer the repo from git —
+          # give it explicitly.
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF#refs/tags/}"
           mkdir -p out
           shopt -s nullglob
-          # download-artifact restores `<triple>/release/tcl-mcp[.exe]`.
-          for bin in server-bins/*/release/tcl-mcp server-bins/*/release/tcl-mcp.exe; do
-            triple="$(printf '%s\n' "$bin" | sed -E 's#.*/([^/]+)/release/.*#\1#')"
-            case "$bin" in *.exe) ext=".exe" ;; *) ext="" ;; esac
-            cp "$bin" "out/tcl-mcp-${triple}${ext}"
-            echo "staged out/tcl-mcp-${triple}${ext}"
+          # download-artifact restores `<triple>/release/<name>[.exe]`.
+          for name in tcl-mcp tcl f5-query; do
+            for bin in server-bins/*/release/"$name" server-bins/*/release/"$name".exe; do
+              triple="$(printf '%s\n' "$bin" | sed -E 's#.*/([^/]+)/release/.*#\1#')"
+              case "$bin" in *.exe) ext=".exe" ;; *) ext="" ;; esac
+              cp "$bin" "out/${name}-${triple}${ext}"
+              echo "staged out/${name}-${triple}${ext}"
+            done
           done
           if [ -z "$(ls -A out 2>/dev/null)" ]; then
-            echo "error: no tcl-mcp binaries found in server-bins" >&2
+            echo "error: no native binaries found in server-bins" >&2
             exit 1
           fi
-          gh release upload "$tag" out/tcl-mcp-* --clobber
+          gh release upload "$tag" out/* --clobber
 
   # Build: universal VSIX package (bundles every native server binary)
   build-vsix:
@@ -1104,7 +1115,7 @@ jobs:
       && startsWith(github.ref, 'refs/tags/v')
       && needs.create-release.result == 'success'
       && needs.build-vsix.result == 'success'
-    needs: [create-release, build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-mcp-binaries]
+    needs: [create-release, build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-native-binaries]
     runs-on: ubuntu-24.04
     permissions:
       contents: write   # gh release upload
