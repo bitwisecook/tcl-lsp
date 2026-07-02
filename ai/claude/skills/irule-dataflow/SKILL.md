@@ -1,7 +1,7 @@
 ---
 name: irule-dataflow
 description: "Analyse and visualise data flow in an iRule or Tcl file. Extracts def-use chains, memory aliases, and data-flow edges from the compiler SSA, then generates a Mermaid diagram showing how variables flow through the program. Use when analysing iRule data flow, visualising Tcl variable usage, debugging iRule variable scoping, or understanding def-use chains."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__def_use_chains, mcp__tcl-lsp__memory_aliases, Read
 ---
 
 # Data Flow Analysis
@@ -11,15 +11,9 @@ Analyse data flow in an iRule or Tcl file using compiler SSA analysis.
 ## Steps
 
 1. Read the iRule/Tcl file
-2. Extract def-use chain information:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py def-use $FILE
-   ```
-3. Extract memory alias information:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py memory-aliases $FILE
-   ```
-4. If either tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
+2. Extract def-use chain information by calling `mcp__tcl-lsp__def_use_chains`, passing the file contents you just read as `source`
+3. Extract memory alias information by calling `mcp__tcl-lsp__memory_aliases`, passing the file contents as `source`
+4. If either tool fails (e.g. parse error), report the error clearly and suggest fixes
 5. Using the def-use chains and alias data, generate a Mermaid diagram and analysis
 
 ## Mermaid diagram rules

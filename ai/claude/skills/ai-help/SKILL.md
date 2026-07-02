@@ -1,7 +1,7 @@
 ---
 name: ai-help
 description: "Show what features and AI tools are available in the tcl-lsp extension across VS Code, other editors, Claude Code skills, and the MCP server. Answers 'what can you do?' questions. Use when asking about tcl-lsp features, finding available AI tools, discovering Claude Code skills, or getting help with the tcl-lsp extension."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__help, Read
 ---
 
 # AI Help -- tcl-lsp feature guide
@@ -11,10 +11,7 @@ to use them across VS Code, other editors, Claude Code, and the MCP server.
 
 ## Steps
 
-1. Read the feature catalogue built into the server:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py help
-   ```
+1. Read the feature catalogue built into the server by calling `mcp__tcl-lsp__help` (leave the `topic` argument empty for the full catalogue)
 2. If the tool fails, fall back to reading the README.md for feature information
 3. If the user asked about a **specific topic** (e.g. "how do I validate?",
    "what MCP tools exist?", "how do I set up Neovim?"), focus on that area

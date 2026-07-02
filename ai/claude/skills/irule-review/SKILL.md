@@ -1,7 +1,7 @@
 ---
 name: irule-review
 description: "Security and safety review of an F5 iRule. Combines LSP static analysis (security, taint, thread safety diagnostics) with deep analysis of input validation, information leakage, race conditions, and DoS vectors. Use when reviewing iRule security, auditing F5 iRule safety, performing iRule penetration testing, or checking iRule code for vulnerabilities."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__review, Read
 ---
 
 # iRule Security Review
@@ -10,12 +10,9 @@ Perform a comprehensive security review combining static analysis with deep anal
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule file to review
-3. Run the security-focused analysis:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py review $FILE
-   ```
+3. Run the security-focused analysis: call `mcp__tcl-lsp__review` with the file's contents as `source`
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. Present the static analysis findings (security, taint, thread safety)
 6. Go beyond the static analysis. Check for:

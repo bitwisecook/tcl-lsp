@@ -1,7 +1,7 @@
 ---
 name: irule-xc
 description: "Translate an F5 BIG-IP iRule to F5 Distributed Cloud (XC) configuration. Produces Terraform HCL and JSON API output with coverage analysis. Highlights untranslatable constructs and suggests XC alternatives. Use when migrating iRules to F5 XC, converting BIG-IP iRules to Distributed Cloud, translating iRule logic to Terraform, or planning F5 XC migration."
-allowed-tools: Bash, Read, Write
+allowed-tools: mcp__tcl-lsp__xc_translate, Bash, Read, Write
 ---
 
 # iRule to F5 XC Translation
@@ -10,40 +10,16 @@ Translate an iRule to F5 XC routes, service policies, origin pools, WAF exclusio
 
 ## Steps
 
-1. Read domain knowledge from `ai/prompts/irules_system.md`
+1. Read domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule source file
-3. Run the static translator:
-   ```bash
-   uv run --no-dev python -c "
-   import json
-   from compiler.registry.runtime import configure_signatures
-   configure_signatures(dialect='f5-irules')
-   from dialects.f5.xc.translator import translate_irule
-   from dialects.f5.xc.terraform import render_terraform
-   from dialects.f5.xc.json_api import render_json
-
-   source = open('$FILE').read()
-   result = translate_irule(source)
-   print('=== TERRAFORM ===')
-   print(render_terraform(result))
-   print('=== JSON API ===')
-   print(json.dumps(render_json(result), indent=2))
-   print('=== COVERAGE ===')
-   print(f'{result.coverage_pct:.1f}%')
-   if result.untranslatable_count > 0:
-       print('=== UNTRANSLATABLE ===')
-       for item in result.items:
-           if item.status.name == 'UNTRANSLATABLE':
-               note = f' ({item.note})' if item.note else ''
-               print(f'- {item.irule_command}: {item.xc_description}{note}')
-   if result.advisory_count > 0:
-       print('=== ADVISORY ===')
-       for item in result.items:
-           if item.status.name == 'ADVISORY':
-               print(f'- {item.irule_command}: {item.xc_description}')
-   "
-   ```
-4. If the tool fails (e.g. file not found or import error), report the error clearly and suggest fixes
+3. Run the static translator: call the `mcp__tcl-lsp__xc_translate` MCP
+   tool, passing the iRule's contents as the `source` argument (leave
+   `output_format` at its default `both` to get Terraform HCL + ves.io
+   JSON). The tool returns the translated Terraform, the JSON API
+   config, an overall coverage percentage, and a per-command breakdown
+   of translated / untranslatable / advisory constructs (each with its
+   iRule command and XC description).
+4. If the tool fails (e.g. parse error), report the error clearly and suggest fixes
 5. Review the output:
    - If coverage >= 80%, the static translation is sufficient
    - If coverage < 80%, review untranslatable constructs and suggest alternatives:

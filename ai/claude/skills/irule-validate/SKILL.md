@@ -1,7 +1,7 @@
 ---
 name: irule-validate
 description: "Run full LSP validation on an F5 iRule and produce a categorised report of all issues: errors, security, taint, thread safety, performance, style, and optimiser suggestions. Use when validating iRule code, linting iRules, checking iRule security, analysing F5 iRule diagnostics, or running static analysis on iRules."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__validate, Read
 ---
 
 # iRule Validate
@@ -10,12 +10,9 @@ Run full validation on an iRule file and produce a categorised diagnostic report
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule file to validate
-3. Run the categorised validation:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py validate $FILE
-   ```
+3. Run the categorised validation: call `mcp__tcl-lsp__validate` with the file's contents as `source`
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. Present the results as a structured report:
    - Group by category (errors, security, taint, thread safety, performance, style, optimiser)

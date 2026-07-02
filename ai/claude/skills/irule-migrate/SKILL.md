@@ -1,7 +1,7 @@
 ---
 name: irule-migrate
 description: "Convert nginx, Apache, or HAProxy configuration to an F5 BIG-IP iRule. Detects the source format and applies appropriate construct mappings. Use when migrating load balancer config to iRules, converting nginx rules to F5, translating Apache RewriteRule to iRules, or converting HAProxy ACLs to iRule logic."
-allowed-tools: Bash, Read, Write
+allowed-tools: mcp__tcl-lsp__analyze, Read, Write
 ---
 
 # iRule Migrate
@@ -10,7 +10,7 @@ Convert load balancer configuration from nginx, Apache, or HAProxy to an iRule.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md` (includes migration patterns)
+1. Read the domain knowledge from `../_prompts/irules_system.md` (includes migration patterns)
 2. Read the source configuration file
 3. Detect the format and apply these mappings:
 
@@ -39,10 +39,7 @@ Convert load balancer configuration from nginx, Apache, or HAProxy to an iRule.
    - `frontend bind` -> handled by virtual server (note in comments)
 
 4. Generate the iRule following security best practices
-5. Write to a file and validate:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
-   ```
+5. Write to a file and validate: Read the file, then call `mcp__tcl-lsp__analyze` with its contents as `source`
 6. If the tool fails (e.g. parse error), report the error and adjust the generated code
 7. Fix any issues and re-validate (up to 5 iterations)
 8. If issues persist after 5 iterations, report what was migrated and what remains

@@ -1,7 +1,7 @@
 ---
 name: irule-diagram
 description: "Generate a Mermaid flowchart of an iRule's logic flow. Extracts structured data from the compiler IR and produces a visual diagram with event subgraphs, decision points, and actions. Use when visualising iRule logic, generating F5 iRule flowcharts, diagramming iRule event flow, or documenting iRule architecture."
-allowed-tools: Bash, Read
+allowed-tools: mcp__tcl-lsp__diagram, Read
 ---
 
 # iRule Diagram
@@ -10,12 +10,9 @@ Generate a Mermaid flowchart from an iRule using compiler IR analysis.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Read the iRule file
-3. Extract the structural flow data:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagram $FILE
-   ```
+3. Extract the structural flow data: call `mcp__tcl-lsp__diagram` with the file's contents as `source`
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. Using the structured data (authoritative, from the compiler IR) and the source code (for reference), generate a Mermaid flowchart diagram
 

@@ -1,7 +1,7 @@
 ---
 name: tcl-explain
-description: "Explain what a Tcl script does by breaking down procedures, data flow, and overall structure. Uses LSP analysis from tcl_ai.py for accurate context including call graphs and diagnostic insights. Use when explaining Tcl code, understanding what a .tcl file does, analysing Tcl script structure, or answering questions about Tcl procedures."
-allowed-tools: Bash, Read
+description: "Explain what a Tcl script does by breaking down procedures, data flow, and overall structure. Uses LSP analysis for accurate context including call graphs and diagnostic insights. Use when explaining Tcl code, understanding what a .tcl file does, analysing Tcl script structure, or answering questions about Tcl procedures."
+allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__call_graph, Read
 ---
 
 # Tcl Explain
@@ -10,12 +10,9 @@ Explain what a Tcl script does using LSP analysis for accurate context.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/tcl_system.md` for Tcl idioms and best practices
+1. Read the domain knowledge from `../_prompts/tcl_system.md` for Tcl idioms and best practices
 2. Read the Tcl file the user wants explained
-3. Run the analysis tool to get structural context:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py context $FILE
-   ```
+3. Get structural context: call `mcp__tcl-lsp__analyze` (diagnostics, document symbols, detected events) and `mcp__tcl-lsp__call_graph` (proc caller→callee graph, roots, leaf procs), passing the file contents you just read as `source` to each
 4. If the analysis tool fails (e.g. syntax errors in the file), fall back to manual source reading and note that LSP analysis was unavailable
 5. Using the domain knowledge, source code, and analysis output, explain:
    - **Overall purpose**: What the script does at a high level

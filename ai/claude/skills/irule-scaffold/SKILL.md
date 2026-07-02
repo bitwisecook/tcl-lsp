@@ -1,7 +1,7 @@
 ---
 name: irule-scaffold
 description: "Generate an iRule skeleton from selected event names. Creates a template with proper log gating, local variable extraction, and placeholder sections for each event handler. Use when scaffolding new iRules, creating iRule templates, generating F5 iRule boilerplate, or starting a new iRule from event names."
-allowed-tools: Bash, Read, Write
+allowed-tools: mcp__tcl-lsp__analyze, Read, Write
 ---
 
 # iRule Scaffold
@@ -10,7 +10,7 @@ Generate an iRule skeleton from event names.
 
 ## Steps
 
-1. Read the domain knowledge from `ai/prompts/irules_system.md`
+1. Read the domain knowledge from `../_prompts/irules_system.md`
 2. Parse the event names from the user's request. Common events:
    - RULE_INIT -- Runs once when the iRule loads. Initialise static:: variables here.
    - CLIENT_ACCEPTED -- Fires when a client TCP connection is accepted.
@@ -37,10 +37,7 @@ Generate an iRule skeleton from event names.
    - 4-space indentation
    - Add brief comments explaining when each event fires
 5. Write the skeleton to a file
-6. Validate with the analyser:
-   ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py diagnostics $FILE
-   ```
+6. Validate with the analyser: Read the file, then call `mcp__tcl-lsp__analyze` with its contents as `source`
 7. If the tool fails, report the error clearly
 8. Fix any issues and re-validate (up to 3 iterations)
 9. If issues persist, report the skeleton status and remaining issues
