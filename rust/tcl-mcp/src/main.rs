@@ -19,8 +19,10 @@ use rmcp::ServiceExt;
 use serde_json::{Value, json};
 
 mod bigip;
+mod datagroup;
 mod diag_meta;
 mod fakecmp;
+mod irule_test;
 mod tk;
 mod tools;
 mod xc;
