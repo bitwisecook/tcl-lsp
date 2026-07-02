@@ -22,10 +22,14 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod diagnostics;
+pub mod json_api;
 pub mod mapping;
 pub mod model;
+pub mod terraform;
 pub mod translator;
 
 pub use diagnostics::{XcDiagnostic, XcSeverity, get_xc_diagnostics};
+pub use json_api::render_json;
 pub use model::{TranslateStatus, XCConstructKind, XCTranslationResult};
+pub use terraform::render_terraform;
 pub use translator::{translate_irule, translate_irule_with_registry};

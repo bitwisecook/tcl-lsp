@@ -22,6 +22,7 @@ mod bigip;
 mod diag_meta;
 mod fakecmp;
 mod tools;
+mod xc;
 
 #[derive(Clone)]
 struct TclMcp;
