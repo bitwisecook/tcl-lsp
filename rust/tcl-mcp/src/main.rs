@@ -22,6 +22,7 @@ mod bigip;
 mod datagroup;
 mod diag_meta;
 mod fakecmp;
+mod irule_gen;
 mod irule_test;
 mod tk;
 mod tools;
