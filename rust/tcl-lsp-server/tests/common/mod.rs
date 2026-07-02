@@ -295,7 +295,13 @@ impl Lsp {
     /// published diagnostics. Waits on both the version-tagged diagnostics and
     /// the per-URI `workspace_state.update` log line (see the pytest docstring).
     pub fn open_ready(&mut self, uri: &str, text: &str) -> Vec<Value> {
-        self.open_document(uri, text);
+        self.open_ready_lang(uri, text, "tcl")
+    }
+
+    /// Like [`Lsp::open_ready`] but with an explicit `languageId` (e.g.
+    /// `"tcl-irule"` for iRules, `"tk"` for Tk, `"bigip"` for BIG-IP config).
+    pub fn open_ready_lang(&mut self, uri: &str, text: &str, language_id: &str) -> Vec<Value> {
+        self.open_document_lang(uri, text, language_id, 1);
         let diags = self.await_diagnostics_version(uri, Some(1), DEFAULT_TIMEOUT);
         self.await_log(&["workspace_state.update", uri], DEFAULT_TIMEOUT, 0);
         diags
