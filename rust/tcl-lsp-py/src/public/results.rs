@@ -520,6 +520,45 @@ impl DataGroupResult {
     }
 }
 
+/// The result of [`compile_wasm`](super::facades::compile_wasm): the compiled
+/// WebAssembly module (binary `wasm` bytes + `wat` text) plus summary counts.
+///
+/// **Eval-fallback tier:** the WASM backend emits a *valid* module but wraps
+/// unsupported constructs in host-`eval` calls — it is wired up and runnable,
+/// not yet an optimised native compile. The output shape is stable so callers
+/// (CLI, explorer, tooling) can rely on it as the codegen improves.
+#[pyclass(frozen, module = "tcl_lsp_py", name = "WasmOutput")]
+pub(crate) struct WasmOutput {
+    /// The WebAssembly text format (WAT) rendering of the module.
+    #[pyo3(get)]
+    pub(crate) wat: String,
+    /// Number of functions in the emitted module.
+    #[pyo3(get)]
+    pub(crate) function_count: usize,
+    /// Length of the encoded `wasm` binary in bytes.
+    #[pyo3(get)]
+    pub(crate) byte_length: usize,
+    /// The encoded WebAssembly binary.
+    pub(crate) wasm_bytes: Vec<u8>,
+}
+
+#[pymethods]
+impl WasmOutput {
+    /// The encoded WebAssembly binary as Python `bytes` (write directly to a
+    /// `.wasm` file).
+    #[getter]
+    fn wasm<'py>(&self, py: Python<'py>) -> Bound<'py, pyo3::types::PyBytes> {
+        pyo3::types::PyBytes::new(py, &self.wasm_bytes)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "WasmOutput(function_count={}, byte_length={})",
+            self.function_count, self.byte_length
+        )
+    }
+}
+
 /// Register every public result class on the module.
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LexToken>()?;
@@ -536,5 +575,6 @@ pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CommandInfo>()?;
     m.add_class::<RefactorResult>()?;
     m.add_class::<DataGroupResult>()?;
+    m.add_class::<WasmOutput>()?;
     Ok(())
 }

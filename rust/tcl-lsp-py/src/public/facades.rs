@@ -29,7 +29,7 @@ use super::errors::PublicError;
 use super::options::FormatOptions;
 use super::results::{
     AnalysisResult, BigipConfig, CommandInfo, DataGroupResult, Diagnostic, EventInfo, LexToken,
-    ParseResult, ParsedCommand, QueryEdit, QueryFile, QueryResult, RefactorResult,
+    ParseResult, ParsedCommand, QueryEdit, QueryFile, QueryResult, RefactorResult, WasmOutput,
 };
 use crate::compilation_unit::CompilationUnitHandle;
 
@@ -1084,6 +1084,31 @@ pub(crate) fn walk_commands<'py>(
     graph_to_py(py, &serde_json::Value::Array(commands))
 }
 
+/// Compile `source` to a WebAssembly module — the same eval-fallback backend
+/// the `tcl compwasm` verb and the explorer `wasm` view use. Returns a
+/// [`WasmOutput`] with the `wasm` binary bytes, `wat` text, and counts.
+///
+/// The backend emits a valid module but is early-tier (unsupported constructs
+/// route through host-`eval`); this facade wires the output through so it's
+/// available across every surface as the codegen matures.
+#[pyfunction]
+#[pyo3(signature = (source, *, dialect = DEFAULT_DIALECT))]
+pub(crate) fn compile_wasm(source: &str, dialect: &str) -> WasmOutput {
+    let registry = crate::registry::default_registry_for_dialect(dialect);
+    let ir = tcl_compiler::lowering::lower_to_ir(source, registry);
+    let mut wasm = tcl_compiler::codegen::wasm::wasm_codegen_module(&ir, source);
+    let function_count = wasm.functions.len();
+    // Match the CLI ordering: encode the binary first, then render the WAT.
+    let wasm_bytes = wasm.to_bytes();
+    let wat = wasm.to_wat();
+    WasmOutput {
+        wat,
+        function_count,
+        byte_length: wasm_bytes.len(),
+        wasm_bytes,
+    }
+}
+
 /// Register the public facades on the module.
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_tcl, m)?)?;
@@ -1118,6 +1143,7 @@ pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(def_use_chains, m)?)?;
     m.add_function(wrap_pyfunction!(memory_aliases, m)?)?;
     m.add_function(wrap_pyfunction!(walk_commands, m)?)?;
+    m.add_function(wrap_pyfunction!(compile_wasm, m)?)?;
     Ok(())
 }
 

@@ -487,3 +487,18 @@ def test_walk_commands_recurses_bodies() -> None:
     for c in cmds:
         assert isinstance(c["texts"], list)
         assert isinstance(c["line"], int) and isinstance(c["character"], int)
+
+
+# --------------------------------------------------------------------------
+# compile_wasm (eval-fallback WASM backend — over tcl-compiler::codegen::wasm)
+# --------------------------------------------------------------------------
+
+
+def test_compile_wasm() -> None:
+    out = t.compile_wasm("proc add {a b} { return [expr {$a + $b}] }\nputs [add 1 2]\n")
+    assert "WasmOutput" in repr(out)
+    assert out.function_count >= 1
+    assert out.byte_length > 0
+    assert out.wasm[:4] == b"\x00asm"  # WebAssembly binary magic
+    assert out.wat.lstrip().startswith("(module")
+    assert len(out.wasm) == out.byte_length

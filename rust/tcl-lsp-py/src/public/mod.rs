@@ -43,6 +43,7 @@
 //! | `def_use_chains` | `dict` | `tcl-lsp-core::graphs` (SSA) |
 //! | `memory_aliases` | `dict` | `tcl-lsp-core::graphs` (memory-SSA) |
 //! | `walk_commands` | `list[dict]` | `tcl-lsp-core::refactor` |
+//! | `compile_wasm` | `WasmOutput` | `tcl-compiler::codegen::wasm` |
 //!
 //! paired with [`TclLspError`] and its six subclasses
 //! ([`errors`]). Every facade resolves spans to `(line, character)`
