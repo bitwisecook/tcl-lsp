@@ -18,7 +18,9 @@ use rmcp::transport::stdio;
 use rmcp::ServiceExt;
 use serde_json::{Value, json};
 
+mod bigip;
 mod diag_meta;
+mod fakecmp;
 mod tools;
 
 #[derive(Clone)]

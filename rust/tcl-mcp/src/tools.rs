@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{AnalysisResult, Analyser, Diagnostic};
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
-use tcl_registry::dialects::DialectSet;
+use tcl_registry::dialects::{DialectSet, KNOWN_DIALECTS};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
@@ -17,13 +17,38 @@ const IRULES_DIALECT: &str = "f5-irules";
 
 const DEFAULT_DIALECT: &str = "tcl9.0";
 
+/// Process-wide session dialect — the detection default set by `set_dialect`,
+/// mirroring the Python server's `_session_dialect` module global.
+fn session_dialect() -> &'static std::sync::Mutex<String> {
+    static SESSION: std::sync::OnceLock<std::sync::Mutex<String>> = std::sync::OnceLock::new();
+    SESSION.get_or_init(|| std::sync::Mutex::new(DEFAULT_DIALECT.to_owned()))
+}
+
 /// The dialect to use: an explicit non-empty `dialect` argument, else detected
-/// from the source content, else the default.
+/// from the source content with the session dialect as the fallback default.
 fn resolve_dialect(args: &Value, source: &str) -> String {
     match args.get("dialect").and_then(Value::as_str) {
         Some(d) if !d.is_empty() => d.to_owned(),
-        _ => tcl_registry::detect_dialect(source, None, DEFAULT_DIALECT).to_owned(),
+        _ => {
+            let session = session_dialect().lock().expect("session dialect lock").clone();
+            // `detect_dialect`'s default must be `&'static`; map the session
+            // name onto a known dialect, else fall back to the built-in default.
+            let default = KNOWN_DIALECTS
+                .iter()
+                .copied()
+                .find(|&d| d == session)
+                .unwrap_or(DEFAULT_DIALECT);
+            tcl_registry::detect_dialect(source, None, default).to_owned()
+        }
     }
+}
+
+fn set_dialect(args: &Value) -> Value {
+    let requested = arg_str(args, "dialect").to_owned();
+    let mut guard = session_dialect().lock().expect("session dialect lock");
+    let previous = std::mem::replace(&mut *guard, requested.clone());
+    let changed = previous != requested;
+    json!({ "dialect": requested, "previous": previous, "changed": changed })
 }
 
 fn arg_str<'a>(args: &'a Value, key: &str) -> &'a str {
@@ -1003,6 +1028,10 @@ const TOOLS: &[ToolDef] = &[
     ToolDef { name: "read_proc_docs", description: "Structured docs for every proc: params, parsed docstring, inferred param traits.", params: &[SRC, DIALECT], required: &["source"], handler: read_proc_docs },
     ToolDef { name: "update_docstrings", description: "Insert docstring stubs above every undocumented proc; returns rewritten source.", params: &[SRC, STYLE, DECORATION, DIALECT], required: &["source"], handler: update_docstrings },
     ToolDef { name: "unminify_error", description: "Translate a minified error back to original symbol names / line numbers.", params: &[("error_message", "string", "The error text to translate"), ("symbol_map", "string", "Minified→original symbol map"), ("minified_source", "string", "Minified source (optional, for line remapping)"), ("original_source", "string", "Original source (optional, for line remapping)")], required: &["error_message", "symbol_map"], handler: unminify_error },
+    ToolDef { name: "set_dialect", description: "Set the session default dialect used when a tool's dialect is auto-detected.", params: &[("dialect", "string", "Dialect to make the session default (e.g. f5-irules, tcl9.0)")], required: &["dialect"], handler: set_dialect },
+    ToolDef { name: "fakecmp_which_tmm", description: "Which TMM a connection 4-tuple hashes to under the fakeCMP disaggregator.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("src_addr", "string", "Source IPv4"), ("src_port", "integer", "Source port (0-65535)"), ("dst_addr", "string", "Destination IPv4"), ("dst_port", "integer", "Destination port (0-65535)")], required: &["tmm_count", "src_addr", "src_port", "dst_addr", "dst_port"], handler: crate::fakecmp::which_tmm },
+    ToolDef { name: "fakecmp_suggest_sources", description: "Source tuples that spread test traffic across every TMM.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("count", "integer", "Tuples per TMM (default 1)"), ("dst_addr", "string", "Destination IPv4 (default 192.168.1.100)"), ("dst_port", "integer", "Destination port (default 443)")], required: &["tmm_count"], handler: crate::fakecmp::suggest_sources },
+    ToolDef { name: "irule_with_context", description: "Bundle each iRule in a BIG-IP config with the objects it references (pools, data-groups, profiles, monitors, …).", params: &[("config_text", "string", "BIG-IP config text (bigip.conf/scf)"), ("config_paths", "array", "Paths to config files to merge (optional)"), ("rule_path", "string", "Full path of a single rule to bundle (optional)"), ("format", "string", "'json' (default) or 'text'"), ("transitive", "boolean", "Follow transitive references (default true)")], required: &[], handler: crate::bigip::irule_with_context },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
