@@ -353,9 +353,7 @@ export async function activate(context: ExtensionContext) {
     synchronize: {
       configurationSection: "tclLsp",
       fileEvents: [
-        workspace.createFileSystemWatcher(
-          "**/*.{tcl,tk,itcl,tm,irul,irule,iapp,iappimpl,impl}",
-        ),
+        workspace.createFileSystemWatcher("**/*.{tcl,tk,itcl,tm,irul,irule,iapp,iappimpl,impl}"),
         // Project config — the server live-reloads its layered settings when
         // a workspace `.tcl-lsp.ini` changes.
         workspace.createFileSystemWatcher("**/.tcl-lsp.ini"),
@@ -834,9 +832,7 @@ async function selectTclInstallation(): Promise<void> {
     paths = picked.paths ?? [];
   }
 
-  const target = workspace.workspaceFolders?.length
-    ? undefined
-    : vscode.ConfigurationTarget.Global;
+  const target = workspace.workspaceFolders?.length ? undefined : vscode.ConfigurationTarget.Global;
   await workspace.getConfiguration("tclLsp").update("libraryPaths", paths, target);
   window.showInformationMessage(
     paths.length > 0
