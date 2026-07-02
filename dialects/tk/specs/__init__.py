@@ -71,7 +71,6 @@ from . import (
 )
 from ._base import _REGISTRY
 
-
 # Dialects in which the Tk widget/window commands are valid: standard Tcl
 # (a ``wish`` / ``package require Tk`` interpreter) plus the pure-``tk``
 # dialect.  Tk is *not* part of the restricted embedded dialects (F5 iRules /

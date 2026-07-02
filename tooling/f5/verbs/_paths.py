@@ -8,17 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-
-from dialects.f5.bigip.model import BigipConfig
-from dialects.f5.bigip.parser import parse_bigip_conf
-from tooling.f5.f5_remote.ucs import (
-    DEFAULT_PASSPHRASE_ENV,
-    PassphraseProvider,
-    make_passphrase_provider,
-    ucs_archive_to_scf,
-)
 
 # The iRule/config file loader now lives with the F5 model in
 # `dialects.f5.bigip.inputs`; re-exported here for the f5 CLI verbs and any
@@ -30,6 +20,14 @@ from dialects.f5.bigip.inputs import (  # noqa: E402,F401  (re-export)
     IruleInput,
     _looks_like_ucs,
     load_irule_inputs,
+)
+from dialects.f5.bigip.model import BigipConfig
+from dialects.f5.bigip.parser import parse_bigip_conf
+from tooling.f5.f5_remote.ucs import (
+    DEFAULT_PASSPHRASE_ENV,
+    PassphraseProvider,
+    make_passphrase_provider,
+    ucs_archive_to_scf,
 )
 
 
@@ -136,6 +134,3 @@ def load_paths(
 # ---------------------------------------------------------------------------
 # Unified iRule input loading
 # ---------------------------------------------------------------------------
-
-
-

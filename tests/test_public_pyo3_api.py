@@ -326,7 +326,7 @@ def test_dataflow_graph() -> None:
 
 
 def test_diagram_data() -> None:
-    src = "when HTTP_REQUEST {\n  if {[HTTP::uri] eq \"/\"} { pool web }\n}\n"
+    src = 'when HTTP_REQUEST {\n  if {[HTTP::uri] eq "/"} { pool web }\n}\n'
     d = t.diagram_data(src, dialect="f5-irules")
     assert isinstance(d["events"], list)
     assert isinstance(d["procedures"], list)
@@ -479,7 +479,7 @@ def test_memory_aliases() -> None:
 
 
 def test_walk_commands_recurses_bodies() -> None:
-    src = "when HTTP_REQUEST {\n  if {$x eq \"a\"} { pool p1 }\n}\n"
+    src = 'when HTTP_REQUEST {\n  if {$x eq "a"} { pool p1 }\n}\n'
     cmds = t.walk_commands(src, dialect="f5-irules")
     firsts = [c["texts"][0] for c in cmds]
     # Nested `if` and `pool` inside the `when` body are walked.
