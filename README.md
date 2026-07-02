@@ -1253,8 +1253,32 @@ claude /irule-diagram complex_rule.tcl
 
 ### MCP server (Claude Desktop / AI agents)
 
-A Model Context Protocol server that exposes tcl-lsp analysis as 27 tools for
-any MCP-compatible client (Claude Desktop, custom agents, etc.).
+A Model Context Protocol server that exposes tcl-lsp analysis to any
+MCP-compatible client (Claude Code, Claude Desktop, Codex, custom agents).
+
+Two implementations ship the same wire protocol and server identity
+(`tcl-lsp`):
+
+- **Native Rust — `tcl-mcp`** (default, recommended): a single self-contained
+  binary that calls the Rust analysis crates directly — no Python, no PyO3.
+  Build it with `make rust-mcp` (→ `target/release/tcl-mcp`). Working inside
+  this repo, Claude Code / Codex auto-discover it via the committed
+  [`.mcp.json`](.mcp.json), which launches [`scripts/tcl-mcp`](scripts/tcl-mcp)
+  (it builds the binary on first use if needed). It covers the full
+  compiler / analyser / LSP / refactor / diagnostics / docstring surface plus
+  the BIG-IP `irule_with_context` and `fakecmp_*` tools.
+- **Python zipapp — `tcl-lsp-mcp-server.pyz`** (legacy / fallback): still hosts
+  the handful of tools whose engines are Python-only (`xc_translate`,
+  `tk_layout`, `explain_flow`, `generate_irule_test`, `irule_cfg_paths`,
+  `suggest_datagroup_extractions`, `help`).
+
+Register the native server globally (outside this repo) with:
+
+```bash
+make rust-mcp
+claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
+# or, via the installer:  TCL_LSP_MCP_BIN="$(pwd)/target/release/tcl-mcp" ./scripts/install/install.sh
+```
 
 | Tool | Description |
 |------|-------------|
@@ -1287,15 +1311,18 @@ any MCP-compatible client (Claude Desktop, custom agents, etc.).
 | `set_dialect` | Set active Tcl dialect for the session |
 
 ```json
-// Claude Desktop — claude_desktop_config.json
+// Claude Desktop — claude_desktop_config.json (native binary)
 {
   "mcpServers": {
     "tcl-lsp": {
-      "command": "./tcl-lsp-mcp-server.pyz"
+      "command": "/absolute/path/to/target/release/tcl-mcp"
     }
   }
 }
 ```
+
+To use the Python zipapp instead, set `"command"` to
+`"./tcl-lsp-mcp-server.pyz"`.
 
 ## Packaging & environments
 

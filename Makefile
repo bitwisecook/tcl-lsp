@@ -206,7 +206,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -745,6 +745,18 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	echo "==> Building native f5-query CLI ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
 	echo "==> Built $(ROOT)target/$(PROFILE)/f5-query"
+
+# Build the native Rust MCP server binary (target/release/tcl-mcp).  The Rust
+# port of the Python `ai/mcp/tcl_mcp_server.py` server; the repo `.mcp.json`
+# (via scripts/tcl-mcp) launches this for Claude Code / Codex.
+rust-mcp: ## Build the native Rust `tcl-mcp` MCP server (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native tcl-mcp server ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p tcl-mcp $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-mcp"
 
 # Build both native Rust CLIs in one go.
 rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
