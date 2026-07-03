@@ -283,7 +283,7 @@
 
   {#: ---------------- Listener Matcher ---------------- :#}
   <div class="panel" data-panel="listener">
-    <p class="lm-field-note">Enter a client flow — which virtual server picks it up? Results are ranked most-specific first (the winner is at the top); virtuals at the same specificity are shown side by side. Source defaults to <code>0.0.0.0/0</code>.</p>
+    <p class="lm-field-note">Enter a client flow — which virtual server picks it up? Results are ranked most-specific first (the matched listener is highlighted at the top); virtuals at the same specificity are shown side by side. Click any listener to load the exact flow that reaches it and simulate its processing. Supports IPv4 and IPv6, VLANs and route domains. Source defaults to <code>0.0.0.0/0</code>.</p>
     <div class="lm-form">
       <div class="fld"><label>Source</label><input class="lm-src lm-field" placeholder="0.0.0.0/0"></div>
       <div class="fld"><label>Destination</label><input class="lm-dst lm-field" placeholder="e.g. 192.168.1.21"></div>
@@ -296,6 +296,7 @@
       <button class="lm-run">Match ▸</button>
     </div>
     <div class="lm-results"></div>
+    <div class="lm-sim"></div>
   </div>
 
 </article>

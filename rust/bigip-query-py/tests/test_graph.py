@@ -86,6 +86,23 @@ def test_irule_dynamic_actions_extraction():
     assert "persist" in effects
 
 
+def test_policies_shaped_with_rules():
+    d = _device()
+    assert d["policies"], "expected LTM policies"
+    pol = d["policies"][0]
+    assert "rules" in pol and isinstance(pol["rules"], list)
+    # every rule exposes conditions/actions lists the simulator evaluates
+    for r in pol["rules"]:
+        assert "conditions" in r and "actions" in r
+
+
+def test_pool_members_carry_addressing():
+    d = _device()
+    pool = next(p for p in d["pools"] if p["members"])
+    m = pool["members"][0]
+    assert "ratio" in m and "priorityGroup" in m and "state" in m
+
+
 def test_dynamic_profiles_propagate_to_virtuals():
     d = _device()
     # app4_pool_rule issues a `node` override; the virtual attaching it lists it.

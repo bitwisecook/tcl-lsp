@@ -392,55 +392,85 @@
     document.getElementById("drawerScrim").classList.remove("open");
   }
 
-  // ---- Listener matching -------------------------------------------------
-  function ipToInt(ip) {
-    if (ip.indexOf(":") >= 0) return null; // v6 handled separately (coarse)
-    var p = ip.split(".").map(Number);
-    if (p.length !== 4 || p.some(function (x) { return isNaN(x) || x < 0 || x > 255; })) return null;
-    return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
+  // ---- IP helpers (IPv4 + IPv6, BigInt-based) ----------------------------
+  function ipVer(ip) {
+    if (!ip) return null;
+    if (ip.indexOf(":") >= 0) return 6;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return 4;
+    return null;
   }
-  function inNet(ipInt, netIp, prefix) {
-    if (ipInt == null) return true;
-    var netInt = ipToInt(netIp);
-    if (netInt == null) return true;
+  function v6ToBig(ip) {
+    ip = ip.split("%")[0];
+    var halves = ip.split("::");
+    if (halves.length > 2) return null;
+    var head = halves[0] ? halves[0].split(":") : [];
+    var groups;
+    if (halves.length === 2) {
+      var tail = halves[1] ? halves[1].split(":") : [];
+      var mid = 8 - head.length - tail.length;
+      if (mid < 0) return null;
+      groups = head.concat(new Array(mid).fill("0"), tail);
+    } else {
+      groups = head;
+      if (groups.length !== 8) return null;
+    }
+    var big = 0n;
+    for (var i = 0; i < 8; i++) {
+      var g = groups[i] || "0";
+      if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+      big = (big << 16n) + BigInt(parseInt(g, 16));
+    }
+    return big;
+  }
+  function ipToBig(ip) {
+    var v = ipVer(ip);
+    if (v === 4) {
+      var p = ip.split("%")[0].split(".").map(Number);
+      if (p.some(function (x) { return isNaN(x) || x < 0 || x > 255; })) return null;
+      return (BigInt(p[0]) << 24n) + (BigInt(p[1]) << 16n) + (BigInt(p[2]) << 8n) + BigInt(p[3]);
+    }
+    if (v === 6) return v6ToBig(ip);
+    return null;
+  }
+  function inNet(ipBig, ver, netIp, prefix) {
+    if (ipBig == null) return true;
+    if (ipVer(netIp) !== ver) return false;
+    var netBig = ipToBig(netIp);
+    if (netBig == null) return true;
+    var bits = ver === 6 ? 128 : 32;
     if (prefix <= 0) return true;
-    var mask = prefix >= 32 ? 0xffffffff : (~((1 << (32 - prefix)) - 1)) >>> 0;
-    return ((ipInt & mask) >>> 0) === ((netInt & mask) >>> 0);
+    if (prefix > bits) prefix = bits;
+    var mask = ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);
+    return (ipBig & mask) === (netBig & mask);
   }
 
   function matchListeners(ix, q) {
-    // q: {dst, port, proto, rd, vlan, src}
-    var dstInt = ipToInt(q.dst);
+    var qVer = ipVer(q.dst) || ipVer(q.src.split("/")[0]);
+    var dstBig = ipToBig(q.dst);
     var out = [];
     ix.d.virtuals.forEach(function (v) {
       var L = v.listener || {}; if (v.disabled) return;
+      var lVer = L.family === "IPv6" ? 6 : 4;
+      if (qVer && !L.anyAddr && lVer !== qVer) return; // family must agree
       if (q.rd !== "" && String(L.routeDomain) !== String(q.rd)) return;
-      // destination address containment (wildcards always match)
-      if (!L.anyAddr && q.dst && !inNet(dstInt, L.address, L.prefix)) return;
-      // port
+      if (!L.anyAddr && q.dst && !inNet(dstBig, lVer, L.address, L.prefix)) return;
       if (q.port !== "" && L.port !== 0 && String(L.port) !== String(q.port)) return;
-      // protocol
       if (q.proto && q.proto !== "any" && L.protocol && L.protocol !== "any" &&
         L.protocol !== q.proto) return;
-      // vlan
       if (q.vlan && L.vlans && L.vlans.length) {
         var on = L.vlans.indexOf(q.vlan) >= 0;
         if (L.vlansEnabled && !on) return;
         if (L.vlansDisabled && on) return;
       }
-      // source containment
-      if (q.src && q.src !== "0.0.0.0/0" && q.src !== "::/0") {
-        var sp = q.src.split("/"); // coarse: skip if v6
-        if (sp[0].indexOf(":") < 0 && L.source) {
-          var ls = L.source.split("/");
-          // require the listener source to contain the query's source base
-          if (!inNet(ipToInt(sp[0]), ls[0], parseInt(ls[1] || "0", 10))) return;
-        }
+      if (q.src && q.src !== "0.0.0.0/0" && q.src !== "::/0" && L.source &&
+        L.source !== "0.0.0.0/0" && L.source !== "::/0") {
+        var sp = q.src.split("/"); var ls = L.source.split("/");
+        var sver = ipVer(sp[0]);
+        if (sver && ipVer(ls[0]) === sver &&
+          !inNet(ipToBig(sp[0]), sver, ls[0], parseInt(ls[1] || String(sver === 6 ? 128 : 32), 10))) return;
       }
       out.push(v);
     });
-    // specificity: dest prefix desc, then port specific, then source prefix desc,
-    // then vlan-scoped first.
     out.sort(function (a, b) {
       var la = a.listener, lb = b.listener;
       return (lb.prefix - la.prefix)
@@ -452,6 +482,251 @@
     return out;
   }
 
+  // ---- lookups -----------------------------------------------------------
+  function profileByPath(ix, path) {
+    return ix.d.profiles.find(function (p) { return p.fullPath === path; });
+  }
+  function policyByPath(ix, path) {
+    return ix.d.policies.find(function (p) { return p.fullPath === path; });
+  }
+
+  // ---- request-processing simulation ------------------------------------
+  function strOp(field, op, val, ci) {
+    if (ci) { field = field.toLowerCase(); val = val.toLowerCase(); }
+    switch (op) {
+      case "starts-with": return field.indexOf(val) === 0;
+      case "ends-with": return field.length >= val.length && field.slice(-val.length) === val;
+      case "contains": return field.indexOf(val) >= 0;
+      case "equals": return field === val;
+      default: return field.indexOf(val) >= 0;
+    }
+  }
+
+  // Evaluate an LTM policy against the request (first-match strategy).
+  function evalPolicy(pol, req) {
+    var fired = [];
+    for (var i = 0; i < pol.rules.length; i++) {
+      var r = pol.rules[i];
+      if (!r.conditions.length) continue;
+      var all = r.conditions.every(function (c) {
+        var field = c.operand === "http-host" ? req.host
+          : (c.selector === "path" ? req.uri.split("?")[0] : req.uri);
+        var hit = (c.values || []).some(function (val) {
+          return strOp(field, c.operator, val, c.caseInsensitive);
+        });
+        return c.negate ? !hit : hit;
+      });
+      if (all) {
+        fired.push(r);
+        if (pol.strategy === "first-match" || !pol.strategy) break;
+      }
+    }
+    return fired;
+  }
+
+  // Best-effort extraction + evaluation of an iRule's request-time actions.
+  function evalIrule(rule, req) {
+    var body = rule.body || "", acts = [];
+    function cond(ctx) {
+      var m = /HTTP::(uri|host)\b[^\n]*?\b(starts_with|ends_with|contains|equals|eq)\s+"?([^"\n\]]+)"?/i.exec(ctx);
+      if (!m) return { has: false, hit: true, text: "" };
+      var field = m[1].toLowerCase() === "host" ? req.host : req.uri;
+      var op = { starts_with: "starts-with", ends_with: "ends-with", contains: "contains", equals: "equals", eq: "equals" }[m[2].toLowerCase()];
+      return { has: true, hit: strOp(field, op, m[3].trim(), true), text: "HTTP::" + m[1] + " " + m[2] + ' "' + m[3].trim() + '"' };
+    }
+    // pool selection (with nearby guard)
+    var re = /\bpool\s+(\/[^\s;}"]+|\w[\w.\-]*)/g, m;
+    while ((m = re.exec(body))) {
+      var ctx = body.slice(Math.max(0, m.index - 140), m.index);
+      var c = cond(ctx);
+      acts.push({ kind: "pool", target: m[1], cond: c.text, active: c.hit });
+    }
+    var patterns = [
+      [/HTTP::redirect\s+"?([^"\n]+)"?/ig, "redirect"],
+      [/HTTP::respond\s+(\d+)/ig, "respond"],
+      [/HTTP::header\s+(insert|replace|remove)\s+"?([\w-]+)"?(?:\s+"?([^"\n]+)"?)?/ig, "header"],
+      [/persist\s+(\w+)/ig, "persist"],
+      [/(SSL::disable|SSL::enable)(?:\s+(\w+))?/ig, "ssl"],
+      [/\bnode\s+(\d[\d.:a-f]+)/ig, "node"],
+    ];
+    patterns.forEach(function (pp) {
+      var r2 = pp[0], mm;
+      while ((mm = r2.exec(body))) {
+        acts.push({ kind: pp[1], target: mm[1] || "", arg: mm[2] || "", val: mm[3] || "" });
+      }
+    });
+    return acts;
+  }
+
+  function pickSslProfile(ix, v, sni) {
+    var ssl = (v.profiles || []).map(function (p) { return profileByPath(ix, p); })
+      .filter(function (p) { return p && /CLIENT_SSL/.test(p.type); });
+    if (!ssl.length) return null;
+    if (sni) {
+      var byName = ssl.find(function (p) { return p.name.toLowerCase().indexOf(sni.toLowerCase()) >= 0; });
+      if (byName) return byName;
+    }
+    return ssl[0];
+  }
+
+  function simulate(ix, v, req) {
+    var stages = [];
+    var L = v.listener || {};
+    var isHttp = (v.profiles || []).some(function (p) { return /\/http\b|http$/.test(p) || /_http/.test(p); });
+
+    // 1. client SSL
+    var ssl = pickSslProfile(ix, v, req.sni);
+    if (ssl) {
+      stages.push({
+        title: "Client SSL", cls: "ssl",
+        rows: [
+          ["Profile", ssl.name],
+          ["Certificate", ssl.cert || "—"],
+          ["Key", ssl.key || "—"],
+          ["Chain", ssl.chain || "—"],
+          ["Ciphers", ssl.ciphers || "(profile default)"],
+          ["SNI", req.sni ? req.sni : "(none supplied — default profile)"],
+        ],
+      });
+    }
+
+    // 2. HUD / profiles applied
+    var profRows = (v.profiles || []).map(function (p) {
+      var po = profileByPath(ix, p);
+      return [p.split("/").pop(), po ? po.type.replace(/_/g, " ").toLowerCase() : "system default"];
+    });
+    stages.push({ title: "Profiles applied (HUD)", cls: "hud", rows: profRows.length ? profRows : [["(system defaults only)", ""]] });
+
+    // 3. header transform + iRules + policy (request time)
+    var headers = req.headers.slice();
+    function setHeader(k, val) {
+      var i = headers.findIndex(function (h) { return h[0].toLowerCase() === k.toLowerCase(); });
+      if (i >= 0) headers[i] = [k, val]; else headers.push([k, val]);
+    }
+    var changes = [];
+    var selectedPool = v.pool || "";
+    var poolReason = v.pool ? "default pool" : "";
+
+    // iRules
+    (v.rules || []).forEach(function (rp) {
+      var rule = ix.d.rules.find(function (r) { return r.fullPath === rp || r.name === rp.split("/").pop(); });
+      if (!rule) return;
+      var acts = evalIrule(rule, req);
+      acts.forEach(function (a) {
+        if (a.kind === "pool" && a.active) { selectedPool = a.target.indexOf("/") === 0 ? a.target : "/Common/" + a.target; poolReason = "iRule " + rule.name + (a.cond ? " (" + a.cond + ")" : ""); }
+        else if (a.kind === "header") {
+          if (a.target === "remove") { headers = headers.filter(function (h) { return h[0].toLowerCase() !== a.arg.toLowerCase(); }); changes.push("iRule " + rule.name + ": remove header " + a.arg); }
+          else { setHeader(a.arg, a.val); changes.push("iRule " + rule.name + ": " + a.target + " " + a.arg + ": " + a.val); }
+        } else if (a.kind === "redirect") { changes.push("iRule " + rule.name + ": HTTP::redirect " + a.target); }
+        else if (a.kind === "respond") { changes.push("iRule " + rule.name + ": HTTP::respond " + a.target); }
+        else if (a.kind === "persist") { changes.push("iRule " + rule.name + ": persist " + a.target); }
+        else if (a.kind === "ssl") { changes.push("iRule " + rule.name + ": " + a.target + (a.arg ? " " + a.arg : "")); }
+        else if (a.kind === "node") { selectedPool = "(node " + a.target + ")"; poolReason = "iRule " + rule.name + " node override"; }
+      });
+    });
+
+    // LTM policy
+    var policyRows = [];
+    (v.policies || []).forEach(function (pp) {
+      var pol = policyByPath(ix, pp);
+      if (!pol) return;
+      var fired = evalPolicy(pol, req);
+      fired.forEach(function (r) {
+        r.actions.forEach(function (a) {
+          if (a.target === "forward" && a.pool) { selectedPool = a.pool; poolReason = "policy " + pol.name + " · rule " + r.name; }
+          if (/http-header|http-uri|http-host/.test(a.target) || a.target === "http-header") {
+            if (a.name) { setHeader(a.name, a.value); changes.push("policy " + pol.name + ": set " + a.name + ": " + a.value); }
+          }
+          policyRows.push([pol.name + " · " + r.name, a.verb + " " + a.target + (a.pool ? " → " + a.pool.split("/").pop() : (a.location ? " " + a.location : ""))]);
+        });
+      });
+      if (!fired.length && pol.rules.length) policyRows.push([pol.name, "no rule matched this request"]);
+    });
+    if (policyRows.length) stages.push({ title: "LTM policy", cls: "policy", rows: policyRows });
+
+    if (changes.length || headers.length) {
+      stages.push({
+        title: "Request after processing", cls: "req",
+        pre: (req.method || "GET") + " " + (req.uri || "/") + " HTTP/1.1\n" +
+          headers.map(function (h) { return h[0] + ": " + h[1]; }).join("\n"),
+        notes: changes,
+      });
+    }
+
+    // 4. load balancing / member selection
+    var pool = selectedPool.indexOf("(") === 0 ? null : findPool(ix, "pool:" + selectedPool);
+    var lbRows = [["Selected pool", selectedPool ? selectedPool.split("/").pop() : "none (dropped / forwarded)"], ["Reason", poolReason || "—"]];
+    if (pool) {
+      lbRows.push(["LB method", pool.lbMode || "round-robin"]);
+      var up = pool.members.filter(function (m) { return m.state !== "down" && m.state !== "user-down"; });
+      var pick = up[0] || pool.members[0];
+      if (pick) lbRows.push(["Illustrative member", pick.address + ":" + pick.port +
+        (pick.ratio ? " ratio " + pick.ratio : "") + (pick.priorityGroup ? " pg " + pick.priorityGroup : "")]);
+    }
+    stages.push({
+      title: "Load balancing & member selection", cls: "lb", rows: lbRows,
+      members: pool ? pool.members : null,
+    });
+
+    // 5. server SSL
+    var sssl = (v.profiles || []).map(function (p) { return profileByPath(ix, p); })
+      .filter(function (p) { return p && /SERVER_SSL/.test(p.type); })[0];
+    if (sssl) stages.push({ title: "Server SSL", cls: "ssl", rows: [["Profile", sssl.name], ["Certificate", sssl.cert || "—"]] });
+
+    return stages;
+  }
+
+  function renderSim(ix, v, host) {
+    var L = v.listener || {};
+    var hasSsl = !!pickSslProfile(ix, v, "");
+    var isHttp = (v.profiles || []).some(function (p) { return /http/.test(p); });
+    var h = ['<div class="sim-head"><b>Processing for ' + esc(v.name) + '</b> <span class="mono muted">' +
+      esc(L.address) + ":" + esc(L.portRaw) + " · " + esc(L.protocol) + '</span></div>'];
+    h.push('<div class="sim-req">');
+    if (hasSsl) h.push('<div class="fld"><label>TLS SNI</label><input class="sim-sni lm-field" placeholder="www.example.com"></div>');
+    h.push('<div class="fld"><label>Method</label><select class="sim-method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></div>');
+    h.push('<div class="fld grow"><label>URI</label><input class="sim-uri lm-field" placeholder="/path?query" value="/"></div>');
+    h.push('<div class="fld"><label>Host</label><input class="sim-host lm-field" placeholder="app.example.com"></div>');
+    h.push('<button class="lm-run sim-go">Simulate ▸</button>');
+    h.push('</div>');
+    h.push('<div class="fld"><label>Extra request headers (one per line, <code>Name: value</code>)</label><textarea class="sim-headers" rows="2" placeholder="X-Custom: 1"></textarea></div>');
+    h.push('<div class="sim-out"></div>');
+    host.innerHTML = h.join("");
+
+    function go() {
+      var headers = [];
+      var host_ = host.querySelector(".sim-host").value.trim();
+      if (host_) headers.push(["Host", host_]);
+      (host.querySelector(".sim-headers").value || "").split("\n").forEach(function (ln) {
+        var i = ln.indexOf(":"); if (i > 0) headers.push([ln.slice(0, i).trim(), ln.slice(i + 1).trim()]);
+      });
+      var req = {
+        sni: hasSsl ? (host.querySelector(".sim-sni").value.trim()) : "",
+        method: host.querySelector(".sim-method").value,
+        uri: host.querySelector(".sim-uri").value.trim() || "/",
+        host: host_, headers: headers,
+      };
+      var stages = simulate(ix, v, req);
+      var o = host.querySelector(".sim-out");
+      o.innerHTML = stages.map(function (s) {
+        var inner = "";
+        if (s.rows) inner += '<table class="kv">' + s.rows.map(function (r) {
+          return "<tr><th>" + esc(r[0]) + "</th><td class='mono'>" + esc(r[1]) + "</td></tr>";
+        }).join("") + "</table>";
+        if (s.pre) inner += "<pre class='code'>" + esc(s.pre) + "</pre>";
+        if (s.notes && s.notes.length) inner += "<ul class='sim-notes'>" + s.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+        if (s.members) inner += "<table class='grid mini'><thead><tr><th>Member</th><th>Addr</th><th>Port</th><th>Ratio</th><th>PG</th></tr></thead><tbody>" +
+          s.members.map(function (m) { return "<tr><td class='mono'>" + esc(m.name.split("/").pop()) + "</td><td class='mono'>" + esc(m.address) + "</td><td class='mono'>" + esc(m.port) + "</td><td class='mono'>" + esc(m.ratio || "1") + "</td><td class='mono'>" + esc(m.priorityGroup || "0") + "</td></tr>"; }).join("") + "</tbody></table>";
+        return '<div class="sim-stage ' + s.cls + '"><div class="sim-stage-t">' + esc(s.title) + "</div>" + inner + "</div>";
+      }).join("");
+    }
+    host.querySelector(".sim-go").addEventListener("click", go);
+    host.querySelectorAll(".sim-req .lm-field").forEach(function (el) {
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+    });
+    go();
+  }
+
   function initListener(deviceEl, ix) {
     var panel = deviceEl.querySelector('.panel[data-panel="listener"]');
     if (!panel) return;
@@ -461,21 +736,33 @@
       vlan: panel.querySelector(".lm-vlan"), rd: panel.querySelector(".lm-rd"),
     };
     var out = panel.querySelector(".lm-results");
-    // populate vlan options
+    var sim = panel.querySelector(".lm-sim");
     var vlans = {};
     ix.d.virtuals.forEach(function (v) { (v.listener.vlans || []).forEach(function (x) { vlans[x] = 1; }); });
     f.vlan.innerHTML = '<option value="">any VLAN</option>' +
       Object.keys(vlans).sort().map(function (x) { return '<option>' + esc(x) + "</option>"; }).join("");
 
-    function run() {
+    // Reverse-populate the form with the most-specific flow that lands on `v`,
+    // then re-match and open its processing simulator.
+    function selectVs(v) {
+      var L = v.listener;
+      f.dst.value = L.anyAddr ? (L.family === "IPv6" ? "::" : "0.0.0.0") : L.address;
+      f.port.value = L.port ? String(L.port) : "";
+      f.proto.value = (L.protocol && L.protocol !== "any") ? L.protocol : "any";
+      f.rd.value = String(L.routeDomain || 0);
+      f.vlan.value = (L.vlansEnabled && L.vlans.length) ? L.vlans[0] : "";
+      run(v);
+    }
+
+    function run(focusVs) {
       var q = {
         src: f.src.value.trim() || "0.0.0.0/0", dst: f.dst.value.trim(),
         port: f.port.value.trim(), proto: f.proto.value, vlan: f.vlan.value,
         rd: f.rd.value.trim(),
       };
       var matches = matchListeners(ix, q);
+      sim.innerHTML = "";
       if (!matches.length) { out.innerHTML = '<div class="diag-empty">No virtual server matches this flow.</div>'; return; }
-      // group into specificity tiers (same dest-prefix + port-specificity aligned horizontally)
       var tiers = [];
       matches.forEach(function (v) {
         var key = v.listener.prefix + ":" + (v.listener.port !== 0 ? 1 : 0) + ":" + v.listener.sourcePrefix;
@@ -483,16 +770,17 @@
         if (!t) { t = { key: key, prefix: v.listener.prefix, port: v.listener.port, vs: [] }; tiers.push(t); }
         t.vs.push(v);
       });
-      var html = ['<div class="lm-note">Winner (most specific) at the top. Virtual servers at the same specificity are shown side by side.</div>'];
+      var focus = focusVs || matches[0];
+      var html = ['<div class="lm-note">The most specific listener is at the top — that is where this flow lands. Listeners of equal specificity are shown side by side; lower tiers only receive traffic the tiers above do not. Click a listener to load the exact flow that reaches it and simulate its processing.</div>'];
       html.push('<div class="tiers">');
       tiers.forEach(function (t, ti) {
-        html.push('<div class="tier' + (ti === 0 ? " winner" : "") + '">');
+        html.push('<div class="tier' + (ti === 0 ? " match" : "") + '">');
         html.push('<div class="tier-key">/' + t.prefix + ' · ' + (t.port ? "port " + t.port : "any port") + '</div>');
         html.push('<div class="tier-vs">');
         t.vs.forEach(function (v) {
           var L = v.listener;
-          html.push('<button class="lm-card objlink" data-oid="vs:' + esc(v.fullPath) + '">' +
-            '<span class="lm-name">' + esc(v.name) + (ti === 0 && t.vs.length === 1 ? ' <span class="tag green">selected</span>' : '') + '</span>' +
+          html.push('<button class="lm-card" data-fp="' + esc(v.fullPath) + '"' + (v === focus ? ' data-focus="1"' : "") + '>' +
+            '<span class="lm-name">' + esc(v.name) + (v === focus ? ' <span class="tag green">match</span>' : "") + '</span>' +
             '<span class="lm-dest mono">' + esc(L.address) + (L.prefix < L.maxPrefix ? "/" + L.prefix : "") +
             (L.routeDomain ? "%" + L.routeDomain : "") + ':' + esc(L.portRaw) + '</span>' +
             '<span class="lm-meta mono">' + esc(L.protocol) + (v.pool ? " → " + esc(v.pool.split("/").pop()) : " · no pool") + '</span>' +
@@ -503,15 +791,19 @@
       });
       html.push('</div>');
       out.innerHTML = html.join("");
-      out.querySelectorAll(".objlink").forEach(function (b) {
-        b.addEventListener("click", function () { openDrawer(ix, b.dataset.oid); });
+      out.querySelectorAll(".lm-card").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var v = ix.d.virtuals.find(function (x) { return x.fullPath === b.dataset.fp; });
+          if (v) selectVs(v);
+        });
       });
+      // open the processing simulator for the focused match
+      renderSim(ix, focus, sim);
     }
-    panel.querySelector(".lm-run").addEventListener("click", run);
+    panel.querySelector(".lm-run").addEventListener("click", function () { run(); });
     panel.querySelectorAll(".lm-field").forEach(function (el) {
       el.addEventListener("keydown", function (e) { if (e.key === "Enter") run(); });
     });
-    // default source per family already 0.0.0.0/0
     run();
   }
 

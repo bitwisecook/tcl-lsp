@@ -139,6 +139,9 @@ def _shape_pool(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
                 "port": str(port),
                 "monitor": _clean_path(mf.get("monitor", "")),
                 "ratio": mf.get("ratio", ""),
+                "priorityGroup": mf.get("priority-group", ""),
+                "connectionLimit": mf.get("connection-limit", ""),
+                "state": mf.get("state", ""),
                 "description": mf.get("description", ""),
             }
         )
@@ -228,6 +231,53 @@ def _shape_profile(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str
     }
 
 
+def _shape_policy(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
+    """Shape an LTM policy into rules → conditions / actions the simulator runs."""
+    def _sub(x: Any) -> dict[str, Any]:
+        return x.get("fields", x) if isinstance(x, dict) else {}
+
+    rules = []
+    for r in f.get("rules", []) or []:
+        rf = _sub(r)
+        conds = []
+        for c in rf.get("conditions", []) or []:
+            cf = _sub(c)
+            conds.append({
+                "operand": cf.get("operand", ""),
+                "selector": cf.get("selector", ""),
+                "operator": cf.get("operator", ""),
+                "values": cf.get("values", []) or [],
+                "negate": bool(cf.get("negate")),
+                "caseInsensitive": bool(cf.get("case-insensitive")),
+            })
+        acts = []
+        for a in rf.get("actions", []) or []:
+            af = _sub(a)
+            acts.append({
+                "target": af.get("target", ""),
+                "verb": af.get("verb", ""),
+                "pool": _clean_path(af.get("pool", "")),
+                "location": af.get("location", ""),
+                "host": af.get("host", ""),
+                "path": af.get("path", ""),
+                "value": af.get("value", ""),
+                "name": af.get("name", ""),
+            })
+        rules.append({
+            "name": rf.get("name", ""),
+            "ordinal": rf.get("ordinal", 0),
+            "conditions": conds,
+            "actions": acts,
+        })
+    fp = f.get("full-path", "")
+    return {
+        "name": f.get("name", ""),
+        "fullPath": fp,
+        "strategy": f.get("strategy", ""),
+        "rules": rules,
+    }
+
+
 _SHAPERS = {
     "virtuals": _shape_virtual,
     "pools": _shape_pool,
@@ -236,6 +286,7 @@ _SHAPERS = {
     "rules": _shape_rule,
     "dataGroups": _shape_data_group,
     "profiles": _shape_profile,
+    "policies": _shape_policy,
 }
 
 
