@@ -10,7 +10,9 @@ name: Publish BIG-IP example report to GitHub Pages
 # most recently is what's live. This one runs automatically on report changes.
 on:
   push:
-    branches: [main]
+    # `rust` is the active development line this feature lands on; `main` is the
+    # long-term default. Deploy from whichever holds the merged report code.
+    branches: [rust, main]
     paths:
       - "rust/bigip-query-py/**"
       - "rust/bigip-query-wasm/**"
