@@ -18,15 +18,31 @@ ipnet = "2"
 libm = "0.2"
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
-# Network-probe layer, gated behind
-# --enable-probes. x509-parser + sha2 back the deterministic, byte-parity
-# `x509_parse`; ureq / rustls / dns-lookup back the live probes.
-x509-parser = "0.18"
-sha2 = "0.10"
-dns-lookup = "3"
-ureq = "3"
-rustls = "0.23"
-rustls-native-certs = "0.8"
+# Network-probe layer, gated behind the `probes` cargo feature (on by default)
+# *and* the runtime `--enable-probes` flag. x509-parser + sha2 back the
+# deterministic, byte-parity `x509_parse`; ureq / rustls / dns-lookup back the
+# live probes. All are optional so the crate can be built for targets without a
+# socket / TLS stack (e.g. the wasm32 query console), which just omits the
+# probe builtins.
+x509-parser = { version = "0.18", optional = true }
+sha2 = { version = "0.10", optional = true }
+dns-lookup = { version = "3", optional = true }
+ureq = { version = "3", optional = true }
+rustls = { version = "0.23", optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+
+[features]
+default = ["probes"]
+# The live network-probe / x509 builtin family. Turn off (default-features =
+# false) to build without any socket, TLS or x509 dependency.
+probes = [
+    "dep:x509-parser",
+    "dep:sha2",
+    "dep:dns-lookup",
+    "dep:ureq",
+    "dep:rustls",
+    "dep:rustls-native-certs",
+]
 
 [dev-dependencies]
 temp-env = "0.3"
