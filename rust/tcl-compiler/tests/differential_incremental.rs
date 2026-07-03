@@ -115,6 +115,41 @@ fn random_edit(text: &str, rng: &mut Rng) -> String {
     }
 }
 
+/// Targeted (non-ignored) guard for the `apply`-lambda namespace fix: a `proc`
+/// nested in an apply body must produce a byte-identical `AnalysisResult` on the
+/// incremental (per-item / deferred) and fresh (full) paths, whether the apply
+/// sits inside a `namespace eval`, pins an explicit lambda namespace, or defines
+/// several nested procs. This runs in CI (the corpus fuzzer below needs `tmp/`
+/// trees that aren't present in a worktree checkout).
+#[test]
+fn incremental_matches_fresh_for_apply_lambda_bodies() {
+    let dialect = "tcl8.6";
+    let sources = [
+        "namespace eval foo { apply {{} { proc helper {} { return 1 } }} }\n",
+        "namespace eval foo {\n  apply {{x} {\n    proc helper {} { return $x }\n    set y 1\n  }} 5\n}\n",
+        "apply {{} { proc helper {} {} } ::bar}\n",
+        "namespace eval a::b { apply {{} { proc p {} {} ; proc q {} {} }} }\n",
+        "apply {{} { proc helper {} { return 1 } }}\n",
+    ];
+    for src in sources {
+        let mut text = src.to_string();
+        let mut cur = segment_commands(&text);
+        // A no-op step plus small appends: every step must match a fresh walk.
+        for edit in ["", "\nset z 9\n", " "] {
+            let new_text = format!("{text}{edit}");
+            let inc = Analyser::new().analyse_incremental(&text, &cur, &new_text, dialect);
+            let fresh = Analyser::new().analyse(&new_text, dialect);
+            assert!(
+                inc == fresh,
+                "incremental != fresh for apply lambda body:\n{}",
+                describe_analysis_divergence(src, &inc, &fresh)
+            );
+            text = new_text;
+            cur = segment_commands(&text);
+        }
+    }
+}
+
 #[test]
 #[ignore = "corpus fuzz; run explicitly with --ignored (needs tmp/ trees)"]
 fn incremental_matches_fresh_over_corpus() {
