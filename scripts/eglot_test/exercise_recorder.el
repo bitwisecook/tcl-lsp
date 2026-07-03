@@ -1,8 +1,9 @@
 ;; -*- lexical-binding: t -*-
 ;;; Smoke-test for tcl-lsp-record-bug.el.
 ;;
-;; Loads the recorder, drives a short eglot session against `uv run python -m server`,
-;; calls every public command, and prints a summary of the resulting .eld file.
+;; Loads the recorder, drives a short eglot session against the native
+;; `tcl-lsp-server' binary, calls every public command, and prints a summary
+;; of the resulting .eld file.
 
 (require 'eglot)
 (require 'tcl)
@@ -18,10 +19,19 @@
 
 (setq tcl-lsp-bug-record-include-source t)
 
+(defun exercise--server-bin ()
+  "Resolve the native `tcl-lsp-server' binary (see test_issue333.el)."
+  (let ((repo (or (getenv "TCL_LSP_REPO") default-directory)))
+    (or (let ((env (getenv "TCL_LSP_SERVER_BIN")))
+          (and env (file-exists-p env) env))
+        (cl-loop for rel in '("target/release/tcl-lsp-server"
+                              "target/debug/tcl-lsp-server")
+                 for abs = (expand-file-name rel repo)
+                 when (file-exists-p abs) return abs)
+        (error "tcl-lsp-server binary not found; set TCL_LSP_SERVER_BIN"))))
+
 (setq eglot-server-programs
-      `((tcl-mode . ("uv" "run" "--directory"
-                     ,(or (getenv "TCL_LSP_REPO") default-directory)
-                     "--no-dev" "python" "-m" "server"))))
+      `((tcl-mode . (,(exercise--server-bin)))))
 
 (let* ((repo (or (getenv "TCL_LSP_REPO") default-directory))
        (dir (expand-file-name "tmp/eglot_test" repo))

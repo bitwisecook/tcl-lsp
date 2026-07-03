@@ -1,24 +1,39 @@
 ;; -*- lexical-binding: t -*-
 ;;; test_issue333.el — headless eglot reproduction harness for issue #333
 ;;
-;; Drives eglot 1.23 (GNU ELPA) against `uv run python -m server` from a
-;; batch Emacs.  For each defined SCENARIO:
+;; Drives a real eglot (GNU ELPA >= 1.20) against the native
+;; `tcl-lsp-server' binary from a batch Emacs.  Two jobs:
+;;
+;;   A. Reproduce the upstream painter bug (issue #333) and confirm it is
+;;      client-side (`t333-painter-accumulation-test').
+;;   B. Verify the server's `semanticTokens/full/delta' end-to-end: after
+;;      an edit, real eglot receives an actual delta and applies it via
+;;      `eglot--semtok-apply-delta-edits' rather than the server re-sending
+;;      the whole token stream (`t333-delta-test').
+;;
+;; This harness is intentionally NOT part of `make test' / CI gates: it
+;; needs network access (to install eglot) and a real Emacs, and it
+;; exercises upstream eglot internals we can't fix from the server side.
+;; Run it by hand via `scripts/eglot_test/run.sh'.
+;;
+;; For each scenario the per-edit reproducer:
 ;;   1. open a Tcl file
 ;;   2. make a series of edits (each triggers didChange, possibly without
 ;;      waiting for the resulting semantic-tokens response)
 ;;   3. capture eglot's `face' property at every position (snapshot A)
 ;;   4. kill+reopen the file (sends didClose+didOpen → fresh /full request)
 ;;   5. capture face property again (snapshot B)
-;;   6. diff A vs B; mismatch ⇒ bug reproduced.
+;;   6. diff A vs B; mismatch ⇒ real LSP delta-correctness bug.
 ;;
-;; Exits 0 if all scenarios pass, 1 if any reproduces a bug, 2 on error.
+;; Exits 0 if all non-xfail scenarios and the delta assertions pass,
+;; 1 if any real regression is found, 2 on error.
 
 (require 'eglot)
 (require 'tcl)
 (require 'cl-lib)
 
 (unless (fboundp 'eglot-semantic-tokens-mode)
-  (princ "FATAL: this eglot has no eglot-semantic-tokens-mode (need >= 1.23).\n")
+  (princ "FATAL: this eglot has no eglot-semantic-tokens-mode (need >= 1.20).\n")
   (princ (format "  loaded from: %s\n" (locate-library "eglot")))
   (kill-emacs 3))
 
@@ -40,9 +55,33 @@
 (defvar t333-repo (or (getenv "TCL_LSP_REPO")
                       (expand-file-name default-directory)))
 
+;;; -----------------------------------------------------------------------
+;;; Server binary
+
+(defun t333-server-bin ()
+  "Resolve the native `tcl-lsp-server' binary to launch.
+Honours $TCL_LSP_SERVER_BIN, else prefers a release build over a debug
+build under the repo's cargo target dir."
+  (or (let ((env (getenv "TCL_LSP_SERVER_BIN")))
+        (and env (file-exists-p env) env))
+      (cl-loop for rel in '("target/release/tcl-lsp-server"
+                            "target/debug/tcl-lsp-server"
+                            "rust/target/release/tcl-lsp-server"
+                            "rust/target/debug/tcl-lsp-server")
+               for abs = (expand-file-name rel t333-repo)
+               when (file-exists-p abs) return abs)
+      (error "tcl-lsp-server binary not found; build it or set TCL_LSP_SERVER_BIN")))
+
 (setq eglot-server-programs
-      `((tcl-mode . ("uv" "run" "--directory" ,t333-repo
-                     "--no-dev" "python" "-m" "server"))))
+      `((tcl-mode . (,(t333-server-bin)))))
+
+;; Historical toggle from an earlier experiment (an "eglot compatibility mode"
+;; that dropped `full/delta' + `range').  That mode was removed once the data
+;; showed it made no difference — the server now implements proper
+;; `semanticTokens/full/delta' deltas for every editor instead.  The variable
+;; is kept (inert — the server ignores it) so the diagnostic scripts under this
+;; directory that still bind it continue to load; binding it has no effect.
+(defvar t333-eglot-compat nil)
 
 
 ;;; -----------------------------------------------------------------------
@@ -66,16 +105,6 @@
       (accept-process-output nil 0.05)
       (sit-for 0.02)))
   (font-lock-flush) (font-lock-ensure))
-
-(defun t333-paint-from-cache ()
-  "Force eglot's semtok painter to run with the current cached data.
-Needed in batch mode because font-lock-mode is off and the keyword
-form may not get re-invoked automatically after an async response."
-  (when (and (cl-getf eglot--semtok-state :data)
-             (fboundp 'eglot--semtok-font-lock-1))
-    (eglot--semtok-font-lock-1
-     (point-min) (point-max)
-     (cl-getf eglot--semtok-state :data))))
 
 (defun t333-snapshot ()
   "Return list of (POS CHAR FACE TOK-FACES TOK-NAMES) for every char.
@@ -138,7 +167,7 @@ edited buffer's token state and a fresh full-reload's token state."
 
 (defun t333-find-accumulated-faces (snap)
   "Return positions in SNAP whose `face' contains a duplicated eglot face.
-This catches the upstream eglot bug where `eglot--semtok-font-lock-1'
+This catches the upstream eglot bug where the semantic-token painter
 fails to strip its previous `eglot-semantic-*' faces from the `face'
 property before re-applying, causing each repaint to append another
 copy.  See https://github.com/bitwisecook/tcl-lsp/issues/333."
@@ -201,6 +230,35 @@ not the upstream painter accumulation from issue #333."
     (kill-buffer (current-buffer))
     (t333-pump 1 "post-disconnect")))
 
+(defun t333-semtok-full-shape ()
+  "Return the `:full' field of the server's semanticTokensProvider.
+Either the symbol t (bare boolean form) or a plist like (:delta t)."
+  (let ((prov (eglot-server-capable :semanticTokensProvider)))
+    (if (and (listp prov) (plist-member prov :full))
+        (plist-get prov :full)
+      prov)))
+
+(defun t333-count-semtok-requests ()
+  "Return (FULL . DELTA), the number of semanticTokens requests eglot
+sent on the current connection, read from its jsonrpc events buffer.
+Counts `full/delta' separately from plain `full' (the latter regex
+excludes the `/delta' suffix)."
+  (let* ((server (eglot-current-server))
+         (events-buf (and server (jsonrpc-events-buffer server)))
+         (full 0) (delta 0))
+    (when (buffer-live-p events-buf)
+      (with-current-buffer events-buf
+        (save-excursion
+          (goto-char (point-min))
+          (while (re-search-forward "semanticTokens/full/delta" nil t)
+            (cl-incf delta))
+          (goto-char (point-min))
+          ;; `full' not followed by `/delta' — a negative lookahead via an
+          ;; explicit non-`/' (or end) terminator.
+          (while (re-search-forward "semanticTokens/full\\(?:[^/]\\|$\\)" nil t)
+            (cl-incf full)))))
+    (cons full delta)))
+
 
 ;;; -----------------------------------------------------------------------
 ;;; Scenarios
@@ -256,13 +314,6 @@ not the upstream painter accumulation from issue #333."
                (t333-pump 1)))
 
    `(:name "insert-line-top"
-     ;; Marked XFAIL: same eglot delta-painter timing surface as
-     ;; ``rename-only`` — under heavy parallel load (``make -j 4`` in
-     ;; ``test-slow``) the painter occasionally leaves stale
-     ;; ``eglot-semantic-*`` faces on positions whose token kind
-     ;; should have shifted after the prepended comment line.  Passes
-     ;; consistently on standalone runs; only flakes when CPU is
-     ;; contended.  Mirrors issue #333; not a tcl-lsp server bug.
      :xfail "eglot delta painter leaves stale eglot-semantic-* faces under load (issue #333)"
      :initial ,(concat "set a 1\nset b 2\nset c 3\n")
      :edits ,(lambda ()
@@ -271,12 +322,6 @@ not the upstream painter accumulation from issue #333."
                (t333-pump 1)))
 
    `(:name "delete-line-middle"
-     ;; Marked XFAIL: same eglot delta-painter timing surface as
-     ;; ``rename-only`` / ``insert-line-top`` — flakes under
-     ;; ``test-slow``'s parallel ``make -j 4`` (especially with the
-     ;; extra ensure_owned allocations from the cmdAH cascade fix
-     ;; adding a little more CPU pressure to the runtime path).
-     ;; Standalone runs pass consistently.  Mirrors issue #333.
      :xfail "eglot delta painter leaves stale eglot-semantic-* faces under load (issue #333)"
      :initial ,(concat
                 "proc foo {a b} {\n"
@@ -293,13 +338,6 @@ not the upstream painter accumulation from issue #333."
                (t333-pump 1)))
 
    `(:name "rapid-fire-no-wait"
-     ;; Marked XFAIL: this exercises eglot's didChange request
-     ;; coalescing, which is timing-sensitive and known to drop
-     ;; intermediate edits on some eglot/jsonrpc combinations.  The
-     ;; scenario reproduces the upstream behaviour rather than testing
-     ;; the tcl-lsp server, so we don't fail the suite when it
-     ;; mismatches.  If it ever passes consistently we'll remove the
-     ;; XFAIL and start guarding against regression.
      :xfail "eglot didChange coalescing is timing-dependent upstream"
      :initial ,(concat
                 "proc f {a b} {\n"
@@ -308,8 +346,6 @@ not the upstream painter accumulation from issue #333."
                 "    return [expr {$x + $y + $a + $b}]\n"
                 "}\n")
      :edits ,(lambda ()
-               ;; A burst of edits without waiting between — exercises
-               ;; eglot's request coalescing.
                (goto-char (point-min))
                (insert "# 1\n")
                (insert "# 2\n")
@@ -320,10 +356,6 @@ not the upstream painter accumulation from issue #333."
                (t333-pump 1)))
 
    `(:name "user-issue-code"
-     ;; The actual code from the screenshots.  Marked XFAIL for the
-     ;; same reason as ``delete-line-middle`` — eglot painter timing
-     ;; flakes under heavy parallel CPU contention (issue #333).
-     ;; Standalone runs pass.
      :xfail "eglot delta painter leaves stale eglot-semantic-* faces under load (issue #333)"
      :initial ,(concat
                 "set iniFile config.ini\n"
@@ -340,7 +372,6 @@ not the upstream painter accumulation from issue #333."
                 "}\n"
                 "catch {file delete -force -- $rawFileNameOp}\n")
      :edits ,(lambda ()
-               ;; Reproduce a sequence the user might do.
                (goto-char (point-min))
                (search-forward "Solver 0")
                (replace-match "Disabled 0")
@@ -364,7 +395,6 @@ not the upstream painter accumulation from issue #333."
                 "    return $total\n"
                 "}\n")
      :edits ,(lambda ()
-               ;; Type-by-character into the proc body.
                (goto-char (point-min))
                (search-forward "set total 0")
                (forward-char 1)
@@ -398,23 +428,9 @@ not the upstream painter accumulation from issue #333."
     (t333-pump-until-semtok 5)
     (let ((edited-text (buffer-string))
           (snap-edited (t333-snapshot))
-          ;; Look for our server's [timing] semanticTokens log lines in
-          ;; the events buffer (window/logMessage notifications).
-          (events-buf (cl-find-if
-                       (lambda (b) (string-match-p "EVENTS for" (buffer-name b)))
-                       (buffer-list))))
-      (when events-buf
-        (let ((tokens 0) (deltas 0))
-          (with-current-buffer events-buf
-            (save-excursion
-              (goto-char (point-min))
-              (while (re-search-forward "semanticTokens/full[^/]" nil t)
-                (cl-incf tokens))
-              (goto-char (point-min))
-              (while (re-search-forward "semanticTokens/full/delta" nil t)
-                (cl-incf deltas))))
-          (princ (format "  protocol: %d /full requests, %d /full/delta requests\n"
-                         tokens deltas))))
+          (reqs (t333-count-semtok-requests)))
+      (princ (format "  protocol: %d /full requests, %d /full/delta requests\n"
+                     (car reqs) (cdr reqs)))
       (t333-disconnect)
 
       ;; Phase 2: fresh open of the saved file.
@@ -430,28 +446,11 @@ not the upstream painter accumulation from issue #333."
         (let ((diff (t333-diff snap-edited snap-reload))
               (accum-edited (t333-find-accumulated-faces snap-edited))
               (accum-reload (t333-find-accumulated-faces snap-reload)))
-          ;; Bug-mode A: real delta-correctness mismatch between the
-          ;; post-edit buffer's token state and a fresh full-reload's
-          ;; token state.  ``t333-diff`` already deduplicates the
-          ;; upstream painter's accumulated faces, so any diff here is
-          ;; a genuine LSP server bug and fails the scenario.
           (when diff
             (princ (format "  FAIL [diff]: %d positions differ\n" (length diff)))
             (cl-loop for d in diff for k from 0 below 12
                      do (princ (format "    pos=%4d char=%c edit=%S  reload=%S\n"
                                        (nth 0 d) (nth 1 d) (nth 2 d) (nth 3 d)))))
-          ;; Bug-mode B (issue #333): same eglot-semantic-* face appears
-          ;; multiple times on a single character within one snapshot.
-          ;; This catches the upstream eglot painter accumulation bug
-          ;; (see ``t333-painter-accumulation-test`` for the deterministic
-          ;; regression detector).  It is *not* fatal here: under CPU
-          ;; pressure (e.g. ``test-slow`` running suites in parallel)
-          ;; the upstream bug bleeds into rename-only / many-small-edits
-          ;; / etc., but our LSP server can't fix it from this side.
-          ;; Report it as informational so the suite stays green for
-          ;; server changes; if the painter ever stops accumulating,
-          ;; ``painter-accumulation`` will loudly PASS and prompt us to
-          ;; drop the workaround.
           (when accum-edited
             (princ (format "  INFO [accum-edited]: %d positions have duplicated eglot-semantic-* faces (upstream eglot bug, see issue #333)\n"
                            (length accum-edited)))
@@ -484,7 +483,11 @@ faces from the `face' property itself.  In interactive use, repeated
 re-paints (after edits, scrolls, theme changes) accumulate faces
 on the same character.  See
 https://github.com/bitwisecook/tcl-lsp/issues/333#issuecomment-4380862687
-for an end-user-facing example."
+for an end-user-facing example.
+
+Purely client-side: it drives the painter directly, so it accumulates
+regardless of what the server advertises.  It stays a deterministic
+canary for when eglot upstream fixes the painter."
   (princ "\n========== scenario: painter-accumulation (issue #333) ==========\n")
   (let* ((tmpdir (expand-file-name "tmp/eglot_test" t333-repo))
          (path (expand-file-name "painter-accum.tcl" tmpdir))
@@ -504,22 +507,15 @@ for an end-user-facing example."
         (princ "  ERROR: no semantic-tokens data after open\n")
         (t333-disconnect)
         (cl-return-from t333-painter-accumulation-test nil))
-      ;; Capture face state immediately after the natural fontify.
-      ;; `font-lock-flush' would re-unfontify, so we don't call it
-      ;; here — we want to see what happens when the painter is
-      ;; invoked twice consecutively, which is the real-world flow.
       (let ((before-second-paint
              (cl-loop for pos from (point-min) below (point-max)
                       collect (cons pos (get-text-property pos 'face)))))
-        ;; Second paint, no unfontify in between.
         (eglot--semtok-font-lock-1 (point-min) (point-max) data)
         (let* ((snap (cl-loop for pos from (point-min) below (point-max)
                               collect (list pos
                                             (char-after pos)
                                             (get-text-property pos 'face))))
                (accum (t333-find-accumulated-faces snap))
-               ;; Did the buffer's face state change between paints?
-               ;; If the painter were idempotent, it wouldn't.
                (after-second
                 (cl-loop for pos from (point-min) below (point-max)
                          collect (cons pos (get-text-property pos 'face))))
@@ -542,6 +538,68 @@ for an end-user-facing example."
                                        (nth 0 a) (nth 1 a) (nth 2 a))))
             nil)))))))
 
+(cl-defun t333-delta-test ()
+  "End-to-end verification of the server's `semanticTokens/full/delta'.
+
+Through a real eglot connection: the server advertises `full/delta' +
+`range', and after an edit eglot receives an actual DELTA and applies it
+via `eglot--semtok-apply-delta-edits' — rather than the server re-sending
+the whole token stream.  This is the incremental behaviour (like
+rust-analyzer) that keeps eglot's token round-trip, and its stale-repaint
+window, small on large files.  Returns t when every assertion holds."
+  (princ "\n========== scenario: semantic-tokens delta ==========\n")
+  (let* ((tmpdir (expand-file-name "tmp/eglot_test" t333-repo))
+         (path (expand-file-name "delta.tcl" tmpdir))
+         (initial (concat
+                   "namespace eval ::myns {}\n"
+                   "set iniFile config.ini\n"
+                   "proc compute {a b} {\n"
+                   "    set total [expr {$a + $b}]\n"
+                   "    return $total\n"
+                   "}\n"))
+         (ok t)
+         (got-delta nil))
+    (make-directory tmpdir t)
+    (with-temp-file path (insert initial))
+    (unwind-protect
+        (progn
+          (t333-connect-and-open path)
+          (t333-pump-until-semtok 8)
+          (let ((full (t333-semtok-full-shape))
+                (range (eglot-server-capable :semanticTokensProvider :range)))
+            (princ (format "  advertised: full=%S range=%S\n" full range))
+            (unless (and (listp full) (plist-get full :delta))
+              (setq ok nil) (princ "  FAIL: server must advertise full/delta\n"))
+            (unless (eq range t)
+              (setq ok nil) (princ "  FAIL: server must advertise range\n")))
+          ;; An edit that changes tokens; force the didChange flush (batch has
+          ;; no idle timer) so eglot's `full/delta' path engages.
+          (goto-char (point-min))
+          (insert "# new comment referencing $iniFile\n")
+          (eglot--signal-textDocument/didChange)
+          (t333-pump-until-semtok 8)
+          ;; A `full/delta' RESPONSE that carries `edits' (rather than a full
+          ;; `data' re-send) is the proof the server produced a real delta.
+          ;; Detected from the jsonrpc events buffer — `eglot--semtok-apply-
+          ;; delta-edits' is a `defsubst' inlined into byte-compiled eglot, so
+          ;; advising the symbol can't observe it.
+          (let* ((server (eglot-current-server))
+                 (buf (and server (jsonrpc-events-buffer server))))
+            (when (buffer-live-p buf)
+              (with-current-buffer buf
+                (goto-char (point-min))
+                (setq got-delta (re-search-forward "\"edits\"" nil t))))
+            (let ((reqs (t333-count-semtok-requests)))
+              (princ (format "  after edit: %d /full, %d /full/delta requests; delta-response=%s\n"
+                             (car reqs) (cdr reqs) (and got-delta t)))))
+          (unless got-delta
+            (setq ok nil)
+            (princ "  FAIL: no `edits' in any response — server re-sent a full stream?\n")))
+      (ignore-errors (t333-disconnect)))
+    (princ (if ok "  PASS — server sends real deltas and eglot applies them\n"
+             "  FAIL — delta path did not behave as expected\n"))
+    ok))
+
 (defun t333-main ()
   (let* ((scenario-results
           (mapcar (lambda (sc)
@@ -549,21 +607,16 @@ for an end-user-facing example."
                           (t333-run-scenario sc)
                           (plist-get sc :xfail)))
                   t333-scenarios))
-         ;; Painter-accumulation is informational: it deterministically
-         ;; reproduces an upstream eglot bug we cannot fix from the
-         ;; server side.  We expect it to FAIL on every eglot version up
-         ;; to and including the current GNU ELPA release; if it ever
-         ;; PASSes we'd want to know (and probably remove this XFAIL).
          (accum-pass (t333-painter-accumulation-test))
+         (delta-pass (t333-delta-test))
          ;; A scenario contributes to ``any-fail`` only if it failed AND
-         ;; isn't marked :xfail.  An XFAIL that unexpectedly passes
-         ;; (XPASS) is loud in the summary so we remember to drop the
-         ;; marker, but it doesn't fail the suite either — we'd rather
-         ;; surface the regression in a separate guard once stable.
-         (any-fail (cl-some (lambda (r)
-                              (and (not (nth 1 r))
-                                   (null (nth 2 r))))
-                            scenario-results)))
+         ;; isn't marked :xfail.  The delta test is a real gate for our
+         ;; server's `full/delta' implementation, so its failure fails the suite.
+         (any-fail (or (not delta-pass)
+                       (cl-some (lambda (r)
+                                  (and (not (nth 1 r))
+                                       (null (nth 2 r))))
+                                scenario-results))))
     (princ "\n========== summary ==========\n")
     (dolist (r scenario-results)
       (let* ((name (nth 0 r))
@@ -581,10 +634,16 @@ for an end-user-facing example."
     (princ (format "  %-25s %s\n" "painter-accumulation"
                    (cond (accum-pass "PASS (eglot bug appears fixed!)")
                          (t "XFAIL (known upstream eglot bug, see issue #333)"))))
+    (princ (format "  %-25s %s\n" "semantic-tokens-delta"
+                   (cond (delta-pass "PASS")
+                         (t "FAIL (full/delta implementation regressed)"))))
     (kill-emacs (if any-fail 1 0))))
 
-(condition-case err
-    (t333-main)
-  (error
-   (princ (format "ERROR: %S\n" err))
-   (kill-emacs 2)))
+;; Loading with TCL_LSP_T333_NOEXEC set defines the functions without running
+;; the suite — used to drive individual scenarios from a REPL / one-off eval.
+(unless (getenv "TCL_LSP_T333_NOEXEC")
+  (condition-case err
+      (t333-main)
+    (error
+     (princ (format "ERROR: %S\n" err))
+     (kill-emacs 2))))
