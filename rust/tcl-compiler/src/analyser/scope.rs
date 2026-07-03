@@ -939,6 +939,20 @@ mod tests {
     }
 
     #[test]
+    fn w215_quiet_for_backslash_continued_param_list() {
+        // Issue #743: a parameter list wrapped across lines with `\`. Tcl
+        // list-parses the braced param list, so `ddrtol\<newline>ddatol` is two
+        // parameters (`ddrtol`, `ddatol`), not a single `ddrtol\` name — no
+        // W215 unreachable-name warning should fire.
+        let src = "proc p {a ddrtol\\\n        ddatol} { list $a $ddrtol $ddatol }";
+        assert!(!diag_codes(src, "tcl").contains(&"W215".to_string()));
+
+        // The reported form: a TclOO `method` with a wrapped parameter list.
+        let method_src = "oo::class create C {\n  method Fdjac2 {funct ifree ddrtol\\\n      ddatol} { list $ddrtol $ddatol }\n}\n";
+        assert!(!diag_codes(method_src, "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
     fn w116_fires_for_stub_shadowing_builtin() {
         let src = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub set {a:var b}\n# tcl-lsp: stubs-end\n";
         assert!(diag_codes(src, "tcl").contains(&"W116".to_string()));
