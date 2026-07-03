@@ -1605,39 +1605,56 @@ impl<'r> Lowerer<'r> {
     ///
     /// A `$var` / `[cmd]` lambda, or a lambda whose body element is not a braced
     /// literal, stays fully opaque (nothing statically walkable).
+    ///
+    /// The body is walked in the *lambda's* namespace — element 2 of the lambda
+    /// if present, else the global namespace `::` — not the caller's namespace,
+    /// so a nested `proc` registers under the same qualified name Tcl's runtime
+    /// `apply` would give it (per the `apply` manual).
     fn lower_apply(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         use tcl_lexer::TokenType;
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
 
-        // Locate the body element (index 1) of a braced literal lambda. Split
-        // the lambda's content into list elements by flattening the segmented
-        // words — a newline splits *commands* but not *list elements*, matching
-        // the analyser's `handle_apply_command`.
-        let body_info: Option<(String, u32)> = match (args.first(), arg_tokens.first()) {
+        // Flatten the braced literal lambda into its list elements (index 0 =
+        // params, 1 = body, 2 = optional namespace). A newline splits *commands*
+        // but not *list elements*, matching the analyser's `handle_apply_command`.
+        let lambda_elems: Vec<(tcl_lexer::Token, String)> = match (args.first(), arg_tokens.first())
+        {
             (Some(lambda_text), Some(&lambda_tok)) if lambda_tok.kind == TokenType::Str => {
                 let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
-                let elems = segment_commands_with_offset_and_config(lambda_text, base, self.config);
-                elems
+                segment_commands_with_offset_and_config(lambda_text, base, self.config)
                     .iter()
-                    .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter()))
-                    .nth(1)
-                    .filter(|(tok, _)| tok.kind == TokenType::Str)
-                    .map(|(tok, text)| {
-                        (text.clone(), tok.span.start() + u32::from(tok.content_offset))
-                    })
+                    .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter().cloned()))
+                    .collect()
             }
-            _ => None,
+            _ => Vec::new(),
         };
 
+        // The body element (index 1) must itself be a braced literal to walk.
+        let body_info: Option<(String, u32)> = lambda_elems
+            .get(1)
+            .filter(|(tok, _)| tok.kind == TokenType::Str)
+            .map(|(tok, text)| (text.clone(), tok.span.start() + u32::from(tok.content_offset)));
+
         if let Some((body_text, body_offset)) = body_info {
+            // `apply` evaluates the body in the namespace named by lambda element
+            // 2, or the *global* namespace when it is absent — never the caller's
+            // namespace (Tcl `apply` manual). So a nested `proc` registers
+            // globally unless the lambda pins a namespace; a non-`::`-qualified
+            // pin resolves relative to the caller (as `TclGetNamespaceFromObj`).
+            let body_ns = match lambda_elems.get(2).map(|(_, t)| t.as_str()) {
+                Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
+                    join_namespace(namespace, ns)
+                }
+                _ => "::".to_string(),
+            };
             // Fresh frame for the lambda body: its own runtime frame means the
             // caller's tracked scalars must not fold into it (a bare `$x` in the
             // body is an unbound local, not the caller's `x`).  Mirror
             // `lower_proc`'s const-map / proc-depth push.
             self.proc_depth += 1;
             self.const_map_stack.push(HashMap::new());
-            let _body = self.lower_body(&body_text, body_offset, namespace);
+            let _body = self.lower_body(&body_text, body_offset, &body_ns);
             self.const_map_stack.pop();
             self.proc_depth -= 1;
         }
@@ -2475,6 +2492,40 @@ mod tests {
         );
         // The method body still lowered the `proc helper ...` call.
         assert!(m.methods.contains_key("::C::m"));
+    }
+
+    #[test]
+    fn apply_body_proc_registers_in_lambda_namespace_not_callers() {
+        // `apply`'s body runs in the namespace named by the lambda — or the
+        // *global* namespace when none is given — NOT the caller's namespace.
+        // So a nested `proc` registers as `::helper`, never `::foo::helper`
+        // (Tcl `apply` manual).
+        let src = "namespace eval foo {\n\
+                   \x20   apply {{} { proc helper {} { return 1 } }}\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.procedures.contains_key("::helper"),
+            "apply body proc must register in the global namespace: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !m.procedures.contains_key("::foo::helper"),
+            "apply body proc must NOT inherit the caller namespace: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn apply_body_proc_uses_explicit_lambda_namespace() {
+        // A lambda whose element 2 pins a namespace runs its body there.
+        let src = "apply {{} { proc helper {} { return 1 } } ::bar}\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.procedures.contains_key("::bar::helper"),
+            "explicit lambda namespace must be honoured: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
     }
 
     #[test]

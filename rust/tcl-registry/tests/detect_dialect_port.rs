@@ -157,3 +157,23 @@ fn version_guard_in_comment_or_string_ignored() {
         None
     );
 }
+
+#[test]
+fn version_guard_in_braced_data_ignored() {
+    // A `package require` inside an *inert* braced word (data, not a script or
+    // expression body) must not select a dialect: the scan recurses into braced
+    // words only at script/expr positions, never arbitrary data arguments.
+    assert_eq!(detect("set msg {package require Tcl 8.4}\n"), None);
+    assert_eq!(detect("lappend cmds {package require Tcl 8.4}\n"), None);
+    // The gate applies at every nesting level, so a data literal buried inside a
+    // real script body stays inert too.
+    assert_eq!(
+        detect("if {$c} {\n  set msg {package require Tcl 8.4}\n}\n"),
+        None
+    );
+    // …but a genuine `package require` in an executed script body IS found.
+    assert_eq!(
+        detect("if {$c} {\n  package require Tcl 9.0\n}\n"),
+        Some("tcl9.0")
+    );
+}

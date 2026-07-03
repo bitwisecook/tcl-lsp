@@ -265,13 +265,53 @@ fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
     match_version_command(&cmd, depth)
 }
 
+/// Whether a command evaluates its *braced / quoted* word arguments as script or
+/// expression bodies — the gate for whether the version scan may recurse into
+/// them. Command substitutions (`[…]`) are always genuine scripts and are
+/// recursed into regardless of the command; this gate applies only to braced /
+/// quoted words, so inert data such as `set msg {package require Tcl 8.4}` is
+/// never mis-tokenised as a script and used to select a bogus dialect. The name
+/// is matched with any leading `::` stripped so fully-qualified builtins
+/// (`::if`, `::namespace`) are recognised too.
+fn is_script_body_command(name: &str) -> bool {
+    matches!(
+        name.trim_start_matches("::"),
+        "if" | "while"
+            | "for"
+            | "foreach"
+            | "catch"
+            | "try"
+            | "eval"
+            | "namespace"
+            | "uplevel"
+            | "apply"
+            | "expr"
+            | "subst"
+            | "proc"
+            | "time"
+            | "coroutine"
+    )
+}
+
 /// Match one tokenised command against the two Tcl-version idioms, first
-/// descending into any command-substitution / braced-word argument so a guard
+/// descending into any command-substitution / script-body argument so a guard
 /// nested inside this command (e.g. `if { [package vsatisfies …] }`) is found.
 fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
-    // Descend into nested scripts / substitutions first (reading order).
+    // Recurse into command substitutions unconditionally (they are always real
+    // scripts), but into braced / quoted words only when this command evaluates
+    // them as script / expression bodies. The gate is applied at *every* nesting
+    // level, so even `if {$c} {set msg {package require Tcl 8.4}}` leaves the
+    // inner `set` data untouched. (Reading order.)
+    let descend_braced = cmd
+        .first()
+        .is_some_and(|w| is_script_body_command(&w.text));
     for w in cmd {
-        if matches!(w.kind, tcl_lexer::TokenType::Cmd | tcl_lexer::TokenType::Str)
+        let recurse = match w.kind {
+            tcl_lexer::TokenType::Cmd => true,
+            tcl_lexer::TokenType::Str => descend_braced,
+            _ => false,
+        };
+        if recurse
             && let Some(v) = scan_tokens_for_tcl_version(&w.text, depth + 1)
         {
             return Some(v);
