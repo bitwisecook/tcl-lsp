@@ -3,6 +3,7 @@
   --bg:#f6f7f9; --panel:#ffffff; --ink:#1b2230; --muted:#6b7688; --line:#e4e8ee;
   --accent:#0b6ea8; --accent-ink:#ffffff;
   --blue:#1f6feb; --green:#1a7f5a; --amber:#9a6a00; --red:#b4232a;
+  --search-hi:#c2410c; /* dark orange (light theme) */
   --tag-bg:#eef1f5; --tag-ink:#3a4657; --chip:#ffffff; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
@@ -11,6 +12,7 @@
   --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a8; --line:#232c37;
   --accent:#2f9fd0; --accent-ink:#04121a;
   --blue:#4a9bff; --green:#3fb98a; --amber:#e3b341; --red:#f26d74;
+  --search-hi:#fb923c; /* orange (dark theme) */
   --tag-bg:#232c37; --tag-ink:#c6d2df; --chip:#1b222c; --shadow:none;
 }
 @media (prefers-color-scheme:dark){
@@ -18,6 +20,7 @@
     --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a8; --line:#232c37;
     --accent:#2f9fd0; --accent-ink:#04121a;
     --blue:#4a9bff; --green:#3fb98a; --amber:#e3b341; --red:#f26d74;
+    --search-hi:#fb923c;
     --tag-bg:#232c37; --tag-ink:#c6d2df; --chip:#1b222c; --shadow:none;
   }
 }
@@ -84,9 +87,20 @@ table.grid{width:100%;border-collapse:collapse;font-size:13px}
 .grid tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 .grid tbody tr.searchable:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
 .grid tbody tr.hidden{display:none}
-/* rows shown only because they're linked to a search match (not a direct hit) */
-.grid tbody tr.search-linked{opacity:.42}
-.grid tbody tr.search-linked:hover{opacity:.72}
+/* search results are two-toned: a row that directly matches the query is
+   recoloured with the primary accent; a row shown only because it is *linked*
+   to a match gets a second (orange) accent, so match vs. association reads at a
+   glance. Tags keep their own colours. */
+.grid tbody tr.search-hit td,
+.grid tbody tr.search-hit td .namelink,
+.grid tbody tr.search-hit td.small,
+.grid tbody tr.search-hit td .muted{color:var(--accent) !important}
+.grid tbody tr.search-linked td,
+.grid tbody tr.search-linked td .namelink,
+.grid tbody tr.search-linked td.small,
+.grid tbody tr.search-linked td .muted{color:var(--search-hi) !important}
+.grid tbody tr.search-hit td .tag,
+.grid tbody tr.search-linked td .tag{opacity:.85}
 .grid tbody tr.orphan td:first-child,.grid tbody tr.orphan td:nth-child(2){box-shadow:inset 3px 0 0 var(--amber)}
 .grid tr.is-disabled{opacity:.62}
 .mono{font-family:var(--mono);font-size:12px}

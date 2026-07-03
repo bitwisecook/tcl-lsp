@@ -1049,31 +1049,67 @@
       return (d && d.classList.contains("detail")) ? d : null;
     }
 
+    // Parse "ip" or "ip/prefix" (v4/v6) into a network, else null.
+    function toNet(s) {
+      var m = /^([0-9a-fA-F:.]+)(?:\/(\d+))?$/.exec(s);
+      if (!m) return null;
+      var ver = ipVer(m[1]); if (!ver) return null;
+      var big = ipToBig(m[1]); if (big == null) return null;
+      var full = ver === 6 ? 128 : 32;
+      var pfx = m[2] !== undefined ? parseInt(m[2], 10) : full;
+      if (pfx > full) return null;
+      return { ver: ver, big: big, prefix: pfx, full: full };
+    }
+    // Does `outer` (the less-specific network) contain `inner`?
+    function contains(outer, inner) {
+      if (outer.ver !== inner.ver || inner.prefix < outer.prefix) return false;
+      var mask = ((1n << BigInt(outer.prefix)) - 1n) << BigInt(outer.full - outer.prefix);
+      return (outer.big & mask) === (inner.big & mask);
+    }
+    function ipOverlap(a, b) { return contains(a, b) || contains(b, a); }
+    var IP_TOKEN = /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(?:\/[0-9]+)?|[0-9a-fA-F:]{2,}:[0-9a-fA-F:]*(?:\/[0-9]+)?/g;
+
     function run() {
       var dEl = document.querySelector(".device.active");
       if (!dEl) return;
       var ix = IDX[parseInt(dEl.dataset.dev, 10)];
-      var q = search.value.trim().toLowerCase();
+      var raw = search.value.trim();
+      var q = raw.toLowerCase();
       var rows = dEl.querySelectorAll(".panel tr.searchable");
 
       if (!q) {
         rows.forEach(function (r) {
-          r.classList.remove("hidden", "search-linked");
+          r.classList.remove("hidden", "search-linked", "search-hit");
           var d = detailOf(r); if (d) d.classList.remove("hidden");
         });
         return;
       }
 
+      // If the query is an IP / CIDR, also match objects (nodes, members,
+      // virtuals, data-group records, iRule bodies, …) whose own fields contain
+      // an address within — or containing — that network.
+      var qNet = toNet(raw);
+
       // 1st pass: direct matches on each object's OWN identity/fields
-      // (`data-search`), not its cross-reference columns — otherwise a pool that
-      // merely references an "app1"-named monitor would falsely match "app1" and
-      // drag its virtual in. Falls back to full row text if data-search absent.
+      // (`data-search`) — including the objects it references *inside an iRule*
+      // and its data-group records — but not its cross-reference table columns.
       var info = [], direct = {};
       rows.forEach(function (r) {
         var el = r.querySelector("[data-oid]");
         var oid = el ? el.dataset.oid : null;
         var hay = (r.dataset.search || r.textContent).toLowerCase();
         var tm = hay.indexOf(q) >= 0;
+        if (!tm && qNet) {
+          var toks = hay.match(IP_TOKEN);
+          if (toks) {
+            for (var i = 0; i < toks.length && !tm; i++) {
+              var tn = toNet(toks[i]);
+              // skip wildcard tokens (e.g. a virtual's `source 0.0.0.0/0`),
+              // which would otherwise "contain" any address the user types.
+              if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) tm = true;
+            }
+          }
+        }
         info.push({ row: r, oid: oid, tm: tm });
         if (tm && oid) direct[oid] = true;
       });
@@ -1089,7 +1125,8 @@
       info.forEach(function (ri) {
         var show = ri.tm || (ri.oid && linked[ri.oid]);
         ri.row.classList.toggle("hidden", !show);
-        ri.row.classList.toggle("search-linked", !!(show && !ri.tm));
+        ri.row.classList.toggle("search-hit", !!ri.tm);            // direct match
+        ri.row.classList.toggle("search-linked", !!(show && !ri.tm)); // linked only
         var d = detailOf(ri.row); if (d) d.classList.toggle("hidden", !show);
       });
     }
