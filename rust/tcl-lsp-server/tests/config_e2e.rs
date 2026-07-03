@@ -6,8 +6,12 @@
 //! switch), a disabled provider must return empty/None, the optimiser master
 //! switch must round-trip, and formatting must honour the request's indent width.
 //!
-//! Each Rust test owns its server, so there is no shared state to restore — the
-//! pytest `config_session` restore/round-trip is dropped; each test just applies.
+//! Each Rust test owns its server, so pytest's `config_session` *cleanup* (undo
+//! the change so the shared session server isn't polluted) is moot. But its
+//! *behavioural* round-trip — disable a feature, then re-enable it and assert the
+//! provider recovers — is a real contract (config re-pull works both
+//! directions), so it is exercised explicitly here via a second
+//! `apply_configuration_settle` back to the enabled state.
 
 mod common;
 
@@ -48,6 +52,11 @@ fn is_empty(result: &Value) -> bool {
 /// Whether `cfg.features.<feature>` is exactly `false`.
 fn feature_disabled(cfg: &Value, feature: &str) -> bool {
     cfg.get("features").and_then(|f| f.get(feature)) == Some(&Value::Bool(false))
+}
+
+/// Whether `cfg.features.<feature>` is exactly `true`.
+fn feature_enabled(cfg: &Value, feature: &str) -> bool {
+    cfg.get("features").and_then(|f| f.get(feature)) == Some(&Value::Bool(true))
 }
 
 // -- TestEffectiveConfigShape --------------------------------------------
@@ -157,6 +166,21 @@ fn disabling_feature_suppresses_its_provider(feature: &str) {
         is_empty(&disabled),
         "{feature}: provider must return empty/None when disabled, got {disabled}"
     );
+
+    // Re-enable and settle; the provider must recover (the config re-pull works
+    // both directions). Mirrors pytest's post-`config_session` "provider did not
+    // recover after re-enable" assertion.
+    let feat = feature.to_owned();
+    lsp.apply_configuration_settle(
+        json!({ "features": { feature: true } }),
+        &uri,
+        move |c| feature_enabled(c, &feat),
+    );
+    let recovered = query_probe(&mut lsp, &uri, feature);
+    assert!(
+        !is_empty(&recovered),
+        "{feature}: provider did not recover after re-enable, got {recovered}"
+    );
 }
 
 macro_rules! disable_feature_test {
@@ -200,6 +224,15 @@ fn optimiser_disable_round_trips() {
         |c| c.get("optimiser_enabled") == Some(&Value::Bool(false)),
     );
     assert_eq!(off.get("optimiser_enabled"), Some(&Value::Bool(false)), "{off}");
+
+    // Round-trip: re-enable and settle — the optimiser switch flips back on
+    // (pytest's post-`config_session` "# Restored." assertion).
+    let on_again = lsp.apply_configuration_settle(
+        json!({ "optimiser": { "enabled": true } }),
+        &uri,
+        |c| c.get("optimiser_enabled") == Some(&Value::Bool(true)),
+    );
+    assert_eq!(on_again.get("optimiser_enabled"), Some(&Value::Bool(true)), "{on_again}");
 }
 
 // -- TestFormattingIndentRoundTrip ---------------------------------------
@@ -256,10 +289,10 @@ fn four_space_indent() {
 
 // -- TestToggleNoStickyState ---------------------------------------------
 //
-// pytest exercised this on the *shared* server (disable → restore → re-query,
-// twice). Each Rust test owns its server with no restore, so the meaningful
-// residue is: baseline non-empty, then disabled empty. Repeat the cycle to guard
-// against per-request sticky state within one server.
+// A feature flipped off and back on leaves no sticky state: across repeated
+// disable→re-enable cycles the provider works, goes empty while off, and works
+// again once re-enabled — never stuck off. (pytest ran this on a shared server
+// via `config_session`; here one per-test server drives the cycle directly.)
 
 #[test]
 fn repeated_cycles_keep_provider_working() {
@@ -267,16 +300,24 @@ fn repeated_cycles_keep_provider_working() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "puts hello\n");
 
-    // Enabled baseline.
-    assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
-
-    // Disable hover and settle; the provider must go empty and stay empty.
-    lsp.apply_configuration_settle(
-        json!({ "features": { "hover": false } }),
-        &uri,
-        |c| feature_disabled(c, "hover"),
-    );
     for _ in 0..2 {
+        // Enabled: hover works.
+        assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
+
+        // Disable + settle: hover goes empty.
+        lsp.apply_configuration_settle(
+            json!({ "features": { "hover": false } }),
+            &uri,
+            |c| feature_disabled(c, "hover"),
+        );
         assert!(is_empty(&lsp.hover(&uri, 0, 2)));
+
+        // Re-enable + settle: hover works again — never stuck off.
+        lsp.apply_configuration_settle(
+            json!({ "features": { "hover": true } }),
+            &uri,
+            |c| feature_enabled(c, "hover"),
+        );
+        assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
     }
 }
