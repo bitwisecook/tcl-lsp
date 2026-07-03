@@ -33,3 +33,11 @@ console_error_panic_hook = "0.1"
 opt-level = "s"
 lto = true
 codegen-units = 1
+
+# Disable wasm-pack's built-in wasm-opt for this crate: on newer rustc layouts,
+# binaryen 120 (Ubuntu 24.04 apt) mis-rebinds the `__wbindgen_externrefs`
+# export from the growable externref table onto the fixed-size funcref table,
+# which breaks `Table.grow` at runtime ("could not grow the table"). The raw
+# wasm-bindgen output has the correct binding; we ship it unoptimised.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
