@@ -1,8 +1,14 @@
 //! Parameter-list parser for Tcl proc declarations.
 //!
-//! Splits a parameter-list
-//! string (the literal `args` argument to `proc`) into [`ParamDef`]
-//! records, recognising the bare-word and `{name default}` forms.
+//! Splits a parameter-list string (the literal `args` argument to `proc`) into
+//! [`ParamDef`] records. A proc / method parameter list is list-parsed by Tcl,
+//! so this mirrors that two-level grammar: the list is split into element
+//! *specs*, and each spec is itself a list whose first element is the parameter
+//! name and whose remainder is the optional default (`a`, `{name default}`, and
+//! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
+
+use tcl_lexer::backslash_subst;
+use tcl_syntax::list::{find_element, split_list};
 
 use super::types::ParamDef;
 
@@ -21,6 +27,59 @@ use super::types::ParamDef;
 /// ```
 #[must_use]
 pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
+    // A parameter list is a **braced word** at the command level, so any
+    // backslash-newline line continuation has already collapsed to a space
+    // before Tcl list-parses the list. `split_list` (the list grammar) treats a
+    // backslash as escaping the next byte, so we must collapse continuations
+    // first — otherwise `a b\<newline>c` would parse as the two-word element
+    // `b c` instead of the two params `b`, `c` (issue #743).
+    let collapsed = collapse_line_continuations(param_str);
+    // Top-level split: each element is one parameter *spec*.
+    let Ok(specs) = split_list(&collapsed) else {
+        // Unbalanced braces / quotes (common while a list is being typed) —
+        // fall back to a tolerant scan so we still surface partial params.
+        return parse_param_list_lenient(&collapsed);
+    };
+    specs.iter().filter_map(|spec| spec_to_param(spec)).collect()
+}
+
+/// Turn one parameter *spec* (a list element value, delimiters already
+/// stripped) into a [`ParamDef`]. The spec is itself a list: its first element
+/// is the parameter name; any remaining text is the (lenient) default value.
+/// So `a` → name `a`; `x 1` / `{x 1}` → name `x` default `1`; `a b` (from an
+/// escaped `a\ b`) → name `a` default `b`; and a braced-verbatim `a\ b` (from
+/// `{a\ b}`) → the single name `a b`. Returns `None` for an empty / nameless
+/// spec (which Tcl itself rejects).
+fn spec_to_param(spec: &str) -> Option<ParamDef> {
+    let first = find_element(spec, 0).ok().flatten()?;
+    let name_raw = spec.get(first.value.clone())?;
+    let name = if first.literal {
+        name_raw.to_string()
+    } else {
+        backslash_subst(name_raw).into_owned()
+    };
+    if name.is_empty() {
+        return None;
+    }
+    let rest = spec.get(first.next..).unwrap_or("").trim();
+    let (has_default, default_value) = if rest.is_empty() {
+        (false, None)
+    } else {
+        (true, Some(rest.to_string()))
+    };
+    Some(ParamDef {
+        name,
+        has_default,
+        default_value,
+    })
+}
+
+/// Tolerant fallback used when a parameter list does not parse as a well-formed
+/// Tcl list (an unmatched brace / quote, typically mid-edit). Splits on
+/// whitespace and line continuations, treating a leading `{` as a
+/// `{name default}` spec, so a partially-typed signature still yields as many
+/// params as can be recovered.
+fn parse_param_list_lenient(param_str: &str) -> Vec<ParamDef> {
     let mut params: Vec<ParamDef> = Vec::new();
     let text = param_str.trim();
     let bytes = text.as_bytes();
@@ -44,9 +103,6 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
                 }
                 i += 1;
             }
-            // `i` now points one past the matching '}' (or end-of-input
-            // for an unbalanced brace, which we tolerate by treating
-            // the entire remainder as the inner text).
             let inner_end = if level == 0 { i - 1 } else { i };
             let inner = text[start..inner_end].trim();
             if inner.is_empty() {
@@ -79,6 +135,60 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
         }
     }
     params
+}
+
+/// Collapse Tcl backslash-newline line continuations to a single space.
+///
+/// A parameter list is a braced word, and Tcl collapses `\<newline>` (including
+/// `\<CR><LF>` and `\<CR>`) to one space at the command-parse level — before the
+/// value is ever list-parsed, and regardless of any surrounding braces. Every
+/// other backslash escape (`\}`, `\ `, …) is left intact for the list grammar
+/// to interpret, so the following byte is copied through verbatim.
+fn collapse_line_continuations(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if bytes[i] == b'\\' && i + 1 < n {
+            match bytes[i + 1] {
+                b'\r' if i + 2 < n && bytes[i + 2] == b'\n' => {
+                    out.push(' ');
+                    i += 3;
+                }
+                b'\n' | b'\r' => {
+                    out.push(' ');
+                    i += 2;
+                }
+                // Any other escape: copy the backslash through untouched and
+                // let the next iteration copy the escaped character (which may
+                // be multi-byte UTF-8) so the list grammar can handle it.
+                _ => {
+                    out.push('\\');
+                    i += 1;
+                }
+            }
+        } else {
+            // ASCII fast path plus correct handling of multi-byte UTF-8: copy
+            // the whole char starting at `i`.
+            let ch_len = utf8_char_len(bytes[i]);
+            let end = (i + ch_len).min(n);
+            out.push_str(&s[i..end]);
+            i = end;
+        }
+    }
+    out
+}
+
+/// Byte length of the UTF-8 character whose leading byte is `b`.
+#[inline]
+fn utf8_char_len(b: u8) -> usize {
+    match b {
+        0x00..=0x7f => 1,
+        0xc0..=0xdf => 2,
+        0xe0..=0xef => 3,
+        _ => 4,
+    }
 }
 
 /// Source spans of each parameter *name*, in declaration order, within the
@@ -173,9 +283,8 @@ fn separator_len(bytes: &[u8], i: usize) -> Option<usize> {
     }
     if b == b'\\' {
         return match bytes.get(i + 1) {
-            Some(b'\n') => Some(2),
             Some(b'\r') if bytes.get(i + 2) == Some(&b'\n') => Some(3),
-            Some(b'\r') => Some(2),
+            Some(b'\n' | b'\r') => Some(2),
             _ => None,
         };
     }
@@ -309,12 +418,45 @@ mod tests {
     }
 
     #[test]
-    fn backslash_escape_keeps_char_in_element() {
-        // A non-newline backslash escape keeps the following byte in the same
-        // element (matches Tcl `{a\ b}` → single element `a b`).
+    fn escaped_whitespace_spec_yields_name_and_default() {
+        // A bare spec with an escaped space is one list element `a b`, which
+        // Tcl then reads as a two-field spec: name `a`, default `b`. Verified
+        // against tclsh: `proc p {a\ b c}` → `info args` = `a c`, and
+        // `info default p a d` sets d = `b`.
         let params = parse_param_list("a\\ b c");
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "a");
+        assert!(params[0].has_default);
+        assert_eq!(params[0].default_value.as_deref(), Some("b"));
+        assert_eq!(params[1].name, "c");
+        assert!(!params[1].has_default);
+        // An escaped tab behaves the same way (the tab is a field separator
+        // inside the spec).
+        let tabbed = parse_param_list("a\\tb");
+        assert_eq!(tabbed.len(), 1);
+        assert_eq!(tabbed[0].name, "a");
+        assert_eq!(tabbed[0].default_value.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn braced_spec_with_escaped_space_is_one_name() {
+        // A braced spec is taken verbatim, then list-parsed: `{a\ b}` → the
+        // single element `a b`, i.e. a parameter literally named `a b` with no
+        // default. Verified against tclsh: `proc q {{a\ b} c}` → `info args`
+        // = `{a b} c`.
+        let params = parse_param_list("{a\\ b} c");
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "a b");
+        assert!(!params[0].has_default);
+        assert_eq!(params[1].name, "c");
+    }
+
+    #[test]
+    fn unbalanced_braces_fall_back_gracefully() {
+        // A half-typed list must not panic and should still recover params.
+        let params = parse_param_list("a {b");
         let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, vec!["a\\ b", "c"]);
+        assert_eq!(names, vec!["a", "b"]);
     }
 
     #[test]
