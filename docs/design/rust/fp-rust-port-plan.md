@@ -1,5 +1,13 @@
 # FP precision suite → Rust port plan
 
+> **Update (2026):** Python is fully retired on this branch, so the
+> Rust analyser's standalone FP precision net (the goal of this plan) is
+> now the *sole* net — the "re-establish a Python↔Rust differential in
+> CI" half is moot, since there is no Python side left to diff against.
+> This document is retained as the port plan and precision-contract
+> record; treat its CI-differential and "remaining families" steps as
+> the mid-flight plan, not the current state.
+
 Concrete plan to give the **Rust** analyser a standalone false-positive (FP)
 precision net mirroring the Python FP catalogue, and to re-establish a
 Python↔Rust differential parity check in CI — so retiring Python does not delete

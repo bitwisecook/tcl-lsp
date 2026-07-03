@@ -10,27 +10,23 @@ variable inspection, and call stack visualisation.
 
 ## Applies to
 
-tcl-lsp CLI
+tcl-lsp CLI, all-editors
 
 ## Availability
 
 | Context | How |
 |---------|-----|
-| CLI     | `python -m debugger script.tcl` |
+| CLI     | `tcl-debug script.tcl` (interactive) |
+| Editors | `tcl-debug --dap` — a Debug Adapter Protocol server over stdio |
 
 ## How to use
 
 ```sh
-# Debug a script (uses VM backend by default)
-uv run python -m debugger script.tcl
+# Debug a script interactively (reads commands from stdin)
+tcl-debug script.tcl
 
-# Force a specific backend
-uv run python -m debugger --backend vm script.tcl
-uv run python -m debugger --backend tclsh script.tcl
-uv run python -m debugger --backend tkinter script.tcl
-
-# Read from stdin
-echo 'puts hello' | uv run python -m debugger -
+# Speak the Debug Adapter Protocol over stdio for an editor front-end
+tcl-debug --dap
 ```
 
 ### Debugger commands
@@ -50,50 +46,34 @@ echo 'puts hello' | uv run python -m debugger -
 | `list [line]` | `l` | Show source context |
 | `quit` | `q` | Exit debugger |
 
-### Backends
+### Backend
 
-The debugger supports three backends, selected via `--backend` (default: VM):
-
-- **VM** — Uses the project's bytecode VM with a debug hook in the
-  execution loop.  Full variable and stack introspection.  Default backend.
-- **tclsh** — Uses `trace add execution source enterstep` for stepping.
-  Best compatibility with standard Tcl.
-- **tkinter** — Uses Python's `tkinter.Tcl()` with `createcommand` bridge.
-  No subprocess needed.
+The debugger runs the project's native bytecode VM (`tcl-vm`) with a debug
+hook in the execution loop, giving full variable and stack introspection.
 
 ## Operational context
 
 The debugger consists of:
 
-- A debug hook injected into the `BytecodeVM.execute()` loop that fires at
-  source line boundaries (minimal overhead when no debugger is attached).
-- A `DebugController` that manages breakpoints, step modes, and blocks the
-  VM thread when stopped.
-- Backend-specific implementations that adapt tclsh, tkinter, and the VM
-  to a common `DebugBackend` interface.
-- Shared Tcl runtime discovery in `shared/tcl_discovery.py` (also used by
-  the iRule test framework).
+- A debug hook in the VM execution loop that fires at source line boundaries
+  (minimal overhead when no debugger is attached).
+- A backend that manages breakpoints, step modes, and blocks the VM thread
+  when stopped, exposed over a common `DebugBackend` interface.
+- A DAP server (`tcl-debug --dap`) that maps the same backend to the Debug
+  Adapter Protocol for editor front-ends.
 
 ## File-path anchors
 
-- `tooling/debugger/` — main debugger package
-- `tooling/debugger/controller.py` — breakpoints, stepping, state inspection
-- `tooling/debugger/cli.py` — readline-based CLI frontend
-- `tooling/debugger/backends/vm_backend.py` — VM backend
-- `tooling/debugger/backends/tclsh_backend.py` — tclsh subprocess backend
-- `tooling/debugger/backends/tkinter_backend.py` — tkinter in-process backend
-- `tooling/debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
-- `shared/tcl_discovery.py` — shared tclsh/tkinter detection
-- `tooling/vm/machine.py` — debug hook insertion point
+- `rust/tcl-debugger/` — the debugger crate (produces the `tcl-debug` binary)
+- `rust/tcl-debugger/src/backend.rs` — VM backend: breakpoints, stepping, state
+- `rust/tcl-debugger/src/dap.rs` — Debug Adapter Protocol server
+- `rust/tcl-debugger/src/main.rs` — interactive CLI / `--dap` entry point
+- `rust/tcl-vm/` — bytecode VM with the debug hook
 
 ## Failure modes
 
-- VM backend: scripts using commands not implemented in the VM will fail.
-- tclsh backend: `trace add execution source enterstep` requires Tcl 8.5+.
-- tkinter backend: requires Python built with Tcl/Tk support.
+- Scripts using commands not yet implemented in the VM will fail.
 
 ## Test anchors
 
-- `tests/test_debugger_hook.py` — VM hook unit tests
-- `tests/test_debugger_controller.py` — controller and stepping tests
-- `tests/test_debugger_backends.py` — backend factory tests
+- `rust/tcl-debugger/` crate tests — backend, stepping, and DAP tests

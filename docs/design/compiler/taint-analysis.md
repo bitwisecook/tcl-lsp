@@ -14,12 +14,12 @@ input) and whether they reach dangerous sinks (XSS, injection, SSRF).
 model which sanitisation properties hold.  Interprocedural propagation extends
 taint tracking across procedure boundaries.
 
-Source: [`compiler/taint/`](../../../compiler/taint/) —
-[`_lattice.py`](../../../compiler/taint/_lattice.py),
-[`_sinks.py`](../../../compiler/taint/_sinks.py),
-[`_propagation.py`](../../../compiler/taint/_propagation.py),
-[`_api.py`](../../../compiler/taint/_api.py),
-[`compiler/registry/taint_hints.py`](../../../compiler/registry/taint_hints.py)
+Source: `compiler/taint/` —
+`_lattice.py`,
+`_sinks.py`,
+`_propagation.py`,
+`_api.py`,
+`compiler/registry/taint_hints.py`
 
 ## Content
 

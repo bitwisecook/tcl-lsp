@@ -9,7 +9,7 @@ primitives added to support Tcl 9 compatibility, grouped by the
 contract each one encodes.
 
 Source: [`runtime/zig/`](../../../runtime/zig/),
-[`compiler/codegen/wasm/`](../../../compiler/codegen/wasm/)
+`compiler/codegen/wasm/`
 
 ## Expression evaluation
 

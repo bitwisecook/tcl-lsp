@@ -20,7 +20,7 @@ clause in the compiler explorer, and when expanding the selection
 
 A braced word token starts on the opening `{` but its `end` sits on the last
 *inner* character; the matching closer is one position past `end`, and the
-token's `text` omits it. Semantic-model [`Range`](../../analyser/semantic_model.py)
+token's `text` omits it. Semantic-model `Range`
 ends are **inclusive** by convention, and word-token ranges follow an
 "inner-end" rule: the closer is **excluded**, and a consumer that wants to
 cover the whole word widens the range itself. This keeps the optimiser, SCCP,
@@ -56,8 +56,8 @@ on the closer) and silently omits quoted `"..."` words.
 1. Do **not** widen word-token ranges in lowering or the segmenter's word
    tokens — many passes rely on the inner-end convention.
 2. To find a delimited word's closer, call
-   [`word_closer_offset`](../../shared/ranges.py) (offset) or
-   [`word_end_position`](../../shared/ranges.py) (position).  Both use
+   `word_closer_offset` (offset) or
+   `word_end_position` (position).  Both use
    `tok.text` to detect emptiness, so they are correct for empty words and for
    quoted words whose inner text contains backslash escapes.  Do not write
    `tok.end.offset + 1` followed by a `source[...] == closer` check.
@@ -75,12 +75,12 @@ on the closer) and silently omits quoted `"..."` words.
    raw-argument extraction in refactors and quick-fixes — not for range
    construction.)
 4. A consumer that renders a highlight widens via
-   [`widen_range_for_closer`](../../shared/ranges.py), which guards the empty
+   `widen_range_for_closer`, which guards the empty
    two-character span the same way.
 5. The compiler explorer front-end slices `src.substring(startOffset,
    endOffset)` with an **exclusive** end, so serialised ranges must convert
    the inclusive semantic-model end to exclusive (`+1`), matching
-   [`to_lsp_range`](../../server/_lsp_conv.py).
+   `to_lsp_range`.
 
 ## File-path anchors
 

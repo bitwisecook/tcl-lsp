@@ -48,28 +48,28 @@ behind the approval gate.
 
 ```
 ┌─ Developer entry points ─────────────────────────────────────┐
-│ Makefile + [project.scripts]                                 │
+│ Makefile                                                     │
 │   - file-dep-driven gates and artefact builds                │
-│   - composes scripts/* into named, dependency-aware targets  │
+│   - composes cargo + scripts/* into named, dep-aware targets │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ invokes
 ┌─ Build / codegen / check / release helpers ──────────────────┐
-│ scripts/<purpose>/*.py + *.sh                                │
-│   - build/      build_zipapps.py, build_kcs_db.py, …         │
-│   - codegen/    catalogs.py, editor_settings.py, port_names.py │
-│   - check/      kcs_index_links.py, wasm_command_parity.py, … │
+│ cargo (native binaries) + cargo xtask (codegen/check gates)  │
+│   + scripts/<purpose>/*.sh                                   │
+│   - cargo build -p {tcl-cli,f5-cli,tcl-lsp-server,tcl-mcp}   │
+│   - cargo xtask gen-editor-settings / gen-editor-catalogs /  │
+│                 diag-tables / kcs-index-links                │
 │   - capture/    tcltest bytecode + result capture            │
 │   - release/    tag.sh, publish_*.sh, jetbrains_token.sh, …  │
-│   - install/    install.sh, hooks.sh, filter_readme.py       │
-│   - zipapp-main/  3-line entry-point shims                   │
+│   - install/    install.sh, hooks.sh                         │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ invoked by both
 ┌─ CI ─────────────────────────────────────────────────────────┐
 │ .github/workflows/*.yml                                      │
-│   - pr-gate    runs `make ci-fast` on every PR + main        │
-│   - test-py    full Python suite on push to main and tags    │
+│   - pr-gate    fast Rust gate (cargo test lsp_e2e) on PRs    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-vsix + build-zipapp (matrix)     │
+│   - create-release  + build-vsix + build native binaries     │
+│     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
 │     + build-claude-skills + build-jetbrains + build-sublime  │
 │     + build-zed + publish-checksums       — tag-only         │
 │   - publish-vsix-marketplace + publish-jetbrains-marketplace │
@@ -91,8 +91,8 @@ Each layer does one job:
 
 | Layer | Tool | Owns | Does NOT own |
 |---|---|---|---|
-| Entry points | `make` + `[project.scripts]` | Gates, composed builds, file-dep tracking | Long-form logic |
-| Helpers | `scripts/<purpose>/` | Codegen, parity checks, captures, zipapp main shims, release/publish actions | Anything `make` can express as a one-liner |
+| Entry points | `make` | Gates, composed builds, file-dep tracking | Long-form logic |
+| Helpers | `cargo` / `cargo xtask` / `scripts/<purpose>/` | Native binary builds, codegen, parity checks, captures, release/publish actions | Anything `make` can express as a one-liner |
 | CI | `.github/workflows/` | PR gate, tag-triggered artefact build + sign + upload to GH Release | Marketplace credentials, duplicate per-profile recipes |
 | Publishing | `make publish-* → scripts/release/*.sh` | Marketplace pushes from the laptop | Anything CI could do without a token |
 
@@ -176,8 +176,11 @@ the secret is reachable by no other job.
 
 ## What CI may do
 
-* Build every release artefact via `make zipapp-X` / `make build-editor-jetbrains`
-  / `make build-editor-sublime` / `make build-editor-zed` / `make package-vsix`.
+* Build every release artefact: the native binaries (`tcl`, `f5-query`,
+  `tcl-lsp-server`, `tcl-mcp`) via `cargo build` / the cross-build targets,
+  plus `make build-editor-jetbrains` / `make build-editor-sublime` /
+  `make build-editor-zed` / `make package-vsix` and the Claude-skills zip.
+  The VSIX bundles the native `tcl-lsp-server` binaries — no `.pyz`.
 * Sign every artefact with sigstore (OIDC + `github.token` — no
   configured secrets).
 * Generate SBOMs (`anchore/sbom-action`).
@@ -215,7 +218,7 @@ stored, is a design conversation: it requires updating this contract and
 - [`scripts/release/publish_jetbrains_upload.sh`](../../../scripts/release/publish_jetbrains_upload.sh) —
   uploads the released JetBrains `.zip` to the Marketplace REST API
   (invoked by the CI publish job; reuses `jetbrains_token.sh`).
-- [`.github/actions/setup-build/action.yml`](../../../.github/actions/setup-build/action.yml)
+- `.github/actions/setup-build/action.yml`
   and [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
   composite actions for the CI build/sign tail.
 - [`scripts/release/`](../../../scripts/release/) — every script that
@@ -243,7 +246,7 @@ python3 scripts/release/check_publish_env.py
 
 - [`AGENTS.md`](../../../AGENTS.md) "Build, CI, and publishing"
   section — short reference to this contract.
-- [`project-layout.md`](project-layout.md) — the seven-concern
-  Python layout that the build/CI structure mirrors.
+- [`project-layout.md`](project-layout.md) — the Rust workspace crate
+  layout that the build/CI structure mirrors.
 - [`Makefile`](../../../Makefile) `publish-flow` target — prints
   the cheat-sheet on demand.

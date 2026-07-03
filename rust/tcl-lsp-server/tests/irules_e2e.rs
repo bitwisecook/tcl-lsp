@@ -1,0 +1,989 @@
+//! Native port of `tests/lsp_e2e/test_irules_e2e.py`.
+//!
+//! F5 iRules dialect features, end-to-end against a dedicated server.
+//!
+//! These run against an iRules-dedicated server (`Lsp::irules`) rather than the
+//! shared Tcl server: opening an iRules document auto-switches the server's
+//! process-global command pack into the `f5-irules` dialect, so dialect-sensitive
+//! cases are isolated on their own server to keep the main Tcl server
+//! uncontaminated.
+
+mod common;
+
+use common::helpers::*;
+use common::{Lsp, unique_uri};
+
+use serde_json::{Value, json};
+use std::time::Duration;
+
+// -- local helpers -------------------------------------------------------
+
+/// Open `source` as an iRule and return its URI.
+fn open_irule(lsp: &mut Lsp, source: &str) -> String {
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, source, "tcl-irule");
+    uri
+}
+
+/// Completion labels at a position.
+fn labels(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> Vec<String> {
+    completion_labels(&lsp.completion(uri, line, ch))
+}
+
+/// Hover text at a position.
+fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
+    hover_text(&lsp.hover(uri, line, ch))
+}
+
+/// Build a synthetic diagnostic (`_diag` in the pytest suite).
+fn diag(code: &str, message: &str, start: (u32, u32), end: (u32, u32)) -> Value {
+    json!({
+        "range": {
+            "start": { "line": start.0, "character": start.1 },
+            "end": { "line": end.0, "character": end.1 },
+        },
+        "code": code,
+        "message": message,
+        "source": "tcl-lsp",
+    })
+}
+
+/// An LSP `Range` from `(line, char)` tuples.
+fn range(start: (u32, u32), end: (u32, u32)) -> Value {
+    json!({
+        "start": { "line": start.0, "character": start.1 },
+        "end": { "line": end.0, "character": end.1 },
+    })
+}
+
+/// Request code actions with an explicit `only` filter (the harness's
+/// `code_actions` has no `only` parameter, so build the request directly).
+fn code_actions_only(lsp: &mut Lsp, uri: &str, rng: Value, diags: Value, only: &[&str]) -> Value {
+    lsp.request(
+        "textDocument/codeAction",
+        json!({
+            "textDocument": { "uri": uri },
+            "range": rng,
+            "context": { "diagnostics": diags, "only": only },
+        }),
+    )
+}
+
+/// Every `newText` in a code-action list's workspace edits (`_ca_new_texts`).
+fn ca_new_texts(actions: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    let empty = Vec::new();
+    for action in actions.as_array().unwrap_or(&empty) {
+        let edit = action.get("edit").cloned().unwrap_or(Value::Null);
+        if let Some(changes) = edit.get("changes").and_then(Value::as_object) {
+            for edits in changes.values() {
+                for e in edits.as_array().unwrap_or(&empty) {
+                    if let Some(t) = e.get("newText").and_then(Value::as_str) {
+                        out.push(t.to_owned());
+                    }
+                }
+            }
+        }
+        if let Some(doc_changes) = edit.get("documentChanges").and_then(Value::as_array) {
+            for change in doc_changes {
+                for e in change.get("edits").and_then(Value::as_array).unwrap_or(&empty) {
+                    if let Some(t) = e.get("newText").and_then(Value::as_str) {
+                        out.push(t.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The `title` of a single action.
+fn action_title(action: &Value) -> &str {
+    action.get("title").and_then(Value::as_str).unwrap_or("")
+}
+
+/// Actions whose `kind` is exactly `source` (`_source_actions`).
+fn source_actions(actions: &Value) -> Vec<Value> {
+    actions
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter(|x| x.get("kind").and_then(Value::as_str).unwrap_or("") == "source")
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The set of `code` strings on a diagnostics array (`_irules_codes`).
+fn irules_codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
+    diags
+        .iter()
+        .map(|d| match d.get("code") {
+            Some(Value::String(s)) => s.clone(),
+            Some(other) => other.to_string(),
+            None => "None".to_owned(),
+        })
+        .collect()
+}
+
+/// A diagnostic's `code`, stringified.
+fn code_str(d: &Value) -> String {
+    match d.get("code") {
+        Some(Value::String(s)) => s.clone(),
+        Some(other) => other.to_string(),
+        None => "None".to_owned(),
+    }
+}
+
+/// Decode semantic tokens for an iRule and map their type index to the legend
+/// name (`_irules_typed`).
+fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
+    let legend: Vec<String> = lsp.initialize_result()["capabilities"]["semanticTokensProvider"]
+        ["legend"]["tokenTypes"]
+        .as_array()
+        .map(|a| a.iter().map(|v| v.as_str().unwrap_or("").to_owned()).collect())
+        .unwrap_or_default();
+    let toks = decode_semantic_tokens(&lsp.semantic_tokens(uri));
+    toks.into_iter()
+        .map(|t| {
+            let name = legend.get(t.ttype as usize).cloned().unwrap_or_default();
+            (t, name)
+        })
+        .collect()
+}
+
+// -- TestIrulesHover -----------------------------------------------------
+
+#[test]
+fn irules_subcommand_hover() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, "HTTP::header insert X-Test 1\n", "tcl-irule");
+    let text = hover(&mut lsp, &uri, 0, 15).to_lowercase();
+    assert!(text.contains("insert"), "{text:?}");
+    assert!(text.contains("header"), "{text:?}");
+}
+
+#[test]
+fn curated_irules_hover_does_not_mark_refinement_status() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, "when HTTP_REQUEST { log local0. \"ok\" }\n", "tcl-irule");
+    assert!(!hover(&mut lsp, &uri, 0, 2).to_lowercase().contains("note:"));
+}
+
+#[test]
+fn namespace_only_irules_hover_shows_profile_requirement() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, "ACCESS::log 1 \"trace\"\n", "tcl-irule");
+    let text = hover(&mut lsp, &uri, 0, 5);
+    assert!(text.contains("Requires"), "{text:?}");
+    assert!(text.contains("ACCESS"), "{text:?}");
+}
+
+// -- TestIrulesCompletion ------------------------------------------------
+
+#[test]
+fn when_event_name_completion() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "when ");
+    let ls = labels(&mut lsp, &uri, 0, 5);
+    assert!(ls.contains(&"HTTP_REQUEST".to_owned()));
+    assert!(ls.contains(&"CLIENT_ACCEPTED".to_owned()));
+}
+
+#[test]
+fn when_priority_and_timing_keywords_after_event() {
+    let src = "when HTTP_REQUEST ";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, src);
+    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    assert!(ls.contains(&"priority".to_owned()));
+    assert!(ls.contains(&"timing".to_owned()));
+}
+
+#[test]
+fn when_priority_and_timing_partial_keyword() {
+    let src = "when HTTP_REQUEST pr";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, src);
+    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    assert!(ls.contains(&"priority".to_owned()));
+    assert!(!ls.contains(&"timing".to_owned()));
+}
+
+#[test]
+fn when_timing_value_keywords_after_timing() {
+    let src = "when HTTP_REQUEST timing ";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, src);
+    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    assert!(ls.contains(&"enable".to_owned()));
+    assert!(ls.contains(&"disable".to_owned()));
+}
+
+#[test]
+fn when_timing_values_not_suggested_after_priority() {
+    let src = "when HTTP_REQUEST priority ";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, src);
+    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    assert!(!ls.contains(&"enable".to_owned()));
+    assert!(!ls.contains(&"disable".to_owned()));
+}
+
+#[test]
+fn http_header_subcommand_keywords() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "HTTP::header ");
+    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 13).into_iter().collect();
+    for expected in ["insert", "replace", "value"] {
+        assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
+    }
+}
+
+#[test]
+fn http_header_partial_keyword() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "HTTP::header re");
+    let ls = labels(&mut lsp, &uri, 0, 15);
+    assert!(ls.contains(&"remove".to_owned()));
+    assert!(ls.contains(&"replace".to_owned()));
+    assert!(!ls.contains(&"insert".to_owned()));
+}
+
+#[test]
+fn http_respond_options_after_status_code() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "HTTP::respond 302 ");
+    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 18).into_iter().collect();
+    for expected in ["content", "noserver", "version"] {
+        assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
+    }
+}
+
+#[test]
+fn irules_event_valid_command_ranked_before_invalid() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "when HTTP_REQUEST {\n    \n}\n");
+    let mut by = std::collections::BTreeMap::new();
+    for item in completion_items(&lsp.completion(&uri, 1, 4)) {
+        let label = item.get("label").and_then(Value::as_str).unwrap_or("").to_owned();
+        by.insert(label, item);
+    }
+    let http = by["HTTP::header"]["sortText"].as_str().unwrap();
+    let tcp = by["TCP::collect"]["sortText"].as_str().unwrap();
+    assert!(http < tcp, "HTTP::header sortText {http:?} not < TCP::collect {tcp:?}");
+}
+
+#[test]
+fn when_priority_and_timing_after_priority_value() {
+    let src = "when HTTP_REQUEST priority 500 ";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, src);
+    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    assert!(ls.contains(&"priority".to_owned()));
+    assert!(ls.contains(&"timing".to_owned()));
+}
+
+#[test]
+fn argument_value_has_documentation() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "when ");
+    let items = completion_items(&lsp.completion(&uri, 0, 5));
+    assert!(!items.is_empty());
+    assert!(
+        items
+            .iter()
+            .filter(|i| i.get("label").and_then(Value::as_str) == Some("HTTP_REQUEST"))
+            .any(|i| i.get("documentation").is_some_and(|d| !d.is_null())),
+        "no HTTP_REQUEST item with documentation"
+    );
+}
+
+// -- TestIrulesCollectCodeActions ----------------------------------------
+
+#[test]
+fn irule1005_adds_collect_bootstrap_options() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n");
+    let d = diag(
+        "IRULE1005",
+        "'CLIENT_DATA' will never fire without a TCP::collect or UDP::collect call in another event.",
+        (0, 5),
+        (0, 16),
+    );
+    let actions = lsp.code_actions(&uri, range((0, 5), (0, 16)), json!([d]));
+    let snippets = ca_new_texts(&actions);
+    assert!(
+        snippets
+            .iter()
+            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("TCP::collect")),
+        "{snippets:?}"
+    );
+    assert!(
+        snippets
+            .iter()
+            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("UDP::collect")),
+        "{snippets:?}"
+    );
+}
+
+#[test]
+fn irule1006_prefers_server_ssl_handshake_bootstrap() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, "when SERVERSSL_DATA {\n    SSL::payload\n}\n");
+    let d = diag(
+        "IRULE1006",
+        "'SSL::payload' without a SSL::collect call. The payload buffer will be empty.",
+        (1, 4),
+        (1, 16),
+    );
+    let actions = lsp.code_actions(&uri, range((1, 4), (1, 16)), json!([d]));
+    let snippets = ca_new_texts(&actions);
+    assert!(
+        snippets
+            .iter()
+            .any(|s| s.contains("when SERVERSSL_HANDSHAKE") && s.contains("SSL::collect")),
+        "{snippets:?}"
+    );
+}
+
+// -- TestIrulesTaintQuickFixes -------------------------------------------
+
+/// The `_fix` helper: open `source`, synthesise `diag`, request quickfix-only
+/// code actions.
+fn taint_fix(
+    lsp: &mut Lsp,
+    source: &str,
+    code: &str,
+    message: &str,
+    start: (u32, u32),
+    end: (u32, u32),
+) -> Value {
+    let uri = open_irule(lsp, source);
+    let d = diag(code, message, start, end);
+    code_actions_only(lsp, &uri, range(start, end), json!([d]), &["quickfix"])
+}
+
+#[test]
+fn irule3001_wrap_html_encode() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::respond 200 content $raw\n",
+        "IRULE3001",
+        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+        (0, 0),
+        (0, 29),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("html_encode"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[html_encode $raw]")));
+}
+
+#[test]
+fn irule3002_wrap_uri_encode() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::header insert X-Fwd $raw\n",
+        "IRULE3002",
+        "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
+        (0, 0),
+        (0, 29),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("URI::encode"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[URI::encode $raw]")));
+}
+
+#[test]
+fn t103_wrap_regex_quote() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "regexp $pat $data\n",
+        "T103",
+        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+        (0, 0),
+        (0, 16),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("regex::quote"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[regex::quote $pat]")));
+}
+
+#[test]
+fn t102_insert_double_dash() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "regexp $pat $data\n",
+        "T102",
+        "Tainted variable $pat in option position of 'regexp' without '--' terminator; risk of option injection",
+        (0, 0),
+        (0, 16),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("--"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("-- ")));
+}
+
+#[test]
+fn braced_variable_wrapped() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::respond 200 content ${raw}\n",
+        "IRULE3001",
+        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+        (0, 0),
+        (0, 30),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("html_encode"))
+        .cloned()
+        .collect();
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[html_encode ${raw}]")));
+}
+
+#[test]
+fn no_fix_for_unknown_code() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "puts $raw\n",
+        "T101",
+        "Tainted variable $raw flows into puts; output may contain injected content",
+        (0, 0),
+        (0, 8),
+    );
+    let matched: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| {
+            ["HTML::encode", "URI::encode", "regex::quote", "--"]
+                .iter()
+                .any(|k| action_title(a).contains(k))
+        })
+        .cloned()
+        .collect();
+    assert!(matched.is_empty(), "{matched:?}");
+}
+
+#[test]
+fn t106_remove_redundant_encode() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "set double [HTML::encode $safe]\n",
+        "T106",
+        "Variable $safe is already HTML-escaped; passing through HTML::encode double-encodes the value",
+        (0, 0),
+        (0, 30),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("Remove redundant"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s == "$safe"));
+}
+
+#[test]
+fn irule3004_no_autofix() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::redirect $url\n",
+        "IRULE3004",
+        "Tainted variable $url in redirect URL (HTTP::redirect); risk of open redirect",
+        (0, 0),
+        (0, 18),
+    );
+    let matched: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| {
+            ["html_encode", "URI::encode", "regex::quote"]
+                .iter()
+                .any(|k| action_title(a).contains(k))
+        })
+        .cloned()
+        .collect();
+    assert!(matched.is_empty(), "{matched:?}");
+}
+
+// -- TestIrulesTaintProcInsertion ----------------------------------------
+
+#[test]
+fn t103_inserts_regex_quote_proc() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "regexp $pat $data\n",
+        "T103",
+        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+        (0, 0),
+        (0, 16),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("regex::quote"))
+        .cloned()
+        .collect();
+    let snippets = ca_new_texts(&json!(fixes));
+    assert!(snippets.iter().any(|s| s.contains("[regex::quote $pat]")));
+    assert!(snippets.iter().any(|s| s.contains("proc regex::quote")));
+    assert!(snippets.iter().any(|s| s.contains("regsub")));
+}
+
+#[test]
+fn irule3001_inserts_html_encode_proc() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::respond 200 content $raw\n",
+        "IRULE3001",
+        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+        (0, 0),
+        (0, 29),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("html_encode"))
+        .cloned()
+        .collect();
+    let snippets = ca_new_texts(&json!(fixes));
+    assert!(snippets.iter().any(|s| s.contains("[html_encode $raw]")));
+    assert!(snippets.iter().any(|s| s.contains("proc html_encode")));
+    assert!(snippets.iter().any(|s| s.contains("string map")));
+}
+
+#[test]
+fn irule3002_no_proc_insert() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "HTTP::header insert X-Fwd $raw\n",
+        "IRULE3002",
+        "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
+        (0, 0),
+        (0, 29),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("URI::encode"))
+        .cloned()
+        .collect();
+    assert!(!ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("proc ")));
+}
+
+// -- TestIrulesProfilesHeader --------------------------------------------
+
+/// The `_src` helper: open `source`, return its `source`-kind code actions
+/// at position (0, 0).
+fn profile_source_actions(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+    let uri = open_irule(lsp, source);
+    source_actions(&lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([])))
+}
+
+#[test]
+fn http_event_generates_http_profile() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(&mut lsp, "when HTTP_REQUEST {\n    HTTP::respond 200\n}\n");
+    assert_eq!(sa.len(), 1);
+    assert_eq!(ca_new_texts(&json!(sa))[0], "# Profiles: HTTP\n");
+}
+
+#[test]
+fn existing_matching_directive_no_action() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "# Profiles: HTTP\nwhen HTTP_REQUEST {\n    HTTP::respond 200\n}\n",
+    );
+    assert_eq!(sa.len(), 0);
+}
+
+#[test]
+fn dns_event_generates_dns_profile() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when DNS_REQUEST {\n    set q [DNS::question name]\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    assert_eq!(ca_new_texts(&json!(sa))[0], "# Profiles: DNS\n");
+}
+
+#[test]
+fn multiple_events_combines_profiles() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when HTTP_REQUEST {\n    HTTP::uri\n}\nwhen CLIENTSSL_HANDSHAKE {\n    log local0. \"done\"\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    assert_eq!(ca_new_texts(&json!(sa))[0], "# Profiles: CLIENTSSL, HTTP\n");
+}
+
+#[test]
+fn existing_outdated_directive_offers_update() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "# Profiles: HTTP\nwhen HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    assert!(action_title(&sa[0]).contains("Update"), "{:?}", action_title(&sa[0]));
+    assert!(ca_new_texts(&json!(sa))[0].contains("CLIENTSSL"));
+}
+
+#[test]
+fn rule_init_only_no_action() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(&mut lsp, "when RULE_INIT {\n    set ::counter 0\n}\n");
+    assert_eq!(sa.len(), 0);
+}
+
+#[test]
+fn irule1006_bootstrap_action_is_deduplicated() {
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(
+        &mut lsp,
+        "when CLIENT_DATA {\n    set a [TCP::payload]\n    set b [TCP::payload]\n}\n",
+    );
+    let first = diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (1, 11), (1, 23));
+    let second = diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (2, 11), (2, 23));
+    let actions = lsp.code_actions(&uri, range((1, 11), (1, 23)), json!([first, second]));
+    let collect: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("TCP::collect"))
+        .cloned()
+        .collect();
+    assert_eq!(collect.len(), 1);
+}
+
+// -- TestIrulesTaintProcAlreadyDefined -----------------------------------
+
+#[test]
+fn t103_no_proc_insert_when_already_defined() {
+    let mut lsp = Lsp::irules();
+    let source = "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }\n\
+                  regexp $pat $data\n";
+    let actions = taint_fix(
+        &mut lsp,
+        source,
+        "T103",
+        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+        (1, 0),
+        (1, 16),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("regex::quote"))
+        .cloned()
+        .collect();
+    let snippets = ca_new_texts(&json!(fixes));
+    assert!(snippets.iter().any(|s| s.contains("[regex::quote $pat]")));
+    assert!(!snippets.iter().any(|s| s.contains("proc regex::quote")));
+}
+
+#[test]
+fn irule3001_no_proc_insert_when_already_defined() {
+    let mut lsp = Lsp::irules();
+    let source = "proc html_encode {str} { string map {& &amp; < &lt;} $str }\n\
+                  HTTP::respond 200 content $raw\n";
+    let actions = taint_fix(
+        &mut lsp,
+        source,
+        "IRULE3001",
+        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+        (1, 0),
+        (1, 29),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("html_encode"))
+        .cloned()
+        .collect();
+    let snippets = ca_new_texts(&json!(fixes));
+    assert!(snippets.iter().any(|s| s.contains("[html_encode $raw]")));
+    assert!(!snippets.iter().any(|s| s.contains("proc html_encode")));
+}
+
+// -- TestIrulesProfilesHeaderExtended ------------------------------------
+
+#[test]
+fn http_event_plus_ssl_command() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    let text = &ca_new_texts(&json!(sa))[0];
+    assert!(text.contains("CLIENTSSL"), "{text:?}");
+    assert!(text.contains("HTTP"), "{text:?}");
+}
+
+#[test]
+fn existing_matching_directive_comma_format() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "# Profiles: CLIENTSSL, HTTP, SERVERSSL\nwhen HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+    );
+    assert_eq!(sa.len(), 0);
+}
+
+#[test]
+fn fasthttp_normalised_to_http() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(&mut lsp, "when HTTP_REQUEST {\n    set uri [HTTP::uri]\n}\n");
+    assert_eq!(sa.len(), 1);
+    let text = &ca_new_texts(&json!(sa))[0];
+    assert!(!text.contains("FASTHTTP"), "{text:?}");
+    assert!(text.contains("HTTP"), "{text:?}");
+}
+
+#[test]
+fn clientssl_event_generates_clientssl_profile() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when CLIENTSSL_HANDSHAKE {\n    log local0. \"TLS done\"\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    assert_eq!(ca_new_texts(&json!(sa))[0], "# Profiles: CLIENTSSL\n");
+}
+
+#[test]
+fn clientssl_clienthello_omits_persist_helper_profile() {
+    let mut lsp = Lsp::irules();
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when CLIENTSSL_CLIENTHELLO {\n    log local0. \"TLS hello\"\n}\n",
+    );
+    assert_eq!(sa.len(), 1);
+    let text = &ca_new_texts(&json!(sa))[0];
+    assert_eq!(text, "# Profiles: CLIENTSSL\n");
+    assert!(!text.contains("PERSIST"), "{text:?}");
+}
+
+// -- TestIrulesSemanticTokens --------------------------------------------
+
+#[test]
+fn comment_with_namespace_qualifiers_stays_one_comment() {
+    let source = "# TCP::collect / TCP::payload / TCP::release\n";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, source);
+    let tokens = irules_typed(&mut lsp, &uri);
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].1, "comment");
+    assert_eq!(tokens[0].0.length, source.trim_end_matches('\n').len() as i64);
+}
+
+#[test]
+fn comment_header_block_all_comments() {
+    let source = "# Flow:\n\
+                  #   1. CLIENT_ACCEPTED / SERVER_CONNECTED -> TCP::collect\n\
+                  #   2. CLIENT_DATA    / SERVER_DATA      -> TCP::payload ... TCP::release\n";
+    let mut lsp = Lsp::irules();
+    let uri = open_irule(&mut lsp, source);
+    let tokens = irules_typed(&mut lsp, &uri);
+    assert!(tokens.iter().all(|(_, ty)| ty == "comment"), "{tokens:?}");
+}
+
+// -- TestIrulesTaintDiagnostics ------------------------------------------
+// Taint diagnostics must actually *fire* on the wire (positive + negative).
+
+#[test]
+fn taint_source_in_http_sink_fires_irule3102() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri]\n}\n",
+        "tcl-irule",
+    );
+    assert!(irules_codes(&diags).contains("IRULE3102"), "{:?}", irules_codes(&diags));
+}
+
+#[test]
+fn constant_in_http_sink_is_silent() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    HTTP::respond 200 content \"static body\"\n}\n",
+        "tcl-irule",
+    );
+    assert!(!irules_codes(&diags).contains("IRULE3102"), "{:?}", irules_codes(&diags));
+}
+
+// -- TestIrulesByteArrayCorruption ---------------------------------------
+// S110 byte-array corruption on the wire (F5 KB K22406348).
+
+/// A deep-tier iRules code that fires for every `*::payload` body here.
+const DEEP_MARKER: &str = "IRULE1006";
+
+/// Open `source` and poll the version-1 publish until the deep marker lands,
+/// returning the final (basic + deep) diagnostics (`_deep_diags`).
+fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(&uri, source, "tcl-irule");
+    let deadline = std::time::Instant::now() + Duration::from_secs(25);
+    let mut diags = Vec::new();
+    while std::time::Instant::now() < deadline {
+        diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));
+        if diags.iter().any(|d| code_str(d) == DEEP_MARKER) {
+            return diags;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    panic!(
+        "deep diagnostics ({DEEP_MARKER}) never published; saw {:?}",
+        irules_codes(&diags)
+    );
+}
+
+#[test]
+fn payload_string_roundtrip_fires_s110() {
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when HTTP_REQUEST_DATA {\n\
+        \x20   set original_data [HTTP::payload]\n\
+        \x20   set new_data \"$original_data MODIFIED\"\n\
+        \x20   HTTP::payload replace 0 100 $new_data\n\
+        }\n",
+    );
+    let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
+    assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
+    assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+}
+
+#[test]
+fn clean_payload_writeback_silent() {
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when HTTP_REQUEST_DATA {\n\
+        \x20   set original_data [HTTP::payload]\n\
+        \x20   HTTP::payload replace 0 100 $original_data\n\
+        }\n",
+    );
+    assert!(!irules_codes(&diags).contains("S110"), "{:?}", irules_codes(&diags));
+}
+
+#[test]
+fn binary_scan_fix_silent() {
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when HTTP_REQUEST_DATA {\n\
+        \x20   set original_data [HTTP::payload]\n\
+        \x20   set new_data \"$original_data MODIFIED\"\n\
+        \x20   binary scan $new_data c* -\n\
+        \x20   HTTP::payload replace 0 100 $new_data\n\
+        }\n",
+    );
+    assert!(!irules_codes(&diags).contains("S110"), "{:?}", irules_codes(&diags));
+}
+
+#[test]
+fn mqtt_payload_roundtrip_fires_s110() {
+    // MQTT `replace <data>` puts the data operand at index 1, not 3 — the
+    // registry-driven layout must still fire S110 here (PR #658 review gap).
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when MQTT_MESSAGE {\n\
+        \x20   set p [MQTT::payload]\n\
+        \x20   set bad \"$p x\"\n\
+        \x20   MQTT::payload replace $bad\n\
+        }\n",
+    );
+    let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
+    assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
+    assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+}
+
+#[test]
+fn diameter_payload_roundtrip_fires_s110() {
+    // DIAMETER `replace PAYLOAD` — data operand at index 1.
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when DIAMETER_INGRESS {\n\
+        \x20   set p [DIAMETER::payload]\n\
+        \x20   set bad \"$p x\"\n\
+        \x20   DIAMETER::payload replace $bad\n\
+        }\n",
+    );
+    let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
+    assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
+    assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+}
+
+// -- TestIrulesWhenBodyAnalysed ------------------------------------------
+// Dialect-gated `when` body recursion (PR #640), iRules side.
+
+#[test]
+fn when_body_is_analysed_under_irules() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(&uri, "when HTTP_REQUEST {\n    set y $undefvar\n}\n", "tcl-irule");
+    // The W210 on the never-set `undefvar` read proves the braced body was
+    // recursed into as a script (under plain Tcl it would be opaque data).
+    assert!(irules_codes(&diags).contains("W210"), "{:?}", irules_codes(&diags));
+}

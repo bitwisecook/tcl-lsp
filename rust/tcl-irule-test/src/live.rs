@@ -241,10 +241,11 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// The in-repo orchestrator Tcl directory, relative to this crate.
+    /// The in-crate orchestrator Tcl directory (the source the binary also
+    /// embeds via `embedded.rs`).
     fn lib_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tooling/irule_test/tcl")
+            .join("tcl")
             .canonicalize()
             .expect("orchestrator tcl dir")
     }

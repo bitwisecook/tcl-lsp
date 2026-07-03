@@ -269,6 +269,18 @@ pub enum Command {
         /// Launch the interactive terminal UI (requires the `tui` feature).
         #[arg(long)]
         tui: bool,
+        /// Serve the interactive web GUI (the compiler explorer) locally.
+        #[arg(long, conflicts_with_all = ["json", "text", "tui"])]
+        serve: bool,
+        /// Bind address for `--serve` (default: 127.0.0.1).
+        #[arg(long, value_name = "ADDR", default_value = "127.0.0.1")]
+        bind: String,
+        /// Port for `--serve` (default: 8080; 0 picks a free port).
+        #[arg(long, value_name = "PORT", default_value_t = 8080)]
+        port: u16,
+        /// Open the GUI in the default browser after `--serve` starts.
+        #[arg(long)]
+        open: bool,
         #[command(flatten)]
         colour: ColourArgs,
     },

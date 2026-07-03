@@ -50,7 +50,7 @@ rules for the KCS/documentation split live in
   [`docs/references/f5_query/`](../references/f5_query/); the
   alphabetical builtin catalogue there is generated from the
   registry by
-  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py)
+  `scripts/dev/gen_query_builtins_doc.py`
   and asserted up-to-date by CI.
 - [bigip-registry-architecture.md](bigip-registry-architecture.md) —
   registry contract for object kinds, value specs (parse / project

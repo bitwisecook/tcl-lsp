@@ -90,8 +90,8 @@ proc swap {a b} {
 - `tmp` is `LOCAL` — it never leaves the WASM local slot.
 
 Interprocedurally, a caller whose local name matches a callee's
-upvar source set is also escalated to `FRAME`. See
-`tests/test_var_escape.py::TestInterproceduralUpvar` for the concrete
+upvar source set is also escalated to `FRAME`. See the interprocedural
+upvar tests in `rust/tcl-compiler/src/var_escape/` for the concrete
 test cases.
 
 ## Related
@@ -99,4 +99,4 @@ test cases.
 - [KCS feature index](README.md)
 - [Var-escape analysis (design doc)](../../design/compiler/var-escape-analysis.md)
 - [Glossary: escape tag](../../GLOSSARY.md#escape-tag)
-- [`tests/test_var_escape.py`](../../../tests/test_var_escape.py) — unit tests for each rule
+- `rust/tcl-compiler/src/var_escape/` — the native var-escape analysis and its unit tests

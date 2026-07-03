@@ -11,7 +11,7 @@ Claude Code Skills (13):
   Modernisation Tools: Detect legacy iRules patterns eligible for modernisation, and convert nginx, Apache, or HAProxy configurations to iRules.
   Semantic Graphs: Structured call graph, symbol graph, and data-flow graph extraction from Tcl and iRules source code.
   Test Generation: Analyse an iRule and generate a complete test script using the Event Orchestrator test framework, with event mocks, command stubs, and assertions.
-  Unified Tcl Verb CLI: `tcl.pyz` provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
+  Unified Tcl Verb CLI: The native `tcl` binary provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
 LSP + AI Features (8):
   Diagnostics: Errors, warnings, security, taint tracking, and style checks shown as you type.
   Dialect Selection: Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.

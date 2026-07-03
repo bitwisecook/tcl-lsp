@@ -24,16 +24,6 @@
 #                        Links tcl-lsp-core / tcl-compiler / tcl-registry.
 #                        No pyo3 dependency.
 #
-#   rust/tcl-lsp-py/     Public PyO3 binding crate (ARCH9). Owns the
-#                        `#[pyclass]` wrappers, `PyErr` translations,
-#                        and Python-compat shims. cdylib + rlib so
-#                        `tcl-lsp-rust` can re-export the same surface.
-#
-#   rust/tcl-lsp-rust/   Transitional alias crate — a one-release
-#                        re-export shim over `tcl-lsp-py`. Existing
-#                        `import tcl_lsp_rust` consumers keep working;
-#                        retires in vNext.
-#
 # `editors/zed/` is a pre-existing standalone cdylib targeting wasm32-wasip2;
 # it is intentionally excluded from this workspace so it continues to build
 # with its own resolver and lockfile.
@@ -64,8 +54,6 @@ members = [
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-db",
     "rust/tcl-lsp-server",
-    "rust/tcl-lsp-py",
-    "rust/tcl-lsp-rust",
     "rust/tcl-explorer",
     "rust/tcl-cli-support",
     "rust/tcl-cli",

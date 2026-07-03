@@ -1,0 +1,6 @@
+# Rust → WASM compiler-explorer core (built by `make explorer-wasm` into this
+# dir, then embedded into the `tcl` binary by build.rs). Not checked in.
+tcl_explorer_wasm.js
+tcl_explorer_wasm_bg.wasm
+# Mermaid renderer, vendored by `make explorer-wasm`.
+mermaid.min.js

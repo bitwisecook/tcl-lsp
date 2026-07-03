@@ -23,14 +23,14 @@ private stay on WASM locals; vars that might escape live in the runtime
 frame from the start, so no sync is needed.
 
 Source:
-[`compiler/var_escape/`](../../../compiler/var_escape/) —
-[`_types.py`](../../../compiler/var_escape/_types.py),
-[`_propagation.py`](../../../compiler/var_escape/_propagation.py),
-[`_cfg_propagation.py`](../../../compiler/var_escape/_cfg_propagation.py),
-[`_info_subcommands.py`](../../../compiler/var_escape/_info_subcommands.py),
-[`_interprocedural.py`](../../../compiler/var_escape/_interprocedural.py),
-[`_slot_resolution.py`](../../../compiler/var_escape/_slot_resolution.py),
-[`_api.py`](../../../compiler/var_escape/_api.py).
+`compiler/var_escape/` —
+`_types.py`,
+`_propagation.py`,
+`_cfg_propagation.py`,
+`_info_subcommands.py`,
+`_interprocedural.py`,
+`_slot_resolution.py`,
+`_api.py`.
 
 The slot-resolution pass (`_slot_resolution.py`) is a separate
 follow-up: for procs whose body passes the by-name-eligibility check
@@ -42,14 +42,14 @@ calls.  See `runtime/zig/interp/tcl_frames.zig`'s
 `frame_locals_array` for the runtime side.
 
 Consumers:
-[`compiler/codegen/wasm/`](../../../compiler/codegen/wasm/)
+`compiler/codegen/wasm/`
 — the emitter package. Encoding helpers live in
-[`_encoding.py`](../../../compiler/codegen/wasm/_encoding.py);
+`_encoding.py`;
 parsing helpers in
-[`_parsing.py`](../../../compiler/codegen/wasm/_parsing.py);
+`_parsing.py`;
 the `_WasmEmitter` class and module-level code generation entry
 points live in
-[`__init__.py`](../../../compiler/codegen/wasm/__init__.py).
+`__init__.py`.
 
 ## Content
 
@@ -120,7 +120,7 @@ whole proc.
 ### Transfer functions
 
 Transfer functions run over IR statements (see
-[`compiler/ir.py`](../../../compiler/ir.py)).
+`compiler/ir.py`).
 
 | IR shape | Effect |
 |----------|--------|
@@ -162,7 +162,7 @@ Hook: `compiler/def_use.py` `DefUseResult`. No new value-tracking pass.
 ### `info` subcommand allow-list
 
 Lives in
-[`_info_subcommands.py`](../../../compiler/var_escape/_info_subcommands.py).
+`_info_subcommands.py`.
 
 | Subcommand | Escape behaviour |
 |------------|------------------|
@@ -227,7 +227,7 @@ class ProcEscapeSummary:
 Codegen consumes `ProcEscapeSummary` through these rewired hooks:
 
 Every hook lives in the emitter
-([`compiler/codegen/wasm/_emitter/`](../../../compiler/codegen/wasm/_emitter/__init__.py));
+(`compiler/codegen/wasm/_emitter/`);
 the package layout is a single large class split only for readability.
 
 - **`_intern_local(name)`**: non-parameter FRAME-tagged vars skip the

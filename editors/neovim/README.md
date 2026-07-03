@@ -4,29 +4,17 @@ tcl-lsp works with Neovim's built-in LSP client. No plugin is required.
 
 ## Prerequisites
 
-**Python 3.10+** is required. We recommend the latest stable Python
-(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
+The server is the native `tcl-lsp-server` binary — no Python, interpreter,
+or runtime dependencies are required. Download the binary for your platform
+from the
+[latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest),
+or build it from source with `make rust-server` (or
+`cargo build -p tcl-lsp-server`, producing `target/release/tcl-lsp-server`).
 
-The `.pyz` zipapp bundles all Python dependencies internally — no
-`pip install` is needed. You only need a Python interpreter on your system.
+See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
-See the [Installation Guide](../../INSTALL-editors.md#python) for
-full details on Python setup across platforms.
-
-The server needs to be accessible via one of:
-
-```sh
-# Option A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m server
-
-# Option B — standalone zipapp (just needs Python 3.10+)
-python3 /path/to/tcl-lsp-server.pyz
-```
-
-To point to a specific Python interpreter, use the full path as the first
-element of `cmd` in your LSP config (e.g.
-`'/opt/homebrew/bin/python3.14'`).
+Point `cmd` at the binary — either its name (`tcl-lsp-server`) if it is on
+your PATH, or an absolute path to it.
 
 ## Via nvim-lspconfig (recommended once merged upstream)
 
@@ -38,11 +26,10 @@ setup is a one-liner:
 require('lspconfig').tcl_lsp.setup({})
 ```
 
-The config expects the `tcl-lsp-server.pyz` zipapp to be on your PATH.
-Download the zipapp from the
+The config expects the `tcl-lsp-server` binary to be on your PATH.
+Download it from the
 [latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
-and drop it somewhere on PATH (renamed or symlinked to
-`tcl-lsp-server.pyz` so the executable bit is set).
+and drop it somewhere on PATH.
 
 ## Neovim 0.11+ (native LSP)
 
@@ -73,7 +60,7 @@ local configs   = require('lspconfig.configs')
 if not configs.tcl_lsp then
   configs.tcl_lsp = {
     default_config = {
-      cmd = { 'uv', 'run', '--directory', '/path/to/tcl-lsp', '--no-dev', 'python', '-m', 'server' },
+      cmd = { '/path/to/tcl-lsp-server' },
       filetypes = { 'tcl', 'tcl-apl' },
       root_dir = lspconfig.util.root_pattern('.git'),
       single_file_support = true,
@@ -98,7 +85,7 @@ vim.api.nvim_create_autocmd('FileType', {
   callback = function()
     vim.lsp.start({
       name = 'tcl-lsp',
-      cmd  = { 'uv', 'run', '--directory', '/path/to/tcl-lsp', '--no-dev', 'python', '-m', 'server' },
+      cmd  = { '/path/to/tcl-lsp-server' },
       root_dir = vim.fs.dirname(vim.fs.find({ '.git' }, { upward = true })[1]),
       settings = { tclLsp = { dialect = 'tcl8.6' } },
     })

@@ -17,10 +17,10 @@ iRules, iApps, EDA, Expect) are loaded lazily on first access for that
 dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
 side-effects, diagnostics, and code completion.
 
-Source: [`compiler/registry/models.py`](../../../compiler/registry/models.py),
-[`compiler/registry/_base.py`](../../../compiler/registry/_base.py),
-[`compiler/registry/signatures.py`](../../../compiler/registry/signatures.py),
-[`compiler/registry/taint_hints.py`](../../../compiler/registry/taint_hints.py)
+Source: `compiler/registry/models.py`,
+`compiler/registry/_base.py`,
+`compiler/registry/signatures.py`,
+`compiler/registry/taint_hints.py`
 
 ## Content
 

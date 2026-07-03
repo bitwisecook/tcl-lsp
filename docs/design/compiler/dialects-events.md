@@ -14,9 +14,9 @@ Dialects partition command availability.  Every `CommandSpec` has an optional
 commands are further restricted by event context — `EventRequires` declares
 transport, profile, and connection-side requirements.
 
-Source: [`compiler/registry/dialects.py`](../../../compiler/registry/dialects.py),
-[`compiler/registry/models.py`](../../../compiler/registry/models.py),
-[`compiler/registry/namespace_models.py`](../../../compiler/registry/namespace_models.py)
+Source: `compiler/registry/dialects.py`,
+`compiler/registry/models.py`,
+`compiler/registry/namespace_models.py`
 
 ## Content
 

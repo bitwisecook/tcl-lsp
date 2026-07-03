@@ -352,12 +352,12 @@ Three layers:
    ``tcl_test_info_commands``, ``tcl_test_info_procs``,
    ``tcl_test_namespace_which``, ``tcl_test_hidden_exists``,
    ``tcl_test_export_name_ptr`` / ``_len``):
-   - [`tests/runtime/test_tcl_hide.py`](../../../tests/runtime/test_tcl_hide.py)
-   - [`tests/runtime/test_tcl_info.py`](../../../tests/runtime/test_tcl_info.py)
-   - [`tests/runtime/test_tcl_rename.py::test_rename_compiled_proc_preserves_export_name`](../../../tests/runtime/test_tcl_rename.py)
+   - `tests/runtime/test_tcl_hide.py`
+   - `tests/runtime/test_tcl_info.py`
+   - `tests/runtime/test_tcl_rename.py::test_rename_compiled_proc_preserves_export_name`
 
 2. **End-to-end Tcl → WASM → runtime tests** in
-   [`tests/test_wasm_execution.py`](../../../tests/test_wasm_execution.py):
+   `tests/test_wasm_execution.py`:
    - ``TestInterpHideExpose`` — hide/expose/hidden round-trip.
    - ``TestInfoIntrospection`` — ``info commands`` +
      ``namespace which`` end-to-end.

@@ -165,8 +165,18 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json,
             text,
             tui,
+            serve,
+            bind,
+            port,
+            open,
             colour,
-        } => commands::explore::run_explore(input, show, *json, *text, *tui, colour),
+        } => {
+            if *serve {
+                commands::gui::run_serve(bind, *port, *open)
+            } else {
+                commands::explore::run_explore(input, show, *json, *text, *tui, colour)
+            }
+        }
         Command::Help {
             query,
             dialect,

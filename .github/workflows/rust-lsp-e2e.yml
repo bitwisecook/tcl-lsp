@@ -1,18 +1,18 @@
 name: rust-lsp-e2e
 
-# Native-server lsp_e2e gate for the `rust` branch during the Python→Rust
-# rewrite.
+# Native-server lsp_e2e gate for the `rust` branch.
 #
-# Split out from `rust-gate.yml` (the cargo checks) deliberately: this surface
-# builds a release `tcl-lsp-server` and drives the backend-neutral lsp_e2e
-# Python suite against it (TCL_LSP_SERVER_KIND=rust) — a different, slower
-# surface than `cargo test`, so it reports as its own independent check rather
-# than being coupled to the cargo checks.  `make test-rust` runs both locally;
-# CI keeps them separate.
+# Split out from `rust-gate.yml` (the cargo workspace checks) deliberately: this
+# surface builds the `tcl-lsp-server` binary and drives the end-to-end LSP suite
+# (rust/tcl-lsp-server/tests/*_e2e.rs) against it over stdio JSON-RPC — a slower,
+# heavier surface than the unit tests, so it reports as its own independent
+# check rather than being coupled to the cargo workspace checks.
 #
-# This is a BLOCKING gate: the suite is green on `rust`, so the `lsp-e2e` job is
-# wired as a REQUIRED status check (branch protection on `rust`) — a regression
-# that reddens it blocks the merge.  `main`'s pipeline is ci.yml; this lives on
+# The suite is a fully native Rust port of the former Python `tests/lsp_e2e/`
+# pytest suite: no Python, no uv. `make test-rust` runs both surfaces locally.
+#
+# This is a BLOCKING gate: the `lsp-e2e` job is wired as a REQUIRED status check
+# (branch protection on `rust`). `main`'s pipeline is ci.yml; this lives on
 # `rust` only.
 
 on:
@@ -36,18 +36,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: ./.github/actions/setup-build
-
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
-      # Build only the server binary the suite drives (release, matching
-      # `make rust-server`).
-      - name: Build native tcl-lsp-server
-        run: make rust-server
-
+      # The integration tests spawn the real `tcl-lsp-server` binary via
+      # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency) and
+      # talk LSP JSON-RPC to it over stdio — the native replacement for the old
+      # `uv run pytest tests/lsp_e2e/`. This also runs the crate's `*_smoke.rs`
+      # integration tests.
       - name: lsp_e2e against the native Rust server
-        env:
-          TCL_LSP_SERVER_KIND: rust
-          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
-        run: uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+        run: cargo test -p tcl-lsp-server --tests --no-fail-fast
