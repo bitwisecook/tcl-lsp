@@ -440,12 +440,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # See `.github/actions/setup-build/action.yml` for why this composite
-          # can't do its own checkout — it lives inside the workspace it would
-          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
-          # on whether we're on a tag ref (`git describe --tags` consumers
-          # need tags reachable from HEAD; tag refs already have the tag at
-          # HEAD so don't re-fetch).
+          # Default `fetch-depth: 1` + `fetch-tags` based on whether we're on a
+          # tag ref (`git describe --tags` consumers need tags reachable from
+          # HEAD; tag refs already have the tag at HEAD so don't re-fetch).
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
@@ -524,12 +521,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # See `.github/actions/setup-build/action.yml` for why this composite
-          # can't do its own checkout — it lives inside the workspace it would
-          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
-          # on whether we're on a tag ref (`git describe --tags` consumers
-          # need tags reachable from HEAD; tag refs already have the tag at
-          # HEAD so don't re-fetch).
+          # Default `fetch-depth: 1` + `fetch-tags` based on whether we're on a
+          # tag ref (`git describe --tags` consumers need tags reachable from
+          # HEAD; tag refs already have the tag at HEAD so don't re-fetch).
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
@@ -553,12 +547,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # See `.github/actions/setup-build/action.yml` for why this composite
-          # can't do its own checkout — it lives inside the workspace it would
-          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
-          # on whether we're on a tag ref (`git describe --tags` consumers
-          # need tags reachable from HEAD; tag refs already have the tag at
-          # HEAD so don't re-fetch).
+          # Default `fetch-depth: 1` + `fetch-tags` based on whether we're on a
+          # tag ref (`git describe --tags` consumers need tags reachable from
+          # HEAD; tag refs already have the tag at HEAD so don't re-fetch).
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
@@ -601,12 +592,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # See `.github/actions/setup-build/action.yml` for why this composite
-          # can't do its own checkout — it lives inside the workspace it would
-          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
-          # on whether we're on a tag ref (`git describe --tags` consumers
-          # need tags reachable from HEAD; tag refs already have the tag at
-          # HEAD so don't re-fetch).
+          # Default `fetch-depth: 1` + `fetch-tags` based on whether we're on a
+          # tag ref (`git describe --tags` consumers need tags reachable from
+          # HEAD; tag refs already have the tag at HEAD so don't re-fetch).
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
@@ -653,12 +641,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # See `.github/actions/setup-build/action.yml` for why this composite
-          # can't do its own checkout — it lives inside the workspace it would
-          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
-          # on whether we're on a tag ref (`git describe --tags` consumers
-          # need tags reachable from HEAD; tag refs already have the tag at
-          # HEAD so don't re-fetch).
+          # Default `fetch-depth: 1` + `fetch-tags` based on whether we're on a
+          # tag ref (`git describe --tags` consumers need tags reachable from
+          # HEAD; tag refs already have the tag at HEAD so don't re-fetch).
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
