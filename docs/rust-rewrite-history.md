@@ -12021,3 +12021,63 @@ sweeps + the runtime spec-construction snapshot), and `tcl-lexer`
 position-correctness e2e (`tests/lsp_e2e/test_unicode_positions_e2e.py`) and a
 `scripts/dev/tclsh_check.sh` helper that pins test expectations to C-Tcl ground
 truth.
+
+## PYTHON-RETIRE — Python fully retired from the rust branch (2026-07)
+
+This closes the rewrite's terminal stage: the `rust` branch is now pure Rust +
+native binaries, with **zero** Python in source, CI/CD, release artefacts,
+editors, or tests. The mid-flight plan (`rust-rewrite.md`) had carried API-PYO3
+as an open track with a designed PyO3 public surface and a soft-dependency shim
+layer; the close-out took a different, simpler shape — the public PyO3 surface
+was **dropped rather than shipped**, and the whole Python tree was deleted once
+its consumers were native.
+
+**What was deleted.** The seven Python concern packages — `shared/`,
+`compiler/`, `dialects/`, `analyser/`, `server/`, `tooling/`, and the
+`ai/**/*.py` engine — along with the `scripts/*.py` build/release tooling and the
+`tests/` pytest tree. The Python packaging and toolchain metadata went with them:
+`pyproject.toml`, `uv.lock`, `.importlinter` (and the `make ci-fast` import-linter
+gate it fed), and the `.pyz` zipapp machinery (`build_zipapp.py`, `zipapps.py`,
+the `zipapp-main/*` entry points, and the `_RUST_NATIVE_PACKAGES` strip rule).
+The two PyO3 binding crates — `rust/tcl-lsp-py/` (the `#[pymodule] tcl_lsp_py`
+public surface) and `rust/tcl-lsp-rust/` (the transitional alias) — were
+**removed from the workspace**, not published. No Python-importable artifact
+ships; the designed public-API facades (`parse_tcl` / `compile_tcl` /
+`analyse_tcl` / `format_tcl` / `parse_bigip_config` / `query_bigip` + the
+`TclLspError` hierarchy) that had landed under API-PYO3 were dropped with the
+crates, since the product ships native binaries and has no downstream Python
+consumer to serve.
+
+**The native `lsp_e2e` port.** The pytest end-to-end suite (509 tests exercising
+the server over JSON-RPC) was ported wholesale to native Rust integration tests
+(`rust/tcl-lsp-server/tests/*_e2e.rs`, run by `cargo test`), so the LSP protocol
+surface is now validated against the real Rust server without a Python client.
+With that in place the `tests/` tree — the behavioural oracle that had been kept
+alive throughout the rewrite — was deleted; C Tcl 9.0.3 (`tclsh9.0`) remains the
+reference standard, consulted directly by the in-crate `*_parity.rs` harnesses.
+
+**scripts → xtask / shell.** The build and release scripts were migrated off
+Python: the check/generator/build verbs became `cargo xtask` subcommands (the
+`rust/xtask` crate — `kcs-index-links`, `refcount-contract`, `diag-tables`,
+`version`, `tzdata-bundle`, `audit-option-dialects`, plus the artifact
+generators that regenerate the shipped editor catalogues/settings off the Rust
+registry) or plain shell, and the CI gate flipped from the Python `lint-py` job
+to the Rust-side `cargo xtask` invocation. There is no remaining Python
+toolchain dependency.
+
+**Editors, CI/CD, and `ai/`.** The editor extensions (VS Code, Sublime, Zed,
+JetBrains) bundle the native `tcl-lsp-server` binary rather than launching a
+`.pyz`; CI/CD builds and tests the Rust workspace with no Python step; and the
+compiler-explorer GUI is embedded in the `tcl` binary (`tcl explore --serve`).
+`ai/` — the MCP server plus Claude skills — was re-pointed off the in-tree Python
+engine onto the native `tcl-mcp` MCP tools: the skills now call `tcl-mcp` verbs,
+so deleting `analyser`/`compiler`/`tooling`/`server.features`/`dialects` no longer
+breaks them. The shipping product is the four native binaries — `tcl`,
+`f5-query`, `tcl-lsp-server`, and `tcl-mcp`.
+
+With Stage 5 closed, `rust-rewrite.md` is now a live plan for the remaining
+**non-Python** Rust work only — the RT-VM / RT-WASM runtime-execution scope plus
+a handful of tooling residuals (FE-CODEGEN bare-statement specialisations,
+TOOL-F5 sub-verbs / SSH transport, the docstring rewriter, TOOL-IRULE-TEST
+event/class handlers, SRV-INCREMENTAL body-cache gating, and the clippy
+`too_many_lines` cleanup) — and enduring porting guidance.

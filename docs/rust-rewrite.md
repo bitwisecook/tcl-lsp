@@ -1,60 +1,67 @@
 # Python → Rust rewrite
 
-> **Update (2026): completed — Python is fully retired on this branch.**
-> The rewrite goal below ("zero Python in the shipping product") has been
-> reached. The product is now purely the Rust workspace + native binaries
-> (`tcl`, `f5-query`, `tcl-lsp-server`, `tcl-mcp`); the Python source
-> (`shared/ compiler/ dialects/ analyser/ server/ tooling/ ai/`, the
-> `.pyz` zipapps, `uv`, and the pytest suites) no longer exists here. The
-> `lsp_e2e` suite is native (`rust/tcl-lsp-server/tests/*_e2e.rs`, run by
-> `cargo test`). The PyO3 facade surface discussed as a *future* public
-> API was not shipped on this branch. This document is retained as the
-> historical rewrite plan and oracle-parity record; its "Remaining work",
-> "not yet", and "🟡/🔴 status" sections describe the migration as it
-> stood mid-flight, not the current (completed) state.
+> **Complete (2026-07): Python is fully retired on this branch.** The
+> rewrite goal below ("zero Python in the shipping product") has been
+> reached across every axis: **source**, **CI/CD**, **release
+> artefacts**, **editor extensions**, and **tests** are all native. The
+> product is now purely the Rust workspace + native binaries (`tcl`,
+> `f5-query`, `tcl-lsp-server`, `tcl-mcp`). The Python source trees
+> (`shared/ compiler/ dialects/ analyser/ server/ tooling/`, the
+> `ai/**/*.py` engine), `pyproject.toml`, `uv.lock`, `.importlinter`, the
+> `.pyz` zipapp machinery (`build_zipapp.py` / `zipapps.py`), and the
+> pytest suites no longer exist here. The `lsp_e2e` suite was ported to
+> native Rust (`rust/tcl-lsp-server/tests/*_e2e.rs`, run by `cargo
+> test`); the editor extensions bundle the native binary; CI/CD runs
+> Python-free. The PyO3 public-API surface once discussed as a *future*
+> product was **not shipped** — the binding crates `tcl-lsp-py` and
+> `tcl-lsp-rust` were **removed**, not published. `ai/` is native: the
+> Claude skills call the native `tcl-mcp` MCP tools rather than importing
+> an in-tree Python engine.
+>
+> **This document is now a live plan for the remaining Rust
+> runtime/tooling parity work** (the RT-VM / RT-WASM runtime scope plus a
+> handful of non-Python tooling residuals) **and enduring porting
+> guidance** for the Rust workspace. The narrative of the retirement
+> close-out lives in the [history archive](rust-rewrite-history.md).
 
-tcl-lsp is ~360K lines of Python, organised since the May-2026
-reorganisation into seven concern packages — `shared/`, `compiler/`,
+tcl-lsp was ~360K lines of Python, organised (from the May-2026
+reorganisation) into seven concern packages — `shared/`, `compiler/`,
 `dialects/`, `analyser/`, `server/`, `tooling/`, and `ai/` — plus
 `scripts/` and `tests/`.  (It previously lived under `core/`, `lsp/`,
 `vm/`, `debugger/`, `fuzzing/`, `explorer/`, and `tclpkg/`; older path
 references in this document map through the table in
-[Python source layout](#python-source-layout-seven-concern-reorganisation)
-below.)  We're rewriting **all of it** in Rust. The end goal is a repo whose
-runtime, LSP server, bytecode VM, formatter, minifier, debugger,
-refactoring engine, code-action surface, compiler explorer, iRule test
-framework, BigIP / APL config parsers, and even the build/release
-scripts run as Rust code, with **zero** Python in the shipping product.
+[Python source shape](#python-source-shape-the-crate-dags-provenance)
+below.)  **All of it** has been rewritten in Rust: the repo's runtime,
+LSP server, bytecode VM, formatter, minifier, debugger, refactoring
+engine, code-action surface, compiler explorer, iRule test framework,
+BigIP / APL config parsers, and even the build/release scripts run as
+Rust code, with **zero** Python in the shipping product.
 
-A small, deliberately-scoped PyO3 surface survives the transition — but
-not for the repo's own internals. Once everything ports across, the
-PyO3 bindings exist purely as a **public API for downstream users**:
-plugin authors who want to write custom analyses, embed the analyser
-in their own pipeline, build alternative VMs, or extend the diagnostic
-catalogue. That public surface is a separate, designed product — not a
-catch-all for whatever the in-tree Python layer happened to call.
+The rewrite proceeded bottom-up, in dependency order: each layer's
+behaviour was reproduced and proven against the Python oracle before
+the layer above it leaned on it. Every step was a PR-sized change that
+left `make prep-pr` green and every editor extension working — no "big
+bang" branch, no pauses for rewrites, no points at which the build was
+intentionally broken.
 
-This is a multi-year project. Every step is a PR-sized change that
-leaves `make prep-pr` green and every editor extension working. There
-is no "big bang" branch, no pauses for rewrites, and no points at
-which the Python build is intentionally broken.
+This document explains what a good port looks like — the enduring
+guidance for the remaining Rust runtime/tooling parity work — plus the
+live plan for that remaining work. Read it before touching anything
+under `rust/`.
 
-This document explains what we're doing, how we're doing it, and —
-most importantly — what a good port looks like. Read it before
-touching anything under `rust/`, the PyO3 bindings, or the
-native-extension bits of the zipapp builder.
+## Python source shape (the crate DAG's provenance)
 
-## Python source layout (seven-concern reorganisation)
-
-The Python source was reorganised (May 2026) from the old
-`core/` + `lsp/` + `vm/` + `explorer/` + `fuzzing/` + `tclpkg/` +
+The now-deleted Python source had been reorganised (May 2026) from the
+old `core/` + `lsp/` + `vm/` + `explorer/` + `fuzzing/` + `tclpkg/` +
 `debugger/` shape into **seven concern packages** with a fixed
-dependency direction enforced by `import-linter` (`.importlinter` at
-the repo root, gated in `make ci-fast`).  **This matters for the Rust
-rewrite because the enforced Python DAG is exactly the crate-boundary
-DAG the Rust workspace already targets** — porting in dependency order
-now means porting concern-by-concern, and a Python module's concern
-tells you which crate its Rust port belongs in.
+dependency direction that had been enforced by `import-linter`.  **This
+is the source shape the Rust crate-boundary DAG was derived from**: the
+enforced Python DAG was exactly the crate-boundary DAG the Rust
+workspace targets, so the port proceeded concern-by-concern, each
+Python module's concern deciding which crate its Rust port belonged in.
+The table below is retained as a map from the historical Python
+concerns to the Rust crates they became — useful when reading older
+path references in this document.
 
 | Concern | Role | Old location(s) | Target Rust crate |
 |---|---|---|---|
@@ -64,120 +71,71 @@ tells you which crate its Rust port belongs in.
 | `analyser/` | IDE-facing semantic model + checks: `semantic_model`, `proc_lookup`, `signature_scan`, `class_hierarchy`, MRO, `checks/`, `_analyser/`, `compiler_checks` | `core/analysis/` | `tcl-compiler` analyses + `tcl-lsp-core` |
 | `server/` | LSP protocol surface: pygls wiring, `features/`, `workspace/`, diagnostics pipeline, `_lsp_conv` | `lsp/` | `tcl-lsp-core` + `tcl-lsp-server` |
 | `tooling/` | Developer tools over the compiler stack: `tcl`/`f5`/`wasm` CLIs, `vm/`, `explorer/`, `debugger/`, `fuzzing/`, `tclpkg/`, `formatter/`, `minifier/`, `refactoring/`, `diagram/`, `irule_test/` | `vm/`, `explorer/`, `fuzzing/`, `tclpkg/`, `debugger/`, scattered | per-subsystem crates (`tcl-vm`, formatter, …) |
-| `ai/` | AI integrations: Claude skills, MCP server, iRule context | `ai/` | binding-layer / out of scope for core crates |
+| `ai/` | AI integrations: Claude skills, MCP server, iRule context | `ai/` | `tcl-mcp` (native MCP server the skills call) |
 
-**Registry mechanics vs. spec data is now a hard split** (the most
-load-bearing change for the rewrite): the registry *engine* and runtime
-data model live in `compiler/registry/` (`models.py`, `runtime.py`,
-`command_registry.py`, `signatures.py`, `namespace_registry.py`), while
-the *dialect command spec packs* live in `dialects/<dialect>/`.  This
-mirrors the intended `tcl-registry` crate split exactly: registry types
-are the crate's structs; dialect packs are `commands/<dialect>/*.rs`
-data modules a utility can inspect without pulling compiler or LSP code.
+**Registry mechanics vs. spec data was a hard split** (the most
+load-bearing distinction for the rewrite): the registry *engine* and
+runtime data model lived in `compiler/registry/`, while the *dialect
+command spec packs* lived in `dialects/<dialect>/`.  The `tcl-registry`
+crate mirrors that split exactly: registry types are the crate's
+structs; dialect packs are `commands/<dialect>/*.rs` data modules a
+utility can inspect without pulling compiler or LSP code.
 
 ### Dependency contracts (the crate-boundary DAG)
 
+The Python DAG the crate boundaries were derived from was
 `shared → compiler → dialects → analyser → server/tooling → ai`, with
-seven `import-linter` contracts.  As of this branch there are **zero
-upward carve-outs in the analyser and dialects contracts** — both were
-removed during PyO3-readiness work.  The remaining
-documented carve-outs are narrow and intentional:
+the analyser and dialects contracts carrying **zero upward carve-outs**.
+The enduring lesson for the Rust workspace is the **direction** of that
+DAG (leaf vocabulary → registry → compiler → LSP core → server →
+tooling), stated precisely in *Layered crates* below. The Rust crate
+graph must not violate that direction: no upward edge, no
+compiler/analyser/LSP crate owning command tables the registry should
+own (see *Command facts live in the registry*).
 
-- `dialects/` may import `compiler.registry` / `compiler.parsing` /
-  pure-data compiler modules only (two carve-outs: the F5 XC translator
-  consumes IR/lowering because it *is* an iRules→XC compiler; the
-  vanilla const-fold spec uses `compiler.tcl_expr_eval`).
-- `tooling/` ↛ `server`/`ai` (two carve-outs: the `f5-query irule
-  context` verb lazy-imports `ai.shared.irule_context`; the incremental
-  reparse fuzzer drives `server.workspace.DocumentState` as its test
-  subject).
+## What we did
 
-Read `docs/design/contracts/project-layout.md` (Python tree) for the
-authoritative contract text — it is the spec the Rust crate graph
-should not violate either.
-
-### Recommended PyO3 facade surface (not yet built in Python)
-
-The terminal public API (see *PyO3 public-API surface* below) should be
-a small set of narrow facades — source/bytes/options in, structured
-result out — over the layered crates, **not** a re-export of the whole
-graph.  Suggested signatures, all returning the existing structured
-result types rather than new `Any`-shaped dicts:
-
-```text
-parse_tcl(source, options)        -> tokens / parse tree
-compile_tcl(source, options)      -> CompilationUnit
-analyse_tcl(source, options)      -> AnalysisResult        (analyser.analyse today)
-format_tcl(source, options)       -> String                (tooling.formatter.format_tcl today)
-parse_bigip_config(source, opts)  -> BigipConfig            (dialects.f5.bigip.parser.parse_bigip_conf)
-query_bigip(sources, query, opts) -> QueryResult            (run_query_in_session)
-```
-
-Pair with a typed public error hierarchy (`TclLspError` base →
-`TclParseError` / `TclCompileError` / `TclAnalysisError` /
-`BigipParseError` / `BigipQueryError` / `UnsupportedFeatureError`), each
-carrying a stable code + message + optional URI/range, translated at the
-facade boundary.  These facades + the error hierarchy are deliberately
-**not** built in the Python tree yet (no consumer until the Rust binding
-lands) — they are the design the binding crate should implement.
-
-## What we're doing
-
-The eventual end state is:
+The end state reached:
 
 - **All** runtime logic lives in the Rust workspace under `rust/`. No
   Python is shipped or executed by the LSP server, the editor
-  extensions, the zipapp, the compiler explorer, the MCP server, the
-  debugger CLI, or any other entry point in this repository.
+  extensions, the compiler explorer, the MCP server, the debugger CLI,
+  or any other entry point in this repository.
 - The LSP server is a standalone Rust binary.
 - The bytecode VM is a Rust crate. The Zig WASM runtime stays as the
   out-of-process runtime for compiled scripts; the VM is the in-process
   interpreter the analyser, debugger, and iRule test framework drive.
-- The compiler explorer ships as a Rust → WASM web app (no Pyodide,
-  no Python at runtime).
+- The compiler explorer is embedded in the `tcl` binary
+  (`tcl explore --serve`) — no Pyodide, no Python at runtime.
 - The formatter, minifier, refactoring engine, code-action surface,
   iRule test framework, and BigIP / APL parsers are all Rust crates.
-- Build / release scripts under `scripts/` are rewritten as
+- Build / release scripts under `scripts/` were rewritten as
   `cargo xtask` subcommands or shell scripts, eliminating the Python
   toolchain dependency entirely.
-- The **only** Python that lives on after the transition is the
-  `tcl-lsp-py` crate's surface: a documented, semver-stable
-  binding intended for downstream users to embed the analyser /
-  compiler / VM in their own Python tooling. This API is **not** a
-  shim for in-tree code; the in-tree code is Rust.
-- All Python test suites get ported to Rust as cargo unit + integration
-  tests. The legacy `tests/` directory shrinks to zero by the final
-  retirement task.
+- No Python-importable artifact ships. The PyO3 public-API surface once
+  planned as a downstream product was **not** shipped — the binding
+  crates `tcl-lsp-py` / `tcl-lsp-rust` were removed rather than
+  published.
+- All Python test suites were ported to Rust as cargo unit + integration
+  tests, including the native `lsp_e2e` port. The legacy `tests/`
+  directory is gone.
 
-We get there by porting the codebase bottom-up, in dependency order: each
-layer's behaviour is reproduced and proven against the Python oracle before the
-layer above it leans on it. The foundation layers (lexer, compiler, and the LSP
-server) have already landed — that history is in the
-[archive](rust-rewrite-history.md). What remains, organised into parallel tracks
-in dependency order, is the [Remaining work](#remaining-work) section below.
+The port proceeded bottom-up, in dependency order: each layer's
+behaviour was reproduced and proven against the Python oracle before the
+layer above it leaned on it. The landed history is in the
+[archive](rust-rewrite-history.md); what genuinely remains — the RT-VM /
+RT-WASM runtime scope plus a handful of non-Python tooling residuals —
+is the [Remaining work](#remaining-work) section below.
 
-`editors/zed/` is already a standalone Rust crate targeting WASM and is
+`editors/zed/` is a standalone Rust crate targeting WASM and is
 unrelated to this rewrite. It's intentionally excluded from the main
 Cargo workspace and should be left alone.
 
-## Complete porting inventory
+## Where things landed
 
-The terminal state has exactly **one** Python-importable artifact — the
-`tcl-lsp-py` PyO3 wheel — and **zero** Python executed by any in-repo entry
-point. Every Python package either (a) becomes a Rust crate, (b) folds into an
-existing crate, or (c) is deleted once its consumers move to Rust. The PyO3
-surface is then re-derived from the Rust crates as a *designed public API*, not
-a transcription of whatever the in-tree Python used to call.
-
-### The boundary rule
-
-> Internal callers never import `tcl_lsp_py`. If in-tree Python imports the
-> binding crate, that import is a porting TODO, not an architecture. When the
-> last internal importer is gone, the remaining `#[pyfunction]` exports are
-> reviewed against the public-API design and the soft-dependency shims are
-> deleted.
-
-The live per-subsystem status and the crate → remaining-work mapping are the
+Every Python package either became a Rust crate, folded into an existing
+crate, or was deleted once its consumers moved to Rust. The live
+per-subsystem status and the crate → remaining-work mapping are the
 [Subsystem status](#subsystem-status-current-reality) and
 [Track map](#track-map-dependency-order) tables under **Remaining work** below.
 They supersede the historical coverage matrix and per-spec tracking tables, now
@@ -323,9 +281,7 @@ Each entry notes why it wins for those criteria.
 - **Error types: [`thiserror`](https://crates.io/crates/thiserror) in
   library crates, [`anyhow`](https://crates.io/crates/anyhow) in
   binaries.** Already in use in `tcl-lexer` for `LexError`.
-- **Python bindings: [`PyO3`](https://pyo3.rs) + [`maturin`](https://maturin.rs).**
-  Already in place for the soft-dependency build.
-- **CLI argument parsing (when CLI tools arrive):
+- **CLI argument parsing:
   [`clap`](https://crates.io/crates/clap) with `derive`.**
 - **Logging: [`tracing`](https://crates.io/crates/tracing) + `tracing-subscriber`.**
 
@@ -421,29 +377,18 @@ the document store (beyond the rope adapter).
 
 ## How we're doing it
 
-### Layered crates, not shim-owned features
+### Layered crates, ordered by dependency
 
-The Rust workspace has three kinds of crates:
+The Rust workspace has two kinds of crates:
 
-- **Pure library crates** own product behaviour. They do not depend on
-  `pyo3`, do not mimic Python object shapes, and are the crates the
-  eventual Rust LSP server and CLI binaries link against directly.
-- **Binding crates** expose Rust behaviour to Python. They contain
-  `#[pyclass]`, `#[pyfunction]`, `PyErr` conversion, tuple/dict
-  materialisation, env-var compatibility, and back-compat shims only.
+- **Pure library crates** own product behaviour. They do not mimic
+  Python object shapes, and are the crates the LSP server and CLI
+  binaries link against directly.
 - **Binary crates** provide entry points such as the native LSP server,
   debugger, compiler explorer helpers, and release tooling. They depend
-  on pure crates, not on PyO3 bindings.
+  on pure crates.
 
-The binding crate is now `rust/tcl-lsp-py/` (the `#[pymodule] tcl_lsp_py`
-public PyO3 surface); `rust/tcl-lsp-rust/` has been reduced to a **transitional
-alias** that re-exports `tcl-lsp-py` under the legacy `tcl_lsp_rust` module name
-the Python shims still import, and retires in vNext. Treat both as compatibility
-wrappers: neither owns compiler, analyser, registry, or LSP feature logic. The
-public-API design work (the `tcl-lsp-py` surface proper) is **API-PYO3**, the
-final track.
-
-Target dependency direction:
+The dependency direction is fixed and must not be violated:
 
 1. `tcl-lexer` owns source text, spans, line indexes, and tokenisation.
 2. `tcl-registry` owns command, dialect, argument, taint, effect,
@@ -456,23 +401,9 @@ Target dependency direction:
 5. `tcl-lsp-server` owns the `tower-lsp` binary, async document store,
    request routing, cancellation, progress, and editor-facing protocol
    plumbing.
-6. `tcl-lsp-py` owns the public PyO3 API for downstream users.
 
-No LSP feature provider lands directly in a PyO3 crate. If Python needs
-to call a new Rust feature during the migration, put the implementation
-in `tcl-lsp-core` first and expose it through a small binding wrapper.
-
-### Python compatibility lives only in the binding layer
-
-If the current Python API demands something awkward — thread-local flags,
-class-level mutable state, stringly-typed kwargs, magic singleton modules
-— the binding crate implements the awkwardness and hides it from the
-pure crate. The pure crate gets clean `&Config` parameters or equivalent,
-returns `Result<T, Error>`, and never has to apologise for Python.
-
-This rule is non-negotiable. A pure crate that imports `pyo3` "just for
-this one function" is a sign that the binding crate needs another wrapper
-type, not that the rule should bend.
+No LSP feature provider lands directly in a binary crate; feature logic
+belongs in `tcl-lsp-core`, and the server crate wires it in.
 
 ### Command facts live in the registry
 
@@ -527,41 +458,17 @@ Bad examples:
   data structure." (Split the data structure out first.)
 
 Each task that replaces real logic needs a differential test: run the
-Python and Rust implementations in parallel on every fixture and assert
-identical output. The lexer task (L3 onward) introduces
-`tests/test_rust_lexer_differential.py` for this. Use the same pattern
-for the compiler.
+implementation against the oracle on every fixture and assert identical
+output. For the remaining runtime work the oracle is **C Tcl 9.0.3**
+(`tclsh9.0`) directly — see principle §0. In-crate `*_parity.rs`
+harnesses are the standard shape.
 
-### Soft dependency during rollout
+### Packaging
 
-Until a task explicitly flips the default, the Python code imports the
-Rust wheel via `try: from tcl_lsp_rust import … except ImportError`.
-A missing wheel is a performance no-op, not a regression. This lets a
-developer work on fresh clones without `make rust-build`, and it lets
-releases ship even if a platform wheel fails to build.
-
-Once a task flips the default (the Rust implementation becomes the
-preferred path and the Python fallback is just there as a safety valve),
-the pure-Python fallback is kept for exactly one release cycle and then
-removed outright in a follow-up task. Do not let fallbacks accumulate.
-
-### Packaging and CI
-
-- The main `pyproject.toml` stays on `hatchling`. The Rust wheel is built
-  by `maturin` from its own binding-crate `pyproject.toml` and is a
-  **separate** distribution. That crate is now `rust/tcl-lsp-py/`
-  (`rust/tcl-lsp-rust/` is a retiring re-export alias). No mixed
-  hatchling/maturin hybrid.
-- Rust wheels ship as GitHub release artifacts on tagged releases, not
-  PyPI. `scripts/build_zipapp.py` fetches them at packaging time and
-  bundles them alongside the zipapp.
-- `scripts/build_zipapp.py::_pip_install_pure` preserves native
-  extensions whose package name is in `_RUST_NATIVE_PACKAGES` and strips
-  everything else. Extend that set rather than widening the strip.
-- PR CI builds a single linux x86_64 wheel and runs the Python test
-  suite against it. Tagged releases build the full matrix: linux
-  x86_64, linux aarch64, macOS x86_64, macOS arm64, windows x86_64.
-- The Rust toolchain tracks `stable` floating via `rust-toolchain.toml`.
+The product ships as native binaries (`tcl`, `f5-query`,
+`tcl-lsp-server`, `tcl-mcp`) plus the editor extensions that bundle
+them. There is no wheel, no zipapp, and no Python packaging. The Rust
+toolchain tracks `stable` floating via `rust-toolchain.toml`.
 
 ## What a good port looks like
 
@@ -571,8 +478,8 @@ catches bugs at compile time. A port that preserves every Python data
 shape and pattern has missed the point.
 
 Reshape the design. Rename things. Split or merge modules. Use Rust
-idioms even when they diverge sharply from the Python layout. The
-binding layer absorbs any Python-facing API drift.
+idioms even when they diverge sharply from the Python layout the port
+was derived from.
 
 Some concrete rules of thumb:
 
@@ -594,7 +501,7 @@ Some concrete rules of thumb:
   everything" section above.
 - Use **`&str` and `Cow<'_, str>`** instead of `String` wherever you can
   borrow. The caller usually owns the buffer; a new allocation per
-  token is a waste. The PyO3 wrapper clones on the way out if needed.
+  token is a waste.
 - Use **`Option<T>`** for "may be absent", **`Result<T, E>`** for "may
   fail". Do not invent sentinel values.
 - Prefer **`SmallVec`**, **`Cow`**, **`Arc`** where they genuinely help.
@@ -604,8 +511,7 @@ Some concrete rules of thumb:
 
 - Prefer **iterators** over stateful classes. A lexer becomes an
   `Iterator<Item = Result<Token<'src>, LexError>>`, not an object with
-  a `get_token()` method. The PyO3 wrapper presents the stateful API
-  Python expects.
+  a `get_token()` method.
 - Prefer **`match`** over `if let` chains, and prefer exhaustive matches
   over wildcard arms that silently swallow future variants.
 - Keep function bodies flat. Early returns are fine. Deeply nested
@@ -616,21 +522,15 @@ Some concrete rules of thumb:
 - All errors go through **`thiserror::Error`** in the pure crate. No
   panics for recoverable conditions, no `Option` where `Result` is
   meaningful.
-- The binding crate converts the pure-crate error type into a matching
-  Python exception. Preserve message text and position information.
 - Warnings (non-fatal diagnostics) are collected into a `Vec` on the
-  result value, not mutated onto a global. The Python-facing wrapper
-  exposes them as an attribute on the returned object if the Python API
-  previously did so.
+  result value, not mutated onto a global.
 
 ### Configuration
 
-- Global, thread-local, and class-level flags from Python become **fields
-  on a `Config` struct** passed to constructors. No `lazy_static`, no
-  `thread_local!`, no module-level mutable state in the pure crate.
-- The binding crate may keep a thread-local or class-attribute façade if
-  that's what Python callers depended on, and translate it into a fresh
-  `Config` on each call. The pure crate stays pure.
+- Global, thread-local, and class-level flags from the Python source
+  become **fields on a `Config` struct** passed to constructors. No
+  `lazy_static`, no `thread_local!`, no module-level mutable state in
+  the pure crate.
 
 ### Modules and naming
 
@@ -662,29 +562,18 @@ Some concrete rules of thumb:
 - Unit tests live next to the code they cover (`#[cfg(test)] mod tests`).
   Integration tests go under `tests/` inside the crate when they need
   multiple modules.
-- Every task that replaces real Python logic ships with a differential
-  test harness: feed the same inputs through both implementations and
-  assert identical outputs. Do not flip any default until the
-  differential harness is green across the whole corpus.
+- Every task that replaces real logic ships with a differential test
+  harness: feed the same inputs through the implementation and the
+  oracle (**C Tcl 9.0.3** for the remaining runtime work) and assert
+  identical outputs. Do not land until the harness is green across the
+  whole corpus.
 - Avoid golden-file tests for things that are cheap to compute. Prefer
   assertions that state the actual invariant.
-- **Test audit.** Every task classifies the pytest tests it touches as
-  **ported** (Rust has equivalent coverage), **bridge-only** (Python-
-  specific behaviour — kept in pytest, not ported), **remove at end**
-  (low-value, flagged inline with an `AUDIT:` comment and tracked for
-  deletion when the Python layer is retired), or **deferred** (covered
-  by a later task). The living audit lives in
-  [`rust-rewrite-test-audit.md`](rust-rewrite-test-audit.md); update
-  the relevant section in the same commit that lands the task. No
-  pytest test is deleted during the rewrite — the Python suite is the
-  behavioural oracle for every task, and only comes out when the
-  Python layer itself comes out.
 
 ### What a bad port looks like
 
 If your port has any of these, reshape it before asking for review:
 
-- A `#[pyclass]` in the pure crate.
 - An IR node, CFG node, or diagnostic that stores `start:
   SourcePosition, end: SourcePosition` instead of a `Span`. Positions
   belong on the `SourceMap`, not on every entity.
@@ -692,17 +581,15 @@ If your port has any of these, reshape it before asking for review:
   by the `SourceMap`. Everything else borrows it.
 - A `String` field where `&'src str` would borrow from the caller's
   buffer.
-- A translation of Python's class-level `strict_quoting = False` into a
-  `static mut` or `lazy_static`.
+- A translation of a class-level flag such as `strict_quoting = False`
+  into a `static mut` or `lazy_static` instead of a `Config` field.
 - A match arm that reproduces a three-arm `if/elif/else` ladder verbatim
   when two of the arms have the same body.
-- A function signature that takes `Option<Option<T>>` because Python used
-  `None` as both "absent" and "error".
+- A function signature that takes `Option<Option<T>>` because the source
+  used `None` as both "absent" and "error".
 - An `unwrap()` anywhere in a hot path.
 - A panic in a pure parser crate for malformed input. Malformed input is
   a `Result`, not a crash.
-- Pure LSP provider logic in a PyO3 crate. Bindings wrap providers; they
-  do not implement them.
 - A command-name table in the compiler, analyser, LSP layer, or
   diagnostics layer when the same fact belongs in `tcl-registry`.
 - A comment that says "TODO: make this idiomatic later". Do it now.
@@ -711,7 +598,7 @@ If your port has any of these, reshape it before asking for review:
 
 The workspace (`Cargo.toml` members) as it stands today — crate granularity,
 roughly in dependency order. New crates the [Remaining work](#remaining-work)
-plan still calls for (`tcl-wasm`, `tcl-xc`) are **not** listed here because they
+plan still calls for (`tcl-wasm`) are **not** listed here because they
 do not exist yet; `tcl-fuzz` (the differential fuzzer), `tcl-irule-test` (the
 iRule-test glue scaffold), and `tcl-debugger` (the step-debugger scaffold) have
 since landed.
@@ -743,23 +630,21 @@ rust/
   tcl-lsp-core/           pure LSP feature providers (folding, symbols, diagnostics, inlay_hints, source_style)
   tcl-lsp-db/             salsa incremental DB (file_analysis_incremental, semantic_tokens, lattice memo)
   tcl-lsp-server/         tower-lsp binary (async document store, request routing, cancellation)
-  tcl-lsp-py/             public PyO3 API crate (#[pymodule] tcl_lsp_py)
-  tcl-lsp-rust/           transitional alias re-exporting tcl-lsp-py under the legacy tcl_lsp_rust name
   # --- tooling ---
   tcl-explorer/           compiler-explorer pipeline + serialiser (CLI/TUI/WASM consume this)
   tcl-explorer-wasm/      Rust → WASM compile() facade for the explorer GUI (excluded from the workspace)
   tcl-cli-support/        shared CLI plumbing for the native tcl / f5 CLIs
-  tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
+  tcl-cli/                native `tcl` toolchain CLI (incl. `tcl explore --serve`)   f5-cli/  native `f5-query` CLI
+  tcl-mcp/                native MCP server (the `tcl-mcp` binary the Claude skills call)
   tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
   tcl-irule-test/         iRule TMM-sim: SCF→orchestrator topology + `LiveSession` running the orchestrator Tcl on tcl-vm (embedded framework)
   tcl-debugger/           working record-and-replay step debugger over tcl-vm + the `tcl-debug` CLI front-end
+  xtask/                  cargo-xtask build/release verbs (kcs-index-links, refcount-contract, …)
 runtime/
   zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
   rust/                   tree-walking reference runtime (RT-VM parity oracle)
-scripts/build_zipapp.py   _RUST_NATIVE_PACKAGES strip rule
-.github/workflows/ci.yml  rust job + rust-gate (cargo tests + lsp_e2e) + release wheel matrix
+.github/workflows/ci.yml  rust job + rust-gate (cargo tests + native lsp_e2e); no Python
 Makefile                  rust-build/test/lint/format; check-rust; test-rust
-tests/test_rust_bindings_smoke.py   end-to-end bridge smoke test
 ```
 
 
@@ -775,40 +660,41 @@ Python behaviour it mirrors. Per-task workflow: rebase the touched files off
 plus the `test_fp_*` ground-truth battery), and keep `make prep-pr` green. The
 full historical drift log is in the [history archive](rust-rewrite-history.md).
 
-**Main-sync status (last synced 2026-07-01 via PR #732 — `main` merged up
-through `v1.11.4`/`#705`, so `main` is once again an ancestor of `rust` and the
-behind-count is 0).** The Python-side deltas that PR carried in are all present
-in-tree now: `#662` catch/return flow (also delta-ported in **FE-DIAG**),
-`#656`/`#661` S110 byte-array corruption (also in **FE-TYPESHIM**), and — new
-with this sync — the full **Tcl 9.1** Python surface (see below). The
-rust-branch-irrelevant deltas (release notes, CI/security, the `#664`
-registry-dump demotion) came across as ordinary merge content. One
-language-surface delta is now **half-ported**: the Python side landed with the
-merge, but the **Rust crates still lack it**:
+> **Historical (dated 2026-07-01 snapshot).** With the Python tree retired from
+> this branch there is no longer an in-tree Python oracle to sync *into*; `main`
+> remains the Python 1.x reference for behavioural deltas, but the "port the
+> Python delta, then mirror it in Rust" workflow no longer applies here — new
+> behaviour lands directly in the Rust crates, verified against C Tcl. The last
+> recorded sync and its one open delta (now closed) are kept below as provenance.
 
-- **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`) — Python present, Rust
-  pending.** `main` added a `tcl9.1` entry to `KNOWN_DIALECTS`
-  (`compiler/registry/dialects.py`) plus three 9.1-only command specs — `timer`
-  (`dialects/tcl/timer.py`), `unicode` (`dialects/tcl/unicode_.py`), and the
-  `subst -backslashes/-commands/-variables` options (`subst_.py`), all gated on
-  the `tcl9.1` dialect. As of the 2026-07-01 sync **all of this now exists in the
-  Python tree** (`tcl9.1` is in `dialects.py`; `timer.py`/`unicode_.py` are
-  present), but **no Rust crate carries it yet** (`git grep -i tcl9.1 -- rust/`
-  is empty). The remaining port is Rust-only: the `tcl-registry` crate needs the
-  new dialect flag + command specs, `LexerConfig`/dialect gating must learn
-  `tcl9.1`, and the analyser/codegen must treat the new commands and `subst`
-  options as dialect-gated. Until that lands, the Rust analyser lags the Python
-  oracle's dialect surface. Note this also bears on principle §0 ("C Tcl 9.0.3 is
-  the reference standard"): 9.0.3 stays the pinned reference (no 9.1 source tree
-  is fetched under `tmp/`), so 9.1 support is a *dialect-flag* addition, not a
-  reference-standard bump — but a future task may need to decide whether to
-  advance the differential oracle once a 9.1 `tclsh` is available.
+**Main-sync status (last synced 2026-07-01 via PR #732 — `main` merged up
+through `v1.11.4`/`#705`; behind-count 0).** The Python-side deltas that PR
+carried in were all present in-tree: `#662` catch/return flow (**FE-DIAG**),
+`#656`/`#661` S110 byte-array corruption (**FE-TYPESHIM**), and the full
+**Tcl 9.1** surface. The one language-surface delta then flagged as Rust-pending
+has **since been ported**:
+
+- **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`) — ported to Rust.** The
+  `tcl9.1` dialect flag, the 9.1-only command specs (`timer`, `unicode`, and the
+  `subst -backslashes/-commands/-variables` options), and the operator/dialect
+  gating now live in `tcl-registry` + the lexer/analyser dialect gates (the
+  Python `dialects.py`/`timer.py`/`unicode_.py`/`subst_.py` that were the source
+  of this delta are retired). Principle §0 is unaffected: C Tcl 9.0.3 stays the
+  pinned reference standard; 9.1 is a *dialect-flag* addition, not a
+  reference-standard bump — a future task may advance the differential oracle
+  once a 9.1 `tclsh` is available.
 
 ## Testing strategy
 
-The 448 pytest files / ~14 K test functions sort into four buckets; port each
-file's coverage **alongside** the code it covers, following the crate DAG
-(lexer → syntax → compiler → registry → analyser → lsp-core).
+> This section is the historical migration strategy — the pytest tree and its
+> `lsp_e2e` suite have since been fully ported to native Rust (`cargo test`,
+> `rust/tcl-lsp-server/tests/*_e2e.rs`) and deleted. It is retained for the
+> crate-DAG-ordered porting method, which still applies to the remaining
+> runtime work.
+
+The 448 pytest files / ~14 K test functions sorted into four buckets; each
+file's coverage was ported **alongside** the code it covered, following the
+crate DAG (lexer → syntax → compiler → registry → analyser → lsp-core).
 
 | Bucket | ~files | ~tests | Destination |
 |---|---|---|---|
@@ -846,12 +732,11 @@ rows (✅ / 🟢).
 > **separate scope** enumerated in their own index:
 > [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).
 > Their rows survive in the subsystem-status / track-map tables below as
-> pointers, but the detail is not duplicated here. The `ai/` **shell** (MCP
-> server + Claude skills, prompts, templates) stays Python by design, but `ai/`
-> is a **consumer** of the retiring Python engine (7 of 13 files import
-> `analyser`/`compiler`/`tooling`/`server.features`/`dialects`), so re-pointing
-> it off that engine is real **PYTHON-RETIRE** work under **API-PYO3** — the ai
-> *port* is n/a, the ai *re-pointing* is not.
+> pointers, but the detail is not duplicated here. The **Python retirement
+> (API-PYO3 / PYTHON-RETIRE) is complete** — source, CI/CD, release
+> artefacts, editors, and tests are native, and `ai/` now calls the native
+> `tcl-mcp` MCP tools rather than an in-tree Python engine — so it no longer
+> appears as remaining work.
 
 ### Vocabulary
 
@@ -860,9 +745,12 @@ strand / family / wave / pillar / candidate* vocabulary survives only in the
 archive):
 
 - **Stage** — a dependency layer (1 Front-end → 2 Runtime → 3 Server →
-  4 Tooling → 5 Public API). Stages are ordered; tracks within a stage are not.
-  **Stage 2 (Runtime & execution) is tracked in its own scope** — see
+  4 Tooling → 5 Public API + Python retirement). Stages are ordered; tracks
+  within a stage are not. **Stage 2 (Runtime & execution) is tracked in its own
+  scope** — see
   [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).
+  **Stage 5 is complete** — the Python retirement landed and the PyO3 surface
+  was not shipped; it survives only as a done row.
 - **Track** — a parallel workstream that owns a bounded set of crates/modules
   and can be progressed independently of the other tracks in its stage.
 - **Task** — a discrete, PR-sized unit of work within a track.
@@ -878,8 +766,10 @@ Task status is either **open** or **partial** (with a note on what remains).
   later-stage track may depend on an earlier one; the dependency is stated.
 - Each track names its **owned crates/files** — that ownership boundary is what
   makes the tracks parallel-safe.
-- **Stage 5 (PyO3 interfaces + Python retirement) is intentionally last**: it can
-  only close once every consumer above has ported.
+- **Stage 5 (PyO3 interfaces + Python retirement) closed last** (2026-07),
+  once every consumer above had ported. Python is fully retired and the PyO3
+  public-API surface was not shipped; see the *Complete (2026-07)* note under
+  Stage 5 below.
 - Several items the old chunk-log still listed as open have since **landed** and
   are deliberately absent here — the ghost-token recovery engine (E201–E206),
   the security/injection check family (W102/W103/W300-series + T100–T106 +
@@ -936,7 +826,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟢 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)**, **Task 4 (per-procedure `optimise_unit` memo)**, and **Task 3 (incremental per-item IR lowering, `lower_proc_body` memo) gated v1** all landed byte-identical (full-corpus-verified); **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; residual: broaden the Task 3 body-cache eligibility gate → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
-| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed; residual: `f5 irule lint/context/trace/pgo` sub-verbs not implemented (parse + exit 2), SSH/scp fetch transport not ported (REST works; falls back to Python CLI), `registry-dump --section commands` not implemented → **TOOL-F5** |
+| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed; residual: `f5 irule lint/context/trace/pgo` sub-verbs unimplemented (parse + exit 2), SSH/scp fetch transport unimplemented (REST works; SSH parses + exits 2), `registry-dump --section commands` unimplemented → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | 🟢 | minifier + diagram byte-parity; formatter engine ported, residual: the **docstring rewriter** is unimplemented (config flags carried but not engine-consumed) |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
@@ -944,8 +834,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. Residual: auto-broadening coverage **plus** the session's `event dispatch` / `class match` handlers (not yet implemented) → **TOOL-IRULE-TEST** |
-| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🟡 | designed public surface **landed** (`parse_tcl`/`compile_tcl`/`analyse_tcl`/`format_tcl`/`parse_bigip_config`/`query_bigip` facades + `TclLspError` hierarchy, `tcl-lsp-py::public`); residual: TEST-MIGRATE; `scripts`→`xtask`; PYTHON-RETIRE → **API-PYO3** |
-| `ai/` (MCP + skills) | — | n/a (port) / 🟡 (re-point) | shell stays Python by design, but `ai/` imports the retiring engine (`analyser`/`compiler`/`tooling`/`server.features`/`dialects`) — re-pointing it onto Rust is **PYTHON-RETIRE** work → **API-PYO3** |
+| PyO3 public API + retirement | — | ✅ | **done (Python fully retired; PyO3 surface not shipped — `tcl-lsp-py`/`tcl-lsp-rust` crates removed).** Source/CI/release/editors/tests are native; `scripts`→`xtask` done; the `lsp_e2e` suite ported to native `*_e2e.rs` (see [history](rust-rewrite-history.md) → *PYTHON-RETIRE*) |
+| `ai/` (MCP + skills) | `tcl-mcp` | ✅ | native — the Claude skills call the native `tcl-mcp` MCP tools; the Python `ai/` engine imports are gone |
 
 ### Track map (dependency order)
 
@@ -970,7 +860,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟢 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
-| API | **API-PYO3** 🟡 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
+| API | **API-PYO3** ✅ | Python retirement (source/CI/release/editors/tests); `scripts`→`xtask`; PyO3 surface **not shipped** (crates removed) | everything above | L |
 
 ---
 
@@ -1187,9 +1077,10 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 - **TOOL-F5** 🟢 *(depends on RT-VM, TOOL-IRULE-TEST)* — the `f5` verbs
   (`event-order`/`extract`/`format`/`minify`/`event-info`, `explain-flow`,
   `--simulate`) landed. Residuals in `f5-cli`: the `irule lint`/`context`/
-  `trace`/`pgo` sub-verbs are not implemented (arg-parse then error + exit 2);
-  the SSH/scp fetch transport is not ported (`--transport rest` works, SSH falls
-  back to the Python CLI); `registry-dump --section commands` is not implemented.
+  `trace`/`pgo` sub-verbs are unimplemented (arg-parse then error + exit 2);
+  the SSH/scp fetch transport is unimplemented (`--transport rest` works; the
+  SSH path parses then errors + exit 2); `registry-dump --section commands` is
+  unimplemented.
 - **Formatter — docstring rewriter** 🟢 — the formatter engine, minifier, and
   diagram extractor are byte-parity ported (`tcl-lsp-core::{formatting,minify}`,
   `tcl-cli`); residual: the docstring rewriter is unimplemented — its config
@@ -1200,104 +1091,20 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 complete (their landing logs are in the
 [history archive](rust-rewrite-history.md)).
 
-### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3 — last)
+### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3) — complete
 
-#### API-PYO3
-Owns `tcl-lsp-py`, the `scripts`→`xtask` migration, and `tests`. **This is the
-final track** — every consumer above must port first.
-- **landed (2026-06-22)** the designed public PyO3 surface — built as
-  `tcl-lsp-py::public`, additive alongside (not replacing) the legacy
-  soft-dependency shims. The six narrow facades (`parse_tcl` →
-  `ParseResult`, `compile_tcl` → `CompilationUnit`, `analyse_tcl` →
-  `AnalysisResult`, `format_tcl` → `str`, `parse_bigip_config` →
-  `BigipConfig`, `query_bigip` → `QueryResult`) take `source/options in,
-  structured result out` over the layered crates (`tcl-lexer`,
-  `tcl-compiler`, `tcl-lsp-core::formatting`, `tcl-bigip`,
-  `tcl-bigip-query`) and resolve every span to a `(line, character)`
-  position at the boundary. Paired with the typed error hierarchy
-  `TclLspError → TclParseError / TclCompileError / TclAnalysisError /
-  BigipParseError / BigipQueryError / UnsupportedFeatureError`, each
-  raised instance carrying `code` / `message` / `uri` / `range`,
-  translated at the facade boundary (the pure crates stay `pyo3`-free).
-  Acceptance test: `tests/test_public_pyo3_api.py` (30 cases, runs against
-  the built wheel; `importorskip`-guarded). Detail in the
-  [history archive](rust-rewrite-history.md). Still **open**: the legacy
-  shim set (~39 `#[pyfunction]`s across `tokens` / `expr_lexer` /
-  `compiler_checks` / `interprocedural` / `gvn` / `compilation_unit` /
-  `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
-  folding / document-symbol feature bindings) stays until its in-tree
-  Python importers retire under PYTHON-RETIRE.
-- **partial** TEST-MIGRATE — the **porting** half is **complete** (the
-  **deletion** half stays gated on PYTHON-RETIRE). All 473 `tests/test_*.py`
-  files are now classified (ported / bridge-only / remove-at-end / deferred)
-  in the [test audit](rust-rewrite-test-audit.md#test-migrate--full-pytest-suite-classification-all-473-files):
-  every behaviour portable to a landed crate is Rust-covered (per-module
-  `#[cfg(test)]`, the `tcltest` reference sweeps, or `*_parity.rs`
-  differentials), and the un-ported remainder is attributed to a named
-  unlanded track (RT-WASM / RT-VM / SRV-ROPE / PKG / PGO — *deferred*) or to
-  Python-binding / `ai/` glue (*bridge-only*). The `test_fp_*` battery is the
-  analyser acceptance gate (C41 ✅, ~1,000 analyser `#[test]`s). The cleanly
-  portable pure-logic gaps that still had zero Rust unit coverage were ported
-  in the closing pass — `tcl-bigip::policy_eval` (LTM policy evaluator),
-  `tcl-bigip::validator` (BIGIP6003–6009), `tcl-registry::bigip` (object-kind
-  resolution), plus VM helper modules (`cmd_string`/`subst`/`exec`). The
-  **deletion** of the `test_*.py` is the terminal PYTHON-RETIRE sweep — gated,
-  since the pytest suite is the behavioural oracle while the Python layer ships.
-- **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
-  Python toolchain dependency). Full triage of the ~110 `scripts/` tools —
-  which retire with Python vs which survive and how — is in
-  [`design/rust/scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md).
-  The check verbs now have a `make xtask-check` target
-  (`cargo xtask kcs-index-links` + `refcount-contract` + `diag-tables --check`),
-  verified locally; the CI
-  step that runs it in the Rust-capable `rust-tests` job (`rust-gate.yml` +
-  `ci.yml`; the Python-only `ci-fast` job has no Rust toolchain) is **prepared,
-  pending a workflow-scoped push**. Until then `kcs-index-links` stays wired as
-  the Python `lint-py` gate. The `rust/xtask` crate + `cargo xtask` alias scaffold
-  **landed**, with five scripts ported and parity-checked against the Python
-  originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
-  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
-  identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
-  whose `git describe` → setuptools-scm scheme is unit-pinned against real
-  `setuptools_scm` outputs; `tzdata-bundle` (⇐
-  `scripts/build/tzdata_bundle.py`), whose packed `TZBL` artifact is byte-for-byte
-  identical for both the verbatim and `--trim`-window paths (the `TZif` v1
-  trimmer included); and `audit-option-dialects` (⇐
-  `scripts/check/audit_option_dialects.py`), which probes every `OptionSpec`
-  dialect gate against the built tclsh 8.4/8.5/8.6/9.0 trees — the
-  `tmp/option_dialect_audit.json` artifact **and** the console log are
-  byte-for-byte identical to the Python (verified against the one tclsh tree
-  built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
-  `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
-  table / version order are transcribed 1:1). **Remaining is the bulk: only 6 of
-  ~26+ scripts are ported.** Triage decisions (per
-  [`scripts-retirement-triage.md`](design/rust/scripts-retirement-triage.md)):
-  the `refcount_contract` / `audit_option_dialects` / `tzdata_bundle` Python
-  originals were **deleted 2026-07-01** (fully orphaned) — `refcount-contract` is
-  now in `make xtask-check`, `audit-option-dialects` is an on-demand `make`
-  target, `tzdata_bundle` was orphaned. `kcs_index_links.py` stays wired in
-  `lint-py` until the CI workflow step lands (then flip + delete);
-  `print_version.py` is **kept** (live `:=` for the wheel filename; retires with
-  the Python packaging). The **artifact generators** (`codegen/*`
-  editor catalogs/settings + `port_names`, `dev/gen_query_builtins_doc`,
-  `build/kcs_db`, the `gen_f5_query_*` / `gen_bigip_model_rust` /
-  `registry-audit/*` families) are **port-to-Rust** targets so the shipped
-  artifacts keep regenerating off the Rust registry. The `build/zipapps.py` +
-  `zipapp-main/*` Python distribution **retires with Python** once native-binary
-  distribution reaches parity. The `dev/*` measurement + `*_differential` /
-  `diag_parity` tools are Bucket A (retire with Python, not ported). Then flip
-  the Makefile/CI invocations to the xtask verbs and retire the ported originals.
-  (`bigip_kind_differential.py` stays Python until retirement — it is a
-  Python-vs-Rust differential oracle, not a toolchain script.)
-- **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
-  ported `tooling/` subtrees once their consumers are Rust. **`ai/` is one such
-  consumer:** its shell (MCP server + Claude skills) stays Python by design, but
-  it imports the in-tree engine (`analyser`/`compiler`/`tooling.refactoring`/
-  `server.features`/`dialects`) well beyond the six landed `tcl-lsp-py::public`
-  facades, so this task must first re-point `ai/` onto Rust — either by widening
-  the PyO3 surface to cover its call set or by thinning `ai/` to the public
-  facades / a subprocess LSP. Deleting the engine before that re-point breaks the
-  MCP tools.
+**Complete (2026-07): Python fully retired.** The last stage closed with the
+whole Python tree deleted (`shared/ compiler/ dialects/ analyser/ server/
+tooling/` + the `ai/**/*.py` engine, `pyproject.toml`, `uv.lock`,
+`.importlinter`, and the `.pyz` zipapp machinery), the `scripts/`
+build/release tooling migrated to `cargo`/`cargo xtask` + shell, and the
+pytest `lsp_e2e` suite ported to native Rust (`rust/tcl-lsp-server/tests/*_e2e.rs`,
+run by `cargo test`). The PyO3 public-API surface once planned here was **not
+shipped** — the binding crates `tcl-lsp-py` / `tcl-lsp-rust` were removed rather
+than published — and `ai/` was re-pointed onto the native `tcl-mcp` MCP tools.
+CI/CD, release artefacts, and the editor extensions are all Python-free. The
+full close-out narrative (what was deleted, the e2e port, the editor bundling)
+is in the [history archive](rust-rewrite-history.md) → *PYTHON-RETIRE*.
 
 ### Cross-cutting (fold into the owning track)
 
