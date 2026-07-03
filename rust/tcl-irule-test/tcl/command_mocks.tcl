@@ -1652,17 +1652,26 @@ namespace eval ::itest::cmd {
     proc register_all {} {
         variable _gen_namespaced_commands
         variable _gen_toplevel_commands
+        variable _stub_actions
 
-        # Auto-register all iRule commands for which a mock proc exists.
+        # Auto-register all iRule commands for which a mock exists.
         # Command list comes from generated registry data (_registry_data.tcl).
-        # Hand-written mocks and generated stubs (from _mock_stubs.tcl,
-        # sourced during framework load) are both discovered here.
+        # Hand-written mocks (procs in this file) take precedence; registry
+        # commands without one fall back to the generic `_stub` driven by the
+        # generated `_stub_actions` table (_mock_stubs.tcl, sourced during
+        # framework load) — formerly ~1500 individual generated stub procs.
         foreach irule_cmd [concat $_gen_namespaced_commands $_gen_toplevel_commands] {
             set mock [_mock_proc_name $irule_cmd]
             # Use _orig_info to bypass the TMM shim's info filter
             # (which hides ::itest::* from info commands).
             if {[llength [::tmm::_orig_info commands $mock]]} {
                 ::itest::register_command $irule_cmd $mock
+            } else {
+                set tail [namespace tail $mock]
+                if {[info exists _stub_actions($tail)]} {
+                    ::itest::register_command $irule_cmd \
+                        [list ::itest::cmd::_stub {*}$_stub_actions($tail)]
+                }
             }
         }
     }
