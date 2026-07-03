@@ -69,6 +69,12 @@ members = [
 ]
 exclude = [
     "editors/zed",
+    # PyO3 bindings for the BIG-IP query engine (built with maturin, not cargo).
+    # Excluded for the same reason as `editors/zed`: PyO3's generated glue trips
+    # the workspace `unsafe_code = "forbid"` lint, and the cdylib links
+    # libpython, which the rest of the workspace must not require. See
+    # `rust/bigip-query-py/` and the `f5report` Python package it backs.
+    "rust/bigip-query-py",
     # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
     # wasm-bindgen's generated glue needs `unsafe`, which the workspace
     # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.

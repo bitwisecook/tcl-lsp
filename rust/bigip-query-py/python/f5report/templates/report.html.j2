@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>
+{% include "report.css" %}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">◈</span>
+    <div>
+      <h1>{{ title }}</h1>
+      <p class="sub">
+        Generated {{ generated_at }} ·
+        {{ devices|length }} device{{ 's' if devices|length != 1 else '' }} ·
+        query&nbsp;engine v{{ engine_version }}
+      </p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <input id="globalSearch" type="search" placeholder="Search everything… (/)" autocomplete="off">
+    <button id="themeToggle" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+{% macro chip(label, value, tone='') %}
+<div class="chip {{ tone }}"><span class="chip-val">{{ value }}</span><span class="chip-lbl">{{ label }}</span></div>
+{% endmacro %}
+
+<section class="summary">
+  {{ chip('Virtual Servers', totals.get('virtuals', 0)) }}
+  {{ chip('Pools', totals.get('pools', 0)) }}
+  {{ chip('Pool Members', totals.get('poolMembers', 0)) }}
+  {{ chip('Nodes', totals.get('nodes', 0)) }}
+  {{ chip('iRules', totals.get('rules', 0)) }}
+  {{ chip('Monitors', totals.get('monitors', 0)) }}
+  {{ chip('Data Groups', totals.get('dataGroups', 0)) }}
+  {{ chip('Orphaned Objects', totals.get('orphans', 0), 'warn' if totals.get('orphans', 0) else 'ok') }}
+</section>
+
+{% if devices|length > 1 %}
+<nav class="device-switch" role="tablist" aria-label="Devices">
+  {% for d in devices %}
+  <button class="dev-tab{{ ' active' if loop.first }}" data-dev="{{ loop.index0 }}">{{ d.name }}</button>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% for d in devices %}
+<article class="device{{ ' active' if loop.first }}" data-dev="{{ loop.index0 }}">
+  <div class="device-head">
+    <h2>{{ d.name }}</h2>
+    <div class="device-meta">
+      {% if d.tmshVersion %}<span class="badge">TMOS {{ d.tmshVersion }}</span>{% endif %}
+      <span class="badge muted">{{ d.uri.split('/')[-1] }}</span>
+    </div>
+  </div>
+
+  {% if d.insights %}
+  <div class="insights">
+    {% for ins in d.insights %}
+    <div class="insight {{ ins.level }}"><span class="dot"></span>{{ ins.text }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-panel="virtuals">Virtual Servers <span class="n">{{ d.counts.virtuals }}</span></button>
+    <button class="tab" data-panel="pools">Pools <span class="n">{{ d.counts.pools }}</span></button>
+    <button class="tab" data-panel="nodes">Nodes <span class="n">{{ d.counts.nodes }}</span></button>
+    <button class="tab" data-panel="monitors">Monitors <span class="n">{{ d.counts.monitors }}</span></button>
+    <button class="tab" data-panel="rules">iRules <span class="n">{{ d.counts.rules }}</span></button>
+    <button class="tab" data-panel="dataGroups">Data Groups <span class="n">{{ d.counts.dataGroups }}</span></button>
+    <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
+  </nav>
+
+  {#: ---------------- Virtual Servers ---------------- :#}
+  <div class="panel active" data-panel="virtuals">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr>
+        <th>Name</th><th>Destination</th><th>Port</th><th>Pool</th>
+        <th>Profiles</th><th>iRules</th><th>SNAT</th><th>Proto</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for v in d.virtuals %}
+      <tr class="searchable{{ ' is-disabled' if v.disabled }}">
+        <td class="mono strong">{{ v.name }}{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
+        <td class="mono">{{ v.destAddr }}</td>
+        <td class="mono">{{ v.destPort }}</td>
+        <td class="mono">{% if v.pool %}<a href="#" class="ref">{{ v.pool.split('/')[-1] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% for p in v.profiles %}<span class="tag">{{ p.split('/')[-1] }}</span>{% endfor %}</td>
+        <td>{% for r in v.rules %}<span class="tag blue">{{ r.split('/')[-1] }}</span>{% endfor %}</td>
+        <td class="mono small">{{ v.snatpool.split('/')[-1] if v.snatpool else v.sourceXlate or '—' }}</td>
+        <td class="mono small">{{ v.ipProtocol }}</td>
+        <td>{% if v.description %}<span class="info-i" title="{{ v.description }}">i</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- Pools ---------------- :#}
+  <div class="panel" data-panel="pools">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr>
+        <th></th><th>Name</th><th>Members</th><th>Monitor</th><th>LB Mode</th><th>Used By</th>
+      </tr></thead>
+      <tbody>
+      {% for p in d.pools %}
+      <tr class="searchable expandable{{ ' orphan' if not p.usedBy }}">
+        <td class="expander">{% if p.members %}▸{% endif %}</td>
+        <td class="mono strong">{{ p.name }}{% if not p.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
+        <td>{{ p.memberCount }}{% if p.memberCount == 0 %} <span class="tag amber">empty</span>{% endif %}</td>
+        <td class="mono small">{{ p.monitor or '—' }}</td>
+        <td class="mono small">{{ p.lbMode or 'round-robin' }}</td>
+        <td class="mono small">{% for u in p.usedBy %}<span class="tag blue">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+      </tr>
+      {% if p.members %}
+      <tr class="detail"><td></td><td colspan="5">
+        <table class="subgrid">
+          <thead><tr><th>Member</th><th>Address</th><th>Port</th><th>Monitor</th></tr></thead>
+          <tbody>
+          {% for m in p.members %}
+          <tr><td class="mono">{{ m.name.split('/')[-1] }}</td><td class="mono">{{ m.address }}</td><td class="mono">{{ m.port }}</td><td class="mono small">{{ m.monitor or '—' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </td></tr>
+      {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- Nodes ---------------- :#}
+  <div class="panel" data-panel="nodes">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Name</th><th>Address</th><th>Monitor</th><th>Used By Pools</th></tr></thead>
+      <tbody>
+      {% for n in d.nodes %}
+      <tr class="searchable{{ ' orphan' if not n.usedBy }}">
+        <td class="mono strong">{{ n.name }}{% if not n.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
+        <td class="mono">{{ n.address }}</td>
+        <td class="mono small">{{ n.monitor or '—' }}</td>
+        <td class="mono small">{% for u in n.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- Monitors ---------------- :#}
+  <div class="panel" data-panel="monitors">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Name</th><th>Type</th><th>Interval</th><th>Timeout</th><th>Send</th><th>Receive</th><th>Used By</th></tr></thead>
+      <tbody>
+      {% for mo in d.monitors %}
+      <tr class="searchable{{ ' orphan' if not mo.usedBy }}">
+        <td class="mono strong">{{ mo.name }}</td>
+        <td><span class="tag">{{ mo.type }}</span></td>
+        <td class="mono">{{ mo.interval }}</td>
+        <td class="mono">{{ mo.timeout }}</td>
+        <td class="mono small clip">{{ mo.send or '—' }}</td>
+        <td class="mono small clip">{{ mo.recv or '—' }}</td>
+        <td class="mono small">{{ mo.usedBy|length }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- iRules ---------------- :#}
+  <div class="panel" data-panel="rules">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th></th><th>Name</th><th>Events</th><th>Lines</th><th>Attached To</th></tr></thead>
+      <tbody>
+      {% for r in d.rules %}
+      <tr class="searchable expandable{{ ' orphan' if not r.usedBy }}">
+        <td class="expander">▸</td>
+        <td class="mono strong">{{ r.name }}{% if not r.usedBy %} <span class="tag amber">unattached</span>{% endif %}</td>
+        <td>{% for e in r.events %}<span class="tag blue">{{ e }}</span>{% endfor %}</td>
+        <td class="mono">{{ r.lineCount }}</td>
+        <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      <tr class="detail"><td></td><td colspan="4"><pre class="code">{{ r.body }}</pre></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- Data Groups ---------------- :#}
+  <div class="panel" data-panel="dataGroups">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th></th><th>Name</th><th>Type</th><th>Records</th><th>Used By</th></tr></thead>
+      <tbody>
+      {% for g in d.dataGroups %}
+      <tr class="searchable expandable{{ ' orphan' if not g.usedBy }}">
+        <td class="expander">{% if g.records %}▸{% endif %}</td>
+        <td class="mono strong">{{ g.name }}</td>
+        <td><span class="tag">{{ g.type }}</span></td>
+        <td class="mono">{{ g.recordCount }}</td>
+        <td class="mono small">{{ g.usedBy|length }}</td>
+      </tr>
+      {% if g.records %}
+      <tr class="detail"><td></td><td colspan="4"><div class="records">{% for rec in g.records %}<code>{{ rec }}</code>{% endfor %}</div></td></tr>
+      {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {#: ---------------- Profiles ---------------- :#}
+  <div class="panel" data-panel="profiles">
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Name</th><th>Type</th><th>Parent</th><th>Certificate</th><th>Ciphers</th><th>Used By</th></tr></thead>
+      <tbody>
+      {% for p in d.profiles %}
+      <tr class="searchable">
+        <td class="mono strong">{{ p.name }}</td>
+        <td><span class="tag{{ ' green' if 'SSL' in p.type }}">{{ p.type }}</span></td>
+        <td class="mono small">{{ p.parent.split('/')[-1] if p.parent else '—' }}</td>
+        <td class="mono small">{{ p.cert.split('/')[-1] if p.cert else '—' }}</td>
+        <td class="mono small clip">{{ p.ciphers or '—' }}</td>
+        <td class="mono small">{{ p.usedBy|length }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+</article>
+{% endfor %}
+
+<footer class="foot">
+  <p>Built with the F5&nbsp;BIG-IP query engine (<code>f5-query</code>) via PyO3 · rendered by Jinja on Python 3.14 · self-contained, no external assets.</p>
+</footer>
+
+<script>
+{% include "report.js" %}
+</script>
+</body>
+</html>
