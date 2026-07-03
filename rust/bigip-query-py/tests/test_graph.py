@@ -86,6 +86,26 @@ def test_irule_dynamic_actions_extraction():
     assert "persist" in effects
 
 
+def test_ipv6_dot_port_destination_split():
+    from f5report.report import _split_dest
+    # IPv6 uses a dot before the port; the colons belong to the address.
+    assert _split_dest("/Common/2001:db8::10.443") == ("2001:db8::10", "443")
+    assert _split_dest("/Common/2001:db8::10") == ("2001:db8::10", "")
+    # IPv4 / names still split on the colon.
+    assert _split_dest("/Common/192.168.1.21:443") == ("192.168.1.21", "443")
+
+
+def test_snatpools_carry_usedby_and_orphan_correctly():
+    d = _device()
+    # A SNAT pool referenced by a virtual must not be counted as an orphan.
+    used = {s["name"]: s.get("usedBy") for s in d["snatpools"]}
+    assert "usedBy" in d["snatpools"][0]
+    referenced = [n for n, u in used.items() if u]
+    assert referenced, "expected at least one referenced SNAT pool"
+    for name in referenced:
+        assert name not in d["orphans"]["snatpools"]
+
+
 def test_policies_shaped_with_rules():
     d = _device()
     assert d["policies"], "expected LTM policies"

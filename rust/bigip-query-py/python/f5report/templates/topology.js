@@ -244,7 +244,13 @@
     return el ? parseInt(el.dataset.dev, 10) : 0;
   }
 
-  function esc(s) { return String(s).replace(/"/g, "&quot;").replace(/\n/g, " "); }
+  // Escape HTML metacharacters — these strings are config-derived (object names,
+  // iRule bodies, data-group records, descriptions) and land in innerHTML and in
+  // Mermaid (html) labels, so `<`, `>`, `&`, `"` must all be neutralised.
+  var ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; }).replace(/\n/g, " ");
+  }
   // Edge labels sit in Mermaid's `|...|` syntax, which chokes on (){}[]|" —
   // strip those to keep the flowchart parseable.
   function escLbl(s) { return String(s).replace(/[()|{}\[\]"]/g, "").replace(/\n/g, " "); }

@@ -70,11 +70,21 @@ def _clean_path(value: str) -> str:
 
 
 def _split_dest(dest: str) -> tuple[str, str]:
-    """Split ``/Common/192.168.1.21:443`` into ``(192.168.1.21, 443)``."""
+    """Split a BIG-IP destination into ``(address, port)``.
+
+    IPv4 / names use a ``:`` separator (``/Common/192.168.1.21:443``); IPv6 uses
+    a ``.`` separator so the colons in the address aren't ambiguous
+    (``/Common/2001:db8::10.443``).
+    """
     if not dest:
         return "", ""
     leaf = dest.rsplit("/", 1)[-1]
-    if ":" in leaf:  # IPv4/name:port or IPv6.port
+    if leaf.count(":") >= 2:  # IPv6: address holds the colons, port after a dot
+        if "." in leaf:
+            addr, _, port = leaf.rpartition(".")
+            return addr, port
+        return leaf, ""
+    if ":" in leaf:  # IPv4 / name : port
         addr, _, port = leaf.rpartition(":")
         return addr, port
     return leaf, ""
@@ -350,10 +360,17 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
         if shaper:
             device[key] = [shaper(f, used_by) for f in rows]
         else:
-            # snatpools / persistence / policies / virtual-addresses: keep the
-            # projected fields, tidy up the name/full-path for display.
+            # snatpools / persistence / virtual-addresses: keep the projected
+            # fields, tidy up the name/full-path for display. `usedBy` is carried
+            # through so referable kinds (snatpools) are not miscounted as
+            # orphans by the orphan pass below.
             device[key] = [
-                {"name": f.get("name", ""), "fullPath": f.get("full-path", ""), "fields": f}
+                {
+                    "name": f.get("name", ""),
+                    "fullPath": f.get("full-path", ""),
+                    "usedBy": used_by.get(f.get("full-path", ""), []),
+                    "fields": f,
+                }
                 for f in rows
             ]
 
