@@ -3,10 +3,10 @@
 //! row-format helpers `index`, `ltrimstr`, `rtrimstr`, `explode`, `implode`,
 //! `ascii`, `utf8bytelength`, `csv`, `tsv`.
 //!
-//! Parity notes:
+//! Behaviour notes:
 //! - Every regex compile routes through the parent `safe_regex_compile`
 //!   chokepoint (length + nested-quantifier guards) so the guard error
-//!   text matches `_safe_regex_compile`.
+//!   text stays uniform across the regex family.
 //! - The `regex` crate's dialect differs on
 //!   backreferences / lookaround (documented divergence the user accepted).
 //!   `sub` / `gsub` reproduce the `\g<1>`-style replacement-template syntax
@@ -273,8 +273,8 @@ fn bi_capture(args: &[Value]) -> Result<Value, QueryError> {
     let f = optional_flags(args, 2, "capture")?;
     // jq accepts `(?<name>...)`; rewrite to `(?P<name>...)`
     // spelling (also accepted by the `regex` crate).
-    let p_python = rewrite_named_groups(&p);
-    let rx = compile_with_flags(&p_python, &f, "capture")?;
+    let converted = rewrite_named_groups(&p);
+    let rx = compile_with_flags(&converted, &f, "capture")?;
     match rx.captures(&s) {
         None => Err(QueryError::builtin(format!(
             "capture: pattern {} did not match",

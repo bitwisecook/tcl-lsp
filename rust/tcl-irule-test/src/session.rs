@@ -6,18 +6,14 @@
 //! applies a [`crate::topology`] setup (or hand-built `::orch::` calls), fires
 //! events, and reads back the pool/node decisions, logs, and assertions.
 //!
-//! # Status: gated on the VM iRule surface
+//! This module owns the VM-independent half: the **session contract and the
+//! setup-script assembly** — topology generation and the orchestrator-bootstrap
+//! script. The live VM round-trip (sourcing the orchestrator on a [`tcl-vm`]
+//! interpreter and driving real events — `when` event dispatch, `HTTP::*`,
+//! `pool`/`node`, `class match`, …) lives in [`crate::live::LiveSession`].
 //!
-//! Running events end-to-end needs the VM to provide the iRule command surface
-//! the orchestrator relies on — `HTTP::*`, `pool`/`node`, `LB::*`, the `when`
-//! event dispatch, `class match`, etc. Those are not yet implemented in
-//! `tcl-vm`, so this module defines the **session contract and the setup-script
-//! assembly** that the driver uses, without yet wiring a live VM. The pieces
-//! that do not need the VM — topology generation and the orchestrator-bootstrap
-//! script assembly — are usable now and unit-tested.
-//!
-//! [`SessionPlan::into_bootstrap`] is the exact script a `tcl-vm` driver runs
-//! to stand a session up; only the `run_*`/`assert_*` round-trip needs adding.
+//! [`SessionPlan::into_bootstrap`] is the exact script the live driver runs to
+//! stand a session up.
 
 use crate::topology::{Topology, TopologyError};
 

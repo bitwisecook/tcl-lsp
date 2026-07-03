@@ -30,7 +30,7 @@ fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Same arg-role pattern for `trace remove variable` — keeps
-/// registry parity with `trace add variable` so consumers can
+/// registry consistency with `trace add variable` so consumers can
 /// query both spellings via the same `ArgRole::VarWrite` lookup.
 fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.first() == Some(&"variable") && args.len() >= 2 {

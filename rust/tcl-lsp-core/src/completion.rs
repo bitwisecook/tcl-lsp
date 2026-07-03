@@ -1229,7 +1229,7 @@ mod tests {
     // usage-bucket sort-text
 
     #[test]
-    fn usage_bucket_buckets_per_python_thresholds() {
+    fn usage_bucket_thresholds() {
         // Exhaustive bucket-table check across every threshold.
         assert_eq!(usage_bucket(0), 5);
         assert_eq!(usage_bucket(1), 4);

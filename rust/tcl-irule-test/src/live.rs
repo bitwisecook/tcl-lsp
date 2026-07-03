@@ -199,6 +199,46 @@ impl LiveSession {
         self.eval(&format!("::orch::run_http_request {args}"))
     }
 
+    /// Fire a single event by name (`::orch::fire`), returning its
+    /// `fired …` result list. Unlike [`run_http_request`](Self::run_http_request)
+    /// this dispatches the event directly, so it drives non-HTTP handlers
+    /// (`CLIENT_ACCEPTED`, `LB_SELECTED`, …) without a full request lifecycle.
+    ///
+    /// # Errors
+    /// Propagates an orchestrator error.
+    pub fn fire_event(&mut self, event: &str) -> Result<String, SessionError> {
+        self.eval(&format!("::orch::fire {event}"))
+    }
+
+    /// Fire a sequence of events in order (`::orch::fire_sequence`), returning
+    /// the per-event result list. Gated events are skipped, matching the
+    /// orchestrator's ordering rules.
+    ///
+    /// # Errors
+    /// Propagates an orchestrator error.
+    pub fn fire_sequence(&mut self, events: &[&str]) -> Result<String, SessionError> {
+        let joined = events.join(" ");
+        self.eval(&format!("::orch::fire_sequence {{{joined}}}"))
+    }
+
+    /// Register a data-group for `class match` lookups
+    /// (`::orch::add_datagroup`). `records` is the Tcl list body of `{key val …}`
+    /// entries; `dg_type` is `string`, `ip`, or `integer`.
+    ///
+    /// # Errors
+    /// Propagates an orchestrator error.
+    pub fn add_datagroup(
+        &mut self,
+        name: &str,
+        dg_type: &str,
+        records: &str,
+    ) -> Result<(), SessionError> {
+        self.eval(&format!(
+            "::orch::add_datagroup {name} {dg_type} {{{records}}}"
+        ))
+        .map(|_| ())
+    }
+
     /// The pool the iRule selected on the last request (empty if none).
     ///
     /// # Errors
@@ -327,6 +367,55 @@ mod tests {
         }
         // The session is still usable afterwards.
         assert_eq!(s.eval("expr {1 + 1}").unwrap(), "2");
+    }
+
+    #[test]
+    fn live_session_dispatches_non_http_event() {
+        // Generic event dispatch: a `when CLIENT_ACCEPTED` handler fires
+        // directly through `fire_event`, without a full HTTP request lifecycle.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.load_irule("when CLIENT_ACCEPTED {\n  log local0. \"accepted-here\"\n}")
+            .unwrap();
+        let result = s.fire_event("CLIENT_ACCEPTED").unwrap();
+        assert!(result.contains("fired 1"), "fire result: {result}");
+        assert!(
+            s.logs().unwrap().contains("accepted-here"),
+            "the CLIENT_ACCEPTED handler's log output should be captured"
+        );
+    }
+
+    #[test]
+    fn live_session_class_match_against_datagroup() {
+        // `class match` resolves against a registered data-group: the request
+        // host is a member, so the guarded `pool` selection runs.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /").unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "matched");
+    }
+
+    #[test]
+    fn live_session_class_match_miss_leaves_pool_unset() {
+        // A non-member host must not match, so the guarded `pool` never runs.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host other.example.com -uri /").unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "");
     }
 
     #[test]

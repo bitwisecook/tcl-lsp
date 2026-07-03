@@ -9,8 +9,7 @@
 //! self-contained analysis used for register-pressure reporting / a
 //! compiler-explorer overlay, where the *result* is informational and never
 //! rewrites slots. The reasons it is unsound to actually coalesce LVT slots in
-//! the bytecode emitter are documented in the Python reference
-//! (`compiler/slot_allocation.py`):
+//! the bytecode emitter:
 //!
 //! * The bytecode path's LVT slot is a *name-table index* — the VM resolves it
 //!   to the variable **name** and accesses the frame by name. Coalescing two
@@ -24,16 +23,12 @@
 //! Parameters are pinned to their incoming order (slots `0..n-1`); being live
 //! on entry they mutually interfere and never share.
 //!
-//! ## Relationship to the Python implementation
+//! ## Liveness representation
 //!
-//! This mirrors `compiler/slot_allocation.py` (`build_interference`,
-//! `coalesce_slots`, `slot_count`). The only structural difference is the
-//! liveness representation: the Python version is handed the SSA-version-keyed
-//! `live_out` from `core_analyses._liveness` and collapses it to names inside
-//! `build_interference`; here liveness is computed directly **by variable
-//! name** ([`live_out_by_name`]) because slots are per-name. The interference
-//! graph, the instruction-granular backward clique walk, the phi handling, and
-//! the greedy colouring are otherwise identical.
+//! Liveness is computed directly **by variable name** ([`live_out_by_name`])
+//! because slots are per-name (rather than SSA-version-keyed and then collapsed
+//! to names). The interference graph, the instruction-granular backward clique
+//! walk, the phi handling, and the greedy colouring build on that.
 
 use std::collections::{HashMap, HashSet};
 
@@ -378,7 +373,7 @@ pub fn coalesce_slots<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     }
 
     // Then the rest, most-constrained first: descending degree, ties broken by
-    // name for determinism (matching the Python `key=(-deg, name)`).
+    // name for determinism (`key=(-deg, name)`).
     let mut rest: Vec<&String> = graph.keys().collect();
     rest.sort_by(|a, b| {
         let da = graph.get(*a).map_or(0, HashSet::len);

@@ -1,16 +1,14 @@
 //! `generate_irule_test` — generate a runnable iRule test scaffold.
 //!
-//! A native port of the Python `_tool_generate_irule_test`
-//! (`ai/mcp/tcl_mcp_server.py`) plus the `_build_test_script_with_metadata`
-//! chain (`ai/claude/tcl_ai.py`): the extractors (`_extract_irule_commands`,
-//! `_extract_object_refs`, `_extract_variables`), `_infer_profiles`,
-//! `_needs_multi_tmm`, and the Tcl test-script template (the Jinja2
-//! `irule_test.tcl.j2` / `test_case.tcl.j2` / `multi_tmm.tcl.j2` trio).
+//! Combines the `_build_test_script_with_metadata` chain: the extractors
+//! (`_extract_irule_commands`, `_extract_object_refs`, `_extract_variables`),
+//! `_infer_profiles`, `_needs_multi_tmm`, and the Tcl test-script template
+//! (the Jinja2 `irule_test.tcl.j2` / `test_case.tcl.j2` / `multi_tmm.tcl.j2`
+//! trio).
 //!
 //! Event ordering reuses [`tcl_registry::events::EventRegistry`] and the
 //! per-CFG-path cases reuse [`crate::irule_test::cfg_paths_json`]; the output
-//! is a functionally-equivalent Tcl test scaffold, not a byte-for-byte copy of
-//! the Python renderer.
+//! is a functionally-equivalent Tcl test scaffold.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -20,8 +18,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 use tcl_registry::events::EventRegistry;
 
-/// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected
-/// (verbatim from the Python tool).
+/// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
 const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently across TMMs \
      (static:: writes in hot events, counters, or shared table state). \
      The generated test includes a multi-TMM scenario using fakeCMP \
@@ -90,7 +87,7 @@ static TABLE_STATE_RE: LazyLock<Regex> =
 
 /// Object references pulled out of an iRule (`_extract_object_refs`).
 ///
-/// Python also collects `nodes` and `virtuals`, but the `generate_irule_test`
+/// `nodes` and `virtuals` could also be collected, but the `generate_irule_test`
 /// tool only surfaces `pools` and `datagroups` (in the wire shape and the
 /// generated setup/test cases), so only those two are kept here.
 #[derive(Default)]
@@ -105,9 +102,9 @@ struct Variables {
     static_vars: Vec<String>,
 }
 
-/// MCP tool entry point: analyse the `source` argument and return the wire
-/// shape the Python `generate_irule_test` tool produced (semantically — the
-/// `test_script` is a functionally-equivalent runnable Tcl scaffold).
+/// MCP tool entry point: analyse the `source` argument and return the
+/// `generate_irule_test` wire shape (the `test_script` is a
+/// functionally-equivalent runnable Tcl scaffold).
 #[must_use]
 pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
@@ -177,7 +174,7 @@ fn extract_irule_commands(source: &str) -> Vec<String> {
 }
 
 /// True when `word` appears in `text` bounded by non-word characters on both
-/// sides (equivalent to Python's `re.search(r"\bword\b", text)` for `\w` words).
+/// sides (equivalent to `re.search(r"\bword\b", text)` for `\w` words).
 fn word_present(text: &str, word: &str) -> bool {
     let bytes = text.as_bytes();
     let wlen = word.len();
@@ -281,7 +278,7 @@ fn needs_multi_tmm(source: &str, commands_used: &[String], variables: &Variables
 }
 
 /// The (rough) body of a `when EVENT { ... }` block — the first `{` after the
-/// event name to its first `}`. Mirrors the Python non-greedy
+/// event name to its first `}`. Mirrors the non-greedy
 /// `when\s+EVENT\s*\{(.*?)\}` heuristic (stops at the first `}`).
 fn event_body<'a>(source: &'a str, event: &str) -> Option<&'a str> {
     let mut search_from = 0;
@@ -297,7 +294,7 @@ fn event_body<'a>(source: &'a str, event: &str) -> Option<&'a str> {
         if let Some(rest) = trimmed.strip_prefix(event) {
             let rest = rest.trim_start();
             if let Some(body) = rest.strip_prefix('{') {
-                // Python's `.*?\}` stops at the first `}` in the body.
+                // `.*?\}` stops at the first `}` in the body.
                 let end = body.find('}').unwrap_or(body.len());
                 return Some(&body[..end]);
             }

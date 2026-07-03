@@ -18,7 +18,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generated_structs_carry_python_defaults() {
+    fn generated_structs_carry_defaults() {
         // Non-empty string defaults survive into the Rust Default.
         let pool = BigipPool::default();
         assert_eq!(pool.module, "ltm");

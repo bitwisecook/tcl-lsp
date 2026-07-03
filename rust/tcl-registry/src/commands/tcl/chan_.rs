@@ -412,7 +412,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 ];
 
 /// Command-level `chan configure` options (the `chan configure`
-/// form options) — surfaced at the command level for completion parity.
+/// form options) — surfaced at the command level for completion consistency.
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",

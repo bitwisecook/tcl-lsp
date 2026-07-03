@@ -397,11 +397,11 @@ mod tests {
         assert!(Destination::try_parse("[2001:db8::1").is_none());
     }
 
-    /// Differential parity fixtures: each `(input, expected)` pair is
+    /// Differential fixtures: each `(input, expected)` pair is
     /// `str(Destination.parse(input))`. `None`
     /// expectations are inputs that are rejected.
     #[test]
-    fn parity_against_python() {
+    fn round_trips() {
         let cases: &[(&str, Option<&str>)] = &[
             ("/Common/[2001:db8::1].80", Some("/Common/[2001:db8::1].80")),
             ("10.0.0.1:80", Some("10.0.0.1:80")),

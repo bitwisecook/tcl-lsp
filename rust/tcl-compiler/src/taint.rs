@@ -2632,9 +2632,9 @@ mod tests {
     #[test]
     fn join_with_untainted_is_identity() {
         // A clean/untainted operand is the join identity: it contributes no
-        // taint, so it must not dilute the tainted operand's mitigation colours
-        // (matches Python's taint_join). Joining with the annihilating empty
-        // set previously wrongly stripped PATH_PREFIXED.
+        // taint, so it must not dilute the tainted operand's mitigation colours.
+        // Joining with the annihilating empty set previously wrongly stripped
+        // PATH_PREFIXED.
         let tainted = TaintLattice {
             colours: TaintColour::TAINTED | TaintColour::PATH_PREFIXED,
         };
@@ -2666,7 +2666,7 @@ mod tests {
     }
 
     #[test]
-    fn crlf_safe_mask_matches_python() {
+    fn crlf_safe_mask_composition() {
         // `CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
         // HEADER_TOKEN_SAFE only suppresses IRULE3002 in the name position
         // (handled by `irule3002_name_position_safe`); HTML_ESCAPED / URL_ENCODED

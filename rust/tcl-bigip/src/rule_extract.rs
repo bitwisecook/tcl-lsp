@@ -1,34 +1,30 @@
 //! Locate and extract `ltm rule` / `gtm rule` blocks in BIG-IP configs.
 //!
-//! Port of the Python `dialects.f5.bigip.rule_extract` module. Used to
-//! detect whether a file is a tmsh config wrapping iRules and to pull out
+//! Detects whether a file is a tmsh config wrapping iRules and pulls out
 //! each embedded `when EVENT { … }` rule body together with its byte/line
 //! ranges, so an embedded iRule can be opened in a scratch editor with the
 //! `f5-irules` dialect and written back to the original config file.
 //!
 //! The data layer ([`crate::parser::parse_bigip_conf`]) already models
 //! `ltm rule` / `gtm rule` stanzas as typed objects, but its
-//! [`crate::range::Range`] convention differs from the Python
-//! `EmbeddedRule` (its range starts at the opening `{` and ends one past
-//! the closing `}`, and its `source` is the trimmed body). This module
-//! reproduces the Python `EmbeddedRule` offset semantics exactly: the
-//! range spans the whole stanza (`ltm rule …` header through the closing
-//! `}` inclusive) and explicit `*_offset` fields locate the braces and
-//! body.
+//! [`crate::range::Range`] convention differs from the [`EmbeddedRule`]
+//! convention here (its range starts at the opening `{` and ends one past
+//! the closing `}`, and its `source` is the trimmed body). This module's
+//! [`EmbeddedRule`] offset semantics instead span the whole stanza
+//! (`ltm rule …` header through the closing `}` inclusive) and explicit
+//! `*_offset` fields locate the braces and body.
 //!
 //! Offsets are byte offsets into `source`. Only ASCII structural bytes
 //! (`{`, `}`, `"`, `\`) drive the scan, so every recorded offset lands on
 //! a UTF-8 char boundary (matching the rest of the parser). For ASCII
 //! sources — every BIG-IP config in practice — byte offsets coincide with
-//! the Python code-point offsets.
+//! code-point offsets.
 
 use tcl_lexer::LineIndex;
 
 use crate::range::Range;
 
 /// An iRule block found inside a BIG-IP configuration file.
-///
-/// Mirrors the Python `EmbeddedRule` dataclass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedRule {
     /// Full object path, e.g. `/Common/my_irule`.
@@ -55,7 +51,7 @@ pub struct EmbeddedRule {
 /// `true` when `source` contains at least one `ltm rule` or `gtm rule`
 /// stanza header (a conf-wrapped iRules file).
 ///
-/// Matches the Python regex `^((?:ltm|gtm)\s+rule\s+(/[\w/.-]+))\s*\{`
+/// Matches the regex `^((?:ltm|gtm)\s+rule\s+(/[\w/.-]+))\s*\{`
 /// with multiline semantics: a header begins at the start of a line.
 #[must_use]
 pub fn is_conf_wrapped_irules(source: &str) -> bool {
@@ -65,8 +61,7 @@ pub fn is_conf_wrapped_irules(source: &str) -> bool {
 /// Find all `ltm rule` and `gtm rule` blocks in `source`.
 ///
 /// Brace-balanced extraction that skips braces inside double-quoted
-/// strings and honours backslash escapes — a faithful port of the Python
-/// `find_embedded_rules`.
+/// strings and honours backslash escapes.
 #[must_use]
 pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
     let line_index = LineIndex::new(source);
@@ -147,8 +142,7 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
 /// Return the [`EmbeddedRule`] whose block contains `offset`, or `None`.
 ///
 /// The block span is inclusive of both endpoints
-/// (`block_start_offset <= offset <= block_end_offset`), matching the
-/// Python `find_rule_at_offset`.
+/// (`block_start_offset <= offset <= block_end_offset`).
 #[must_use]
 pub fn find_rule_at_offset(source: &str, offset: usize) -> Option<EmbeddedRule> {
     find_embedded_rules(source)
@@ -157,8 +151,6 @@ pub fn find_rule_at_offset(source: &str, offset: usize) -> Option<EmbeddedRule> 
 }
 
 /// Return `source` with the body of `rule` replaced by `new_body`.
-///
-/// Port of the Python `replace_rule_body`.
 #[must_use]
 pub fn replace_rule_body(source: &str, rule: &EmbeddedRule, new_body: &str) -> String {
     let head = source.get(..rule.body_start_offset).unwrap_or("");
@@ -184,8 +176,8 @@ struct RuleHeader {
 /// of a line, returning the header text, path, header start offset, and
 /// opening-brace offset.
 ///
-/// This is the structural equivalent of the Python `_RULE_HEADER_RE`
-/// (`^((?:ltm|gtm)\s+rule\s+(/[\w/.-]+))\s*\{`, `re.MULTILINE`). The
+/// This is the structural equivalent of the regex
+/// `^((?:ltm|gtm)\s+rule\s+(/[\w/.-]+))\s*\{` (`re.MULTILINE`). The
 /// project never parses Tcl/tmsh with a regex engine in the hot path, so
 /// the match is performed by a small hand-rolled scanner with identical
 /// semantics. Path characters are `[\w/.-]` (word chars, `/`, `.`, `-`).

@@ -161,7 +161,7 @@ pub enum DocRow {
         /// Whether the code is *internal* — always active and not exposed as a
         /// user-configurable toggle (parse/structure errors, host-config
         /// validators, translation markers). Excluded from the editor-settings
-        /// catalogue, mirroring the Python registry's `internal` flag.
+        /// catalogue.
         internal: bool,
         /// The one-line description.
         description: &'static str,
@@ -219,8 +219,7 @@ macro_rules! diagnostic_codes {
 
             /// Whether this is an *internal* diagnostic — always active and not
             /// exposed as a user-configurable toggle. Optimisations are never
-            /// internal. Drives the editor-settings catalogue's exclusion set,
-            /// mirroring the Python registry's `internal` flag.
+            /// internal. Drives the editor-settings catalogue's exclusion set.
             #[must_use]
             pub const fn is_internal(self) -> bool {
                 matches!(
@@ -619,10 +618,9 @@ mod tests {
         use core::str::FromStr;
         // Internal — always-on parse/structure errors, host-config validators,
         // and translation markers; excluded from the user-configurable editor
-        // settings.  Matches the Python registry's `internal` flag for the
-        // shared codes (E20x/E10x/E004 parse errors, IRULE3103/5003/6001 flow
-        // internals, TK100x, W31x); E204–E206 are the Rust-only parse-error
-        // siblings of E201–E203.
+        // settings.  The internal codes are the E20x/E10x/E004 parse errors,
+        // IRULE3103/5003/6001 flow internals, TK100x, and W31x; E204–E206 are
+        // the parse-error siblings of E201–E203.
         for s in [
             "E004", "E100", "E101", "E102", "E103", "E201", "E202", "E203", "E204", "E205",
             "E206", "IRULE3103", "IRULE5003", "IRULE6001", "T103", "T106", "TK1001", "TK1002",
@@ -634,7 +632,7 @@ mod tests {
             );
         }
         // User-configurable — regular lints, taint/security warnings (including
-        // the Rust-only IRULE3004/T104/T105 that Python lacks), and iRules flow
+        // IRULE3004/T104/T105), and iRules flow
         // checks are all togglable, so never internal.
         for s in [
             "E001", "W001", "W210", "IRULE1001", "IRULE3001", "IRULE3004", "T101", "T104", "T105",

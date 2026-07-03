@@ -237,7 +237,7 @@ fn unary_minus_of_two_to_the_63() {
 /// two's-complement wrap, matching C — `wide(0x8000000000000000)` is the most
 /// negative wide, `wide(0xFFFFFFFFFFFFFFFF)` is -1. This unblocks expr.test
 /// (which probes `wide(0x8000000000000000) < 0` at the top level) and brings
-/// obj.test to parity without a full bignum rep.
+/// obj.test into line with C Tcl without a full bignum rep.
 #[test]
 fn wide_truncates_out_of_range_literals() {
     let (ok, result, _) = run("expr {wide(0x8000000000000000)}");

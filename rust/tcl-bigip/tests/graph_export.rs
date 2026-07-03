@@ -1,12 +1,12 @@
 //! Byte-stable fixtures for `export_graph` (DOT / JSON / Mermaid), checked
-//! against captured expected output on a drift-free fixture (so the two
-//! implementations agree and the serialised text matches exactly).
+//! against captured expected output on a fixture (so the serialised text
+//! matches exactly).
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph, export_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
-fn graph_export_matches_python() {
+fn graph_export() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_export.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");
@@ -31,7 +31,7 @@ fn graph_export_matches_python() {
 }
 
 #[test]
-fn graph_export_seeded_subgraph_matches_python() {
+fn graph_export_seeded_subgraph() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_export.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");

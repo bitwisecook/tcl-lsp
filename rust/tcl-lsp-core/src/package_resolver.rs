@@ -1,5 +1,4 @@
-//! Tcl package + auto-load resolution, ported from `analyser/packages/`
-//! (`resolver.py` + `auto_index.py`) and aligned to C Tcl's own loading
+//! Tcl package + auto-load resolution, aligned to C Tcl's own loading
 //! machinery.
 //!
 //! # What C Tcl actually does (the reference this module mirrors)
@@ -611,9 +610,8 @@ impl PackageResolver {
     /// Unlike [`Self::scan_path`] — which follows C Tcl's `auto_path` rule of
     /// scanning a directory and its *immediate* subdirectories — this walks
     /// the whole tree, the right behaviour for an IDE workspace root where a
-    /// project may nest its packages arbitrarily deep (matching the Python
-    /// resolver's `os.walk`). The `max_dirs` cap keeps a huge tree from
-    /// stalling the scan.
+    /// project may nest its packages arbitrarily deep (a full recursive walk).
+    /// The `max_dirs` cap keeps a huge tree from stalling the scan.
     pub fn scan_tree(&mut self, root: &Path, max_dirs: usize) {
         let mut stack = vec![root.to_path_buf()];
         let mut visited = 0usize;

@@ -350,9 +350,9 @@ mod tests {
         assert!(try_parse_address("!!!").is_none());
     }
 
-    /// Differential parity fixtures: `str(parse_address(input))`.
+    /// Differential fixtures: `str(parse_address(input))`.
     #[test]
-    fn parity_against_python() {
+    fn round_trips() {
         let cases: &[(&str, &str)] = &[
             ("10.0.0.1%10", "10.0.0.1%10"),
             ("2001:db8::1", "2001:db8::1"),

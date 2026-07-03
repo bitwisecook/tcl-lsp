@@ -46,6 +46,38 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
     }
 }
 
+// Regression (Codex review on #739, P2): a command alias declared *outside* any
+// body (`interp alias {} = {} expr`) populates the lowerer's alias table that
+// `resolve_alias` consults while lowering every body — but the isolated body-cache
+// lowering starts with an empty table, so a cached body resolves `=` as an unknown
+// command instead of `expr`. The file-level `source_may_alias_commands` guard makes
+// such a file forgo the cache; this pins that the memoised path matches a fresh
+// build (the hazard itself — that the cache *would* diverge — is proved at the IR
+// level in `tcl_compiler::lowering::body_cache_eligible_tests`).
+#[test]
+fn alias_declared_outside_body_matches_full() {
+    let src = "interp alias {} = {} expr\nproc f {x} { return [= {$x + 1}] }\n";
+    assert!(
+        tcl_compiler::lowering::source_may_alias_commands(src),
+        "file with a top-level `interp alias` must be flagged so it forgoes the body cache"
+    );
+    let db = TclDatabase::default();
+    let cfg = AnalyserConfig::new(
+        &db,
+        Vec::new(),
+        tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
+        None,
+    );
+    let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+    let inc = file_analysis_incremental(&db, file, cfg);
+    let full = file_analysis(&db, file, cfg);
+    assert_eq!(
+        inc.diagnostics, full.diagnostics,
+        "incremental (memoised) analysis must match a fresh build when an alias is in scope"
+    );
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn file_analysis_incremental_matches_full_over_corpus() {

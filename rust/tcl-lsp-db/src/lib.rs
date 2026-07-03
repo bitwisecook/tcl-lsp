@@ -139,7 +139,7 @@ pub struct AnalyserConfig {
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` selects the
     /// built-in default set; `Some(list)` replaces it (an empty list disables
-    /// the check) — mirroring Python's `genericVariablePatterns` semantics.
+    /// the check).
     #[returns(ref)]
     pub generic_variable_patterns: Option<Vec<String>>,
 }
@@ -680,10 +680,11 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 /// no position, no cross-item state.  An edit to one proc's body changes only
 /// that proc's `ProcBodyKey`, so salsa reuses every other proc body's lowered
 /// IR; an edit that merely *shifts* a body leaves its key unchanged (the caller
-/// rebases the offset-0 `Script` back to the body's real offset).  Installed
-/// only for **context-free files** (see [`file_body_cache_eligible`]) where the
-/// isolated lowering is byte-identical to the in-place `lower_body`; guarded by
-/// the corpus differential gates (`file_analysis_corpus` / `compiler_check_corpus`).
+/// rebases the offset-0 `Script` back to the body's real offset).  Used only for
+/// **context-free bodies** (the per-body gate `lowering::body_cache_eligible`)
+/// where the isolated lowering is byte-identical to the in-place `lower_body`;
+/// guarded by the corpus differential gates (`file_analysis_corpus` /
+/// `compiler_check_corpus`).
 #[salsa::interned]
 pub struct ProcBodyKey<'db> {
     #[returns(ref)]
@@ -720,97 +721,6 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     ))
 }
 
-/// Whether a file is **context-free** enough that lowering each top-level
-/// `proc` body in isolation (via the [`lower_proc_body`] memo) is byte-identical
-/// to the whole-file lowering.  The isolated body lowering drops every cross-item
-/// side effect `lower_body` performs (nested `IRProcedure` registration,
-/// `namespace`/`import`/`export` tracking, command aliases, `when`/OO
-/// definitions), so the body cache is installed **only** when no body can carry
-/// such an effect.
-///
-/// Deliberately conservative — a substring/brace scan that errs toward
-/// *disabling* the cache (a false negative costs only the status-quo whole-file
-/// lowering; a false positive would corrupt the IR).  A file is eligible when it
-/// contains none of the context-introducing keywords and every `proc` keyword
-/// sits at brace-nesting depth 0 (so no body defines a nested `proc`).  Backstopped
-/// by the corpus differential gates.
-#[must_use]
-fn file_body_cache_eligible(source: &str) -> bool {
-    // A command keyword whose body-level use carries a cross-item effect the
-    // isolated lowering would drop. Matched as a **word followed by Tcl
-    // whitespace** — Tcl separates a command from its args with any run of spaces
-    // *or tabs* (or a newline via `\`-continuation), so a literal-space check
-    // would let `interp\talias` (tab-separated) slip through and enable the body
-    // cache for a file whose sibling body relies on that alias table.
-    const WORD_DISQUALIFIERS: &[&str] = &[
-        "namespace", "interp", "rename", "method", "when", "apply", "alias",
-    ];
-    // Substring disqualifiers (no trailing arg — the token itself is the marker).
-    const SUBSTR_DISQUALIFIERS: &[&str] = &["oo::", "::oo", "itcl"];
-    if SUBSTR_DISQUALIFIERS.iter().any(|kw| source.contains(kw))
-        || WORD_DISQUALIFIERS
-            .iter()
-            .any(|kw| contains_word_followed_by_ws(source, kw))
-    {
-        return false;
-    }
-    !has_nested_proc(source)
-}
-
-/// True when `word` occurs followed by Tcl inter-word whitespace (space, tab, CR,
-/// newline, or a `\`-newline continuation) — i.e. used as a command with an
-/// argument, tab or space alike.  Deliberately ignores the character *before* the
-/// word (a preceding non-boundary only over-disqualifies, which is safe), so
-/// `interp\talias` and `interp alias` both trip it.
-#[must_use]
-fn contains_word_followed_by_ws(source: &str, word: &str) -> bool {
-    source.match_indices(word).any(|(i, _)| {
-        source
-            .as_bytes()
-            .get(i + word.len())
-            .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'\\'))
-    })
-}
-
-/// True when a whole-word `proc` keyword appears at brace-nesting depth > 0 —
-/// i.e. inside another command's `{…}` body (a nested `proc`, or a `proc` defined
-/// inside top-level control flow).  Brace depth is clamped at 0 so an unmatched
-/// `}` inside a string can only *over*-report nesting (disable the cache), never
-/// hide a genuinely nested `proc`.
-#[must_use]
-fn has_nested_proc(source: &str) -> bool {
-    let bytes = source.as_bytes();
-    let mut depth: i32 = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => {
-                i += 2;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => depth = (depth - 1).max(0),
-            b'p' if depth > 0 => {
-                // Whole-word `proc` at nesting depth > 0.
-                let word_start = i == 0 || !is_word_byte(bytes[i - 1]);
-                if word_start && bytes[i..].starts_with(b"proc") {
-                    let after = bytes.get(i + 4).copied();
-                    if after.is_none_or(|b| !is_word_byte(b)) {
-                        return true;
-                    }
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    false
-}
-
-#[must_use]
-fn is_word_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b':'
-}
 
 /// Build a `CompilationUnit` (with interprocedural summary applied) whose
 /// per-procedure baseline lattices are memoised by the salsa-native
@@ -900,11 +810,28 @@ fn build_unit_with_keys<'db>(
         lattice_keys.insert(req.qname.to_owned(), key);
         (*function_lattice(db, key)).clone()
     };
-    // SRV-INCREMENTAL Task 3: for context-free files, lower each top-level proc
-    // body through the `lower_proc_body` memo so a body-only edit re-lowers only
-    // the edited proc's body (every other body's IR is reused). Other files take
-    // the status-quo whole-file lowering. Byte-identical either way (corpus gates).
-    let cu = if file_body_cache_eligible(source) {
+    // SRV-INCREMENTAL Task 3: lower each *eligible* top-level proc body through the
+    // `lower_proc_body` memo so a body-only edit re-lowers only the edited proc's
+    // body (every other body's IR is reused). The per-body gate
+    // (`lowering::body_cache_eligible`) decides which bodies take it, so a
+    // context-carrying sibling no longer disables the cache for the whole file.
+    // Byte-identical to the whole-file lowering (corpus differential gates).
+    //
+    // File-level precondition: a command alias declared *outside* any body
+    // (`interp alias`) populates the alias table that `resolve_alias` consults
+    // while lowering every body, but the isolated body lowering starts with an
+    // empty table — so a file that may establish aliases forgoes the cache
+    // entirely (the per-body scan cannot see a top-level alias).
+    let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
+        CompilationUnit::build_for_memoized(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            &mut lattice_memo,
+        )
+    } else {
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
@@ -924,15 +851,6 @@ fn build_unit_with_keys<'db>(
             dialect,
             &mut lattice_memo,
             &body_memo,
-        )
-    } else {
-        CompilationUnit::build_for_memoized(
-            source,
-            registry,
-            defer_top_level,
-            config,
-            dialect,
-            &mut lattice_memo,
         )
     };
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
@@ -2103,22 +2021,22 @@ mod tests {
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
 
     #[test]
-    fn body_cache_gate_is_whitespace_aware() {
-        // Plain context-free file: eligible.
-        assert!(file_body_cache_eligible(
-            "proc a {} { set x 1 }\nproc b {} { puts hi }\n"
-        ));
-        // A `namespace import` / `interp alias` with a *tab* between words must
-        // still disqualify (Codex #731 review): the isolated lowerer would drop
-        // the alias/import side effect a sibling body relies on.
-        assert!(!file_body_cache_eligible(
-            "proc a {} { interp\talias {} x {} y }\nproc b {} { x }\n"
-        ));
-        assert!(!file_body_cache_eligible(
-            "proc a {} { namespace\timport ::ns::* }\nproc b {} { foo }\n"
-        ));
-        // Space-separated still disqualifies (unchanged).
-        assert!(!file_body_cache_eligible("namespace eval ns { proc p {} {} }\n"));
+    fn body_cache_gate_is_per_body_and_whitespace_aware() {
+        use tcl_compiler::lowering::body_cache_eligible;
+        // A plain, context-free body is eligible.
+        assert!(body_cache_eligible(" set x 1 "));
+        assert!(body_cache_eligible(" puts hi "));
+        // A body carrying a cross-item construct is not — including the tab-
+        // separated forms (Codex #731): the isolated lowerer drops the effect.
+        assert!(!body_cache_eligible(" interp\talias {} x {} y "));
+        assert!(!body_cache_eligible(" namespace\timport ::ns::* "));
+        assert!(!body_cache_eligible(" rename set myset "));
+        assert!(!body_cache_eligible(" oo::class create C "));
+        // A nested `proc` disqualifies the enclosing body.
+        assert!(!body_cache_eligible(" proc inner {} {} "));
+        // The gate is per-body: a context-carrying sibling no longer disables the
+        // clean body — the clean body stays eligible on its own.
+        assert!(body_cache_eligible(" set y 2 "));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 //! Dump the BIG-IP object registry as JSONL — one line per spec with its
-//! header types and property names. Used by the registry parity test
+//! header types and property names. Used by the registry differential test
 //! to assert the registry carries every property the golden registry declares.
 //!
 //! Usage: `cargo run -p tcl-registry --example dump_bigip_registry`

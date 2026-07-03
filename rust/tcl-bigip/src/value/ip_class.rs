@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn matches_python_v4() {
+    fn classifies_v4() {
         assert!(is_private(ip("10.0.0.1")));
         assert!(is_private(ip("192.168.1.1")));
         assert!(is_private(ip("172.16.0.1")));
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn matches_python_v6() {
+    fn classifies_v6() {
         assert!(is_loopback(ip("::1")));
         assert!(is_unspecified(ip("::")));
         assert!(is_link_local(ip("fe80::1")));

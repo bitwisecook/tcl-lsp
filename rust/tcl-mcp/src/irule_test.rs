@@ -1,28 +1,28 @@
 //! `irule_cfg_paths` — enumerate the control-flow paths through an iRule to
 //! their terminal actions, annotated for test generation.
 //!
-//! A native port of the Python `_extract_test_paths` / `_annotate_path` /
-//! `_generate_path_questions` chain (`ai/claude/tcl_ai.py`) plus the
-//! `irule_cfg_paths` MCP tool (`ai/mcp/tcl_mcp_server.py`). It walks the
-//! `{events, procedures}` flow tree from [`tcl_lsp_core::diagram::diagram_data`],
-//! flattens every branch to a terminal-action path, and annotates each path
-//! with a priority, the taint warnings relevant to its action, and the
-//! user-facing questions an agent should ask before writing assertions.
+//! Combines the `_extract_test_paths` / `_annotate_path` /
+//! `_generate_path_questions` chain and the `irule_cfg_paths` MCP tool. It
+//! walks the `{events, procedures}` flow tree from
+//! [`tcl_lsp_core::diagram::diagram_data`], flattens every branch to a
+//! terminal-action path, and annotates each path with a priority, the taint
+//! warnings relevant to its action, and the user-facing questions an agent
+//! should ask before writing assertions.
 //!
-//! The relevant Python code paths match on tainted-source substrings and
-//! command names — no regular expressions — so this port uses plain string
-//! containment rather than pulling in a regex dependency.
+//! Path matching keys on tainted-source substrings and command names — no
+//! regular expressions — so this uses plain string containment rather than
+//! pulling in a regex dependency.
 
 use serde_json::{Map, Value, json};
 use tcl_registry::registry_for_dialect;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
-/// Actions that indicate security-sensitive paths (Python `_SECURITY_ACTIONS`).
+/// Actions that indicate security-sensitive paths (`_SECURITY_ACTIONS`).
 const SECURITY_ACTIONS: &[&str] = &["reject", "drop", "discard", "HTTP::respond"];
-/// Actions that indicate routing decisions (Python `_ROUTING_ACTIONS`).
+/// Actions that indicate routing decisions (`_ROUTING_ACTIONS`).
 const ROUTING_ACTIONS: &[&str] = &["pool", "node", "snat", "snatpool", "virtual"];
-/// Taint codes that are security-critical (Python `_SECURITY_TAINT_CODES`).
+/// Taint codes that are security-critical (`_SECURITY_TAINT_CODES`).
 const SECURITY_TAINT_CODES: &[&str] =
     &["T100", "T101", "T102", "IRULE3001", "IRULE3002", "IRULE3003"];
 /// Tainted request-input references that elevate a path's priority.
@@ -37,7 +37,7 @@ const TAINTED_REFS: &[&str] = &[
 ];
 
 /// One condition on the way to a terminal action: either an `if` branch or a
-/// `switch` arm. Carries only the fields the Python condition dicts expose.
+/// `switch` arm. Carries only the fields the condition dicts expose.
 enum Condition {
     If { condition: String, branch: Branch },
     Switch { subject: String, pattern: String },
@@ -67,7 +67,7 @@ impl Condition {
         }
     }
 
-    /// The text scanned for tainted-source references (Python concatenates the
+    /// The text scanned for tainted-source references (concatenates the
     /// `condition` and `subject` fields; only one is ever non-empty per kind).
     fn taint_scan_text(&self) -> &str {
         match self {
@@ -93,7 +93,7 @@ impl Condition {
         }
     }
 
-    /// Serialise to the wire dict shape the Python `conditions` list carries.
+    /// Serialise to the wire dict shape the `conditions` list carries.
     fn to_json(&self) -> Value {
         match self {
             Self::If { condition, branch } => json!({
@@ -190,7 +190,7 @@ pub(crate) fn cfg_paths_json(source: &str) -> Vec<Value> {
 }
 
 /// MCP tool entry point: enumerate CFG paths for the `source` argument and
-/// return the grouped/annotated wire shape (matching the Python tool).
+/// return the grouped/annotated wire shape.
 #[must_use]
 pub fn irule_cfg_paths(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
@@ -250,7 +250,7 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
 }
 
 /// Walk the flow tree and collect every terminal-action path, sorted by
-/// priority (high → normal → low). Mirrors Python `_extract_test_paths`.
+/// priority (high → normal → low).
 fn extract_test_paths(source: &str) -> Vec<PathInfo> {
     let registry = registry_for_dialect(IRULES_DIALECT);
     let data = tcl_lsp_core::diagram::diagram_data(source, registry);
@@ -335,7 +335,7 @@ fn walk_flow(
                 }
             }
             // Loops / catch / try: descend into the body without adding a
-            // condition (matching the Python `loop`/`catch`/`try` arm).
+            // condition.
             Some("loop" | "catch" | "try") => {
                 walk_flow(child_body(node, "body"), event, conditions, taints, out);
             }
@@ -353,7 +353,7 @@ fn string_array(value: Option<&Value>) -> Vec<String> {
 }
 
 /// Build one path from an action terminal, computing its label, priority,
-/// relevant taint warnings, and questions (Python `_annotate_path`).
+/// relevant taint warnings, and questions (`_annotate_path`).
 fn build_path(
     event: &str,
     conditions: &[Condition],
@@ -423,8 +423,8 @@ fn build_label(event: &str, conditions: &[Condition], command: &str, args: &[Str
     parts.join(" → ")
 }
 
-/// Generate the user-facing questions for one path (Python
-/// `_generate_path_questions`). `relevant_taints` are the warnings already
+/// Generate the user-facing questions for one path
+/// (`_generate_path_questions`). `relevant_taints` are the warnings already
 /// attached to the path.
 fn generate_questions(
     event: &str,
@@ -536,8 +536,8 @@ fn generate_questions(
     questions
 }
 
-/// A human-readable summary of a path's conditions (Python
-/// `_build_condition_summary`), joined with `" and "`.
+/// A human-readable summary of a path's conditions
+/// (`_build_condition_summary`), joined with `" and "`.
 fn build_condition_summary(conditions: &[Condition]) -> String {
     conditions
         .iter()
@@ -547,8 +547,8 @@ fn build_condition_summary(conditions: &[Condition]) -> String {
 }
 
 /// Run taint analysis and distil each warning to the fields the annotation
-/// logic reads. Mirrors Python `_get_taint_warnings`, which reads the
-/// `taint_warnings` list from the dataflow graph.
+/// logic reads (`_get_taint_warnings`), which reads the `taint_warnings` list
+/// from the dataflow graph.
 fn collect_taints(source: &str) -> Vec<Taint> {
     let registry = registry_for_dialect(IRULES_DIALECT);
     let graph = tcl_lsp_core::graphs::dataflow_graph(source, registry, IRULES_DIALECT);

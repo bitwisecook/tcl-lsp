@@ -1,10 +1,10 @@
-//! Differential parity for the BIG-IP object-registry query layer.
+//! Differential tests for the BIG-IP object-registry query layer.
 //!
 //! Asserts the Rust `kind_for_header` / `candidate_kinds_for_key` /
 //! `candidate_kinds_for_section_item` reproduce the registry resolution exactly,
 //! over a captured golden registry (every header in the registry, plus every
 //! property name per container, probed across several sections).
-//! Self-contained — no external oracle at test time.
+//! Self-contained — no external reference process at test time.
 //!
 //! `kind_for_header` (the structural header→kind map), `candidate_kinds_for_key`,
 //! and `candidate_kinds_for_section_item` must all match the golden **exactly** —
@@ -21,7 +21,7 @@ fn fixture(name: &str) -> String {
 }
 
 #[test]
-fn object_query_matches_python() {
+fn object_query_matches_golden() {
     let reg = default_registry();
     let mut checked = 0usize;
     let mut header_mismatches: Vec<String> = Vec::new();

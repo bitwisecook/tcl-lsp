@@ -40,8 +40,7 @@ fn section_rank(key: &str) -> usize {
 
 /// A short checkbox label `"{code}: {desc}"` — `desc` is the description up to
 /// the first em/en dash, backtick-stripped, `.`-trimmed, and truncated to
-/// 52 chars + `...` past 55 — then Kotlin-string-escaped (`\ " $`). Mirrors the
-/// Python `_short_label(..., escape_kotlin=True)`.
+/// 52 chars + `...` past 55 — then Kotlin-string-escaped (`\ " $`).
 fn short_label(code: &str, description: &str) -> String {
     let head = description.split('—').next().unwrap_or(description);
     let head = head.split('–').next().unwrap_or(head);
@@ -126,8 +125,7 @@ fn diag_section_groups() -> Vec<(&'static str, Vec<DiagRow>)>
 }
 
 /// Replace the text between `// @generated:{marker}:begin` and `:end`,
-/// preserving the begin-line indentation (mirrors the Python
-/// `_replace_generated_block`).
+/// preserving the begin-line indentation.
 fn replace_block(content: &str, marker: &str, replacement: &str) -> String {
     let begin_tag = format!("// @generated:{marker}:begin");
     let end_tag = format!("// @generated:{marker}:end");

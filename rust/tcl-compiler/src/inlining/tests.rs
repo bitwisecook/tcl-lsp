@@ -39,7 +39,7 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
     })
 }
 
-// v0 / verbatim (parity with the original suite)
+// v0 / verbatim tests
 
 #[test]
 fn empty_body_call_vanishes() {

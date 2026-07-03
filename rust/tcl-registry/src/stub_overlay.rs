@@ -170,7 +170,7 @@ impl StubOverlay {
     /// [`crate::CommandRegistry::arg_indices_for_role`]'s
     /// shape so callers can swap between them transparently.
     ///
-    /// `_args` is accepted for shape parity with the registry
+    /// `_args` is accepted to match the shape of the registry
     /// method (and to leave a hook for future
     /// `arg_role_resolver`-style dynamic resolvers on stubs);
     /// the current implementation doesn't need the values.

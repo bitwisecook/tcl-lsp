@@ -1,9 +1,6 @@
-//! INI config-file parsing for full parity with the Python server's
-//! configuration system (`shared/user_config.py` + `server/settings.py`),
-//! minus the Python-interpreter selection.
+//! INI config-file parsing for the server's configuration system.
 //!
-//! The Python server reads the *same* settings from three layers, lowest to
-//! highest precedence:
+//! Settings are read from three layers, lowest to highest precedence:
 //!
 //! 1. the global user config — `config.ini`, `[global]` section
 //!    (platform-native location, see [`crate::core_tcl_install::user_config_path`]),
@@ -14,14 +11,13 @@
 //! editor delivers a `tclLsp` section as, so the existing
 //! [`Backend::apply_global_config`](crate::Backend) applies a file layer
 //! exactly as it applies the editor layer. [`merge_settings`] deep-merges the
-//! layers (later wins, sections merged key-by-key) — the port of
-//! `merge_settings_layers`.
+//! layers (later wins, sections merged key-by-key).
 
 use serde_json::{Map, Value};
 
 /// Which precedence layer a file occupies, selecting its top-level section.
 /// A `[global]` section in a project file (or `[project]` in the global file)
-/// is ignored, matching Python — the section name must match the file's role
+/// is ignored — the section name must match the file's role
 /// so copying a file between locations never silently changes its layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layer {
@@ -110,8 +106,7 @@ fn has_section(sections: &[Section], name: &str) -> bool {
     sections.iter().any(|s| s.name == name)
 }
 
-/// Split a comma-or-whitespace-separated value into tokens (Python's
-/// `_parse_comma_list`).
+/// Split a comma-or-whitespace-separated value into tokens.
 fn parse_comma_list(raw: &str) -> Vec<String> {
     raw.replace(',', " ")
         .split_whitespace()
@@ -207,8 +202,7 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
     insert_formatting(&sections, &mut out);
 
     // [style] `line_length` → the W111 threshold; `nonAscii` → the W108
-    // non-ASCII mode.  These are distinct from the formatter width above,
-    // mirroring the Python `[style]` section mapping in `shared/user_config.py`.
+    // non-ASCII mode.  These are distinct from the formatter width above.
     let mut style = Map::new();
     if let Some(len) =
         section_value(&sections, "style", "line_length").and_then(|v| v.trim().parse::<u64>().ok())

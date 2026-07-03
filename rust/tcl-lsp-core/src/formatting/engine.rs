@@ -1128,17 +1128,17 @@ mod tests {
     }
 
     #[test]
-    fn parity_simple_command() {
+    fn simple_command() {
         check("puts hi\n", "puts hi\n");
     }
 
     #[test]
-    fn parity_proc_body_indents() {
+    fn proc_body_indents() {
         check("proc f {} {\nset x 1\n}\n", "proc f {} {\n    set x 1\n}\n");
     }
 
     #[test]
-    fn parity_if_else() {
+    fn if_else() {
         check(
             "if {$x} {\nputs a\n} else {\nputs b\n}\n",
             "if {$x} {\n    puts a\n} else {\n    puts b\n}\n",
@@ -1146,7 +1146,7 @@ mod tests {
     }
 
     #[test]
-    fn parity_nested_indentation() {
+    fn nested_indentation() {
         check(
             "proc f {} {\nif {1} {\nset x 1\n}\n}\n",
             "proc f {} {\n    if {1} {\n        set x 1\n    }\n}\n",
@@ -1154,17 +1154,17 @@ mod tests {
     }
 
     #[test]
-    fn parity_comments_preserved() {
+    fn comments_preserved() {
         check("#hello\n# spaced\nputs hi\n", "#hello\n# spaced\nputs hi\n");
     }
 
     #[test]
-    fn parity_collapses_blank_lines_to_max() {
+    fn collapses_blank_lines_to_max() {
         check("set x 1\n\n\n\nset y 2\n", "set x 1\n\n\nset y 2\n");
     }
 
     #[test]
-    fn parity_switch_body() {
+    fn switch_body() {
         check(
             "switch $x {\na {\nputs 1\n}\nb {\nputs 2\n}\n}\n",
             "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}\n",
@@ -1172,17 +1172,17 @@ mod tests {
     }
 
     #[test]
-    fn parity_control_flow_always_expands() {
+    fn control_flow_always_expands() {
         check("if {$x} { return }\n", "if {$x} {\n    return\n}\n");
     }
 
     #[test]
-    fn parity_while_body() {
+    fn while_body() {
         check("while {$x} {\nincr x\n}\n", "while {$x} {\n    incr x\n}\n");
     }
 
     #[test]
-    fn parity_foreach_body() {
+    fn foreach_body() {
         check(
             "foreach i {1 2 3} {\nputs $i\n}\n",
             "foreach i {1 2 3} {\n    puts $i\n}\n",
@@ -1190,7 +1190,7 @@ mod tests {
     }
 
     #[test]
-    fn parity_param_list_normalised() {
+    fn param_list_normalised() {
         check(
             "proc f {a    b   c} {\nreturn\n}\n",
             "proc f {a b c} {\n    return\n}\n",
@@ -1198,12 +1198,12 @@ mod tests {
     }
 
     #[test]
-    fn parity_quoted_string_preserved() {
+    fn quoted_string_preserved() {
         check("puts \"hello $name\"\n", "puts \"hello $name\"\n");
     }
 
     #[test]
-    fn parity_force_split_long_line() {
+    fn force_split_long_line() {
         check(
             "mycommand argumentone argumenttwo argumentthree argumentfour argumentfive argumentsix argumentseven argumenteight argumentnine\n",
             "mycommand argumentone argumenttwo argumentthree argumentfour argumentfive argumentsix argumentseven argumenteight \\\n    argumentnine\n",
@@ -1211,7 +1211,7 @@ mod tests {
     }
 
     #[test]
-    fn parity_force_expr_wrap() {
+    fn force_expr_wrap() {
         check(
             "if {$variableaaaa == 1 && $variablebbbb == 2 && $variablecccc == 3 && $variabledddd == 4 && $variableeeee == 5 && $variableffff == 6} {\nputs hi\n}\n",
             "if {\n    $variableaaaa == 1\n    && $variablebbbb == 2\n    && $variablecccc == 3\n    && $variabledddd == 4\n    && $variableeeee == 5\n    && $variableffff == 6\n} {\n    puts hi\n}\n",
@@ -1219,17 +1219,17 @@ mod tests {
     }
 
     #[test]
-    fn parity_semicolon_splits_commands() {
+    fn semicolon_splits_commands() {
         check("set x 1; set y 2\n", "set x 1\nset y 2\n");
     }
 
     #[test]
-    fn parity_empty_proc_body() {
+    fn empty_proc_body() {
         check("proc f {} {}\n", "proc f {} {}\n");
     }
 
     #[test]
-    fn parity_try_finally() {
+    fn try_finally() {
         check(
             "try {\nfoo\n} finally {\nbar\n}\n",
             "try {\n    foo\n} finally {\n    bar\n}\n",
@@ -1237,27 +1237,27 @@ mod tests {
     }
 
     #[test]
-    fn parity_command_substitution_preserved() {
+    fn command_substitution_preserved() {
         check("set y [expr {1+2}]\n", "set y [expr {1+2}]\n");
     }
 
     #[test]
-    fn parity_expand_prefix_preserved() {
+    fn expand_prefix_preserved() {
         check("puts {*}$args\n", "puts {*}$args\n");
     }
 
     #[test]
-    fn parity_multi_hash_comment() {
+    fn multi_hash_comment() {
         check("## section\nputs hi\n", "## section\nputs hi\n");
     }
 
     #[test]
-    fn parity_trailing_comment() {
+    fn trailing_comment() {
         check("puts hi\n# trailing\n", "puts hi\n# trailing\n");
     }
 
     #[test]
-    fn parity_deeply_nested_bodies() {
+    fn deeply_nested_bodies() {
         check(
             "proc f {} {\nforeach x $list {\nif {$x} {\nputs $x\n}\n}\n}\n",
             "proc f {} {\n    foreach x $list {\n        if {$x} {\n            puts $x\n        }\n    }\n}\n",
@@ -1275,7 +1275,7 @@ mod tests {
     }
 
     #[test]
-    fn parity_blank_lines_between_procs() {
+    fn blank_lines_between_procs() {
         check(
             "proc a {} {\nreturn\n}\nproc b {} {\nreturn\n}\n",
             "proc a {} {\n    return\n}\n\nproc b {} {\n    return\n}\n",

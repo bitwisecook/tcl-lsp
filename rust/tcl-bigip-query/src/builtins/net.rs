@@ -8,7 +8,7 @@
 //! and the path edit helpers (`with_name`, `in_partition`, `in_folder`,
 //! `can_see`).
 //!
-//! Parity notes:
+//! Behaviour notes:
 //! - IP parsing + canonical string forms route through `std::net`
 //!   (`Ipv4Addr` / `Ipv6Addr`), whose `Display` produces the canonical
 //!   zero-run-compressed form bit-for-bit (including IPv4-mapped dotted

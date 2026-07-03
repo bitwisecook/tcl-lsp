@@ -655,7 +655,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generic_objects_match_python_on_corpus() {
+    fn generic_objects_on_corpus() {
         let src = include_str!("../../../../samples/bigip/bigip.conf");
         let config = parse_bigip_conf(src, "Common");
         assert_eq!(config.default_partition, "Common");
@@ -677,7 +677,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_object_inventory_matches_python_on_corpus() {
+    fn typed_object_inventory_on_corpus() {
         let src = include_str!("../../../../samples/bigip/bigip.conf");
         let config = parse_bigip_conf(src, "Common");
         // Per-table counts captured from the reference parser.

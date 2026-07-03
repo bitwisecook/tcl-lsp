@@ -12,10 +12,10 @@
 //!   path).
 //!
 //! * [`library_paths_from_ini`] / [`user_config_path`] / [`project_config_path`]
-//!   read the **same config the Python server honoured**: the `libraryPaths`
+//!   read the LSP's own config: the `libraryPaths`
 //!   key in the platform-native user config (`config.ini`, `[global]` section)
 //!   and the per-workspace `.tcl-lsp.ini` (`[project]` section), plus the
-//!   editor's `tclLsp.libraryPaths`. See `shared/user_config.py`.
+//!   editor's `tclLsp.libraryPaths`.
 
 use std::path::{Path, PathBuf};
 
@@ -203,8 +203,7 @@ pub fn user_config_path() -> Option<PathBuf> {
 /// relevant environment values and platform flags, so the precedence is
 /// testable without mutating process environment. `posix_compat_windows` is
 /// `true` under an MSYS2 / Cygwin shell (`MSYSTEM` set), where the XDG `~/.config`
-/// convention is used instead of `%APPDATA%` (mirrors Python's
-/// `_is_posix_compat_windows`).
+/// convention is used instead of `%APPDATA%`.
 fn config_path_for(
     xdg_config_home: Option<&std::ffi::OsStr>,
     appdata: Option<&std::ffi::OsStr>,

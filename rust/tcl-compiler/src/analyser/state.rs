@@ -83,8 +83,7 @@ pub struct Analyser {
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
-    /// known, so calling them never draws an unknown-command W123. Mirrors the
-    /// Python `extra_commands` setting.
+    /// known, so calling them never draws an unknown-command W123.
     pub extra_commands: HashSet<String>,
     /// Last seen comment text, for proc / class doc-comment
     /// harvesting.
@@ -906,7 +905,7 @@ impl Analyser {
             self.disabled_diagnostics.insert(code.clone());
         }
         if !file_codes.is_empty() {
-            // ``-1`` sentinel parity with ``analyse`` — see the
+            // The same ``-1`` sentinel ``analyse`` uses — see the
             // matching block in ``analyse_chunked``.
             self.result
                 .suppressed_lines
@@ -1098,7 +1097,7 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 &scope_path,
             );
-            // Parity with the top-level loop: W216 (brace-then-paren
+            // Like the top-level loop: W216 (brace-then-paren
             // name/value confusion) fires on top-level commands here too.
             self.emit_w216_brace_then_paren(&cmd);
             self.record_arg_var_reads(&cmd, &scope_path);
@@ -3993,7 +3992,7 @@ mod tests {
 
     #[test]
     fn analyse_commands_seeds_file_suppression_minus_one_sentinel() {
-        // Same parity assertion through ``analyse_commands`` — the
+        // Same assertion through ``analyse_commands`` — the
         // snapshot-restore entry point.
         use crate::segmenter::SegmentedCommand;
         let mut a = Analyser::new();

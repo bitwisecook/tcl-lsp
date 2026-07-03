@@ -1,4 +1,4 @@
-//! Byte-range spans threaded through the whole Rust rewrite.
+//! Byte-range spans threaded through the whole compiler.
 //!
 //! Every positional entity — [`Token`], future IR nodes, future CFG
 //! nodes, future diagnostics — carries a [`Span`] pointing into the

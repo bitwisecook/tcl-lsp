@@ -2,9 +2,8 @@
 //!
 //! The canonical source of the diagnostic code→category mapping, category
 //! ordering, convertible-code set, and conversion map, owned by this crate
-//! (`rust/tcl-mcp/diagnostics.json`) and compiled in via `include_str!`. It was
-//! previously shared with the Python AI layer; the native MCP server now owns
-//! its own copy so the Python tree can be retired.
+//! (`rust/tcl-mcp/diagnostics.json`) and compiled in via `include_str!`. The
+//! MCP server owns its own copy.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;

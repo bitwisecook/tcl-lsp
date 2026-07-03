@@ -60,7 +60,7 @@ fn section_to_category(section: &str) -> &'static str {
     }
 }
 
-/// Per-code AI-category overrides (Python `ai_category_overrides()`).
+/// Per-code AI-category overrides.
 fn ai_category_override(code: &str) -> Option<&'static str> {
     Some(match code {
         "W100" => "security",
@@ -73,7 +73,7 @@ fn ai_category_override(code: &str) -> Option<&'static str> {
 }
 
 /// The convertible diagnostics in section-then-code order: `(code, label)`.
-/// Mirrors Python `conversion_map()` / Rust `misc::conversion_for`.
+/// Mirrors `misc::conversion_for`.
 const CONVERSION_MAP: &[(&str, &str)] = &[
     ("W100", "Unbraced expr -> braced expr"),
     ("W104", "String concat for lists -> lappend"),
@@ -154,7 +154,7 @@ fn diagnostics_json() -> String {
 
 /// Non-internal diagnostics in `sections` (each section's codes sorted by code,
 /// sections concatenated in order) as `(code, desc)` with the trailing `.`
-/// stripped from the description. Mirrors the Python `_section_list`.
+/// stripped from the description.
 fn section_list(sections: &[&str]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for &sec in sections {

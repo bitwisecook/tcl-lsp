@@ -288,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_sample_apl_matching_python() {
+    fn parses_sample_apl() {
         let m = parse_apl(SAMPLE);
         assert_eq!(
             m.sections
