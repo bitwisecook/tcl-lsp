@@ -156,7 +156,7 @@ keeping the round-trip short.
    Originally posted by @georgtree on
    [issue #333](https://github.com/bitwisecook/tcl-lsp/issues/333#issuecomment-4380920940).
 
-3. **Disable eglot semantic tokens for `tcl-mode`**, falling back to
+2. **Disable eglot semantic tokens for `tcl-mode`**, falling back to
    Emacs's built-in `tcl-mode` font-lock keywords (loses LSP-derived
    highlighting like distinguishing user procs from builtins):
 
@@ -165,7 +165,7 @@ keeping the round-trip short.
      (add-to-list 'eglot-stay-out-of 'eglot-semantic-tokens-mode))
    ```
 
-4. **Revert the buffer** (`M-x revert-buffer`) whenever highlighting
+3. **Revert the buffer** (`M-x revert-buffer`) whenever highlighting
    visibly degrades. Discards unsaved changes — only viable if you've
    just saved.
 

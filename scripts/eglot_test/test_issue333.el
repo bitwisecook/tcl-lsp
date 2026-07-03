@@ -572,22 +572,28 @@ window, small on large files.  Returns t when every assertion holds."
               (setq ok nil) (princ "  FAIL: server must advertise full/delta\n"))
             (unless (eq range t)
               (setq ok nil) (princ "  FAIL: server must advertise range\n")))
-          ;; An edit that changes tokens; force the didChange flush (batch has
-          ;; no idle timer) so eglot's `full/delta' path engages.
-          (goto-char (point-min))
-          (insert "# new comment referencing $iniFile\n")
-          (eglot--signal-textDocument/didChange)
-          (t333-pump-until-semtok 8)
-          ;; A `full/delta' RESPONSE that carries `edits' (rather than a full
-          ;; `data' re-send) is the proof the server produced a real delta.
-          ;; Detected from the jsonrpc events buffer — `eglot--semtok-apply-
-          ;; delta-edits' is a `defsubst' inlined into byte-compiled eglot, so
-          ;; advising the symbol can't observe it.
+          ;; Capture the events-buffer end BEFORE the edit so we only inspect
+          ;; the region appended by this didChange's `full/delta' exchange —
+          ;; searching from `point-min' would match an `"edits"' from an
+          ;; earlier response (e.g. the initial `full') and false-pass.
           (let* ((server (eglot-current-server))
-                 (buf (and server (jsonrpc-events-buffer server))))
+                 (buf (and server (jsonrpc-events-buffer server)))
+                 (mark-before (and (buffer-live-p buf)
+                                   (with-current-buffer buf (point-max)))))
+            ;; An edit that changes tokens; force the didChange flush (batch has
+            ;; no idle timer) so eglot's `full/delta' path engages.
+            (goto-char (point-min))
+            (insert "# new comment referencing $iniFile\n")
+            (eglot--signal-textDocument/didChange)
+            (t333-pump-until-semtok 8)
+            ;; A `full/delta' RESPONSE that carries `edits' (rather than a full
+            ;; `data' re-send) is the proof the server produced a real delta.
+            ;; Detected from the jsonrpc events buffer — `eglot--semtok-apply-
+            ;; delta-edits' is a `defsubst' inlined into byte-compiled eglot, so
+            ;; advising the symbol can't observe it.
             (when (buffer-live-p buf)
               (with-current-buffer buf
-                (goto-char (point-min))
+                (goto-char (or mark-before (point-min)))
                 (setq got-delta (re-search-forward "\"edits\"" nil t))))
             (let ((reqs (t333-count-semtok-requests)))
               (princ (format "  after edit: %d /full, %d /full/delta requests; delta-response=%s\n"
