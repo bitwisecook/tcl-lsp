@@ -39,10 +39,17 @@ jobs:
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
       # The integration tests spawn the real `tcl-lsp-server` binary via
       # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency) and
       # talk LSP JSON-RPC to it over stdio — the native replacement for the old
       # `uv run pytest tests/lsp_e2e/`. This also runs the crate's `*_smoke.rs`
-      # integration tests.
+      # integration tests. nextest runs them in one parallel pool (no
+      # serial-per-binary penalty); it does not run doctests, which the
+      # rust-gate `--doc` step covers workspace-wide.
       - name: lsp_e2e against the native Rust server
-        run: cargo test -p tcl-lsp-server --tests --no-fail-fast
+        run: cargo nextest run -p tcl-lsp-server --no-fail-fast

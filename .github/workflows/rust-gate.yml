@@ -41,10 +41,24 @@ jobs:
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
-      # --no-fail-fast: run every test binary even after one fails, so a single
-      # run lists all failing crates rather than aborting at the first.
-      - name: cargo test --workspace --all-features
-        run: cargo test --workspace --all-features --no-fail-fast
+      # nextest runs every workspace test binary's tests in ONE global parallel
+      # pool, so the CPU-bound VM-simulation suites (tcl-irule-test, f5 parity,
+      # lsp e2e) overlap instead of running one binary at a time — a large
+      # wall-clock win over `cargo test`, which runs test binaries serially.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
+      # --no-fail-fast: run every test even after one fails, so a single run
+      # lists all failures rather than aborting at the first.
+      - name: cargo nextest run --workspace --all-features
+        run: cargo nextest run --workspace --all-features --no-fail-fast
+
+      # nextest does not run doctests; run them separately (deps are already
+      # built, so this is just the doctest compile + run).
+      - name: cargo test --doc
+        run: cargo test --workspace --all-features --doc --no-fail-fast
 
   # Supply-chain audit: advisories / licenses / bans / sources, driven by the
   # committed deny.toml.  Its own job (hence its own status check) so a denial
