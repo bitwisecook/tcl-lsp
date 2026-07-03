@@ -1,12 +1,12 @@
 # Error recovery: design for the Rust port
 
-> **Status:** Design, validated by prototypes. The current Python recovery
-> (single-pass `tokenise_recovering` + unified `detect_recovery` feeding tokens
-> *and* diagnostics) is shipped and described in
-> [`error-recovery.md`](error-recovery.md). This document records the design that
-> the prototypes validated but which is **deliberately not productionised in
-> Python** — it only pays off in the incremental/rowan green tree the Rust port
-> will build. It is the de-risked blueprint to implement there.
+> **Status:** Design, validated by prototypes. (Python is now fully
+> retired on this branch; the recovery design is realised in the Rust
+> green tree — see the current implementation, not the historical Python
+> `tokenise_recovering`/`detect_recovery` described in
+> [`error-recovery.md`](error-recovery.md).) This document records the
+> design the prototypes validated: it pays off in the incremental green
+> tree the Rust port builds, and was the de-risked blueprint for it.
 >
 > Validating prototypes: these were intentionally **not kept in-tree** (they
 > instrument the hot lexer and add no production value), so they live only in

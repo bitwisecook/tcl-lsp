@@ -376,26 +376,22 @@ the long-form recipes:
 - [`docs/references/f5_query/f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md)
   — F5 KB articles cross-referenced by the cert / monitor probe
   guidance.
-- [`ai/claude/skills/f5-query/SKILL.md`](../../../ai/claude/skills/f5-query/SKILL.md)
-  — the AI skill that turns natural-language questions into DSL
-  queries.
+- the `f5-query` AI skill that turns natural-language questions into
+  DSL queries (exposed as a native `tcl-mcp` MCP tool).
 
 ## Programmatic access
 
-The same content backing every `--help-*` flag is exposed as
-Python functions:
+The same content backing every `--help-*` flag is reachable from the
+CLI and from the native `tcl-mcp` MCP server:
 
-```python
-from dialects.f5.query import (
-    format_grammar,    # full grammar reference
-    format_builtins,   # all builtins, or one named function
-    format_examples,   # worked-example cookbook
-    list_builtins,     # iterable of BuiltinSpec dataclasses
-)
-```
+- `f5 query --help-dsl` — full grammar reference.
+- `f5 query --help-builtins [NAME]` — every builtin (or one named
+  function), with signature, examples, and category.
+- `f5 query --help-examples` — the worked-example cookbook.
+- `f5 query --help-manual` — the whole reference concatenated.
 
-Use `list_builtins()` from MCP / agent contexts to enumerate
-every callable and its signature, examples, and category for
+MCP / agent contexts enumerate every callable and its signature through
+the `tcl-mcp` tool surface (which wraps the same registry), for
 auto-completion or grounded answer-building.
 
 ## Operator handbook {#operator-handbook}
@@ -750,5 +746,5 @@ is the source-of-truth index for what lives where.
 | End-to-end cookbook | [`f5-query-dsl-builtins.md`](builtins.md) + KCS HOW-TOs |
 | Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook) section above |
 | F5 KB articles | [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md) |
-| AI / MCP integration | [`SKILL.md`](../../../ai/claude/skills/f5-query/SKILL.md) |
-| Programmatic Python API | [Programmatic access](#programmatic-access) section above |
+| AI / MCP integration | the native `tcl-mcp` MCP server (`f5-query` skill) |
+| Programmatic / MCP access | [Programmatic access](#programmatic-access) section above |

@@ -210,8 +210,12 @@ cmd_stubs.zig       — NOT-PORTABLE stubs (testsocket / testcpuid /
    under `wasmtime`.
 3. `make check-wasm-parity` — extension-aware parity check
    accepts the variant runtime's expanded BUILTINS.
-4. `uv run pytest tests/test_wasm_bundle.py` — three smoke tests
-   covering: (a) lean bundle without extensions, (b) bundle
-   with `package require Tcltest` running real test commands,
-   (c) lean bundle correctly rejecting test commands when
+4. Bundle smoke coverage — three cases: (a) lean bundle without
+   extensions, (b) bundle with `package require Tcltest` running real
+   test commands, (c) lean bundle correctly rejecting test commands when
    `package require` is absent.
+
+> **Update (2026):** Python has been fully retired on this branch. The
+> old `uv run pytest tests/test_wasm_bundle.py` smoke driver is gone;
+> the bundle coverage above now runs natively via `cargo test` and the
+> Zig runtime tests (`zig build test`).

@@ -2,77 +2,69 @@
 
 ## Project overview
 
-tcl-lsp is a Tcl Language Server Protocol implementation written in Python
-(server) with editor integrations in TypeScript (VS Code), Rust (Zed), and
-Gradle/Kotlin (JetBrains). It supports Tcl 8.4–9.0, F5 iRules/iApps, and EDA
-tool dialects.
+tcl-lsp is a Tcl Language Server Protocol implementation. The LSP server and
+all tooling are native Rust; editor integrations are in TypeScript (VS Code),
+Rust (Zed), and Gradle/Kotlin (JetBrains), plus Neovim/Emacs/Helix/Sublime
+configs. It supports Tcl 8.4–9.1, F5 iRules/iApps, and EDA tool dialects.
+
+Python has been fully retired on this branch — the product is the Rust
+workspace (`rust/`) plus the native binaries it builds.
 
 ## Repository layout
 
-The Python code is partitioned into seven concern packages with a fixed
-dependency direction enforced by `import-linter` (see `.importlinter`
-at the repo root). Each concern is also documented by `uv run --extra dev lint-imports`
-(run inside `make lint-py`) errors when crossed.
+The product is a Cargo workspace: ~37 crates under `rust/` (the authoritative
+list is `[workspace] members` in the top-level `Cargo.toml`), plus editor
+integrations under `editors/` and the Zig WASM runtime under `runtime/zig/`.
+The native binaries are the cargo bins `tcl-lsp-server`, `tcl`, `f5-query`,
+and `tcl-mcp`.
+
+Key crates under `rust/` and their one-line roles:
 
 ```
-shared/           Leaf utilities — Range/Token/SourcePosition, document
-                  buffer, source-map, ranges, codes, naming, dialect-
-                  agnostic text helpers.  Depends on nothing.
-compiler/         Tcl pipeline — lexer, parser, IR, lowering, passes,
-                  optimiser, codegen, WASM emitter, compiler-internal
-                  analyses (taint, var_escape, interprocedural,
-                  proc_arg_traits, var_scoping), command registry +
-                  per-command runtime, position lookup, Dialect enum.
-                  Consumes shared/.
-dialects/         Per-dialect command spec packs and dialect-aware
-                  data.  Sub-packages: stdlib/, tcl/, tcllib/, expect/,
-                  eda/<vendor>, f5/{bigip,irules,iapps,query,xc}/,
-                  tk/{dialect,specs}/.  Consumes shared/ and
-                  compiler.registry / compiler.parsing.
-analyser/         IDE-facing semantic model + checks — semantic_model,
-                  proc_lookup, var_scoping bridges, signature_scan,
-                  class_hierarchy, MRO, checks/, _analyser/,
-                  irules_checks, conf_wrapped, packages/,
-                  compiler_checks (the check orchestrator that runs
-                  over compiler IR).  Consumes shared/ + compiler/ +
-                  dialects/.
-server/           LSP protocol surface — pygls wiring (`server.py`),
-                  feature handlers (`features/`), workspace indexing
-                  (`workspace/`), diagnostics pipeline, LSP conversion
-                  helpers (`_lsp_conv.py`), `_codes_init.py` side-
-                  effect module.  Console-script entry point:
-                  ``tcl-lsp``.  Consumes everything below.
-tooling/          Developer tools that consume the compiler stack.
-                  Sub-packages:
-                    tcl/    — `tcl` CLI       (`tcl`)
-                    f5/     — `f5-query` CLI  (`f5-query`)
-                    wasm/   — Tcl→WASM CLI    (`tcl-wasm`)
-                    vm/     — bytecode VM     (`tcl-vm`)
-                    explorer/   — Pyodide web GUI + shared CLI verbs   (`tcl-explorer`)
-                    debugger/   — interactive debugger
-                    fuzzing/    — differential fuzzer
-                    tclpkg/     — Tcl package manager
-                    refactoring/  formatter/  minifier/  diagram/  irule_test/
-ai/               AI integrations — Claude skills, MCP server, irule
-                  context helpers.  Sits on top of server/tooling.
+tcl-lexer / tcl-syntax    Lexer + concrete/red-green syntax tree (CST).
+tcl-compiler              IR / CFG / SSA / optimiser / codegen (WASM emitter).
+tcl-registry              Command + dialect registry; dialect detection.
+tcl-vm / tcl-vm-cli       Bytecode VM + its CLI.
+tcl-bigip / tcl-bigip-query   BIG-IP model + the f5-query engine.
+tcl-irules                iRules dialect model + analysis.
+tcl-lsp-core              LSP feature providers (hover, completion, …).
+tcl-lsp-server            Native LSP binary (`tcl-lsp-server`).
+tcl-cli                   The `tcl` CLI binary.
+f5-cli                    The `f5-query` CLI binary.
+tcl-mcp                   MCP server binary (`tcl-mcp`).
+tcl-explorer / -wasm      Compiler explorer + its embedded (Rust→WASM) web GUI.
+tcl-pkg                   Tcl package manager.
+tcl-debugger              Interactive debugger.
+tcl-fuzz                  Differential fuzzer.
+f5-xc                     iRules → F5 XC translation.
+xtask                     Build / codegen / drift-check gate runner.
+```
 
+Supporting crates (core types, platform, host, regex, bytecode, runtime-api,
+sandbox, LSP db, bpf-tcl-*, irule-test, …) are also listed in `Cargo.toml`.
+
+```
 editors/          Editor integrations (VS Code, Zed, JetBrains,
                   Neovim, Emacs, Helix, Sublime).
 runtime/zig/      Zig-compiled WASM runtime that the compiler's WASM
                   codegen targets.
-tests/            Pytest test suite — exempt from layering contracts.
+runtime/rust/     Rust port of the runtime (leak round-trip + eval suite).
 scripts/          Build, release, codegen, and dev automation.
 samples/          Sample Tcl, iRules, and BigIP configs.
 docs/             Design docs, KCS notes, references, perf reports.
 ```
 
-The six `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
-`f5-query`, `tcl-wasm`, `tcl-explorer`, `tcl-vm`.
+The native LSP end-to-end suite lives at
+`rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
 
 ## Prerequisites
 
-- Python 3.10+ with [uv](https://docs.astral.sh/uv/)
-- Node.js 24+ with npm (the npm CLI is pinned to v12 via the
+- Rust 1.95+ with cargo, via [rustup](https://rustup.rs/) (the Makefile
+  Prerequisites block and the `cargo`-missing errors pin 1.95+; the toolchain
+  tracks the floating `stable` channel)
+- Zig 0.16.0 (for the WASM runtime under `runtime/zig/`)
+- Node.js 24+ with npm (for the VS Code TypeScript extension; the npm CLI is
+  pinned to v12 via the
   `packageManager` field in `editors/vscode/package.json`; run
   `corepack enable npm` once so `npm` resolves to the pinned version —
   the bare `corepack enable` only shims pnpm/yarn)
@@ -88,11 +80,7 @@ here is ready before Claude starts taking instructions — **no manual
 
 After the toolchains land it also installs the remaining `test-slow` host
 tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
-(tclsh, node, kotlinc, emacs, xvfb, tshark, …, plus `uv`), then creates the
-**single well-known Python venv** at `.venv` (`uv sync --extra dev`) and
-activates it — both for the hook and, via a guarded `~/.bashrc` line, for
-every subsequent Bash tool-call shell. So `python`/`pytest`/`ruff` resolve
-to the project environment with no per-shell `source .venv/bin/activate`.
+(tclsh, node, kotlinc, emacs, xvfb, tshark, …).
 
 | Tool / source    | Version       | Install path                    | On `PATH` as              |
 |------------------|---------------|---------------------------------|---------------------------|
@@ -142,19 +130,16 @@ The **source of truth** for each minimum version:
 
 | Requirement | Source of truth              | File                  |
 |-------------|------------------------------|-----------------------|
-| Python      | `requires-python`            | `pyproject.toml`      |
+| Rust        | pinned min (1.95+)           | `rust-toolchain.toml` / `Makefile` Prerequisites |
 | Node.js     | CI matrix                    | `.github/workflows/ci.yml` |
 
 When changing a minimum version, update **all** of these locations:
 
-- `pyproject.toml` — `requires-python` and `[tool.ruff]` `target-version`
-- `.github/workflows/ci.yml` — `python-version` matrix and `node-version` values
+- `rust-toolchain.toml` — the pinned Rust channel/version
+- `.github/workflows/ci.yml` — `node-version` values (and the Rust toolchain step)
 - `Makefile` — Prerequisites comment block at the top
 - `AGENTS.md` — Prerequisites section (this file)
 - `README.md` — Prerequisites / requirements section
-- `editors/vscode/package.json` — `tclLsp.pythonPath` description text
-- `editors/jetbrains/README.md` — Python version references
-- `editors/neovim/README.md` — Python version in zipapp instructions
 
 ## Build system
 
@@ -162,25 +147,33 @@ The project uses GNU Make. Key targets:
 
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
-| `make ci-fast`     | **Fast CI gate** — mirrors what GitHub Actions runs on every PR: Ruff + ty (full scope) + WASM parity + editor settings check + the LSP end-to-end pytest subset. The e2e subset builds the LSP server zipapp once and drives that shipped pyz over JSON-RPC (`tests/lsp_e2e/`, reusing the artifact via `TCL_LSP_SERVER_PYZ`), alongside the in-process server-layer tests — so the pyz build adds a few seconds over the old lint-only timing. This is the only thing CI runs on PRs. |
-| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language (Python via Ruff + ty, TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`). On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
-| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
+| `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
+| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`. On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
+| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + tclpkg (`test-tclpkg-tcl`) + VS Code extension (`test-ext`) + Zig WASM runtime tests (`test-zig`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
 | `make verify-test-slow-stamp` | Verify the committed `.test-slow.stamp` matches the current tree — the same content-fingerprint check the GitHub `test-slow-stamp` PR job runs. Fails loudly if the tree changed since the last green `test-slow`. Note: running **any** make target other than this one, `test-slow`, or `help` deletes `.test-slow.stamp`, so re-run `make test-slow` (which rewrites it) as the final step before committing. |
-| `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (all of `ensure-test-deps` plus `uv`) **and** create the Python venv (`uv sync --extra dev`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, `uv`, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_UV=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
+| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Zig, Wasmtime, Binaryen, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, `SKIP_ZIG=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make capture-bytecode-refs` | Run `scripts/capture/bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
 | `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
-| `make check-rust`  | Rust format check + clippy on the Zed extension and any top-level Cargo workspace. Skip with `SKIP_CHECK_RUST=1`. |
+| `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
 | `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
-| `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code).  Use `make test-slow` for the full gate. |
-| `make test`        | Run all tests (Python + VS Code extension) |
-| `make test-py`     | Python test suite only                   |
-| `make lint`        | All lint and style checks                |
-| `make format-py`   | Auto-fix Python formatting with Ruff     |
+| `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code, runs codegen, lint/typecheck, and `test-rust`).  Use `make test-slow` for the full gate. |
+| `make test`        | Run all tests — Rust workspace + VS Code extension + Zig WASM runtime (`test-rust test-ext test-zig`) |
+| `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
+| `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
+| `make test-ext-rust` | Build `rust-server`, then run the VS Code extension tests against the native Rust server (`TCL_LSP_SERVER_KIND=rust`, `TCL_LSP_SERVER_BIN` set) |
+| `make test-zig`    | Zig WASM runtime unit tests (`zig build test`); skip with `SKIP_TEST_ZIG=1` |
+| `make lint`        | Lint / style checks — TypeScript only (`lint-ts`: ESLint + Prettier) |
+| `make format`      | Format TypeScript (`format-ts`, Prettier) |
+| `make rust-server` | Build the native `tcl-lsp-server` binary (`cargo build -p tcl-lsp-server`; `PROFILE=release|debug`) |
+| `make rust-tcl`    | Build the `tcl` CLI (`cargo build -p tcl-cli`) |
+| `make rust-f5`     | Build the `f5-query` CLI (`cargo build -p f5-cli`) |
+| `make rust-mcp`    | Build the `tcl-mcp` MCP server (`cargo build -p tcl-mcp`) |
+| `make rust-clis`   | Build the `tcl` + `f5-query` CLIs (`rust-tcl rust-f5`) |
 | `make compile`     | Compile the TypeScript extension         |
-| `make build-editor-vsix`        | Build the .vsix VS Code extension        |
-| `make check-wasm-parity` | Verify WASM command parity (registry vs Zig runtime) against baseline |
-| `make snapshot-wasm-parity` | Refresh the WASM parity baseline after intentional registry/runtime changes |
+| `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries) |
+| `make codegen`     | Regenerate all generated files (editor catalogs + settings + AI prompts) via `cargo xtask` |
 | `make publish-flow` | Print the release + marketplace publish cheat-sheet |
 
 The build is organised into **four layers** with a clear separation
@@ -188,8 +181,9 @@ between them — see
 [`docs/design/contracts/release-and-publish.md`](docs/design/contracts/release-and-publish.md)
 for the full contract:
 
-1. **Entry points** — `Makefile` + `[project.scripts]` console scripts.
-2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,zipapp-main,dev}/*`.
+1. **Entry points** — `Makefile` targets + the native cargo bins
+   (`tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp`) and `cargo xtask`.
+2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,dev}/*`.
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
 4. **Publishing** — VS Code and JetBrains publish *from CI* behind
@@ -244,13 +238,12 @@ source of truth (prints `true`/`false`); CI (`create-release`,
 
 ## WASM command parity
 
-The per-command spec packs (`dialects/tcl/`, registered through
-`compiler.registry`) are the **source of truth** for which Tcl
-8.4-9.0 commands exist.  The Zig
-WASM runtime must be bit-for-bit aligned with it — same commands,
-same sub-commands, same arity bounds — and this alignment is enforced
-by a CI gate that runs on every `make prep-pr` and GitHub Actions
-build.
+The Rust command specs in **`tcl-registry`** are the **source of truth**
+for which Tcl 8.4-9.1 commands exist.  The Zig WASM runtime must be
+bit-for-bit aligned with the registry — same commands, same sub-commands,
+same arity bounds — so that every command in the registry has runtime
+backing (a real handler, a trapping stub, or an explicit "not required"
+classification).
 
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command
@@ -276,10 +269,9 @@ variadic).  Every registration in `cmds/*.zig` must fill them in:
 .{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set }
 ```
 
-The parity check cross-verifies each pair against the matching
-`CommandSpec.validation.arity` in the Python registry.  A mismatch is
-impossible to merge — the gate rejects any `(command, python-bounds,
-zig-bounds)` triple that isn't in the baseline allowlist.
+These bounds must match the matching `CommandSpec` arity in the Rust
+`tcl-registry`.  A `(command, registry-bounds, zig-bounds)` mismatch is a
+regression — the Zig side is the one that has to track the registry.
 
 ### Sub-command contract
 
@@ -295,49 +287,26 @@ pub const subcommands: []const reg.SubEntry = &.{
 };
 ```
 
-The parity check cross-verifies each entry against the matching
-`SubCommand` entries on the parent `CommandSpec`.  Sub-command
-migration is incremental: commands without a Zig `subcommands` table
-are tracked in the baseline as `no_zig_table` (known-missing, not a
-regression).  Adding a sub-command to Python without the matching
-Zig entry — or vice versa — is a merge-blocking regression.
+These entries must match the `SubCommand` entries on the parent
+`CommandSpec` in the Rust `tcl-registry`.  Sub-command migration is
+incremental: commands without a Zig `subcommands` table are known-missing
+(tracked, not a regression).  Adding a sub-command to the registry without
+the matching Zig entry — or vice versa — is a regression.
 
-### Gate mechanics
+### When you change the parity
 
-`scripts/check/wasm_command_parity.py` walks five locations:
+When you add a Tcl command, add both the registry `CommandSpec` (in
+`tcl-registry`) and the runtime backing (a Zig handler + arity, a stub, or
+an explicit "not required" classification) in the same change.  Common
+reasons the parity moves:
 
-1. Python command specs under `dialects/tcl/`
-2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)
-3. Zig fallback stubs (`dispatch/tcl_stub_fallback.zig`)
-4. Per-command `SubEntry` slices (`cmds/*.zig`)
-5. The Python WASM codegen's `_imports.py` tables
+- Adding a new Tcl command (registry spec + Zig handler + arity).
+- Migrating a sub-command dispatcher from if-chain to `SubEntry` slice.
+- Promoting a silent stub to a real implementation.
 
-…and compares the results to `tests/baselines/wasm_command_parity.json`.
-CI fails on any of:
-
-- a command moves from a better status to a worse one,
-- a new command appears in the registry without runtime backing,
-- a new orphan handler appears in the Zig runtime,
-- a Python `_RUNTIME_IMPORTS` entry references a Zig export that
-  doesn't exist,
-- a new `(command, python-arity, zig-arity)` mismatch appears,
-- a new sub-command mismatch appears (missing in either side, or
-  arity disagreement).
-
-### When you intentionally change the parity
-
-Run `make snapshot-wasm-parity` to update the baseline and commit it
-alongside the change.  Common reasons:
-
-- Adding a new Tcl command (Python spec + Zig handler + arity).
-- Migrating a sub-command dispatcher from if-chain to `SubEntry`
-  slice (the `no_zig_table` baseline entry goes away).
-- Promoting a silent stub to a real implementation (status climbs
-  from `SILENT_STUB` to `IMPLEMENTED`).
-
-The diff against the baseline should tell a clean improvement story
-— if the snapshot introduces regressions (worse statuses, new
-orphans, new mismatches), the change is almost certainly incorrect.
+Each change should tell a clean improvement story — the registry and the
+Zig runtime describe the same command surface, arity bounds, and
+sub-commands.
 
 ## Optional WASM extensions
 
@@ -345,11 +314,10 @@ The compiler can ship *optional* runtime features the user's program
 requests via `package require`.  Today this is implemented as
 runtime variants — `zig build` produces both `tcl_runtime.wasm`
 (lean) and `tcl_runtime_with_<extname>.wasm` (with the extension's
-commands compiled into BUILTINS).  The bundler in
-:func:`compiler.codegen.wasm.link.wasm_link_bundled` picks the
-right variant based on the `package require` calls it finds in the
-merged IR, then `wasm-merge`s it with the user-code module to
-produce a single bundled `.wasm`.
+commands compiled into BUILTINS).  The `tcl-compiler` WASM link/bundle
+step picks the right variant based on the `package require` calls it
+finds in the merged IR, then `wasm-merge`s it with the user-code module
+to produce a single bundled `.wasm`.
 
 The first extension is **Tcltest**: the full Tcl 9 `tcltest` C-tier
 `test*` command surface (107 commands across 14 cmd_*.zig files
@@ -366,12 +334,12 @@ There are **three distinct gates**, in increasing strictness:
 
 | Gate | Required before | What runs | Enforcement |
 |---|---|---|---|
-| **`make ci-fast`** | every `git push` (minimum) | Python Ruff + ty (full scope) + WASM parity + editor settings + LSP end-to-end pytest subset.  Mirrors GitHub Actions' `pr-gate` job exactly | Pre-push hook accepts `tmp/ci-fast.stamp` matching the current worktree |
-| **`make check-all`** | every `git push` (stricter) | `ci-fast` + multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook accepts `tmp/check-all.stamp` |
-| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Python test suite, optimiser coverage, VM tcltest, tclpkg, VS Code extension, Zig runtime tests, Emacs eglot, zipapp & VSIX smokes, and Rust workspace tests when present | Pre-push hook accepts `tmp/test-slow.stamp` + agent rule: required before opening a PR |
+| **`make rust-check`** | Rust-only changes (minimum) | Rust `fmt --check` + `clippy` + `xtask-check` (generated-file / docs-index drift gates).  Mirrors GitHub Actions' `pr-gate` job | fast subset — run before `check-all` |
+| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook accepts `tmp/check-all.stamp` matching the current worktree |
+| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Rust workspace test suite (native lsp_e2e included), tclpkg, VS Code extension, Zig WASM runtime tests, Emacs eglot, and VSIX smoke | Pre-push hook accepts `tmp/test-slow.stamp` + agent rule: required before opening a PR |
 
-GitHub Actions only runs `make ci-fast` on PRs (~10s wall clock — Python lint
-+ typecheck + LSP end-to-end pytest subset).  Everything else is the
+GitHub Actions runs only the fast gate on PRs (the `pr-gate` job, mirrored by
+`make rust-check` + the TS/Zig lint in `check-all`).  Everything else is the
 responsibility of the local gates above.  CI is **not** a substitute for
 either gate.
 
@@ -381,24 +349,24 @@ either gate.
 levels, weakest → strongest:
 
 ```
-make ci-fast        # ~10s — mirrors what GitHub Actions runs on every PR
-make check-all      # ~30s — multi-language lint + typecheck
+make rust-check     # Rust fmt + clippy + drift gates (mirrors the PR gate)
+make check-all      # multi-language lint + typecheck — the push gate
 make test-slow      # full suite — required before opening a PR
 ```
 
 The pre-push hook (installed via `make install-hooks`) recomputes
-the worktree fingerprint at push time and accepts the push when any
-of `tmp/ci-fast.stamp`, `tmp/check-all.stamp`, or `tmp/test-slow.stamp`
-matches.  Failures must be fixed, not skipped — tooling-missing skips
-must be deliberate (`SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`, ...).
+the worktree fingerprint at push time and accepts the push when
+`tmp/check-all.stamp` or `tmp/test-slow.stamp` matches.  Failures must
+be fixed, not skipped — tooling-missing skips must be deliberate
+(`SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`, ...).
 
-**Agent rule — Claude / codex / etc:** `make ci-fast` is the MINIMUM
-gate before every `git push`.  The PR's `pr-gate` job runs the same
-target, so a local pass means CI will pass on the first try.  Running
-`ruff format .` after a commit isn't enough — the fingerprint stamp
-locks the full gate.  Every "ci-fast bounced on a trivial unused
-import / format drift" failure on this repo's PRs has been a `push`
-that skipped this step.
+**Agent rule — Claude / codex / etc:** `make check-all` is the MINIMUM
+gate before every `git push`.  The PR's `pr-gate` job runs the same Rust
+fmt + clippy + drift checks, so a local pass means CI will pass on the
+first try.  Running `cargo fmt` after a commit isn't enough — the
+fingerprint stamp locks the full gate.  Every "the PR gate bounced on a
+trivial clippy lint / format drift" failure on this repo's PRs has been a
+`push` that skipped this step.
 
 ### Before opening a PR
 
@@ -408,19 +376,20 @@ that skipped this step.
 make test-slow
 ```
 
-`test-slow` is a strict superset of `check-all`.  It runs:
+`test-slow` is a strict superset of `check-all`.  It runs (serially first,
+then the rest in parallel):
 
-1. **prep-pr** — format (Ruff + Prettier) + codegen + lint + typecheck (ty + tsc)
-   + WASM parity + editor settings + Python pytest suite + optimiser coverage
-2. **check-zig** + **check-rust** — Zig and Rust lint/typecheck
-3. **VM tcltest suite** (`test-vm`)
-4. **tclpkg** (`test-tclpkg`)
+1. **capture-bytecode-refs** — fill any missing bytecode reference disasms
+2. **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
+   (tsc) + editor-settings drift check + `test-rust`
+3. **check-zig** + **check-rust** — Zig and Rust lint/typecheck
+4. **tclpkg** (`test-tclpkg-tcl`) — pure-Tcl package-manager tests
 5. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
 6. **Zig WASM runtime** (`test-zig`) — runtime unit tests via `wasmtime`
 7. **Emacs eglot** (`test-emacs`)
-8. **Zipapp & VSIX smokes** (`_prep-pr-smoke`)
-9. **Rust workspace** (`test-rust`) — `cargo test --workspace` if a top-level
-   `Cargo.toml` is present; no-op otherwise
+8. **VSIX smoke** (`_prep-pr-smoke`)
+9. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
+   including the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`)
 
 On success it writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`.
 
@@ -444,8 +413,9 @@ having completed cleanly — the pre-push hook will reject the push, and
 agents must not bypass the hook with `SKIP_PUSH_GATE=1` or
 `git push --no-verify` unless the user has explicitly authorised it.
 
-These rules are non-negotiable: CI covers only the fast LSP-e2e surface, so
-the local gates are the only thing standing between a regression and `main`.
+These rules are non-negotiable: CI covers only the fast Rust fmt/clippy/drift
+gate, so the local gates are the only thing standing between a regression and
+`main`.
 
 Commit any formatting changes that `make test-slow` applies before creating
 the PR (it runs `prep-pr` which auto-formats — re-running test-slow after
@@ -462,26 +432,26 @@ subscription, a comment, or the user mentioning it), it must immediately
 verify the stamp and re-run test-slow locally if the worktree drifted, then
 act on whatever fails.
 
-**Do NOT add `test-slow` (or any subset of it beyond the existing
-`ci-fast`) to `.github/workflows/`.**  CI on this repo intentionally runs
-only the fast LSP-e2e subset; the rest of the gate is the agent's local
-responsibility.  Don't wire `test-slow` into a GitHub Action, don't trigger
+**Do NOT add `test-slow` (or any subset of it beyond the existing fast
+PR gate) to `.github/workflows/`.**  CI on this repo intentionally runs
+only the fast Rust fmt/clippy/drift gate; the rest of the gate is the
+agent's local responsibility.  Don't wire `test-slow` into a GitHub Action, don't trigger
 it via `workflow_dispatch`, and don't ask the user to enable it on the
 runner — run it on the local machine you're already working in.
 
 ### Capturing build / test logs
 
-Long gates (`make test-slow`, `make test-py`, `make test-vm`, anything
+Long gates (`make test-slow`, `make test-rust`, `make test-ext`, anything
 running for more than a few seconds) MUST have their full output captured
 to a file under `/tmp/` rather than only being read via `tail`.  Tailing
 loses signal: a failure in the middle of a 10-minute run won't appear in
-the last 50 lines if the harness keeps going, and pytest summary lines can
-get pushed off the bottom by skip-message spam.  The pattern:
+the last 50 lines if the harness keeps going, and cargo/test summary lines
+can get pushed off the bottom by skip-message spam.  The pattern:
 
 ```
 make test-slow 2>&1 | tee /tmp/test-slow-<branch>.log
 # then, when investigating a failure:
-grep -nE 'FAIL|ERROR|Traceback|^E ' /tmp/test-slow-<branch>.log
+grep -nE 'FAIL|ERROR|panicked|error\[|^E ' /tmp/test-slow-<branch>.log
 ```
 
 For background runs use `tee` to a `/tmp/` path, then `grep` the file when
@@ -571,8 +541,8 @@ type:
     `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
-    `strength-reduce`, `codegen`). The vocabulary lives in
-    [`shared/help/kcs_db.py`](shared/help/kcs_db.py) and is documented
+    `strength-reduce`, `codegen`). The vocabulary lives in the `tcl-cli`
+    KCS/help data (`rust/tcl-cli`) and is documented
     in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
@@ -635,27 +605,25 @@ is incomplete and must not be merged.
 
 ## Code style
 
-- Python style is enforced by **Ruff** (`make lint-py` / `make format-py`).
-- TypeScript style is enforced by **ESLint + Prettier** (`make lint-ts`).
+- TypeScript style is enforced by **ESLint + Prettier** (`make lint-ts` / `make format-ts`).
 - Rust must pass **`cargo clippy` cleanly**, including the workspace-enabled
   `clippy::pedantic`. **Do not add `#[allow(...)]` / `#[expect(...)]` to silence
   a lint** — an allow is a code smell with a very high bar. Fix the underlying
   issue instead (e.g. `too_many_lines` → extract helpers; `similar_names` →
-  rename; `too_many_arguments` on a PyO3 `#[pyfunction]` → return a `#[pyclass]`
-  instead of pythonising a dict, dropping the `py` param, or group params). Only
-  when a lint is genuinely wrong *and* no reasonable refactor exists may you
-  allow it, with a comment saying why. Pre-existing allows are not licence to
-  add more. The one clear pass of the bar: a **config/options constructor or
-  pythonic-kwargs `#[pyfunction]`** where the many parameters *are* the config —
-  `too_many_arguments` there is fine to allow (with a one-line comment), because
-  grouping into a struct only makes the API worse.
+  rename; `too_many_arguments` → group the parameters into a config/options
+  struct). Only when a lint is genuinely wrong *and* no reasonable refactor
+  exists may you allow it, with a comment saying why. Pre-existing allows are
+  not licence to add more. The one clear pass of the bar: a **config/options
+  constructor** where the many parameters *are* the config — `too_many_arguments`
+  there is fine to allow (with a one-line comment), because grouping into a
+  struct only makes the API worse.
 - Use **UK spelling** in identifiers and comments (`normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous single-letter variables outside tiny loops.
-- Prefer `match/case` for enum/token dispatch with 3+ branches.
+- Prefer `match` for enum/token dispatch with 3+ branches.
 - **Comments** must be plain, minimal, and only present when they illuminate
   something the code itself does not convey. Do not use banner-style comments
-  (`# -----------`, `# --- Text ---`, `# -- [section] ------`). Use a plain
-  `# Text` comment instead. Never add standalone dash-separator lines.
+  (`// -----------`, `// --- Text ---`, `// -- [section] ------`). Use a plain
+  `// Text` comment instead. Never add standalone dash-separator lines.
 - See `CONTRIBUTING.md` for the full style guide.
 
 ## Editor settings codegen
@@ -668,23 +636,25 @@ catalogues:
 make gen-editor-settings
 ```
 
-This updates the generated diagnostic tables in VS Code, Neovim, Zed, Emacs,
-Helix, Sublime, and JetBrains editor integrations. Commit the regenerated files
-alongside the diagnostic/optimisation change — CI will fail if they are stale.
+This is xtask-backed (`cargo xtask gen-editor-settings` + the sibling
+`gen-vscode-package` / `gen-jetbrains-catalog` / `gen-ai-diagnostics`
+generators) and updates the generated diagnostic tables in VS Code, Neovim,
+Zed, Emacs, Helix, Sublime, and JetBrains editor integrations. Commit the
+regenerated files alongside the diagnostic/optimisation change — the
+`xtask-check` drift gate (and CI) will fail if they are stale.
 
 ## LSP feature toggles
 
 Most LSP features use a simple runtime guard pattern: the handler is always
-registered with `@server.feature(...)`, and the handler body checks
-`feature_config.<feature>_enabled` before doing work (returning `None` when
-disabled). This allows features to be toggled via `didChangeConfiguration`
-without restarting.
+registered, and the handler body checks whether the feature is enabled before
+doing work (returning nothing when disabled). This allows features to be
+toggled via `didChangeConfiguration` without restarting.
 
 A small set of features cannot follow this pattern because their handler
 registration changes the `ServerCapabilities` advertised during `initialize`,
-which alters client behaviour irreversibly for the session. These are listed
-in `_RESTART_REQUIRED_TOGGLES` in `server/settings.py` and are registered
-conditionally at import time. Currently this set includes:
+which alters client behaviour irreversibly for the session. These
+restart-required toggles are decided at `initialize` time in the native
+server (`tcl-lsp-server` / `tcl-lsp-core`). Currently this set includes:
 
 - **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and
   `workspace/diagnostic` handlers, which flips `vscode-languageclient` into
@@ -695,7 +665,7 @@ effect until the server process is restarted.
 
 ## Lexer token types
 
-The Tcl lexer (`compiler/parsing/lexer.py`) produces tokens with a `TokenType`
+The Tcl lexer (`rust/tcl-lexer`) produces tokens with a `TokenType`
 enum. Key conventions that affect downstream consumers:
 
 - **`ESC`** — plain word fragment, possibly containing backslash escapes.
@@ -812,78 +782,51 @@ Zig ports mirror.
 
 ## Codegen and lowering fallback
 
-Lowering hooks in `compiler/lowering_hooks/` convert high-level Tcl
+The lowering hooks in `rust/tcl-compiler` convert high-level Tcl
 commands into IR nodes. When a hook encounters a construct it cannot
 safely specialise (e.g. `{*}` expansion in a structured command, or a
 `subst` template with unsupported backslash forms), it **falls through to
-the generic `IRCall`** rather than producing incorrect specialised IR.
+the generic call IR** rather than producing incorrect specialised IR.
 
 This fallback-to-runtime pattern is intentional and preserves correctness.
-Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `compiler/codegen/bytecode/_helpers.py`) are not
-incomplete — they are conservative by design. The runtime interpreter
+Helpers that signal "I cannot handle this" (returning `None`/an error) are
+not incomplete — they are conservative by design. The runtime interpreter
 handles the full Tcl specification; the compiler only inlines what it can
 prove is safe.
 
 See `docs/design/compiler/lowering-dispatch.md` for the dispatch hierarchy.
 
-## Position infrastructure
-
-`DocumentBuffer` (`shared/document_buffer.py`) is the per-document
-position type. Use it instead of constructing `SourceMap` or calling
-`source.split("\n")` in hot paths:
-
-- `DocumentState.buffer` gives the canonical `DocumentBuffer` for an open
-  document.
-- `buf.lines` replaces `source.split("\n")` (cached, shared).
-- `buf.offset_to_position()` / `buf.position_to_offset()` replace `SourceMap`
-  construction (O(log n) bisect, no allocation).
-- `buf.chunk_line_range()` replaces `_chunk_line_range(source, chunk)`
-  (O(log n) instead of O(offset)).
-- `position_from_offset()` (`shared/ranges.py`) replaces
-  `position_from_relative()` when a `line_starts` array is available
-  (O(log n) instead of O(text_len)).
-
-### Word-token closing delimiters
+## Word-token closing delimiters
 
 A braced/bracketed/quoted word token follows the *inner-end* convention:
 `Token.end.offset` is the last **inner** character and the closing `}` / `]` /
 `"` is one past it — **except** an empty `{}` / `[]` / `""`, whose `end` already
-sits *on* the closer. Never re-derive the closer as `tok.end.offset + 1` (it
+sits *on* the closer. Never re-derive the closer as `end.offset + 1` (it
 overshoots the empty case by one — issue #527).
 
-- **Command/word ranges come from the concrete syntax tree the segmenter
-  builds.** The authoritative command span is `SegmentedCommand.range` / the IR
-  statement `.range`: its end is the *boundary* (the `SEP`/`EOL` the lexer emits
+- **Command/word ranges come from the concrete syntax tree** the segmenter
+  builds. The authoritative command span is the segmented-command / IR
+  statement range: its end is the *boundary* (the `SEP`/`EOL` the lexer emits
   after the last word) minus one — covering the closer for braces, brackets,
-  quoted, empty `{}`/`""`, and compound (`{a}b`) words, with no source re-scan and
-  no `base_offset`. **Trust it** rather than re-deriving a command's span. The
-  segmenter now derives this from the canonical red-green CST in
-  `compiler/parsing/syntax/` (`docs/design/compiler/syntax-tree.md`) — the
-  lossless, position-independent tree the formatter, minifier, AOT lowering, and
-  per-command tooling are migrating onto; build it with `build_document` and read
-  positions through the red `SyntaxTree` overlay.
-- To *slice raw source text* for a single delimited word (raw-arg extraction in
-  refactors/quick-fixes), use `word_closer_offset(tok, source)` (offset) or
-  `word_end_position(tok, source)` (position) in `shared/ranges.py` — they
-  handle the empty-word exception and quoted words via `tok.text` emptiness.
-- `range_from_word_token(tok)` — token-only full-word `Range` for `STR`/`CMD`
-  words, for a caller with no source; quoted words need the source-aware
-  accessors above.
+  quoted, empty `{}`/`""`, and compound (`{a}b`) words, with no source re-scan.
+  **Trust it** rather than re-deriving a command's span. The segmenter derives
+  this from the canonical red-green CST in `rust/tcl-syntax`
+  (`docs/design/compiler/syntax-tree.md`) — the lossless, position-independent
+  tree the formatter, minifier, AOT lowering, and per-command tooling build on.
 
 See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
-for the contract, and `docs/design/contracts/shared-utility-contracts.md`.
+for the contract.
 
 ## Command registry
 
-Command metadata lives on `CommandSpec` in `compiler/registry/models.py`,
-**not** in hardcoded sets scattered across consumer modules. Each command is
-defined in its own file under `dialects/{tcl,f5/irules,f5/iapps}/`.
+Command metadata lives on the `CommandSpec` type in `rust/tcl-registry`,
+**not** in hardcoded sets scattered across consumer modules. Commands are
+defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, EDA).
 
 When a consumer needs to know something about a command (e.g. "is this an
-action?", "does this mutate state?"), add a boolean field to `CommandSpec`, a
-query method to `CommandRegistry`, and set the flag on the relevant command
-specs. Do **not** create a `frozenset` of command names in the consumer module.
+action?", "does this mutate state?"), add a field to `CommandSpec`, a query
+method to the registry, and set the flag on the relevant command specs. Do
+**not** create an ad-hoc set of command names in the consumer module.
 
 ### Argument role resolution order
 
@@ -918,42 +861,38 @@ analysis passes handle these at different levels:
 - **Subcommand dispatch** in the registry uses `SubCommand` entries on the
   parent spec. The `arg_role_resolver` on the parent inspects the
   subcommand word to assign roles.
-- **Variable scoping** (`compiler/var_scoping.py`) has explicit
-  handling for compound forms like `namespace upvar`, `dict set`,
-  `dict update`, etc. — these are not in `server/features/declaration.py`
-  which only handles single-word commands (`global`, `variable`, `upvar`).
-- **Lowering** (`compiler/lowering_hooks/`) has per-command hooks
-  that understand subcommand structure.
+- **Variable scoping** has explicit handling for compound forms like
+  `namespace upvar`, `dict set`, `dict update`, etc. — distinct from the
+  declaration handling for single-word commands (`global`, `variable`,
+  `upvar`).
+- **Lowering** (in `tcl-compiler`) has per-command hooks that understand
+  subcommand structure.
 
 When checking whether a compound command is handled, search all three
-layers — not just the feature module closest to the symptom.
+layers — not just the one closest to the symptom.
 
 ## Testing
 
-- Test framework: **pytest** (configuration in `pyproject.toml`)
-- Tests live in `tests/` — run with `make test-py` or `uv run pytest tests/ -q`
-- VS Code extension tests: `make test-ext`
-- **Registry contract & behaviour tests** (`tests/registry_contract/`,
-  plus `tests/lsp_e2e/test_registry_contract_e2e.py`): front-end-driven
+- Test framework: **cargo test** (Rust workspace) + Zig `zig build test`
+  (WASM runtime) + the VS Code extension harness.
+- Rust tests: `make test-rust` (`cargo test --workspace --all-features`).
+- The native LSP end-to-end suite lives at
+  `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`) — it is
+  **not** pytest, and there is no zipapp build step. VS Code extension tests:
+  `make test-ext` (or `make test-ext-rust` to drive the native server via
+  `TCL_LSP_SERVER_KIND=rust`).
+- **Registry contract & behaviour tests**
+  (`rust/tcl-lsp-server/tests/registry_contract_e2e.rs`): front-end-driven
   coverage of the whole command registry and the iRules
   event/profile/object graphs.  The registry **generates** real Tcl
   scripts and iRules (`when EVENT { … }`) and the tests assert the live
   front-end analysis — arity (E002/E003), subcommands (E001/W001), event
-  scoping (IRULE1001/1002) via `tcl diag`, event ordering via
-  `f5 irule event-order`, and the LSP `executeCommand` registry
-  handlers.  A small CSV presence safety-net in
-  `tests/baselines/registry/` pins that every command (with arity),
-  event, profile, and object exists; regenerate with
-  `make gen-registry-baselines` after an intentional registry change
-  (a stale-fixture test and `make check-registry-baselines` guard
-  drift).  Generators live in `tests/registry_contract/_generators.py`.
-  Because the contract is front-end behaviour, the same tests validate
-  the `rust` branch's front-ends (CLI subprocess + the e2e harness's
-  `TCL_LSP_SERVER_KIND=rust`) — see
+  scoping (IRULE1001/1002), event ordering, and the LSP `executeCommand`
+  registry handlers.  See
   [`docs/design/contracts/registry-contract-tests.md`](docs/design/contracts/registry-contract-tests.md).
-- **iRule test framework** (`tooling/irule_test/`): simulates TMM for testing iRules
-  without hardware.  See `docs/design/contracts/irule-test-framework.md` for architecture.
-  Codegen: `python -m tooling.irule_test.codegen_mock_stubs` (after registry changes)
+- **iRule test framework** (`rust/tcl-irule-test`): simulates TMM for testing
+  iRules without hardware.  See
+  `docs/design/contracts/irule-test-framework.md` for architecture.
 - **WASM runtime tests** (`runtime/zig/test_*.zig`): unit tests for the Zig
   runtime, run with `cd runtime/zig && zig build test`. Tests that need to
   catch a Tcl-level error or set up a call frame use the fixture in
@@ -962,29 +901,36 @@ layers — not just the feature module closest to the symptom.
   fresh global frame around *body*, and `frame.set` / `frame.get` are
   shorthand for `local_set` / `local_get`. Smoke coverage lives in
   `runtime/zig/test_fixture.zig`.
-- **xfail policy**: `pytest.mark.xfail` is only permitted as an intermediate
-  state while a feature is under active development. Before a feature is
-  considered ready for release, all underlying issues must be fixed and the
-  xfail markers removed. Do not ship xfails — fix the root cause instead.
+- **xfail policy**: an expected-failure / `#[ignore]` marker is only permitted
+  as an intermediate state while a feature is under active development. Before a
+  feature is considered ready for release, all underlying issues must be fixed
+  and the markers removed. Do not ship xfails — fix the root cause instead.
 
 ## Common tasks
 
-**Fix lint issues automatically:**
+**Format the code:**
 ```
-make format-py
-```
-
-**Run just the Python tests:**
-```
-make test-py
+cargo fmt            # Rust
+make format          # TypeScript (Prettier)
 ```
 
-**Run just the linters:**
+**Run just the Rust tests (includes native lsp_e2e):**
+```
+make test-rust
+```
+
+**Rust lint / clippy + drift gates:**
+```
+make rust-check      # cargo fmt --check + clippy + xtask drift gates
+# or just:  cargo clippy --workspace --all-targets
+```
+
+**Run the TypeScript linters:**
 ```
 make lint
 ```
 
-**Type-check Python:**
+**Regenerate editor catalogs + settings after a diagnostic/optimisation change:**
 ```
-make typecheck-py
+make codegen
 ```

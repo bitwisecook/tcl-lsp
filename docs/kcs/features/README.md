@@ -1,8 +1,8 @@
 # KCS index — user-facing features
 
 Each file in this directory documents one tcl-lsp feature.  The `help`
-subcommand (`tcl_ai.py help`, the MCP `help` tool, and the VS Code `/help`
-chat command) reads these files at runtime to build the feature catalogue.
+subcommand (`tcl help`, the MCP `help` tool, and the VS Code `/help`
+chat command) reads these files to build the feature catalogue.
 
 ## Format convention
 

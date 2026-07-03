@@ -13,7 +13,7 @@ reversible via a sidecar map file), and push edits back.
 
 ## Applies to
 
-`f5` CLI (zipapp + `python -m tooling.f5.main`)
+`f5` CLI (the native `f5-query` binary, `rust/f5-cli`)
 
 ## Question
 

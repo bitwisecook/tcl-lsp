@@ -1,22 +1,29 @@
 # Hardening the `lsp_e2e` integration suite
 
-`tests/lsp_e2e/` is the backend-neutral JSON-RPC integration suite: it drives a
-real language-server subprocess over the wire and asserts the *observable* LSP
-contract, so the same battery can certify either backend.
+> **Update (2026): completed — the suite is now native.** Python is fully
+> retired on this branch: the `lsp_e2e` battery lives in
+> `rust/tcl-lsp-server/tests/*_e2e.rs` and runs under `cargo test` (via
+> `make test-rust`). There is no longer a Python reference server, no
+> `tests/lsp_e2e/` pytest, no `make test-lsp-e2e`, and no
+> `TCL_LSP_SERVER_KIND` switch. The hardening principles below (the
+> observable-contract stance, the tolerance-relaxation rationale, the
+> precision-oracle notes) still hold; only the dual-backend runner is
+> historical.
 
-## Running both backends
+The `lsp_e2e` suite is the JSON-RPC integration suite: it drives a real
+language-server subprocess over the wire and asserts the *observable* LSP
+contract.
+
+## Running the suite
 
 ```sh
-# Python reference server (default)
-make test-lsp-e2e
-#   == uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
-
-# Native Rust server
-make rust-server                      # builds target/{release,debug}/tcl-lsp-server
-make test-lsp-e2e-rust                # or set TCL_LSP_SERVER_BIN explicitly
-#   == TCL_LSP_SERVER_KIND=rust TCL_LSP_SERVER_BIN=<bin> \
-#        uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+make rust-server   # builds target/{release,debug}/tcl-lsp-server
+make test-rust     # runs rust/tcl-lsp-server/tests/*_e2e.rs via `cargo test`
 ```
+
+Historically the suite was a backend-neutral pytest battery that could
+certify either the Python reference server or the native Rust server; that
+dual-backend arrangement is retired now that Python is gone.
 
 Backend selection lives in `harness.py` (`server_kind()`, `native_server_bin()`,
 `server_launch_argv()`); `conftest._lsp_build` builds/locates the right artifact

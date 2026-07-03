@@ -400,6 +400,13 @@ bundles trapping out before reaching a tcltest summary.
 
 ## How to refresh
 
+> **Update (2026):** Python is fully retired on this branch, so the
+> `scripts/dev/tcl9_*.py` sweep drivers below no longer exist — this
+> baseline CSV is preserved as a dated capture. The refresh recipe is
+> kept for provenance (the C-tclsh build and the ReleaseFast WASM build
+> steps are unchanged); the NDJSON-sweep and CSV-combine steps would need
+> re-implementing natively (e.g. as a `cargo xtask` verb) to regenerate.
+
 ```bash
 # 1. Build C tclsh (idempotent, ~30 s)
 mkdir -p /tmp/tcl-build

@@ -4,10 +4,12 @@
 > dated audit trail (every `SYNC-*` / `GAP-AUDIT` / `ARCH*` / `C*` /
 > `S*` entry) of work that has **landed**. It is preserved for
 > provenance — to answer "when and why did X change?" — and is **not** a
-> work plan. The live remaining-work plan, organised into parallel
-> tracks, lives in [`rust-rewrite.md`](rust-rewrite.md). When in doubt
-> about current status, trust `rust-rewrite.md` and the source, not this
-> archive (several rows here were superseded by later entries).
+> work plan. The rewrite it tracks is **now complete — Python is fully
+> retired on this branch** (see the banner in
+> [`rust-rewrite.md`](rust-rewrite.md)); this archive is preserved
+> as-is for provenance. When in doubt about current status, trust
+> `rust-rewrite.md` and the source, not this archive (several rows here
+> were superseded by later entries).
 
 tcl-lsp is ~360K lines of Python, organised since the May-2026
 reorganisation into seven concern packages — `shared/`, `compiler/`,

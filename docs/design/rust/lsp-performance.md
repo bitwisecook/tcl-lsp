@@ -7,17 +7,25 @@ and how to reproduce every number. Companions:
 [`incremental-analysis.md`](incremental-analysis.md) (the remaining per-item
 work).
 
+> **Update (2026):** Python is fully retired on this branch, so the
+> Python-vs-Rust comparison below is now a **historical migration
+> baseline** — the Python backend and the `bench_lsp_backends.py` harness
+> that drove *both* backends no longer exist. The absolute Rust numbers
+> and optimisations still stand; only the cross-backend reproduction step
+> is retired (see "Reproducing the key numbers").
+
 ## The benchmark harness
 
-`scripts/dev/bench_lsp_backends.py` drives both backends over JSON-RPC against
-real Tcl projects and reports per-feature timings. It measures
-time-to-semantic-tokens, heavy-edit re-analysis, time-to-full-diagnostics,
+The `bench_lsp_backends.py` harness drove both backends over JSON-RPC
+against real Tcl projects and reported per-feature timings — time-to-
+semantic-tokens, heavy-edit re-analysis, time-to-full-diagnostics,
 time-to-full-optimisation, and an open+index + all-features pass over a
-multi-file corpus (tcllib modules + Tcl stdlib).
+multi-file corpus (tcllib modules + Tcl stdlib). It was retired with the
+Python backend; the native server is built and driven directly:
 
 ```
 cargo build -p tcl-lsp-server --release
-uv run python scripts/dev/bench_lsp_backends.py --json /tmp/bench.json
+# drive the built server over JSON-RPC (e.g. via .claude/skills/lsp-client)
 ```
 
 Large single files used: `tmp/tcllib-2.0/modules/practcl/practcl.tcl` (8463
@@ -102,7 +110,7 @@ already resolved by the async-diagnostics work above.
 
 | Number | Command |
 |---|---|
-| Python vs Rust table | `uv run python scripts/dev/bench_lsp_backends.py` |
+| Python vs Rust table | historical — the dual-backend `bench_lsp_backends.py` harness was retired with Python; the table is preserved as the migration baseline |
 | analyser walk vs tail split; lattice costs | `cargo run --release -p tcl-compiler --example incr_experiments` |
 | heavy-edit interactive latency | edit + trivial-request timing via `.claude/skills/lsp-client` |
-| e2e parity (514/1-known-red) | `make test-lsp-e2e-rust` |
+| native lsp_e2e suite | `make test-rust` (runs `rust/tcl-lsp-server/tests/*_e2e.rs` via `cargo test`) |

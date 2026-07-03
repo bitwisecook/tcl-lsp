@@ -1,5 +1,18 @@
 # Python → Rust rewrite
 
+> **Update (2026): completed — Python is fully retired on this branch.**
+> The rewrite goal below ("zero Python in the shipping product") has been
+> reached. The product is now purely the Rust workspace + native binaries
+> (`tcl`, `f5-query`, `tcl-lsp-server`, `tcl-mcp`); the Python source
+> (`shared/ compiler/ dialects/ analyser/ server/ tooling/ ai/`, the
+> `.pyz` zipapps, `uv`, and the pytest suites) no longer exists here. The
+> `lsp_e2e` suite is native (`rust/tcl-lsp-server/tests/*_e2e.rs`, run by
+> `cargo test`). The PyO3 facade surface discussed as a *future* public
+> API was not shipped on this branch. This document is retained as the
+> historical rewrite plan and oracle-parity record; its "Remaining work",
+> "not yet", and "🟡/🔴 status" sections describe the migration as it
+> stood mid-flight, not the current (completed) state.
+
 tcl-lsp is ~360K lines of Python, organised since the May-2026
 reorganisation into seven concern packages — `shared/`, `compiler/`,
 `dialects/`, `analyser/`, `server/`, `tooling/`, and `ai/` — plus

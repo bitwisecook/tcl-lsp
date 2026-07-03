@@ -32,8 +32,6 @@ f5 grep --cidr 10.0.0.0/8 bigip.conf
 f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
 ```
 
-In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m tooling.f5.main grep …`.
-
 The `related` alias is provided for readability:
 
 ```

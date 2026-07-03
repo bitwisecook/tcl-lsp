@@ -39,11 +39,9 @@ f5 cleanup --keep /Common/important_pool bigip.conf
 f5 cleanup --no-keep-common bigip.conf
 ```
 
-In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m tooling.f5.main cleanup …`.
-
 #### Shell completion
 
-The `f5 completion <shell>` verb prints a ready-to-install completion script for **bash**, **fish**, or **zsh**.  The scripts are bundled inside the zipapp, so they're the same with the local source build or the released `.pyz`:
+The `f5 completion <shell>` verb prints a ready-to-install completion script for **bash**, **fish**, or **zsh**:
 
 ```
 # bash (per-user)
@@ -65,7 +63,7 @@ Pass `--hint` to also print the install instructions for the chosen shell to std
 
 ### Claude skill
 
-Run `/bigip-cleanup` (the `bigip-cleanup` skill).  The skill calls `ai/claude/tcl_ai.py bigip-cleanup` under the hood and presents the candidates grouped by kind, plus the ready-to-run script.
+Run `/bigip-cleanup` (the `bigip-cleanup` skill).  The skill runs `f5 cleanup` under the hood and presents the candidates grouped by kind, plus the ready-to-run script.
 
 ## Options
 
@@ -100,7 +98,7 @@ ltm virtual /Common/vs_kept {
 }
 ```
 
-### Output (`f5 cleanup --no-keep-common bigip.conf` or `python -m tooling.f5.main cleanup --no-keep-common bigip.conf`)
+### Output (`f5 cleanup --no-keep-common bigip.conf`)
 
 ```
 # tcl-lsp BIG-IP cleanup

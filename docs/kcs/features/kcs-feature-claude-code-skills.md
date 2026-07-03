@@ -75,16 +75,17 @@ In Claude Code, type the skill name:
 
 ## Operational context
 
-Skills invoke the `tcl_ai.py` CLI tool for analysis, then use AI to interpret results and generate code. The agentic create/fix skills iterate until LSP diagnostics are clean.
+Skills call the native `tcl-mcp` MCP tools for analysis, then use AI to interpret results and generate code. The agentic create/fix skills iterate until LSP diagnostics are clean.
 
 ## File-path anchors
 
 - `ai/claude/skills/`
-- `ai/claude/tcl_ai.py`
+- `scripts/tcl-mcp` — launcher for the native MCP server the skills call
+- `rust/tcl-mcp/` — the native MCP server crate
 
 ## Failure modes
 
-- `uv` not installed or Python 3.10+ not available.
+- The `tcl-mcp` binary cannot be found or built (see `scripts/tcl-mcp`).
 - Skills not loaded (check `.claude/` configuration).
 
 ## Test anchors

@@ -13,13 +13,9 @@ A language server for Tcl with multi-editor support.
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
 </p>
 
-The server ships as a native Rust binary (`tcl-lsp-server`) — the default,
-out-of-the-box backend — with a Python reference implementation (built on
-[pygls](https://github.com/openlawlibrary/pygls)) available as an opt-out.
-Both speak LSP over stdio, so they work with any LSP client. Set
-`TCL_LSP_SERVER_KIND=python` to run the Python server instead. (The VS Code
-extension is native-only — it always launches the bundled `tcl-lsp-server`
-binary and no longer exposes a Python backend toggle.)
+The server is a native Rust binary (`tcl-lsp-server`). It speaks LSP over
+stdio, so it works with any LSP client. (The VS Code extension always launches
+the bundled `tcl-lsp-server` binary.)
 
 ## Editor support
 
@@ -43,22 +39,16 @@ binary and no longer exposes a Python backend toggle.)
 | [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
 | [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, IntelliJ IDEA 2024.1+ |
 
-All editors connect to the same LSP server over stdio. By default this is the
-native Rust binary `tcl-lsp-server` (build it with `make rust-server`, or
-`cargo build -p tcl-lsp-server`). To opt back into the Python reference server,
-set `TCL_LSP_SERVER_KIND=python`; it can be invoked from source
-(`uv run python -m server`) or as a standalone zipapp
-(`python3 tcl-lsp-server.pyz`). The `tcl-lsp` console script launches the
-native binary when one is available and otherwise falls back to the Python
-server.
+All editors connect to the native Rust binary `tcl-lsp-server` over stdio
+(build it with `make rust-server`, or `cargo build -p tcl-lsp-server`).
 
 **Also documented in [INSTALL-editors.md](INSTALL-editors.md):**
 
 - *VS Code-compatible editors* (load the same `.vsix` unchanged) —
   Cursor, Windsurf, VSCodium, code-server / Coder, GitHub Codespaces,
   Gitpod, and Eclipse Theia.
-- *Other LSP-capable editors* (point a generic LSP client at the
-  `.pyz`) — Vim (vim-lsp or coc.nvim), Kate, Kakoune, Notepad++, Geany,
+- *Other LSP-capable editors* (point a generic LSP client at the native
+  `tcl-lsp-server` binary) — Vim (vim-lsp or coc.nvim), Kate, Kakoune, Notepad++, Geany,
   Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
@@ -100,7 +90,6 @@ with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 return {
   -- Native Rust server (default); build with `make rust-server`.
   cmd = { "/path/to/tcl-lsp/target/release/tcl-lsp-server" },
-  -- Python opt-out: cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
   settings = {
     tclLsp = {
@@ -117,8 +106,8 @@ vim.lsp.enable("tcl_lsp")
 
 ### Zed
 
-A full Zed extension that auto-downloads the server zipapp from GitHub Releases
-on first use and auto-discovers Python 3.10+ on your PATH.
+A full Zed extension that auto-downloads the native `tcl-lsp-server` binary
+from GitHub Releases on first use; no Python required.
 
 Includes 16 built-in snippets (`tcl-proc`, `tcl-namespace`, `tcl-if`,
 `irule-http-request`, `irule-collect-release`, etc.), an MCP context server
@@ -132,8 +121,7 @@ Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
 Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 
 ```elisp
-;; eglot (Emacs 29+).  Native Rust server (default); build with
-;; `make rust-server`.  Python opt-out: ("python3" "/path/to/tcl-lsp-server.pyz")
+;; eglot (Emacs 29+).  Native Rust server; build with `make rust-server`.
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '(tcl-mode . ("/path/to/tcl-lsp/target/release/tcl-lsp-server"))))
@@ -150,13 +138,10 @@ Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 Minimal TOML configuration in `~/.config/helix/languages.toml`.
 
 ```toml
-# Native Rust server (default); build with `make rust-server`.
+# Native Rust server; build with `make rust-server`.
 [language-server.tcl-lsp]
 command = "/path/to/tcl-lsp/target/release/tcl-lsp-server"
 args = []
-# Python opt-out:
-#   command = "python3"
-#   args = ["/path/to/tcl-lsp-server.pyz"]
 
 [language-server.tcl-lsp.config.tclLsp]
 dialect = "tcl8.6"
@@ -174,7 +159,7 @@ A full Sublime Text package (`.sublime-package`) that works in two modes:
 standalone (syntax highlighting + 16 snippets + static completions) and
 enhanced (full LSP features when the LSP package is installed).
 
-Auto-discovers the bundled `.pyz` server from the package archive.
+Auto-discovers the bundled native `tcl-lsp-server` binary.
 
 Install: see [INSTALL-editors.md](INSTALL-editors.md#sublime-text).
 
@@ -851,9 +836,9 @@ Highlights of the newer verbs:
   read from `$F5_UCS_PASSPHRASE` or a secure terminal prompt; `extract`
   and `convert` also accept `--passphrase-env VAR` / `--no-passphrase-prompt`.
   Decryption shells out to `gpg`/`gpg2` when present (exactly what BIG-IP
-  uses) and otherwise falls back to a bundled, dependency-free
-  pure-Python OpenPGP decryptor, so it works even in the zipapp on a host
-  with no GnuPG installed.
+  uses) and otherwise falls back to a bundled, dependency-free OpenPGP
+  decryptor built into `f5-query`, so it works even on a host with no GnuPG
+  installed.
 
   ```sh
   export F5_UCS_PASSPHRASE='…'        # or be prompted on a TTY
@@ -911,7 +896,7 @@ Highlights of the newer verbs:
   and rewriting BIG-IP configs.  Built-in **renderer plugins** turn
   query output into a Mermaid diagram, an ASCII Gantt timeline of
   monitor up/down transitions, or a Unicode line-art block diagram —
-  no sidecar Python scripts required.  Run
+  no sidecar scripts required.  Run
   `f5 q --help-renderers` for the catalogue:
 
   ```sh
@@ -928,76 +913,15 @@ Highlights of the newer verbs:
   f5 q --render mermaid '.ltm.virtual["~/web_"]' bigip.conf
   ```
 
-**Use the query engine from Python** — the same engine is importable
-as `f5q` so external scripts can drive queries, build them up
-progressively, render results through plugins or inline callables,
-and ship reusable extensions via one-line decorators:
-
-```python
-from f5q import q, load, renderer, builtin, input_format
-
-# One-liner: q() takes (expression, *inputs).
-for name in q(".ltm.virtual[] | .name", "bigip.conf"):
-    print(name)
-
-# Progressive — chain queries on top of each other (typed wrapper, immutable).
-filtered = (
-    q(".ltm.virtual[]", "bigip.conf")
-    .q('.[] | select(.pool != null)')
-    .q('.[] | .name')
-)
-
-# Render via a registered plugin OR an inline callable.
-filtered.render("ascii-blocks")
-filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
-
-# Coerce to plain JSON-friendly Python.
-data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
-
-# Pre-stage once, query many times. Custom file formats? Pass an inline parser.
-corpus = load("ltm.conf", "gtm.conf")
-routes = load("routes.xml", parser=my_xml_parser)
-
-# Ship a custom renderer the f5 CLI can dispatch via --render NAME.
-@renderer("md-table", summary="Markdown table of results.", accepts="any")
-def _render(values, **opts):
-    return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
-
-# Ship a custom DSL function the query language can call.
-@builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
-def _u(s):
-    return str(s).upper()
-
-# Ship a custom side-input format `--input KIND NAME=PATH` can load.
-@input_format("yaml", summary="YAML side-input.")
-def _parse_yaml(source, *, uri, options=()):
-    import yaml
-    return yaml.safe_load(source)
-```
-
-**Auto-discovered plugins** — drop any of the above into
-`$XDG_CONFIG_HOME/dialects/f5/query/plugins/*.py` (default
-`~/.config/dialects/f5/query/plugins/*.py`) and the engine picks them up on the
-first registry access, no import dance required.  Broken plugins
-warn to stderr and are skipped; `f5 q --help-plugins` shows what
-loaded.
-
 **Documentation**:
 
-- **Python API reference** — autodoc-generated, every public
-  symbol with full signature, docstring, and `[source]` links.
-  Build locally with `make docs-html` (output at
-  `docs/sphinx/_build/html/index.html`); the same Sphinx tree
-  builds on Read the Docs via [`.readthedocs.yaml`](.readthedocs.yaml).
-- [KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
-  — task-oriented walkthrough.
 - [KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
   — built-in plugin catalogue and CLI flag reference.
 - [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
   — formal contracts, registration lifecycle, error mapping.
 
-**Install the `f5` CLI** — the released artefact is a single-file
-zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
+**Install the `f5` CLI** — the released artefact is the native
+`f5-query` binary; no Python required.
 See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
 installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
 Fedora, shell completion setup, and source-build instructions.
@@ -1214,8 +1138,9 @@ Copilot: generates Tk code with grid layout, button callbacks, and display label
 ### Claude Code skills
 
 Twenty purpose-built skills for Claude Code (CLI) that combine LSP static
-analysis with AI reasoning.  Each skill invokes the `tcl-lsp-ai` analyser,
-iterates on diagnostics, and produces clean output.
+analysis with AI reasoning.  The skills are native — each calls the
+`tcl-mcp` MCP server's tools, iterates on diagnostics, and produces clean
+output.
 
 | Skill | Description |
 |-------|-------------|
@@ -1260,8 +1185,7 @@ The server is the **native Rust `tcl-mcp`** binary — a single self-contained
 executable that calls the Rust analysis crates directly (no Python, no PyO3).
 It hosts the full tool surface (46 tools: analysis, LSP features, refactors,
 diagnostics, docstrings, iRule/BIG-IP tools, XC translation, Tk layout, test
-generation, …). The legacy Python zipapp (`tcl-lsp-mcp-server.pyz`) is a
-fallback for platforms without a published native binary.
+generation, …). Build it with `make rust-mcp`.
 
 **Install / register.** The installer fetches the prebuilt native binary for
 your platform from the GitHub release (`tcl-mcp-<triple>`), verifies its
@@ -1271,8 +1195,6 @@ checksum, and registers it with Claude Code (`claude mcp add`) and Codex:
 ./scripts/install/install.sh            # fetches + registers the native binary
 ```
 
-- `TCL_LSP_MCP_PYZ=1 ./scripts/install/install.sh` — force the Python zipapp
-  (e.g. an architecture without a native build).
 - `TCL_LSP_MCP_BIN=/path/to/tcl-mcp ./scripts/install/install.sh` — register a
   local build instead of downloading.
 
@@ -1324,9 +1246,6 @@ with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
 }
 ```
 
-To use the Python zipapp instead, set `"command"` to
-`"./tcl-lsp-mcp-server.pyz"`.
-
 ## Packaging & environments
 
 `tcl pkg` is a deterministic Tcl package manager using Go-style Minimum
@@ -1369,10 +1288,10 @@ full architecture and contracts.
 
 ## CLI tools
 
-All CLI tools are distributed as self-contained Python zipapps (`.pyz`) — no
-`pip install` required.
+All CLI tools are distributed as native binaries (`tcl`, `f5-query`) — no
+runtime required.
 
-### Unified Tcl tool zipapp (`tcl`)
+### Unified Tcl tool (`tcl`)
 
 A single verb-based CLI that aggregates common local workflows:
 
@@ -1399,81 +1318,81 @@ A single verb-based CLI that aggregates common local workflows:
 
 ```sh
 # Optimise everything under src/ into one output script
-python tcl.pyz opt src/ -o build/optimised.tcl
+tcl opt src/ -o build/optimised.tcl
 
 # Run diagnostics across a directory and a Tcl package
-python tcl.pyz diag src/ mypkg --package-path ./vendor/tcl
+tcl diag src/ mypkg --package-path ./vendor/tcl
 
 # Run lint diagnostics (same checks as `diag`)
-python tcl.pyz lint src/ mypkg --package-path ./vendor/tcl
+tcl lint src/ mypkg --package-path ./vendor/tcl
 
 # Validate syntax/error diagnostics
-python tcl.pyz validate src/
+tcl validate src/
 
 # Validate as JSON
-python tcl.pyz validate src/ --json
+tcl validate src/ --json
 
 # Format source text
-python tcl.pyz format script.tcl -o formatted.tcl
+tcl format script.tcl -o formatted.tcl
 
 # Minify source (strip comments, collapse whitespace, join commands)
-python tcl.pyz minify script.tcl -o minified.tcl
+tcl minify script.tcl -o minified.tcl
 
 # Aggressive minify (optimise + static substring folding via SCCP + name compaction)
-python tcl.pyz minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
+tcl minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
 
 # Symbol/graph/find-legacy analysis verbs
-python tcl.pyz symbols script.tcl --json
-python tcl.pyz diagram script.tcl --json
-python tcl.pyz callgraph script.tcl --json
-python tcl.pyz symbolgraph script.tcl --json
-python tcl.pyz dataflow script.tcl --json
-python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
-python tcl.pyz find-legacy rule.irule --json
+tcl symbols script.tcl --json
+tcl diagram script.tcl --json
+tcl callgraph script.tcl --json
+tcl symbolgraph script.tcl --json
+tcl dataflow script.tcl --json
+tcl command-info HTTP::uri --dialect f5-irules --json
+tcl find-legacy rule.irule --json
 
 # iRules-specific lookups live on the f5 CLI:
-python f5.pyz irule event-order rule.irule --json
-python f5.pyz irule event-info HTTP_REQUEST --json
+f5-query irule event-order rule.irule --json
+f5-query irule event-info HTTP_REQUEST --json
 
 # Emit bytecode disassembly
-python tcl.pyz dis script.tcl
+tcl dis script.tcl
 
 # Compile to WASM binary (+ optional WAT sidecar)
-python tcl.pyz compwasm script.tcl -o out.wasm --wat-output out.wat
+tcl compwasm script.tcl -o out.wasm --wat-output out.wat
 
 # Emit ANSI-highlighted output (or --format html)
-python tcl.pyz highlight script.tcl --force-colour
+tcl highlight script.tcl --force-colour
 
 # Diff two iRules using compiler structure layers
-python tcl.pyz diff old.irule new.irule --show ast,ir,cfg
+tcl diff old.irule new.irule --show ast,ir,cfg
 
-# Use compiler explorer views from the same zipapp
-python tcl.pyz explore script.tcl --show ir,cfg,opt
+# Use compiler explorer views from the same binary
+tcl explore script.tcl --show ir,cfg,opt
 
 # Search KCS help docs (optionally scoped by dialect)
-python tcl.pyz help taint analysis --dialect f5-irules
+tcl help taint analysis --dialect f5-irules
 
 # Show help for the help command itself
-python tcl.pyz help --help
+tcl help --help
 
 # Emit help search results as JSON
-python tcl.pyz help taint --json
+tcl help taint --json
 ```
 
 For iRules input, pass `--dialect f5-irules` explicitly:
 
 ```sh
-tcl.pyz lint rules/ --dialect f5-irules
+tcl lint rules/ --dialect f5-irules
 ```
 
 iRules-specific verbs (`event-order`, `event-info`) live on the separate
 `f5` CLI under the `irule` verb group — see the F5 BIG-IP CLI section.
 
-For source builds, run `make kcs-db` before packaging zipapps so `tcl.pyz help`
-can query the bundled KCS SQLite database.
+For source builds, run `make kcs-db` first so the `tcl help` command can query
+the bundled KCS SQLite database.
 
-**Install the `tcl` CLI** — the released artefact is a single-file
-zipapp (`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.
+**Install the `tcl` CLI** — the released artefact is the native `tcl`
+binary; no Python required.
 See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
 installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
 Fedora, source builds, and shell completion (`bash`, `zsh`, `fish`)
@@ -1490,87 +1409,63 @@ rewrites, shimmer warnings, taint analysis, and bytecode.
 
 ```sh
 # Full exploration of a Tcl file
-uv run python -m tooling.explorer script.tcl
+tcl explore script.tcl
 
 # Focus on optimiser rewrites only
-uv run python -m tooling.explorer script.tcl --show opt
+tcl explore script.tcl --show opt
 
 # Inline source with optimised output
-uv run python -m tooling.explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+tcl explore --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
 
 # Show only IR and CFG
-uv run python -m tooling.explorer script.tcl --show ir,cfg
+tcl explore script.tcl --show ir,cfg
 
 # iRules dialect with flow analysis
-uv run python -m tooling.explorer irule.tcl --dialect bigip --show irules
+tcl explore irule.tcl --dialect bigip --show irules
+
+# Serve the embedded web GUI
+tcl explore --serve
 ```
 
 Available views: `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
 `shimmer`, `taint`, `irules`, `callouts`, `asm`, `wasm`.  Groups: `all`,
 `compiler`, `optimiser`.
 
-### AI analysis tool (CLI)
+### AI analysis tools
 
-Standalone static analyser for use with AI agents and CI pipelines.
-
-```sh
-# Full context pack (diagnostics + symbols + events) as JSON
-uv run python -m ai.claude.tcl_ai context script.tcl
-
-# Categorised validation report
-uv run python -m ai.claude.tcl_ai validate script.tcl
-
-# Security-focused review
-uv run python -m ai.claude.tcl_ai review irule.tcl
-
-# Optimisation suggestions with rewritten source
-uv run python -m ai.claude.tcl_ai optimize script.tcl
-
-# Build call graph
-uv run python -m ai.claude.tcl_ai call-graph script.tcl
-
-# Look up iRules event metadata
-uv run python -m ai.claude.tcl_ai event-info HTTP_REQUEST
-
-# Extract Tk widget tree
-uv run python -m ai.claude.tcl_ai tk-layout gui.tcl
-
-# Generate iRule test script (Event Orchestrator framework)
-uv run python -m ai.claude.tcl_ai generate-test irule.tcl
-
-# Extract CFG paths for test planning
-uv run python -m ai.claude.tcl_ai cfg-paths irule.tcl
-```
+The AI-agent static analyses (context pack, categorised validation, security
+review, optimisation suggestions, call graph, iRules event metadata, Tk widget
+tree, iRule test generation, and CFG-path extraction) are exposed as native
+`tcl-mcp` MCP tools and driven by the Claude skills — see the
+[MCP server](#mcp-server-claude-desktop--ai-agents) and
+[Claude Code skills](#claude-code-skills) sections above.
 
 ### Tcl-to-WASM compiler
 
-Compile Tcl scripts to WebAssembly (WAT text or binary WASM format).
+Compile Tcl scripts to WebAssembly (WAT text or binary WASM format) with the
+`tcl compwasm` verb.
 
 ```sh
-# Compile to human-readable WAT
-uv run python -m tooling.wasm.main script.tcl --format wat
+# Compile to WASM binary (+ optional WAT sidecar)
+tcl compwasm script.tcl -o out.wasm --wat-output out.wat
 
-# Compile to WASM binary with optimisations
-uv run python -m tooling.wasm.main script.tcl -O --format wasm -o out.wasm
-
-# Compare optimised vs. unoptimised output
-uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
+# Compile inline source
+tcl compwasm --source 'set x [expr {1+2}]' -o out.wasm
 ```
 
 ### Compiler explorer (web GUI)
 
-A standalone web UI for the compiler explorer. The pipeline runs entirely in
-the browser via a Rust → WebAssembly module (`make explorer-wasm`); no Python
-at runtime. The same `.wasm` is bundled into the VS Code and JetBrains panels,
-which compile in the webview itself — offline, with no LSP roundtrip. (The
-legacy Pyodide-bundling zipapp targets remain during the transition.)
+The embedded web UI for the compiler explorer is served by the native `tcl`
+binary via `tcl explore --serve`. The same Rust → WebAssembly module
+(`make explorer-wasm`) is bundled into the VS Code and JetBrains panels, which
+compile in the webview itself — offline, with no LSP roundtrip.
 
 ```sh
-# Standalone (offline, ~100 MB)
-./tcl-lsp-explorer-gui.pyz --port 8080
+# Serve the embedded web GUI
+tcl explore --serve
 
-# CDN variant (lightweight, requires internet)
-./tcl-lsp-explorer-gui-cdn.pyz --port 8080
+# Choose a port
+tcl explore --serve --port 8080
 ```
 
 ### Tcl VM
@@ -1581,41 +1476,34 @@ TclOO classes (constructors, destructors, methods, mixins, filters, private
 variables), namespaces, coroutine-free control flow, and 85% conformance
 against Tcl 9.0.3 native test suites.
 
+The VM ships as the native `tclvm` binary.
+
 ```sh
-# Execute a script
-uv run python -m tooling.vm script.tcl arg1 arg2
+# Execute a script (trailing args become the script's argv)
+tclvm script.tcl arg1 arg2
 
 # Interactive REPL
-uv run python -m tooling.vm
+tclvm
 
 # Inline evaluation
-uv run python -m tooling.vm -e 'puts [expr {6 * 7}]'
+tclvm -c 'puts [expr {6 * 7}]'
 
 # Show bytecode disassembly without executing
-uv run python -m tooling.vm --disassemble script.tcl
+tcl dis script.tcl
 ```
 
 ### Tcl debugger
 
 An interactive debugger that can single-step through Tcl scripts with
-breakpoints, variable inspection, and call stack visualisation.  Three
-backends are available:
-
-| Backend | Description |
-|---------|-------------|
-| `vm` | The project's own bytecode VM (default) |
-| `tclsh` | External `tclsh` subprocess |
-| `tkinter` | Python's built-in `tkinter.Tcl()` interpreter |
+breakpoints, variable inspection, and call stack visualisation, driven by the
+project's own bytecode VM.  It ships as the native `tcl-debug` binary.
 
 ```sh
-# Debug a script (uses VM backend by default)
-uv run python -m debugger script.tcl
+# Debug a script (interactive CLI)
+tcl-debug script.tcl
 
-# Force a specific backend
-uv run python -m debugger --backend vm script.tcl
-
-# Read from stdin
-echo 'puts hello' | uv run python -m debugger -
+# Speak the Debug Adapter Protocol over stdio (for an editor)
+tcl-debug --dap
 ```
 
 Debugger commands: `run`, `step`/`s`, `next`/`n`, `finish`, `continue`/`c`,
@@ -1999,8 +1887,8 @@ normalised via `file normalize`, `PATH_JOINED` for values assembled via
 `file join`).  At join points, colours are intersected so only properties
 shared by all paths survive -- this suppresses false positives.
 
-The **Rendered Value Properties** pass (`compiler/rendered_properties.py`)
-runs before taint propagation and computes per-SSA-value string content
+The **Rendered Value Properties** pass (in `tcl-compiler`) runs before
+taint propagation and computes per-SSA-value string content
 properties after Tcl backslash substitution.  This enables precise detection
 of path separators (resolving escape sequences like `\x2f` to `/` before
 checking) and is used by the W201 path concatenation diagnostic.
@@ -2124,8 +2012,7 @@ explicit actions (CLI, chat, MCP) default to `full`.
 
 ## Prerequisites
 
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- A Rust toolchain (stable; MSRV 1.96) via [rustup](https://rustup.rs/)
 - Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
 - VS Code 1.93+
 
@@ -2152,29 +2039,22 @@ Run `make help` to see all targets:
 
 | Target | Description |
 |--------|-------------|
-| `make ci-fast` | **Full CI gate** — lint + Python tests + extension tests + smoke tests |
 | `make build-editor-vsix` | Build the .vsix (tests must pass first) |
 | `make install` | Build and install the .vsix into VS Code |
 | `make package-vsix` | Package VSIX (skip lint/test, for CI) |
-| `make test` | Run all tests (Python + VS Code extension) |
-| `make test-py` | Run the Python test suite only |
+| `make test` | Run all tests (Rust workspace + VS Code extension + Zig WASM runtime) |
+| `make test-rust` | Run the Rust workspace tests (incl. the native LSP e2e suite) |
 | `make test-ext` | Run VS Code extension integration tests |
 | `make lint` | Run all lint and style checks |
-| `make lint-py` | Lint Python code with Ruff |
-| `make typecheck-py` | Type-check Python code with ty |
 | `make lint-ts` | Lint/format-check TypeScript extension code |
-| `make format-py` | Format and auto-fix Python code with Ruff |
 | `make npm-env` | Install/update npm dependencies |
 | `make compile` | Compile the TypeScript extension |
-| `make zipapps` | Build all zipapps (Tcl, explorer-cli, explorer-gui, explorer-gui-cdn, LSP, AI, MCP, WASM) |
-| `make zipapp-tcl` | Build the unified Tcl tools zipapp |
-| `make zipapp-explorer-cli` | Build the compiler-explorer CLI zipapp |
-| `make zipapp-explorer-gui` | Build the standalone explorer GUI zipapp (bundles Pyodide) |
-| `make zipapp-explorer-gui-cdn` | Build the CDN explorer GUI zipapp (loads Pyodide from CDN) |
-| `make zipapp-lsp` | Build the LSP server zipapp |
-| `make zipapp-ai` | Build the AI analysis zipapp |
-| `make zipapp-mcp` | Build the MCP server zipapp |
-| `make zipapp-wasm` | Build the WASM compiler zipapp |
+| `make rust-server` | Build the native Rust LSP server (`tcl-lsp-server`) |
+| `make rust-tcl` | Build the native Rust `tcl` CLI |
+| `make rust-f5` | Build the native Rust `f5-query` CLI |
+| `make rust-clis` | Build the native `tcl` + `f5-query` CLIs |
+| `make rust-mcp` | Build the native Rust `tcl-mcp` MCP server |
+| `make explorer-wasm` | Build the Rust → WASM compiler-explorer core into the `tcl` GUI dir |
 | `make claude-skills` | Build Claude Code skills release zip |
 | `make build-editor-jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
 | `make build-editor-sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
@@ -2223,134 +2103,40 @@ Useful overrides:
 
 ## Project layout
 
+The project is a Rust workspace. The crates live under `rust/`:
+
 ```
 tcl-lsp/
   Makefile                Build system
-  pyproject.toml          Python project metadata (hatchling)
-  server/                    Python LSP server
-    __main__.py           Entry point (python -m server)
-    server.py             pygls server, handler wiring
-    async_diagnostics.py  Background diagnostic scheduler (tiered publishing)
-    analysis/
-      analyser.py         Single-pass semantic analyser
-      checks.py           Best-practice and security checks (W-series)
-      irules_checks.py    iRules-specific best-practice checks (IRULE-series)
-      semantic_model.py   Data model (scopes, procs, diagnostics)
-      semantic_graph.py   Call/symbol/data-flow graph queries
-    bigip/
-      parser.py           BIG-IP configuration file parser
-      model.py            BIG-IP configuration data model
-      rule_extract.py     iRule extraction from BIG-IP configs
-      validator.py        Configuration validation
-      diagnostics.py      BIG-IP-specific diagnostics
-    commands/
-      registry/
-        models.py         CommandSpec dataclass (arity, roles, dialect flags)
-        command_registry.py CommandRegistry class (query methods)
-        runtime.py        Registry runtime (dialects, roles, body/expr index helpers)
-        signatures.py     Argument signature helpers
-        namespace_registry.py Namespace registry (event/command metadata facade)
-        namespace_data.py    Canonical event/command data tables
-        namespace_models.py  Namespace model dataclasses
-        operators.py      Operator definitions and hover data
-        taint_hints.py    Per-command taint source/sink hints
-        type_hints.py     Per-command return type hints
-        tcl/              One file per Tcl command (@register decorator)
-        irules/           F5 iRules command definitions
-        iapps/            F5 iApps template command definitions
-        tk/               Tk widget command definitions
-        tcllib/           tcllib package command definitions
-        stdlib/           Tcl standard library command definitions
-    common/
-      dialect.py          Active dialect state
-      naming.py           Name normalisation helpers
-      ranges.py           Range/position utilities
-    packages/
-      resolver.py         Tcl package require resolution
-    compiler/
-      lowering.py         Tcl source -> IR lowering
-      ir.py               IR node definitions
-      cfg.py              Control flow graph construction
-      ssa.py              Static single assignment form
-      core_analyses.py    SCCP, liveness, type inference, dead store detection
-      compilation_unit.py Compile pipeline orchestration and caching
-      compiler_checks.py  IR-to-diagnostics (arity, subcommands)
-      optimiser.py        Source rewrite passes (O100–O128)
-      gvn.py              GVN/CSE/PRE/LICM redundant computation detection (O105–O106)
-      interprocedural.py  Call graph, function purity/side-effect summaries
-      taint.py            Data taint analysis (T100–T106, IRULE3xxx)
-      shimmer.py          Tcl object representation analysis (S100–S102)
-      irules_flow.py      iRules control-flow checks (IRULE1xxx/4004/5xxx)
-      codegen.py          Tcl VM bytecode assembly backend
-      static_loops.py     Conservative static evaluation for for-loops
-      tcl_expr_eval.py    Tcl expression evaluator (constant folding)
-      expr_ast.py         Expression AST parser
-      expr_types.py       Expression type inference
-      effects.py          Command side-effect classification
-      connection_scope.py iRules connection-scope variable tracking
-      types.py            Type lattice definitions
-      token_helpers.py    Shared token-stream utilities
-      eval_helpers.py     Evaluation helper constants
-    diagram/
-      extract.py          iRule event-flow diagram extraction
-    features/
-      code_actions.py     Quick-fix code actions
-      completion.py       Completions
-      definition.py       Go to definition
-      diagnostics.py      Diagnostic aggregation (internal -> LSP)
-      formatting.py       LSP formatting handlers
-      hover.py            Hover information
-      inlay_hints.py      Inlay hint provider (inferred types, format strings)
-      references.py       Find references
-      rename.py           Rename symbol
-      call_hierarchy.py   Call hierarchy (incoming/outgoing calls)
-      document_symbols.py Document symbol hierarchy
-      document_links.py   Document link provider
-      folding.py          Folding range provider
-      selection_range.py  Selection range provider
-      signature_help.py   Signature help provider
-      workspace_symbols.py Workspace symbol search
-      semantic_tokens.py  Semantic token provider
-      snippet_templates.py Tcl/iRules snippet templates
-      symbol_resolution.py Shared word/variable/scope resolution helpers
-    parsing/
-      lexer.py            Tcl lexer with position tracking
-      tokens.py           Token and position types
-      command_segmenter.py Command segmentation from token stream
-      token_scanning.py   Shared token-stream scanning helpers
-      recovery.py         Centralised error recovery via virtual tokens
-      expr_lexer.py       Expression sub-lexer
-      expr_parser.py      Expression sub-parser
-      subst_nocommands.py Compile-time `[subst -nocommands]` evaluator
-    tk/
-      detection.py        Tk widget auto-detection
-      diagnostics.py      Tk-specific diagnostics
-      extract.py          Tk widget hierarchy extraction
-    workspace/
-      document_state.py   Per-file analysis cache (dialect-gated profile scanning)
-      workspace_index.py  Cross-file proc index (O(1) tail lookup, usage caching)
-      scanner.py          Background workspace file scanner
-    xc/
-      translator.py       iRules-to-XC migration translator
-      mapping.py          iRules → XC command mapping table
-      xc_model.py         XC output data model
-      terraform.py        Terraform HCL generation
-      json_api.py         JSON API for XC translation
-      diagnostics.py      Migration diagnostics
-  tooling/explorer/               Compiler explorer (CLI + web GUI)
-    cli.py                CLI interface
-    pipeline.py           Compilation pipeline wrapper
-    serialise.py          Output serialisation (IR, CFG, SSA, optimiser)
-    formatters.py         Display formatters
-    static/               Web GUI assets (Pyodide)
-  ai/                     AI integrations
-    claude/
-      skills/             Claude Code skills (20 CLI commands)
-    mcp/
-      tcl_mcp_server.py   MCP server for Claude Desktop integration
+  Cargo.toml              Rust workspace manifest
+  rust/
+    tcl-lexer/            Tcl lexer with position tracking
+    tcl-syntax/           Green tree / segmenter
+    tcl-registry/         Command/event registry, dialects, argument roles
+    tcl-regex/            Regex engine (semantic tokens, ReDoS analysis)
+    tcl-compiler/         Lowering → IR → CFG → SSA → optimiser → codegen
+    tcl-bytecode/         Bytecode module and disassembly
+    tcl-vm/               Bytecode interpreter (TclOO, namespaces, control flow)
+    tcl-vm-cli/           `tclvm` binary — VM CLI/REPL driver
+    tcl-debugger/         `tcl-debug` binary — step debugger (+ DAP mode)
+    tcl-irules/           F5 iRules analysis (flow, taint, scoping)
+    tcl-bigip/            BIG-IP config parser/model
+    tcl-bigip-io/         BIG-IP config I/O (SCF/UCS, fetch, encrypted UCS)
+    tcl-bigip-query/      jq-flavoured query engine + renderer plugins
+    f5-xc/                iRules-to-XC migration translator
+    tcl-lsp-core/         Shared LSP feature implementations
+    tcl-lsp-db/           KCS docs SQLite index
+    tcl-lsp-server/       `tcl-lsp-server` binary — native LSP server
+    tcl-explorer/         Compiler-explorer views (CLI + `--serve` web GUI)
+    tcl-cli-support/      Shared CLI plumbing
+    tcl-cli/              `tcl` binary — unified verb-based CLI
+    f5-cli/               `f5-query` binary — F5 BIG-IP CLI
+    tcl-mcp/              `tcl-mcp` binary — native MCP server
+    tcl-pkg/              `tcl pkg` / `tcl venv` package manager
+    tcl-irule-test/       iRule Event Orchestrator test framework
+  ai/
+    claude/skills/        Claude Code skills (call tcl-mcp MCP tools)
     prompts/              System prompts for Tcl/iRules/Tk
-    shared/               Shared diagnostics manifest and utilities
-  tests/                  pytest test suite
   editors/
     vscode/               VS Code extension client (.vsix)
       package.json        Extension manifest
@@ -2368,14 +2154,15 @@ tcl-lsp/
 
 ## Development
 
-See `CONTRIBUTING.md` for coding-style and packaging rules.
+See `CONTRIBUTING.md` for coding-style rules.
 
 ### Running the server standalone
 
-The server communicates over stdio.  To launch it directly:
+The server communicates over stdio.  Build and launch it directly:
 
 ```sh
-uv run python -m server
+make rust-server
+./target/release/tcl-lsp-server
 ```
 
 This is useful for debugging or for use with any LSP client.
@@ -2384,41 +2171,35 @@ See `editors/` for per-editor setup instructions.
 ### Running tests
 
 ```sh
-# Via make (sets up the venv automatically)
+# Via make (Rust workspace + extension + Zig WASM runtime)
 make test
 
-# Or directly with uv
-uv run --extra dev pytest tests/ -v
+# Rust workspace only (incl. the native LSP e2e suite)
+make test-rust
 
-# Run a specific test file
-uv run --extra dev pytest tests/test_checks.py -v
+# Or directly with cargo
+cargo test --workspace
+
+# Run a specific crate's tests
+cargo test -p tcl-compiler
 
 # Run tests matching a pattern
-uv run --extra dev pytest tests/ -k "unbraced_expr"
-
-# Lint Python code
-make lint-py
-
-# Type-check Python code
-make typecheck-py
-
-# Auto-fix and format Python code
-make format-py
+cargo test --workspace unbraced_expr
 ```
 
 ### Compiler and optimiser explorer
 
-Use `tcl_compiler_explorer.py` to inspect how source is lowered and optimised:
+Use `tcl explore` to inspect how source is lowered and optimised:
 
 ```sh
 # Full compiler + optimiser exploration
-uv run python tcl_compiler_explorer.py samples/for_screenshots/22-optimiser-before.tcl
+tcl explore samples/for_screenshots/22-optimiser-before.tcl
 
 # Focus on optimiser rewrites only
-uv run python tcl_compiler_explorer.py samples/for_screenshots/22-optimiser-before.tcl --focus optimiser
+tcl explore samples/for_screenshots/22-optimiser-before.tcl --show opt
 
 # Inline source with explicit optimised output
-uv run python tcl_compiler_explorer.py --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+tcl explore --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
 ```
 
 The explorer renders:
@@ -2443,38 +2224,43 @@ To test the extension in VS Code, open `editors/vscode/` in VS Code and press
 
 ### Developing the server
 
-During development you can point the extension at your working copy instead
-of the bundled server.  Set `tclLsp.serverPath` in your VS Code settings:
+During development you can point the extension at a locally-built server
+binary instead of the bundled one.  Set `tclLsp.serverPath` in your VS Code
+settings:
 
 ```json
 {
-  "tclLsp.serverPath": "/path/to/tcl-lsp"
+  "tclLsp.serverPath": "/path/to/tcl-lsp/target/release/tcl-lsp-server"
 }
 ```
 
-The extension will use `uv run` from that directory, so changes to the Python
-source take effect on the next editor reload.
+Rebuild with `make rust-server` (or `cargo build -p tcl-lsp-server`) and reload
+the editor to pick up your changes.
 
 ### Adding a new diagnostic check
 
-1. Add a check function to the appropriate submodule in `analyser/checks/`
-   (e.g. `_security.py`, `_style.py`, `_domain.py`, `_syntax.py`) following
-   the existing pattern -- each check receives the command name, argument
-   texts, argument tokens, all tokens, and the source string.
-2. Register it in the `ALL_CHECKS` list in `analyser/checks/_orchestrator.py`.
-3. If the check can be auto-fixed, include a `CodeFix` in the diagnostic's
-   `fixes` tuple.
-4. Add tests to `tests/test_checks.py`.
-5. Run `make test` to verify.
+1. Add a check to the appropriate module under
+   `rust/tcl-compiler/src/analyser/` (e.g. `diagnostics/security.rs`,
+   `syntax_checks.rs`, `bounds_checks.rs`, or `irules_checks.rs` for
+   dialect-specific rules), following the existing pattern.
+2. Wire it into the check orchestrator (`compiler_checks.rs`).
+3. If the check can be auto-fixed, emit the corresponding code action in
+   `rust/tcl-lsp-core/src/code_actions.rs`.
+4. Add coverage under `rust/tcl-compiler/tests/` (e.g. `checks_port.rs`)
+   and an end-to-end assertion in `rust/tcl-lsp-server/tests/diagnostics_e2e.rs`.
+5. Run `make test-rust` to verify.
 
 ### Adding a new formatter option
 
-1. Add the field to `FormatterConfig` in `tooling/formatter/config.py`.
-2. Handle it in `tooling/formatter/engine.py`.
-3. Add `to_dict`/`from_dict` support if the field uses a non-primitive type.
-4. Add tests to `tests/test_formatter.py`.
-5. Import the formatter through its public API (`tooling.formatter`), then run
-   `make test` to verify.
+1. Add the field to the formatter config in
+   `rust/tcl-lsp-core/src/formatting/config.rs`.
+2. Handle it in `rust/tcl-lsp-core/src/formatting/engine.rs`.
+3. Add serde support if the field uses a non-primitive type.
+4. Add tests to `rust/tcl-lsp-core/tests/` and run `make test-rust` to
+   verify.
+5. Regenerate the editor settings catalogues
+   (`cargo xtask gen-editor-settings`) so the new option surfaces in the
+   editor integrations.
 
 ## Configuration
 

@@ -5,9 +5,8 @@
 
 ## Applies to
 
-`f5` CLI — both the Python front-end (`python -m tooling.f5.main`) and the
-native Rust port (`f5-query`, `rust/f5-cli`). The two share one behaviour
-contract: the same verbs, flags, master-key resolution order, and the
+`f5` CLI — the native `f5-query` binary (`rust/f5-cli`). The behaviour
+contract is the same verbs, flags, master-key resolution order, and the
 byte-for-byte `$M$<salt>$<base64>` envelope.
 
 ## Summary
@@ -90,11 +89,9 @@ original `secret "my radius secret"`.
 ## Notes
 
 - The transform is AES in ECB mode with PKCS#7 padding and a two-character
-  salt — the scheme BIG-IP itself uses.  The Python front-end runs it on a
-  bundled pure-Python cipher (so it works in the zipapp with no
-  `cryptography` dependency); the Rust front-end delegates the block
-  transform to the audited [`aes`] crate already vendored for the
-  encrypted-UCS path.  Both produce identical ciphertext.
+  salt — the scheme BIG-IP itself uses.  The `f5-query` front-end delegates
+  the block transform to the audited [`aes`] crate already vendored for the
+  encrypted-UCS path.
 - A wrong master key is reported as an error (the padding or salt check
   fails) rather than producing silent garbage.
 - The clear-text output holds real credentials and SSL key passphrases —
