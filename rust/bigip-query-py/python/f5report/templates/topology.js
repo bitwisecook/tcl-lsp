@@ -1064,12 +1064,16 @@
         return;
       }
 
-      // 1st pass: direct text matches, remember matched object ids
+      // 1st pass: direct matches on each object's OWN identity/fields
+      // (`data-search`), not its cross-reference columns — otherwise a pool that
+      // merely references an "app1"-named monitor would falsely match "app1" and
+      // drag its virtual in. Falls back to full row text if data-search absent.
       var info = [], direct = {};
       rows.forEach(function (r) {
         var el = r.querySelector("[data-oid]");
         var oid = el ? el.dataset.oid : null;
-        var tm = r.textContent.toLowerCase().indexOf(q) >= 0;
+        var hay = (r.dataset.search || r.textContent).toLowerCase();
+        var tm = hay.indexOf(q) >= 0;
         info.push({ row: r, oid: oid, tm: tm });
         if (tm && oid) direct[oid] = true;
       });
