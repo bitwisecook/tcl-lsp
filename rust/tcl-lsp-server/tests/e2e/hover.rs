@@ -11,10 +11,9 @@
 //! cached vs recomputed path has no JSON-RPC surface and stays in
 //! `tests/test_hover.py`.
 
-mod common;
 
-use common::helpers::hover_text;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::hover_text;
+use crate::common::{Lsp, unique_uri};
 
 /// Hover text at a position (`_hover` in the pytest suite).
 fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {

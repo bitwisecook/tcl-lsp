@@ -4,10 +4,9 @@
 //! `test_definition.py` cases plus the VS Code `definition.test.ts` scenario
 //! (navigate from a call site to the proc).
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 

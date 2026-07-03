@@ -7,10 +7,9 @@
 //! column resolves to the intended token) and OUTPUT (returned ranges carry
 //! UTF-16 columns, not byte columns).
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use std::collections::BTreeSet;
 use std::time::Duration;

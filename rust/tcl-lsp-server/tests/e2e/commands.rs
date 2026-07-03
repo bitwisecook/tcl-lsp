@@ -5,9 +5,8 @@
 //! palette entries invoke. Each declared parameter is bound positionally, so the
 //! argument arrays here mirror the handler signatures exactly.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 

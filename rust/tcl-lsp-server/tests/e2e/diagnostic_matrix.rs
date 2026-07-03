@@ -10,9 +10,8 @@
 //! parametrise the same way, so each matrix row is unrolled into its own
 //! `#[test]` for the fire case and the silent case.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 use std::collections::BTreeSet;

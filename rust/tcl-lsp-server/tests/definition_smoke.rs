@@ -138,5 +138,5 @@ async fn definition_smoke() {
         .unwrap();
     drop(client_write);
 
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }

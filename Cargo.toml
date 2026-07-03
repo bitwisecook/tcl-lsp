@@ -116,3 +116,9 @@ missing_panics_doc = "allow"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Test builds keep only line tables (panic backtraces still resolve), not full
+# debuginfo — this roughly halves compile+link time and shrinks the nextest
+# archive that CI ships between the build and partitioned-test jobs.
+[profile.test]
+debug = "line-tables-only"

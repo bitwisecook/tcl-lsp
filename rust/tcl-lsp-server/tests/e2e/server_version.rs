@@ -5,9 +5,8 @@
 //! banner regressing to a `dev` fallback, and pins the reported version to the
 //! workspace crate version (`CARGO_PKG_VERSION`) the compiled banner comes from.
 
-mod common;
 
-use common::Lsp;
+use crate::common::Lsp;
 
 #[test]
 fn initialize_reports_version() {

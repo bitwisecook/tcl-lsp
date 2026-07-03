@@ -7,10 +7,9 @@
 //! registered server-side and returns a `{range, placeholder}` (or `null` to
 //! reject).
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 

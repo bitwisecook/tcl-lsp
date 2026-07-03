@@ -16,10 +16,9 @@
 //! basename (`bigip.conf`), so `bigip_uri` fixes the basename while making the
 //! directory unique per call.
 
-mod common;
 
-use common::Lsp;
-use common::helpers::*;
+use crate::common::Lsp;
+use crate::common::helpers::*;
 
 use serde_json::Value;
 use std::collections::BTreeSet;

@@ -148,5 +148,5 @@ async fn folding_smoke() {
     drop(client_write);
 
     // Give the server a moment to wind down.
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }

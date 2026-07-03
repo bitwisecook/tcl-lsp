@@ -4,10 +4,9 @@
 //! dialect is pinned with a `# tcl-dialect: tcl9.1` directive (server-side source
 //! detection), and behaviour is observed through completion + diagnostics.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 
