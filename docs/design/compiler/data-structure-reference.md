@@ -13,14 +13,14 @@ dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and ar
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 
-Source: [`shared/tokens.py`](../../../shared/tokens.py),
-[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py),
-[`compiler/ir.py`](../../../compiler/ir.py),
-[`compiler/cfg.py`](../../../compiler/cfg.py),
-[`compiler/ssa.py`](../../../compiler/ssa.py),
-[`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
-[`compiler/codegen/bytecode/_types.py`](../../../compiler/codegen/bytecode/_types.py),
-[`compiler/compilation_unit.py`](../../../compiler/compilation_unit.py)
+Source: `shared/tokens.py`,
+`compiler/parsing/command_segmenter.py`,
+`compiler/ir.py`,
+`compiler/cfg.py`,
+`compiler/ssa.py`,
+`compiler/core_analyses.py`,
+`compiler/codegen/bytecode/_types.py`,
+`compiler/compilation_unit.py`
 
 ## Content
 

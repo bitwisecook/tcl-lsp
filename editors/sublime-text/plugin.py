@@ -10,7 +10,6 @@ Constraint: runs in Sublime Text's embedded Python 3.10+ (plugin host 38).
 
 import functools
 import os
-import shutil
 import zipfile
 
 import sublime  # type: ignore[import-not-found]
@@ -19,7 +18,17 @@ import sublime_plugin  # type: ignore[import-not-found]
 PACKAGE_NAME = "Tcl"
 SETTINGS_KEY = "LSP-Tcl.sublime-settings"
 SERVER_DIR = "server"
-SERVER_ENTRY = "tcl-lsp-server.pyz"
+
+
+def _server_entry():
+    # type: () -> str
+    """Return the bundled native server binary name for this platform."""
+    if sublime.platform() == "windows" or os.name == "nt":
+        return "tcl-lsp-server.exe"
+    return "tcl-lsp-server"
+
+
+SERVER_ENTRY = _server_entry()
 
 # Dialects the server supports, keyed for the quick-panel.
 DIALECTS = [
@@ -84,25 +93,43 @@ def _cache_dir():
     return cache
 
 
+def _ensure_executable(path):
+    # type: (str) -> str
+    """Ensure *path* has the +x bit set (files extracted from a ZIP may
+    lose it) and return the path unchanged."""
+    if not path or os.name == "nt":
+        return path
+    try:
+        mode = os.stat(path).st_mode
+        if not (mode & 0o111):
+            os.chmod(path, 0o755)
+    except OSError:
+        pass
+    return path
+
+
 def _find_bundled_server():
     # type: () -> str
-    """Locate the bundled server entry point (__main__.py).
+    """Locate the bundled native server binary (server/tcl-lsp-server).
 
     First checks the extracted Packages/Tcl/server/ directory (normal for
     development or overridden-package installs).  If not found, checks
     Cache/Tcl/server/ (previously extracted).  Finally, extracts the
     server/ tree from the .sublime-package ZIP in Installed Packages/.
+
+    On the way out the binary is marked executable, since files extracted
+    from a package ZIP lose the +x bit.
     """
     # 1. Extracted package directory (development / loose install)
     candidate = os.path.join(_package_dir(), SERVER_DIR, SERVER_ENTRY)
     if os.path.isfile(candidate):
-        return candidate
+        return _ensure_executable(candidate)
 
     # 2. Cache (previously extracted)
     cached_dir = os.path.join(_cache_dir(), SERVER_DIR)
     cached_entry = os.path.join(cached_dir, SERVER_ENTRY)
     if os.path.isfile(cached_entry):
-        return cached_entry
+        return _ensure_executable(cached_entry)
 
     # 3. Extract server/ tree from .sublime-package ZIP
     pkg_zip = os.path.join(
@@ -118,30 +145,11 @@ def _find_bundled_server():
                     for member in server_members:
                         zf.extract(member, dest)
                     if os.path.isfile(cached_entry):
-                        return cached_entry
+                        return _ensure_executable(cached_entry)
         except (zipfile.BadZipFile, OSError):
             pass
 
     return ""
-
-
-def _discover_python():
-    # type: () -> str
-    """Find a suitable Python 3.10+ interpreter on PATH."""
-    candidates = [
-        "python3.15",
-        "python3.14",
-        "python3.14",
-        "python3.12",
-        "python3.11",
-        "python3.10",
-        "python3",
-    ]
-    for name in candidates:
-        path = shutil.which(name)
-        if path is not None:
-            return path
-    return "python3"
 
 
 def _load_settings():
@@ -221,44 +229,25 @@ try:
         def additional_variables(cls):
             # type: () -> dict
             settings = _load_settings()
-            # Allow user override of server path.
+            # Allow user override of server path, otherwise use the bundled
+            # native binary (marked executable on first run).
             user_path = settings.get("server_path")
             if user_path and os.path.isfile(user_path):
-                server = user_path
+                server = _ensure_executable(user_path)
             else:
                 server = _find_bundled_server()
 
-            # Allow user override of Python path.
-            user_python = settings.get("python_path")
-            if user_python and os.path.isfile(user_python):
-                python = user_python
-            else:
-                python = _discover_python()
-
             return {
                 "server_path": server,
-                "python": python,
             }
 
         @classmethod
         def can_start(cls, window, initiating_view, workspace_folders, configuration):
             """Return an error string if the server cannot start."""
             variables = cls.additional_variables() or {}
-            python = variables.get("python", "python3")
             server = variables.get("server_path", "")
 
-            if not shutil.which(python):
-                return (
-                    "Python 3.10+ interpreter not found: {}.  "
-                    "The .sublime-package bundles all Python dependencies, "
-                    "but a Python interpreter must be installed on your system.  "
-                    "Install Python from https://www.python.org/downloads/ or "
-                    "via Homebrew (brew install python@3.14).  "
-                    "See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md"
-                    "#python-prerequisite for details."
-                ).format(python)
-
-            if not server or (not os.path.isfile(server) and not shutil.which(server)):
+            if not server or not os.path.isfile(server):
                 return (
                     "tcl-lsp server not found.  "
                     "Download the .sublime-package from the GitHub Releases "

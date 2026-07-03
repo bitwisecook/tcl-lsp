@@ -20,7 +20,7 @@ all-editors, Copilot Chat, MCP, Claude skill, optimisation
 | Any LSP editor | Code actions (lightbulb) on O-code diagnostics |
 | MCP | `optimize` tool |
 | Claude Code | `/irule-optimise`, `/tcl-optimise` |
-| CLI | `tcl_ai.py optimize <file>` |
+| CLI | `tcl opt <file>` |
 
 ## How to use
 

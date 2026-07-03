@@ -14,8 +14,8 @@ time.  Type inference runs alongside, tracking `TypeLattice` values per SSA
 key.  Together they enable optimisations O101 (fold constant expression),
 O102 (fold expr command substitution), and O112 (constant condition).
 
-Source: [`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
-[`compiler/types.py`](../../../compiler/types.py)
+Source: `compiler/core_analyses.py`,
+`compiler/types.py`
 
 ## Content
 

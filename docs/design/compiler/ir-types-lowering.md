@@ -15,8 +15,8 @@ expressions, `IRIf`/`IRFor`/`IRWhile` for control flow — falling back to
 `IRCall` for generic commands.  Every IR node carries a `Range` for
 diagnostic mapping.
 
-Source: [`compiler/ir.py`](../../../compiler/ir.py),
-[`compiler/lowering.py`](../../../compiler/lowering.py)
+Source: `compiler/ir.py`,
+`compiler/lowering.py`
 
 ## Content
 

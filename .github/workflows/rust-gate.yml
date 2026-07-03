@@ -34,12 +34,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      # uv + Python: a handful of workspace crates (PyO3 surfaces) build against
-      # the project's Python env, and it is cheap to have ready.
-      - uses: ./.github/actions/setup-build
-
       # rust-toolchain.toml pins the channel (stable); rustup on the runner
       # resolves it on the first cargo call.  Cache registry + target dir.
+      # (No Python: the workspace is pure Rust — the PyO3 binding crates were
+      # retired, so `cargo test --workspace` needs no Python env.)
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 

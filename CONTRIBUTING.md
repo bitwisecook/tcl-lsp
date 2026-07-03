@@ -238,7 +238,7 @@ instances through constructors over importing module globals where practical.
 
 The Python source of truth is partitioned into seven concern packages
 (see [`AGENTS.md`](AGENTS.md) "Repository layout" and
-[`.importlinter`](.importlinter)): `shared/`, `compiler/`,
+`.importlinter`): `shared/`, `compiler/`,
 `dialects/`, `analyser/`, `server/`, `tooling/`, `ai/`.
 
 - The extension package does not keep a mirrored Python tree under `editors/vscode/`.

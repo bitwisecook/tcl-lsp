@@ -1,0 +1,290 @@
+//! Native port of `tests/lsp_e2e/test_commands_e2e.py`.
+//!
+//! Workspace `executeCommand` handlers, end-to-end against the packaged server.
+//! These drive the real `workspace/executeCommand` dispatch the editors' command
+//! palette entries invoke. Each declared parameter is bound positionally, so the
+//! argument arrays here mirror the handler signatures exactly.
+
+mod common;
+
+use common::{Lsp, unique_uri};
+
+use serde_json::{Value, json};
+
+/// The `set` of `code` strings in an `applied` array.
+fn applied_codes(result: &Value) -> std::collections::BTreeSet<String> {
+    result
+        .get("applied")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| e.get("code").and_then(Value::as_str).map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A result's `source` string (empty if absent).
+fn source(result: &Value) -> &str {
+    result.get("source").and_then(Value::as_str).unwrap_or("")
+}
+
+// -- TestDocumentTransforms ----------------------------------------------
+
+#[test]
+fn fix_all_safe_issues_clears_w100() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "if $a { puts yes }\nset n [expr $x + 1]\n");
+    let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
+    assert!(!result.is_null());
+    assert!(
+        source(&result).contains("if {$a} { puts yes }"),
+        "{}",
+        source(&result)
+    );
+    assert_eq!(
+        applied_codes(&result),
+        std::collections::BTreeSet::from(["W100".to_owned()])
+    );
+}
+
+#[test]
+fn minify_strips_comments() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "# comment\nset   x    42\n\nputs $x\n");
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
+    assert!(!result.is_null());
+    assert!(!source(&result).contains("# comment"), "{}", source(&result));
+    assert!(source(&result).contains("set x 42"), "{}", source(&result));
+    let minified = result.get("minifiedLength").and_then(Value::as_i64).unwrap();
+    let original = result.get("originalLength").and_then(Value::as_i64).unwrap();
+    assert!(minified < original);
+}
+
+#[test]
+fn optimise_returns_optimisation_offers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "puts [llength [list a b c]]\n");
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(!result.is_null());
+    assert!(source(&result).contains("puts 3"), "{}", source(&result));
+}
+
+#[test]
+fn minify_preserves_switch_braced_quoted_pattern_closers() {
+    // Issue #540: a braced `{a b}` / quoted `"c d"` pattern's end was derived one
+    // char short, so the minifier dropped the closing `}` / `"` and re-emitted a
+    // truncated, unbalanced pattern. The minified document must keep both patterns
+    // intact and stay balanced.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
+    assert!(!result.is_null());
+    let out = source(&result);
+    assert!(out.contains("{a b}"), "{out}");
+    assert!(out.contains("\"c d\""), "{out}");
+    assert_eq!(out.matches('{').count(), out.matches('}').count(), "{out}");
+}
+
+// -- TestRegistryLookups -------------------------------------------------
+
+#[test]
+fn describe_event_known() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.describeIruleEvent", json!(["HTTP_REQUEST"]));
+    assert_eq!(data.get("known"), Some(&Value::Bool(true)));
+    assert!(data.get("validCommandCount").and_then(Value::as_i64).unwrap() >= 1);
+}
+
+#[test]
+fn describe_event_unknown() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.describeIruleEvent", json!(["NOT_A_REAL_EVENT"]));
+    assert_eq!(data.get("known"), Some(&Value::Bool(false)));
+    assert_eq!(data.get("validCommandCount").and_then(Value::as_i64), Some(0));
+}
+
+#[test]
+fn describe_command() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.describeIruleCommand", json!(["HTTP::uri"]));
+    assert_eq!(data.get("found"), Some(&Value::Bool(true)));
+    assert_eq!(data.get("command").and_then(Value::as_str), Some("HTTP::uri"));
+}
+
+#[test]
+fn list_irule_events_nonempty() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.listIruleEvents", json!([]));
+    let events: Vec<&str> = data
+        .get("events")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
+}
+
+// -- TestDiagramAndConfig ------------------------------------------------
+
+#[test]
+fn diagram_extracts_irule_events() {
+    let mut lsp = Lsp::tcl();
+    let source = "when HTTP_REQUEST {\n    if {[HTTP::uri] eq \"/\"} { pool web }\n}\n";
+    let result = lsp.execute_command("tcl-lsp.diagramData", json!([source]));
+    assert!(!result.is_null());
+    let names: Vec<&str> = result
+        .get("events")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| e.get("name").and_then(Value::as_str))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(names.contains(&"HTTP_REQUEST"), "{names:?}");
+}
+
+#[test]
+fn effective_config_shape() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 1\n");
+    let data = lsp.execute_command("tcl-lsp.getEffectiveConfig", json!([uri]));
+    assert!(data.is_object());
+    assert!(data.get("dialect").is_some());
+}
+
+// -- TestCommandSurface --------------------------------------------------
+
+/// Commands advertised in `executeCommandProvider` that every conforming backend
+/// must expose.
+const CORE_COMMANDS: &[&str] = &[
+    "tcl-lsp.optimiseDocument",
+    "tcl-lsp.minifyDocument",
+    "tcl-lsp.fixAllSafeIssues",
+    "tcl-lsp.getEffectiveConfig",
+    "tcl-lsp.listSubcommands",
+    "tcl-lsp.describeIruleEvent",
+    "tcl-lsp.describeIruleCommand",
+    "tcl-lsp.listIruleEvents",
+    "tcl-lsp.diagramData",
+];
+
+#[test]
+fn core_commands_are_advertised() {
+    let lsp = Lsp::tcl();
+    let advertised: std::collections::BTreeSet<String> = lsp
+        .initialize_result()
+        .get("capabilities")
+        .and_then(|c| c.get("executeCommandProvider"))
+        .and_then(|p| p.get("commands"))
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .unwrap_or_default();
+    let missing: Vec<&str> = CORE_COMMANDS
+        .iter()
+        .copied()
+        .filter(|c| !advertised.contains(*c))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "executeCommandProvider missing core commands: {missing:?}"
+    );
+}
+
+#[test]
+fn minify_compact_round_trip() {
+    // Compact renaming shortens identifiers and reports the reverse map, so a name
+    // in the minified source resolves back to the original.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc addNumbers {a b} { return [expr {$a + $b}] }\naddNumbers 1 2\n",
+    );
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, false]));
+    assert!(!result.is_null());
+    let minified = result.get("minifiedLength").and_then(Value::as_i64).unwrap();
+    let original = result.get("originalLength").and_then(Value::as_i64).unwrap();
+    assert!(minified < original);
+    assert!(
+        !source(&result).contains("addNumbers"),
+        "{}",
+        source(&result)
+    );
+    // Python's `"addNumbers" in symbolMap` is a key check for a dict and a
+    // substring check for a string; the native server reports `symbolMap` as a
+    // formatted string, so honour both shapes.
+    let symbol_map = result.get("symbolMap").cloned().unwrap_or(Value::Null);
+    let maps_back = match &symbol_map {
+        Value::Object(_) => symbol_map.get("addNumbers").is_some(),
+        Value::String(s) => s.contains("addNumbers"),
+        _ => false,
+    };
+    assert!(maps_back, "{symbol_map}");
+}
+
+#[test]
+fn list_subcommands_shape() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.listSubcommands", json!(["string"]));
+    assert_eq!(data.get("command").and_then(Value::as_str), Some("string"));
+    let names: std::collections::BTreeSet<&str> = data
+        .get("subcommands")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|s| s.get("name").and_then(Value::as_str))
+                .collect()
+        })
+        .unwrap_or_default();
+    for expected in ["length", "range", "map"] {
+        assert!(names.contains(expected), "missing {expected:?} in {names:?}");
+    }
+}
+
+#[test]
+fn list_subcommands_unknown_is_empty() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command(
+        "tcl-lsp.listSubcommands",
+        json!(["definitely_not_a_command_zzz"]),
+    );
+    assert_eq!(
+        data.get("subcommands").and_then(Value::as_array),
+        Some(&Vec::new())
+    );
+}
+
+#[test]
+fn list_known_packages_shape() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.listKnownPackages", json!([]));
+    assert!(data.get("packages").map(Value::is_array).unwrap_or(false), "{data}");
+}
+
+#[test]
+fn suggest_packages_for_symbol_shape() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.suggestPackagesForSymbol", json!(["json::write"]));
+    assert_eq!(data.get("symbol").and_then(Value::as_str), Some("json::write"));
+    assert!(
+        data.get("suggestions").map(Value::is_array).unwrap_or(false),
+        "{data}"
+    );
+}
+
+#[test]
+fn export_config_writes_a_file() {
+    let mut lsp = Lsp::tcl();
+    let data = lsp.execute_command("tcl-lsp.exportConfig", json!([]));
+    assert_eq!(data.get("success"), Some(&Value::Bool(true)));
+    let path = data.get("path").and_then(Value::as_str).unwrap_or("");
+    assert!(!path.is_empty(), "{data}");
+}

@@ -212,11 +212,11 @@ Three layers, each live:
 
 1. **Direct runtime tests** exercise the primitives through dedicated
    WASM exports ``tcl_test_rename`` / ``tcl_test_alias_create``:
-   - [`tests/runtime/test_tcl_rename.py`](../../../tests/runtime/test_tcl_rename.py)
-   - [`tests/runtime/test_tcl_alias.py`](../../../tests/runtime/test_tcl_alias.py)
+   - `tests/runtime/test_tcl_rename.py`
+   - `tests/runtime/test_tcl_alias.py`
 
 2. **End-to-end Tcl → WASM → runtime tests** in
-   [`tests/test_wasm_execution.py::TestRenameAndAlias`](../../../tests/test_wasm_execution.py)
+   `tests/test_wasm_execution.py::TestRenameAndAlias`
    cover the compile-to-WASM + interpret-at-runtime integration.
 
 3. **Upstream tests** (``rename.test``, ``interp.test`` single-

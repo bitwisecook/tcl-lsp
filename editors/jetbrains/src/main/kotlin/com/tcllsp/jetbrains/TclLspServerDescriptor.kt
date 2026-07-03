@@ -5,6 +5,7 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
 import com.tcllsp.jetbrains.settings.TclLspSettings
@@ -24,49 +25,58 @@ class TclLspServerDescriptor(project: Project) :
     override fun createCommandLine(): GeneralCommandLine {
         val settings = TclLspSettings.getInstance()
 
-        // Dev mode: explicit serverPath pointing to the tcl-lsp project root
+        // Dev mode: explicit serverPath pointing to a tcl-lsp checkout root
+        // (or directly at a built native binary).  Mirrors the VS Code
+        // extension, which locates a ``cargo build``-produced
+        // ``tcl-lsp-server`` under ``target/{release,debug}/``.
         val serverPath = settings.serverPath.trim()
         if (serverPath.isNotEmpty()) {
-            val serverDir = File(serverPath)
-            if (!serverDir.isDirectory) {
-                notifyError("Tcl LSP: server path '$serverPath' is not a valid directory.")
-                throw IllegalStateException("Invalid server path: $serverPath")
+            val devBinary = findDevServer(serverPath)
+            if (devBinary == null) {
+                notifyError(
+                    "Tcl LSP: no native ${bundledServerName()} found under server path " +
+                    "'$serverPath'. Build it with `cargo build -p tcl-lsp-server` " +
+                    "(or `make rust-server`), or point the server path directly at the binary."
+                )
+                throw IllegalStateException("No dev tcl-lsp-server binary under: $serverPath")
             }
 
-            LOG.info("Dev mode: using uv in $serverPath")
-            return GeneralCommandLine("uv", "run", "--directory", serverPath, "--no-dev", "python", "-m", "server")
-                .withWorkDirectory(serverPath)
+            if (!SystemInfo.isWindows) {
+                val binary = File(devBinary)
+                if (!binary.canExecute() && !binary.setExecutable(true)) {
+                    LOG.warn("Failed to mark dev server executable: $devBinary")
+                }
+            }
+
+            LOG.info("Dev mode: native server $devBinary")
+            return GeneralCommandLine(devBinary)
+                .withWorkDirectory(devBinary.substringBeforeLast(File.separator))
                 .withCharset(Charsets.UTF_8)
         }
 
-        // Production mode: use bundled .pyz with discovered Python
-        val pyzPath = findBundledPyz()
-        if (pyzPath == null) {
+        // Production mode: launch the bundled native LSP server binary
+        // directly over stdio (no interpreter, no arguments).
+        val serverBinary = findBundledServer()
+        if (serverBinary == null) {
             notifyError(
-                "Tcl LSP: bundled server (tcl-lsp-server.pyz) not found. " +
+                "Tcl LSP: bundled server (${bundledServerName()}) not found. " +
                 "Set the server path in Settings > Tools > Tcl Language Server."
             )
-            throw IllegalStateException("Bundled tcl-lsp-server.pyz not found")
+            throw IllegalStateException("Bundled ${bundledServerName()} not found")
         }
 
-        val python = discoverPython(settings.pythonPath)
-        if (python == null) {
-            val msg = if (settings.pythonPath.isNotBlank() && settings.pythonPath != "auto") {
-                "Tcl LSP: configured Python '${settings.pythonPath}' not found or below 3.10."
-            } else {
-                "Tcl LSP: Python 3.10+ is required but was not found. " +
-                "The plugin bundles all Python dependencies, but a Python interpreter must be installed on your system. " +
-                "Install from https://www.python.org/downloads/ or via Homebrew (brew install python@3.14), " +
-                "then set the path in Settings > Tools > Tcl Language Server. " +
-                "See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
+        // JetBrains extracts plugin files without preserving the +x bit, so
+        // ensure the native binary is executable before we spawn it on unix.
+        if (!SystemInfo.isWindows) {
+            val binary = File(serverBinary)
+            if (!binary.canExecute() && !binary.setExecutable(true)) {
+                LOG.warn("Failed to mark bundled server executable: $serverBinary")
             }
-            notifyError(msg)
-            throw IllegalStateException(msg)
         }
 
-        LOG.info("Production mode: ${describeInterpreter(python.path)} $pyzPath")
-        return GeneralCommandLine(python.path, pyzPath)
-            .withWorkDirectory(pyzPath.substringBeforeLast(File.separator))
+        LOG.info("Production mode: native server $serverBinary")
+        return GeneralCommandLine(serverBinary)
+            .withWorkDirectory(serverBinary.substringBeforeLast(File.separator))
             .withCharset(Charsets.UTF_8)
     }
 
@@ -77,24 +87,56 @@ class TclLspServerDescriptor(project: Project) :
         return super.getWorkspaceConfiguration(item)
     }
 
-    private fun findBundledPyz(): String? {
+    // Name of the bundled native server binary for the current platform.
+    private fun bundledServerName(): String =
+        if (SystemInfo.isWindows) "tcl-lsp-server.exe" else "tcl-lsp-server"
+
+    // Locate a dev-checkout native server binary from the configured
+    // ``serverPath``.  The path may point directly at the binary, or at a
+    // checkout root under which we probe ``target/{release,debug}/`` for a
+    // ``cargo build``-produced ``tcl-lsp-server`` (mirrors the VS Code
+    // extension's ``resolveRustServer`` logic).
+    private fun findDevServer(serverPath: String): String? {
+        val name = bundledServerName()
+        val direct = File(serverPath)
+        // Direct path to the binary itself.
+        if (direct.isFile) return direct.absolutePath
+        if (direct.isDirectory) {
+            // A `target/{release,debug}/` layout under the checkout root.
+            for (profile in listOf("release", "debug")) {
+                val candidate = File(direct, "target/$profile/$name")
+                if (candidate.isFile) return candidate.absolutePath
+            }
+            // Or the binary sitting directly in the given directory.
+            val here = File(direct, name)
+            if (here.isFile) return here.absolutePath
+        }
+        return null
+    }
+
+    private fun findBundledServer(): String? {
         // ``build.gradle.kts``'s ``prepareSandbox`` task copies the bundled
-        // LSP server to ``tcl-lsp-server.pyz`` at the plugin install root
-        // (next to ``lib/``), so Python can execute it directly from the
-        // install directory.  We deliberately avoid putting it inside the
-        // plugin jar (``src/main/resources/``) because Python can't run a
-        // zipapp from a ``jar:file:...!/...`` URL and we'd have to extract
-        // on first use, then re-extract on every plugin upgrade (the bug
-        // fixed in PR #448).  Pattern matches JetBrains' own Prisma ORM
-        // plugin which ships ``prisma-language-server.js`` the same way.
+        // native LSP server binary to ``server/tcl-lsp-server`` under the
+        // plugin install root (next to ``lib/``), so we can execute it
+        // directly from the install directory.  We deliberately avoid
+        // putting it inside the plugin jar (``src/main/resources/``) because
+        // an executable can't be spawned from a ``jar:file:...!/...`` URL
+        // and we'd have to extract on first use, then re-extract on every
+        // plugin upgrade (the bug fixed in PR #448).  Pattern matches
+        // JetBrains' own Prisma ORM plugin which ships its native
+        // ``prisma-language-server`` binaries the same way.
         val pluginDir = findPluginInstallDir() ?: return null
-        val pyz = File(pluginDir, "tcl-lsp-server.pyz")
-        if (pyz.exists()) return pyz.absolutePath
-        // Defensive: tolerate an install layout that drops the pyz inside
-        // ``lib/``.  Shouldn't happen with the current build but keeps a
-        // user's working install working if anyone changes ``prepareSandbox``.
-        val libPyz = File(pluginDir, "lib/tcl-lsp-server.pyz")
-        if (libPyz.exists()) return libPyz.absolutePath
+        val name = bundledServerName()
+        val server = File(pluginDir, "server/$name")
+        if (server.exists()) return server.absolutePath
+        // Defensive: tolerate an install layout that drops the binary at the
+        // plugin root or inside ``lib/``.  Shouldn't happen with the current
+        // build but keeps a user's working install working if anyone changes
+        // ``prepareSandbox``.
+        val rootServer = File(pluginDir, name)
+        if (rootServer.exists()) return rootServer.absolutePath
+        val libServer = File(pluginDir, "lib/$name")
+        if (libServer.exists()) return libServer.absolutePath
         return null
     }
 

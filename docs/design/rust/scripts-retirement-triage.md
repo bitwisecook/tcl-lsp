@@ -3,6 +3,14 @@
 > **Audience:** Maintainer / Contributor
 > **Type:** Design (retirement triage / worklist)
 
+> **Update (2026): completed.** Python is fully retired on this branch:
+> the Bucket-A Python scripts and the `.pyz` zipapp builders were deleted
+> with the Python engine, the Bucket-B survivors were ported to `cargo
+> xtask` (or dropped), and CI runs the native gates. The "PORTED — not
+> yet wired into CI", "not yet", and "what remains is execution" notes
+> below describe the triage as it stood mid-flight; treat this doc as the
+> historical worklist, not the current state.
+
 Goal: decide, per `scripts/` tool, what happens to it as the in-tree Python
 retires (**PYTHON-RETIRE**, API-PYO3). Verified against the **code + import
 surface** of each script, not its docstring alone.

@@ -14,7 +14,7 @@ placed at dominance frontiers to merge definitions from different paths.
 The dominator tree and dominance frontiers are computed as part of SSA
 construction.
 
-Source: [`compiler/ssa.py`](../../../compiler/ssa.py) (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
+Source: `compiler/ssa.py` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
 
 ## Content
 

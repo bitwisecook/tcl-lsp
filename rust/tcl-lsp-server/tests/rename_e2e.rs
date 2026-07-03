@@ -1,0 +1,238 @@
+//! Native port of `tests/lsp_e2e/test_rename_e2e.py`.
+//!
+//! Rename, end-to-end against the packaged server. Full-parity port of the
+//! request/response cases. An invalid or unsafe rename comes back as a `null`
+//! `WorkspaceEdit` on the live wire (the `on_rename` handler returns `None`), so
+//! the safety cases assert the result carries no edits. `prepareRename` is
+//! registered server-side and returns a `{range, placeholder}` (or `null` to
+//! reject).
+
+mod common;
+
+use common::helpers::*;
+use common::{Lsp, unique_uri};
+
+use serde_json::Value;
+
+/// The set of `newText` values for edits applied to `uri`.
+fn texts(
+    lsp: &mut Lsp,
+    uri: &str,
+    line: u32,
+    ch: u32,
+    new_name: &str,
+) -> std::collections::BTreeSet<String> {
+    let result = lsp.rename(uri, line, ch, new_name);
+    let edits = rename_edits(&result);
+    edits
+        .get(uri)
+        .into_iter()
+        .flatten()
+        .map(|e| e.get("newText").and_then(Value::as_str).unwrap_or("").to_owned())
+        .collect()
+}
+
+// -- TestPrepareRename ---------------------------------------------------
+
+#[test]
+fn prepare_rename_proc_name() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    let result = lsp.prepare_rename(&uri, 0, 6);
+    assert!(!result.is_null());
+    assert_eq!(result["placeholder"], "greet");
+}
+
+#[test]
+fn prepare_rename_variable() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 42\nputs $x\n");
+    let result = lsp.prepare_rename(&uri, 1, 7);
+    assert!(!result.is_null());
+    assert_eq!(result["placeholder"], "x");
+}
+
+#[test]
+fn prepare_rename_variable_from_definition_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 42\nputs $x\n");
+    let result = lsp.prepare_rename(&uri, 0, 4);
+    assert!(!result.is_null());
+    assert_eq!(result["placeholder"], "x");
+}
+
+#[test]
+fn prepare_rename_builtin_rejected() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "puts hello\n");
+    assert!(lsp.prepare_rename(&uri, 0, 1).is_null());
+}
+
+#[test]
+fn prepare_rename_unknown_rejected() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "something_unknown\n");
+    assert!(lsp.prepare_rename(&uri, 0, 5).is_null());
+}
+
+// -- TestRenameProc ------------------------------------------------------
+
+#[test]
+fn rename_definition_and_calls() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { puts \"Hello $name\" }\ngreet World\ngreet Everyone\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 0, 6, "welcome");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert!(for_uri.len() >= 3);
+    assert!(for_uri.iter().all(|e| e["newText"] == "welcome"));
+}
+
+#[test]
+fn rename_namespaced_proc_preserves_qualifier() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval utils {\n    proc helper {x} { return $x }\n}\nutils::helper 42\n";
+    lsp.open_ready(&uri, src);
+    let t = texts(&mut lsp, &uri, 1, 10, "assist");
+    assert!(t.contains("assist"), "{t:?}");
+    assert!(t.contains("utils::assist"), "{t:?}");
+}
+
+#[test]
+fn rename_from_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    let result = lsp.rename(&uri, 1, 0, "welcome");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert!(for_uri.len() >= 2);
+}
+
+// -- TestRenameVariable --------------------------------------------------
+
+#[test]
+fn rename_var() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 42\nputs $x\n");
+    let t = texts(&mut lsp, &uri, 1, 7, "newvar");
+    assert!(t.contains("newvar"), "{t:?}");
+    assert!(t.contains("$newvar"), "{t:?}");
+}
+
+#[test]
+fn rename_var_from_definition_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 42\nputs $x\n");
+    let t = texts(&mut lsp, &uri, 0, 4, "newvar");
+    assert!(t.contains("newvar"), "{t:?}");
+    assert!(t.contains("$newvar"), "{t:?}");
+}
+
+#[test]
+fn rename_var_preserves_braced_form() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set x 1\nputs ${x}\n");
+    let t = texts(&mut lsp, &uri, 0, 4, "newvar");
+    assert!(t.contains("newvar"), "{t:?}");
+    assert!(t.contains("${newvar}"), "{t:?}");
+}
+
+#[test]
+fn rename_qualified_var_preserves_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set myns::count 0\nputs $myns::count\n");
+    let t = texts(&mut lsp, &uri, 0, 10, "total");
+    assert!(t.contains("myns::total"), "{t:?}");
+    assert!(t.contains("$myns::total"), "{t:?}");
+}
+
+#[test]
+fn rename_qualified_var_braced_form() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set myns::count 0\nputs ${myns::count}\n");
+    let t = texts(&mut lsp, &uri, 0, 10, "total");
+    assert!(t.contains("myns::total"), "{t:?}");
+    assert!(t.contains("${myns::total}"), "{t:?}");
+}
+
+#[test]
+fn rename_preserves_array_index() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set arr 1\nputs $arr\nputs $arr(a)\nputs $arr($i)\nputs ${arr(b)}\n";
+    lsp.open_ready(&uri, src);
+    let t = texts(&mut lsp, &uri, 0, 4, "new");
+    for expected in ["new", "$new", "$new(a)", "$new($i)", "${new(b)}"] {
+        assert!(t.contains(expected), "missing {expected:?} in {t:?}");
+    }
+}
+
+#[test]
+fn rename_respects_scope() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x 1\nproc demo {} {\n    set x 2\n    puts $x\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 3, 10, "y");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: std::collections::BTreeSet<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert!(!lines.contains(&0), "{lines:?}");
+}
+
+// -- TestRenameSafety ----------------------------------------------------
+
+#[test]
+fn rejects_invalid_new_symbol_name() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    let result = lsp.rename(&uri, 0, 6, "bad-name");
+    assert!(rename_edits(&result).is_empty());
+}
+
+#[test]
+fn rejects_proc_collision() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { puts \"Hello $name\" }\nproc hello {name} { puts \"Hi $name\" }\ngreet World\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 0, 6, "hello");
+    assert!(rename_edits(&result).is_empty());
+}
+
+#[test]
+fn rejects_proc_rename_to_builtin() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    let result = lsp.rename(&uri, 0, 6, "puts");
+    assert!(rename_edits(&result).is_empty());
+}
+
+#[test]
+fn rejects_var_collision_in_same_scope() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set x 1\n    set y 2\n    puts $x\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 3, 10, "y");
+    assert!(rename_edits(&result).is_empty());
+}

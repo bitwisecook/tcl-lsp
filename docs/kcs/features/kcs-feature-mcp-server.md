@@ -17,7 +17,8 @@ MCP
 |---------|-----|
 | Zed Agent panel | Registered automatically as `tcl-lsp-mcp` context server |
 | Claude Desktop | Add to `claude_desktop_config.json` |
-| Any MCP client | `python -m ai.mcp.tcl_mcp_server` or `python tcl-lsp-mcp-server.pyz` |
+| Claude Code / Codex | Registered via the repo `.mcp.json`, which launches `scripts/tcl-mcp` |
+| Any MCP client | Run the native `tcl-mcp` binary directly (build with `make rust-mcp`, or let `scripts/tcl-mcp` fetch the prebuilt release asset) |
 
 ## How to use
 
@@ -53,21 +54,20 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 
 ## Operational context
 
-Pure Python implementation — no heavy SDK, no pydantic, no C extensions. Runs from a zipapp (`tcl-lsp-mcp-server.pyz`). Uses the same analysis engine as the LSP server.
+Native Rust implementation — a single self-contained `tcl-mcp` binary, no runtime dependencies. Uses the same analysis engine (`tcl-compiler`/`tcl-lsp-server`) as the LSP server.
 
 ## File-path anchors
 
-- `ai/mcp/tcl_mcp_server.py`
-- `scripts/zipapp-main/mcp.py`
+- `rust/tcl-mcp/` — the native MCP server crate
+- `scripts/tcl-mcp` — launcher used by the repo `.mcp.json`
 
 ## Failure modes
 
-- Python 3.10+ not available.
 - Stdin/stdout hijacked by other tools.
 
 ## Test anchors
 
-- `tests/test_mcp_minifier_consumers.py`
+- `rust/tcl-mcp/` crate tests
 
 ## Example
 

@@ -12,8 +12,8 @@ registered lowering hooks → match/case on command name → fallthrough via
 `arg_roles`.  The dispatch produces specific IR nodes (`IRAssignConst`,
 `IRAssignExpr`, `IRIf`, etc.) rather than generic `IRCall` wherever possible.
 
-Source: [`compiler/lowering.py`](../../../compiler/lowering.py),
-[`compiler/lowering_hooks/`](../../../compiler/lowering_hooks/)
+Source: `compiler/lowering.py`,
+`compiler/lowering_hooks/`
 
 ## Content
 

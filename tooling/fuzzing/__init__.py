@@ -1,1 +1,0 @@
-# Tcl differential fuzzing infrastructure.

@@ -8,12 +8,12 @@
 - iRule Review [Claude Code Skills]
   Security-focused analysis of iRules: filters the full diagnostic set to show only security warnings, taint findings, and thread-safety concerns.
   file: kcs-feature-irule-review.md
+- Unified Tcl Verb CLI [Claude Code Skills]
+  The native `tcl` binary provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
+  file: kcs-feature-tcl-verb-cli.md
 - Hover [LSP + AI Features]
   Command documentation, proc signatures, variable info, and taint status on hover.
   file: kcs-feature-hover.md
-- Unified Tcl Verb CLI [Claude Code Skills]
-  `tcl.pyz` provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
-  file: kcs-feature-tcl-verb-cli.md
 - Diagnostics [LSP + AI Features]
   Errors, warnings, security, taint tracking, and style checks shown as you type.
   file: kcs-feature-diagnostics.md

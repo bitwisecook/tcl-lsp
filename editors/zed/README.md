@@ -58,21 +58,14 @@ or `#!/usr/bin/expect` are recognised as Tcl/Expect.
 
 ## Prerequisites
 
-- **Python 3.10+** — we recommend the latest stable Python (currently
-  3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-  (`brew install python@3.14`) or
-  [python.org](https://www.python.org/downloads/). The extension
-  auto-discovers `python3.10`–`python3.15` on your PATH.
 - **Zed** — latest stable release
 
-The `tcl-lsp-server.pyz` zipapp bundles all Python dependencies
-internally — no `pip install` is needed. You only need a Python
-interpreter on your system. The zipapp is downloaded automatically from
-GitHub releases on first use. You can also place it in your workspace
-root or PATH for offline use.
+The extension bundles the native `tcl-lsp-server` and `tcl-mcp` binaries
+for your platform, materialises them on first use, and runs them
+directly — no Python, interpreter, or runtime dependencies are required.
+Dev extension builds fall back to a `tcl-lsp-server` on your PATH.
 
-See the [Installation Guide](../../INSTALL-editors.md#python) for
-full details on Python setup across platforms.
+See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
 ## Installation
 
@@ -218,13 +211,11 @@ analysis tools to Zed's Agent panel:
 
 ## Troubleshooting
 
-**Python not found:** Ensure `python3` (3.10+) is on your PATH. The extension
-tries versioned binaries (`python3.14`, `python3.12`, etc.) before falling
-back to `python3`.
-
-**Server download fails:** Check your network connection. The extension
-downloads from GitHub releases. You can manually download `tcl-lsp-server.pyz`
-and place it on your PATH.
+**Server not found (dev extension):** Release builds bundle the
+`tcl-lsp-server` binary, so no setup is needed. A dev extension build falls
+back to a `tcl-lsp-server` on your PATH — build it with `make rust-server`
+(or `cargo build -p tcl-lsp-server`) and put `target/release/tcl-lsp-server`
+somewhere on your PATH.
 
 **No diagnostics:** Check that `tclLsp.features.diagnostics` is not set to
 `false` in your settings.

@@ -358,20 +358,20 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Pointers
 
-- Green tree (phases 1–2): [`compiler/parsing/green_tree.py`](../../../compiler/parsing/green_tree.py)
-- Incremental reparse (phases 3–4): [`compiler/parsing/incremental.py`](../../../compiler/parsing/incremental.py)
-- Offset-shift helpers (phase 4): [`compiler/parsing/token_positions.py`](../../../compiler/parsing/token_positions.py)
-- Lexer / modes: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py),
-  [`compiler/parsing/expr_lexer.py`](../../../compiler/parsing/expr_lexer.py),
-  [`shared/tokens.py`](../../../shared/tokens.py)
-- Segmentation: [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py)
-- Recovery: [`compiler/parsing/recovery.py`](../../../compiler/parsing/recovery.py)
-- Re-lexing consumers: [`analyser/compiler_checks.py`](../../../analyser/compiler_checks.py),
-  [`compiler/var_refs.py`](../../../compiler/var_refs.py)
-- Pipeline: [`compiler/lowering.py`](../../../compiler/lowering.py)
-- LSP sync / caches: [`server/lifecycle.py`](../../../server/lifecycle.py),
-  [`server/workspace/document_state.py`](../../../server/workspace/document_state.py),
-  [`shared/document_buffer.py`](../../../shared/document_buffer.py)
+- Green tree (phases 1–2): `compiler/parsing/green_tree.py`
+- Incremental reparse (phases 3–4): `compiler/parsing/incremental.py`
+- Offset-shift helpers (phase 4): `compiler/parsing/token_positions.py`
+- Lexer / modes: `compiler/parsing/lexer.py`,
+  `compiler/parsing/expr_lexer.py`,
+  `shared/tokens.py`
+- Segmentation: `compiler/parsing/command_segmenter.py`
+- Recovery: `compiler/parsing/recovery.py`
+- Re-lexing consumers: `analyser/compiler_checks.py`,
+  `compiler/var_refs.py`
+- Pipeline: `compiler/lowering.py`
+- LSP sync / caches: `server/lifecycle.py`,
+  `server/workspace/document_state.py`,
+  `shared/document_buffer.py`
 
 ## Related docs
 

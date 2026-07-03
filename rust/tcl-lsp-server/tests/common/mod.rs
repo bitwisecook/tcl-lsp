@@ -1,0 +1,802 @@
+//! Shared end-to-end harness for the native `tcl-lsp-server` binary.
+//!
+//! The native port of the former `tests/lsp_e2e/` pytest suite. Each test
+//! spawns the real `tcl-lsp-server` binary (via `CARGO_BIN_EXE_tcl-lsp-server`),
+//! talks LSP JSON-RPC to it over stdio, and asserts on the responses — exactly
+//! what an editor does. A background reader thread parses framed messages,
+//! routing responses to blocked requests, buffering notifications (with a
+//! condvar so `await_*` can wait), and auto-answering server-initiated requests
+//! (`workspace/configuration`) so the server never blocks.
+//!
+//! This mirrors `tests/lsp_e2e/harness.py`'s `LspServerClient`: same request /
+//! notify / `open_ready` / `await_diagnostics` / `await_log` contract, same XDG
+//! isolation, same per-section configuration reply.
+//!
+//! Not every helper is used by every test file, so `#![allow(dead_code)]` at the
+//! module level keeps unused-in-this-binary helpers from warning (each
+//! integration-test binary compiles this module independently).
+
+#![allow(dead_code)]
+
+pub mod helpers;
+
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
+
+use serde_json::{Value, json};
+
+/// Default per-request timeout, matching the pytest harness (`timeout=30.0`).
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Longer default for `initialize` / `request` without an explicit deadline.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Process-wide counter so `unique_uri` never collides across tests in one
+/// integration-test binary (each binary is its own process).
+static URI_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// A fresh, unique `file://` URI — the native analogue of pytest's
+/// `uri_factory`. Version-tagged diagnostics never collide because the path is
+/// unique per call.
+pub fn unique_uri(suffix: &str) -> String {
+    let n = URI_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("file:///e2e/{}_{n}.{suffix}", std::process::id())
+}
+
+/// A reproducible `xorshift64*` PRNG — the same generator the `tcl-fuzz` crate
+/// uses (`rust/tcl-fuzz/src/rng.rs`), so seeded stress tests stay deterministic
+/// without pulling the `rand` crate into the workspace. Identical seeds yield
+/// identical streams. The `random`/`randint`/`choice` surface mirrors Python's
+/// `random.Random`, easing ports of seeded pytest fixtures.
+pub struct Rng {
+    state: u64,
+}
+
+impl Rng {
+    /// Seed the generator. A zero seed is remapped (xorshift needs non-zero state).
+    #[must_use]
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed },
+        }
+    }
+
+    /// Next raw 64-bit value.
+    pub fn next_u64(&mut self) -> u64 {
+        let mut x = self.state;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.state = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    /// Uniform float in `[0, 1)` (53-bit mantissa), like `random.random()`.
+    pub fn random(&mut self) -> f64 {
+        (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    /// Inclusive integer in `[lo, hi]`, like `random.randint(lo, hi)`.
+    pub fn randint(&mut self, lo: usize, hi: usize) -> usize {
+        if hi <= lo {
+            return lo;
+        }
+        lo + (self.next_u64() as usize) % (hi - lo + 1)
+    }
+
+    /// Pick a reference to a random element of a non-empty slice, like
+    /// `random.choice(seq)`.
+    pub fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
+        &items[(self.next_u64() as usize) % items.len()]
+    }
+}
+
+/// State shared between the harness and its background reader thread.
+struct Shared {
+    /// The child's stdin write half — shared so both the client (requests) and
+    /// the reader thread (auto-replies to server requests) can write frames.
+    stdin: Mutex<ChildStdin>,
+    /// Responses keyed by request id, awaiting collection.
+    responses: Mutex<HashMap<i64, Value>>,
+    /// Buffered notifications, guarded by `notify_cv`.
+    notifications: Mutex<Vec<Value>>,
+    notify_cv: Condvar,
+    /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
+    /// so `apply_configuration` can change what the server re-pulls.
+    tcllsp_config: Mutex<Value>,
+    /// Captured stderr text.
+    stderr: Mutex<String>,
+}
+
+/// A live language-server subprocess plus an LSP JSON-RPC client.
+pub struct Lsp {
+    child: Child,
+    shared: Arc<Shared>,
+    next_id: i64,
+    /// URIs opened without a matching close, so `Drop` can tidy up.
+    open_uris: Vec<String>,
+    xdg_root: std::path::PathBuf,
+    /// The `initialize` result, populated by [`Lsp::initialize`].
+    initialize_result: Value,
+}
+
+impl Lsp {
+    /// Spawn + initialise a server whose `workspace/configuration` reply enables
+    /// only linked editing (the default-editor contract the pytest `lsp_server`
+    /// fixture pins).
+    pub fn tcl() -> Self {
+        Self::with_config(json!({ "features": { "linkedEditingRange": true } }))
+    }
+
+    /// A server dedicated to iRules-dialect documents (dialect switch is
+    /// process-global, so those tests use their own server). Same config as
+    /// [`Lsp::tcl`].
+    pub fn irules() -> Self {
+        Self::tcl()
+    }
+
+    /// A server with inlay hints opted in (default-off otherwise).
+    pub fn inlay() -> Self {
+        Self::with_config(json!({
+            "features": {
+                "linkedEditingRange": true,
+                "inlayTypeHints": true,
+                "inlayParameterHints": true,
+            }
+        }))
+    }
+
+    /// A server for BIG-IP config documents. Same config as [`Lsp::tcl`].
+    pub fn bigip() -> Self {
+        Self::tcl()
+    }
+
+    /// Spawn + initialise a server whose `tclLsp` configuration reply is
+    /// `config`.
+    pub fn with_config(config: Value) -> Self {
+        let mut lsp = Self::spawn(config);
+        lsp.initialize();
+        lsp
+    }
+
+    fn spawn(config: Value) -> Self {
+        let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
+
+        // Isolate the server from the developer machine's config/cache so a
+        // local `~/.../tcl-lsp/config.ini` can't poison the defaults. Fresh
+        // empty XDG dirs make the server fall back to built-in defaults.
+        let xdg_root =
+            std::env::temp_dir().join(format!("tcl-lsp-e2e-xdg-{}-{}", std::process::id(), {
+                URI_COUNTER.fetch_add(1, Ordering::Relaxed)
+            }));
+        std::fs::create_dir_all(xdg_root.join("config")).expect("mk xdg config");
+        std::fs::create_dir_all(xdg_root.join("cache")).expect("mk xdg cache");
+
+        let mut child = Command::new(bin)
+            .env("XDG_CONFIG_HOME", xdg_root.join("config"))
+            .env("XDG_CACHE_HOME", xdg_root.join("cache"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn tcl-lsp-server");
+
+        let stdin = child.stdin.take().expect("child stdin");
+        let stdout = child.stdout.take().expect("child stdout");
+        let stderr = child.stderr.take().expect("child stderr");
+
+        let shared = Arc::new(Shared {
+            stdin: Mutex::new(stdin),
+            responses: Mutex::new(HashMap::new()),
+            notifications: Mutex::new(Vec::new()),
+            notify_cv: Condvar::new(),
+            tcllsp_config: Mutex::new(config),
+            stderr: Mutex::new(String::new()),
+        });
+
+        // Reader thread: parse frames, route messages.
+        {
+            let shared = Arc::clone(&shared);
+            std::thread::spawn(move || read_loop(stdout, shared));
+        }
+        // Stderr drain.
+        {
+            let shared = Arc::clone(&shared);
+            std::thread::spawn(move || {
+                let mut buf = String::new();
+                let _ = BufReader::new(stderr).read_to_string(&mut buf);
+                shared.stderr.lock().unwrap().push_str(&buf);
+            });
+        }
+
+        Self {
+            child,
+            shared,
+            next_id: 0,
+            open_uris: Vec::new(),
+            xdg_root,
+            initialize_result: Value::Null,
+        }
+    }
+
+    // -- lifecycle --------------------------------------------------------
+
+    /// Run the `initialize` handshake and send `initialized`.
+    pub fn initialize(&mut self) -> Value {
+        let root = format!("file:///e2e/root-{}", std::process::id());
+        let result = self.request_timeout(
+            "initialize",
+            json!({
+                "processId": std::process::id(),
+                "rootUri": root,
+                "workspaceFolders": [{ "uri": root, "name": "e2e" }],
+                "capabilities": {},
+                "clientInfo": { "name": "tcl-lsp-e2e", "version": "1.0" },
+            }),
+            REQUEST_TIMEOUT,
+        );
+        self.initialize_result = result.clone();
+        self.notify("initialized", json!({}));
+        result
+    }
+
+    /// The full `initialize` result.
+    pub fn initialize_result(&self) -> &Value {
+        &self.initialize_result
+    }
+
+    /// `serverInfo` from the `initialize` result, if present.
+    pub fn server_info(&self) -> Option<&Value> {
+        self.initialize_result.get("serverInfo")
+    }
+
+    // -- requests / notifications ----------------------------------------
+
+    /// Send a request and return its result, panicking on error or timeout.
+    pub fn request(&mut self, method: &str, params: Value) -> Value {
+        self.request_timeout(method, params, REQUEST_TIMEOUT)
+    }
+
+    /// Like [`Lsp::request`] with an explicit timeout.
+    pub fn request_timeout(&mut self, method: &str, params: Value, timeout: Duration) -> Value {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.send(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let mut responses = self.shared.responses.lock().unwrap();
+                if let Some(resp) = responses.remove(&id) {
+                    if let Some(err) = resp.get("error") {
+                        panic!("{method} -> error {err}");
+                    }
+                    return resp.get("result").cloned().unwrap_or(Value::Null);
+                }
+            }
+            if Instant::now() >= deadline {
+                panic!(
+                    "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
+                    self.stderr_text()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// Send a notification (no response expected).
+    pub fn notify(&mut self, method: &str, params: Value) {
+        self.send(&json!({ "jsonrpc": "2.0", "method": method, "params": params }));
+    }
+
+    fn send(&mut self, payload: &Value) {
+        let body = serde_json::to_vec(payload).expect("serialise JSON-RPC");
+        let mut stdin = self.shared.stdin.lock().unwrap();
+        write!(stdin, "Content-Length: {}\r\n\r\n", body.len()).expect("write header");
+        stdin.write_all(&body).expect("write body");
+        stdin.flush().expect("flush");
+    }
+
+    // -- document lifecycle ----------------------------------------------
+
+    pub fn open_document(&mut self, uri: &str, text: &str) {
+        self.open_document_lang(uri, text, "tcl", 1);
+    }
+
+    pub fn open_document_lang(&mut self, uri: &str, text: &str, language_id: &str, version: i64) {
+        self.notify(
+            "textDocument/didOpen",
+            json!({ "textDocument": {
+                "uri": uri, "languageId": language_id, "version": version, "text": text,
+            }}),
+        );
+        self.open_uris.push(uri.to_owned());
+    }
+
+    /// Send a `didChange` with the raw `contentChanges` array.
+    pub fn change_document(&mut self, uri: &str, version: i64, changes: Value) {
+        self.notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": changes,
+            }),
+        );
+    }
+
+    /// A full-text replace at `version`.
+    pub fn replace_document(&mut self, uri: &str, version: i64, text: &str) {
+        self.change_document(uri, version, json!([{ "text": text }]));
+    }
+
+    pub fn close_document(&mut self, uri: &str) {
+        self.notify(
+            "textDocument/didClose",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        self.open_uris.retain(|u| u != uri);
+    }
+
+    /// Open `text` and block until its analysis snapshot is ready, returning the
+    /// published diagnostics. Waits on both the version-tagged diagnostics and
+    /// the per-URI `workspace_state.update` log line (see the pytest docstring).
+    pub fn open_ready(&mut self, uri: &str, text: &str) -> Vec<Value> {
+        self.open_ready_lang(uri, text, "tcl")
+    }
+
+    /// Like [`Lsp::open_ready`] but with an explicit `languageId` (e.g.
+    /// `"tcl-irule"` for iRules, `"tk"` for Tk, `"bigip"` for BIG-IP config).
+    pub fn open_ready_lang(&mut self, uri: &str, text: &str, language_id: &str) -> Vec<Value> {
+        self.open_document_lang(uri, text, language_id, 1);
+        let diags = self.await_diagnostics_version(uri, Some(1), DEFAULT_TIMEOUT);
+        self.await_log(&["workspace_state.update", uri], DEFAULT_TIMEOUT, 0);
+        diags
+    }
+
+    /// Force `uri`'s analysis snapshot to `text` at `version` and block until it
+    /// is built. Returns `version`.
+    pub fn settle_analysis(&mut self, uri: &str, version: i64, text: &str) -> i64 {
+        let cursor = self.notification_cursor();
+        self.replace_document(uri, version, text);
+        self.await_diagnostics_version(uri, Some(version), DEFAULT_TIMEOUT);
+        self.await_log(&["workspace_state.update", uri], DEFAULT_TIMEOUT, cursor);
+        version
+    }
+
+    // -- awaiting --------------------------------------------------------
+
+    /// A marker into the notification log for `await_log(..., since)`.
+    pub fn notification_cursor(&self) -> usize {
+        self.shared.notifications.lock().unwrap().len()
+    }
+
+    /// Block until a `publishDiagnostics` for `uri` arrives; return its
+    /// diagnostics array.
+    pub fn await_diagnostics(&self, uri: &str) -> Vec<Value> {
+        self.await_diagnostics_version(uri, None, DEFAULT_TIMEOUT)
+    }
+
+    /// Block until a `publishDiagnostics` for `uri` (optionally carrying exactly
+    /// `version`) arrives; return the latest matching diagnostics array.
+    pub fn await_diagnostics_version(
+        &self,
+        uri: &str,
+        version: Option<i64>,
+        timeout: Duration,
+    ) -> Vec<Value> {
+        let deadline = Instant::now() + timeout;
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            let mut matched: Option<Vec<Value>> = None;
+            for note in notes.iter() {
+                if note.get("method").and_then(Value::as_str)
+                    != Some("textDocument/publishDiagnostics")
+                {
+                    continue;
+                }
+                let params = note.get("params").cloned().unwrap_or(Value::Null);
+                if params.get("uri").and_then(Value::as_str) != Some(uri) {
+                    continue;
+                }
+                if let Some(v) = version {
+                    if params.get("version").and_then(Value::as_i64) != Some(v) {
+                        continue;
+                    }
+                }
+                matched = Some(
+                    params
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                );
+            }
+            if let Some(diags) = matched {
+                return diags;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                panic!("no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}");
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
+    /// Block until a `window/logMessage` whose text contains all `needles`
+    /// (searching entries at index `since` onward). Returns the message text.
+    pub fn await_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {
+        let deadline = Instant::now() + timeout;
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            for note in notes.iter().skip(since) {
+                if note.get("method").and_then(Value::as_str) != Some("window/logMessage") {
+                    continue;
+                }
+                let msg = note
+                    .get("params")
+                    .and_then(|p| p.get("message"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                if needles.iter().all(|n| msg.contains(n)) {
+                    return msg.to_owned();
+                }
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                panic!("no window/logMessage containing all of {needles:?} within {timeout:?}");
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
+    /// Block until a notification with `method` arrives; return it.
+    pub fn await_notification(&self, method: &str, timeout: Duration) -> Value {
+        let deadline = Instant::now() + timeout;
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            if let Some(note) = notes
+                .iter()
+                .find(|n| n.get("method").and_then(Value::as_str) == Some(method))
+            {
+                return note.clone();
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                panic!("no {method:?} notification within {timeout:?}");
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
+    }
+
+    /// Drop buffered notifications so a later `await_*` only sees fresh ones.
+    pub fn clear_notifications(&self) {
+        self.shared.notifications.lock().unwrap().clear();
+    }
+
+    /// A snapshot of all buffered notifications.
+    pub fn notifications(&self) -> Vec<Value> {
+        self.shared.notifications.lock().unwrap().clone()
+    }
+
+    pub fn stderr_text(&self) -> String {
+        self.shared.stderr.lock().unwrap().clone()
+    }
+
+    // -- feature requests ------------------------------------------------
+
+    fn doc_pos(uri: &str, line: u32, ch: u32) -> Value {
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": line, "character": ch },
+        })
+    }
+
+    pub fn hover(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/hover", Self::doc_pos(uri, line, ch))
+    }
+    pub fn completion(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/completion", Self::doc_pos(uri, line, ch))
+    }
+    pub fn signature_help(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/signatureHelp", Self::doc_pos(uri, line, ch))
+    }
+    pub fn definition(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/definition", Self::doc_pos(uri, line, ch))
+    }
+    pub fn type_definition(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/typeDefinition", Self::doc_pos(uri, line, ch))
+    }
+    pub fn declaration(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/declaration", Self::doc_pos(uri, line, ch))
+    }
+    pub fn references(&mut self, uri: &str, line: u32, ch: u32, include_decl: bool) -> Value {
+        let mut params = Self::doc_pos(uri, line, ch);
+        params["context"] = json!({ "includeDeclaration": include_decl });
+        self.request("textDocument/references", params)
+    }
+    pub fn document_highlight(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/documentHighlight", Self::doc_pos(uri, line, ch))
+    }
+    pub fn document_symbols(&mut self, uri: &str) -> Value {
+        self.request(
+            "textDocument/documentSymbol",
+            json!({ "textDocument": { "uri": uri } }),
+        )
+    }
+    pub fn workspace_symbols(&mut self, query: &str) -> Value {
+        self.request("workspace/symbol", json!({ "query": query }))
+    }
+    pub fn semantic_tokens(&mut self, uri: &str) -> Value {
+        self.request(
+            "textDocument/semanticTokens/full",
+            json!({ "textDocument": { "uri": uri } }),
+        )
+    }
+    pub fn implementation(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/implementation", Self::doc_pos(uri, line, ch))
+    }
+    pub fn document_links(&mut self, uri: &str) -> Value {
+        self.request(
+            "textDocument/documentLink",
+            json!({ "textDocument": { "uri": uri } }),
+        )
+    }
+    pub fn code_lens(&mut self, uri: &str) -> Value {
+        self.request(
+            "textDocument/codeLens",
+            json!({ "textDocument": { "uri": uri } }),
+        )
+    }
+    pub fn code_lens_resolve(&mut self, lens: Value) -> Value {
+        self.request("codeLens/resolve", lens)
+    }
+    pub fn inlay_hints(&mut self, uri: &str, start: (u32, u32), end: (u32, u32)) -> Value {
+        self.request(
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start.0, "character": start.1 },
+                    "end": { "line": end.0, "character": end.1 },
+                },
+            }),
+        )
+    }
+    pub fn linked_editing_range(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/linkedEditingRange", Self::doc_pos(uri, line, ch))
+    }
+    pub fn prepare_call_hierarchy(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request(
+            "textDocument/prepareCallHierarchy",
+            Self::doc_pos(uri, line, ch),
+        )
+    }
+    pub fn incoming_calls(&mut self, item: Value) -> Value {
+        self.request("callHierarchy/incomingCalls", json!({ "item": item }))
+    }
+    pub fn outgoing_calls(&mut self, item: Value) -> Value {
+        self.request("callHierarchy/outgoingCalls", json!({ "item": item }))
+    }
+    pub fn prepare_rename(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request("textDocument/prepareRename", Self::doc_pos(uri, line, ch))
+    }
+    pub fn rename(&mut self, uri: &str, line: u32, ch: u32, new_name: &str) -> Value {
+        let mut params = Self::doc_pos(uri, line, ch);
+        params["newName"] = json!(new_name);
+        self.request("textDocument/rename", params)
+    }
+    pub fn folding_range(&mut self, uri: &str) -> Value {
+        self.request(
+            "textDocument/foldingRange",
+            json!({ "textDocument": { "uri": uri } }),
+        )
+    }
+    pub fn selection_range(&mut self, uri: &str, positions: Value) -> Value {
+        self.request(
+            "textDocument/selectionRange",
+            json!({ "textDocument": { "uri": uri }, "positions": positions }),
+        )
+    }
+    pub fn formatting(&mut self, uri: &str, tab_size: u32, insert_spaces: bool) -> Value {
+        self.request(
+            "textDocument/formatting",
+            json!({
+                "textDocument": { "uri": uri },
+                "options": { "tabSize": tab_size, "insertSpaces": insert_spaces },
+            }),
+        )
+    }
+    pub fn range_formatting(&mut self, uri: &str, range: Value, tab_size: u32) -> Value {
+        self.request(
+            "textDocument/rangeFormatting",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": range,
+                "options": { "tabSize": tab_size, "insertSpaces": true },
+            }),
+        )
+    }
+    pub fn code_actions(&mut self, uri: &str, range: Value, diagnostics: Value) -> Value {
+        self.request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": range,
+                "context": { "diagnostics": diagnostics },
+            }),
+        )
+    }
+    pub fn execute_command(&mut self, command: &str, arguments: Value) -> Value {
+        self.request(
+            "workspace/executeCommand",
+            json!({ "command": command, "arguments": arguments }),
+        )
+    }
+
+    // -- configuration ---------------------------------------------------
+
+    /// The server's *resolved* config for `uri` (`tcl-lsp.getEffectiveConfig`) —
+    /// the view the analyser/formatter actually applies.
+    pub fn effective_config(&mut self, uri: &str) -> Value {
+        self.execute_command("tcl-lsp.getEffectiveConfig", json!([uri]))
+    }
+
+    /// Make the server adopt `config` as the `tclLsp` section: update the reply
+    /// this client returns for `workspace/configuration` and notify
+    /// `didChangeConfiguration` so the server re-pulls. Returns the resolved
+    /// config for `""`. Because each test owns its server, there is no shared
+    /// state to restore (unlike pytest's `config_session`).
+    pub fn apply_configuration(&mut self, config: Value) -> Value {
+        *self.shared.tcllsp_config.lock().unwrap() = config;
+        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        self.effective_config("")
+    }
+
+    /// Apply `config`, then poll `getEffectiveConfig` for `settle_uri` until
+    /// `predicate` holds (the deterministic barrier pytest's
+    /// `apply_configuration(settle=...)` provides). Returns the settled config.
+    pub fn apply_configuration_settle(
+        &mut self,
+        config: Value,
+        settle_uri: &str,
+        predicate: impl Fn(&Value) -> bool,
+    ) -> Value {
+        *self.shared.tcllsp_config.lock().unwrap() = config;
+        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        let deadline = Instant::now() + DEFAULT_TIMEOUT;
+        let mut last = Value::Null;
+        while Instant::now() < deadline {
+            last = self.effective_config(settle_uri);
+            if predicate(&last) {
+                return last;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("config did not settle within {DEFAULT_TIMEOUT:?}; last: {last}");
+    }
+}
+
+impl Drop for Lsp {
+    fn drop(&mut self) {
+        // Best-effort graceful shutdown, then ensure the child is reaped.
+        let shutdown = json!({ "jsonrpc": "2.0", "id": -1, "method": "shutdown", "params": null });
+        self.send(&shutdown);
+        let exit = json!({ "jsonrpc": "2.0", "method": "exit", "params": null });
+        self.send(&exit);
+        // Give it a moment, then kill unconditionally.
+        std::thread::sleep(Duration::from_millis(50));
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_dir_all(&self.xdg_root);
+    }
+}
+
+/// The background reader loop: parse framed messages from `stdout` and route
+/// them. Server-initiated requests are answered via the shared stdin.
+fn read_loop(stdout: std::process::ChildStdout, shared: Arc<Shared>) {
+    let mut reader = BufReader::new(stdout);
+    loop {
+        // Read headers.
+        let mut content_length = 0usize;
+        let mut saw_header = false;
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => return, // EOF: server exited.
+                Ok(_) => {}
+                Err(_) => return,
+            }
+            let trimmed = line.trim_end_matches(['\r', '\n']);
+            if trimmed.is_empty() {
+                break;
+            }
+            saw_header = true;
+            if let Some(rest) = trimmed
+                .to_ascii_lowercase()
+                .strip_prefix("content-length:")
+            {
+                content_length = rest.trim().parse().unwrap_or(0);
+            }
+        }
+        if !saw_header || content_length == 0 {
+            continue;
+        }
+        let mut body = vec![0u8; content_length];
+        if reader.read_exact(&mut body).is_err() {
+            return;
+        }
+        let Ok(msg) = serde_json::from_slice::<Value>(&body) else {
+            continue;
+        };
+        route(&msg, &shared);
+    }
+}
+
+fn route(msg: &Value, shared: &Arc<Shared>) {
+    let has_id = msg.get("id").is_some_and(|v| !v.is_null());
+    let is_request = msg.get("method").is_some();
+
+    if has_id && !is_request {
+        // Response to one of our requests.
+        if let Some(id) = msg.get("id").and_then(Value::as_i64) {
+            shared.responses.lock().unwrap().insert(id, msg.clone());
+        }
+    } else if has_id && is_request {
+        // Server-initiated request — answer so the server never blocks.
+        auto_reply(msg, shared);
+    } else {
+        // Notification.
+        shared.notifications.lock().unwrap().push(msg.clone());
+        shared.notify_cv.notify_all();
+    }
+}
+
+fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
+    let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
+    let result = if method == "workspace/configuration" {
+        let items = msg
+            .get("params")
+            .and_then(|p| p.get("items"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        Value::Array(
+            items
+                .iter()
+                .map(|item| {
+                    if item.get("section").and_then(Value::as_str) == Some("tclLsp") {
+                        shared.tcllsp_config.lock().unwrap().clone()
+                    } else {
+                        Value::Null
+                    }
+                })
+                .collect(),
+        )
+    } else {
+        Value::Null
+    };
+    let payload = json!({ "jsonrpc": "2.0", "id": msg.get("id"), "result": result });
+    let body = serde_json::to_vec(&payload).unwrap_or_default();
+    let mut stdin = shared.stdin.lock().unwrap();
+    let _ = write!(stdin, "Content-Length: {}\r\n\r\n", body.len());
+    let _ = stdin.write_all(&body);
+    let _ = stdin.flush();
+}

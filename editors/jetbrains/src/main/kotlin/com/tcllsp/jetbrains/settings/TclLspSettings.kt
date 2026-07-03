@@ -13,6 +13,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     // General
 
+    // Kept for XML deserialization of old settings; the server is now a
+    // bundled native binary launched directly, so no Python interpreter is
+    // discovered or used.
     var pythonPath: String = "auto"
     var serverPath: String = ""
     var dialect: String = "tcl8.6"

@@ -17,7 +17,6 @@ private val LOG = Logger.getInstance("com.tcllsp.jetbrains.settings.TclLspSettin
 class TclLspSettingsPanel {
 
     // General
-    private val pythonPathField = JBTextField(30)
     private val serverPathField = JBTextField(30)
     private val dialectCombo = JComboBox(
         TclLspSettings.DIALECT_OPTIONS.map { it.second }.toTypedArray()
@@ -274,10 +273,8 @@ class TclLspSettingsPanel {
 
         // General section
         builder.addComponent(TitledSeparator("General"))
-        builder.addLabeledComponent(JBLabel("Python path:"), pythonPathField)
-        builder.addTooltip("Path to Python 3.10+ interpreter. 'auto' discovers the best available.")
         builder.addLabeledComponent(JBLabel("Server path:"), serverPathField)
-        builder.addTooltip("Path to tcl-lsp project root (dev mode). Leave empty for bundled server.")
+        builder.addTooltip("Path to a tcl-lsp checkout root (probes target/{release,debug}/tcl-lsp-server) or directly to a built native binary (dev mode). Leave empty to use the bundled server.")
         builder.addLabeledComponent(JBLabel("Dialect:"), dialectCombo)
         builder.addLabeledComponent(JBLabel("Extra commands:"), extraCommandsField)
         builder.addTooltip("Comma-separated list of additional command names to treat as known.")
@@ -473,8 +470,7 @@ class TclLspSettingsPanel {
 
     fun isModified(): Boolean {
         val s = TclLspSettings.getInstance()
-        return pythonPathField.text != s.pythonPath ||
-            serverPathField.text != s.serverPath ||
+        return serverPathField.text != s.serverPath ||
             dialectCombo.selectedIndex != TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect } ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
@@ -700,9 +696,7 @@ class TclLspSettingsPanel {
         // the LSP server needs to be restarted to pick up a new command
         // line. Other settings flow through workspace/configuration on
         // the next request and don't require a restart.
-        val oldPythonPath = s.pythonPath
         val oldServerPath = s.serverPath
-        s.pythonPath = pythonPathField.text
         s.serverPath = serverPathField.text
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
         s.extraCommands = extraCommandsField.text
@@ -920,14 +914,14 @@ class TclLspSettingsPanel {
         s.aiExtraPrompts = aiExtraPrompts.text
         s.diagnosticsGenericVariablePatterns = genericPatternsField.text
 
-        if (s.pythonPath != oldPythonPath || s.serverPath != oldServerPath) {
+        if (s.serverPath != oldServerPath) {
             restartLspServers()
         }
     }
 
     /**
      * Restart the Tcl LSP server in every open project. Called after
-     * launch-affecting settings change (Python path, server path) so
+     * launch-affecting settings change (server path) so
      * the user picks up the new command line without restarting the
      * IDE. Non-launch settings (features, formatting, diagnostics, …)
      * are sent to the running server via workspace/configuration and
@@ -948,7 +942,6 @@ class TclLspSettingsPanel {
 
     fun reset() {
         val s = TclLspSettings.getInstance()
-        pythonPathField.text = s.pythonPath
         serverPathField.text = s.serverPath
         dialectCombo.selectedIndex = TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect }.coerceAtLeast(0)
         extraCommandsField.text = s.extraCommands

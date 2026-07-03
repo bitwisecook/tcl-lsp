@@ -1,5 +1,17 @@
 # Production-readiness assessment — retiring Python (2026-06-23)
 
+> **Update (2026): superseded — the blockers below were resolved and
+> Python is now fully retired on this branch.** The distribution blockers
+> (CLI/MCP shipping only as `.pyz`, editors launching `python3 …pyz`,
+> `install.sh` installing only zipapps, `docker create` emitting
+> `apt install python3` + `python3 tcl.pyz`) are gone: `tcl`, `f5-query`,
+> `tcl-lsp-server`, and `tcl-mcp` ship as native binaries, all editors
+> launch the native server, and the Python engine has been deleted. This
+> is a **dated snapshot** from 2026-06-23 (branch
+> `claude/exciting-planck-q7rj94`); its "Short answer: not yet" verdict
+> reflects that moment, not the current (completed) state. Retained as
+> the readiness-audit record.
+
 > **Question:** can Python be retired, leaving the Rust implementation as the sole
 > production product? **Short answer: not yet — and the gap is larger than the
 > parity audit implied.** This assessment grades the Rust workspace against a

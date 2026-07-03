@@ -330,13 +330,13 @@ and the refactoring body splitters left to fold onto `descend_*`.
 
 ## Pointers
 
-- Green layer: [`compiler/parsing/syntax/green.py`](../../../compiler/parsing/syntax/green.py)
-- Red layer: [`compiler/parsing/syntax/red.py`](../../../compiler/parsing/syntax/red.py)
-- Descent: [`compiler/parsing/syntax/descend.py`](../../../compiler/parsing/syntax/descend.py)
-- Constructor: [`compiler/parsing/syntax/build.py`](../../../compiler/parsing/syntax/build.py)
-- Segment derivation: [`compiler/parsing/syntax/segment.py`](../../../compiler/parsing/syntax/segment.py)
-- Segmenter (consumer): [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py)
-- Tests: [`tests/test_syntax_tree.py`](../../../tests/test_syntax_tree.py)
+- Green layer: `compiler/parsing/syntax/green.py`
+- Red layer: `compiler/parsing/syntax/red.py`
+- Descent: `compiler/parsing/syntax/descend.py`
+- Constructor: `compiler/parsing/syntax/build.py`
+- Segment derivation: `compiler/parsing/syntax/segment.py`
+- Segmenter (consumer): `compiler/parsing/command_segmenter.py`
+- Tests: `tests/test_syntax_tree.py`
 
 ## Related docs
 

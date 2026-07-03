@@ -18,7 +18,7 @@ MCP, all-editors
 | VS Code | `Tcl: Select Dialect` command palette, or automatic from file extension |
 | Any LSP editor | `tclLsp.dialect` workspace setting |
 | MCP | `set_dialect` tool |
-| CLI | `--dialect` flag on `tcl_ai.py` |
+| CLI | `--dialect` flag on the `tcl` binary |
 
 ## How to use
 
