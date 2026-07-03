@@ -26,10 +26,9 @@
 //! precise split offset) are intentionally NOT asserted here — they belong to the
 //! language-internal unit/differential/fuzz suites.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 use std::collections::BTreeSet;

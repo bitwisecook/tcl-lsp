@@ -157,7 +157,7 @@ async fn after_integer_ms_is_not_flagged_w001_e2e() {
         .await
         .unwrap();
     drop(writer);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 #[tokio::test]
@@ -179,7 +179,7 @@ async fn nested_expr_in_command_sub_is_not_flagged_w114_e2e() {
         .await
         .unwrap();
     drop(writer);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 #[tokio::test]
@@ -218,5 +218,5 @@ async fn method_param_definition_resolves_to_name_e2e() {
         .await
         .unwrap();
     drop(writer);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }

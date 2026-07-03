@@ -3,10 +3,9 @@
 //! Document highlight, end-to-end against the packaged server. Highlight kinds
 //! come back as raw LSP integers: 1=Text, 2=Read, 3=Write.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 

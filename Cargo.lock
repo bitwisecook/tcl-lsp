@@ -4026,6 +4026,7 @@ dependencies = [
  "rustc-hash",
  "sha2",
  "tcl-core-types",
+ "tcl-lexer",
  "tcl-syntax",
 ]
 

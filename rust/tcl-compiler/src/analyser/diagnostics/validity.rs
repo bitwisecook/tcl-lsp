@@ -668,51 +668,76 @@ impl Analyser {
             return;
         }
 
-        let mut i = 0;
-        let mut clause_count: usize = 0;
+        // Mandatory first clause: ``COND ?then? BODY``.  A leading ``else`` /
+        // ``elseif`` keyword sits in the condition slot — Tcl would take it as a
+        // bareword condition (a runtime error), but structurally it's an
+        // almost-certain misplaced keyword, so it's linted as malformed (see
+        // ``analyse_emits_e004_for_if_with_only_else``).
+        if args[0] == "else" || args[0] == "elseif" {
+            push_malformed(self);
+            return;
+        }
+        let mut i = 1; // args[0] is the condition
+        if i < args.len() && args[i] == "then" {
+            i += 1;
+        }
+        if i >= args.len() {
+            // Condition (or ``COND then``) with no body — ``if {1}`` / ``if {1}
+            // then``.
+            push_malformed(self);
+            return;
+        }
+        i += 1; // consume the first body
+
+        // Optional tail: an ``elseif`` chain, a final ``else BODY``, or a bare
+        // implicit-else BODY (Tcl allows ``if {c} {then} {else}`` with no
+        // ``else`` keyword).
         while i < args.len() {
             if args[i] == "elseif" {
-                i += 1;
-                continue;
-            }
-            if args[i] == "else" {
-                if i + 1 >= args.len() {
-                    // Bare ``else`` with no body following.
+                i += 1; // consume ``elseif``
+                if i >= args.len() {
+                    // ``elseif`` with no condition.
                     push_malformed(self);
                     return;
                 }
-                if i + 2 < args.len() {
+                i += 1; // condition
+                if i < args.len() && args[i] == "then" {
+                    i += 1;
+                }
+                if i >= args.len() {
+                    // ``elseif COND`` with no body.
+                    push_malformed(self);
+                    return;
+                }
+                i += 1; // body
+                continue;
+            }
+            if args[i] == "else" {
+                i += 1; // consume ``else``
+                if i >= args.len() {
+                    // ``else`` with no body following.
+                    push_malformed(self);
+                    return;
+                }
+                i += 1; // else body
+                if i < args.len() {
                     // ``else BODY <extra...>``.
                     push_extra_words(self);
                     return;
                 }
-                // ``else BODY`` — well-formed terminator.  An else-only
-                // clause does not count as a clause, so ``if else BODY``
-                // produces a ``"malformed if"`` barrier; leave
-                // ``clause_count`` unchanged in this arm.
-                break;
+                return; // ``… else BODY`` — well-formed.
             }
-
-            // Condition + (optional ``then``) + body shape.
+            // A bare word here is the implicit-else body (no ``else`` keyword).
+            // Exactly one is well-formed; any trailing words are the "extra
+            // words after else" error Tcl reports for ``if {1} {a} {b} {c}``.
             i += 1;
-            if i < args.len() && args[i] == "then" {
-                i += 1;
-            }
-            if i >= args.len() {
-                // Condition with no following body.
-                push_malformed(self);
+            if i < args.len() {
+                push_extra_words(self);
                 return;
             }
-            clause_count += 1;
-            i += 1;
+            return; // implicit ``… else`` — well-formed.
         }
-
-        if clause_count == 0 {
-            // E.g. ``if elseif`` / ``if else`` after the elseif-skip
-            // / else-skip branches consume their keywords without
-            // producing a clause.
-            push_malformed(self);
-        }
+        // Ran out exactly after a clause (``if {1} {a}``) — well-formed.
     }
 
     /// **W304.** Emit "Missing option terminator (`--`)" diagnostics

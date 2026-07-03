@@ -1340,6 +1340,40 @@ mod tests {
     }
 
     #[test]
+    fn apply_body_proc_registers_in_global_namespace_not_caller() {
+        // `apply`'s body runs in the *global* namespace (no lambda namespace
+        // given), NOT the caller's — so a nested `proc` registers as `::helper`,
+        // never `::foo::helper` (Tcl `apply` manual; matches the IR lowering).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval foo { apply {{} { proc helper {} { return 1 } }} }",
+            "tcl",
+        );
+        assert!(
+            r.all_procs.contains_key("::helper"),
+            "apply body proc must register globally: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.contains_key("::foo::helper"),
+            "apply body proc must NOT inherit the caller namespace: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn apply_body_proc_honours_explicit_lambda_namespace() {
+        // A lambda pinning a namespace (element 2) runs its body there.
+        let mut a = Analyser::new();
+        let r = a.analyse("apply {{} { proc helper {} { return 1 } } ::bar}", "tcl");
+        assert!(
+            r.all_procs.contains_key("::bar::helper"),
+            "explicit lambda namespace must be honoured: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn unknown_lexer_warning_maps_to_e200() {
         // An unterminated `$arr(idx` array index makes the lexer emit a
         // "missing )" warning, which has no dedicated recovery code — it

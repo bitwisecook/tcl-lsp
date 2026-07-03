@@ -13,9 +13,8 @@
 //! directions), so it is exercised explicitly here via a second
 //! `apply_configuration_settle` back to the enabled state.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 

@@ -15,7 +15,7 @@
 //! and exists only so a divergence between it and the server is a failure.
 //!
 //! The `random.Random(seed)` fixtures from the pytest source are driven by the
-//! project's canonical reproducible generator ([`common::Rng`], the `xorshift64*`
+//! project's canonical reproducible generator ([`crate::common::Rng`], the `xorshift64*`
 //! the `tcl-fuzz` crate uses) seeded with the same explicit seeds — the seeds are
 //! kept because a stress test wants reproducible replay. The oracle
 //! (mirror-vs-server equivalence) validates the server for *any* edit sequence,
@@ -23,10 +23,9 @@
 //! not load-bearing — a deterministic, hostile mix of
 //! insert/delete/replace/newline/astral edits is.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, Rng, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, Rng, unique_uri};
 
 use serde_json::{Value, json};
 use std::time::Duration;

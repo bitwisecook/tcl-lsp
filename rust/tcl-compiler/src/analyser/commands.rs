@@ -430,6 +430,13 @@ impl Analyser {
             return;
         }
 
+        // apply {{params} body} — an anonymous lambda. Owns its body walk
+        // (binds params, analyses element 1) so the generic `ArgRole::Body`
+        // recursion below never mis-reads the parameter list as a command.
+        if self.handle_apply_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // Variable-mutating handlers. These are void-returning
         // and silently no-op if the cmd_name doesn't match —
         // safe to call sequentially.

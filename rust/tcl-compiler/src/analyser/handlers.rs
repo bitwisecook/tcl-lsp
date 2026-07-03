@@ -271,9 +271,16 @@ impl Analyser {
         let normalised_qual: String = qualified.trim_start_matches(':').to_string();
         let shadow_name: Option<String> = {
             let builtins = self.builtin_command_names();
-            if builtins.contains(&normalised_proc) {
+            // A `tcl::mathop` operator (`%`, `+`, `eq`, …) carries a bare-name
+            // registry entry only so an `import`ed / `namespace path`-reachable
+            // call resolves; the command itself lives in `::tcl::mathop`, not the
+            // global namespace, so `proc %` shadows nothing reachable. Detect it
+            // by its qualified spelling and treat it like the other namespaced
+            // (non-core-global) commands the check already skips.
+            let is_mathop = |n: &str| builtins.contains(&format!("tcl::mathop::{n}"));
+            if builtins.contains(&normalised_proc) && !is_mathop(&normalised_proc) {
                 Some(normalised_proc.clone())
-            } else if builtins.contains(&normalised_qual) {
+            } else if builtins.contains(&normalised_qual) && !is_mathop(&normalised_qual) {
                 Some(normalised_qual.clone())
             } else {
                 None
@@ -447,6 +454,165 @@ impl Analyser {
             self.last_comment = saved_comment;
         }
 
+        true
+    }
+
+    /// Handle an `apply {{params} body ?ns?} ?arg ...?` invocation.
+    ///
+    /// `apply`'s first argument is a *lambda* (an anonymous procedure), **not**
+    /// a plain script body: element 0 is the parameter list and element 1 is
+    /// the body. The `apply` registry spec marks the argument `ArgRole::Body`,
+    /// so without this handler the generic body-recursion in
+    /// [`Analyser::dispatch_body_arguments`] treats the whole `{{params} body}`
+    /// literal as a *script* — mis-reading the parameter list as a command
+    /// (`apply {{a} {…}}` ⇒ a spurious W123 "unknown command 'a'") and never
+    /// linting the real body.
+    ///
+    /// This models the lambda like a `proc`: the parameters bind as locals in a
+    /// fresh proc scope and element 1 is walked as the body (deferred during the
+    /// per-item shell pass, inline otherwise — mirroring
+    /// [`Analyser::handle_proc_command`], so the incremental and full paths stay
+    /// byte-identical). The body is walked in the *lambda's* namespace — element
+    /// 2 of the lambda, or the global namespace `::` when absent — not the
+    /// caller's, so a nested `proc` registers under the qualified name the
+    /// runtime `apply` gives it (`::p`, not `::caller::p`). Returns `true` when
+    /// the command was an `apply` with a
+    /// statically-inspectable braced lambda literal, so the caller skips the
+    /// generic body recursion. A dynamic lambda (`apply $lambda …`) returns
+    /// `false` and falls through to the generic path (whose `analyse_body` is a
+    /// no-op on the non-braced word), preserving its existing behaviour.
+    pub fn handle_apply_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "apply" || args.is_empty() || arg_tokens.is_empty() {
+            return false;
+        }
+        let lambda_tok = arg_tokens[0];
+        // Only a *braced* literal lambda can be split and offset-mapped safely
+        // (its content is verbatim source). A `$var` / `[cmd]` / quoted lambda
+        // is opaque — leave it to the generic path (a no-op for a non-braced
+        // body word), so nothing regresses for dynamic lambdas.
+        let lambda_start = lambda_tok.span.start() as usize;
+        if lambda_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(lambda_start) != Some(&b'{')
+        {
+            return false;
+        }
+
+        // Split the lambda literal into its list elements. Re-segmenting the
+        // brace-stripped content (`args[0]`) at the lambda's absolute content
+        // offset yields the elements as command words carrying absolute-span
+        // tokens; flattening across commands keeps params / body paired even
+        // when a multi-line lambda puts them on separate lines (a newline
+        // splits *commands*, not *list elements*).
+        let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            &args[0],
+            base,
+            self.lexer_config(),
+        );
+        let elements: Vec<(Token, &str)> = segmented
+            .iter()
+            .flat_map(|c| {
+                c.argv
+                    .iter()
+                    .copied()
+                    .zip(c.texts.iter().map(String::as_str))
+            })
+            .collect();
+        // A lambda needs at least a parameter list and a body.
+        if elements.len() < 2 {
+            return true;
+        }
+        let (params_tok, params_text) = elements[0];
+        let (body_tok, body_text) = elements[1];
+
+        // The body must itself be a braced literal to walk statically (matching
+        // `analyse_body`'s own `TokenType::Str` guard); a bare / substituted
+        // body is left un-analysed, identically on the inline and per-item
+        // paths so the two never diverge.
+        if body_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(body_tok.span.start() as usize) != Some(&b'{')
+        {
+            return true;
+        }
+
+        // `apply` runs the lambda body in the namespace named by lambda element
+        // 2, or the *global* namespace when it is absent — never the caller's
+        // namespace (Tcl `apply` manual). Derive the body namespace so a nested
+        // `proc` registers under the qualified name the runtime `apply` would
+        // give it (`::p`, not `::caller::p`). A non-`::`-qualified pin resolves
+        // relative to the caller (as `TclGetNamespaceFromObj`); absent → global.
+        let body_ns = match elements.get(2).map(|(_, t)| *t) {
+            Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
+                let caller_ns = self.namespace_from_scope_path(scope_path);
+                qualify(caller_ns.trim_start_matches(':'), ns)
+            }
+            _ => "::".to_string(),
+        };
+
+        let params = parse_param_list(params_text);
+        let body_text = body_text.to_string();
+        let body_span = body_tok.span;
+        // Anonymous, but keyed by source position so two lambdas never collide
+        // in `all_variables` (keyed `"<scope_name>::<var>"`).
+        let scope_name = format!("apply@{}", lambda_tok.span.start());
+
+        // Root the lambda scope at `body_ns` under the global scope — NOT under
+        // the caller — via the same `reconstruct_proc_scope` the per-item path
+        // uses, so the inline (full) and per-item (incremental) walks build
+        // byte-identical structure and nested definitions resolve to `body_ns`.
+        let child_path = super::per_item::reconstruct_proc_scope(
+            &mut self.result.global_scope,
+            &body_ns,
+            &scope_name,
+            super::types::ScopeKind::Proc,
+        );
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &child_path)
+        {
+            scope.body_span = Some(body_span);
+        }
+
+        // Parameters become locals, each anchored to its name in the param-list
+        // literal (issue #727) so go-to-definition / references / rename on a
+        // formal resolve to the parameter, not the `apply` call.
+        let param_spans = self
+            .source
+            .get(params_tok.span.start() as usize..params_tok.span.end() as usize)
+            .map(|raw| param_name_spans(raw, params_tok.span.start()))
+            .unwrap_or_default();
+        for (i, p) in params.iter().enumerate() {
+            self.define_var(
+                &p.name,
+                params_tok,
+                &child_path,
+                false,
+                param_spans.get(i).copied(),
+            );
+        }
+
+        // Save / restore last_comment around the body walk, as `proc` does, so a
+        // doc-comment inside the lambda body doesn't bleed to what follows.
+        let saved_comment = std::mem::take(&mut self.last_comment);
+        if self.defer_proc_bodies {
+            self.deferred_bodies.push(super::per_item::DeferredBody {
+                body_text,
+                body_tok,
+                scope_path: child_path.clone(),
+                is_method: false,
+                namespace: body_ns,
+                scope_name,
+                params,
+                class_variables: Vec::new(),
+            });
+        } else {
+            self.analyse_body(&body_text, body_tok, &child_path);
+        }
+        self.last_comment = saved_comment;
         true
     }
 

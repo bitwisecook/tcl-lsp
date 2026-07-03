@@ -165,7 +165,7 @@ async fn pull_capable_client_still_gets_push_by_default() {
         .await
         .unwrap();
     drop(client_write);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 #[tokio::test]
@@ -232,7 +232,7 @@ async fn push_only_client_still_receives_one_push() {
         .await
         .unwrap();
     drop(client_write);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 #[tokio::test]
@@ -317,7 +317,7 @@ async fn code_lens_resolve_returns_show_references_command() {
         .await
         .unwrap();
     drop(client_write);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 /// The analyser's `catch`-body walk must surface end-to-end: an unbraced
@@ -387,5 +387,5 @@ async fn catch_body_diagnostics_are_delivered() {
         .await
         .unwrap();
     drop(client_write);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
