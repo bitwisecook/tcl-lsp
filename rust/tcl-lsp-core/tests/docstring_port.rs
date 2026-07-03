@@ -22,7 +22,9 @@
 //!     `# @brief TODO: describe <proc>` header, then `# @param <name>`
 //!     lines with `- (default: <value>)` for defaulted params and
 //!     `- Additional arguments` for the `args` varargs sentinel.  The
-//!     PLAIN tag-style and decoration options remain `// GAP:`.
+//!     PLAIN tag-style and decoration variants of the renderer are public
+//!     (`formatting::render_comment_block`) and unit-tested in
+//!     `formatting::docstring`; the code action just always picks DOXYGEN.
 //!
 //! ## Proof split
 //!
@@ -569,35 +571,27 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
 }
 
 // ===========================================================================
+// Covered elsewhere — the structured `DocstringInfo` surface.
+// ===========================================================================
+//
+// `formatting::docstring` exposes the public `DocstringInfo` value type and
+// its helpers directly, so these behaviours are unit-tested there rather than
+// through this file's LSP-surface fixtures:
+//
+//   * `render_comment_block` re-emits a `DocstringInfo` into a `#`-comment
+//     block in Doxygen (`# @brief …` / `# @param name - …` / `# @return …`)
+//     or PLAIN (`# Arguments:` / `#   name - desc` / `# Returns: …`) style,
+//     with optional decoration borders and indent.  (The "generate docstring"
+//     code action always picks the DOXYGEN skeleton, which is what the
+//     fixtures above assert; the styled variants are exercised as unit tests.)
+//   * `DocstringInfo::to_json` serialises to the AI-tool dict shape, omitting
+//     empty fields.
+//   * `resolve_tag_style` maps a case-insensitive style string to the enum.
+//
+// ===========================================================================
 // GAP catalogue — docstring behaviours with NO `tcl-lsp-core` equivalent
 // (no public surface to assert against).  Recorded here, not tested.
 // ===========================================================================
-//
-// GAP: comment-block re-emission (`render_comment_block`) — re-emitting a
-//   `DocstringInfo` BACK into a `#`-comment block in either Doxygen
-//   (`# @brief …` / `# @param name - …` / `# @return …`) or PLAIN
-//   (`# Arguments:` / `#   name - desc` / `# Returns: …`) style, plus
-//   decoration borders and indent.  The generator only ever emits a
-//   bare `# @param <name>` skeleton (Doxygen-ish, no brief, no return, no
-//   plain style, no decoration, no indent), so the styled comment-block
-//   renderer is UNREACHABLE through the public API.
-//
-// GAP: PLAIN tag-style (`# Arguments:` / `#   x`) and the decoration option
-//   for stub generation.  `docstring_actions` emits a fixed
-//   DOXYGEN-style block, so the plain-style and decoration variants are
-//   not reachable.  The DOXYGEN embellishments themselves are covered
-//   above: `# @brief TODO: describe <proc>` header,
-//   `- (default: <value>)` annotations for defaulted params, and the
-//   `- Additional arguments` prose for the `args` varargs sentinel.
-//
-// GAP: a `DocstringInfo` dict serialisation (`to_dict`) — there is no
-//   public `DocstringInfo` value type; the parser's intermediate
-//   structure is private to `format_docstring` and only ever rendered to
-//   Markdown, never serialised to a dict.
-//
-// GAP: a tag-style resolver (`resolve_tag_style`) — the doxygen/plain
-//   tag-style enum and its case-insensitive resolver are not exposed (the
-//   renderer has a single, fixed Doxygen-style output).
 //
 // GAP: a bare/qualified proc lookup (`AnalysisResult.find_proc`) —
 //   `AnalysisResult` exposes the `all_procs` map publicly but provides no
