@@ -4,10 +4,9 @@
 //! request/response cases: the text-edit assertions matter on the live surface,
 //! since an editor applies `textEdit` verbatim.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 

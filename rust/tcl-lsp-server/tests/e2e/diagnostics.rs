@@ -4,9 +4,8 @@
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 use std::collections::BTreeSet;
