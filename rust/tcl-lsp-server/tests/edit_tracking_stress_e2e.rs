@@ -294,7 +294,12 @@ fn assert_buffer_equiv(
     fresh_uri: &str,
     fresh_text: &str,
 ) {
-    lsp.await_diagnostics_version(edited_uri, Some(edited_version), Duration::from_secs(30));
+    // Don't await the burst's exact final version: after a rapid didChange burst
+    // the server debounces and suppresses re-publishing unchanged diagnostics, so
+    // a publish tagged with that precise intermediate version may never arrive
+    // (timing-dependent — it flakes under CI load). `settle_analysis` below is the
+    // deterministic barrier: a real no-op edit at `edited_version + 1` forces a
+    // fresh publish + `workspace_state.update` at the final content.
     lsp.settle_analysis(edited_uri, edited_version + 1, fresh_text);
     lsp.open_ready(fresh_uri, fresh_text);
 
