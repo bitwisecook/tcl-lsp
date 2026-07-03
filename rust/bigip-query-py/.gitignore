@@ -1,0 +1,9 @@
+# This crate is built by maturin outside the Cargo workspace, so the root
+# `/target/` ignore (anchored to the repo root) does not cover it.
+/target/
+
+# The compiled PyO3 extension maturin drops into the editable package tree.
+python/f5report/*.so
+
+# Local dev report output.
+*.html

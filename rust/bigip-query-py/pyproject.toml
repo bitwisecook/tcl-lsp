@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "f5report"
+version = "0.1.0"
+description = "Interactive HTML reports for F5 BIG-IP configs, powered by the f5-query engine via PyO3"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "tcl-lsp contributors" }]
+keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]
+dependencies = [
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+f5-report = "f5report.__main__:main"
+
+[tool.maturin]
+# Mixed Rust/Python layout: the native extension (`_engine`) is compiled into
+# the `f5report` package that lives under `python/`.
+python-source = "python"
+module-name = "f5report._engine"
+features = ["pyo3/extension-module"]

@@ -1,0 +1,39 @@
+# PyO3 bindings for the BIG-IP query engine.
+#
+# This crate exposes `tcl-bigip-query` (the jq-flavoured `f5 query` DSL) and the
+# `tcl-bigip-io` UCS reader to Python as a native extension module
+# (`f5report._engine`). It is the interface the pure-Python report generator in
+# `python/f5report/` imports — no subprocess, no shelling out to `f5-query`.
+#
+# It is intentionally EXCLUDED from the workspace (see the root Cargo.toml
+# `exclude` list) for the same reason `editors/zed` and `tcl-explorer-wasm` are:
+# the PyO3 procedural macros expand to code the workspace `unsafe_code =
+# "forbid"` lint would reject, and the extension links libpython, which the
+# other workspace crates must not require. Built with maturin, not `cargo`
+# directly (see pyproject.toml).
+
+[package]
+name = "bigip-query-py"
+description = "PyO3 bindings for the F5 BIG-IP query engine (f5-query DSL + UCS reader)"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+publish = false
+
+[lib]
+name = "_engine"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3 is deliberately NOT enabled: the wheel is built against the exact
+# interpreter (CPython 3.14) so the full C-API is available.
+pyo3 = { version = "0.29", features = ["extension-module"] }
+tcl-bigip = { path = "../tcl-bigip" }
+tcl-bigip-io = { path = "../tcl-bigip-io" }
+tcl-bigip-query = { path = "../tcl-bigip-query" }
+
+# NOTE: no `[lints] workspace = true` — this crate must not inherit the
+# workspace `unsafe_code = "forbid"` lint (PyO3's generated glue needs it).
