@@ -812,30 +812,47 @@ fn build_unit_with_keys<'db>(
     };
     // SRV-INCREMENTAL Task 3: lower each *eligible* top-level proc body through the
     // `lower_proc_body` memo so a body-only edit re-lowers only the edited proc's
-    // body (every other body's IR is reused). The cache is installed unconditionally;
-    // the per-body gate (`lowering::body_cache_eligible`) decides which bodies take it,
-    // so a context-carrying sibling no longer disables the cache for the whole file.
+    // body (every other body's IR is reused). The per-body gate
+    // (`lowering::body_cache_eligible`) decides which bodies take it, so a
+    // context-carrying sibling no longer disables the cache for the whole file.
     // Byte-identical to the whole-file lowering (corpus differential gates).
-    let body_memo = |body_text: &str, namespace: &str| -> Script {
-        let key = ProcBodyKey::new(
-            db,
-            body_text.to_owned(),
-            namespace.to_owned(),
-            dialect.to_owned(),
-            config.expand_syntax,
-            config.irules_brace_separator,
-        );
-        (*lower_proc_body(db, key)).clone()
+    //
+    // File-level precondition: a command alias declared *outside* any body
+    // (`interp alias`) populates the alias table that `resolve_alias` consults
+    // while lowering every body, but the isolated body lowering starts with an
+    // empty table — so a file that may establish aliases forgoes the cache
+    // entirely (the per-body scan cannot see a top-level alias).
+    let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
+        CompilationUnit::build_for_memoized(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            &mut lattice_memo,
+        )
+    } else {
+        let body_memo = |body_text: &str, namespace: &str| -> Script {
+            let key = ProcBodyKey::new(
+                db,
+                body_text.to_owned(),
+                namespace.to_owned(),
+                dialect.to_owned(),
+                config.expand_syntax,
+                config.irules_brace_separator,
+            );
+            (*lower_proc_body(db, key)).clone()
+        };
+        CompilationUnit::build_for_memoized_with_body_cache(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            &mut lattice_memo,
+            &body_memo,
+        )
     };
-    let cu = CompilationUnit::build_for_memoized_with_body_cache(
-        source,
-        registry,
-        defer_top_level,
-        config,
-        dialect,
-        &mut lattice_memo,
-        &body_memo,
-    );
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
     // only unchanged procedures' `propagate_taints` is skipped.
