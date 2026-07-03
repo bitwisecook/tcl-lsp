@@ -224,7 +224,9 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
             break;
         }
         if bytes[i] == b'{' {
-            // `{name default}` — the name is the first word inside the braces.
+            // Braced spec `{name ?default?}`, taken verbatim: the name is its
+            // first list sub-element, so the span covers `b` in `{b 1}` and the
+            // whole `a\ b` in `{a\ b}` (whose decoded name is `a b`).
             let inner_start = i + 1;
             let mut level: u32 = 1;
             let mut j = inner_start;
@@ -237,23 +239,25 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
                 j += 1;
             }
             let inner_end = if level == 0 { j - 1 } else { j };
-            let mut ns = inner_start;
-            while ns < inner_end && is_whitespace_byte(bytes[ns]) {
-                ns += 1;
-            }
-            let mut ne = ns;
-            while ne < inner_end && !is_whitespace_byte(bytes[ne]) {
-                ne += 1;
-            }
-            if ne > ns {
-                out.push(tcl_lexer::Span::new(abs(ns), abs(ne)));
+            if let Some(inner) = raw.get(inner_start..inner_end)
+                && let Ok(Some(el)) = find_element(inner, 0)
+                && el.value.end > el.value.start
+            {
+                out.push(tcl_lexer::Span::new(
+                    abs(inner_start + el.value.start),
+                    abs(inner_start + el.value.end),
+                ));
             }
             i = j;
         } else {
+            // Bare spec: the name is the element's first sub-element, so an
+            // escaped-whitespace spec `a\ b` spans only `a` (its default `b`
+            // must stay outside the rename / go-to-definition range).
             let start = i;
             i = scan_bare_word(&bytes[..hi], i);
-            if i > start {
-                out.push(tcl_lexer::Span::new(abs(start), abs(i)));
+            let name_len = bare_name_len(&bytes[start..i]);
+            if name_len > 0 {
+                out.push(tcl_lexer::Span::new(abs(start), abs(start + name_len)));
             }
         }
     }
@@ -307,6 +311,37 @@ fn scan_bare_word(bytes: &[u8], mut i: usize) -> usize {
         };
     }
     i
+}
+
+/// Byte length of the parameter *name* within one bare list element `elem` —
+/// the element's first list sub-element. A backslash escape that decodes to
+/// Tcl list whitespace (`\ `, `\t`, `\n`, `\r`, `\v`, `\f`, and the literal
+/// forms) ends the name and begins the default, so `a\ b` → name length 1
+/// (`a`); every other escape stays part of the name (`a\\b` → 4). Mirrors the
+/// second level of [`parse_param_list`]'s spec parse so the name span stays
+/// aligned with the decoded [`ParamDef`].
+fn bare_name_len(elem: &[u8]) -> usize {
+    let mut i = 0;
+    while i < elem.len() {
+        match elem[i] {
+            b'\\' => match elem.get(i + 1) {
+                // Escapes decoding to list whitespace: literal whitespace bytes
+                // and the `\t \n \r \v \f` letter escapes.
+                Some(
+                    b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b't' | b'n' | b'r' | b'v'
+                    | b'f',
+                ) => return i,
+                // Any other escape (or a trailing lone `\`) stays in the name.
+                Some(_) => i += 2,
+                None => i += 1,
+            },
+            // An unescaped whitespace byte would have ended the element already,
+            // but guard so the name never runs into a following field.
+            b if is_whitespace_byte(b) => return i,
+            _ => i += 1,
+        }
+    }
+    elem.len()
 }
 
 /// Split on the first run of whitespace. Returns `None` when the input
@@ -468,6 +503,28 @@ mod tests {
         let spans = param_name_spans(raw, 0);
         // a @1..2, b @3..4 (backslash at 4 excluded), c @6..7
         assert_eq!(spans, vec![Span::new(1, 2), Span::new(3, 4), Span::new(6, 7)]);
+    }
+
+    #[test]
+    fn param_name_spans_align_with_decoded_specs() {
+        use tcl_lexer::Span;
+        // Bare escaped-whitespace spec: the name span must cover only `a`, not
+        // the whole `a\ b` element, so rename / go-to-definition on `$a` never
+        // touch the default text.
+        let raw = "{a\\ b c}";
+        let spans = param_name_spans(raw, 0);
+        // a @1..2 (the `\ b` default is excluded), c @6..7.
+        assert_eq!(spans, vec![Span::new(1, 2), Span::new(6, 7)]);
+        // The span count and order stay aligned with the parsed params.
+        assert_eq!(spans.len(), parse_param_list("a\\ b c").len());
+
+        // Braced escaped-whitespace spec: the whole `a\ b` is the name (decoded
+        // `a b`), so the span covers it verbatim.
+        let braced = "{{a\\ b} c}";
+        let bspans = param_name_spans(braced, 0);
+        // `a\ b` @2..6, c @8..9.
+        assert_eq!(bspans, vec![Span::new(2, 6), Span::new(8, 9)]);
+        assert_eq!(bspans.len(), parse_param_list("{a\\ b} c").len());
     }
 
     #[test]
