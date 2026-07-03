@@ -5,9 +5,8 @@
 //! Ported from `tests/test_workspace_symbols.py` and the VS Code
 //! `foldingRanges.test.ts` / `selectionRange.test.ts` scenarios.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 use std::collections::BTreeSet;

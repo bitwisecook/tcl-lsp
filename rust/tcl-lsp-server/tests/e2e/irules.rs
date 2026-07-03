@@ -8,10 +8,9 @@
 //! cases are isolated on their own server to keep the main Tcl server
 //! uncontaminated.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 use std::time::Duration;

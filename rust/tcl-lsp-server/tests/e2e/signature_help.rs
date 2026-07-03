@@ -2,9 +2,8 @@
 //!
 //! Signature help, end-to-end against the packaged server.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 

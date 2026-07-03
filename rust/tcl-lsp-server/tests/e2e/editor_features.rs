@@ -4,9 +4,8 @@
 //! the packaged server. A cross-implementation conformance surface (raw
 //! JSON-RPC): the Rust/Zed port must meet this spec.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 
