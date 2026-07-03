@@ -9,9 +9,8 @@
 //! The F5 iRules code actions (collect-bootstrap, taint quick-fixes, profile
 //! headers) run against the dedicated iRules server in `irules_e2e.rs`.
 
-mod common;
 
-use common::{Lsp, unique_uri};
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 

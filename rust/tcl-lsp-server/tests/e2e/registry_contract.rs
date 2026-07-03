@@ -6,9 +6,8 @@
 //! `listSubcommands`) against the committed presence CSVs, so a Rust server
 //! passes them unchanged.
 
-mod common;
 
-use common::Lsp;
+use crate::common::Lsp;
 
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
