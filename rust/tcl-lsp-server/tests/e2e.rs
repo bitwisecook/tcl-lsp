@@ -51,6 +51,8 @@ mod registry_contract;
 mod rename;
 #[path = "e2e/semantic_tokens.rs"]
 mod semantic_tokens;
+#[path = "e2e/semantic_tokens_reference_client.rs"]
+mod semantic_tokens_reference_client;
 #[path = "e2e/server_version.rs"]
 mod server_version;
 #[path = "e2e/signature_help.rs"]
