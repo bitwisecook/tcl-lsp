@@ -63,6 +63,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — what the
   `TCL_LSP_RUST_*` environment variables do and when to set them as the
   Python-to-Rust rewrite lands in chunks.
+- [kcs-qa-how-tcl-parses-lists.md](kcs-qa-how-tcl-parses-lists.md) — how
+  Tcl splits a list (and a `proc` / method parameter list) into elements
+  on whitespace, and how braces, quotes, and a trailing backslash line
+  continuation move those boundaries.
 
 ## How-Tos
 
