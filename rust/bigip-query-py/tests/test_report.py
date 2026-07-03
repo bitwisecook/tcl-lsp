@@ -60,10 +60,13 @@ def test_build_report_html_self_contained():
     html = build_report(f5report.load_paths([UCS1]), title="Solo")
     assert html.startswith("<!doctype html>")
     assert "Solo" in html
-    # no template leakage, no external asset references
-    assert "{{" not in html and "{%" not in html
-    assert "http://" not in html.split("</head>")[0]  # no remote assets in head
-    assert "src=\"http" not in html and "href=\"http" not in html
+    # no unrendered Jinja (our template uses spaced delimiters like `{{ x }}`).
+    # (A substring `{{` check is unusable here: the vendored Mermaid bundle
+    # embeds KaTeX strings that legitimately contain `{{`.)
+    assert "{{ " not in html and " }}" not in html and "{% " not in html
+    # no remote asset references anywhere (fully self-contained)
+    assert 'src="http' not in html and 'href="http' not in html
+    assert "cdn." not in html.split("<script id=\"f5-model\"")[0]
 
 
 def test_json_model_serialisable():

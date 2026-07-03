@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }}</title>
 <style>
-{% include "report.css" %}
+{{ report_css | safe }}
+{{ topology_css | safe }}
 </style>
 </head>
 <body>
@@ -76,6 +77,8 @@
     <button class="tab" data-panel="rules">iRules <span class="n">{{ d.counts.rules }}</span></button>
     <button class="tab" data-panel="dataGroups">Data Groups <span class="n">{{ d.counts.dataGroups }}</span></button>
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
+    <button class="tab" data-panel="topology">Topology</button>
+    <button class="tab" data-panel="listener">Listener Matcher</button>
   </nav>
 
   {#: ---------------- Virtual Servers ---------------- :#}
@@ -89,7 +92,7 @@
       <tbody>
       {% for v in d.virtuals %}
       <tr class="searchable{{ ' is-disabled' if v.disabled }}">
-        <td class="mono strong">{{ v.name }}{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="vs:{{ v.fullPath }}">{{ v.name }}</span>{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
         <td class="mono">{{ v.destAddr }}</td>
         <td class="mono">{{ v.destPort }}</td>
         <td class="mono">{% if v.pool %}<a href="#" class="ref">{{ v.pool.split('/')[-1] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -116,7 +119,7 @@
       {% for p in d.pools %}
       <tr class="searchable expandable{{ ' orphan' if not p.usedBy }}">
         <td class="expander">{% if p.members %}▸{% endif %}</td>
-        <td class="mono strong">{{ p.name }}{% if not p.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="pool:{{ p.fullPath }}">{{ p.name }}</span>{% if not p.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
         <td>{{ p.memberCount }}{% if p.memberCount == 0 %} <span class="tag amber">empty</span>{% endif %}</td>
         <td class="mono small">{{ p.monitor or '—' }}</td>
         <td class="mono small">{{ p.lbMode or 'round-robin' }}</td>
@@ -148,7 +151,7 @@
       <tbody>
       {% for n in d.nodes %}
       <tr class="searchable{{ ' orphan' if not n.usedBy }}">
-        <td class="mono strong">{{ n.name }}{% if not n.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="node:{{ n.fullPath }}">{{ n.name }}</span>{% if not n.usedBy %} <span class="tag amber">orphan</span>{% endif %}</td>
         <td class="mono">{{ n.address }}</td>
         <td class="mono small">{{ n.monitor or '—' }}</td>
         <td class="mono small">{% for u in n.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
@@ -190,7 +193,7 @@
       {% for r in d.rules %}
       <tr class="searchable expandable{{ ' orphan' if not r.usedBy }}">
         <td class="expander">▸</td>
-        <td class="mono strong">{{ r.name }}{% if not r.usedBy %} <span class="tag amber">unattached</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="rule:{{ r.fullPath }}">{{ r.name }}</span>{% if not r.usedBy %} <span class="tag amber">unattached</span>{% endif %}</td>
         <td>{% for e in r.events %}<span class="tag blue">{{ e }}</span>{% endfor %}</td>
         <td class="mono">{{ r.lineCount }}</td>
         <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
@@ -246,15 +249,82 @@
     </div>
   </div>
 
+  {#: ---------------- Topology ---------------- :#}
+  <div class="panel" data-panel="topology">
+    <div class="topo-controls">
+      <label>Focus
+        <select class="topo-focus"></select>
+      </label>
+      <label>Depth
+        <select class="topo-depth">
+          <option value="1">1 hop</option>
+          <option value="2" selected>2 hops</option>
+          <option value="3">3 hops</option>
+          <option value="99">all connected</option>
+        </select>
+      </label>
+      <span class="topo-types">
+        {% for t, lbl in [('vs','Virtual'),('pool','Pool'),('node','Node'),('mon','Monitor'),('rule','iRule'),('prof','Profile'),('persist','Persist'),('policy','Policy'),('snat','SNAT'),('dg','DataGroup')] %}
+        <label><input type="checkbox" class="topo-type" value="{{ t }}"{{ ' checked' if t in ['vs','pool','node','rule'] }}> {{ lbl }}</label>
+        {% endfor %}
+      </span>
+    </div>
+    <div class="legend">
+      <span><i style="background:#dbeafe;border-color:#2563eb"></i>Virtual</span>
+      <span><i style="background:#dcfce7;border-color:#16a34a"></i>Pool</span>
+      <span><i style="background:#f1f5f9;border-color:#64748b"></i>Node</span>
+      <span><i style="background:#fef9c3;border-color:#ca8a04"></i>Monitor</span>
+      <span><i style="background:#ede9fe;border-color:#7c3aed"></i>iRule</span>
+      <span><i style="background:#e0f2fe;border-color:#0284c7"></i>Profile</span>
+    </div>
+    <p class="hint">Click a node to open its detail drawer. Click a <b>connector line</b> to light up everything connected to it (e.g. an iRule→pool link highlights every virtual using that iRule, and the pool's nodes). Dashed edges are pool references found <em>inside</em> an iRule.</p>
+    <div class="diag-host"></div>
+  </div>
+
+  {#: ---------------- Listener Matcher ---------------- :#}
+  <div class="panel" data-panel="listener">
+    <p class="lm-field-note">Enter a client flow — which virtual server picks it up? Results are ranked most-specific first (the winner is at the top); virtuals at the same specificity are shown side by side. Source defaults to <code>0.0.0.0/0</code>.</p>
+    <div class="lm-form">
+      <div class="fld"><label>Source</label><input class="lm-src lm-field" placeholder="0.0.0.0/0"></div>
+      <div class="fld"><label>Destination</label><input class="lm-dst lm-field" placeholder="e.g. 192.168.1.21"></div>
+      <div class="fld"><label>Port</label><input class="lm-port lm-field" placeholder="443"></div>
+      <div class="fld"><label>Protocol</label>
+        <select class="lm-proto"><option value="any">any</option><option>tcp</option><option>udp</option><option>sctp</option></select>
+      </div>
+      <div class="fld"><label>VLAN</label><select class="lm-vlan"></select></div>
+      <div class="fld"><label>Route domain</label><input class="lm-rd lm-field" placeholder="0"></div>
+      <button class="lm-run">Match ▸</button>
+    </div>
+    <div class="lm-results"></div>
+  </div>
+
 </article>
 {% endfor %}
+
+<!-- object detail drawer -->
+<div id="drawerScrim"></div>
+<aside id="objDrawer" aria-label="Object detail">
+  <div class="drawer-head">
+    <div><div class="drawer-title"></div><div class="drawer-sub"></div></div>
+    <button class="drawer-close" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body"></div>
+</aside>
 
 <footer class="foot">
   <p>Built with the F5&nbsp;BIG-IP query engine (<code>f5-query</code>) via PyO3 · rendered by Jinja on Python 3.14 · self-contained, no external assets.</p>
 </footer>
 
 <script>
-{% include "report.js" %}
+{{ report_js | safe }}
+</script>
+
+<!-- embedded report model (JSON) — powers the topology / flow / listener views -->
+<script id="f5-model" type="application/json">{{ model_json | safe }}</script>
+<!-- vendored Mermaid 10.9.3 (MIT), inlined for a fully self-contained page -->
+<script>{{ mermaid_js | safe }}</script>
+<script>
+{{ topology_js | safe }}
 </script>
 </body>
 </html>

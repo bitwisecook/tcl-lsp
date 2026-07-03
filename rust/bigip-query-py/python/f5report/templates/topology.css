@@ -1,0 +1,84 @@
+/* f5report — topology / flow / listener view styling (appended to report.css) */
+
+/* object links (clickable names in tables + diagrams) */
+.objlink{cursor:pointer}
+td .objlink.strong,.objlink.namelink{color:var(--blue);border-bottom:1px dotted color-mix(in srgb,var(--blue) 55%,transparent)}
+.objlink:hover{filter:brightness(1.08)}
+
+/* diagram hosts */
+.diag-host{width:100%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:120px}
+.diag-host svg{max-width:100%;height:auto}
+.diag-empty,.diag-err{color:var(--muted);padding:26px;text-align:center;font-size:13px}
+.diag-err{color:var(--red)}
+
+/* topology controls */
+.topo-controls{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin-bottom:14px;
+  padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.topo-controls label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.topo-controls select{padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.topo-types{display:flex;flex-wrap:wrap;gap:4px 12px}
+.topo-types label{font-family:var(--mono);font-size:12px;color:var(--ink);cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;margin:8px 0 2px;font-size:11px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid}
+.hint{font-size:12px;color:var(--muted);margin:2px 0 12px}
+
+/* mermaid interaction states */
+.mm-node{cursor:pointer}
+.mm-node:hover :is(rect,circle,polygon,path){stroke-width:2.5px}
+.mm-hl :is(rect,circle,polygon){stroke-width:3px !important;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent))}
+path.flowchart-link.mm-hl{stroke:var(--accent) !important;stroke-width:3px !important;opacity:1}
+.mm-dim{opacity:.18;transition:opacity .12s}
+
+/* object drawer */
+#drawerScrim{position:fixed;inset:0;background:rgba(8,12,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+#drawerScrim.open{opacity:1;pointer-events:auto}
+#objDrawer{position:fixed;top:0;right:0;height:100vh;width:min(760px,94vw);background:var(--bg);
+  border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(8,12,20,.22);transform:translateX(100%);
+  transition:transform .2s ease;z-index:41;display:flex;flex-direction:column}
+#objDrawer.open{transform:translateX(0)}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.drawer-title{font-size:17px;font-weight:650}
+.drawer-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px}
+.drawer-close{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;flex:0 0 auto}
+.drawer-close:hover{border-color:var(--accent)}
+.drawer-body{padding:16px 20px 40px;overflow-y:auto}
+.drawer-body h4{margin:18px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.drawer-body h4:first-child{margin-top:0}
+table.kv{border-collapse:collapse;font-size:13px}
+table.kv th{text-align:left;color:var(--muted);font-weight:500;padding:3px 16px 3px 0;white-space:nowrap;vertical-align:top}
+table.kv td{padding:3px 0;font-family:var(--mono)}
+.tagwrap{display:flex;flex-wrap:wrap;gap:4px}
+table.grid.mini{font-size:12px}
+.drawer-diag,.flow-diag{margin-top:4px}
+
+/* tag colours for the extra node types (reuse .tag base from report.css) */
+.tag.vs{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.tag.pool{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.tag.node{background:var(--tag-bg);color:var(--tag-ink)}
+.tag.mon{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
+.tag.rule{background:color-mix(in srgb,#7c3aed 18%,transparent);color:#7c3aed}
+.tag.prof{background:color-mix(in srgb,#0284c7 16%,transparent);color:#0284c7}
+:root[data-theme="dark"] .tag.rule{color:#c4b5fd}
+:root[data-theme="dark"] .tag.prof{color:#7dd3fc}
+
+/* listener matcher */
+.lm-form{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px}
+.lm-form .fld{display:flex;flex-direction:column;gap:4px}
+.lm-form label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.lm-form input,.lm-form select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;min-width:120px}
+.lm-run{padding:9px 18px;border:none;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:650;cursor:pointer}
+.lm-run:hover{filter:brightness(1.06)}
+.lm-note,.lm-field-note{font-size:12px;color:var(--muted);margin-bottom:10px}
+.tiers{display:flex;flex-direction:column;gap:0}
+.tier{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.tier.winner{border-color:color-mix(in srgb,var(--green) 55%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 30%,transparent)}
+.tier-key{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;font-family:var(--mono)}
+.tier-vs{display:flex;flex-wrap:wrap;gap:10px}
+.lm-card{flex:1 1 240px;min-width:220px;text-align:left;display:flex;flex-direction:column;gap:3px;
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);cursor:pointer}
+.lm-card:hover{border-color:var(--accent)}
+.lm-name{font-weight:640}
+.lm-dest{font-size:12px}
+.lm-meta{font-size:11px;color:var(--muted)}
+.tier-arrow{text-align:center;color:var(--muted);font-size:11px;padding:6px 0}

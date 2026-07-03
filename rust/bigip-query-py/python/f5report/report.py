@@ -20,6 +20,7 @@ import re
 from typing import Any
 
 from . import _engine
+from . import graph as _graph
 from .render import render_report
 
 Sources = list[tuple[str, str]]
@@ -98,13 +99,14 @@ def _refmap(sources: Sources, container: str) -> dict[str, list[str]]:
 def _shape_virtual(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
     addr, port = _split_dest(f.get("destination", ""))
     fp = f.get("full-path", "")
-    return {
+    v = {
         "name": f.get("name", ""),
         "fullPath": fp,
         "partition": fp.split("/")[1] if fp.startswith("/") else "",
         "destination": f.get("destination", ""),
         "destAddr": addr,
         "destPort": port,
+        "mask": f.get("mask", ""),
         "pool": _clean_path(f.get("pool", "")),
         "profiles": [_clean_path(p) for p in f.get("profiles", []) or []],
         "rules": [_clean_path(r) for r in f.get("rules", []) or []],
@@ -114,9 +116,14 @@ def _shape_virtual(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str
         "sourceXlate": f.get("source-address-translation", ""),
         "ipProtocol": f.get("ip-protocol", ""),
         "source": f.get("source", ""),
+        "vlans": [_clean_path(x) for x in f.get("vlans", []) or []],
+        "vlansEnabled": bool(f.get("vlans-enabled")),
+        "vlansDisabled": bool(f.get("vlans-disabled")),
         "description": f.get("description", ""),
         "disabled": bool(f.get("disabled")) or f.get("state") == "disabled",
     }
+    v["listener"] = _graph.parse_listener(v)
+    return v
 
 
 def _shape_pool(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
@@ -176,6 +183,9 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
     body = f.get("body", "") or ""
     events = sorted(set(re.findall(r"\bwhen\s+([A-Z][A-Z0-9_]+)", body)))
     fp = f.get("full-path", "")
+    # `.refs` is the engine's synthesised iRule reference sub-object: pools /
+    # persistences / data-groups the rule body actually uses.
+    refs = (f.get("refs") or {}).get("fields", {}) if isinstance(f.get("refs"), dict) else {}
     return {
         "name": f.get("name", ""),
         "fullPath": fp,
@@ -183,6 +193,9 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "events": events,
         "body": body,
         "usedBy": used_by.get(fp, []),
+        "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
+        "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],
+        "dynamicActions": _graph.irule_dynamic_actions(body),
     }
 
 
@@ -304,6 +317,20 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
         if name in device
     }
 
+    # Propagate each iRule's dynamic (runtime) actions onto the virtuals that
+    # attach it, so a VS shows profiles/pools it changes at runtime, not just
+    # its statically-attached ones.
+    rule_actions = {r["fullPath"]: r["dynamicActions"] for r in device["rules"]}
+    rule_by_name = {r["fullPath"].split("/")[-1]: r["fullPath"] for r in device["rules"]}
+    for v in device["virtuals"]:
+        acts: list[dict[str, str]] = []
+        for rule_ref in v["rules"]:
+            fp = rule_ref if rule_ref in rule_actions else rule_by_name.get(rule_ref.split("/")[-1], "")
+            for a in rule_actions.get(fp, []):
+                acts.append({**a, "rule": rule_ref.split("/")[-1]})
+        v["dynamicProfiles"] = acts
+
+    device["graph"] = _graph.build_graph(device)
     device["counts"] = {key: len(device.get(key, [])) for key in _CONTAINERS}
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
