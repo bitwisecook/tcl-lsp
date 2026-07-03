@@ -1138,13 +1138,19 @@ impl<'r> Lowerer<'r> {
             // ``$body`` source text as a script.  The runtime
             // ``proc`` IRCall below carries the actual body bytes.
             Script::default()
-        } else if let Some(cache) = self.body_cache.filter(|_| self.proc_depth == 1) {
+        } else if let Some(cache) = self
+            .body_cache
+            .filter(|_| self.proc_depth == 1 && body_cache_eligible(body_text))
+        {
             // SRV-INCREMENTAL Task 3: a top-level proc's static body is lowered in
             // isolation through the memo (offset 0) and rebased to its real offset.
-            // Installed only for context-free files, where this is byte-identical to
-            // the in-place `lower_body` (the const-map is a fresh empty frame here, so
-            // a literal body has no cross-item dependency) — guarded by the corpus
-            // differential gates (`file_analysis_corpus` / `compiler_check_corpus`).
+            // Gated per-body on [`body_cache_eligible`]: a body free of the
+            // cross-item constructs the isolated lowering would drop lowers
+            // byte-identically to the in-place `lower_body` (the const-map is a fresh
+            // empty frame here, so a literal body has no cross-item dependency) — so a
+            // context-carrying sibling no longer disables the cache for this one.
+            // Guarded by the corpus differential gates (`file_analysis_corpus` /
+            // `compiler_check_corpus` / `per_item_corpus`).
             let mut s = cache(body_text, namespace);
             crate::lattice_rebase::rebase_script(&mut s, i64::from(body_offset));
             s
@@ -2020,6 +2026,96 @@ pub fn lower_proc_body_isolated(
     lowerer.const_map_stack.pop();
     lowerer.proc_depth -= 1;
     body
+}
+
+/// Whether a single top-level `proc` body can be lowered in isolation (through
+/// the SRV-INCREMENTAL Task 3 body-cache memo) byte-identically to the in-place
+/// [`Lowerer::lower_body`].
+///
+/// The isolated lowering runs against a fresh [`Lowerer`] with an empty
+/// const-map frame, so it drops every *cross-item* side effect `lower_body`
+/// performs while lowering a body — registering a nested `IRProcedure`, tracking
+/// `namespace import`/`export`, recording command aliases, and TclOO / `when`
+/// definitions. A body qualifies exactly when it carries none of those
+/// constructs, so its lowering is a pure function of `(body_text, namespace,
+/// dialect, config)`.
+///
+/// This is a **per-body** gate: unlike the file-level predicate it replaces, a
+/// context-carrying sibling `proc` (or top-level `namespace`/`interp`/… code) no
+/// longer disqualifies the *other* bodies in the same file. The scan is
+/// deliberately conservative — a false negative only forgoes reuse (falling back
+/// to the identical in-place lowering); a false positive would corrupt the IR —
+/// and is backstopped by the corpus differential gates.
+#[must_use]
+pub fn body_cache_eligible(body: &str) -> bool {
+    // Command keywords whose body-level use carries a cross-item effect the
+    // isolated lowering drops. `proc` covers a nested procedure definition.
+    // Matched as a word followed by Tcl inter-word whitespace (space, tab, CR,
+    // newline, or a `\`-continuation), so a tab-separated `interp\talias` trips
+    // it too.
+    const WORD_DISQUALIFIERS: &[&str] = &[
+        "namespace", "interp", "rename", "method", "when", "apply", "alias", "proc",
+    ];
+    // Substring markers (the token itself is the marker — no trailing arg).
+    const SUBSTR_DISQUALIFIERS: &[&str] = &["oo::", "::oo", "itcl"];
+    !SUBSTR_DISQUALIFIERS.iter().any(|kw| body.contains(kw))
+        && !WORD_DISQUALIFIERS
+            .iter()
+            .any(|kw| contains_word_followed_by_ws(body, kw))
+}
+
+/// True when `word` occurs in `source` followed by Tcl inter-word whitespace —
+/// i.e. used as a command with an argument. Ignores the character *before* the
+/// word (a preceding non-boundary only over-disqualifies, which is safe).
+fn contains_word_followed_by_ws(source: &str, word: &str) -> bool {
+    source.match_indices(word).any(|(i, _)| {
+        source
+            .as_bytes()
+            .get(i + word.len())
+            .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'\\'))
+    })
+}
+
+#[cfg(test)]
+mod body_cache_eligible_tests {
+    use super::body_cache_eligible;
+
+    #[test]
+    fn plain_bodies_are_eligible() {
+        assert!(body_cache_eligible("set x 1"));
+        assert!(body_cache_eligible("puts \"hi $name\"\nreturn $x"));
+        assert!(body_cache_eligible("if {$x} { foo } else { bar }"));
+        assert!(body_cache_eligible(""));
+    }
+
+    #[test]
+    fn cross_item_constructs_disqualify() {
+        for body in [
+            "namespace eval x { }",
+            "namespace import ::ns::*",
+            "interp alias {} x {} y",
+            "rename set myset",
+            "apply {{} { }}",
+            "when HTTP_REQUEST { }",
+            "oo::class create C { }",
+            "itcl::class C { }",
+            "proc inner {} { }",
+        ] {
+            assert!(!body_cache_eligible(body), "should disqualify: {body}");
+        }
+    }
+
+    #[test]
+    fn tab_separated_command_still_disqualifies() {
+        assert!(!body_cache_eligible("interp\talias {} x {} y"));
+        assert!(!body_cache_eligible("namespace\timport ::ns::*"));
+    }
+
+    #[test]
+    fn substring_only_use_is_safe() {
+        assert!(body_cache_eligible("set myproclist {a b c}"));
+        assert!(body_cache_eligible("set renamed 1"));
+    }
 }
 
 /// Like [`lower_to_ir_with_config`] but with a memoised per-procedure body-lowering
