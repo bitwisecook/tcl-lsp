@@ -137,7 +137,7 @@ fn socket_server_option_is_documented() {
 /// command resolves in each `tclN` dialect.
 ///
 /// tclsh (8.6 & 9.0): each name below is in `info commands` (verified in the
-/// sibling `registry_port.rs`). `const` is 9.0-only, so it is excluded from
+/// sibling `registry.rs`). `const` is 9.0-only, so it is excluded from
 /// the cross-dialect list and checked separately.
 #[test]
 fn registry_covers_core_commands_in_every_tcl_dialect() {
@@ -261,7 +261,7 @@ fn validation_metadata_is_available() {
 ///
 /// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
-/// verified in `registry_port.rs` — but "is control flow" is registry data.)
+/// verified in `registry.rs` — but "is control flow" is registry data.)
 #[test]
 fn control_flow_trait_membership() {
     let (reg, _) = reg_and_set("tcl8.6");

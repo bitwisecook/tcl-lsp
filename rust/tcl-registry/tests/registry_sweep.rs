@@ -2,7 +2,7 @@
 //!
 //! ## Purpose
 //!
-//! The sibling `registry_commands_port.rs` ports a curated set of
+//! The sibling `registry_commands.rs` ports a curated set of
 //! C-Tcl-observable facts about *selected* commands. This file is the
 //! complement: a **broad sweep** that iterates the *entire* command set in
 //! every known dialect, plus *every* BIG-IP object spec, and exercises *every*
