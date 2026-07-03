@@ -283,4 +283,67 @@ mod tests {
         assert_eq!(resolve_tag_style("doxygen"), DocstringTagStyle::Doxygen);
         assert_eq!(resolve_tag_style("whatever"), DocstringTagStyle::Doxygen);
     }
+
+    fn sample() -> DocstringInfo {
+        DocstringInfo {
+            brief: "does a thing".to_owned(),
+            description: String::new(),
+            params: vec![
+                ParamDoc {
+                    name: "x".to_owned(),
+                    description: "the x".to_owned(),
+                },
+                ParamDoc {
+                    name: "y".to_owned(),
+                    description: String::new(),
+                },
+            ],
+            returns: "the sum".to_owned(),
+        }
+    }
+
+    #[test]
+    fn render_doxygen_block() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, false, '.', 70, "");
+        assert_eq!(
+            out,
+            "# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum"
+        );
+    }
+
+    #[test]
+    fn render_plain_block_uses_arguments_section() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Plain, false, '.', 70, "");
+        assert_eq!(
+            out,
+            "# does a thing\n#\n# Arguments:\n#   x - the x\n#   y\n#\n# Returns: the sum"
+        );
+    }
+
+    #[test]
+    fn render_decoration_wraps_the_block() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, true, '=', 3, "");
+        assert_eq!(
+            out,
+            "# ===\n# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum\n# ==="
+        );
+    }
+
+    #[test]
+    fn render_honours_indent() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, false, '.', 70, "    ");
+        assert!(out.starts_with("    # @brief does a thing\n    # @param x - the x"));
+    }
+
+    #[test]
+    fn to_json_omits_empty_fields() {
+        let json = sample().to_json();
+        assert_eq!(json["brief"], "does a thing");
+        assert_eq!(json["returns"], "the sum");
+        assert_eq!(json["params"][0]["name"], "x");
+        assert_eq!(json["params"][0]["description"], "the x");
+        assert_eq!(json["params"][1]["description"], "");
+        // Empty description is omitted entirely.
+        assert!(json.get("description").is_none());
+    }
 }

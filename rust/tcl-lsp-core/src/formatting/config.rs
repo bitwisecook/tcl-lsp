@@ -1,10 +1,16 @@
 //! Formatter configuration.
 //!
 //! Defaults follow the F5 iRules Style Guide.  Every configurable
-//! formatter field is modelled here as an editor-settings/config knob;
-//! the docstring-related knobs (`docstring_*`) are carried but the
-//! docstring rewriter itself is not yet implemented, so they are not yet
-//! consulted by the engine.
+//! formatter field is modelled here as an editor-settings/config knob.
+//!
+//! The docstring knobs split by consumer: `docstring_tag_style` and the
+//! `docstring_decoration*` fields drive the docstring-stub generator
+//! ([`generate_stub_for_proc`](super::docstring::generate_stub_for_proc) —
+//! the "generate docstring" code action and the MCP docstring tool).
+//! `docstring_style` (placement) is inert: the stub generator emits at a
+//! fixed position and the formatter does not move docstrings.  The formatter
+//! itself never rewrites an existing docstring, so none of the docstring
+//! knobs affect a plain format pass.
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -25,8 +31,8 @@ pub enum IndentStyle {
 
 /// Where a docstring comment block is placed relative to a `proc`.
 ///
-/// Carried as an editor-settings/config knob; the docstring rewriter itself
-/// is not yet implemented, so the value is not yet consumed by the engine.
+/// Placement is inert: the stub generator emits at a fixed position and the
+/// formatter does not move docstrings, so the value is not consumed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocstringStyle {
     /// Comment block above the `proc` statement.
@@ -111,18 +117,18 @@ pub struct FormatterConfig {
     pub blank_lines_between_blocks: usize,
     /// Maximum consecutive blank lines to keep.
     pub max_consecutive_blank_lines: usize,
-    /// Where docstrings are placed relative to `proc` definitions.
-    /// Carried as an editor-settings/config knob; not yet engine-consumed
-    /// (the docstring rewriter is unimplemented).
+    /// Where docstrings are placed relative to `proc` definitions. Inert:
+    /// the stub generator emits at a fixed position (see [`DocstringStyle`]).
     pub docstring_style: DocstringStyle,
-    /// Tag format used in docstrings. Carried as a config knob, not yet consumed.
+    /// Tag format the docstring-stub generator emits (`@param` vs an
+    /// `Arguments:` prose block). Consumed by `generate_stub_for_proc`.
     pub docstring_tag_style: DocstringTagStyle,
-    /// Add decoration border lines (e.g. `# ......`) around docstrings.
-    /// Carried as a config knob, not yet consumed.
+    /// Whether the stub generator wraps a docstring in decoration border lines
+    /// (e.g. `# ......`). Consumed by `generate_stub_for_proc`.
     pub docstring_decoration: bool,
-    /// Character used for docstring decoration borders. Carried as a config knob.
+    /// Character used for docstring decoration borders (stub generator).
     pub docstring_decoration_char: char,
-    /// Width of docstring decoration border lines. Carried as a config knob.
+    /// Width of docstring decoration border lines (stub generator).
     pub docstring_decoration_width: usize,
 }
 
