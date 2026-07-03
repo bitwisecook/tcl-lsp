@@ -79,6 +79,7 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
+    <button class="tab" data-panel="backend">Backend Lookup</button>
     {% if has_console %}
     <button class="tab" data-panel="console">Query Console</button>
     {% endif %}
@@ -300,6 +301,17 @@
     </div>
     <div class="lm-results"></div>
     <div class="lm-sim"></div>
+  </div>
+
+  {#: ---------------- Backend Lookup (reverse: member → virtuals) ---------------- :#}
+  <div class="panel" data-panel="backend">
+    <p class="lm-field-note">Given a backend that was hit — a pool member's IP and (optionally) port — find the virtual server(s) that could have sent traffic to it. Covers default pools <em>and</em> pools selected by an iRule or LTM policy. Supports IPv4 and IPv6.</p>
+    <div class="lm-form">
+      <div class="fld"><label>Node / member IP</label><input class="bl-ip lm-field" placeholder="192.168.1.52"></div>
+      <div class="fld"><label>Port (optional)</label><input class="bl-port lm-field" placeholder="8443"></div>
+      <button class="lm-run bl-run">Find servers ▸</button>
+    </div>
+    <div class="bl-results"></div>
   </div>
 
   {% if has_console %}

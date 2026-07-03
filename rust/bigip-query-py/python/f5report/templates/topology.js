@@ -922,6 +922,98 @@
     go();
   }
 
+  // ---- Backend lookup: given a member IP[:port], which virtuals reach it? --
+  function backendCandidates(ix, ip, port) {
+    // members whose address matches (and port, if supplied)
+    var hits = [];
+    ix.d.pools.forEach(function (p) {
+      (p.members || []).forEach(function (m) {
+        if (m.address === ip && (!port || String(m.port) === String(port))) {
+          hits.push({ pool: p, member: m });
+        }
+      });
+    });
+    var pools = {};
+    hits.forEach(function (h) { pools[h.pool.fullPath] = h.pool; });
+
+    // for each matching pool, every virtual that can route to it:
+    // default pool, a pool selected inside an attached iRule, or a pool an
+    // attached LTM policy forwards to.
+    var cand = {}, order = [];
+    function add(v, poolFp, via) {
+      var key = v.fullPath + "|" + poolFp + "|" + via;
+      if (cand[key]) return;
+      cand[key] = true;
+      order.push({ vs: v, pool: poolFp, via: via });
+    }
+    Object.keys(pools).forEach(function (pf) {
+      ix.d.virtuals.forEach(function (v) {
+        if (v.pool === pf) add(v, pf, "default pool");
+        (v.rules || []).forEach(function (rp) {
+          var rule = ix.d.rules.find(function (r) { return r.fullPath === rp || r.name === rp.split("/").pop(); });
+          if (rule && (rule.refPools || []).indexOf(pf) >= 0) add(v, pf, "iRule " + rule.name);
+        });
+        (v.policies || []).forEach(function (pp) {
+          var pol = ix.d.policies.find(function (x) { return x.fullPath === pp; });
+          if (!pol) return;
+          pol.rules.forEach(function (rr) {
+            rr.actions.forEach(function (a) { if (a.pool === pf) add(v, pf, "policy " + pol.name + " · " + rr.name); });
+          });
+        });
+      });
+    });
+    return { hits: hits, candidates: order };
+  }
+
+  function initBackend(deviceEl, ix) {
+    var panel = deviceEl.querySelector('.panel[data-panel="backend"]');
+    if (!panel) return;
+    var ipEl = panel.querySelector(".bl-ip");
+    var portEl = panel.querySelector(".bl-port");
+    var out = panel.querySelector(".bl-results");
+
+    function run() {
+      var ip = ipEl.value.trim(), port = portEl.value.trim();
+      if (!ip) { out.innerHTML = ""; return; }
+      var r = backendCandidates(ix, ip, port);
+      if (!r.hits.length) {
+        out.innerHTML = '<div class="diag-empty">No pool member has address <code>' + esc(ip) +
+          (port ? ":" + esc(port) : "") + '</code>. It may be a node that is not a member of any pool, or reached only via a dynamic <code>node</code> command in an iRule.</div>';
+        return;
+      }
+      var h = [];
+      // matched members
+      h.push('<div class="bl-sec"><h4>Matched pool member' + (r.hits.length > 1 ? "s" : "") + "</h4><div class='tagwrap'>");
+      r.hits.forEach(function (x) {
+        h.push('<span class="tag pool">' + esc(x.pool.name) + " · " + esc(x.member.address) + ":" + esc(x.member.port) + "</span>");
+      });
+      h.push("</div></div>");
+      // candidate virtuals
+      if (!r.candidates.length) {
+        h.push('<div class="diag-empty">The member exists but no virtual server references its pool directly, via an iRule, or via a policy.</div>');
+      } else {
+        h.push('<div class="bl-sec"><h4>' + r.candidates.length + ' candidate virtual server' + (r.candidates.length > 1 ? "s" : "") +
+          ' that can reach it</h4><div class="tablewrap"><table class="grid"><thead><tr><th>Virtual server</th><th>Destination</th><th>Via</th><th>Pool</th></tr></thead><tbody>');
+        r.candidates.forEach(function (c) {
+          var L = c.vs.listener || {};
+          h.push('<tr class="searchable"><td class="mono strong"><span class="objlink namelink" data-oid="vs:' + esc(c.vs.fullPath) + '">' + esc(c.vs.name) + "</span></td>" +
+            '<td class="mono">' + esc(L.address) + ":" + esc(L.portRaw) + " " + esc(L.protocol) + "</td>" +
+            '<td class="mono small">' + esc(c.via) + "</td>" +
+            '<td class="mono small">' + esc(c.pool.split("/").pop()) + "</td></tr>");
+        });
+        h.push("</tbody></table></div></div>");
+      }
+      out.innerHTML = h.join("");
+      out.querySelectorAll("[data-oid]").forEach(function (el) {
+        el.addEventListener("click", function () { openDrawer(ix, el.dataset.oid); });
+      });
+    }
+    panel.querySelector(".bl-run").addEventListener("click", run);
+    panel.querySelectorAll(".lm-field").forEach(function (el) {
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter") run(); });
+    });
+  }
+
   function initListener(deviceEl, ix) {
     var panel = deviceEl.querySelector('.panel[data-panel="listener"]');
     if (!panel) return;
@@ -1019,6 +1111,7 @@
     var ix = IDX[parseInt(deviceEl.dataset.dev, 10)];
     initTopology(deviceEl, ix);
     initListener(deviceEl, ix);
+    initBackend(deviceEl, ix);
     wireObjLinks(deviceEl, ix);
     // draw topology lazily the first time its tab is shown
     deviceEl.querySelectorAll('.tab[data-panel="topology"]').forEach(function (tab) {
@@ -1069,6 +1162,46 @@
     function ipOverlap(a, b) { return contains(a, b) || contains(b, a); }
     var IP_TOKEN = /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(?:\/[0-9]+)?|[0-9a-fA-F:]{2,}:[0-9a-fA-F:]*(?:\/[0-9]+)?/g;
 
+    // Parse a search query as an address, honouring BIG-IP `%route-domain` and
+    // an optional `:port` — e.g. `10.0.0.1%2:8443`, `192.168.1.0/24`, `::1`.
+    function parseIpQuery(raw) {
+      var s = raw.trim();
+      if (!s) return null;
+      var rd = null, port = null;
+      // trailing :port only for IPv4 (or bracketed IPv6) to avoid eating v6 colons
+      var pm = /^(.*?):(\d+)$/.exec(s);
+      if (pm && pm[1].indexOf(".") >= 0) { s = pm[1]; port = pm[2]; }
+      var rm = /^([^%]*)%(\d+)(.*)$/.exec(s);
+      if (rm) { rd = parseInt(rm[2], 10); s = rm[1] + rm[3]; }
+      var net = toNet(s);
+      if (!net) return null;
+      return { net: net, rd: rd, port: port, base: s.split("/")[0] };
+    }
+    function ruleByRef(ix, rp) {
+      return ix.d.rules.find(function (r) { return r.fullPath === rp || r.name === rp.split("/").pop(); });
+    }
+    function polByPath(ix, pp) {
+      return ix.d.policies.find(function (x) { return x.fullPath === pp; });
+    }
+    // Virtuals that can route to any of `poolPaths` (default pool / iRule / policy).
+    function virtualsReaching(ix, poolPaths) {
+      var out = {};
+      ix.d.virtuals.forEach(function (v) {
+        var reaches = poolPaths[v.pool]
+          || (v.rules || []).some(function (rp) {
+            var r = ruleByRef(ix, rp); return r && (r.refPools || []).some(function (p) { return poolPaths[p]; });
+          })
+          || (v.policies || []).some(function (pp) {
+            var pol = polByPath(ix, pp);
+            return pol && pol.rules.some(function (rr) {
+              return rr.actions.some(function (a) { return poolPaths[a.pool]; });
+            });
+          });
+        if (reaches) out["vs:" + v.fullPath] = true;
+      });
+      return out;
+    }
+
     function run() {
       var dEl = document.querySelector(".device.active");
       if (!dEl) return;
@@ -1085,10 +1218,11 @@
         return;
       }
 
-      // If the query is an IP / CIDR, also match objects (nodes, members,
-      // virtuals, data-group records, iRule bodies, …) whose own fields contain
-      // an address within — or containing — that network.
-      var qNet = toNet(raw);
+      // If the query is an IP / CIDR (optionally `%rd` and `:port`), also match
+      // objects (nodes, members, virtuals, data-group records, iRule bodies, …)
+      // whose own fields contain an address within — or containing — it.
+      var qParsed = parseIpQuery(raw);
+      var qNet = qParsed ? qParsed.net : null;
 
       // 1st pass: direct matches on each object's OWN identity/fields
       // (`data-search`) — including the objects it references *inside an iRule*
@@ -1121,6 +1255,27 @@
           if (!direct[nb]) linked[nb] = true;
         });
       });
+
+      // Backend lookup, from the search box: if the query is an address (a node
+      // / member IP that was hit, optionally `%rd` and `:port`), surface the
+      // virtual servers that can route to it — including pools selected via an
+      // iRule or LTM policy (which are more than one hop away in the graph).
+      if (qParsed) {
+        var matchPools = {};
+        ix.d.pools.forEach(function (p) {
+          (p.members || []).forEach(function (m) {
+            var mn = toNet(m.address);
+            if (mn && ipOverlap(qNet, mn) &&
+              (!qParsed.port || String(m.port) === String(qParsed.port))) {
+              matchPools[p.fullPath] = true;
+            }
+          });
+        });
+        if (Object.keys(matchPools).length) {
+          var reaching = virtualsReaching(ix, matchPools);
+          Object.keys(reaching).forEach(function (o) { if (!direct[o]) linked[o] = true; });
+        }
+      }
 
       info.forEach(function (ri) {
         var show = ri.tm || (ri.oid && linked[ri.oid]);
