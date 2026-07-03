@@ -1150,10 +1150,20 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 	@echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"
 	cd $(EXPLORER_WASM_DIR) && wasm-pack build --target no-modules --release \
 		--out-dir $(BUILD_DIR)/explorer-wasm --out-name tcl_explorer_wasm
-	@echo "==> Optimising with wasm-opt"
-	wasm-opt -O3 $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm_bg.wasm \
-		-o $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+	@# wasm-opt is intentionally NOT run (also disabled inside wasm-pack via
+	@# tcl-explorer-wasm/Cargo.toml): on modern rustc layouts, binaryen 120
+	@# rebinds the `__wbindgen_externrefs` export from the growable externref
+	@# table onto the fixed-size funcref table, so `Table.grow` throws at runtime
+	@# ("could not grow the table") and the GUI never initialises. The raw
+	@# wasm-bindgen output has the correct binding; gzipped it is within a few KB
+	@# of the -O3 output, so Pages serves essentially the same bytes.
+	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm_bg.wasm $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm.js
+	@# Guard against a silent regression of the above: assert the externref
+	@# table can actually grow (best-effort — needs node, present in CI).
+	@command -v node >/dev/null 2>&1 \
+		&& node $(ROOT)scripts/verify-explorer-wasm.mjs $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm \
+		|| echo "    note: node not found — skipping wasm growability check"
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
 explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline, no Python)
