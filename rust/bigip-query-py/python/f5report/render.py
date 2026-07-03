@@ -65,8 +65,13 @@ def _asset_text(name: str) -> str:
     return resources.files("f5report.templates").joinpath(name).read_text("utf-8")
 
 
-def render_report(model: dict[str, Any]) -> str:
-    """Render the report ``model`` to a standalone HTML document."""
+def render_report(model: dict[str, Any], *, embed_console: bool | None = None) -> str:
+    """Render the report ``model`` to a standalone HTML document.
+
+    ``embed_console``: ``None`` (default) embeds the in-browser WASM query console
+    when its artifacts are vendored; ``False`` forces it off (a much smaller page,
+    e.g. for hosting where a strict CSP would block WebAssembly instantiation).
+    """
     env = _jinja_env()
     template = env.get_template("report.html.j2")
     model = dict(model)
@@ -86,7 +91,7 @@ def render_report(model: dict[str, Any]) -> str:
     # In-browser query console: the wasm build of the query engine, inlined.
     # Optional — a report still renders (minus the console) if the wasm artifacts
     # were not vendored (e.g. the toolchain was unavailable at build time).
-    if _has_vendor("f5query_wasm_bg.wasm") and _has_vendor("f5query_wasm.js"):
+    if embed_console is not False and _has_vendor("f5query_wasm_bg.wasm") and _has_vendor("f5query_wasm.js"):
         model["wasm_glue"] = _vendor_text("f5query_wasm.js")
         model["wasm_b64"] = base64.b64encode(_vendor_bytes("f5query_wasm_bg.wasm")).decode("ascii")
         model["console_js"] = _asset_text("console.js")

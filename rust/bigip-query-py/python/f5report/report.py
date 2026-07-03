@@ -423,6 +423,11 @@ def build_report(
     sources: Sources,
     *,
     title: str = "F5 BIG-IP Configuration Report",
+    embed_console: bool | None = None,
 ) -> str:
-    """Collect the model and render it to a standalone HTML document."""
-    return render_report(collect_model(sources, title=title))
+    """Collect the model and render it to a standalone HTML document.
+
+    ``embed_console=False`` omits the in-browser WASM query console (smaller
+    page; suitable for hosting behind a strict CSP).
+    """
+    return render_report(collect_model(sources, title=title), embed_console=embed_console)

@@ -30,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="passphrase for an encrypted UCS (or set $F5_UCS_PASSPHRASE)")
     parser.add_argument("--include-extras", action="store_true",
                         help="fold every config/*.conf UCS member (partitions, GTM) into the report")
+    parser.add_argument("--no-console", action="store_true",
+                        help="omit the in-browser WASM query console (smaller page; "
+                        "suitable for hosting where a strict CSP blocks WebAssembly)")
     parser.add_argument("--json", action="store_true",
                         help="emit the report model as JSON instead of HTML")
     parser.add_argument("--version", action="version",
@@ -47,7 +50,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         out = json.dumps(collect_model(sources, title=args.title), indent=2, default=str)
     else:
-        out = build_report(sources, title=args.title)
+        out = build_report(sources, title=args.title,
+                           embed_console=False if args.no_console else None)
 
     if args.output == "-":
         sys.stdout.write(out)
