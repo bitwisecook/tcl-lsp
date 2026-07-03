@@ -36,6 +36,12 @@ ureq = "3"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rpassword = "7"
+# SSH fetch transport: the pure-Rust `russh` client + `russh-sftp` subsystem,
+# driven on a private current-thread Tokio runtime. Replaces shelling out to the
+# system `ssh` / `scp` / `sshpass` binaries.
+russh = "0.54"
+russh-sftp = "2"
+tokio = { version = "1", features = ["rt", "net", "io-util", "time"] }
 # `encrypt-secrets` / `decrypt-secrets`: F5 master-key (`f5mku`) AES-ECB crypto.
 # The block transform comes from the audited pure-Rust `aes` crate (already in
 # the workspace lockfile for the encrypted-UCS path); `getrandom` seeds the

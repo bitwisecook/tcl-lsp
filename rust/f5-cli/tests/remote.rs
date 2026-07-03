@@ -278,29 +278,36 @@ fn invalid_json_position() {
     }
 }
 
-// SSH transport (missing binary) + clap arg validation
+// SSH transport (connection failure) + clap arg validation
 
-// The SSH transport shells out to the system `ssh`; with an empty `PATH` the
-// binary cannot resolve, so the fetch fails with the not-found error. This is
-// the offline-testable slice of the SSH flow (the live scp/tmsh round-trip
-// needs a real device, exactly like REST).
+// The SSH transport is an in-process `russh` client. Pointed at a closed local
+// port it fails to connect, so the fetch exits 2 with a `fetch failed:` error.
+// This is the offline-testable slice of the SSH flow (the live tmsh/SFTP
+// round-trip needs a real device, exactly like REST).
 #[test]
-fn ssh_transport_missing_binary() {
+fn ssh_transport_connection_refused() {
     let (out, err, code) = run(
         &[
             "fetch",
             "--host",
-            "h",
+            "127.0.0.1",
+            "--ssh-port",
+            "1",
             "--user",
             "admin",
             "--transport",
             "ssh",
+            "--timeout",
+            "5",
         ],
-        &[("F5_PASSWORD", "x"), ("PATH", "")],
+        &[("F5_PASSWORD", "x")],
     );
     assert_eq!(code, 2);
     assert!(out.is_empty(), "stdout empty on ssh failure");
-    assert_eq!(err, "error: fetch failed: 'ssh' not found on PATH\n");
+    assert!(
+        err.starts_with("error: fetch failed: ssh connect to 127.0.0.1"),
+        "stderr: {err}"
+    );
 }
 
 #[test]
