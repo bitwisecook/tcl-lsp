@@ -391,7 +391,7 @@ mod tests {
     }
 
     // The `ssh` / `scp` not-on-PATH error path is covered end-to-end by the
-    // `remote_parity` integration test (`ssh_transport_missing_binary`), which
+    // `remote` integration test (`ssh_transport_missing_binary`), which
     // runs the built binary with a controlled `PATH` in a child process — the
     // workspace forbids the `unsafe` global-env mutation an in-process test of
     // `which` would need.

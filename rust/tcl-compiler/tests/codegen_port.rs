@@ -1,20 +1,17 @@
-//! Port of the Python codegen pytest suites to the Rust `tcl-compiler`
-//! code generator.
+//! Tests for the `tcl-compiler` code generator.
 //!
-//! Sources ported (by BEHAVIOUR, not 1:1 — the Rust target differs from
-//! Python's):
-//!   * `tests/test_codegen.py`          (the bytecode-assembly backend basics)
-//!   * `tests/test_complex_codegen.py`  (nested control flow, expr edge cases,
-//!     switch/loop/proc/try, CFG structure)
+//! Coverage:
+//!   * bytecode-assembly backend basics
+//!   * nested control flow, expr edge cases, switch/loop/proc/try, CFG structure
 //!
-//! Rust pipeline used throughout: `lower_to_ir` → `build_cfg_codegen` /
+//! Pipeline used throughout: `lower_to_ir` → `build_cfg_codegen` /
 //! `build_cfg` → `codegen_module` / `codegen_function`, then inspect the
 //! emitted `FunctionAsm` (opcode stream, literal pool, LVT) and the disassembly
-//! text — exactly the surface the Python tests inspected on `ModuleAsm`.
+//! text.
 //!
 //! ── tclsh proofs ────────────────────────────────────────────────────────
-//! Where a Python test pins a RUNTIME RESULT (the generated code computes value
-//! X for input Y) and the Rust codegen folds it at compile time, the folded
+//! Where a test pins a RUNTIME RESULT (the generated code computes value
+//! X for input Y) and the codegen folds it at compile time, the folded
 //! literal is checked against C-Tcl (`scripts/dev/tclsh_check.sh`, 8.6 + 9.0)
 //! and cited with `// tclsh:`. The Rust VM (`tcl-vm`) is NOT a dependency of
 //! `tcl-compiler` (and adding one would edit Cargo.toml, out of scope here), so
@@ -23,47 +20,35 @@
 //! Everything else is a structural / bytecode-shape assertion — compiler
 //! internal — and is noted as such where relevant.
 //!
-//! ── Python codegen surface with NO clean Rust analogue (documented, not ported) ─
-//!  1. SPECIALISED string/dict-subcommand opcodes. The Python emitter lowers
-//!     `string length` → `STR_LEN`, `string index` → `STR_INDEX`, `string toupper`
-//!     → `STR_UPPER`, `string trim*` → `STR_TRIM`*, `string match` → `STR_MATCH`,
-//!     `string equal/compare` → `STR_EQ/STR_CMP`, `string range/first/last/
-//!     replace/map`, `lindex` → `LIST_INDEX_IMM`, `dict get/exists` → `DICT_GET`/
-//!     `DICT_EXISTS`, etc. The Rust emitter (verified by probing
-//!     `codegen_module`) routes ALL of these through a generic `invokeStk1`
-//!     both at top level AND in proc bodies — the dedicated string/dict
-//!     opcodes exist in `Op` but the bytecode emitter does not select them for
-//!     these commands. So `TestBytecodedCommands::{string_length,string_equal,
-//!     string_compare}`, the whole `TestBytecodedStringCommands` class, and
-//!     `TestDictCommands` have no Rust opcode to assert. They are ported as
-//!     "compiles to a generic invoke and the literal `<subcmd>`/operand pool is
-//!     correct" so the path is still covered. (The list commands that the Rust
-//!     emitter DOES specialise — llength/lrange/linsert/lassign/lreplace — are
-//!     ported with their real opcodes.)
+//! ── Codegen surfaces with no dedicated opcode (documented behaviour) ─
+//!  1. SPECIALISED string/dict-subcommand opcodes. The emitter (verified by
+//!     probing `codegen_module`) routes `string length`/`index`/`toupper`/
+//!     `trim*`/`match`/`equal`/`compare`/`range`/`first`/`last`/`replace`/`map`,
+//!     `lindex`, and `dict get`/`exists` through a generic `invokeStk1` both at
+//!     top level AND in proc bodies — the dedicated `STR_*`/`LIST_INDEX_IMM`/
+//!     `DICT_*` opcodes exist in `Op` but the bytecode emitter does not select
+//!     them for these commands. The corresponding tests assert "compiles to a
+//!     generic invoke and the literal `<subcmd>`/operand pool is correct" so the
+//!     path is still covered. (The list commands the emitter DOES specialise —
+//!     llength/lrange/linsert/lassign/lreplace — are asserted with their real
+//!     opcodes.)
 //!  2. `LiteralTable.entries()` returns `&[String]` (ordered, deduped) and
-//!     `LocalVarTable` likewise — ported directly (`TestLiteralTable` /
-//!     `TestLocalVarTable`).
-//!  3. `_esc` escaping. The Rust `format::esc` matches C-Tcl's disassembler
-//!     BYTE-WISE over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of
-//!     each raw UTF-8 byte (so `ÿ` U+00FF → `Ã¿`, an astral char →
-//!     four `\u00XX` bytes). Python's `_esc` is CODEPOINT-wise (`ÿ` →
-//!     `ÿ`, astral → `\U0001f600`). The named-control, NUL, C0, DEL, quote,
-//!     and printable-ASCII cases agree and are ported; the high-BMP /
-//!     supplementary-plane cases are ported to the Rust BYTE-WISE expectation
-//!     and annotated.
-//!  4. `lappend x foo` at SCRIPT scope. Python emits `lappendListStk`; the Rust
-//!     emitter emits a generic `invokeStk1`. Ported to the Rust behaviour.
-//!  5. Braced whole-name array ref `${a($i)}` vs bare `$a($i)`
-//!     (`TestBracedWholeNameArrayRef`). The Rust emitter does NOT carry the
-//!     braced-vs-bare whole-name/split distinction — both spellings lower to a
-//!     split `loadArray1` — so those 11 tclsh-9.0.3-pinned tests have no Rust
-//!     analogue and are documented here only.
-//!  6. The `_emit_binop`/`_emit_unaryop` iRules harness (Python builds a CFG by
-//!     hand and injects an `IRAssignExpr`). Ported via the Rust analogue: a
-//!     hand-built `CfgFunction` with a `Statement::AssignExpr` carrying an
+//!     `LocalVarTable` likewise.
+//!  3. `esc` escaping. `format::esc` matches C-Tcl's disassembler BYTE-WISE
+//!     over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of each raw
+//!     UTF-8 byte (so `ÿ` U+00FF → `Ã¿`, an astral char → four `\u00XX`
+//!     bytes), not codepoint-wise. The named-control, NUL, C0, DEL, quote, and
+//!     printable-ASCII cases are unaffected; the high-BMP / supplementary-plane
+//!     cases assert the byte-wise expectation and are annotated.
+//!  4. `lappend x foo` at SCRIPT scope emits a generic `invokeStk1` (no
+//!     `lappendListStk` specialisation at script scope).
+//!  5. Braced whole-name array ref `${a($i)}` vs bare `$a($i)`. The emitter
+//!     does NOT carry the braced-vs-bare whole-name/split distinction — both
+//!     spellings lower to a split `loadArray1` — so those 11 tclsh-9.0.3-pinned
+//!     cases are documented here only.
+//!  6. The `emit_binop`/`emit_unaryop` iRules harness builds a CFG by hand: a
+//!     `CfgFunction` with a `Statement::AssignExpr` carrying an
 //!     `ExprNode::Binary`/`Unary`, run through `codegen_function`.
-//!
-//! All other Python tests map cleanly and are ported below.
 
 #![allow(clippy::too_many_lines)]
 
@@ -81,7 +66,7 @@ use tcl_compiler::lowering::lower_to_ir;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
-// ── Helpers (mirror the Python `_asm_for` / `_top_asm` / `_opcodes` etc.) ──
+// ── Helpers ──
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -140,7 +125,7 @@ fn ir_for(source: &str) -> IrModule {
 }
 
 /// Build a top-level `CfgFunction` whose single entry block holds `statements`
-/// and returns. Mirrors Python's `_emit_binop` CFG-by-hand construction.
+/// and returns.
 fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     let mut cfg = CfgFunction::new("::top", "entry_0");
     let entry = cfg.entry;
@@ -155,7 +140,7 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     cfg
 }
 
-/// Emit `r = (a <binop> b)` through a hand-built CFG (Python `_emit_binop`).
+/// Emit `r = (a <binop> b)` through a hand-built CFG.
 fn emit_binop(op: BinOp) -> Vec<Op> {
     let expr = ExprNode::Binary {
         op,
@@ -181,7 +166,7 @@ fn emit_binop(op: BinOp) -> Vec<Op> {
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
 
-/// Emit `r = (<unaryop> a)` through a hand-built CFG (Python `_emit_unaryop`).
+/// Emit `r = (<unaryop> a)` through a hand-built CFG.
 fn emit_unaryop(op: UnaryOp) -> Vec<Op> {
     let expr = ExprNode::Unary {
         op,
@@ -202,7 +187,7 @@ fn emit_unaryop(op: UnaryOp) -> Vec<Op> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// LiteralTable / LocalVarTable  (test_codegen.py::TestLiteralTable / TestLocalVarTable)
+// LiteralTable / LocalVarTable
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -246,7 +231,7 @@ fn local_var_table_entries() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Simple codegen  (test_codegen.py::TestSimpleCodegen)
+// Simple codegen
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -323,7 +308,7 @@ fn quoted_close_bracket_is_string_literal() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Expression compilation  (test_codegen.py::TestExprCodegen)
+// Expression compilation
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -393,10 +378,10 @@ fn standalone_expr_constant_fold() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// iRules expression operators  (test_codegen.py::TestIRulesExprOps)
+// iRules expression operators
 //
-// Ported via the Rust analogue of `_emit_binop`/`_emit_unaryop`: a hand-built
-// CFG with an `AssignExpr` carrying the binary/unary node.
+// Uses the `emit_binop`/`emit_unaryop` helpers: a hand-built CFG with an
+// `AssignExpr` carrying the binary/unary node.
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -445,7 +430,7 @@ fn irule_word_not() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CFG terminators  (test_codegen.py::TestTerminators)
+// CFG terminators
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -462,17 +447,17 @@ fn fallthrough_elimination() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Bytecoded commands  (test_codegen.py::TestBytecodedCommands)
+// Bytecoded commands
 //
-// NOTE: top-level `append` and `lappend` route through a generic invoke in
-// Rust (no APPEND_STK / lappendListStk specialisation at script scope — see
-// the file header). Ported to the Rust behaviour. `string length/equal/
-// compare` likewise generic — covered under the documented-divergence note.
+// NOTE: top-level `append` and `lappend` route through a generic invoke (no
+// APPEND_STK / lappendListStk specialisation at script scope — see the file
+// header). `string length/equal/compare` are likewise generic — see the
+// documented behaviour note in the header.
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn append_toplevel_generic_invoke() {
-    // Python expects APPEND_STK; Rust emits a generic invoke at script scope.
+    // Emits a generic invoke at script scope (no APPEND_STK specialisation).
     let fa = top_asm("set x hello; append x world");
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::INVOKE_STK1));
@@ -488,7 +473,7 @@ fn append_proc_is_bytecoded() {
 
 #[test]
 fn lappend_toplevel_generic_invoke() {
-    // Python emits lappendListStk; Rust emits a generic invoke at script scope.
+    // Emits a generic invoke at script scope (no lappendListStk specialisation).
     let fa = top_asm("set x {}; lappend x foo");
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::INVOKE_STK1));
@@ -504,10 +489,10 @@ fn lappend_proc_is_bytecoded() {
 
 #[test]
 fn string_subcommands_route_through_generic_invoke() {
-    // Documented divergence: the Rust emitter does NOT select STR_LEN / STR_EQ
-    // / STR_CMP for `string length/equal/compare` (neither at top level nor in
-    // a proc); it emits a generic invoke. Assert that behaviour + the
-    // subcommand literal pool so the path stays covered.
+    // The emitter does NOT select STR_LEN / STR_EQ / STR_CMP for
+    // `string length/equal/compare` (neither at top level nor in a proc); it
+    // emits a generic invoke. Assert that behaviour + the subcommand literal
+    // pool so the path stays covered.
     for (src, lit) in [
         ("string length \"hello\"", "length"),
         ("string equal \"a\" \"b\"", "equal"),
@@ -532,7 +517,7 @@ fn string_subcommands_route_through_generic_invoke() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Formatting  (test_codegen.py::TestFormatting + complex TestCodegenFormatValidation)
+// Formatting
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -621,12 +606,12 @@ fn format_done_always_at_end() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Disassembly escaping  (test_codegen.py::TestEscEscaping)
+// Disassembly escaping
 //
-// The Rust `esc` is BYTE-WISE over UTF-8 (matches C-Tcl's disassembler); the
-// Python `_esc` is codepoint-wise. The named/NUL/C0/DEL/quote/ASCII cases
-// agree; the high-BMP / supplementary cases differ and are ported to the Rust
-// byte-wise expectation (see file header note 3).
+// `esc` is BYTE-WISE over UTF-8 (matches C-Tcl's disassembler), not
+// codepoint-wise. The named/NUL/C0/DEL/quote/ASCII cases are unaffected; the
+// high-BMP / supplementary cases assert the byte-wise expectation (see file
+// header note 3).
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -648,15 +633,13 @@ fn esc_stx_and_other_c0_controls_escaped() {
 #[test]
 fn esc_del_and_high_bmp_escaped_bytewise() {
     assert_eq!(esc("\x7f", 40), "\\u007f");
-    // Rust byte-wise: U+00FF is the two UTF-8 bytes C3 BF → Ã¿
-    // (Python codepoint-wise would give ÿ).
+    // Byte-wise: U+00FF is the two UTF-8 bytes C3 BF → Ã¿.
     assert_eq!(esc("\u{ff}", 40), "\\u00c3\\u00bf");
 }
 
 #[test]
 fn esc_supplementary_plane_is_bytewise_four_bytes() {
-    // Rust byte-wise: U+1F600 is the four UTF-8 bytes F0 9F 98 80
-    // (Python codepoint-wise would give \U0001f600).
+    // Byte-wise: U+1F600 is the four UTF-8 bytes F0 9F 98 80.
     assert_eq!(esc("\u{1f600}", 40), "\\u00f0\\u009f\\u0098\\u0080");
 }
 
@@ -699,7 +682,7 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Procedures  (test_codegen.py::TestProcedures + TestProcedureEdgeCases)
+// Procedures
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -782,7 +765,7 @@ fn proc_with_default_args() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Nested control flow  (test_complex_codegen.py::TestNestedControlFlow)
+// Nested control flow
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -853,7 +836,7 @@ fn foreach_inside_for() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Complex expressions  (test_complex_codegen.py::TestComplexExpressions)
+// Complex expressions
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -959,7 +942,7 @@ fn partial_fold_mixed_const_var() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Switch edge cases  (test_complex_codegen.py::TestSwitchEdgeCases)
+// Switch edge cases
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1055,7 +1038,7 @@ fn switch_with_return_in_arms() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Loop control flow  (test_complex_codegen.py::TestLoopControlFlow)
+// Loop control flow
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1084,7 +1067,7 @@ fn return_in_loop() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Exception handling  (test_complex_codegen.py::TestExceptionHandling)
+// Exception handling
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1132,7 +1115,7 @@ fn try_on_error_with_finally() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// For loop edge cases  (test_complex_codegen.py::TestForLoopEdgeCases)
+// For loop edge cases
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1171,7 +1154,7 @@ fn for_loop_registered_in_loop_nodes() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// While loop edge cases  (test_complex_codegen.py::TestWhileLoopEdgeCases)
+// While loop edge cases
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1189,7 +1172,7 @@ fn while_complex_condition() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Foreach edge cases  (test_complex_codegen.py::TestForeachEdgeCases)
+// Foreach edge cases
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1227,7 +1210,7 @@ fn dict_for_becomes_barrier() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Variable access patterns  (test_complex_codegen.py::TestVariableAccess)
+// Variable access patterns
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1276,11 +1259,11 @@ fn incr_large_amount() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Bytecoded list commands  (test_complex_codegen.py::TestBytecodedListCommands)
+// Bytecoded list commands
 //
-// Only the list commands the Rust emitter actually specialises are asserted
-// with their opcodes; `lindex` (which Python specialises to LIST_INDEX_IMM)
-// routes through a generic invoke in Rust and is asserted accordingly.
+// Only the list commands the emitter actually specialises are asserted
+// with their opcodes; `lindex` routes through a generic invoke (no
+// LIST_INDEX_IMM specialisation) and is asserted accordingly.
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1292,7 +1275,7 @@ fn llength_bytecoded() {
 #[test]
 fn lindex_routes_through_generic_invoke() {
     // tclsh: lindex "a b c" 1  →  b   (8.6 + 9.0)
-    // Python specialises to LIST_INDEX_IMM; Rust emits a generic invoke.
+    // Emits a generic invoke (no LIST_INDEX_IMM specialisation).
     let fa = top_asm("lindex \"a b c\" 1");
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::INVOKE_STK1));
@@ -1312,8 +1295,8 @@ fn list_create_in_proc() {
 
 #[test]
 fn lreplace_routes_through_generic_invoke() {
-    // Python emits LREPLACE4; Rust specialises `linsert` (see below) but routes
-    // a full `lreplace` (with replacement elements) through a generic invoke.
+    // The emitter specialises `linsert` (see below) but routes a full
+    // `lreplace` (with replacement elements) through a generic invoke.
     let fa = top_asm("lreplace \"a b c d\" 1 2 X Y");
     assert!(opcodes(&fa).contains(&Op::INVOKE_STK1));
     assert!(fa.literals.entries().iter().any(|l| l == "lreplace"));
@@ -1333,7 +1316,7 @@ fn lassign_bytecoded() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Dict commands  (test_complex_codegen.py::TestDictCommands)
+// Dict commands
 //
 // Rust emits VERIFY_DICT for the `dict create` subject normalisation but the
 // `dict get`/`dict exists` lookup itself routes through a generic invoke
@@ -1364,7 +1347,7 @@ fn dict_exists_path() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CFG structure  (test_complex_codegen.py::TestCFGStructure)
+// CFG structure
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1437,9 +1420,9 @@ fn return_terminates_block() {
         .values()
         .any(|b| matches!(b.terminator, Some(Terminator::Return { .. })));
     assert!(has_return);
-    // `set b 2` after the return is dead. Python drops it entirely; the Rust
-    // CFG builder retains it only in an `unreachable_*` block (never reachable
-    // from entry), so it must not appear in any non-`unreachable` block.
+    // `set b 2` after the return is dead. The CFG builder retains it only in an
+    // `unreachable_*` block (never reachable from entry), so it must not appear
+    // in any non-`unreachable` block.
     let in_live_block = proc_cfg.blocks.values().any(|b| {
         !b.name.starts_with("unreachable")
             && b.statements
@@ -1474,7 +1457,7 @@ fn all_blocks_reachable() {
     // Every block reached from entry must be a real block in the CFG (no
     // dangling successor ids). Rust leaves an `exit_*` sentinel that the
     // returning merge block does not link to, so we do NOT require the
-    // reachable set to equal *all* blocks (Python's CFG shape did). Instead,
+    // reachable set to equal *all* blocks. Instead,
     // assert the reachable set covers the real then/else/merge blocks.
     for id in &visited {
         assert!(
@@ -1500,7 +1483,7 @@ fn all_blocks_reachable() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// IR lowering edge cases  (test_complex_codegen.py::TestIRLoweringEdgeCases)
+// IR lowering edge cases
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1607,7 +1590,7 @@ fn switch_modes_tracked() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// End-to-end pipeline  (test_complex_codegen.py::TestEndToEnd)
+// End-to-end pipeline
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1652,8 +1635,7 @@ fn multiproc_module_format() {
 
 #[test]
 fn complex_value_interpolation_in_proc() {
-    // Python expects strcat / invokeStk for the interpolated string. The Rust
-    // emitter pushes the interpolated `"Hello, $name! …"` value as a single
+    // The emitter pushes the interpolated `"Hello, $name! …"` value as a single
     // literal (runtime word-substitution resolves the `$name`/`$age` markers),
     // then storeScalar1 — no compile-time STR_CONCAT1. Assert the store path +
     // the interpolated literal is interned verbatim.
@@ -1709,7 +1691,7 @@ fn deeply_nested_procs_do_not_crash() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Codegen output format validation (labels)  (TestCodegenFormatValidation)
+// Codegen output format validation (labels)
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1734,7 +1716,7 @@ fn labels_point_to_valid_offsets() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Condition defs from command substitutions  (TestConditionDefs)
+// Condition defs from command substitutions
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1767,7 +1749,7 @@ fn catch_in_while_condition() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Backslash substitution  (TestBackslashSubstitution)
+// Backslash substitution
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1777,7 +1759,7 @@ fn backslash_in_set_value() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Multiple iterator groups in foreach  (TestForeachMultipleIterators)
+// Multiple iterator groups in foreach
 // ═══════════════════════════════════════════════════════════════════
 
 fn foreach_iter_count(src: &str, proc: &str) -> usize {
@@ -1834,14 +1816,13 @@ fn foreach_multi_var_per_group() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// defer_top_level vs inline_loops  (TestDeferTopLevel)
+// defer_top_level vs inline_loops
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
 fn top_level_foreach_deferred_is_generic_call() {
-    // Python's deferred top-level foreach lowers to an IRBarrier(command=
-    // "foreach"); the Rust CFG builder lowers it to a generic `Call` with
-    // command "foreach" (not inlined into foreach_* blocks). Assert the Rust
+    // A deferred top-level foreach lowers to a generic `Call` with
+    // command "foreach" (not inlined into foreach_* blocks). Assert that
     // shape: a non-inlined `foreach` call at script scope.
     let src = "foreach item {a b c} { puts $item }";
     let ir = ir_for(src);
@@ -1880,7 +1861,7 @@ fn top_level_foreach_inlined() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Frozen for/while (command-subst conditions)  (TestFrozenLoops)
+// Frozen for/while (command-subst conditions)
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1912,7 +1893,7 @@ fn frozen_while_cmd_subst_condition() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Stress: combining everything  (TestStressCombinations)
+// Stress: combining everything
 // ═══════════════════════════════════════════════════════════════════
 
 #[test]

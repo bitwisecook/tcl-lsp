@@ -6,7 +6,7 @@ use tcl_bigip::parser::parse_bigip_conf;
 use tcl_bigip::stats::{compute_stats, report_to_json};
 
 #[test]
-fn stats_match_python() {
+fn stats() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");

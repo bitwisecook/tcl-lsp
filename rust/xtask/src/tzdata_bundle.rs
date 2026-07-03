@@ -411,7 +411,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn thousands_grouping_matches_python() {
+    fn thousands_grouping_inserts_commas() {
         assert_eq!(group_thousands(0), "0");
         assert_eq!(group_thousands(42), "42");
         assert_eq!(group_thousands(1_000), "1,000");

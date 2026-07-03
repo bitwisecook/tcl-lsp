@@ -1,6 +1,6 @@
 //! Parse an F5 iApp APL file and print its canonical JSON document.
 //!
-//! Used by the differential-parity harness: `dump_apl <path>` prints the
+//! Used by the differential harness: `dump_apl <path>` prints the
 //! JSON that `_rust_bridge.rebuild_apl` reconstructs the
 //! `AplModel` from.
 

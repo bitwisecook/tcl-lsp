@@ -6,8 +6,8 @@
 //! the output is piped. Tables use [`tabled`] with one house style.
 //!
 //! IMPORTANT: chrome is for **stderr, error messages, and new decorative
-//! surfaces only** — never the byte-parity verb *stdout*. Because anstream
-//! keeps piped output plain, scripted use and the golden parity tests stay
+//! surfaces only** — never the byte-stable verb *stdout*. Because anstream
+//! keeps piped output plain, scripted use and the golden tests stay
 //! byte-stable while interactive terminals gain colour.
 
 use std::fmt::Display;

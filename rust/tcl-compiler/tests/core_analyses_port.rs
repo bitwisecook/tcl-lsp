@@ -1,26 +1,22 @@
-//! Port of the Python core-analyses + existence-check suites:
-//!   * `tests/test_core_analyses.py`     (SCCP / liveness / dead-store / type / fold)
-//!   * `tests/test_existence_checks.py`  (`info exists` / `array exists` policy)
+//! Core-analyses + existence-check tests:
+//!   * SCCP / liveness / dead-store / type / fold analyses
+//!   * `info exists` / `array exists` existence-check policy
 //!
 //! ## Two observation surfaces
 //!
-//! The Python `analyse_source(src)` returns a `ModuleAnalysis` whose
-//! `.top_level` / `.procedures[...]` are `FunctionAnalysis` records exposing the
-//! raw lattice (`values`, `constant_branches`, `unreachable_blocks`,
-//! `dead_stores`, `types`).  In the Rust port that exact bundle is the
-//! [`tcl_compiler::compilation_unit::FunctionUnit`] reachable from a built
-//! [`CompilationUnit`] (`cu.top_level`, `cu.procedures["::p"]`): `fu.sccp.values`
-//! is the `values` map (keyed by an interned `(Symbol, version)` — resolve a
-//! name with `fu.ssa.var_symbol`), `fu.sccp.constant_branches` is
-//! `constant_branches`, and the unreachable set is `cfg.blocks \
-//! sccp.executable_blocks`.  The lattice-level `test_core_analyses.py` tests port
-//! against that.
+//! A built [`CompilationUnit`] exposes, per function, a
+//! [`tcl_compiler::compilation_unit::FunctionUnit`] (`cu.top_level`,
+//! `cu.procedures["::p"]`) carrying the raw lattice: `fu.sccp.values` is the
+//! values map (keyed by an interned `(Symbol, version)` — resolve a name with
+//! `fu.ssa.var_symbol`), `fu.sccp.constant_branches` is the constant-branch set,
+//! and the unreachable set is `cfg.blocks \ sccp.executable_blocks`. The
+//! lattice-level tests assert against that.
 //!
-//! The diagnostic-policy `test_existence_checks.py` tests go through the same
-//! merged `tcl diag` surface the existing FP catalogue uses
-//! (`src/analyser/diagnostics/fp/mod.rs::codes`): the analyser pass (which owns
-//! W210 read-before-set and the I230 constant-branch diagnostic) unioned with
-//! `run_all_checks`, optimisation codes dropped.  Copied verbatim into [`codes`].
+//! The diagnostic-policy tests go through the same merged `tcl diag` surface the
+//! existing FP catalogue uses (`src/analyser/diagnostics/fp/mod.rs::codes`): the
+//! analyser pass (which owns W210 read-before-set and the I230 constant-branch
+//! diagnostic) unioned with `run_all_checks`, optimisation codes dropped. Copied
+//! verbatim into [`codes`].
 //!
 //! ## C-Tcl ground truth
 //!
@@ -29,18 +25,16 @@
 //! tclsh via `scripts/dev/tclsh_check.sh` and recorded in a `// tclsh:` comment
 //! (tclsh8.6 + tclsh9.0 agree on every one used here).
 //!
-//! ## Divergences from the Python suite
+//! ## Conservative folding
 //!
-//! The Rust analyser is deliberately *more conservative* than the Python one in
-//! a few places — it leaves a value `Overdefined` (sound: never substitutes a
-//! wrong constant) where Python folds a registry command, and it folds an
-//! existence check only for the two false-positive-free cases (a parameter
-//! always exists → true; a never-defined local never exists → false), declining
-//! the flow-sensitive must-define / narrowing precision Python adds.  None of
-//! these is unsound (no case folds a check C-Tcl leaves dynamic, nor suppresses
-//! a genuine read-before-set), so — exactly as `analyser_port.rs` does — each is
-//! ported to the *actual* Rust verdict with an explanatory comment rather than
-//! `#[ignore]`d.  They are enumerated in the port report.
+//! The analyser is deliberately conservative in a few places — it leaves a value
+//! `Overdefined` (sound: never substitutes a wrong constant) rather than folding
+//! a registry command, and it folds an existence check only for the two
+//! false-positive-free cases (a parameter always exists → true; a never-defined
+//! local never exists → false), declining flow-sensitive must-define / narrowing
+//! precision. None of these is unsound (no case folds a check C-Tcl leaves
+//! dynamic, nor suppresses a genuine read-before-set), so each is asserted at the
+//! *actual* verdict with an explanatory comment rather than `#[ignore]`d.
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeKind, LatticeValue};
@@ -55,24 +49,22 @@ const D: &str = "tcl8.6";
 // Lattice-level harness (the `analyse_source(...).top_level` surface).
 // ===========================================================================
 
-/// Build the shared compilation unit for `src` under [`D`] — the Rust analogue
-/// of Python `analyse_source(src)`. `cu.top_level` is the module script's
-/// `FunctionAnalysis`; `cu.procedures[qname]` are the per-proc ones.
+/// Build the shared compilation unit for `src` under [`D`]. `cu.top_level` is
+/// the module script's function analysis; `cu.procedures[qname]` are the
+/// per-proc ones.
 fn build(src: &str) -> CompilationUnit {
     CompilationUnit::build_for(src, registry_for_dialect(D), false)
 }
 
-/// The lattice value for `(name, version)` — the Rust spelling of Python
-/// `analysis.values[(name, version)]`. Resolves `name` through the function's
-/// SSA interner to its `Symbol`, then indexes `sccp.values`. `None` is the
-/// honest "no fact for this (name, version)" answer (Python would `KeyError`).
+/// The lattice value for `(name, version)`. Resolves `name` through the
+/// function's SSA interner to its `Symbol`, then indexes `sccp.values`. `None`
+/// is the honest "no fact for this (name, version)" answer.
 fn lat<'a>(fu: &'a FunctionUnit, name: &str, version: u32) -> Option<&'a LatticeValue> {
     let sym = fu.ssa.var_symbol(name)?;
     fu.sccp.values.get(&(sym, version))
 }
 
-/// Every lattice value recorded for variable `name` (any version) — the
-/// `[v for (n,_),v in values.items() if n == name]` idiom.
+/// Every lattice value recorded for variable `name` (any version).
 fn lats_for<'a>(fu: &'a FunctionUnit, name: &str) -> Vec<&'a LatticeValue> {
     let Some(sym) = fu.ssa.var_symbol(name) else {
         return Vec::new();
@@ -112,9 +104,9 @@ fn assert_const_str(fu: &FunctionUnit, name: &str, version: u32, want: &str) {
     }
 }
 
-/// The set of variable names that are a dead store (any version) — the Rust
-/// analogue of `{d.variable for d in analysis.dead_stores}`. A dead store is an
-/// SSA definition whose value is never read; the liveness pass records them in
+/// The set of variable names that are a dead store (any version). A dead store
+/// is an SSA definition whose value is never read; the liveness pass records
+/// them in
 /// `sccp`-adjacent form, but the observable, stable signal is the analyser's
 /// W220 ("Assignment to 'x' is never read"). We reconstruct the variable set
 /// from that diagnostic, which is exactly what downstream consumers see.
@@ -128,8 +120,7 @@ fn dead_store_vars(src: &str) -> std::collections::HashSet<String> {
         .collect()
 }
 
-/// Constant-branch records for a function, as `(condition, value)` — the Rust
-/// spelling of iterating `analysis.constant_branches`.
+/// Constant-branch records for a function, as `(condition, value)`.
 fn const_branches(fu: &FunctionUnit) -> Vec<(String, bool)> {
     fu.sccp
         .constant_branches
@@ -139,7 +130,7 @@ fn const_branches(fu: &FunctionUnit) -> Vec<(String, bool)> {
 }
 
 /// Block names that SCCP proved unreachable: in `cfg.blocks` but absent from
-/// `executable_blocks`. The Rust analogue of `analysis.unreachable_blocks`.
+/// `executable_blocks`.
 fn unreachable_blocks(fu: &FunctionUnit) -> std::collections::HashSet<String> {
     fu.cfg
         .blocks
@@ -149,7 +140,7 @@ fn unreachable_blocks(fu: &FunctionUnit) -> std::collections::HashSet<String> {
         .collect()
 }
 
-/// The type-lattice entry for `(name, version)` (Python `analysis.types[...]`).
+/// The type-lattice entry for `(name, version)`.
 fn ty<'a>(
     fu: &'a FunctionUnit,
     name: &str,
@@ -174,8 +165,8 @@ mod core_analyses {
     #[test]
     fn liveness_ignores_intrablock_def_use() {
         // `set b [expr {$a + 1}]` reads a in the same block it was defined; a is
-        // live (used) so it is not a dead store. (Python inspected `live_in`
-        // directly; the observable consequence is "a is used", i.e. no W220.)
+        // live (used) so it is not a dead store. The observable consequence is
+        // "a is used", i.e. no W220.
         let cu = build("set a 1\nset b [expr {$a + 1}]");
         assert!(!dead_store_vars("set a 1\nset b [expr {$a + 1}]").contains("a"));
         // a₁ is a tracked const (used by the expr), b₁ folds to 2.
@@ -236,9 +227,9 @@ mod core_analyses {
     #[test]
     fn static_for_loop_feeds_branch_constant_folding() {
         // The static `for` accumulates total; `$total > 5` is provably true so
-        // the else is dead. (Rust additionally records the idiomatic
+        // the else is dead. (The analyser additionally records the idiomatic
         // constant-true loop-header branch `1`; we assert the *meaningful*
-        // `$total > 5` fold, matching the Python intent.)
+        // `$total > 5` fold.)
         let src = "\
 set total 0
 for {set i 0} {$i < 5} {incr i} {
@@ -300,12 +291,10 @@ if {$total > 5} {
 
     #[test]
     fn sccp_does_not_propagate_nan_as_constant() {
-        // Python reached into `_substitute_expr_with_lattice` to prove a CONST
-        // NaN input widens to OVERDEFINED (guarding Tcl 9's ARITH DOMAIN). The
-        // Rust evaluator never *produces* a NaN constant from a finite program
-        // in the first place — there is no public lattice-injection entry point.
-        // The observable invariant the guard protects is: an expression whose
-        // value would be NaN does not fold to a substitutable constant.
+        // The evaluator never *produces* a NaN constant from a finite program —
+        // there is no public lattice-injection entry point. The observable
+        // invariant is: an expression whose value would be NaN does not fold to a
+        // substitutable constant (guarding Tcl 9's ARITH DOMAIN).
         // `expr {sqrt(-1)}` raises `domain error` in tclsh (verified:
         //   tclsh8.6/9.0: ERR: domain error: argument not in valid range),
         // so the result must NOT be a Const.
@@ -322,10 +311,9 @@ if {$total > 5} {
 
     #[test]
     fn format_constant_rejects_nan() {
-        // Python tested the optimiser's `_format_constant` helper directly (NaN
-        // → None; 42 → "42"; True → "1"; False → "0"). The Rust equivalent is
-        // the value formatter `format_tcl_value`. NaN must not format to a
-        // substitutable numeric literal.
+        // The value formatter `format_tcl_value` must render NaN so it cannot be
+        // spliced back as a substitutable numeric literal (42 → "42"; 1 → "1";
+        // 0 → "0"; NaN → not a finite numeric literal).
         use tcl_compiler::{TclValue, format_tcl_value};
         // Non-NaN values format to their Tcl text. (Tcl booleans are Int(0/1).)
         assert_eq!(format_tcl_value(TclValue::Int(42)), "42");
@@ -421,13 +409,11 @@ mod interpolation_folding {
 
     #[test]
     fn interpolation_folds_to_string_const_diverges() {
-        // DIVERGENCE (fold coverage): Python folds c₂ = "${c}0" (c=1) to the
-        // string CONST("10"). tclsh agrees on the value:
-        //   `set c 1; set c "${c}0"; set c` → 10.
-        // Rust folds the expr part (c₁ = 1) but does NOT constant-fold the
-        // interpolation's *value* — c₂ is left Overdefined (it is, however,
+        // The analyser folds the expr part (c₁ = 1) but does NOT constant-fold
+        // the interpolation's *value* — c₂ is left Overdefined (it is, however,
         // correctly STRING-typed; see `interpolation_result_typed_as_string`).
-        // Sound (no wrong substitution), only less precise.
+        // Sound (no wrong substitution), only less precise. tclsh agrees the
+        // value would be 10: `set c 1; set c "${c}0"; set c` → 10.
         let cu = build("set c [expr {0+1}]\nset c \"${c}0\"");
         assert_const_int(&cu.top_level, "c", 1, 1);
         assert_overdefined_or_absent(&cu.top_level, "c", 2, "string interpolation value");
@@ -435,8 +421,8 @@ mod interpolation_folding {
 
     #[test]
     fn interpolation_result_typed_as_string() {
-        // The interpolated c₂ is typed STRING regardless of digit content —
-        // this Rust DOES do (the value is Overdefined but the type is known).
+        // The interpolated c₂ is typed STRING regardless of digit content (the
+        // value is Overdefined but the type is known).
         let cu = build("set c [expr {0+1}]\nset c \"${c}0\"");
         let t = ty(&cu.top_level, "c", 2).expect("c₂ has a type");
         assert_eq!(t.kind, TypeKind::Known);
@@ -445,9 +431,8 @@ mod interpolation_folding {
 
     #[test]
     fn interpolation_multiple_vars_diverges() {
-        // DIVERGENCE (fold coverage): Python folds `"${a}_${b}"` (a=1,b=2) to
-        // CONST("1_2"). tclsh: `set a 1; set b 2; set c "${a}_${b}"` → 1_2.
-        // Rust leaves the multi-var interpolation value Overdefined.
+        // The multi-var interpolation value is left Overdefined. tclsh: `set a
+        // 1; set b 2; set c "${a}_${b}"` → 1_2.
         let cu = build("set a 1\nset b 2\nset c \"${a}_${b}\"");
         assert_overdefined_or_absent(&cu.top_level, "c", 1, "multi-var interpolation");
     }
@@ -466,13 +451,10 @@ mod interpolation_folding {
 
     #[test]
     fn incr_with_string_const_increment_diverges_overdefined() {
-        // DIVERGENCE (folding aggressiveness): Python folds `incr b $c` with
-        // c=="10" to CONST(11). tclsh agrees on the *value*:
-        //   `set b 1; incr b 10` → 11.
-        // The Rust SCCP does NOT fold an `incr` by a string-const increment —
-        // it widens b₂ to Overdefined. That is sound (it never substitutes a
-        // wrong constant); it is only less precise, so we assert the actual
-        // verdict rather than the Python fold.
+        // SCCP does NOT fold an `incr` by a string-const increment — it widens
+        // b₂ to Overdefined. That is sound (it never substitutes a wrong
+        // constant), only less precise, so we assert the actual verdict. tclsh
+        // agrees the value would be 11: `set b 1; incr b 10` → 11.
         let cu = build("set c [expr {0+1}]\nset c \"${c}0\"\nset b 1\nincr b $c");
         // c₁ folds to 1; the interpolation value c₂ is Overdefined (see
         // `interpolation_folds_to_string_const_diverges`), so the downstream
@@ -483,9 +465,9 @@ mod interpolation_folding {
 
     #[test]
     fn interpolation_folds_in_proc_diverges() {
-        // DIVERGENCE (fold coverage): as at top level, the expr part c₁ folds to
-        // CONST(1) inside a proc body, but the interpolation value c₂ is left
-        // Overdefined (Python folds it to "10"). tclsh value: 10.
+        // As at top level, the expr part c₁ folds to CONST(1) inside a proc
+        // body, but the interpolation value c₂ is left Overdefined. tclsh value:
+        // 10.
         let cu = build(
             "proc add {a b} {\n    set c [expr {0+1}]\n    set c \"${c}0\"\n    incr b $c\n    return $c\n}\n",
         );
@@ -512,10 +494,10 @@ mod interpolation_folding {
 
     #[test]
     fn shimmer_preserved_after_folding() {
-        // The Python suite asserts a STRING→INT shimmer on the `incr c` arg
-        // survives folding. The Rust shimmer family (S100/S101) is emitted by
-        // `run_all_checks`; the merged diag surface must still surface an
-        // intrep-shimmer signal for the `${c}0` string fed to `incr`.
+        // A STRING→INT shimmer on the `incr c` arg must survive folding. The
+        // shimmer family (S100/S101) is emitted by `run_all_checks`; the merged
+        // diag surface must still surface an intrep-shimmer signal for the
+        // `${c}0` string fed to `incr`.
         let src = "set c [expr {0+1}]\nset c \"${c}0\"\nset b 1\nincr b $c";
         let cs = codes(src, D);
         assert!(
@@ -600,12 +582,10 @@ proc wire_namespace_vars {} {
 
     #[test]
     fn foreach_list_cmd_constset_diverges() {
-        // DIVERGENCE: Python resolves `foreach x [list a b c]` to CONSTSET{a,b,c}
-        // (the [list …] command-sub result feeds the iteration). tclsh value:
-        // `list a b c` → "a b c". Rust folds a *braced literal* list into a
-        // foreach CONSTSET (see `foreach_braced_list_constset`) but does NOT fold
-        // a `[list …]` command-sub there — x stays Overdefined. Sound, less
-        // precise.
+        // The analyser folds a *braced literal* list into a foreach CONSTSET
+        // (see `foreach_braced_list_constset`) but does NOT fold a `[list …]`
+        // command-sub there — x stays Overdefined. Sound, less precise. tclsh:
+        // `list a b c` → "a b c".
         let cu = build("foreach x [list a b c] {puts $x}");
         for v in lats_for(&cu.top_level, "x") {
             assert_ne!(
@@ -655,19 +635,17 @@ proc wire_namespace_vars {} {
 
     // --- registry-based constant folding ---
     //
-    // The Rust SCCP folds a narrow set of registry commands: `string length`,
-    // `format`, and `list` over literal args (plus all `expr`-shaped arithmetic).
-    // It does NOT fold `string toupper`, `lindex`, `dict get`, `join`,
+    // SCCP folds a narrow set of registry commands: `string length`, `format`,
+    // and `list` over literal args (plus all `expr`-shaped arithmetic). It does
+    // NOT fold `string toupper`, `lindex`, `dict get`, `join`,
     // `list`-with-var-args, or fold through a `$var` argument — those are left
-    // Overdefined. Python's optimiser folds the whole registry. Each Rust
-    // non-fold is a sound (never-wrong-substitution) precision gap, captured at
-    // its actual verdict with a `// DIVERGENCE` note; the tclsh value is pinned
-    // either way.
+    // Overdefined. Each non-fold is a sound (never-wrong-substitution) precision
+    // gap, captured at its actual verdict; the tclsh value is pinned either way.
 
     #[test]
     fn fold_string_toupper_diverges_overdefined() {
-        // DIVERGENCE: Python folds to CONST("HELLO"); tclsh: `string toupper
-        // hello` → HELLO. Rust has no `string toupper` fold → Overdefined.
+        // No `string toupper` fold → Overdefined. tclsh: `string toupper hello`
+        // → HELLO.
         let cu = build("set x [string toupper hello]");
         assert_overdefined_or_absent(&cu.top_level, "x", 1, "string toupper");
     }
@@ -681,17 +659,15 @@ proc wire_namespace_vars {} {
 
     #[test]
     fn fold_lindex_diverges_overdefined() {
-        // DIVERGENCE: Python folds to CONST("b"); tclsh agrees on the value
+        // Left Overdefined (no lindex fold) — sound, less precise. tclsh:
         //   `lindex {a b c} 1` → b.
-        // Rust leaves it Overdefined (no lindex fold) — sound, less precise.
         let cu = build("set x [lindex {a b c} 1]");
         assert_overdefined_or_absent(&cu.top_level, "x", 1, "lindex");
     }
 
     #[test]
     fn fold_dict_get_diverges_overdefined() {
-        // DIVERGENCE: Python folds to CONST(1); tclsh: `dict get {a 1 b 2} a` → 1.
-        // Rust leaves it Overdefined.
+        // Left Overdefined (no dict get fold). tclsh: `dict get {a 1 b 2} a` → 1.
         let cu = build("set x [dict get {a 1 b 2} a]");
         assert_overdefined_or_absent(&cu.top_level, "x", 1, "dict get");
     }
@@ -705,17 +681,15 @@ proc wire_namespace_vars {} {
 
     #[test]
     fn fold_join_diverges_overdefined() {
-        // DIVERGENCE: Python folds to CONST("a,b,c"); tclsh: `join {a b c} ,` → a,b,c.
-        // Rust leaves it Overdefined.
+        // Left Overdefined (no join fold). tclsh: `join {a b c} ,` → a,b,c.
         let cu = build("set x [join {a b c} ,]");
         assert_overdefined_or_absent(&cu.top_level, "x", 1, "join");
     }
 
     #[test]
     fn fold_with_variable_resolution_diverges_overdefined() {
-        // DIVERGENCE: Python folds `[string toupper $v]` (v="hello") to
-        // CONST("HELLO"). tclsh value: HELLO. Rust has no `string toupper` fold,
-        // so x is Overdefined (v itself still folds to the string const "hello").
+        // No `string toupper` fold, so x is Overdefined (v itself still folds to
+        // the string const "hello"). tclsh: `string toupper hello` → HELLO.
         let cu = build("set v hello\nset x [string toupper $v]");
         assert_const_str(&cu.top_level, "v", 1, "hello");
         assert_overdefined_or_absent(&cu.top_level, "x", 1, "string toupper $v");
@@ -723,11 +697,10 @@ proc wire_namespace_vars {} {
 
     #[test]
     fn fold_chained_diverges_overdefined() {
-        // DIVERGENCE: Python folds a=[string toupper hello]="HELLO",
-        // b=[string length $a]=5 via the SCCP fixed point. tclsh values: HELLO,
-        // 5. Rust does not fold `string toupper`, so a is Overdefined, and with a
+        // `string toupper` does not fold, so a is Overdefined, and with a
         // non-constant input `[string length $a]` cannot fold either → b
-        // Overdefined.
+        // Overdefined. tclsh values: `string toupper hello` → HELLO,
+        // `string length HELLO` → 5.
         let cu = build("set a [string toupper hello]\nset b [string length $a]");
         assert_overdefined_or_absent(&cu.top_level, "a", 1, "string toupper");
         assert_overdefined_or_absent(&cu.top_level, "b", 1, "string length of non-const");
@@ -742,9 +715,8 @@ proc wire_namespace_vars {} {
 
     #[test]
     fn list_cmd_with_const_vars_diverges_overdefined() {
-        // DIVERGENCE: Python folds `[list $x $y]` (x=puts,y=hello) to
-        // CONST("puts hello"); tclsh agrees: `list puts hello` → puts hello.
-        // Rust folds `list` only over literal args, not var refs → Overdefined.
+        // `list` folds only over literal args, not var refs → Overdefined.
+        // tclsh: `list puts hello` → puts hello.
         let cu = build("set x puts\nset y hello\nset cmd [list $x $y]");
         assert_overdefined_or_absent(&cu.top_level, "cmd", 1, "list with var args");
     }
@@ -785,9 +757,9 @@ fn assert_constset_strs(v: &LatticeValue, want: &[&str]) {
     assert_eq!(got, want_sorted, "CONSTSET members mismatch");
 }
 
-/// Assert `(name, version)` is Overdefined (or absent) — the conservative Rust
-/// verdict for a fold Python performs but Rust declines. `what` labels the
-/// folded construct for the failure message.
+/// Assert `(name, version)` is Overdefined (or absent) — the conservative
+/// verdict for a fold the analyser declines. `what` labels the folded construct
+/// for the failure message.
 #[track_caller]
 fn assert_overdefined_or_absent(fu: &FunctionUnit, name: &str, version: u32, what: &str) {
     let v = lat(fu, name, version);
@@ -798,11 +770,10 @@ fn assert_overdefined_or_absent(fu: &FunctionUnit, name: &str, version: u32, wha
 }
 
 // ===========================================================================
-// Existence-check diagnostic surface (test_existence_checks.py).
+// Existence-check diagnostic surface.
 //
 // `codes` / `fires` are copied verbatim from
-// `src/analyser/diagnostics/fp/mod.rs` — the Rust counterpart of the Python
-// `get_diagnostics(src)` surface those tests run against.
+// `src/analyser/diagnostics/fp/mod.rs`.
 // ===========================================================================
 
 /// Every diagnostic code the merged pipeline surfaces for `src` under `dialect`
@@ -831,8 +802,7 @@ fn fires(src: &str, code: &str) -> bool {
     codes(src, D).iter().any(|c| c == code)
 }
 
-/// The I230 messages emitted for `src` (analyser pass owns I230). The Python
-/// `_messages(src, "I230")`.
+/// The I230 messages emitted for `src` (analyser pass owns I230).
 fn i230_messages(src: &str) -> Vec<String> {
     Analyser::new()
         .analyse(src, D)
@@ -843,9 +813,8 @@ fn i230_messages(src: &str) -> Vec<String> {
         .collect()
 }
 
-/// Variable names named by W210 diagnostics — the Rust spelling of the Python
-/// `d.message.split("'")[1]` idiom over read-before-set messages
-/// (`Variable 'X' is read before it is set`).
+/// Variable names named by W210 diagnostics, extracted from the read-before-set
+/// messages (`Variable 'X' is read before it is set`).
 fn w210_vars(src: &str) -> std::collections::HashSet<String> {
     Analyser::new()
         .analyse(src, D)
@@ -911,14 +880,14 @@ mod no_read_before_set {
 
     #[test]
     fn dynamic_target_is_a_real_read() {
-        // DIVERGENCE (code, not policy): `info exists $name` reads `name` to
-        // form the tested variable name, so an unset `name` is a genuine
-        // read-before-use that must NOT be suppressed. tclsh confirms the read:
+        // `info exists $name` reads `name` to form the tested variable name, so
+        // an unset `name` is a genuine read-before-use that must NOT be
+        // suppressed. tclsh confirms the read:
         //   `info exists $name` with name unset → can't read "name": no such variable.
-        // The Rust analyser flags it with W212 ("Variable substitution where
-        // name expected (`set $x`, `incr $x`, `info exists $x`, …)") rather than
+        // The analyser flags it with W212 ("Variable substitution where name
+        // expected (`set $x`, `incr $x`, `info exists $x`, …)") rather than
         // W210 — the same foot-gun, a more specific code. We assert the read is
-        // flagged by *either* code (the Python intent: not suppressed).
+        // flagged by *either* code (not suppressed).
         for src in [
             "proc p {} { if {[info exists $name]} { puts hi } }",
             "proc p {} { set r [info exists $name]; puts $r }",
@@ -933,12 +902,12 @@ mod no_read_before_set {
 
     #[test]
     fn vwait_var_is_not_read_before_set() {
-        // DIVERGENCE: Python exempts `vwait varName` (it monitors, not reads, the
-        // var — `vwait forever` is the canonical infinite-wait idiom). The Rust
-        // analyser does NOT model that exemption: it flags the `vwait` operand as
-        // a read-before-set (W210). The Tcl fact that `vwait` waits rather than
-        // reads is real, but Rust's verdict here is the conservative over-warn;
-        // we capture it (and exercise the `vwait` path) at the actual verdict.
+        // The analyser does NOT exempt `vwait varName`: it flags the `vwait`
+        // operand as a read-before-set (W210). The Tcl fact that `vwait` waits
+        // rather than reads is real (`vwait forever` is the canonical
+        // infinite-wait idiom), but the verdict here is the conservative
+        // over-warn; we capture it (and exercise the `vwait` path) at the actual
+        // verdict.
         assert!(fires("proc p {} { vwait forever }", "W210"));
         assert!(fires("proc p {} { vwait sig }", "W210"));
         assert!(fires("vwait forever", "W210"));
@@ -946,20 +915,19 @@ mod no_read_before_set {
 
     #[test]
     fn vwait_inside_command_sub_is_not_read_before_set() {
-        // FP guard: a `[vwait sig]` embedded in an outer command. Here the Rust
-        // analyser agrees with the Python suite — no W210 — because the cmd-sub
-        // scanner does not treat the bracketed `vwait` operand as a frame read.
+        // FP guard: a `[vwait sig]` embedded in an outer command — no W210,
+        // because the cmd-sub scanner does not treat the bracketed `vwait`
+        // operand as a frame read.
         assert!(!fires("proc p {} { return [vwait sig] }", "W210"));
     }
 
     #[test]
     fn dict_for_body_local_set_diverges() {
-        // DIVERGENCE: Python recovers a body-local `set fileData $k` inside the
-        // opaque `dict for` barrier, so the following `$fileData` read is not
-        // flagged. In Tcl the body's `set` definitely defines fileData before
-        // the read, so the read is safe. The Rust analyser does not recover
-        // body-local writes inside the `dict for` barrier, so it flags
-        // `$fileData` (W210). A sound over-warn; asserted at the actual verdict.
+        // The analyser does not recover a body-local `set fileData $k` inside the
+        // opaque `dict for` barrier, so the following `$fileData` read is flagged
+        // (W210). In Tcl the body's `set` definitely defines fileData before the
+        // read, so the read is actually safe — a sound over-warn, asserted at the
+        // actual verdict.
         let src = "proc p {} {\n    dict for {k v} {a 1 b 2} {\n        set fileData $k\n        puts $fileData\n    }\n}\n";
         assert!(
             fires(src, "W210"),
@@ -970,16 +938,16 @@ mod no_read_before_set {
     #[test]
     fn dict_for_loop_vars_are_not_read_before_set() {
         // The loop variables k/v are bound by `dict for` — reading them in the
-        // body is safe. This Rust DOES handle (no W210), matching Python.
+        // body is safe. This the analyser handles (no W210).
         let src = "proc p {} { dict for {k v} {a 1 b 2} { puts \"$k=$v\" } }\n";
         assert!(!fires(src, "W210"));
     }
 
     #[test]
     fn dict_map_body_local_set_diverges() {
-        // DIVERGENCE: `dict map` is the lmap analogue — same body-recovery gap as
-        // `dict_for_body_local_set_diverges`. Rust flags the body-local
-        // `set out $k`'s read (W210); Python recovers it. Sound over-warn.
+        // `dict map` is the lmap analogue — same body-recovery gap as
+        // `dict_for_body_local_set_diverges`. The analyser flags the body-local
+        // `set out $k`'s read (W210) though it is in fact safe. Sound over-warn.
         let src = "proc p {} {\n    dict map {k v} {a 1 b 2} {\n        set out $k\n        list $out\n    }\n}\n";
         assert!(
             fires(src, "W210"),
@@ -996,13 +964,12 @@ mod no_read_before_set {
 
     #[test]
     fn cmd_sub_set_in_return_value_diverges() {
-        // DIVERGENCE: Python recovers the `[set x [open $f r]]` write nested in
-        // the return value's command substitution, so the trailing `[close $x]`
-        // read is not flagged (tcllib installer.tcl idiom). In Tcl the `set x`
-        // definitely creates x, so the read is safe. The Rust read-before-set
-        // pass does not scan cmd-sub writes inside a `return`'s value words, so
-        // it flags `$x` (W210). A sound over-warn (it never suppresses a real
-        // read); asserted at the actual verdict.
+        // The read-before-set pass does not scan cmd-sub writes inside a
+        // `return`'s value words, so it flags `$x` (W210) in the
+        // `[set x [open $f r]]` … `[close $x]` idiom (tcllib installer.tcl). In
+        // Tcl the `set x` definitely creates x, so the read is safe — a sound
+        // over-warn (it never suppresses a real read); asserted at the actual
+        // verdict.
         let src = "proc p {f} { return [read [set x [open $f r]]][close $x] }\n";
         assert!(
             fires(src, "W210"),
@@ -1012,11 +979,11 @@ mod no_read_before_set {
 
     #[test]
     fn cmd_sub_set_in_branch_condition_diverges() {
-        // DIVERGENCE: same shape in a branch condition — `if {[set x 1]} { puts
-        // $x }`. The `set x 1` inside the condition's command substitution
-        // defines x (tclsh: x is 1 in the body). Python recovers it; Rust does
-        // not scan branch-condition cmd-sub writes, so `$x` is flagged W210.
-        // Sound over-warn; actual verdict asserted.
+        // Same shape in a branch condition — `if {[set x 1]} { puts $x }`. The
+        // `set x 1` inside the condition's command substitution defines x (tclsh:
+        // x is 1 in the body). The analyser does not scan branch-condition
+        // cmd-sub writes, so `$x` is flagged W210. Sound over-warn; actual
+        // verdict asserted.
         let src = "proc p {} { if {[set x 1]} { puts $x } }\n";
         assert!(
             fires(src, "W210"),
@@ -1055,15 +1022,14 @@ mod provably_absent_folds_false {
 
     #[test]
     fn lazy_init_reuse_branch_is_dead_for_local_diverges() {
-        // DIVERGENCE: Python folds the reuse branch dead (a *local* H never
-        // persists across calls, so `[info exists H]` is false). The Rust
-        // existence-folder folds only the two FP-free cases — a *never-defined*
-        // local (→ false) and a *parameter* (→ true). Here H is defined in the
-        // `else` arm (`set H 1`), so it is "defined somewhere" and the folder
-        // deliberately bails (declining flow-sensitive must-not-be-defined
-        // reasoning). That is sound — it just omits the optional I230 hint.
-        // tclsh confirms the underlying fact (`info exists H` of an unset local
-        // → 0), but Rust's conservative non-fold is the actual verdict.
+        // The existence-folder folds only the two FP-free cases — a
+        // *never-defined* local (→ false) and a *parameter* (→ true). Here H is
+        // defined in the `else` arm (`set H 1`), so it is "defined somewhere" and
+        // the folder deliberately bails (declining flow-sensitive
+        // must-not-be-defined reasoning). That is sound — it just omits the
+        // optional I230 hint. tclsh confirms the underlying fact (`info exists H`
+        // of an unset local → 0), but the conservative non-fold is the actual
+        // verdict.
         let src = "proc authorize {} {\n    if {[info exists H]} {\n        set reuse 1\n    } else {\n        set H 1\n    }\n}";
         assert!(
             i230_messages(src).is_empty(),
@@ -1100,14 +1066,11 @@ mod provably_present_folds_true {
 
     #[test]
     fn set_before_check_diverges_no_fold() {
-        // DIVERGENCE: Python folds `set X 1; if {[info exists X]}` to "always
-        // true". tclsh agrees on the fact: `set X 1; info exists X` → 1. The
-        // Rust existence-folder folds a non-parameter to TRUE only when it is a
-        // *parameter*; a plain `set` makes X "defined somewhere", which it does
-        // not promote to a must-exist fold (that needs flow-sensitive
-        // must-define reasoning). It bails — sound, no I230. (This is the same
-        // conservative gate the task calls out: a `set`/cross-event-style var is
-        // not folded to exist.)
+        // The existence-folder folds to TRUE only for a *parameter*; a plain
+        // `set` makes X "defined somewhere", which it does not promote to a
+        // must-exist fold (that needs flow-sensitive must-define reasoning). It
+        // bails — sound, no I230. tclsh agrees on the fact: `set X 1; info exists
+        // X` → 1.
         let src = "proc p {} { set X 1; if {[info exists X]} { puts ok } else { puts dead } }";
         assert!(
             !i230_messages(src).iter().any(|m| m.contains("always true")),
@@ -1135,7 +1098,7 @@ mod provably_present_folds_true {
 
 // ---------------------------------------------------------------------------
 // TestSoundnessGates — the fold bails when a local could be created/destroyed
-// invisibly. (All of these match the Python suite exactly.)
+// invisibly.
 // ---------------------------------------------------------------------------
 mod soundness_gates {
     use super::*;
@@ -1257,12 +1220,11 @@ mod flow_sensitive_narrowing {
 
     #[test]
     fn and_pure_right_keeps_both_facts_diverges() {
-        // DIVERGENCE: Python narrows through a pure `&&` chain — both
-        // `[info exists X]` and `[info exists Y]` flow into the body, so neither
-        // read is flagged. The Rust analyser narrows only a single top-level
-        // existence guard, not an `&&` conjunction, so both X and Y are still
-        // flagged. The reads are guard-safe in Tcl; Rust's over-warn is sound
-        // (it never suppresses a real read). Asserted at the actual verdict.
+        // The analyser narrows only a single top-level existence guard, not an
+        // `&&` conjunction, so with `[info exists X] && [info exists Y]` both X
+        // and Y are still flagged. The reads are guard-safe in Tcl; the
+        // over-warn is sound (it never suppresses a real read). Asserted at the
+        // actual verdict.
         let f = flagged("if {[info exists X] && [info exists Y]} { puts $X$Y }");
         assert!(
             f.contains("X") && f.contains("Y"),
@@ -1281,13 +1243,12 @@ mod flow_sensitive_narrowing {
 // ---------------------------------------------------------------------------
 // TestInfoVarsNarrowing — `info vars` / `info locals` membership idioms.
 //
-// DIVERGENCE (whole section): the Rust analyser narrows only the direct
-// `info exists` / `array exists` / `catch` guards, NOT the
-// `[info vars X] ne ""` / `lsearch [info vars] X` membership idioms. So where
-// Python proves the guarded read safe, Rust conservatively still flags X. The
-// reads are genuinely guard-safe in Tcl, but Rust's over-warn is sound (it
-// never *suppresses* a real read); we capture the actual verdict. The two
-// must-still-flag controls (`info globals`, `-regexp`, glob `X*`) match Python.
+// The analyser narrows only the direct `info exists` / `array exists` / `catch`
+// guards, NOT the `[info vars X] ne ""` / `lsearch [info vars] X` membership
+// idioms, so it conservatively still flags X. The reads are genuinely
+// guard-safe in Tcl, but the over-warn is sound (it never *suppresses* a real
+// read); we capture the actual verdict. The two must-still-flag controls (`info
+// globals`, `-regexp`, glob `X*`) behave the same.
 // ---------------------------------------------------------------------------
 mod info_vars_narrowing {
     use super::*;
@@ -1298,8 +1259,8 @@ mod info_vars_narrowing {
 
     #[test]
     fn info_vars_membership_idioms_are_not_narrowed_rust_behaviour() {
-        // Python expects X NOT flagged for each of these; Rust still flags X
-        // (no info-vars membership narrowing). Assert the actual Rust verdict.
+        // X is still flagged for each of these (no info-vars membership
+        // narrowing). Assert the actual verdict.
         for body in [
             "if {[info vars X] ne \"\"} { puts $X }",
             "if {[info vars X] eq \"\"} { puts a } else { puts $X }",
@@ -1319,27 +1280,26 @@ mod info_vars_narrowing {
     #[test]
     fn info_vars_ne_empty_false_branch_flagged() {
         // The else arm of `[info vars X] ne ""` definitely lacks X — a genuine
-        // read-before-set in any model. Matches Python (X flagged).
+        // read-before-set in any model (X flagged).
         assert!(flagged("if {[info vars X] ne \"\"} { puts a } else { puts $X }").contains("X"));
     }
 
     #[test]
     fn info_globals_is_not_narrowed() {
-        // `info globals X` proves the *global* exists, not the local `$X`.
-        // Matches Python: X is still flagged.
+        // `info globals X` proves the *global* exists, not the local `$X`, so X
+        // is still flagged.
         assert!(flagged("if {[info globals X] ne \"\"} { puts $X }").contains("X"));
     }
 
     #[test]
     fn lsearch_regexp_is_not_narrowed() {
         // `-regexp` matches a regex, not an exact name — unsound to narrow.
-        // Matches Python.
         assert!(flagged("if {[lsearch -regexp [info vars] X] > -1} { puts $X }").contains("X"));
     }
 
     #[test]
     fn glob_pattern_is_not_narrowed() {
-        // A glob pattern (`X*`) is not a single exact name. Matches Python.
+        // A glob pattern (`X*`) is not a single exact name.
         assert!(flagged("if {[info vars X*] ne \"\"} { puts $X }").contains("X"));
     }
 }
@@ -1348,10 +1308,10 @@ mod info_vars_narrowing {
 // TestCatchNarrowing — `catch {set _ $X}` signals existence on its succeeded
 // (false) branch.
 //
-// DIVERGENCE (whole section): the Rust analyser does not implement
-// catch-as-existence-probe narrowing, so the guarded reads Python proves safe
-// are still flagged. Sound over-warn; captured at the actual verdict. The two
-// must-still-flag controls (failed/ambiguous arm, non-pure body) match Python.
+// The analyser does not implement catch-as-existence-probe narrowing, so the
+// guarded reads (which are safe in Tcl) are still flagged. Sound over-warn;
+// captured at the actual verdict. The two must-still-flag controls
+// (failed/ambiguous arm, non-pure body) behave the same.
 // ---------------------------------------------------------------------------
 mod catch_narrowing {
     use super::*;
@@ -1362,8 +1322,8 @@ mod catch_narrowing {
 
     #[test]
     fn catch_success_branch_reads_are_not_narrowed_rust_behaviour() {
-        // Python expects X NOT flagged (the succeeded/false arm and the negated
-        // true arm both prove X readable). Rust still flags X. Actual verdict.
+        // The succeeded/false arm and the negated true arm both prove X readable,
+        // yet X is still flagged. Actual verdict.
         for body in [
             "if {[catch {set _ $X}]} { puts a } else { puts $X }",
             "if {![catch {set _ $X}]} { puts $X }",
@@ -1379,14 +1339,12 @@ mod catch_narrowing {
     #[test]
     fn failed_branch_is_ambiguous_and_still_flagged() {
         // catch != 0 could mean missing *or* an array-as-scalar read → flagged.
-        // Matches Python.
         assert!(flagged("if {[catch {set _ $X}]} { puts $X }").contains("X"));
     }
 
     #[test]
     fn non_pure_body_is_not_narrowed() {
         // A non-pure catch body (`someproc $X`) carries no existence signal.
-        // Matches Python.
         assert!(flagged("if {[catch {someproc $X}]} { puts a } else { puts $X }").contains("X"));
     }
 }
@@ -1408,12 +1366,11 @@ mod analysis_level {
             "a value-false constant branch must be recorded; got {:?}",
             const_branches(fn_p)
         );
-        // DIVERGENCE (noted in dataflow.rs): the existence post-pass does not
-        // update `executable_blocks`, so `unreachable_blocks` stays empty for
-        // these folds (the analyser still emits I230 directly, and the optimiser
-        // O101/DCE consumes the branch). Python additionally asserted
-        // `fn.unreachable_blocks` non-empty; that part is the un-ported
-        // optimiser surface, so we assert the meaningful constant-branch fact.
+        // The existence post-pass does not update `executable_blocks`, so
+        // `unreachable_blocks` stays empty for these folds (the analyser still
+        // emits I230 directly, and the optimiser O101/DCE consumes the branch).
+        // The unreachable-blocks assertion belongs to the optimiser surface not
+        // covered here, so we assert the meaningful constant-branch fact.
     }
 
     #[test]

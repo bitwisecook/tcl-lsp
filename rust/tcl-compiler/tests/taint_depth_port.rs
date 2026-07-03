@@ -63,7 +63,7 @@ const D: &str = "tcl8.6";
 const IR: &str = "f5-irules";
 
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
-/// `dialect` — the Rust counterpart of Python `find_taint_warnings(source)`.
+/// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
@@ -71,7 +71,7 @@ fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
 }
 
-/// Sorted list of diagnostic codes — Python `_codes`.
+/// Sorted list of diagnostic codes.
 fn codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = warns(src, dialect)
         .iter()
@@ -81,7 +81,7 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
     out
 }
 
-/// Taint warnings of one diagnostic `code` — Python `_taint_warnings(src, code)`.
+/// Taint warnings of one diagnostic `code`.
 fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
     warns(src, dialect)
         .into_iter()

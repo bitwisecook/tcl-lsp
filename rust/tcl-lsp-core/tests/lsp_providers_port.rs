@@ -1,4 +1,4 @@
-//! Integration tests for the remaining unported `tcl-lsp-core` LSP providers:
+//! Integration tests for the remaining `tcl-lsp-core` LSP providers:
 //! `code_lens`, `document_symbols`, `code_actions`, `declaration`,
 //! `type_definition`, `implementation`, `type_hierarchy`, and
 //! `linked_editing_range`.
@@ -6,8 +6,8 @@
 //! Harness: every test runs the real analyser
 //! (`Analyser::new().analyse(src, "tcl8.6")`) over a complete, runnable Tcl
 //! script and then calls the provider exactly as the server would. The
-//! `code_lens` block is a port of `tests/test_code_lens.py` (the only pytest
-//! source covering these providers); the rest are fresh behaviour-driven tests.
+//! `code_lens` block covers the code-lens provider; the rest are fresh
+//! behaviour-driven tests.
 //!
 //! C-Tcl proof. The facts these providers surface are Tcl-semantic, and each is
 //! pinned to real `tclsh` (8.6 / 9.0) output, cited inline at each test as
@@ -88,12 +88,11 @@ fn collect_names<'a>(symbols: &'a [DocumentSymbol], out: &mut Vec<&'a str>) {
 }
 
 // =========================================================================
-// code_lens — port of tests/test_code_lens.py
+// code_lens
 //
-// The Rust `code_lenses` provider already resolves the count eagerly (the
-// Python provider deferred it to `resolve_code_lens`), so the title text the
-// Python `resolve_*` tests assert ("3 references", "1 reference", …) is
-// asserted directly on the lens here. The lens TITLE wording and the empty
+// The Rust `code_lenses` provider already resolves the count eagerly, so the
+// title text ("3 references", "1 reference", …) is asserted directly on the
+// lens here. The lens TITLE wording and the empty
 // `command` string are editor-presentation — asserted structurally. The
 // reference COUNT is the Tcl-semantic fact: it is the number of real call
 // sites of the proc in the script.
@@ -110,7 +109,7 @@ fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
 
 #[test]
 fn code_lens_lens_per_proc() {
-    // Port of TestGetCodeLenses::test_lens_per_proc — one lens per proc.
+    // one lens per proc.
     let src = "proc greet {} { return hi }\nproc shout {} { return HI }\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -120,8 +119,8 @@ fn code_lens_lens_per_proc() {
         .collect();
     assert_eq!(proc_lenses.len(), 2, "{lenses:?}");
     for lens in &proc_lenses {
-        // Informational lens: the command identifier is empty (the Python
-        // `command is None` shape). Editor-presentation, asserted structurally.
+        // Informational lens: the command identifier is empty (no command
+        // bound). Editor-presentation, asserted structurally.
         assert_eq!(lens.command, "");
         assert!(lens.command_title.contains("reference"));
     }
@@ -129,7 +128,6 @@ fn code_lens_lens_per_proc() {
 
 #[test]
 fn code_lens_empty_when_no_procs() {
-    // Port of TestGetCodeLenses::test_empty_when_no_procs.
     let src = "set x 1\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -138,9 +136,8 @@ fn code_lens_empty_when_no_procs() {
 
 #[test]
 fn code_lens_none_analysis_returns_empty() {
-    // The Rust provider returns an empty vec for `analysis = None` (the
-    // Python provider ran a throwaway inline analyse; the Rust caller always
-    // threads analysis, so the contract here is empty-on-None — matching
+    // The Rust provider returns an empty vec for `analysis = None`; the caller
+    // always threads analysis, so the contract here is empty-on-None (matching
     // `code_lens.rs::empty_lenses_when_analysis_is_none`).
     let lenses = code_lenses(
         "proc f {} {}\nproc g {} {}\n",
@@ -154,7 +151,6 @@ fn code_lens_none_analysis_returns_empty() {
 
 #[test]
 fn code_lens_zero_references_for_unused_proc() {
-    // Port of TestResolveCodeLens::test_zero_references.
     // tclsh: `greet` is never invoked → 0 call sites.
     let src = "proc greet {} { return hi }\n";
     let analysis = analyse(src);
@@ -164,7 +160,7 @@ fn code_lens_zero_references_for_unused_proc() {
 
 #[test]
 fn code_lens_singular_title_for_one_reference() {
-    // Port of TestResolveCodeLens::test_singular_title — singular noun.
+    // singular noun.
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -173,7 +169,7 @@ fn code_lens_singular_title_for_one_reference() {
 
 #[test]
 fn code_lens_plural_title_for_multiple_references() {
-    // Port of TestResolveCodeLens::test_populates_title_and_command (count=3).
+    // multiple references (count=3).
     let src = "proc greet {} { return hi }\ngreet\ngreet\ngreet\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -182,8 +178,8 @@ fn code_lens_plural_title_for_multiple_references() {
 
 #[test]
 fn code_lens_anchor_is_proc_name_span() {
-    // The lens anchors on the proc NAME token (the start of the name range —
-    // the Python `lenses[0].range.start`). `greet` begins at column 5.
+    // The lens anchors on the proc NAME token (the start of the name range).
+    // `greet` begins at column 5.
     let src = "proc greet {} {}\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -194,8 +190,7 @@ fn code_lens_anchor_is_proc_name_span() {
 
 #[test]
 fn code_lens_count_matches_forward_reference() {
-    // Port of TestCountMatchesReferences::test_forward_reference_is_not_zero
-    // (issue #637): a call BEFORE the definition is still a real call site.
+    // A call BEFORE the definition is still a real call site (issue #637).
     // tclsh: `proc foo {} {}; foo` — `foo` resolves and runs regardless of
     // source order, so the forward call counts.
     let src = "foo\nproc foo {} {}\n";
@@ -206,8 +201,8 @@ fn code_lens_count_matches_forward_reference() {
 
 #[test]
 fn code_lens_count_matches_qualified_call() {
-    // Port of TestCountMatchesReferences "qualified_call": `::foo` is the
-    // same proc as `foo`. tclsh: `proc foo {} {}; ::foo` invokes `::foo`.
+    // `::foo` is the same proc as `foo`.
+    // tclsh: `proc foo {} {}; ::foo` invokes `::foo`.
     let src = "proc foo {} {}\n::foo\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -216,7 +211,6 @@ fn code_lens_count_matches_qualified_call() {
 
 #[test]
 fn code_lens_count_matches_ns_qualified_call() {
-    // Port of TestCountMatchesReferences "ns_qualified_call".
     // tclsh: `namespace eval ns { proc foo {} {} }; ns::foo` runs `::ns::foo`.
     let src = "namespace eval ns { proc foo {} {} }\nns::foo\n";
     let analysis = analyse(src);
@@ -230,7 +224,6 @@ fn code_lens_count_matches_ns_qualified_call() {
 
 #[test]
 fn code_lens_count_matches_call_inside_body() {
-    // Port of TestCountMatchesReferences "call_inside_body".
     let src = "proc foo {} {}\nproc bar {} { foo }\n";
     let analysis = analyse(src);
     let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
@@ -239,7 +232,7 @@ fn code_lens_count_matches_call_inside_body() {
 
 #[test]
 fn code_lens_count_matches_cmd_substitution() {
-    // Port of TestCountMatchesReferences "cmd_substitution": `[foo]`.
+    // `[foo]` — command substitution.
     // tclsh: `proc foo {} {}; set x [foo]` invokes `foo` inside the
     // command substitution.
     let src = "proc foo {} {}\nset x [foo]\n";

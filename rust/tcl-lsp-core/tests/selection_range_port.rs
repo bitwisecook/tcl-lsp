@@ -1,4 +1,4 @@
-//! Port of `tests/test_selection_range.py` — the LSP selection-range provider.
+//! Tests for the LSP selection-range provider.
 //! Verifies `selection_range` returns an innermost-first chain that expands
 //! strictly outward (word → command → line → enclosing proc/namespace body →
 //! whole document), with no duplicate adjacent ranges.

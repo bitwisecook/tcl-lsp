@@ -4,7 +4,7 @@
 //! `visible_aliases`.
 //!
 //! The common input/output/dialect surface every verb shares is modelled
-//! precisely (it is the bulk of the parity contract), with verb-specific flags
+//! precisely (it is the bulk of the CLI contract), with verb-specific flags
 //! added alongside. New flags slot into the existing structs without reshaping
 //! the tree.
 

@@ -384,8 +384,8 @@ fn scan_predicate_w210_hex_and_binary() {
 // ===========================================================================
 //
 // Structural note: the evaluator is a side-effect-free POSIX-path mini-eval; its
-// path helpers (`posix_join`, `normpath`, `expanduser`) follow Python's
-// `os.path` POSIX rules, NOT tclsh's `file` command byte-for-byte (tclsh's `//`
+// path helpers (`posix_join`, `normpath`, `expanduser`) follow standard POSIX
+// path rules, NOT tclsh's `file` command byte-for-byte (tclsh's `//`
 // handling differs across 8.6/9.0).  The `[file dirname]` / `[file join]` /
 // `[info script]` idiom *resolution* is what is Tcl-observable and is pinned to
 // tclsh below; the helper normalisation is asserted against the documented

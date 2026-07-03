@@ -2,9 +2,8 @@
 //!
 //! Built on the official [`rmcp`] SDK (`JSON-RPC` 2.0 over `stdio`). Every tool
 //! handler calls the Rust analysis crates (`tcl-lsp-core`, `tcl-compiler`,
-//! `tcl-registry`) **directly** — replacing the former Python
-//! `ai/mcp/tcl_mcp_server.py` + `PyO3` bridge. The tool set + wire results match
-//! what the Python server produced so existing MCP clients are unaffected.
+//! `tcl-registry`) **directly**. The tool set + wire results are kept stable so
+//! existing MCP clients are unaffected.
 
 use std::sync::Arc;
 
@@ -38,8 +37,7 @@ impl ServerHandler for TclMcp {
                 "Tcl/iRules static analysis: graphs, dataflow/SSA, refactors, optimiser, \
                  WASM, dialect detection — served natively over the Rust engine.",
             );
-        // Keep the same server identity the Python server advertised so existing
-        // MCP clients see no change.
+        // Keep a stable server identity so existing MCP clients see no change.
         "tcl-lsp".clone_into(&mut info.server_info.name);
         env!("CARGO_PKG_VERSION").clone_into(&mut info.server_info.version);
         info

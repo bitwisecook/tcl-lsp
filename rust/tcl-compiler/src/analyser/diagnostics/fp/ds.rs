@@ -185,7 +185,7 @@ fn fp_ds_04_untraced_unrelated_var_still_fires() {
 // function's suppression context (scan_module_traced_globals).
 #[test]
 fn fp_ds_04_cross_scope_namespace_global_trace() {
-    // Python is silent: the trace on ::w in proc s observes the write `set ::w 1`.
+    // Must stay silent: the trace on ::w in proc s observes the write `set ::w 1`.
     let src = "trace add variable ::w write h\nproc s {} { set ::w 1 }";
     assert!(
         !fires(src, D, "W211"),

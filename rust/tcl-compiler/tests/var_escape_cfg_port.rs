@@ -771,7 +771,7 @@ fn ir_uplevel_global_zero_literal_body_escapes_touched_names() {
 }
 
 // ===========================================================================
-// PART 11 — IR-walk control-flow descent parity (the `walk` structural arms)
+// PART 11 — IR-walk control-flow descent (the `walk` structural arms)
 //
 // `var_escape/walker.rs`'s `walk` recurses through every structured statement.
 // These confirm a scope-crossing command buried in each control-flow shape is

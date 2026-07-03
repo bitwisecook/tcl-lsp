@@ -1,16 +1,13 @@
 //! BIG-IP find-references — token-bounded textual search for a TMSH path.
 //!
-//! Mirrors Python `server/features/_bigip_refs.py::get_bigip_references`:
-//! resolve the `/Partition/Name` path-shaped token under the cursor, then
+//! Resolve the `/Partition/Name` path-shaped token under the cursor, then
 //! return every *identifier-bounded* occurrence of that exact token in the
 //! source (definitions and references alike). Bare (non-`/`) tokens are not
-//! renameable/searchable BIG-IP paths, so a cursor on one yields nothing —
-//! matching Python.
+//! renameable/searchable BIG-IP paths, so a cursor on one yields nothing.
 //!
 //! This is a single-document provider: it searches the open document only.
-//! Cross-file references (Python's `workspace_configs` / `workspace_sources`)
-//! are a workspace-scanner concern the Rust LSP does not yet index; the
-//! same-file occurrences this returns are the dominant editor case.
+//! Cross-file references are a workspace-scanner concern the LSP does not yet
+//! index; the same-file occurrences this returns are the dominant editor case.
 
 use tcl_lexer::{LineIndex, Utf16Col};
 
@@ -18,9 +15,8 @@ use crate::graph::{GraphContext, build_objects_for_source};
 use crate::range::Range;
 
 /// Whether `b` is part of a BIG-IP path-shaped token (`[A-Za-z0-9_/.-]`).
-/// The same character class Python's `_BIGIP_TOKEN_CHARS` /
-/// `rename_object` boundary rules use, so the search set lines up with the
-/// renamer.
+/// The same character class the `rename_object` boundary rules use, so the
+/// search set lines up with the renamer.
 fn is_token_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
 }
@@ -32,8 +28,8 @@ fn token_span_at(source: &str, cursor_offset: usize) -> Option<(usize, usize)> {
     let n = bytes.len();
     let c = cursor_offset.min(n);
     // Expand left over token bytes (covers a cursor sitting just past the
-    // token's last byte, e.g. on the trailing brace/space — Python's
-    // `match.start() <= character <= match.end()` includes that boundary).
+    // token's last byte, e.g. on the trailing brace/space — the
+    // `match.start() <= character <= match.end()` boundary is inclusive).
     let mut start = c;
     while start > 0 && is_token_byte(bytes[start - 1]) {
         start -= 1;
@@ -47,7 +43,7 @@ fn token_span_at(source: &str, cursor_offset: usize) -> Option<(usize, usize)> {
 }
 
 /// Token-bounded occurrences of `needle` in `source`: each match must have a
-/// non-token byte (or document edge) on both sides, replicating Python's
+/// non-token byte (or document edge) on both sides, matching the
 /// `(?<![A-Za-z0-9_/.-])needle(?![A-Za-z0-9_/.-])` pattern.
 fn bounded_occurrences(source: &str, needle: &str) -> Vec<(usize, usize)> {
     let bytes = source.as_bytes();
@@ -65,7 +61,7 @@ fn bounded_occurrences(source: &str, needle: &str) -> Vec<(usize, usize)> {
         if before_ok && after_ok {
             out.push((start, end));
         }
-        // Non-overlapping scan (Python `finditer` semantics).
+        // Non-overlapping scan (`finditer` semantics).
         from = end.max(start + 1);
     }
     out

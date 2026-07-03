@@ -312,8 +312,7 @@ impl EventRegistry {
     }
 
     /// Scan the `when EVENT` handler names from `source` and return them in
-    /// canonical firing order. Mirrors Python `order_events_for_file`
-    /// (`order_events(scan_file_events(source))`).
+    /// canonical firing order (order the scanned events).
     #[must_use]
     pub fn order_events_for_file(&self, source: &str) -> Vec<String> {
         self.order_events(&scan_when_events(source))
@@ -362,8 +361,8 @@ impl EventRegistry {
     }
 }
 
-/// Scan the distinct `when EVENT` handler names from `source` — the
-/// consume-free equivalent of the Python regex `\bwhen\s+([A-Z_][A-Z0-9_]*)`.
+/// Scan the distinct `when EVENT` handler names from `source` — a
+/// regex-free scan matching the shape `\bwhen\s+([A-Z_][A-Z0-9_]*)`.
 /// Names are returned in first-seen order (deduplicated); the caller orders
 /// them canonically via [`EventRegistry::order_events`].
 #[must_use]

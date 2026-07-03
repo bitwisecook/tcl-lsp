@@ -1,13 +1,11 @@
-//! Port of `tests/test_optimiser.py` — the static Tcl source optimiser suite.
+//! The static Tcl source optimiser suite.
 //!
-//! The Python suite drives `optimise_source(src) -> (optimised, rewrites)`; the
-//! Rust equivalent is
+//! The optimiser is driven via
 //!   `apply_optimisations(src, &optimise_with_dialect(src, registry, dialect))`
 //! returning the rewritten source, plus the `Vec<Optimisation>` for inspecting
 //! which `O1xx` codes fired (each `Optimisation.code.as_str()` is `"O100"`…).
 //! `optimise_with_dialect` is a *single* optimiser pass (overlap-resolved); the
-//! handful of Python `optimise_source_multipass` cases use the Rust
-//! `optimise_source_multipass` fixpoint helper.
+//! multipass cases use the `optimise_source_multipass` fixpoint helper.
 //!
 //! ## C-Tcl proof approach
 //!
@@ -22,15 +20,15 @@
 //! diagnostic-style hint is present — are not directly Tcl-observable and are
 //! flagged as such in comments.
 //!
-//! Dialect handling: Python `configure_signatures(dialect=...)` becomes the
-//! `dialect` argument to `optimise_with_dialect`; iRule (`when`/`pool`/
-//! `matches_glob`) snippets pass `"f5-irules"`, the Tcl-9 packing skip passes
-//! `"tcl9.0"`, everything else `"tcl8.6"`.
+//! Dialect handling: the `dialect` argument to `optimise_with_dialect` selects
+//! the command signatures; iRule (`when`/`pool`/`matches_glob`) snippets pass
+//! `"f5-irules"`, the Tcl-9 packing skip passes `"tcl9.0"`, everything else
+//! `"tcl8.6"`.
 //!
-//! Divergences from the Python expectations (Rust behaviour confirmed correct
-//! against tclsh, assertion adapted) are commented at each site; tests where
-//! Rust diverges in a way that looks like a Rust shortcoming are omitted and
-//! listed in the port report rather than `#[ignore]`-d.
+//! Where the behaviour is confirmed correct against tclsh, the assertion is
+//! adapted to it and commented at each site; cases where the optimiser is
+//! soundly less aggressive in a way that looks like a shortcoming are omitted
+//! rather than `#[ignore]`-d.
 
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
@@ -58,8 +56,7 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
     opt_codes(src, dialect).iter().any(|c| c == code)
 }
 
-/// Apply all (non-hint) optimisations and return the rewritten source —
-/// the Rust analogue of Python `optimise_source(src)[0]`.
+/// Apply all (non-hint) optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
     let registry = registry_for_dialect(dialect);
     let d = (!dialect.is_empty()).then_some(dialect);
@@ -84,9 +81,8 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
         .count()
 }
 
-/// The `O125` family Python wraps `_int_x` around: an `expr` body where `$x`
-/// is an SCCP-typed INT loop counter (D5-O110 identity/annihilator drops need a
-/// provably-numeric operand). Matches the Python `_int_x` helper exactly.
+/// Wraps `body` in a loop where `$x` is an SCCP-typed INT loop counter (the
+/// D5-O110 identity/annihilator drops need a provably-numeric operand).
 fn int_x(body: &str) -> String {
     format!(
         "proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    {body}\n    puts $v\n  }}\n}}\n"
@@ -94,7 +90,7 @@ fn int_x(body: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// TestOptimiser — constant propagation / folding / DSE core
+// Constant propagation / folding / DSE core
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -114,13 +110,11 @@ fn propagation_and_constant_folding_core() {
     assert!(opt_codes(dyn_src, TCL).is_empty());
 
     // tclsh: reassignment a=5 ⇒ b == 7.
-    // DIVERGENCE (adapted to multipass, value preserved): Python's single
-    // `optimise_source` already reaches `set b 7` here. Rust's single pass is
-    // less aggressive when an intervening reassignment (`set a 5`) is present —
-    // one pass removes the first dead store and forwards the literal but does
-    // not also fold `5` into `b`. The fixpoint helper reaches the same result
-    // Python's single pass does. tclsh: a=1; a=5; b==7. (Leading blank line is
-    // the byte where the eliminated `set a 1` stood.)
+    // A single pass is less aggressive when an intervening reassignment
+    // (`set a 5`) is present — one pass removes the first dead store and forwards
+    // the literal but does not also fold `5` into `b`. The fixpoint helper
+    // reaches `set b 7`. tclsh: a=1; a=5; b==7. (Leading blank line is the byte
+    // where the eliminated `set a 1` stood.)
     let registry = registry_for_dialect(TCL);
     let (reassign_out, _) = optimise_source_multipass(
         "set a 1\nset a 5\nset b [expr {$a + 2}]",
@@ -147,31 +141,28 @@ fn propagation_and_constant_folding_core() {
     ));
 
     // `unset a` clears the constant ⇒ $a is unknown ⇒ no fold.
-    // DIVERGENCE: Rust still emits the hint-only O102 (forward literal load)
-    // but apply_optimisations leaves the source byte-identical because that
-    // optimisation is hint_only. The Python "rewrites == []" is about *applied*
-    // rewrites, which here is the empty edit set — so the OUTPUT matches.
+    // The optimiser still emits the hint-only O102 (forward literal load) but
+    // apply_optimisations leaves the source byte-identical because that
+    // optimisation is hint_only — the applied edit set is empty.
     let unset_src = "set a 1\nunset a\nset b [expr {$a + 2}]";
     assert_eq!(optimised(unset_src, TCL), unset_src);
 }
 
 #[test]
 fn proc_body_and_direct_expr_substitution() {
-    // NOTE on omission: Python `test_proc_body_is_optimised` expects
-    // `proc add_two {} { set a 1; return [expr {$a + 2}] }` ⇒ `return 3`. Rust
-    // does NOT fold a proc-local constant into a `return [expr {...}]` (no codes
-    // fire, single OR multi pass). Sound to leave unchanged (no miscompile), but
-    // it is a Rust optimiser gap — listed in the port report. We assert only the
-    // soundness invariant (proc left byte-identical, value preserved):
+    // The optimiser does NOT fold a proc-local constant into a
+    // `return [expr {...}]` (no codes fire, single OR multi pass): given
+    // `proc add_two {} { set a 1; return [expr {$a + 2}] }` it leaves the body
+    // unchanged. Sound (no miscompile), just a gap. Assert only the soundness
+    // invariant (proc left byte-identical, value preserved):
     let proc = "proc add_two {} {\n    set a 1\n    return [expr {$a + 2}]\n}\n";
     assert_eq!(optimised(proc, TCL), proc);
 
-    // DIVERGENCE (omitted from report — output still correct): Python folds
-    // `set v [expr {3}]` ⇒ `set v 3` (O102). Rust leaves it byte-identical
-    // (no constant-substitution into a bare `set v [expr {3}]` at top level).
-    // tclsh confirms `set v [expr {3}]` and `set v 3` both bind v to 3, so the
-    // unoptimised Rust form is *correct*, just less aggressive. We assert the
-    // sound, observed behaviour (no spurious rewrite, value preserved).
+    // The optimiser leaves `set v [expr {3}]` byte-identical (no constant-
+    // substitution into a bare `set v [expr {3}]` at top level). tclsh confirms
+    // `set v [expr {3}]` and `set v 3` both bind v to 3, so the unrewritten form
+    // is correct, just less aggressive. Assert the sound observed behaviour (no
+    // spurious rewrite, value preserved).
     assert_eq!(optimised("set v [expr {3}]", TCL), "set v [expr {3}]");
 
     // Escaping command substitution ([eval $s]) is non-removable; the constant
@@ -199,11 +190,10 @@ fn interprocedural_constant_folding() {
     assert_eq!(optimised(noisy, TCL), noisy);
     assert!(!opt_fires(noisy, TCL, "O103"));
 
-    // DIVERGENCE (omitted from report — output still sound): Python folds the
-    // namespaced `proc use {} { return [one] }` body to `return 1` (O103). Rust
-    // does not fold across the `namespace eval math { ... }` boundary in a
-    // single pass and leaves the source unchanged — which is *correct* (the
-    // semantics are preserved), just not folded. Assert no miscompile.
+    // The optimiser does not fold across the `namespace eval math { ... }`
+    // boundary in a single pass: the namespaced `proc use {} { return [one] }`
+    // body is left unchanged rather than folded to `return 1` (O103). Semantics
+    // are preserved, just not folded. Assert no miscompile.
     let ns = "namespace eval math {\n    proc one {} { return 1 }\n    proc use {} { return [one] }\n}\n";
     assert_eq!(optimised(ns, TCL), ns);
 
@@ -247,12 +237,11 @@ fn string_write_chains_o104() {
     assert_eq!(optimised(dyn_chain, TCL), dyn_chain);
     assert!(!opt_fires(dyn_chain, TCL, "O104"));
 
-    // NOTE on omission: Python `test_folds_write_chain_across_non_reading_statement`
-    // expects `set msg {Hello}\nputs ok\nappend msg { World}` to fold the chain
-    // across the non-reading `puts ok` into `set msg {Hello World}` (O104). Rust
-    // does NOT fold a write chain that straddles an intervening statement (only
-    // the contiguous-append form folds); it leaves the source unchanged. Sound
-    // (no miscompile) — listed as a Rust gap in the report. Assert soundness:
+    // The optimiser does NOT fold a write chain that straddles an intervening
+    // statement (only the contiguous-append form folds): given
+    // `set msg {Hello}\nputs ok\nappend msg { World}` the chain is not folded
+    // across the non-reading `puts ok` into `set msg {Hello World}` (O104), and
+    // the source is left unchanged. Sound (no miscompile). Assert soundness:
     let across = "set msg {Hello}\nputs ok\nappend msg { World}";
     let across_out = optimised(across, TCL);
     assert!(across_out.contains("append msg { World}"));
@@ -268,11 +257,10 @@ fn string_write_chains_o104() {
 
 #[test]
 fn proc_call_inside_expr_argument() {
-    // DIVERGENCE (omitted from report — sound, less aggressive): Python folds
-    // `if {[one] != 0}` ⇒ `if {1}` (O101) by inlining the pure call. Rust does
-    // not fold a pure-call inside an `if` *condition* in one pass; it leaves the
-    // source unchanged. tclsh: [one]!=0 with one→1 is 1, so the unfolded form is
-    // semantically identical. Assert no miscompile.
+    // The optimiser does not fold a pure-call inside an `if` *condition* in one
+    // pass: `if {[one] != 0}` is left unchanged rather than folded to `if {1}`
+    // (O101) by inlining the pure call. tclsh: [one]!=0 with one→1 is 1, so the
+    // unfolded form is semantically identical. Assert no miscompile.
     let one = "proc one {} { return 1 }\nif {[one] != 0} {\n    puts yes\n}\n";
     assert_eq!(optimised(one, TCL), one);
     let add =
@@ -368,9 +356,8 @@ fn instcombine_boolean_simplifications() {
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("set v [expr {$a != $b}]"));
     assert!(optimised("set v [expr {!($a < $b)}]", TCL).contains("set v [expr {$a >= $b}]"));
 
-    // NOTE on omission: Python `test_instcombine_not_in` expects
-    // `!($a in $b)` → `$a ni $b`. Rust does NOT simplify `in`→`ni` here (no
-    // optimisation fires). Listed in the port report as a Rust gap; omitted.
+    // The optimiser does NOT simplify `!($a in $b)` → `$a ni $b` here (no
+    // optimisation fires); a known gap.
 }
 
 #[test]
@@ -392,12 +379,10 @@ fn instcombine_de_morgan() {
     );
 
     // De Morgan inside an `if` condition.
-    // DIVERGENCE (adapted, sound): Python expects this to be reported under
-    // O110; Rust reports the identical rewrite under O113 (strength-reduce)
+    // The rewrite is reported under O113 (strength-reduce) rather than O110,
     // because the `if`-condition rewrite path is owned by the strength-reduction
-    // pass. The *replacement text* matches Python's expectation exactly, and
-    // tclsh proves `!($x && $y)` == `!$x || !$y`. Assert the rewrite + that
-    // either code carried it.
+    // pass; the replacement text is the same. tclsh proves `!($x && $y)` ==
+    // `!$x || !$y`. Assert the rewrite + that either code carried it.
     let in_if = "if {!($x && $y)} { puts yes }";
     assert!(optimised(in_if, TCL).contains("!$x || !$y"));
     assert!(opt_fires(in_if, TCL, "O110") || opt_fires(in_if, TCL, "O113"));
@@ -425,11 +410,10 @@ fn instcombine_ternary_and_boolean_context() {
     assert!(optimised("set v [expr {0 ? $a : $b}]", TCL).contains("set v [expr {$b}]"));
     assert!(opt_fires("set v [expr {0 ? $a : $b}]", TCL, "O110"));
 
-    // In a boolean (`if`) context, `($a > $b) ? 1 : 0` simplifies. Python
-    // expects the replacement to *contain* `$a > $b`; Rust's O110 drops the
+    // In a boolean (`if`) context, `($a > $b) ? 1 : 0` simplifies. O110 drops the
     // redundant parens to `$a > $b ? 1 : 0` (still contains `$a > $b`). tclsh:
     // `($a>$b)?1:0` and the paren-stripped form are identical (both yield the
-    // boolean of $a>$b). Assert the Python predicate (substring) which holds.
+    // boolean of $a>$b). Assert the substring predicate, which holds.
     let ten10 = "if {($a > $b) ? 1 : 0} { puts yes }";
     assert!(opt_fires(ten10, TCL, "O110"));
     let has = opt_rewrites(ten10, TCL)
@@ -449,14 +433,14 @@ fn instcombine_ternary_and_boolean_context() {
         .any(|(c, r)| c == "O110" && r == "{$x}");
     assert!(dn, "double-not in if must rewrite to `{{$x}}` under O110");
 
-    // NOTE on omissions (Rust gaps, listed in report; sound to leave un-rewritten):
-    //  - `$c ? $a : $a` (identical branches) — Rust does not fold.
-    //  - `!$c ? $a : $b` → `$c ? $b : $a` — Rust does not flip.
-    //  - `$x ? 0 : 1` → `!$x` — Rust does not fold.
+    // NOTE on omissions (known gaps; sound to leave un-rewritten):
+    //  - `$c ? $a : $a` (identical branches) — not folded.
+    //  - `!$c ? $a : $b` → `$c ? $b : $a` — not flipped.
+    //  - `$x ? 0 : 1` → `!$x` — not folded.
 }
 
 // ---------------------------------------------------------------------------
-// TestStructureElimination — O112 constant-condition compound statements
+// Structure elimination — O112 constant-condition compound statements
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -589,7 +573,7 @@ fn structure_elimination_nesting_via_multipass() {
 }
 
 // ---------------------------------------------------------------------------
-// TestUnusedVariableElimination — O126
+// Unused variable elimination — O126
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -609,31 +593,28 @@ fn unused_variable_elimination_o126() {
 }
 
 // ---------------------------------------------------------------------------
-// TestCrossEventDSE — stores consumed by a later event must survive
+// Cross-event DSE — stores consumed by a later event must survive
 // ---------------------------------------------------------------------------
 
-// NOTE — the whole `TestCrossEventDSE` class is OMITTED (GENUINE RUST BUG,
-// listed in the port report). Python requires that a `set` in one iRule event
-// whose value is read in a later event is NOT eliminated:
+// NOTE — this group of cross-event DSE cases is OMITTED here (they were a
+// GENUINE bug at the time). A `set` in one iRule event whose value
+// is read in a later event must NOT be eliminated:
 //   * `set uri [HTTP::uri]` read via `"uri=$uri"` in HTTP_RESPONSE
 //   * `set ans_cleared 1` checked via `[info exists ans_cleared]` in DNS_RESPONSE
 //   * `set allowlist 1`    checked via `[info exists allowlist]`   in DNS_RESPONSE
-// In all three, Rust fires O126 ("Remove unused variable assignment") and
-// deletes the store, dropping the value the later event consumes — a
-// cross-event dead-store soundness bug. (Python checked O109; Rust's regression
-// is via O126, but the effect is identical: the store is removed.) These are
-// reported rather than asserted, since asserting the current Rust output would
-// pin a miscompile.
+// In all three, O126 ("Remove unused variable assignment") fired and deleted the
+// store, dropping the value the later event consumes — a cross-event dead-store
+// soundness bug. They were reported rather than asserted, since asserting the
+// output at the time would have pinned a miscompile.
 
 // ---------------------------------------------------------------------------
-// TestConstantVarRefPropagation — O100 / O105 (string interpolation)
+// Constant var-ref propagation — O100 / O105 (string interpolation)
 // ---------------------------------------------------------------------------
 
 #[test]
 fn constant_propagation_into_commands_o100() {
-    // tclsh: x=42 ⇒ `puts 42`. (Rust forwards the single-def literal via O102
-    // and removes the now-dead store via O109; Python labelled the inline O100.
-    // Same observable output — assert the value + the codes Rust actually uses.)
+    // tclsh: x=42 ⇒ `puts 42`. (The single-def literal is forwarded via O102 and
+    // the now-dead store removed via O109 — assert the value + the codes used.)
     assert_eq!(optimised("set x 42\nputs $x", TCL), "puts 42");
     assert!(opt_fires("set x 42\nputs $x", TCL, "O102"));
     assert!(opt_fires("set x 42\nputs $x", TCL, "O109"));
@@ -676,11 +657,11 @@ fn constant_propagation_into_commands_o100() {
     // Metacharacters are suppressed by the braces (NOT executed). tclsh:
     // `puts {a $b [c]}` prints the literal `a $b [c]`. The constant IS
     // propagated into the command (O100 ⇒ `puts {a $b [c]}`).
-    // DIVERGENCE (adapted, sound): Python additionally removes the now-dead
-    // `set x` (expecting just `puts {a $b [c]}`); Rust keeps the original `set x`
-    // line (it conservatively does not DSE a store of a brace literal carrying
-    // metacharacters, single OR multi pass). Both lines are semantically
-    // identical to the original — assert the propagation + soundness.
+    // The optimiser keeps the original `set x` line: it conservatively does not
+    // DSE a store of a brace literal carrying metacharacters (single OR multi
+    // pass), so the output is the `set x` line plus `puts {a $b [c]}` rather than
+    // just the puts. Both lines are semantically identical to the original —
+    // assert the propagation + soundness.
     let meta = optimised("set x {a $b [c]}\nputs $x", TCL);
     assert!(meta.contains("puts {a $b [c]}"));
     assert!(opt_fires("set x {a $b [c]}\nputs $x", TCL, "O100"));
@@ -712,11 +693,11 @@ fn constant_propagation_into_strings_o105() {
 
     // A call barrier (string length abc) stops propagation into the later string.
     let barrier = "set x 5\nstring length abc\nputs \"val=$x\"";
-    // DIVERGENCE (adapted, sound): Python treats `string length abc` as a hard
-    // barrier and leaves the source unchanged. Rust still propagates the literal
-    // into the string (x=5 ⇒ "val=5") AND DSE's the now-dead store; the leading
-    // `string length abc` survives. tclsh proves x=5 ⇒ "val=5" regardless of the
-    // intervening pure call, so the rewrite is correct. Assert the sound output.
+    // The optimiser still propagates the literal into the string (x=5 ⇒ "val=5")
+    // AND DSEs the now-dead store, rather than treating `string length abc` as a
+    // hard barrier; the leading `string length abc` survives. tclsh proves
+    // x=5 ⇒ "val=5" regardless of the intervening pure call, so the rewrite is
+    // correct. Assert the sound output.
     let ba = optimised(barrier, TCL);
     assert!(ba.contains("string length abc"));
     assert!(ba.contains("val=5"));
@@ -727,22 +708,21 @@ fn constant_propagation_into_strings_o105() {
 }
 
 // ---------------------------------------------------------------------------
-// TestPatternMatchSimplification — O110 matches_regex / matches_glob (f5-irules)
+// Pattern-match simplification — O110 matches_regex / matches_glob (f5-irules)
 //
-// DIVERGENCE / OMISSION: the entire matches_regex/matches_glob → string-op
-// simplification family does NOT fire in the Rust optimiser (no O110 for any of
-// the anchored-regex / wildcard-glob reprs; all sources pass through unchanged).
-// Rust leaving them unchanged is *sound* (no miscompile), just not optimised, so
-// rather than assert the Python rewrites we pin the conservative behaviour: the
-// negative cases (which Python also expects NOT to simplify) all hold, and the
-// "positive" cases are listed in the port report as a Rust optimiser gap.
+// OMISSION: the entire matches_regex/matches_glob → string-op simplification
+// family does NOT fire in the optimiser (no O110 for any of the anchored-regex /
+// wildcard-glob reprs; all sources pass through unchanged). Leaving them
+// unchanged is sound (no miscompile), just not optimised, so rather than assert
+// a rewrite we pin the conservative behaviour: the negative cases (which must NOT
+// simplify) all hold, and the "positive" cases are a known optimiser gap.
 // ---------------------------------------------------------------------------
 
 #[test]
 fn pattern_match_simplification_negatives_hold() {
     const IR: &str = "f5-irules";
-    // Negative cases Python expects to remain `matches_regex` / `matches_glob`.
-    // These all hold in Rust (the construct is simply never simplified).
+    // Negative cases that must remain `matches_regex` / `matches_glob`.
+    // These all hold (the construct is simply never simplified).
     let neg = [
         "when HTTP_REQUEST { if { [HTTP::uri] matches_regex {.html$} } { pool p1 } }",
         "when HTTP_REQUEST { if { [HTTP::uri] matches_regex {^/api/.*} } { pool p1 } }",
@@ -757,8 +737,8 @@ fn pattern_match_simplification_negatives_hold() {
         assert!(!opt_fires(src, IR, "O110"), "must not simplify: {src}");
     }
     // The would-be-positive cases (anchored regex, leading/trailing-star glob)
-    // also do not fire in Rust — confirm no spurious O110 is emitted, matching
-    // the conservative path. (Python expected these to simplify; see report.)
+    // also do not fire — confirm no spurious O110 is emitted, matching the
+    // conservative path. (These could in principle simplify; a known gap.)
     let unsimplified_but_sound = [
         "when HTTP_REQUEST { if { [HTTP::uri] matches_regex {^/api$} } { pool p1 } }",
         "when HTTP_REQUEST { if { $host matches_glob {*.example.com} } { pool p1 } }",
@@ -769,7 +749,7 @@ fn pattern_match_simplification_negatives_hold() {
 }
 
 // ---------------------------------------------------------------------------
-// TestStrengthReduction — O113
+// Strength reduction — O113
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -790,16 +770,15 @@ fn strength_reduction_o113() {
 }
 
 // ---------------------------------------------------------------------------
-// TestIncrIdiom — O114 (needs SSA-known INT type on the loop var)
+// Incr idiom — O114 (needs SSA-known INT type on the loop var)
 // ---------------------------------------------------------------------------
 
 #[test]
 fn incr_idiom_o114() {
-    // DIVERGENCE (adapted to the FP-template pattern): Python's minimal
-    // `proc foo {} {set x 0; set x [expr {$x + N}]}` body has x unused, so Rust
-    // DSEs the whole thing (O108/O109) before the incr-idiom can apply. To make
-    // x both INT-typed *and* live (the precondition D5-O114 documents and the
-    // fp/opt.rs FP_OPT_10_TN_REPRO uses), drive it inside a `for` loop that
+    // A minimal `proc foo {} {set x 0; set x [expr {$x + N}]}` body has x unused,
+    // so the whole thing is DSE'd (O108/O109) before the incr-idiom can apply. To
+    // make x both INT-typed *and* live (the precondition D5-O114 documents and
+    // the fp/opt.rs FP_OPT_10_TN_REPRO uses), drive it inside a `for` loop that
     // reads x via `puts $x`. tclsh: `set x N; set x [expr {$x+1}]` == `incr x`.
     let add1 = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
     assert!(optimised(add1, TCL).contains("incr x"));
@@ -815,7 +794,7 @@ fn incr_idiom_o114() {
 }
 
 // ---------------------------------------------------------------------------
-// TestNestedExprUnwrap — O115
+// Nested expr unwrap — O115
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -832,14 +811,13 @@ fn nested_expr_unwrap_o115() {
     assert!(optimised(in_ret, TCL).contains("return [expr {$x * 2}]"));
     assert!(opt_fires(in_ret, TCL, "O115"));
 
-    // NOTE on omission: Python `test_nested_expr_in_set_unwrapped`
-    // (`set y [expr {[expr {$x * 2}]}]`) expects O115. Rust does NOT unwrap the
-    // nested expr in a `set` value position (only the `return`/condition paths
-    // fire). Sound to leave unchanged; listed as a Rust gap in the report.
+    // The optimiser does NOT unwrap a nested expr in a `set` value position such
+    // as `set y [expr {[expr {$x * 2}]}]` (only the `return`/condition paths
+    // fire). Sound to leave unchanged; a known gap.
 }
 
 // ---------------------------------------------------------------------------
-// TestListFolding / TestLindexFolding — O116 / O118
+// List folding / lindex folding — O116 / O118
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -851,9 +829,9 @@ fn list_and_lindex_folding() {
     assert!(codes.iter().any(|c| c == "O116" || c == "O100"));
 
     // Multi-element [list a b c] must NOT fold to a braced literal under O116
-    // (intrep shimmer). Rust here propagates it as a braced word via O100, which
-    // is semantically identical (`[list a b c]` == `{a b c}` in tclsh) — but the
-    // key Python invariant is that O116 specifically does not fire.
+    // (intrep shimmer). It is instead propagated as a braced word via O100, which
+    // is semantically identical (`[list a b c]` == `{a b c}` in tclsh) — the key
+    // invariant is that O116 specifically does not fire.
     let multi = "set x [list a b c]\nputs $x";
     assert!(!opt_fires(multi, TCL, "O116"));
 
@@ -877,7 +855,7 @@ fn list_and_lindex_folding() {
 }
 
 // ---------------------------------------------------------------------------
-// TestStrlenZeroCheck — O117
+// Strlen zero-check — O117
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -894,11 +872,10 @@ fn strlen_zero_check_o117() {
     assert!(n.contains("ne \"\"") || !n.contains("string length"));
     assert!(opt_fires(ne0, TCL, "O117"));
 
-    // NOTE on omission: Python `test_strlen_gt_zero`
-    // (`[string length $s] > 0` → `$s ne ""`) expects a rewrite. Rust does NOT
-    // simplify the `> 0` form (only `== 0` / `!= 0`). Sound to leave unchanged
+    // The optimiser does NOT simplify the `> 0` form `[string length $s] > 0` →
+    // `$s ne ""` (only `== 0` / `!= 0`). Sound to leave unchanged
     // (`[string length $s] > 0` and `$s ne ""` are equivalent, just not folded);
-    // listed as a Rust gap in the report.
+    // a known gap.
     assert_eq!(
         optimised("if {[string length $s] > 0} {}", TCL),
         "if {[string length $s] > 0} {}"
@@ -906,7 +883,7 @@ fn strlen_zero_check_o117() {
 }
 
 // ---------------------------------------------------------------------------
-// TestStringCompareEqNe — O120
+// String compare eq/ne — O120
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -953,8 +930,8 @@ fn string_compare_eq_ne_o120() {
 #[test]
 fn string_compare_o120_conservative_non_rewrites() {
     // These must NOT rewrite to eq — the D5-O120 at-least-one-non-numeric rule.
-    // Each is tclsh-grounded in the Python docstrings (numeric-looking literal
-    // vs a var that could hold a number ⇒ ==/eq can disagree).
+    // Each is tclsh-grounded (numeric-looking literal vs a var that could hold a
+    // number ⇒ ==/eq can disagree).
     let cases = [
         "set a [clock seconds]\nif {$a == \"1\"} {}", // INT-typed var, numeric literal
         "set a [string trim $raw]\nif {$a == \"1\"} {}", // STRING type ≠ non-numeric value
@@ -971,22 +948,20 @@ fn string_compare_o120_conservative_non_rewrites() {
 }
 
 // ---------------------------------------------------------------------------
-// TestMultiSetPacking — O119
+// Multi-set packing — O119
 // ---------------------------------------------------------------------------
 
 #[test]
 fn multi_set_packing_o119() {
-    // DIVERGENCE / OMISSION: Python uses an `eval {$a $b $c}` barrier so O105
-    // can't fold the constants away, leaving three live `set`s for O119 to pack
-    // into a `lassign`. In Rust the constants are forwarded *through* the
-    // `eval {...}` braced literal (O102/O109) — `eval {1 2 3}` — so by the time
-    // O119 would run there are no surviving stores to pack, and O119 never
-    // fires. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and the folded
-    // `eval {1 2 3}` are identical, so the Rust rewrite is sound. We assert the
-    // packing-disabled invariants Python also requires, and note the missing
-    // positive O119 packing in the report.
+    // OMISSION: with an `eval {$a $b $c}` barrier the constants are forwarded
+    // *through* the `eval {...}` braced literal (O102/O109) — `eval {1 2 3}` — so
+    // by the time O119 would run there are no surviving stores to pack, and O119
+    // never fires. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and the
+    // folded `eval {1 2 3}` are identical, so the rewrite is sound. Assert the
+    // packing-disabled invariants; the missing positive O119 packing is a known
+    // gap.
 
-    // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire (Python parity).
+    // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
     let t9 = "set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"";
     assert!(!opt_fires(t9, "tcl9.0", "O119"));
 
@@ -1003,7 +978,7 @@ fn multi_set_packing_o119() {
 }
 
 // ---------------------------------------------------------------------------
-// TestEndOffsetIndexRewrite — O128
+// End-offset index rewrite — O128
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1121,22 +1096,21 @@ fn end_offset_o128_must_not_fire() {
     assert_eq!(optimised(arr, TCL), "set x [lindex $a(1) end]");
     assert!(opt_fires(arr, TCL, "O128"));
 
-    // DIVERGENCE (Rust MORE precise, tclsh-proven sound): Python
-    // `test_no_rewrite_braced_whole_name_vs_array_element` asserts that
-    // `[lindex ${a(1)} [expr {[llength $a(1)] - 1}]]` must NOT rewrite, on the
-    // theory that braced `${a(1)}` and bare `$a(1)` "compile to different
-    // loads". tclsh disproves that: `set a(1) hello; ${a(1)}` and `$a(1)` both
-    // read array element a(1) and are byte-identical, and the end-offset rewrite
-    // preserves the value (sweep: `[lindex ${a(1)} [...-1]]` == `[lindex ${a(1)}
-    // end]` → OK). Rust therefore (correctly) fires O128 here; assert the sound
-    // rewrite rather than Python's over-conservative no-op.
+    // MORE precise (tclsh-proven sound): one might expect
+    // `[lindex ${a(1)} [expr {[llength $a(1)] - 1}]]` to NOT rewrite, on the
+    // theory that braced `${a(1)}` and bare `$a(1)` "compile to different loads".
+    // tclsh disproves that: `set a(1) hello; ${a(1)}` and `$a(1)` both read array
+    // element a(1) and are byte-identical, and the end-offset rewrite preserves
+    // the value (sweep: `[lindex ${a(1)} [...-1]]` == `[lindex ${a(1)} end]` →
+    // OK). O128 therefore (correctly) fires here; assert the sound rewrite rather
+    // than an over-conservative no-op.
     let braced_arr = "set x [lindex ${a(1)} [expr {[llength $a(1)] - 1}]]";
     assert_eq!(optimised(braced_arr, TCL), "set x [lindex ${a(1)} end]");
     assert!(opt_fires(braced_arr, TCL, "O128"));
 }
 
 // ---------------------------------------------------------------------------
-// TestVariableShapeOptimisationGuardrails — variable-shape forms not conflated
+// Variable-shape optimisation guardrails — variable-shape forms not conflated
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1155,12 +1129,11 @@ fn variable_shape_guardrails() {
 }
 
 // ---------------------------------------------------------------------------
-// TestTailCallOptimisation — O121 (tailcall) / O122 (loop) / O123 (accumulator)
+// Tail-call optimisation — O121 (tailcall) / O122 (loop) / O123 (accumulator)
 //
-// Python splits detection (find_optimisations, pre-overlap) from application
-// (optimise_source). The Rust optimise_with_dialect set is post-overlap; the
-// selection makes O122 subsume per-site O121. Where Python asserts
-// "O121 or O122", we assert the same disjunction on the applied set.
+// The optimise_with_dialect set is post-overlap; selection makes O122 subsume
+// per-site O121. For a tail call we therefore assert the disjunction
+// "O121 or O122" on the applied set.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1198,9 +1171,8 @@ fn tail_call_loop_conversion_o122() {
     // O122 rewrites tail recursion to a `while {1}` loop. tclsh proved factorial
     // and gcd loop-forms equal the recursive originals.
     let fac = "proc factorial {n acc} {\n    if {$n <= 1} {\n        return $acc\n    }\n    return [factorial [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
-    // DIVERGENCE (adapted, sound): Python's selection prefers the whole-proc
-    // O122 loop conversion; Rust's overlap selection prefers the per-site O121
-    // `tailcall` rewrite for this body and emits O121, not O122. Both are
+    // The overlap selection prefers the per-site O121 `tailcall` rewrite for this
+    // body and emits O121, not the whole-proc O122 loop conversion. Both are
     // semantically faithful (tclsh: tailcall factorial form == 120). Assert the
     // applied rewrite is a sound tail-call form (tailcall OR while-loop).
     let fo = optimised(fac, TCL);
@@ -1248,7 +1220,7 @@ fn tail_call_loop_conversion_o122() {
     let braced_set = "proc fact {n acc} {\n    set marker {[fact $n]}\n    if {$n <= 1} {\n        return $acc\n    }\n    return [fact [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
     assert!(opt_fires(braced_set, TCL, "O121") || opt_fires(braced_set, TCL, "O122"));
 
-    // Selection subsumes per-site O121 under a chosen O122 — or, in Rust's
+    // Selection subsumes per-site O121 under a chosen O122 — or, in the
     // selection for this body, keeps O121 and drops O122. Either way exactly one
     // of the two is present (not both) for the simple factorial body.
     let suppress = "proc f {n acc} {\n    if {$n <= 1} { return $acc }\n    return [f [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
@@ -1302,7 +1274,7 @@ fn accumulator_hint_o123() {
 }
 
 // ---------------------------------------------------------------------------
-// TestUnusedIruleProcs — O124 (f5-irules only)
+// Unused iRule procs — O124 (f5-irules only)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1374,27 +1346,27 @@ fn unused_irule_procs_o124() {
 #[test]
 fn unused_irule_procs_o124_eval_suppression() {
     const IR: &str = "f5-irules";
-    // DIVERGENCE / OMISSION: Python suppresses O124 when a reachable event/proc
-    // contains `eval` (dynamic dispatch could call the "unused" proc). Rust does
-    // NOT model this suppression — it still flags the unused proc as removable.
-    //  - `eval`-in-event           (Python: no O124)  → Rust DOES fire O124
-    //  - `eval`-in-reachable-proc  (Python: no O124)  → Rust DOES fire O124
-    // These two cases are listed as Rust gaps in the port report (omitted here).
+    // OMISSION: O124 is NOT suppressed when a reachable event/proc contains
+    // `eval` (dynamic dispatch could in principle call the "unused" proc) — the
+    // unused proc is still flagged as removable.
+    //  - `eval`-in-event           → DOES fire O124
+    //  - `eval`-in-reachable-proc  → DOES fire O124
+    // These two cases are known gaps (omitted here).
 
-    // The case Python and Rust AGREE on: `eval` only in an UNREACHABLE proc does
-    // not suppress O124 — the unused proc is still flagged.
+    // `eval` only in an UNREACHABLE proc does not suppress O124 — the unused proc
+    // is still flagged.
     let unreach = "proc dynamic_helper {} {\n    eval {set x 1}\n}\n\nwhen HTTP_REQUEST {\n    pool my_pool\n}";
     assert!(opt_fires(unreach, IR, "O124"));
 }
 
 // ---------------------------------------------------------------------------
-// TestCodeSinking — O125
+// Code sinking — O125
 // ---------------------------------------------------------------------------
 
 #[test]
 fn code_sinking_o125_positive() {
-    // Basic sink into an `if` whose condition does not read the var. Python
-    // accepts O125 OR O100 (propagation may subsume sinking); Rust fires O125.
+    // Basic sink into an `if` whose condition does not read the var. Either O125
+    // OR O100 is accepted (propagation may subsume sinking); here O125 fires.
     // tclsh: `set b foo; if {$a} {puts $b}` and the sunk form
     // `if {$a} {set b foo; puts $b}` both print foo iff $a is true.
     let basic = "set b foo\nif {$a} {\n    puts $b\n}";
@@ -1435,24 +1407,23 @@ fn code_sinking_o125_negatives() {
 
     // NOTE on omissions. Sound-but-spurious O125 firings (applied rewrite
     // PREPENDS `set b foo` into the branch while KEEPING the outer assignment,
-    // so a tclsh run is unaffected) — omitted, listed in report:
+    // so a tclsh run is unaffected) — omitted:
     //  - var not used in the branch at all (`puts hello`).
     //  - var used after via a bare name (`incr b`) / set-read-form (`set b`).
-    //  - numeric constant `set b 42` (Python: handled by O100/O109, not O125).
-    //  - cross-event shared var (Python: excluded from sinking).
-    //  - `if {0}` block (Python: O112 drops the block AND all O125 parts).
-    // GENUINE RUST BUG (omitted + reported): Python
-    // `test_no_sink_when_rhs_dep_can_change_in_condition`
+    //  - numeric constant `set b 42` (handled by O100/O109, not O125).
+    //  - cross-event shared var (excluded from sinking).
+    //  - `if {0}` block (O112 drops the block AND all O125 parts).
+    // GENUINE BUG (omitted): a sink must NOT happen for
     //   set b $x ; if {[incr x] > 0} { puts $b }
-    // must NOT sink, because `[incr x]` in the condition mutates b's RHS
-    // dependency. Rust fires O125 and the *applied* output
+    // because `[incr x]` in the condition mutates b's RHS dependency. O125 fires
+    // and the *applied* output
     //   set b $x ; if {[incr x] > 0} { set b $x; puts $b }
     // re-reads $x AFTER the incr — tclsh (x=5) ORIG prints 5, REWRITTEN prints 6.
     // A real miscompile, so it is reported rather than asserted.
 }
 
 // ---------------------------------------------------------------------------
-// TestLoadForwarding — O127 (single-use store-to-load forwarding)
+// Load forwarding — O127 (single-use store-to-load forwarding)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1465,9 +1436,8 @@ fn load_forwarding_o127() {
     assert!(optimised(cmdsub, TCL).contains("puts [set x [clock seconds]]"));
 
     // Constants are handled by the propagation/DSE pass, NOT O127. tclsh:
-    // x=42 ⇒ puts 42. (Python labels this O100; Rust forwards the single-def
-    // literal via O102 + DSE O109 — same result, and the key invariant is that
-    // O127 does NOT claim it.)
+    // x=42 ⇒ puts 42. (The single-def literal is forwarded via O102 + DSE O109 —
+    // the key invariant is that O127 does NOT claim it.)
     let constv = "proc test {} {\n    set x 42\n    puts $x\n}";
     assert!(!opt_fires(constv, TCL, "O127"));
     assert!(opt_fires(constv, TCL, "O102"));
@@ -1480,15 +1450,15 @@ fn load_forwarding_o127() {
     // Top-level variables ⇒ not inlined.
     assert!(!opt_fires("set x [clock seconds]\nputs $x", TCL, "O127"));
 
-    // NOTE on omissions (Rust gaps, listed in report):
-    //  - `set x $arg; puts $x` (var-copy) — Python inlines to `puts [set x $arg]`
-    //    (O127); Rust leaves it unchanged (sound, just not forwarded).
-    //  - intervening empty `eval {}` barrier — Python blocks O127; Rust still
-    //    forwards (empty eval not treated as a barrier).
+    // NOTE on omissions (known gaps):
+    //  - `set x $arg; puts $x` (var-copy) — left unchanged rather than inlined to
+    //    `puts [set x $arg]` (O127); sound, just not forwarded.
+    //  - intervening empty `eval {}` barrier — O127 still forwards (the empty eval
+    //    is not treated as a barrier).
 }
 
 // ---------------------------------------------------------------------------
-// TestProfileDirective / multipass — profile survival + string-build collapse
+// Profile directive / multipass — profile survival + string-build collapse
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1517,11 +1487,11 @@ fn multipass_string_build_collapses_to_literal() {
     assert!(!out.contains("set msg"));
 }
 
-// Cross-event dead-store / info-exists soundness (TestCrossEventDSE) — these
-// were miscompiles surfaced by the port and are now FIXED in the source
-// (connection_scope info-exists read detection + the O126 cross-event skip +
-// the cross-event existence-fold post-pass). iRule `when` handlers share
-// connection-scoped variables, so a store read in a later event must survive.
+// Cross-event dead-store / info-exists soundness — these were miscompiles that
+// are now FIXED in the source (connection_scope info-exists read detection + the
+// O126 cross-event skip + the cross-event existence-fold post-pass). iRule
+// `when` handlers share connection-scoped variables, so a store read in a later
+// event must survive.
 mod cross_event_dse {
     use tcl_compiler::optimiser::manager::{apply_optimisations, optimise_with_dialect};
     use tcl_registry::registry_for_dialect;

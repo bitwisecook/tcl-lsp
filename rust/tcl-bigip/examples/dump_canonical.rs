@@ -1,6 +1,6 @@
 //! Parse a BIG-IP `.conf` and print its canonical JSON document.
 //!
-//! Used by the differential-parity harness: `dump_canonical <path>
+//! Used by the differential harness: `dump_canonical <path>
 //! [partition]` prints the JSON that `_rust_bridge.rebuild`
 //! reconstructs the dataclasses from.
 

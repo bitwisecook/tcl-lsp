@@ -3,7 +3,7 @@
 //!
 //! The differential tests generate genuine `pkgIndex.tcl` / `tclIndex` files
 //! with C Tcl's own `pkg_mkIndex` / `auto_mkindex`, and query C Tcl's own
-//! `auto_qualify`, then assert the Rust port produces the same result. They
+//! `auto_qualify`, then assert we produce the same result. They
 //! skip cleanly when no `tclsh` is on `PATH` (so CI without Tcl still passes),
 //! while the pure unit tests always run.
 

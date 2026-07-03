@@ -323,7 +323,7 @@ async fn code_lens_resolve_returns_show_references_command() {
 /// The analyser's `catch`-body walk must surface end-to-end: an unbraced
 /// `expr` inside a `catch { … }` produces a `W100` (expression not braced) in
 /// the pull-diagnostic report, the same as it would at the top level. Guards
-/// the parity fix that made `handle_catch_command` recurse into `args[0]`.
+/// the fix that made `handle_catch_command` recurse into `args[0]`.
 #[tokio::test]
 async fn catch_body_diagnostics_are_delivered() {
     let (client_side, server_side) = tokio::io::duplex(16384);

@@ -1,6 +1,5 @@
-//! Port of `tests/test_slot_allocation.py` — liveness-based slot coalescing
-//! (Phase 5 core), the standalone analysis surface in
-//! [`tcl_compiler::slot_allocation`].
+//! Liveness-based slot coalescing (Phase 5 core), the standalone analysis
+//! surface in [`tcl_compiler::slot_allocation`].
 //!
 //! This exercises the slot-allocation **module in isolation**
 //! (`build_interference`, `coalesce_slots`, `slot_count` over a CFG/SSA plus
@@ -36,7 +35,7 @@ fn registry() -> &'static CommandRegistry {
     registry_for_dialect(TCL)
 }
 
-/// Mirror of the pytest `_setup` helper: lower `src`, build the CFG for the
+/// Lower `src`, build the CFG for the
 /// named proc and its SSA, then compute name-level live-out. Returns the pieces
 /// the interference / coalescing functions consume.
 ///
@@ -58,8 +57,8 @@ fn setup(
             module.procedures.keys().collect::<Vec<_>>()
         )
     });
-    // `false` = do not inline loops, matching the analysis CFG (build_cfg) the
-    // Python harness uses; coalescing depends on liveness only.
+    // `false` = do not inline loops, matching the analysis CFG (build_cfg);
+    // coalescing depends on liveness only.
     let cfg = build_cfg_function(proc, &procedure.body, false);
     let ssa = build_ssa(&cfg, reg);
     let live_out = live_out_by_name(&cfg, &ssa, reg);
@@ -83,7 +82,7 @@ fn interferes(graph: &Interference, a: &str, b: &str) -> bool {
 }
 
 // ===========================================================================
-// TestInterference
+// Interference
 // ===========================================================================
 
 #[test]
@@ -107,7 +106,7 @@ fn disjoint_locals_do_not_interfere() {
 }
 
 // ===========================================================================
-// TestCoalesce
+// Coalescing
 // ===========================================================================
 
 #[test]

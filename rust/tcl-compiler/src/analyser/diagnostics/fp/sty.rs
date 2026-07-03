@@ -769,9 +769,8 @@ fn fp_sty_14_composite_body_still_fires() {
 // (E002 / E205 / W306)
 // ---------------------------------------------------------------------------
 //
-// NOTE: test_FP_STY_15_dollar_quote_word_boundary_lexes from the Python suite
-// is a direct Python `TclLexer` API test with no Rust counterpart — it is
-// skipped here (bridge-only; 1 test omitted).
+// NOTE: the direct lexer API test for this word-boundary case has no
+// diagnostic counterpart and is skipped here (bridge-only; 1 test omitted).
 
 #[test]
 fn fp_sty_15_regsub_dollar_anchor_no_errors() {

@@ -52,8 +52,8 @@ bitflags! {
         const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Tcl 9.0 and later.  A command/option gated to "9.0" persists in
-        /// 9.1 (a `.1` release is additive), matching the Python oracle's
-        /// membership inheritance (`{tcl9.0}` is available under `tcl9.1`).
+        /// 9.1 (a `.1` release is additive): a `{tcl9.0}` membership is
+        /// inherited under `tcl9.1`.
         const TCL90_PLUS = Self::TCL90.bits() | Self::TCL91.bits();
 
         /// Dialects in which the Tk widget/window commands (`button`,
@@ -189,7 +189,7 @@ fn shebang_tclsh_version(lower: &str) -> Option<String> {
 }
 
 /// Extract `<x.y>` from a `^\s*package\s+require\s+(-exact\s+)?Tcl\s*<x.y>` line.
-/// (`Tcl` is matched case-sensitively, mirroring the Python regex.)
+/// (`Tcl` is matched case-sensitively.)
 fn package_require_tcl_version(line: &str) -> Option<String> {
     let mut t = line.trim_start().strip_prefix("package")?;
     if !t.starts_with(char::is_whitespace) {
@@ -474,8 +474,8 @@ pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static st
 /// `package require ?-exact? Tcl <x.y>` line (first 30 lines). Returns `None`
 /// when no hint is found.
 ///
-/// (The Python source additionally falls back to conf-wrapped-iRules detection;
-/// that depends on the BIG-IP layer and is handled there.)
+/// (Conf-wrapped-iRules detection is an additional fallback; it depends on
+/// the BIG-IP layer and is handled there.)
 #[must_use]
 pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
     if let Some(d) = detect_dialect_directive(source) {

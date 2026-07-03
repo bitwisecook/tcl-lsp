@@ -84,8 +84,7 @@ fn scope_for(key: &str) -> Option<&'static str> {
         .map(|(_, s)| *s)
 }
 
-/// Build one property object, prepending `scope` as the first key (matching the
-/// Python `_inject_vscode_scopes`).
+/// Build one property object, prepending `scope` as the first key.
 fn scoped_prop(key: &str, mut schema: Map<String, Value>) -> Value {
     if let Some(scope) = scope_for(key) {
         let mut with_scope = Map::new();
@@ -163,7 +162,7 @@ fn diags_by_section() -> Vec<(&'static str, Vec<DiagRow>)> {
 }
 
 /// Build the diagnostic sections (grouped by shared title, with the special
-/// non-diagnostic properties Python injects).
+/// injected non-diagnostic properties).
 fn diagnostic_sections() -> Vec<Value> {
     let by_section = diags_by_section();
     let base = 2 + formatter_catalogue().len();
@@ -283,7 +282,7 @@ fn optimiser_section(order: usize) -> Value {
     json!({ "title": "Optimiser", "order": order, "properties": Value::Object(props) })
 }
 
-/// Special properties Python prepends before the per-diagnostic toggles.
+/// Special properties prepended before the per-diagnostic toggles.
 fn inject_special_leading_props(title: &str, props: &mut Map<String, Value>) {
     match title {
         "Diagnostics — Style & Best Practice" => {
@@ -323,7 +322,7 @@ fn inject_special_leading_props(title: &str, props: &mut Map<String, Value>) {
     }
 }
 
-/// The trailing special property Python appends after the iRules toggles.
+/// The trailing special property appended after the iRules toggles.
 fn inject_special_trailing_props(title: &str, ndiags: usize, props: &mut Map<String, Value>) {
     if title == "Diagnostics — iRules" {
         let k = "tclLsp.diagnostics.genericVariablePatterns";

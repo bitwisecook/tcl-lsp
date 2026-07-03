@@ -1,17 +1,17 @@
-//! Port of the Python alias-tracking + var-scoping suites for `tcl-compiler`.
+//! Alias-tracking + var-scoping suites for `tcl-compiler`.
 //!
-//! Ported from two pytest files that drive the *Python* compiler:
-//!   * `tests/test_alias_tracking.py` — cross-tool variable-aliasing tracking
+//! Two areas:
+//!   * Cross-tool variable-aliasing tracking
 //!     (the memory-SSA alias lattice, the lifecycle W211/W220 escape
 //!     suppression, taint flow through aliases, and the LSP references/rename
 //!     providers).
-//!   * `tests/test_var_scoping.py` — the shared var-scoping detection helpers
+//!   * The shared var-scoping detection helpers
 //!     (`global` / `variable` / `upvar` / `namespace upvar` declaration-index
 //!     parsing).
 //!
-//! The equivalent Rust modules are
-//! [`tcl_compiler::var_scoping`] (the declaration-index grammar, one-for-one
-//! with Python's `compiler.var_scoping`) and [`tcl_compiler::memory_ssa`] (the
+//! The relevant modules are
+//! [`tcl_compiler::var_scoping`] (the declaration-index grammar) and
+//! [`tcl_compiler::memory_ssa`] (the
 //! alias lattice — `alias_sets`, `may_alias`, the union-find merge — driven off
 //! the same `var_scoping` helpers). The alias-escape lifecycle is observed
 //! through the analyser + `run_all_checks` diagnostic surface, exactly as
@@ -41,27 +41,25 @@
 //!     cell via one name and reads it back via the alias, so the observable
 //!     value pins the binding the compiler models.
 //!
-//! ## Divergences / out-of-scope from the Python suite
+//! ## Divergences / out-of-scope
 //!
-//!   * **Taint through aliases (`TestTaintThroughAlias`, 2 of 3 cases).** The
-//!     Python `find_taint_warnings(source)` is a whole-source driver whose taint
-//!     solver is wired to the intra-procedural alias lattice (Python regression
-//!     #3), so taint written through `a` is observed at an `eval $b` sink. The
-//!     Rust `tcl_compiler::taint::find_taint_warnings` is a *per-function* sink
+//!   * **Taint through aliases (2 of 3 cases).** A whole-source taint
+//!     solver wired to the intra-procedural alias lattice would observe taint
+//!     written through `a` at an `eval $b` sink. But
+//!     `tcl_compiler::taint::find_taint_warnings` is a *per-function* sink
 //!     scan taking a pre-solved taint map; the user-facing single-document
 //!     surface (`run_all_checks`, the same one `analyser_port.rs` uses) does NOT
 //!     thread the alias lattice into that solve, so `T100` does not propagate
-//!     across the alias here. The *direct* sink case (no aliasing) is ported and
+//!     across the alias here. The *direct* sink case (no aliasing) is covered and
 //!     passes; the two alias-dependent cases are documented below rather than
 //!     asserted against the wrong surface. This is a surface limitation, not a
 //!     resolution bug — the constant-control case correctly produces no `T100`.
 //!
-//!   * **LSP references / rename (`TestReferencesAlias`, `TestRenameAlias`, 5
-//!     tests).** Those drive `server.features.references` / `rename`. The Rust
-//!     equivalents (`get_references` / `prepare_rename` / `get_rename_edits`)
+//!   * **LSP references / rename (5 cases).** These drive references / rename.
+//!     The equivalents (`get_references` / `prepare_rename` / `get_rename_edits`)
 //!     live in the **`tcl-lsp-core`** crate, not `tcl-compiler`, so they are out
-//!     of scope for this `tcl-compiler` integration test and are intentionally
-//!     not ported here.
+//!     of scope for this `tcl-compiler` integration test and are not covered
+//!     here.
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Function;
@@ -89,9 +87,8 @@ fn v(items: &[&str]) -> Vec<String> {
 }
 
 /// Build the memory-SSA for the first procedure whose qualified name contains
-/// `proc`. The Rust analogue of Python's `_mem(source, proc)`:
-/// `build_memory_ssa(build_ssa(fn))` where `fn` is taken from the CFG module's
-/// `procedures` map.
+/// `proc`: `build_memory_ssa(build_ssa(fn))` where `fn` is taken from the CFG
+/// module's `procedures` map.
 fn mem(source: &str, proc: &str) -> MemorySsaFunction {
     let module = build_cfg(&lower_to_ir(source, registry()), false);
     let f: &Function = module
@@ -113,8 +110,7 @@ fn mem(source: &str, proc: &str) -> MemorySsaFunction {
 /// Every diagnostic code the full pipeline surfaces for `src`, mirroring the
 /// user-facing `tcl diag` path: the analyser pass plus the `run_all_checks`
 /// compiler-checks pass (shimmer / taint / dead-store), with optimisation codes
-/// excluded. The Rust counterpart of Python `analyse(src).diagnostics`, copied
-/// from `analyser_port.rs::codes`.
+/// excluded. Copied from `analyser_port.rs::codes`.
 fn codes(src: &str) -> Vec<String> {
     let mut out: Vec<String> = Analyser::new()
         .analyse(src, D)
@@ -139,7 +135,7 @@ fn fires(src: &str, code: &str) -> bool {
 }
 
 // ===========================================================================
-// TestAliasLatticeMerge — the memory-SSA alias lattice.
+// The memory-SSA alias lattice.
 //
 // STRUCTURAL: "alias set" is a compiler-internal artefact (memory-SSA union-
 // find). The *behaviour* it models — a write through one upvar name being
@@ -212,7 +208,7 @@ mod alias_lattice_merge {
 }
 
 // ===========================================================================
-// TestAliasEscapesLifecycle — an aliased write escapes the frame, so it is
+// Alias-escape lifecycle — an aliased write escapes the frame, so it is
 // neither a dead store (W220) nor a set-but-never-used local (W211).
 //
 // C-Tcl-observable: each suppression is justified by the alias binding it
@@ -306,7 +302,7 @@ mod alias_escapes_lifecycle {
 }
 
 // ===========================================================================
-// TestTaintThroughAlias — only the direct (non-aliased) sink case maps to the
+// Taint through alias — only the direct (non-aliased) sink case maps to the
 // `run_all_checks` surface; see the module-level DIVERGENCE note for the two
 // alias-dependent cases.
 // ===========================================================================
@@ -331,17 +327,17 @@ mod taint_through_alias {
         assert!(!fires(src, "T100"));
     }
 
-    // DIVERGENCE — `test_taint_flows_between_aliases_of_same_caller`: the Python
-    // suite asserts T100 fires for
+    // DIVERGENCE — taint flowing between aliases of the same caller: T100 would
+    // ideally fire for
     //   proc f {} { upvar 1 c a; upvar 1 c b; set a [HTTP::payload]; eval $b }
-    // because its whole-source `find_taint_warnings` solver threads the intra-
-    // procedural alias lattice (regression #3). The Rust single-document
+    // if a whole-source `find_taint_warnings` solver threaded the intra-
+    // procedural alias lattice. The single-document
     // `run_all_checks` surface does not propagate taint across the alias, so no
     // T100 fires here. Not asserted against the wrong surface; see module note.
 }
 
 // ===========================================================================
-// TestGlobalDeclarationIndices — `compiler.var_scoping.global_declaration_indices`.
+// global_declaration_indices — the declaration-index grammar.
 //
 // STRUCTURAL: these pin the declaration-index *grammar* the memory-SSA alias
 // detector and the LSP declaration provider share. The grammar exists to mirror
@@ -366,15 +362,13 @@ mod global_declaration_indices_tests {
         assert_eq!(global_declaration_indices(&v(&["$dynamic", "b"])), vec![1]);
     }
 
-    // NOTE: Python's `test_accepts_token_like_args` checks the helper accepts
-    // duck-typed `.text` objects (a Python-only affordance). The Rust helper is
-    // statically typed on `&[String]`, so there is no token-vs-string variance
-    // to test; the equivalent guarantee is that callers pass arg *texts*, which
-    // every call site does. Omitted as not-applicable to the Rust signature.
+    // NOTE: there is no token-vs-string variance to test here — the helper is
+    // statically typed on `&[String]`, so the guarantee is simply that callers
+    // pass arg *texts*, which every call site does.
 }
 
 // ===========================================================================
-// TestVariableDeclarationIndices — `compiler.var_scoping.variable_declaration_indices`.
+// variable_declaration_indices — the declaration-index grammar.
 // STRUCTURAL grammar; the `variable` binding it models is tclsh-pinned in
 // `alias_escapes_lifecycle::variable_write_only_*`.
 // ===========================================================================
@@ -403,8 +397,7 @@ mod variable_declaration_indices_tests {
 }
 
 // ===========================================================================
-// TestUpvarLocalDeclarationIndices —
-// `compiler.var_scoping.upvar_local_declaration_indices`.
+// upvar_local_declaration_indices — the declaration-index grammar.
 //
 // STRUCTURAL: the index grammar across every level-word form (default / decimal
 // / `#N`) and both `namespace upvar` lowerings. The grammar exists to mirror

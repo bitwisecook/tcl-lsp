@@ -1590,7 +1590,7 @@ mod tests {
         assert!(!idx.close_bracket_balances(u32::try_from("[set x {a]b".len()).unwrap()));
         // But inserting after the `[` (before the `{`) does close it.
         assert!(idx.close_bracket_balances(1));
-        // Parity with the production lexer.
+        // Matches the production lexer.
         assert!(lexer_has_unterminated_bracket("[set x {a]b"));
     }
 

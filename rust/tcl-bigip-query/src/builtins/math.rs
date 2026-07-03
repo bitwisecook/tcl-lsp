@@ -49,7 +49,7 @@ use crate::value::Value;
 // `gamma`/`lgamma` family is NOT libm-backed: it uses the Lanczos
 // approximation reproduced below so results match bit-for-bit.
 // (`unsafe_code = "forbid"` rules out binding the system libm via
-// `extern "C"`, which is why these choices matter for byte parity.)
+// `extern "C"`, which is why these choices matter for byte-for-byte output.)
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
@@ -153,7 +153,7 @@ fn num_str(v: &Value) -> String {
 // Rounding / sign
 
 fn bi_round(args: &[Value]) -> Result<Value, QueryError> {
-    // C `round` semantics (ties away from zero) — jq parity, not banker's.
+    // C `round` semantics (ties away from zero) — jq behaviour, not banker's.
     let n = num_f64(&as_number(&args[0], "round", 1)?);
     let r = if n >= 0.0 {
         (n + 0.5).floor()

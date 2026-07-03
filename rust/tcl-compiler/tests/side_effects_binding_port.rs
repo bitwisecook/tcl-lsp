@@ -1,12 +1,12 @@
-//! Port of two Python pytest suites onto the Rust `tcl-compiler`:
+//! Integration tests for the `tcl-compiler` side-effect and command-binding
+//! analyses:
 //!
-//!   * `tests/test_side_effects.py`     → `tcl_compiler::side_effects`
-//!     (`classify_side_effects`, `SideEffect`, `CommandSideEffects`, and the
-//!     `StorageType` / `StorageScope` / `ConnectionSide` / `SideEffectTarget`
-//!     vocabulary).
-//!   * `tests/test_command_binding.py`  → `tcl_compiler::command_binding`
-//!     (`analyse_command_binding`, the `BindingKind` lattice, and the
-//!     whole-module `scan_module_command_mutations` summary).
+//!   * `tcl_compiler::side_effects` (`classify_side_effects`, `SideEffect`,
+//!     `CommandSideEffects`, and the `StorageType` / `StorageScope` /
+//!     `ConnectionSide` / `SideEffectTarget` vocabulary).
+//!   * `tcl_compiler::command_binding` (`analyse_command_binding`, the
+//!     `BindingKind` lattice, and the whole-module
+//!     `scan_module_command_mutations` summary).
 //!
 //! ## Proof split (C-Tcl / tclsh vs. registry-metadata facts)
 //!
@@ -26,24 +26,20 @@
 //! …) are **not** runnable in stock tclsh — they are registry/dialect-metadata
 //! facts and are marked `// f5-dialect`.
 //!
-//! ## Divergences from the Python expectations (Rust is correct, adapted)
+//! ## Hint-derived effects leave some fields at their default
 //!
-//! The Rust registry side-effect *hints* carry only
+//! Registry side-effect *hints* carry only
 //! `target`/`reads`/`writes`/`connection_side` — they do **not** populate the
-//! `scope`, `namespace`, or `key` fields the way the Python heuristic
-//! classifier did. So Python assertions of the shape `e.scope is
-//! SESSION_TABLE` / `e.namespace == "HTTP"` on a *hint-derived* effect do not
-//! map; the equivalent Rust effect leaves `scope = Unknown` / `namespace =
-//! None`. Each such site asserts the parts that *do* hold (target, reads,
-//! writes, `connection_side`) and notes the field Rust leaves at its default.
-//! The `set`/`incr`/`unset` variable-assignment path *does* populate
-//! scope/namespace/key (it is not hint-driven), so those assertions port 1:1.
+//! `scope`, `namespace`, or `key` fields. So a *hint-derived* effect leaves
+//! `scope = Unknown` / `namespace = None`. Each such site asserts the parts
+//! that *do* hold (target, reads, writes, `connection_side`) and notes the
+//! field left at its default. The `set`/`incr`/`unset` variable-assignment
+//! path *does* populate scope/namespace/key (it is not hint-driven).
 //!
-//! The Rust `class match` (a `pure: true` subcommand) short-circuits to a
-//! pure, effect-free result rather than surfacing the command-level `DataGroup`
-//! read hint — so the Python `test_class_lookup` effect assertions are adapted
-//! to assert purity (documented at the site). This is a design choice (pure
-//! subcommands win), not a bug.
+//! `class match` (a `pure: true` subcommand) short-circuits to a pure,
+//! effect-free result rather than surfacing the command-level `DataGroup` read
+//! hint — pure subcommands win, so the class-lookup assertions check purity
+//! (documented at the site).
 
 use tcl_compiler::command_binding::{
     Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
@@ -61,19 +57,17 @@ use tcl_registry::{CommandRegistry, registry_for_dialect};
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// A registry with the iRules dialect loaded — the Rust analogue of the Python
-/// suite running with the F5 command metadata available. `classify_side_effects`
-/// still gates per call via its `dialect` argument, so this registry serves
-/// both the Tcl-core and the iRules tests.
+/// A registry with the iRules dialect loaded, making the F5 command metadata
+/// available. `classify_side_effects` still gates per call via its `dialect`
+/// argument, so this registry serves both the Tcl-core and the iRules tests.
 fn irules_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     reg.load_dialect(DialectSet::IRULES);
     reg
 }
 
-/// `classify_side_effects` with no callee summary — mirrors the Python
-/// `classify_side_effects(command, args, dialect=…)` call shape. `args` are
-/// taken as `&str` literals and lifted to owned `String`s.
+/// `classify_side_effects` with no callee summary. `args` are taken as `&str`
+/// literals and lifted to owned `String`s.
 fn classify(
     reg: &CommandRegistry,
     command: &str,
@@ -85,8 +79,7 @@ fn classify(
 }
 
 /// The single effect of a classification, panicking with a helpful message if
-/// the effect list is not exactly length 1 (the common Python
-/// `result.effects[0]` shape).
+/// the effect list is not exactly length 1.
 fn only_effect(cse: &CommandSideEffects) -> &SideEffect {
     assert_eq!(
         cse.effects.len(),
@@ -105,7 +98,7 @@ fn only_effect(cse: &CommandSideEffects) -> &SideEffect {
 
 #[test]
 fn storage_type_members_distinct() {
-    // Python TestEnums::test_storage_type_members — distinct discriminants.
+    // Distinct discriminants.
     assert_ne!(StorageType::Scalar, StorageType::List);
     assert_ne!(StorageType::Dict, StorageType::Array);
     assert_ne!(StorageType::Unknown, StorageType::Scalar);
@@ -113,9 +106,9 @@ fn storage_type_members_distinct() {
 
 #[test]
 fn storage_scope_has_f5_scopes() {
-    // Python test_storage_scope_has_f5_scopes — the F5-specific scopes exist
-    // and are mutually distinct. (Rust enums make "is a member" a compile-time
-    // fact; assert they are pairwise different from the Tcl-universal scopes.)
+    // The F5-specific scopes exist and are mutually distinct. (Enums make "is a
+    // member" a compile-time fact; assert they are pairwise different from the
+    // Tcl-universal scopes.)
     let f5 = [
         StorageScope::Connection,
         StorageScope::Static,
@@ -134,7 +127,6 @@ fn storage_scope_has_f5_scopes() {
 
 #[test]
 fn connection_side_members_distinct() {
-    // Python test_connection_side_members.
     assert_ne!(ConnectionSide::Client, ConnectionSide::Server);
     assert_ne!(ConnectionSide::Both, ConnectionSide::Global);
     assert_ne!(ConnectionSide::None, ConnectionSide::Both);
@@ -142,8 +134,7 @@ fn connection_side_members_distinct() {
 
 #[test]
 fn side_effect_target_has_io_targets() {
-    // Python test_side_effect_target_has_io_targets — the I/O targets exist and
-    // are distinct.
+    // The I/O targets exist and are distinct.
     assert_ne!(SideEffectTarget::FileIo, SideEffectTarget::NetworkIo);
     assert_ne!(SideEffectTarget::NetworkIo, SideEffectTarget::LogIo);
     assert_ne!(SideEffectTarget::FileIo, SideEffectTarget::LogIo);
@@ -153,9 +144,8 @@ fn side_effect_target_has_io_targets() {
 
 #[test]
 fn side_effect_default_values() {
-    // Python TestSideEffect::test_default_values. The Rust constructor takes
-    // (target, reads, writes); the remaining fields default exactly as the
-    // Python frozen dataclass does.
+    // The constructor takes (target, reads, writes); the remaining fields take
+    // their defaults.
     let e = SideEffect::new(SideEffectTarget::Variable, false, false);
     assert!(!e.reads);
     assert!(!e.writes);
@@ -168,16 +158,14 @@ fn side_effect_default_values() {
     assert!(e.subtable.is_none());
 }
 
-// NOTE: Python TestSideEffect::test_frozen asserts the dataclass rejects
-// mutation. In Rust immutability is a compile-time property of `let` bindings
-// (a `let e = …; e.reads = false;` simply would not compile), so there is no
-// runtime behaviour to assert and the test is intentionally omitted.
+// NOTE: there is no immutability test. Immutability is a compile-time property
+// of `let` bindings (a `let e = …; e.reads = false;` simply would not compile),
+// so there is no runtime behaviour to assert.
 
 // --- TestCommandSideEffects ------------------------------------------------
 
 #[test]
 fn command_side_effects_pure() {
-    // Python TestCommandSideEffects::test_pure.
     let cse = CommandSideEffects {
         pure: true,
         deterministic: true,
@@ -186,13 +174,12 @@ fn command_side_effects_pure() {
     assert!(cse.pure);
     assert!(!cse.reads_any());
     assert!(!cse.writes_any());
-    // Python `cse.targets == frozenset()` — no effects ⇒ no targets touched.
+    // No effects ⇒ no targets touched.
     assert!(cse.effects.is_empty());
 }
 
 #[test]
 fn command_side_effects_single_write() {
-    // Python TestCommandSideEffects::test_single_write.
     let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
     e.key = Some("x".to_owned());
     let cse = CommandSideEffects {
@@ -208,8 +195,7 @@ fn command_side_effects_single_write() {
 
 #[test]
 fn command_side_effects_multiple_effects() {
-    // Python TestCommandSideEffects::test_multiple_effects — a read and a write
-    // to the same target.
+    // A read and a write to the same target.
     let cse = CommandSideEffects {
         effects: vec![
             SideEffect::new(SideEffectTarget::HttpHeader, true, false),
@@ -226,8 +212,8 @@ fn command_side_effects_multiple_effects() {
 
 #[test]
 fn command_side_effects_scopes_via_effects_in_scope() {
-    // Python TestCommandSideEffects::test_scopes_property. Rust has no `scopes`
-    // aggregate, but `effects_in_scope` is the queryable equivalent.
+    // There is no `scopes` aggregate, but `effects_in_scope` is the queryable
+    // equivalent.
     let mut e1 = SideEffect::new(SideEffectTarget::Variable, false, false);
     e1.scope = StorageScope::ProcLocal;
     let mut e2 = SideEffect::new(SideEffectTarget::SessionTable, false, false);
@@ -243,7 +229,6 @@ fn command_side_effects_scopes_via_effects_in_scope() {
 
 #[test]
 fn command_side_effects_effects_in_scope() {
-    // Python TestCommandSideEffects::test_effects_in_scope.
     let mut e1 = SideEffect::new(SideEffectTarget::Variable, false, false);
     e1.scope = StorageScope::ProcLocal;
     let mut e2 = SideEffect::new(SideEffectTarget::Variable, false, false);
@@ -259,7 +244,6 @@ fn command_side_effects_effects_in_scope() {
 
 #[test]
 fn command_side_effects_effects_on_side() {
-    // Python TestCommandSideEffects::test_effects_on_side.
     let mut e1 = SideEffect::new(SideEffectTarget::PoolSelection, false, false);
     e1.connection_side = ConnectionSide::Server;
     let mut e2 = SideEffect::new(SideEffectTarget::HttpHeader, false, false);
@@ -277,7 +261,6 @@ fn command_side_effects_effects_on_side() {
 
 #[test]
 fn classify_expr_is_pure() {
-    // Python TestClassifyPureCommands::test_expr_is_pure.
     // tclsh: `expr {1 + 2}` is a pure arithmetic evaluation (no side effects).
     let reg = irules_registry();
     assert!(classify(&reg, "expr", &["{1 + 2}"], None).pure);
@@ -285,14 +268,14 @@ fn classify_expr_is_pure() {
 
 #[test]
 fn classify_llength_is_pure() {
-    // Python test_llength_is_pure. tclsh: `llength $x` only reads its argument.
+    // tclsh: `llength $x` only reads its argument.
     let reg = irules_registry();
     assert!(classify(&reg, "llength", &["$x"], None).pure);
 }
 
 #[test]
 fn classify_string_length_is_pure() {
-    // Python test_string_length_is_pure — `string length` is a pure subcommand.
+    // `string length` is a pure subcommand.
     // tclsh: `string length hello` ⇒ 5, no side effects.
     let reg = irules_registry();
     assert!(classify(&reg, "string", &["length", "hello"], None).pure);
@@ -302,7 +285,6 @@ fn classify_string_length_is_pure() {
 
 #[test]
 fn classify_set_write() {
-    // Python TestClassifyVariableCommands::test_set_write.
     // tclsh: `set x hello` writes the proc-local scalar `x`.
     let reg = irules_registry();
     let r = classify(&reg, "set", &["x", "hello"], None);
@@ -317,7 +299,7 @@ fn classify_set_write() {
 
 #[test]
 fn classify_set_read() {
-    // Python test_set_read. tclsh: `set x` with no value *reads* `x`.
+    // tclsh: `set x` with no value *reads* `x`.
     let reg = irules_registry();
     let r = classify(&reg, "set", &["x"], None);
     assert!(r.reads_any());
@@ -329,7 +311,7 @@ fn classify_set_read() {
 
 #[test]
 fn classify_set_global_var() {
-    // Python test_set_global_var. `::myvar` is a root-qualified global.
+    // `::myvar` is a root-qualified global.
     let reg = irules_registry();
     let r = classify(&reg, "set", &["::myvar", "val"], None);
     let e = only_effect(&r);
@@ -340,8 +322,8 @@ fn classify_set_global_var() {
 
 #[test]
 fn classify_set_namespace_var() {
-    // Python test_set_namespace_var. `::foo::bar::x` lives in namespace
-    // `::foo::bar` (the trailing `::x` segment is the variable name).
+    // `::foo::bar::x` lives in namespace `::foo::bar` (the trailing `::x`
+    // segment is the variable name).
     let reg = irules_registry();
     let r = classify(&reg, "set", &["::foo::bar::x", "val"], None);
     let e = only_effect(&r);
@@ -351,8 +333,8 @@ fn classify_set_namespace_var() {
 
 #[test]
 fn classify_set_static_var_irules() {
-    // Python test_set_static_var_irules. // f5-dialect: `static::` is an iRules
-    // scope marker; the var is system-wide (ConnectionSide::Global).
+    // f5-dialect: `static::` is an iRules scope marker; the var is system-wide
+    // (ConnectionSide::Global).
     let reg = irules_registry();
     let r = classify(&reg, "set", &["static::counter", "0"], Some("irules"));
     let e = only_effect(&r);
@@ -363,8 +345,7 @@ fn classify_set_static_var_irules() {
 
 #[test]
 fn classify_set_static_var_f5_irules() {
-    // Python test_set_static_var_f5_irules — same, under the `f5-irules`
-    // dialect alias. // f5-dialect.
+    // Same, under the `f5-irules` dialect alias. // f5-dialect.
     let reg = irules_registry();
     let r = classify(&reg, "set", &["static::counter", "0"], Some("f5-irules"));
     let e = only_effect(&r);
@@ -375,7 +356,6 @@ fn classify_set_static_var_f5_irules() {
 
 #[test]
 fn classify_incr_reads_and_writes() {
-    // Python test_incr_reads_and_writes.
     // tclsh: `incr counter` reads the current value and writes the increment
     // (read-modify-write); the value is a scalar integer.
     let reg = irules_registry();
@@ -388,7 +368,6 @@ fn classify_incr_reads_and_writes() {
 
 #[test]
 fn classify_lappend_is_list_type() {
-    // Python test_lappend_is_list_type.
     // tclsh: `lappend mylist item` appends to (and so first reads) a list var.
     let reg = irules_registry();
     let r = classify(&reg, "lappend", &["mylist", "item"], None);
@@ -402,7 +381,6 @@ fn classify_lappend_is_list_type() {
 
 #[test]
 fn classify_eval_is_dynamic_barrier() {
-    // Python TestClassifyDynamicBarriers::test_eval_is_dynamic_barrier.
     // tclsh: `eval {set x 1}` runs arbitrary code ⇒ effects are unknowable
     // (a dynamic-dispatch barrier that conservatively reads and writes).
     let reg = irules_registry();
@@ -414,7 +392,6 @@ fn classify_eval_is_dynamic_barrier() {
 
 #[test]
 fn classify_uplevel_is_dynamic_barrier() {
-    // Python test_uplevel_is_dynamic_barrier.
     // tclsh: `uplevel 1 {set x 1}` evaluates in the caller's frame ⇒ barrier.
     let reg = irules_registry();
     let r = classify(&reg, "uplevel", &["1", "set x 1"], None);
@@ -425,11 +402,10 @@ fn classify_uplevel_is_dynamic_barrier() {
 
 #[test]
 fn classify_table_set() {
-    // Python TestClassifyTableCommand::test_table_set. // f5-dialect.
-    // DIVERGENCE: the registry `table set` hint is reads+writes (a keyed
-    // upsert reads the old entry), and hints don't populate `scope`, so Rust
-    // leaves scope = Unknown where Python asserted SESSION_TABLE. The
-    // load-bearing facts hold: it writes the SESSION_TABLE target on BOTH sides.
+    // f5-dialect. The registry `table set` hint is reads+writes (a keyed upsert
+    // reads the old entry), and hints don't populate `scope`, so scope is left
+    // at Unknown. The load-bearing facts hold: it writes the SESSION_TABLE
+    // target on BOTH sides.
     let reg = irules_registry();
     let r = classify(&reg, "table", &["set", "mykey", "myval"], Some("irules"));
     assert!(r.writes_any());
@@ -442,15 +418,14 @@ fn classify_table_set() {
 
 #[test]
 fn classify_table_lookup() {
-    // Python test_table_lookup. // f5-dialect.
-    // `table lookup` is a pure read of the SESSION_TABLE target.
+    // f5-dialect. `table lookup` is a pure read of the SESSION_TABLE target.
     let reg = irules_registry();
     let r = classify(&reg, "table", &["lookup", "mykey"], Some("irules"));
     let e = only_effect(&r);
     assert!(e.reads);
     assert!(!e.writes);
     assert_eq!(e.target, SideEffectTarget::SessionTable);
-    // Hint-derived: scope left at default (Python asserted SESSION_TABLE).
+    // Hint-derived: scope left at default.
     assert_eq!(e.scope, StorageScope::Unknown);
 }
 
@@ -458,7 +433,7 @@ fn classify_table_lookup() {
 
 #[test]
 fn classify_pool_selection() {
-    // Python TestClassifyF5Commands::test_pool_selection. // f5-dialect.
+    // f5-dialect.
     let reg = irules_registry();
     let r = classify(&reg, "pool", &["mypool"], Some("irules"));
     assert!(r.writes_target(SideEffectTarget::PoolSelection));
@@ -468,7 +443,7 @@ fn classify_pool_selection() {
 
 #[test]
 fn classify_node_selection() {
-    // Python test_node_selection. // f5-dialect.
+    // f5-dialect.
     let reg = irules_registry();
     let r = classify(&reg, "node", &["10.0.0.1"], Some("irules"));
     assert!(r.writes_target(SideEffectTarget::NodeSelection));
@@ -476,7 +451,7 @@ fn classify_node_selection() {
 
 #[test]
 fn classify_snat_selection() {
-    // Python test_snat_selection. // f5-dialect.
+    // f5-dialect.
     let reg = irules_registry();
     let r = classify(&reg, "snat", &["automap"], Some("irules"));
     assert!(r.writes_target(SideEffectTarget::SnatSelection));
@@ -484,11 +459,9 @@ fn classify_snat_selection() {
 
 #[test]
 fn classify_class_lookup() {
-    // Python TestClassifyF5Commands::test_class_lookup. // f5-dialect.
-    // DIVERGENCE: in Rust `class match` is a `pure: true` subcommand, so the
-    // classifier short-circuits to a pure, effect-free result rather than
-    // surfacing the command-level DataGroup read hint that Python expected.
-    // (Pure subcommands win — a design choice, not a bug.) Assert the Rust
+    // f5-dialect. `class match` is a `pure: true` subcommand, so the classifier
+    // short-circuits to a pure, effect-free result rather than surfacing the
+    // command-level DataGroup read hint. (Pure subcommands win.) Assert the
     // behaviour: pure, no tracked write.
     let reg = irules_registry();
     let r = classify(&reg, "class", &["match", "-name", "myclass", "value"], None);
@@ -503,9 +476,8 @@ fn classify_class_lookup() {
 
 #[test]
 fn classify_persist_command() {
-    // Python test_persist_command. // f5-dialect.
-    // DIVERGENCE: hint-derived effect ⇒ scope left at default (Python asserted
-    // PERSISTENCE). Target + client-side context hold.
+    // f5-dialect. Hint-derived effect ⇒ scope left at default. Target +
+    // client-side context hold.
     let reg = irules_registry();
     let r = classify(&reg, "persist", &["source_addr"], Some("irules"));
     let e = only_effect(&r);
@@ -516,7 +488,7 @@ fn classify_persist_command() {
 
 #[test]
 fn classify_session_add() {
-    // Python test_session_add. // f5-dialect.
+    // f5-dialect.
     let reg = irules_registry();
     let r = classify(&reg, "session", &["add", "key", "val"], Some("irules"));
     let e = only_effect(&r);
@@ -526,13 +498,12 @@ fn classify_session_add() {
 
 #[test]
 fn classify_session_lookup() {
-    // Python test_session_lookup. // f5-dialect.
-    // DIVERGENCE: `session lookup` is a `pure: true` subcommand in Rust, so the
+    // f5-dialect. `session lookup` is a `pure: true` subcommand, so the
     // classifier short-circuits to a pure, effect-free result (pure subcommands
-    // win) rather than surfacing the subcommand's PersistenceTable read hint
-    // that Python expected. Assert the Rust behaviour: pure, no write. The
-    // structured read+/write effect for the persistence table is still
-    // exercised by `session add` (a mutator subcommand) below.
+    // win) rather than surfacing the subcommand's PersistenceTable read hint.
+    // Assert the behaviour: pure, no write. The structured read/write effect for
+    // the persistence table is still exercised by `session add` (a mutator
+    // subcommand) below.
     let reg = irules_registry();
     let r = classify(&reg, "session", &["lookup", "key"], Some("irules"));
     assert!(
@@ -546,9 +517,8 @@ fn classify_session_lookup() {
 
 #[test]
 fn classify_http_header_read() {
-    // Python TestClassifyProtocolNamespaceCommands::test_http_header_read.
-    // // f5-dialect. DIVERGENCE: hint-derived effects don't set `namespace`
-    // (Python asserted "HTTP"); assert the read + HttpHeader target instead.
+    // f5-dialect. Hint-derived effects don't set `namespace`; assert the read +
+    // HttpHeader target instead.
     let reg = irules_registry();
     let r = classify(&reg, "HTTP::header", &["value", "Host"], Some("irules"));
     let e = only_effect(&r);
@@ -559,16 +529,14 @@ fn classify_http_header_read() {
 
 #[test]
 fn classify_http_uri_normalized_getter_is_read_only() {
-    // Python test_http_uri_normalized_getter_is_read_only. // f5-dialect.
-    // DIVERGENCE: the Rust `HTTP::uri` spec carries `Traits::PURE` but NO
-    // structured `side_effects` hint (`-normalized` is an *option*, not a
-    // subcommand, and the read-only-ness is captured purely by `pure=true`).
-    // So Rust classifies the getter as pure with an EMPTY effect list rather
-    // than surfacing a structured HttpUri read the way the Python heuristic
-    // classifier did. The load-bearing property — it is a read-only getter
-    // that never writes — holds: assert purity + no write. (The HttpUri target
-    // *is* exercised via the `URI::path` conformance row, which does carry the
-    // hint.)
+    // f5-dialect. The `HTTP::uri` spec carries `Traits::PURE` but NO structured
+    // `side_effects` hint (`-normalized` is an *option*, not a subcommand, and
+    // the read-only-ness is captured purely by `pure=true`). So the getter is
+    // classified as pure with an EMPTY effect list rather than surfacing a
+    // structured HttpUri read. The load-bearing property — it is a read-only
+    // getter that never writes — holds: assert purity + no write. (The HttpUri
+    // target *is* exercised via the `URI::path` conformance row, which does
+    // carry the hint.)
     let reg = irules_registry();
     let r = classify(&reg, "HTTP::uri", &["-normalized"], Some("f5-irules"));
     assert!(r.pure, "HTTP::uri -normalized is a pure getter");
@@ -577,8 +545,7 @@ fn classify_http_uri_normalized_getter_is_read_only() {
 
 #[test]
 fn classify_dialect_propagation() {
-    // Python test_dialect_propagation — the active dialect is stamped onto both
-    // the result and each effect.
+    // The active dialect is stamped onto both the result and each effect.
     let reg = irules_registry();
     let r = classify(&reg, "set", &["x", "1"], Some("irules"));
     assert_eq!(r.dialect.as_deref(), Some("irules"));
@@ -588,8 +555,7 @@ fn classify_dialect_propagation() {
 
 #[test]
 fn classify_unknown_command_is_conservative() {
-    // Python test_unknown_command_is_conservative — an unknown command
-    // conservatively reads and writes (UNKNOWN target).
+    // An unknown command conservatively reads and writes (UNKNOWN target).
     let reg = irules_registry();
     let r = classify(&reg, "some_unknown_command", &["arg1"], None);
     assert!(r.reads_any());
@@ -600,9 +566,8 @@ fn classify_unknown_command_is_conservative() {
 
 #[test]
 fn classify_command_level_hint_is_applied() {
-    // Python TestClassifyWithRegistryHints::test_command_level_hint_is_applied.
-    // // f5-dialect. `HTTP2::disable` carries a command-level Http2State write
-    // hint on BOTH sides.
+    // f5-dialect. `HTTP2::disable` carries a command-level Http2State write hint
+    // on BOTH sides.
     let reg = irules_registry();
     let r = classify(&reg, "HTTP2::disable", &[], Some("irules"));
     assert!(r.writes_target(SideEffectTarget::Http2State));
@@ -613,9 +578,8 @@ fn classify_command_level_hint_is_applied() {
 
 #[test]
 fn classify_subcommand_hint_overrides_command_level() {
-    // Python test_subcommand_hint_overrides_command_level_heuristics.
-    // // f5-dialect. `HTTP::header replace …` is a mutator subcommand whose
-    // hint writes HttpHeader (overriding the pure getter classification).
+    // f5-dialect. `HTTP::header replace …` is a mutator subcommand whose hint
+    // writes HttpHeader (overriding the pure getter classification).
     let reg = irules_registry();
     let r = classify(
         &reg,
@@ -630,8 +594,7 @@ fn classify_subcommand_hint_overrides_command_level() {
 
 #[test]
 fn classify_hint_precedence_beats_fallback() {
-    // Python test_hint_precedence_beats_fallback_always_mutating. // f5-dialect.
-    // `call my_proc` reads the PROC_DEFINITION and does not write.
+    // f5-dialect. `call my_proc` reads the PROC_DEFINITION and does not write.
     let reg = irules_registry();
     let r = classify(&reg, "call", &["my_proc"], Some("irules"));
     assert!(r.reads_target(SideEffectTarget::ProcDefinition));
@@ -640,7 +603,6 @@ fn classify_hint_precedence_beats_fallback() {
 
 #[test]
 fn classify_hint_with_unspecified_dialect_preserves_shape() {
-    // Python test_hint_with_unspecified_dialect_preserves_hint_shape.
     // With no dialect the `HTTP2::disable` hint still resolves (the spec is not
     // gated out) and the effect's dialect stamp is None.
     let reg = irules_registry();
@@ -650,17 +612,14 @@ fn classify_hint_with_unspecified_dialect_preserves_shape() {
     assert!(e.dialect.is_none());
 }
 
-// NOTE: Python test_subcommand_hint_selected_when_provided_explicitly passes an
-// explicit `subcommand="lookup"` kwarg that overrides the positional args. The
-// Rust `classify_side_effects` has no separate `subcommand` parameter — the
-// effective subcommand is always `args[0]` — so there is no equivalent override
-// to port. Omitted (no matching Rust API surface).
+// NOTE: there is no explicit-subcommand-override test. `classify_side_effects`
+// has no separate `subcommand` parameter — the effective subcommand is always
+// `args[0]` — so there is no override to exercise.
 
 // --- TestDialectSpecificHints ----------------------------------------------
 
 #[test]
 fn classify_close_in_tcl_is_file_io() {
-    // Python TestDialectSpecificHints::test_close_in_tcl_is_file_io.
     // tclsh: `close $fd` closes a channel (file I/O), no F5 connection context.
     let reg = irules_registry();
     let r = classify(&reg, "close", &["$fd"], Some("tcl8.6"));
@@ -671,9 +630,8 @@ fn classify_close_in_tcl_is_file_io() {
 
 #[test]
 fn classify_close_in_irules_is_connection_control() {
-    // Python test_close_in_irules_is_connection_control. // f5-dialect.
-    // Under iRules, bare `close` tears down the proxied connection on BOTH
-    // sides (ConnectionControl), not a file channel.
+    // f5-dialect. Under iRules, bare `close` tears down the proxied connection
+    // on BOTH sides (ConnectionControl), not a file channel.
     let reg = irules_registry();
     let r = classify(&reg, "close", &[], Some("f5-irules"));
     let e = only_effect(&r);
@@ -683,10 +641,9 @@ fn classify_close_in_irules_is_connection_control() {
 
 #[test]
 fn classify_file_io_does_not_kill_unknown_region() {
-    // Python test_file_io_does_not_kill_unknown_region.
     // `puts hello` writes a FileIo target whose coarse EffectRegion is NONE —
     // so it must NOT register as an UNKNOWN_STATE write that would kill GVN
-    // facts. (`to_effect_regions` is the Rust analogue of `to_effect_regions`.)
+    // facts.
     let reg = irules_registry();
     let r = classify(&reg, "puts", &["hello"], Some("tcl8.6"));
     let (_reads, writes) = r.to_effect_regions();
@@ -695,9 +652,9 @@ fn classify_file_io_does_not_kill_unknown_region() {
 
 // --- TestConformanceHintTargets --------------------------------------------
 
-/// One row of the Python `TestConformanceHintTargets` parametrize matrix:
-/// `classify(command, (), dialect)` must surface `expected` among its effect
-/// targets — proving the registry hint is wired through, not dead metadata.
+/// One conformance row: `classify(command, (), dialect)` must surface
+/// `expected` among its effect targets — proving the registry hint is wired
+/// through, not dead metadata.
 fn assert_conformance_target(
     reg: &CommandRegistry,
     command: &str,
@@ -715,8 +672,8 @@ fn assert_conformance_target(
 
 #[test]
 fn conformance_irules_protocol_namespace_targets() {
-    // Python TestConformanceHintTargets — iRules protocol-namespace rows.
-    // // f5-dialect (each command is an F5/iRules construct).
+    // iRules protocol-namespace rows. // f5-dialect (each command is an
+    // F5/iRules construct).
     let reg = irules_registry();
     let rows: &[(&str, SideEffectTarget)] = &[
         ("HTTP2::disable", SideEffectTarget::Http2State),
@@ -749,7 +706,7 @@ fn conformance_irules_protocol_namespace_targets() {
 
 #[test]
 fn conformance_tcl_core_targets() {
-    // Python TestConformanceHintTargets — Tcl core rows (dialect=None).
+    // Tcl core rows (dialect=None).
     // tclsh-grounded: `puts`/`open` do file I/O, `socket` does network I/O,
     // `proc` defines a procedure, `namespace` mutates namespace state,
     // `interp`/`package` mutate interpreter state.
@@ -772,8 +729,7 @@ fn conformance_tcl_core_targets() {
 
 #[test]
 fn hinted_irules_commands_return_non_unknown_effects() {
-    // Python TestHintCoverageNotDead::test_hinted_irules_commands_…
-    // // f5-dialect. Each hinted iRules command yields a non-empty effect list.
+    // f5-dialect. Each hinted iRules command yields a non-empty effect list.
     let reg = irules_registry();
     let cmds = [
         "HTTP2::active",
@@ -793,8 +749,8 @@ fn hinted_irules_commands_return_non_unknown_effects() {
 
 #[test]
 fn hinted_tcl_commands_return_structured_effects() {
-    // Python test_hinted_tcl_commands_return_structured_effects. Each hinted
-    // Tcl stdlib command yields a non-empty effect list (with an `x` argument).
+    // Each hinted Tcl stdlib command yields a non-empty effect list (with an
+    // `x` argument).
     let reg = irules_registry();
     let cmds = [
         "puts",
@@ -821,17 +777,15 @@ fn hinted_tcl_commands_return_structured_effects() {
 // test_command_binding.py
 // ===========================================================================
 
-/// Build a `CompilationUnit` for the binding tests. The Python `_top` helper
-/// configured the `tcl9.0` dialect; the Rust analogue takes a tcl9.0 registry.
+/// Build a `CompilationUnit` for the binding tests with the `tcl9.0` dialect.
 fn build_top(src: &str) -> CompilationUnit {
     let reg = registry_for_dialect("tcl9.0");
     CompilationUnit::build_for(src, reg, false)
 }
 
-/// The lexically-last `(block, idx_past_last_stmt)` — the Rust analogue of the
-/// Python `_end(cfg)` helper. RPO order is the lexical order for these
-/// straight-line scripts, so the last non-empty block in RPO with its full
-/// statement count is the "end" point.
+/// The lexically-last `(block, idx_past_last_stmt)`. RPO order is the lexical
+/// order for these straight-line scripts, so the last non-empty block in RPO
+/// with its full statement count is the "end" point.
 fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, usize) {
     let mut last = None;
     for bid in cfg.reverse_postorder() {
@@ -844,15 +798,14 @@ fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, 
     last.expect("no non-empty block")
 }
 
-/// Source spelling / canonical name of a statement (the Rust analogue of the
-/// Python `stmt.command` / `stmt.canonical_command`). Falls back to the source
+/// Source spelling / canonical name of a statement. Falls back to the source
 /// spelling when no canonical name was resolved.
 fn stmt_command(stmt: &Statement) -> &str {
     stmt.canonical_command_or_source()
 }
 
 /// Binding of `query` at the first statement whose command (canonical-or-source)
-/// equals `canonical` — the Rust analogue of `_binding_at_command`.
+/// equals `canonical`.
 fn binding_at_command(
     cb: &tcl_compiler::command_binding::CommandBinding<'_>,
     cfg: &tcl_compiler::cfg::Function,
@@ -884,8 +837,7 @@ fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
 
 #[test]
 fn binding_builtins_are_builtin() {
-    // Python TestBaseline::test_builtins_are_builtin — with no rebinding every
-    // core name keeps its builtin binding.
+    // With no rebinding every core name keeps its builtin binding.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("set x 1\nputs [string length hi]\nincr x\n");
     let fu = cu.function("::top").unwrap();
@@ -902,7 +854,6 @@ fn binding_builtins_are_builtin() {
 
 #[test]
 fn binding_user_proc_is_proc() {
-    // Python test_user_proc_is_proc.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("proc sq {n} {return [expr {$n*$n}]}\nputs [sq 5]\n");
     let fu = cu.function("::top").unwrap();
@@ -916,8 +867,8 @@ fn binding_user_proc_is_proc() {
 
 #[test]
 fn binding_undefined_name_is_opaque() {
-    // Python test_undefined_name_is_opaque_unknown — a name no proc/builtin
-    // provides resolves via the `unknown` handler (opaque).
+    // A name no proc/builtin provides resolves via the `unknown` handler
+    // (opaque).
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("nosuchcommand a b c\n");
     let fu = cu.function("::top").unwrap();
@@ -933,7 +884,6 @@ fn binding_undefined_name_is_opaque() {
 
 #[test]
 fn binding_proc_call_rename_call() {
-    // Python TestFlowSensitiveRename::test_proc_call_rename_call.
     // tclsh: after `rename a b`, calling `a` errors (hits unknown) and `b` runs
     // the old proc body — the rename only perturbs calls that follow it.
     let reg = registry_for_dialect("tcl9.0");
@@ -961,7 +911,6 @@ fn binding_proc_call_rename_call() {
 
 #[test]
 fn binding_rename_deletion_is_opaque_not_error() {
-    // Python test_rename_deletion_is_opaque_not_error.
     // tclsh: `rename foo {}` deletes foo; a later `foo` call hits `unknown`.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("proc foo {} {return 1}\nrename foo {}\nfoo\n");
@@ -973,7 +922,6 @@ fn binding_rename_deletion_is_opaque_not_error() {
 
 #[test]
 fn binding_builtin_rename_away_then_redefine_is_proc() {
-    // Python test_builtin_rename_away_then_redefine_is_proc.
     // tclsh: `rename incr ::orig_incr` then `proc incr …` makes `incr` a user
     // proc (no longer the foldable builtin) and `::orig_incr` the real builtin.
     let reg = registry_for_dialect("tcl9.0");
@@ -995,8 +943,7 @@ fn binding_builtin_rename_away_then_redefine_is_proc() {
 
 #[test]
 fn binding_proc_redefined_stays_proc() {
-    // Python TestRedefinition::test_proc_redefined_stays_proc — the later body
-    // wins; the name is still bound to *a* proc.
+    // The later body wins; the name is still bound to *a* proc.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("proc f {} {return 1}\nproc f {} {return 2}\nf\n");
     let fu = cu.function("::top").unwrap();
@@ -1009,9 +956,8 @@ fn binding_proc_redefined_stays_proc() {
 
 #[test]
 fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
-    // Python test_proc_named_like_mathfunc_is_proc_not_builtin — `max` is an
-    // expr math function but not a top-level command, so `proc max` binds a
-    // real foldable proc (must not collapse to UNKNOWN).
+    // `max` is an expr math function but not a top-level command, so `proc max`
+    // binds a real foldable proc (must not collapse to UNKNOWN).
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("proc max {a b} {return $a}\nputs [max 1 2]\n");
     let fu = cu.function("::top").unwrap();
@@ -1026,7 +972,6 @@ fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
 
 #[test]
 fn binding_alias_records_target() {
-    // Python TestInterpAlias::test_alias_records_target.
     // tclsh: `interp alias {} myset {} set` makes `myset` dispatch to `set`.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("interp alias {} myset {} set\nmyset x 1\n");
@@ -1042,8 +987,7 @@ fn binding_alias_records_target() {
 
 #[test]
 fn binding_rename_in_one_arm_joins_to_unknown() {
-    // Python TestBranchJoin::test_rename_in_one_arm_joins_to_unknown — a rename
-    // only on the true arm makes the merged binding ⊤ (Unknown).
+    // A rename only on the true arm makes the merged binding ⊤ (Unknown).
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("if {$x} {rename string ::s2}\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
@@ -1054,8 +998,8 @@ fn binding_rename_in_one_arm_joins_to_unknown() {
 
 #[test]
 fn binding_rename_on_both_arms_agrees() {
-    // Python test_rename_on_both_arms_agrees — the same rename on both arms is
-    // deterministic: `string` is renamed away on every path ⇒ opaque, not ⊤.
+    // The same rename on both arms is deterministic: `string` is renamed away
+    // on every path ⇒ opaque, not ⊤.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top(
         "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
@@ -1070,7 +1014,6 @@ fn binding_rename_on_both_arms_agrees() {
 
 #[test]
 fn binding_dynamic_rename_makes_everything_unknown() {
-    // Python TestDynamicMutation::test_dynamic_rename_makes_everything_unknown.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("rename $cmd foo\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
@@ -1081,7 +1024,6 @@ fn binding_dynamic_rename_makes_everything_unknown() {
 
 #[test]
 fn binding_dynamic_proc_name_makes_everything_unknown() {
-    // Python test_dynamic_proc_name_makes_everything_unknown.
     let reg = registry_for_dialect("tcl9.0");
     let cu = build_top("proc $name {} {return 1}\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
@@ -1092,17 +1034,14 @@ fn binding_dynamic_proc_name_makes_everything_unknown() {
 
 // --- TestProcBodyMutationScan ----------------------------------------------
 //
-// The Python `scan_command_mutations_in_bodies(cfgs)` summarises renames buried
-// in proc bodies. The Rust analogue is the whole-module `scan_module_command_
-// mutations(ir_module)` (which walks the top-level *and* every proc/method body
-// via a CFG-free IR walk — see the module docs). We drive it off the same
-// snippets; `mut.trusts(name)` is the Rust analogue of `mut.trusts(name)` and
-// `!mut.trusts("string") && mut.names.contains("::string")` mirrors Python's
-// `"::string" in mut.names`.
+// The whole-module `scan_module_command_mutations(ir_module)` summarises
+// renames buried in proc bodies — it walks the top-level *and* every proc/method
+// body via a CFG-free IR walk (see the module docs). `mut.trusts(name)` reports
+// whether a name is still safely bound, and `!mut.trusts("string") &&
+// mut.names.contains("::string")` checks that a specific name was rebound.
 
 #[test]
 fn module_scan_nested_rename_in_proc_is_caught() {
-    // Python TestProcBodyMutationScan::test_nested_rename_in_proc_is_caught.
     let reg = registry_for_dialect("tcl9.0");
     let cu = CompilationUnit::build_for(
         "proc danger {} {if {$x} {rename string ::s2}}\nputs ok\n",
@@ -1116,7 +1055,6 @@ fn module_scan_nested_rename_in_proc_is_caught() {
 
 #[test]
 fn module_scan_dynamic_rename_in_proc_distrusts_everything() {
-    // Python test_dynamic_rename_in_proc_distrusts_everything.
     let reg = registry_for_dialect("tcl9.0");
     let cu = CompilationUnit::build_for("proc danger {} {rename $a $b}\nputs ok\n", reg, false);
     let mt = scan_module_command_mutations(&cu.ir_module, reg);
@@ -1126,7 +1064,6 @@ fn module_scan_dynamic_rename_in_proc_distrusts_everything() {
 
 #[test]
 fn module_scan_clean_module_trusts_all() {
-    // Python test_clean_module_trusts_all.
     let reg = registry_for_dialect("tcl9.0");
     let cu = CompilationUnit::build_for(
         "proc helper {x} {return [expr {$x+1}]}\nputs [helper 4]\n",
@@ -1142,7 +1079,6 @@ fn module_scan_clean_module_trusts_all() {
 
 #[test]
 fn module_scan_transient_rename_and_restore_is_caught() {
-    // Python TestModuleScanSoundness::test_transient_rename_and_restore_is_caught.
     // `string` is renamed away, used, then restored — its final binding is the
     // builtin default, but it was tampered with mid-body, so it must NOT be
     // trusted (calls in that window would hit `unknown`).
@@ -1158,7 +1094,6 @@ fn module_scan_transient_rename_and_restore_is_caught() {
 
 #[test]
 fn module_scan_embedded_substitution_rename_is_dynamic() {
-    // Python test_embedded_substitution_rename_is_dynamic.
     // `rename ::$c mystr` — the old name carries a substitution after a literal
     // prefix, so it's a *dynamic* rename that can touch any command.
     let reg = registry_for_dialect("tcl9.0");
@@ -1168,14 +1103,13 @@ fn module_scan_embedded_substitution_rename_is_dynamic() {
         false,
     );
     let mt = scan_module_command_mutations(&cu.ir_module, reg);
-    // Dynamic ⇒ trusts nothing (the Rust `dynamic` flag short-circuits trust).
+    // Dynamic ⇒ trusts nothing (the `dynamic` flag short-circuits trust).
     assert!(!mt.trusts("string"));
     assert!(!mt.trusts("anything"));
 }
 
 #[test]
 fn module_scan_embedded_substitution_in_new_name_is_dynamic() {
-    // Python test_embedded_substitution_in_new_name_is_dynamic.
     // `rename foo bar[x]` — the new name carries a command substitution ⇒
     // dynamic ⇒ trusts nothing.
     let reg = registry_for_dialect("tcl9.0");
@@ -1187,7 +1121,6 @@ fn module_scan_embedded_substitution_in_new_name_is_dynamic() {
 
 #[test]
 fn module_scan_clean_module_still_trusts() {
-    // Python test_clean_module_still_trusts.
     let reg = registry_for_dialect("tcl9.0");
     let cu = CompilationUnit::build_for(
         "proc fib {n} {return $n}\nputs [fib 3]\nputs [string length hi]\n",

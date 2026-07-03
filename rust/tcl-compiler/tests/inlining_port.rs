@@ -1,24 +1,19 @@
-//! Port of the Python inlining-subsystem pytest suites to a Rust integration
-//! test, raising coverage of the under-covered `inlining` and
-//! `inline_uplevel` modules.
+//! Integration tests for the `inlining` and `inline_uplevel` modules.
 //!
-//! Ported from four pytest files that drive the *Python* compiler:
-//!   * `tests/test_inline_decision.py` — proc classification (the inlining
-//!     catalogue: size / pure-leaf / static-call-count → ALWAYS /
-//!     `IF_SINGLE_CALL` / NEVER).
-//!   * `tests/test_inline_pass.py`     — the inline transform (call sites
-//!     replaced by proc bodies, α-renaming to avoid variable capture,
-//!     defaults / variadics / early-return wrapping / decline cases).
-//!   * `tests/test_inline_gvn.py`      — the inlining ↔ GVN interaction. GVN
-//!     is a *separate* Python pass (`compiler.passes.gvn`) with no public
-//!     Rust entry point exposed to an integration test; the shared invariant
-//!     it rests on (the splice-safe / frame-independent allow-list) is the
-//!     same allow-list the Rust inliner uses, so the load-bearing behaviour
-//!     is exercised here through the inliner's verbatim-splice path instead
-//!     (noted at the relevant tests).
-//!   * `tests/test_inline_uplevel.py`  — whole-callee `uplevel`-passthrough
-//!     inlining (`detect_*` recognition + the `inline_uplevel_passthrough`
-//!     rewrite).
+//! Four groups of tests exercise the compiler:
+//!   * proc classification (the inlining catalogue: size / pure-leaf /
+//!     static-call-count → ALWAYS / `IF_SINGLE_CALL` / NEVER).
+//!   * the inline transform (call sites replaced by proc bodies, α-renaming to
+//!     avoid variable capture, defaults / variadics / early-return wrapping /
+//!     decline cases).
+//!   * the inlining ↔ GVN interaction. GVN is a separate pass with no public
+//!     entry point exposed to an integration test; the shared invariant it
+//!     rests on (the splice-safe / frame-independent allow-list) is the same
+//!     allow-list the inliner uses, so the load-bearing behaviour is exercised
+//!     here through the inliner's verbatim-splice path instead (noted at the
+//!     relevant tests).
+//!   * whole-callee `uplevel`-passthrough inlining (`detect_*` recognition +
+//!     the `inline_uplevel_passthrough` rewrite).
 //!
 //! ## Rust API used (all public from `tcl_compiler`)
 //!
@@ -28,22 +23,20 @@
 //!     detect_static_passthrough, body_has_frame_reach,
 //!     inline_uplevel_passthrough, PassthroughShape}`
 //!   * `var_escape::analyse_var_escape` + `ProcEscapeSummary::safe_to_inline`
-//!   * `CompilationUnit::build_for(src, &registry, false).ir_module` — the
-//!     Rust analogue of the Python `lower_to_ir(src)` helper that every
-//!     ported `_prepare` / `_ir_module` shim starts from.
+//!   * `CompilationUnit::build_for(src, &registry, false).ir_module` — lowers
+//!     source to the IR module the shared helpers below start from.
 //!
-//! Two Python helpers have no public Rust counterpart and so are covered by
-//! observable proxy rather than direct call:
-//!   * Python `count_static_calls` is `pub(crate)`-only in Rust (`fn`, not
-//!     `pub fn`) — its three `TestStaticCallCount` cases are re-expressed
-//!     through `classify_proc`, which *takes the static call count as a
-//!     parameter*, so the same 0 / 1 / N call-count decisions are asserted
-//!     directly (and the 1-vs-2-caller `NEVER/IF_SINGLE_CALL` split is the
-//!     load-bearing behaviour).
-//!   * Python `apply_inline_catalogue` (which tags `inline_decision` /
-//!     `static_call_count` onto a fresh `Module`) is internal in Rust;
-//!     `classify_proc` is the public decision primitive and is asserted
-//!     directly with the count supplied.
+//! Two helpers have no public API counterpart and so are covered by observable
+//! proxy rather than direct call:
+//!   * `count_static_calls` is `pub(crate)`-only (`fn`, not `pub fn`) — its
+//!     three static-call-count cases are re-expressed through `classify_proc`,
+//!     which *takes the static call count as a parameter*, so the same 0 / 1 / N
+//!     call-count decisions are asserted directly (and the 1-vs-2-caller
+//!     `NEVER/IF_SINGLE_CALL` split is the load-bearing behaviour).
+//!   * `apply_inline_catalogue` (which tags `inline_decision` /
+//!     `static_call_count` onto a fresh `Module`) is internal; `classify_proc`
+//!     is the public decision primitive and is asserted directly with the count
+//!     supplied.
 //!
 //! ## Structural vs. semantic proof split
 //!
@@ -78,14 +71,14 @@ use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
-// Shared helpers (mirror the Python `_prepare` / `_ir_module` shims)
+// Shared helpers
 // ---------------------------------------------------------------------------
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-/// `source → Module`, the Rust analogue of Python's `lower_to_ir(source)`.
+/// `source → Module`, lowering source to its IR module.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
 }
@@ -100,8 +93,8 @@ fn assign_body(n: usize) -> String {
     body
 }
 
-/// Run the whole-module inline transform (the Rust `inline_module` runs its
-/// own `analyse_var_escape` internally, so no summaries argument).
+/// Run the whole-module inline transform (`inline_module` runs its own
+/// `analyse_var_escape` internally, so no summaries argument).
 fn inlined(source: &str) -> Module {
     inline_module(module_for(source))
 }
@@ -156,7 +149,6 @@ fn summary_for<'a>(
 
 #[test]
 fn statement_count_empty_body_is_zero() {
-    // Python TestStatementCount::test_empty_body_is_zero.
     let module = module_for("proc foo {} {}\n");
     let proc = &module.procedures["::foo"];
     assert_eq!(count_statements(&proc.body), 0);
@@ -164,7 +156,6 @@ fn statement_count_empty_body_is_zero() {
 
 #[test]
 fn statement_count_flat_body_counts_top_level() {
-    // Python TestStatementCount::test_flat_body_counts_top_level.
     let module = module_for("proc foo {} {\n  set a 1\n  set b 2\n  set c 3\n}\n");
     let proc = &module.procedures["::foo"];
     assert_eq!(count_statements(&proc.body), 3);
@@ -172,8 +163,8 @@ fn statement_count_flat_body_counts_top_level() {
 
 #[test]
 fn statement_count_nested_if_counts_inner() {
-    // Python TestStatementCount::test_nested_if_counts_inner — the `if`
-    // contributes its clause plus the nested `set`, so the body counts >= 1.
+    // The `if` contributes its clause plus the nested `set`, so the body
+    // counts >= 1.
     let module = module_for("proc foo {x} {\n  if {$x} { set a 1 }\n}\n");
     let proc = &module.procedures["::foo"];
     assert!(count_statements(&proc.body) >= 1);
@@ -181,18 +172,17 @@ fn statement_count_nested_if_counts_inner() {
 
 // --- TestStaticCallCount (re-expressed through classify_proc) ---------------
 //
-// Python `count_static_calls` is not part of the Rust public surface, so its
-// three cases are asserted through `classify_proc`, which consumes the static
-// call count directly. The behaviour that depends on the count — a large
-// pure-leaf proc is IF_SINGLE_CALL at one caller and NEVER at two — is the
-// load-bearing part and is covered below in TestClassify.
+// `count_static_calls` is not part of the public surface, so its three cases
+// are asserted through `classify_proc`, which consumes the static call count
+// directly. The behaviour that depends on the count — a large pure-leaf proc
+// is IF_SINGLE_CALL at one caller and NEVER at two — is the load-bearing part
+// and is covered below.
 
 #[test]
 fn static_call_count_drives_large_proc_decision() {
     // A pure-leaf proc bigger than the threshold: 0 callers and 2 callers
-    // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. This is the observable
-    // content of Python's test_uncalled_proc_zero / *_one_caller / *_two
-    // trio (the raw count helper is internal).
+    // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. The raw count helper is
+    // internal, so this is asserted through the classifier.
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
     let summaries = analyse_var_escape(&module, true);
@@ -207,8 +197,7 @@ fn static_call_count_drives_large_proc_decision() {
 
 #[test]
 fn classify_small_pure_leaf_is_always() {
-    // Python TestClassify::test_small_pure_leaf_is_always — small + pure-leaf
-    // → ALWAYS regardless of call count.
+    // Small + pure-leaf → ALWAYS regardless of call count.
     // tclsh (8.6, 9.0): `proc add {a b} {expr {$a + $b}}; add 3 4` → 7, so
     // inlining `add` must preserve that result.
     let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
@@ -222,8 +211,8 @@ fn classify_small_pure_leaf_is_always() {
 
 #[test]
 fn classify_non_pure_leaf_is_never() {
-    // Python TestClassify::test_non_pure_leaf_is_never — `upvar` makes the
-    // proc non-pure-leaf, so it is NEVER inlinable regardless of size.
+    // `upvar` makes the proc non-pure-leaf, so it is NEVER inlinable
+    // regardless of size.
     // tclsh (8.6, 9.0): `proc setter {name val} {upvar 1 $name v; set v
     // $val}; set x 0; setter x 99; set x` → 99 — the upvar writes the
     // caller's frame; inlining must NOT relocate that body.
@@ -239,7 +228,6 @@ fn classify_non_pure_leaf_is_never() {
 
 #[test]
 fn classify_large_pure_leaf_one_caller_is_if_single_call() {
-    // Python TestClassify::test_large_pure_leaf_with_one_caller_is_if_single_call.
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
@@ -252,7 +240,6 @@ fn classify_large_pure_leaf_one_caller_is_if_single_call() {
 
 #[test]
 fn classify_large_pure_leaf_two_callers_is_never() {
-    // Python TestClassify::test_large_pure_leaf_with_two_callers_is_never.
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
@@ -295,8 +282,7 @@ fn classify_missing_summary_is_never() {
 
 #[test]
 fn empty_body_call_is_dropped() {
-    // Python TestEmptyBodySplice::test_empty_body_call_is_dropped — both
-    // `noop` calls vanish; the proc definition stays.
+    // Both `noop` calls vanish; the proc definition stays.
     let module = module_for("proc noop {} {}\nnoop\nnoop\n");
     assert_eq!(top_calls_to(&module, "noop"), 2);
     let out = inline_module(module);
@@ -306,8 +292,8 @@ fn empty_body_call_is_dropped() {
 
 #[test]
 fn non_empty_body_v3_inlines_and_keeps_proc() {
-    // Python TestEmptyBodySplice::test_non_empty_body_v3_inlines — the call
-    // vanishes but the proc body STAYS in the module (externally observable).
+    // The call vanishes but the proc body STAYS in the module (externally
+    // observable).
     let out = inlined("proc setup {} { set x 1 }\nsetup\n");
     assert_eq!(top_calls_to(&out, "setup"), 0);
     assert!(out.procedures.contains_key("::setup"));
@@ -315,8 +301,8 @@ fn non_empty_body_v3_inlines_and_keeps_proc() {
 
 #[test]
 fn non_pure_leaf_is_not_inlined() {
-    // Python TestEmptyBodySplice::test_non_pure_leaf_is_not_inlined — `upvar`
-    // blocks pure-leaf, so the call survives even though the body is short.
+    // `upvar` blocks pure-leaf, so the call survives even though the body is
+    // short.
     let out = inlined("proc skip_me {name} { upvar 1 $name v }\nskip_me x\n");
     assert_eq!(top_calls_to(&out, "skip_me"), 1);
 }
@@ -325,7 +311,6 @@ fn non_pure_leaf_is_not_inlined() {
 
 #[test]
 fn call_inside_if_clause_dropped() {
-    // Python TestNestedSites::test_call_inside_if_clause_dropped.
     let out = inlined("proc noop {} {}\nif {1} { noop }\n");
     let if_node = out
         .top_level
@@ -341,7 +326,6 @@ fn call_inside_if_clause_dropped() {
 
 #[test]
 fn call_inside_for_body_dropped() {
-    // Python TestNestedSites::test_call_inside_for_body_dropped.
     let out = inlined("proc noop {} {}\nfor {set i 0} {$i < 3} {incr i} { noop }\n");
     let for_node = out
         .top_level
@@ -359,8 +343,8 @@ fn call_inside_for_body_dropped() {
 
 #[test]
 fn input_module_unchanged_by_inlining() {
-    // Python TestPurity::test_input_module_unchanged — the inliner takes the
-    // module by value and returns a new one; building a fresh module from the
+    // The inliner takes the module by value and returns a new one; building a
+    // fresh module from the
     // same source still shows the original call (the transform did not mutate
     // shared IR).
     let original = module_for("proc noop {} {}\nnoop\n");
@@ -372,7 +356,7 @@ fn input_module_unchanged_by_inlining() {
 
 #[test]
 fn inlining_is_idempotent() {
-    // Python TestPurity::test_idempotent — a second pass changes nothing.
+    // A second pass changes nothing.
     let once = inlined("proc noop {} {}\nnoop\n");
     let twice = inline_module(once.clone());
     assert_eq!(once, twice);
@@ -382,7 +366,6 @@ fn inlining_is_idempotent() {
 
 #[test]
 fn two_call_wrapper_inlines_both() {
-    // Python TestMultiStatementWrapperSplice::test_two_call_wrapper_inlines_both.
     // tclsh (8.6, 9.0): `proc setup {} { puts a; puts b }; setup` prints
     // "a\nb"; splicing both `puts` calls inline preserves that output.
     let module = module_for("proc setup {} { puts \"a\"\nputs \"b\" }\nsetup\n");
@@ -395,11 +378,9 @@ fn two_call_wrapper_inlines_both() {
 
 #[test]
 fn mixed_safe_calls_unqualified_inline() {
-    // Adapted from Python TestMultiStatementWrapperSplice::test_mixed_safe_calls_inline.
-    // Python uses `::string length`; the *qualified* form is handled below
-    // (Rust diverges — see `qualified_command_body_is_conservatively_kept`).
-    // With unqualified `puts` + `string` (both pure-leaf in Rust's
-    // `var_escape`), the wrapper inlines exactly as Python expects.
+    // The qualified `::string length` form is handled below (see
+    // `qualified_command_body_is_conservatively_kept`). With unqualified `puts`
+    // + `string` (both pure-leaf in `var_escape`), the wrapper inlines.
     let out = inlined("proc setup {} { puts \"starting\"\nstring length \"x\" }\nsetup\n");
     assert_eq!(top_calls_to(&out, "setup"), 0);
     assert_eq!(top_calls_to(&out, "puts"), 1);
@@ -408,7 +389,6 @@ fn mixed_safe_calls_unqualified_inline() {
 
 #[test]
 fn set_in_wrapper_body_v3_inlines_with_alpha_rename() {
-    // Python TestMultiStatementWrapperSplice::test_set_in_body_v3_inlines_with_alpha_rename.
     let out = inlined("proc setup {} { puts \"starting\"\nset marker 1 }\nsetup\n");
     assert_eq!(top_calls_to(&out, "setup"), 0);
     assert_eq!(top_calls_to(&out, "puts"), 1);
@@ -425,7 +405,6 @@ fn set_in_wrapper_body_v3_inlines_with_alpha_rename() {
 
 #[test]
 fn proc_with_one_param_inlines() {
-    // Python TestParameterisedInline::test_proc_with_one_param_inlines.
     // tclsh (8.6, 9.0): `proc inc {x} { set r $x; return $r }; inc 5` → 5 —
     // inlining `inc 5` binds the param and preserves that value.
     let out = inlined("proc inc {x} { puts $x }\ninc 5\n");
@@ -441,8 +420,7 @@ fn proc_with_one_param_inlines() {
 
 #[test]
 fn proc_with_local_write_uses_mangled_name() {
-    // Python TestParameterisedInline::test_proc_with_local_write_uses_mangled_name —
-    // the body's `y` is α-renamed and the `puts $y` reference uses the SAME
+    // The body's `y` is α-renamed and the `puts $y` reference uses the SAME
     // mangled name (no capture, and the read still resolves to the write).
     let out = inlined("proc f {} { set y 5\nputs $y }\nf\n");
     assert_eq!(top_calls_to(&out, "f"), 0);
@@ -464,7 +442,6 @@ fn proc_with_local_write_uses_mangled_name() {
 
 #[test]
 fn proc_with_trailing_return_inlines_at_terminal_position() {
-    // Python TestParameterisedInline::test_proc_with_trailing_return_inlines_at_terminal_position.
     // tclsh (8.6, 9.0): `proc f {x} { ...; return $x }; f 5` → 5; the inlined
     // terminal return forwards the caller's result.
     let out = inlined("proc f {x} { puts $x\nreturn $x }\nf 5\n");
@@ -480,8 +457,7 @@ fn proc_with_trailing_return_inlines_at_terminal_position() {
 
 #[test]
 fn proc_with_trailing_return_at_non_terminal_via_wrap() {
-    // Python TestParameterisedInline::test_proc_with_trailing_return_inlines_at_non_terminal_via_wrap —
-    // the trailing return is wrapped in a one-shot while so the rest of the
+    // The trailing return is wrapped in a one-shot while so the rest of the
     // caller body still runs; the following `set marker after` survives.
     let out = inlined("proc f {x} { puts $x\nreturn $x }\nf 5\nset marker after\n");
     assert_eq!(top_calls_to(&out, "f"), 0);
@@ -504,15 +480,14 @@ fn proc_with_trailing_return_at_non_terminal_via_wrap() {
 
 #[test]
 fn arity_mismatch_declines() {
-    // Python TestParameterisedInline::test_arity_mismatch_declines — one arg
-    // to a two-param proc with no default → decline rather than mis-inline.
+    // One arg to a two-param proc with no default → decline rather than
+    // mis-inline.
     let out = inlined("proc f {x y} { puts $x }\nf 1\n");
     assert_eq!(top_calls_to(&out, "f"), 1);
 }
 
 #[test]
 fn variadic_args_inlines_with_list_pack() {
-    // Python TestParameterisedInline::test_variadic_args_inlines_with_list_pack.
     // tclsh (8.6, 9.0): `proc f {args} { return $args }; f 1 2 3` → "1 2 3";
     // the inliner binds `args` to `[list 1 2 3]`, which evaluates the same.
     let out = inlined("proc f {args} { puts $args }\nf 1 2 3\n");
@@ -526,7 +501,6 @@ fn variadic_args_inlines_with_list_pack() {
 
 #[test]
 fn variadic_args_with_quoted_word_declines() {
-    // Python TestParameterisedInline::test_variadic_args_with_quoted_word_declines —
     // `"hello world"` would re-tokenise inside `[list …]` and change arity, so
     // the inliner declines and keeps the runtime call.
     let out = inlined("proc f {args} { puts $args }\nf a \"hello world\" c\n");
@@ -535,7 +509,6 @@ fn variadic_args_with_quoted_word_declines() {
 
 #[test]
 fn variadic_args_with_zero_extras_inlines_to_empty() {
-    // Python TestParameterisedInline::test_variadic_args_with_zero_extras_inlines_to_empty —
     // `f 1` against `proc f {a args}` binds `args` to the empty string.
     let out = inlined("proc f {a args} { puts $a }\nf 1\n");
     assert_eq!(top_calls_to(&out, "f"), 0);
@@ -548,7 +521,6 @@ fn variadic_args_with_zero_extras_inlines_to_empty() {
 
 #[test]
 fn braced_literal_arg_uses_assign_const() {
-    // Python TestParameterisedInline::test_braced_literal_arg_uses_iassignconst —
     // `f {literal-$y}` passes the *literal string*; the binding must be an
     // AssignConst so the inlined `set` does NOT re-substitute `$y` from the
     // caller frame.
@@ -570,7 +542,6 @@ fn braced_literal_arg_uses_assign_const() {
 
 #[test]
 fn substitution_arg_keeps_assign_value() {
-    // Python TestParameterisedInline::test_substitution_arg_keeps_iassignvalue —
     // `f $y` passes the caller's value, so the binding stays an AssignValue
     // reading the caller frame.
     let out = inlined("proc f {x} { puts $x }\nset y 42\nf $y\n");
@@ -591,7 +562,6 @@ fn substitution_arg_keeps_assign_value() {
 
 #[test]
 fn expand_arg_declines_inlining() {
-    // Python TestParameterisedInline::test_expand_arg_declines_inlining —
     // `f {*}$lst` expands a runtime list; the inliner can't statically unpack
     // it, so it declines.
     let out = inlined("proc f {a b c} { puts $a }\nset lst {1 2 3}\nf {*}$lst\n");
@@ -600,7 +570,6 @@ fn expand_arg_declines_inlining() {
 
 #[test]
 fn default_arg_inlines() {
-    // Python TestParameterisedInline::test_default_arg_inlines.
     // tclsh (8.6, 9.0): `proc f {x {y 5}} { return [list $x $y] }; f 3` →
     // "3 5"; the inliner fills the default `5` for the missing `y`.
     let out = inlined("proc f {x {y 5}} { puts $x }\nf 3\n");
@@ -624,14 +593,12 @@ fn default_arg_inlines() {
 
 #[test]
 fn missing_arg_no_default_declines() {
-    // Python TestParameterisedInline::test_missing_arg_no_default_declines.
     let out = inlined("proc f {x y} { puts $x }\nf 1\n");
     assert_eq!(top_calls_to(&out, "f"), 1);
 }
 
 #[test]
 fn early_return_in_if_inlines_via_wrap() {
-    // Python TestParameterisedInline::test_early_return_in_if_inlines_via_wrap.
     // tclsh (8.6, 9.0): `proc f {x} { if {$x > 0} { return 1 }; return 0 };
     // f 5` → 1; the inlined site routes both returns through the wrap and
     // forwards the value.
@@ -655,8 +622,7 @@ fn early_return_in_if_inlines_via_wrap() {
 
 #[test]
 fn implicit_trailing_return_with_early_return_captured() {
-    // Python TestParameterisedInline::test_implicit_trailing_return_with_early_irreturn_captured —
-    // the wrap must capture the implicit trailing value (`set y 2` returns 2)
+    // The wrap must capture the implicit trailing value (`set y 2` returns 2)
     // on the if-false fall-through.
     // tclsh (8.6, 9.0): `proc f {x} { if {$x} { return 1 }; set y 2 }; f 0`
     // → 2 — the fall-through value must be forwarded, not silently "".
@@ -683,8 +649,7 @@ fn implicit_trailing_return_with_early_return_captured() {
 
 #[test]
 fn implicit_trailing_call_declines() {
-    // Python TestParameterisedInline::test_implicit_trailing_call_declines —
-    // capturing an implicit return from a trailing *call* needs command-subst
+    // Capturing an implicit return from a trailing *call* needs command-subst
     // rewriting we don't do, so the inliner declines.
     let out = inlined("proc f {x} { if {$x} { return 1 }\nputs ok }\nf 5\n");
     assert_eq!(top_calls_to(&out, "f"), 1);
@@ -692,8 +657,7 @@ fn implicit_trailing_call_declines() {
 
 #[test]
 fn return_inside_loop_declines() {
-    // Python TestParameterisedInline::test_irreturn_inside_loop_declines — a
-    // `return` inside a `for` body would be trapped by the break-based wrap,
+    // A `return` inside a `for` body would be trapped by the break-based wrap,
     // so v3 declines.
     let out = inlined(
         "proc f {} {\n  for {set i 0} {$i < 10} {incr i} {\n    if {$i == 5} { return $i }\n  }\n}\nf\n",
@@ -703,7 +667,6 @@ fn return_inside_loop_declines() {
 
 #[test]
 fn return_inside_catch_declines() {
-    // Python TestParameterisedInline::test_irreturn_inside_catch_declines —
     // `catch` traps the synthesised `break`, so v3 declines.
     let out = inlined("proc f {x} {\n  catch { if {$x < 0} { return -1 } }\n  return $x\n}\nf 5\n");
     assert_eq!(top_calls_to(&out, "f"), 1);
@@ -711,8 +674,7 @@ fn return_inside_catch_declines() {
 
 #[test]
 fn array_element_write_inlines_with_array_rename() {
-    // Python TestParameterisedInline::test_array_element_write_inlines_with_array_rename —
-    // both array-element writes get the same mangled base with the `(idx)`
+    // Both array-element writes get the same mangled base with the `(idx)`
     // suffix preserved.
     let out = inlined("proc f {} { set arr(0) 1\nset arr(1) 2 }\nf\n");
     assert_eq!(top_calls_to(&out, "f"), 0);
@@ -747,8 +709,7 @@ fn array_element_write_inlines_with_array_rename() {
 
 #[test]
 fn array_read_after_write_uses_same_rename() {
-    // Python TestParameterisedInline::test_array_read_after_write_uses_same_rename —
-    // the read of `$arr(k)` after the write resolves to the same renamed array.
+    // The read of `$arr(k)` after the write resolves to the same renamed array.
     let out = inlined("proc f {} { set arr(k) \"hi\"\nputs $arr(k) }\nf\n");
     let write_name = out
         .top_level
@@ -781,8 +742,7 @@ fn array_read_after_write_uses_same_rename() {
 
 #[test]
 fn nested_control_flow_inlines() {
-    // Python TestParameterisedInline::test_nested_control_flow_inlines — a
-    // body with a nested `if`/`puts` inlines and the If survives.
+    // A body with a nested `if`/`puts` inlines and the If survives.
     let out = inlined("proc f {x} {\n  if {$x > 0} { puts \"positive\" }\n}\nf 5\n");
     assert_eq!(top_calls_to(&out, "f"), 0);
     assert!(
@@ -796,8 +756,7 @@ fn nested_control_flow_inlines() {
 
 #[test]
 fn two_call_sites_get_distinct_mangling() {
-    // Python TestParameterisedInline::test_two_call_sites_get_distinct_mangling —
-    // each call site gets a unique mangling counter so the two bound slots
+    // Each call site gets a unique mangling counter so the two bound slots
     // don't collide.
     let out = inlined("proc f {x} { puts $x }\nf 1\nf 2\n");
     let param_writes: Vec<String> = out
@@ -821,8 +780,7 @@ fn two_call_sites_get_distinct_mangling() {
 
 #[test]
 fn inlinable_proc_kept_after_inlining() {
-    // Python TestDeadProcElimination::test_inlinable_proc_kept_after_inlining —
-    // user procs are externally observable Tcl commands, so they survive even
+    // User procs are externally observable Tcl commands, so they survive even
     // when every static call site is spliced away.
     let out = inlined("proc noop {} {}\nnoop\nnoop\n");
     assert!(out.procedures.contains_key("::noop"));
@@ -830,28 +788,24 @@ fn inlinable_proc_kept_after_inlining() {
 
 #[test]
 fn unreferenced_inlinable_proc_kept() {
-    // Python TestDeadProcElimination::test_unreferenced_inlinable_proc_kept_for_external_callers.
     let out = inlined("proc lonely {} {}\n");
     assert!(out.procedures.contains_key("::lonely"));
 }
 
 #[test]
 fn non_inlinable_proc_kept_even_if_unreferenced() {
-    // Python TestDeadProcElimination::test_non_inlinable_proc_kept_even_if_unreferenced.
     let out = inlined("proc opaque {name} { upvar 1 $name v }\n");
     assert!(out.procedures.contains_key("::opaque"));
 }
 
-// (Python test_compiler_synthetic_proc_dropped_after_inlining is intentionally
-//  not ported: the Rust `Procedure` type carries no `compiler_synthetic` flag,
-//  so dead-proc elimination is documented as omitted in `inline_module`'s
-//  doc-comment. There is no Rust gate to exercise.)
+// (There is no `compiler_synthetic`-drop test: the `Procedure` type carries no
+//  `compiler_synthetic` flag, so dead-proc elimination is documented as omitted
+//  in `inline_module`'s doc-comment. There is no gate to exercise.)
 
 // --- TestSingleCallWrapperSplice (v1) --------------------------------------
 
 #[test]
 fn wrapper_call_is_replaced_with_inner() {
-    // Python TestSingleCallWrapperSplice::test_wrapper_call_is_replaced_with_inner.
     // tclsh (8.6, 9.0): `proc setup {} { puts "starting" }; setup` prints
     // "starting"; the splice replaces the wrapper call with the inner puts.
     let module = module_for("proc setup {} { puts \"starting\" }\nsetup\n");
@@ -864,8 +818,7 @@ fn wrapper_call_is_replaced_with_inner() {
 
 #[test]
 fn wrapper_with_args_at_call_site_declined() {
-    // Python TestSingleCallWrapperSplice::test_wrapper_with_args_at_call_site_declined —
-    // passing args to a zero-param wrapper would discard their evaluation;
+    // Passing args to a zero-param wrapper would discard their evaluation;
     // decline.
     let out = inlined("proc setup {} { puts \"hi\" }\nsetup [list 1 2]\n");
     assert_eq!(top_calls_to(&out, "setup"), 1);
@@ -874,8 +827,7 @@ fn wrapper_with_args_at_call_site_declined() {
 
 #[test]
 fn wrapper_with_unqualified_proc_call_declined() {
-    // Python TestSingleCallWrapperSplice::test_wrapper_with_unqualified_proc_call_declined —
-    // the wrapped bare `helper` resolves to a tracked proc, which could bind
+    // The wrapped bare `helper` resolves to a tracked proc, which could bind
     // differently from another namespace; the verbatim splice declines (it is
     // not namespace-invariant). The `setup` call therefore stays. (After
     // first-pass helper-inlining, setup's body would empty; a second pass is
@@ -886,17 +838,14 @@ fn wrapper_with_unqualified_proc_call_declined() {
 
 #[test]
 fn qualified_command_body_is_conservatively_kept() {
-    // Adapted from Python TestSingleCallWrapperSplice::test_qualified_wrapper_call_inlines.
-    //
-    // RUST DIVERGENCE (more conservative, not a bug): Python's
-    // `apply_inline_catalogue` treats `::puts` as splice-safe and inlines the
-    // wrapper. Rust's `var_escape` pure-leaf analysis classifies a
-    // `::`-qualified builtin call (`::puts`) as NON-pure-leaf, so the wrapper
-    // is not eligible and the call is kept. Declining to inline can never
-    // change program semantics (the runtime call still runs `::puts`), so
-    // this is the safe direction. The unqualified form *does* inline — see
-    // `wrapper_call_is_replaced_with_inner` above — so the splice machinery
-    // itself works; only the `::`-qualified pure-leaf classification differs.
+    // The inliner is deliberately conservative here: `var_escape`'s pure-leaf
+    // analysis classifies a `::`-qualified builtin call (`::puts`) as
+    // NON-pure-leaf, so the wrapper is not eligible and the call is kept.
+    // Declining to inline can never change program semantics (the runtime call
+    // still runs `::puts`), so this is the safe direction. The unqualified form
+    // *does* inline — see `wrapper_call_is_replaced_with_inner` above — so the
+    // splice machinery itself works; only the `::`-qualified pure-leaf
+    // classification declines.
     //
     // Confirmed via `analyse_var_escape`: `safe_to_inline("::setup")` is
     // `true` for `proc setup {} { puts ... }` but `false` for
@@ -921,8 +870,8 @@ fn qualified_command_body_is_conservatively_kept() {
 
 #[test]
 fn unqualified_call_in_namespace() {
-    // Python TestResolution::test_unqualified_call_in_namespace — a bare
-    // `noop` inside `::ns::caller` resolves to `::ns::noop` and is inlined.
+    // A bare `noop` inside `::ns::caller` resolves to `::ns::noop` and is
+    // inlined.
     let module =
         module_for("namespace eval ::ns {\n  proc noop {} {}\n  proc caller {} { noop }\n}\n");
     let summaries = analyse_var_escape(&module, true);
@@ -938,17 +887,11 @@ fn unqualified_call_in_namespace() {
 
 #[test]
 fn namespace_eval_body_is_opaque_barrier_not_a_block() {
-    // Adapted from Python TestResolution::test_unqualified_call_in_irblock_namespace.
-    //
-    // RUST DIVERGENCE (lowering shape, not a bug): in the Python pipeline a
-    // top-level `namespace eval ::ns { … }` lowers to an `IRBlock` whose body
-    // is a real statement list, so the inliner recurses into it and inlines
-    // the inner `noop` call. In the Rust pipeline the same construct lowers to
-    // an opaque `Statement::Barrier` that carries the unparsed body *as a
-    // string argument* — there is no recursable statement body, so the inner
-    // `noop` call site is unreachable to the general inliner. The proc itself
-    // is still registered (`::ns::noop`). This test pins the actual Rust shape
-    // so the divergence is documented rather than silently dropped; the
+    // A top-level `namespace eval ::ns { … }` lowers to an opaque
+    // `Statement::Barrier` that carries the unparsed body *as a string
+    // argument* — there is no recursable statement body, so the inner `noop`
+    // call site is unreachable to the general inliner. The proc itself is still
+    // registered (`::ns::noop`). This test pins that lowering shape; the
     // proc-body resolution case (which does work) is covered by
     // `unqualified_call_in_namespace` above.
     let out = inlined("namespace eval ::ns {\n  proc noop {} {}\n  noop\n}\n");
@@ -976,21 +919,18 @@ fn namespace_eval_body_is_opaque_barrier_not_a_block() {
 // test_inline_gvn.py — inlining ↔ GVN interaction
 // ===========================================================================
 //
-// The GVN pass itself has no public Rust integration entry point (it is
-// `compiler.passes.gvn` in Python). The single behavioural fact the GVN suite
-// and the inliner SHARE is the splice-safe / frame-independent command
-// allow-list: a `puts` between two computations does not invalidate either
-// pass's reasoning, whereas a user-defined helper call does. The inliner
-// exercises exactly that allow-list, so the shared invariant is proven here
-// through the inliner's verbatim path.
+// The GVN pass itself has no public integration entry point. The single
+// behavioural fact GVN and the inliner SHARE is the splice-safe /
+// frame-independent command allow-list: a `puts` between two computations does
+// not invalidate either pass's reasoning, whereas a user-defined helper call
+// does. The inliner exercises exactly that allow-list, so the shared invariant
+// is proven here through the inliner's verbatim path.
 
 #[test]
 fn gvn_shared_allowlist_puts_is_frame_independent() {
-    // Mirrors test_inline_gvn.py::test_intervening_pure_call_keeps_table at
-    // the level the Rust public API exposes: `puts` is frame-independent
-    // (splice-safe), so a zero-param wrapper of two `puts` calls inlines
-    // verbatim — the same allow-list property GVN reuses to keep its value
-    // table across an intervening `puts`.
+    // `puts` is frame-independent (splice-safe), so a zero-param wrapper of two
+    // `puts` calls inlines verbatim — the same allow-list property GVN reuses
+    // to keep its value table across an intervening `puts`.
     let out = inlined("proc w {} { puts \"a\"\nputs \"b\" }\nw\n");
     assert_eq!(top_calls_to(&out, "w"), 0);
     assert_eq!(top_calls_to(&out, "puts"), 2);
@@ -998,11 +938,10 @@ fn gvn_shared_allowlist_puts_is_frame_independent() {
 
 #[test]
 fn gvn_shared_allowlist_user_call_is_opaque() {
-    // Mirrors test_inline_gvn.py::test_intervening_unsafe_call_clears_table:
-    // a user-defined helper call is NOT frame-independent, so a wrapper whose
+    // A user-defined helper call is NOT frame-independent, so a wrapper whose
     // body calls it is not verbatim-spliceable into another namespace. The
-    // wrapper call to `w` stays (parity with GVN treating such a call as
-    // potentially mutating any local).
+    // wrapper call to `w` stays — GVN likewise treats such a call as
+    // potentially mutating any local.
     let out = inlined("proc helper {} { return 0 }\nproc w {} { helper }\nw\n");
     assert_eq!(top_calls_to(&out, "w"), 1);
 }
@@ -1015,8 +954,7 @@ fn gvn_shared_allowlist_user_call_is_opaque() {
 
 #[test]
 fn zero_param_single_uplevel_is_candidate() {
-    // Python TestPassthroughRecognition::test_zero_param_single_uplevel_is_candidate —
-    // the callsite becomes a Block splicing the body, not a `reset` call.
+    // The callsite becomes a Block splicing the body, not a `reset` call.
     // tclsh (8.6, 9.0): `proc reset {} { uplevel 1 {set counter 0} }; proc
     // run {} { set counter 10; reset; return $counter }; run` → 0 — the
     // body runs in the caller's frame; inlining as a same-frame Block
@@ -1038,8 +976,7 @@ fn zero_param_single_uplevel_is_candidate() {
 
 #[test]
 fn non_passthrough_not_inlined() {
-    // Python TestPassthroughRecognition::test_non_passthrough_not_inlined —
-    // real work before the uplevel disqualifies the passthrough shape.
+    // Real work before the uplevel disqualifies the passthrough shape.
     let out = uplevel_inlined(
         "proc worker {} {\n  set local 1\n  uplevel 1 {set g 2}\n}\nproc caller {} { worker }\n",
     );
@@ -1053,7 +990,6 @@ fn non_passthrough_not_inlined() {
 
 #[test]
 fn non_unit_frame_shift_not_inlined() {
-    // Python TestPassthroughRecognition::test_non_unit_frame_shift_not_inlined —
     // `uplevel #0` goes to the absolute global frame; not a same-frame inline.
     let out =
         uplevel_inlined("proc reset {} { uplevel #0 {set ::g 0} }\nproc caller {} { reset }\n");
@@ -1067,8 +1003,7 @@ fn non_unit_frame_shift_not_inlined() {
 
 #[test]
 fn non_body_param_not_inlined() {
-    // Python TestPassthroughRecognition::test_non_body_param_not_inlined — a
-    // quoted (substituting) body, not the literal `uplevel 1 $param` shape,
+    // A quoted (substituting) body, not the literal `uplevel 1 $param` shape,
     // is not recognised.
     let out = uplevel_inlined(
         "proc setter {n} { uplevel 1 \"set counter $n\" }\nproc caller {} { setter 5 }\n",
@@ -1083,8 +1018,7 @@ fn non_body_param_not_inlined() {
 
 #[test]
 fn nested_uplevel_poisons_inlining() {
-    // Python TestPassthroughRecognition::test_nested_uplevel_poisons_inlining —
-    // a body that itself does `uplevel` would reach the caller's caller after
+    // A body that itself does `uplevel` would reach the caller's caller after
     // inlining; reject conservatively.
     let out = uplevel_inlined(
         "proc double_up {} { uplevel 1 { uplevel 1 {set g 1} } }\nproc caller {} { double_up }\n",
@@ -1099,8 +1033,7 @@ fn nested_uplevel_poisons_inlining() {
 
 #[test]
 fn args_at_callsite_prevents_inline() {
-    // Python TestPassthroughRecognition::test_args_at_callsite_prevents_inline —
-    // an unexpected arg would error at runtime; don't inline the error away.
+    // An unexpected arg would error at runtime; don't inline the error away.
     let out = uplevel_inlined(
         "proc reset {} { uplevel 1 {set g 0} }\nproc caller {} { reset extra_arg }\n",
     );
@@ -1116,8 +1049,8 @@ fn args_at_callsite_prevents_inline() {
 
 #[test]
 fn detect_static_passthrough_recognises_zero_param() {
-    // Direct recognition assertion (Python recognises via the rewrite; the
-    // Rust `detect_static_passthrough` exposes the candidate set explicitly).
+    // Direct recognition assertion: `detect_static_passthrough` exposes the
+    // candidate set explicitly.
     let m = module_for("proc reset {} { uplevel 1 {set counter 0} }\n");
     let candidates = detect_static_passthrough(&m);
     assert_eq!(candidates.len(), 1);
@@ -1151,7 +1084,6 @@ fn body_has_frame_reach_flags_uplevel_and_upvar() {
 
 #[test]
 fn uplevel_running_twice_is_noop() {
-    // Python TestInliningIdempotence::test_running_twice_is_noop.
     let mut m = module_for("proc reset {} { uplevel 1 {set g 0} }\nproc caller {} { reset }\n");
     inline_uplevel_passthrough(&mut m, &reg());
     let first = m.procedures["::caller"].body.clone();
@@ -1165,7 +1097,6 @@ fn uplevel_running_twice_is_noop() {
 
 #[test]
 fn param_body_explicit_level_one_call_site_inlined() {
-    // Python TestParamBodyPassthrough::test_explicit_level_one_call_site_inlined.
     // tclsh (8.6, 9.0): `proc dispatcher {body} { uplevel 1 $body }; proc run
     // {} { set counter 10; dispatcher {set counter 0}; return $counter }; run`
     // → 0 — the brace-literal body runs in the caller's frame.
@@ -1182,7 +1113,6 @@ fn param_body_explicit_level_one_call_site_inlined() {
 
 #[test]
 fn param_body_implicit_level_call_site_inlined() {
-    // Python TestParamBodyPassthrough::test_implicit_level_call_site_inlined —
     // `uplevel $body` (implicit level 1) matches the same shape.
     let out = uplevel_inlined(
         "proc dispatcher2 {body} { uplevel $body }\nproc caller {} { dispatcher2 {set x 1} }\n",
@@ -1194,8 +1124,7 @@ fn param_body_implicit_level_call_site_inlined() {
 
 #[test]
 fn param_body_dynamic_arg_at_call_site_stays_call() {
-    // Python TestParamBodyPassthrough::test_dynamic_arg_at_call_site_stays_call —
-    // a `$var` arg is an unknown body at compile time; runtime dispatch stays.
+    // A `$var` arg is an unknown body at compile time; runtime dispatch stays.
     let out = uplevel_inlined(
         "proc dispatcher {body} { uplevel 1 $body }\nproc caller {} { set b {set x 1}\ndispatcher $b }\n",
     );
@@ -1212,7 +1141,6 @@ fn param_body_dynamic_arg_at_call_site_stays_call() {
 
 #[test]
 fn param_body_wrong_arity_at_call_site_stays_call() {
-    // Python TestParamBodyPassthrough::test_wrong_arity_at_call_site_stays_call.
     let out = uplevel_inlined(
         "proc dispatcher {body} { uplevel 1 $body }\nproc caller {} { dispatcher {set x 1} extra }\n",
     );
@@ -1226,8 +1154,7 @@ fn param_body_wrong_arity_at_call_site_stays_call() {
 
 #[test]
 fn param_body_multiple_params_not_recognised() {
-    // Python TestParamBodyPassthrough::test_multiple_params_not_recognised —
-    // two params fail the single-body-param gate at *detection* time.
+    // Two params fail the single-body-param gate at *detection* time.
     let m = module_for("proc dispatcher2 {a body} { uplevel 1 $body }\n");
     assert!(detect_passthrough_candidates(&m).is_empty());
     let out = uplevel_inlined(
@@ -1243,15 +1170,13 @@ fn param_body_multiple_params_not_recognised() {
 
 #[test]
 fn param_body_non_param_var_reference_not_recognised() {
-    // Python TestParamBodyPassthrough::test_non_param_var_reference_not_recognised —
-    // the body `$other` is not the sole param name.
+    // The body `$other` is not the sole param name.
     let m = module_for("proc dispatcher {body} { uplevel 1 $other }\n");
     assert!(detect_passthrough_candidates(&m).is_empty());
 }
 
 #[test]
 fn param_body_explicit_level_other_than_one_not_recognised() {
-    // Python TestParamBodyPassthrough::test_explicit_level_other_than_one_not_recognised —
     // `uplevel 2 $body` is a deeper shift with different semantics.
     let m = module_for("proc dispatcher {body} { uplevel 2 $body }\n");
     assert!(detect_passthrough_candidates(&m).is_empty());

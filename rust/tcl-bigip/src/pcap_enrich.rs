@@ -1021,7 +1021,7 @@ mod tests {
     use crate::parser::parse_bigip_conf;
 
     #[test]
-    fn slug_normalises_like_python() {
+    fn slug_normalises() {
         assert_eq!(slug("/Common/My_VS"), "common-my-vs");
         assert_eq!(slug("10.0.0.1"), "10-0-0-1");
         assert_eq!(slug("--a--b--"), "a--b");

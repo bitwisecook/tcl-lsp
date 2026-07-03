@@ -51,7 +51,7 @@ fn diagnostics_disabled_and_patterns() {
 #[test]
 fn multiline_disabled_codes_list() {
     // A `configparser`-style continuation list joins into the same code set a
-    // comma list would (Python test_user_config::test_multiline_disabled_list).
+    // comma list would.
     let ini = "[diagnostics]\n\
                disabled =\n\
                \x20   W111\n\
@@ -65,8 +65,8 @@ fn multiline_disabled_codes_list() {
 
 #[test]
 fn extra_commands_multiline() {
-    // Continuation form of `extraCommands`, equivalent to the comma form
-    // (Python test_user_config::test_extra_commands_multiline). `::`-qualified
+    // Continuation form of `extraCommands`, equivalent to the comma form.
+    // `::`-qualified
     // names now join correctly even in the continuation form (the parser treats
     // any indented line as a continuation, configparser-style).
     let ini = "[global]\n\
@@ -97,9 +97,7 @@ fn continuation_lines_with_colons_join_correctly() {
 
 #[test]
 fn invalid_values_are_ignored_not_crashing() {
-    // Non-bool / non-integer values are dropped, leaving the defaults intact
-    // (Python test_user_config::test_invalid_bool_ignored /
-    // test_non_integer_line_length_ignored / test_invalid_optimiser_bool_ignored).
+    // Non-bool / non-integer values are dropped, leaving the defaults intact.
     let ini = "[shimmer]\nenabled = banana\n\
                [optimiser]\nenabled = maybe\n\
                [formatting]\nmax_line_length = abc\n\
@@ -125,8 +123,7 @@ fn invalid_values_are_ignored_not_crashing() {
 
 #[test]
 fn empty_dialect_is_ignored() {
-    // An empty `dialect =` keeps the default (Python
-    // test_user_config::test_empty_dialect_is_ignored).
+    // An empty `dialect =` keeps the default.
     let s = settings_from_ini("[global]\ndialect =\n", Layer::Global);
     assert!(s.get("dialect").is_none(), "empty dialect ignored: {s}");
 }
@@ -134,7 +131,7 @@ fn empty_dialect_is_ignored() {
 #[test]
 fn top_level_keys_coexist_with_nested_sections() {
     // A `[global]` top-level key and a `[diagnostics]` section in one file are
-    // both honoured (Python test_user_config::test_combined_with_other_sections).
+    // both honoured.
     let ini = "[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n";
     let s = settings_from_ini(ini, Layer::Global);
     assert_eq!(s["dialect"], json!("tcl9.0"));
@@ -164,7 +161,7 @@ fn features_shimmer_xc_and_line_length() {
     assert_eq!(s["shimmer"]["enabled"], json!(true));
     assert_eq!(s["xcDiagnostics"]["enabled"], json!(false));
     // `[formatting] max_line_length` → formatter width; `[style] line_length`
-    // → the W111 threshold. These are distinct settings (mirrors Python).
+    // → the W111 threshold. These are distinct settings.
     assert_eq!(s["formatting"]["lineLength"], json!(90));
     assert_eq!(s["style"]["lineLength"], json!(100));
 }
@@ -172,7 +169,7 @@ fn features_shimmer_xc_and_line_length() {
 #[test]
 fn formatting_section_maps_all_keys() {
     // Every `[formatting]` key maps to its camelCase editor key with the right
-    // value type (mirrors the Python `_normalise_formatter_settings` mapping).
+    // value type.
     let ini = "[formatting]\n\
                max_line_length = 100\n\
                goal_line_length = 90\n\

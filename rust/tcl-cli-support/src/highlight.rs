@@ -1,7 +1,7 @@
 //! Syntax highlighter (ANSI + HTML).
 //!
 //! Lexer-driven (no analyser/optimiser dependency), so this reaches byte-for-byte
-//! parity with the captured golden output. Command heads and registry-resolved subcommands
+//! agreement with the captured golden output. Command heads and registry-resolved subcommands
 //! are detected via the command segmenter + registry, exactly as
 //! `collect_command_spans` does.
 

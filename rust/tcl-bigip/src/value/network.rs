@@ -465,9 +465,9 @@ mod tests {
         assert!(!sub.contains_network(&n));
     }
 
-    /// Differential parity fixtures: `str(Network.parse(input))`.
+    /// Differential fixtures: `str(Network.parse(input))`.
     #[test]
-    fn parity_against_python() {
+    fn round_trips() {
         let cases: &[(&str, &str)] = &[
             ("10.0.0.0/24", "10.0.0.0/24"),
             ("10.0.0.5/24", "10.0.0.5/24"),

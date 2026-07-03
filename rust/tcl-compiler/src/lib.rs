@@ -63,10 +63,8 @@
 //!   is the lossless representation the segmenter / lowering / formatter
 //!   / tooling are meant to share.
 //!
-//! The crate has no `pyo3` dependency and no Python-compat concerns —
-//! those belong in the `tcl-lsp-rust` binding crate. See
-//! `docs/rust-rewrite.md` in the main repository for the full
-//! migration strategy.
+//! The crate has no `pyo3` dependency and no Python-binding concerns —
+//! those belong in the `tcl-lsp-rust` binding crate.
 
 #![deny(missing_docs)]
 

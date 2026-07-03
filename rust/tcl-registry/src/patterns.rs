@@ -64,7 +64,7 @@ mod tests {
     use crate::registry::CommandRegistry;
 
     #[test]
-    fn tags_match_python_enum_values() {
+    fn enum_tags_have_expected_str_values() {
         assert_eq!(PatternType::Glob.as_str(), "glob");
         assert_eq!(PatternType::Regex.as_str(), "regex");
         assert_eq!(FormatType::Sprintf.as_str(), "sprintf");

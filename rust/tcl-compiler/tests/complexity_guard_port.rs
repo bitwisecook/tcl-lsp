@@ -1,5 +1,4 @@
-//! Port of `tests/test_complexity_guard.py` — the deep-analysis complexity
-//! guard (Phase 6).
+//! Deep-analysis complexity guard (Phase 6).
 //!
 //! ## What the guard does
 //!
@@ -23,34 +22,31 @@
 //! `CompilationUnit::analysable_functions`) and skip the function entirely, so
 //! the empty lattices are never read as real facts.
 //!
-//! ## Rust observation surfaces vs the Python suite
+//! ## Observation surfaces
 //!
 //! These are compiler-internal *structural* facts, so each is asserted directly
 //! on the crate's public API — no `tclsh` ground truth is involved.
 //!
-//!   * Python `TestComplexityGuardBlocks` builds a hand-rolled `CFGFunction`
-//!     chain and calls `is_complexity_guarded` / `build_ssa` directly. Ported
-//!     verbatim: [`chain_cfg`] builds the same straight-line chain as a
+//!   * The **block-count** half is exercised on a hand-rolled `CFGFunction`
+//!     chain, calling `is_complexity_guarded` / `build_ssa` directly:
+//!     [`chain_cfg`] builds a straight-line chain as a
 //!     [`tcl_compiler::cfg::Function`], and the assertions use
 //!     `is_complexity_guarded` + `build_ssa`.
-//!   * Python `TestComplexityGuardBodyBytes` observes the *byte* half through
-//!     diagnostics (`W123` suppression) and through `compile_source(...)
-//!     .procedures["::big"]`. The Rust analogue of `compile_source` is
-//!     `CompilationUnit::build_for`; the per-proc unit it yields
-//!     (`cu.function("::big")`) carries exactly the `complexity_guarded` /
-//!     `ssa` / `analysis` bundle the Python `FunctionUnit` exposes. The W123
+//!   * The **byte** half is observed through diagnostics (`W123` suppression)
+//!     and through `CompilationUnit::build_for`; the per-proc unit it yields
+//!     (`cu.function("::big")`) carries the `complexity_guarded` /
+//!     `ssa` / `analysis` bundle. The W123
 //!     diagnostic-suppression surface is not re-derived here (it is an effect of
-//!     the same flag, which is asserted directly); see the GAP note on
-//!     `test_huge_body_skips_analyser_walk`.
+//!     the same flag, which is asserted directly); see the GAP note on the
+//!     analyser-walk case.
 //!
-//! ## Divergences from the Python suite (enumerated in the port report)
+//! ## Divergences
 //!
-//!   * `TestForceGuardShortCircuit` exercises a `force_guard=True` keyword on
-//!     the Python `build_ssa` / `analyse_function`. The Rust `build_ssa` has no
-//!     such parameter — the byte-half short-circuit it models is instead
+//!   * There is no `force_guard=True` keyword on `build_ssa` / the analysis
+//!     primitives — the byte-half short-circuit is instead
 //!     realised by the builder choosing `FunctionUnit::trivial_guarded` *before*
 //!     calling `build_ssa` at all (so there is no expensive walk to skip). The
-//!     observable end-state it asserts (a byte-huge but block-light proc gets a
+//!     observable end-state (a byte-huge but block-light proc gets a
 //!     trivial unit) is covered by [`byte_guarded_proc_skips_ssa_and_dataflow`].
 //!     See the `// GAP:`-tagged `force_guard_*` placeholders.
 
@@ -67,8 +63,8 @@ fn registry() -> &'static CommandRegistry {
     registry_for_dialect(TCL)
 }
 
-/// A straight-line chain of `n` blocks (`b0 → b1 → … → return`), the Rust
-/// spelling of the Python `_chain_cfg(n)` helper. Built directly on the public
+/// A straight-line chain of `n` blocks (`b0 → b1 → … → return`). Built directly
+/// on the public
 /// [`Function`] API (`new` seeds an empty `b0` entry; `intern_block` +
 /// `blocks.insert` add the rest), so it can be made arbitrarily large without
 /// going through lowering/codegen.
@@ -101,10 +97,10 @@ fn chain_cfg(n: usize) -> Function {
 }
 
 // ===========================================================================
-// TestComplexityGuardBlocks — the block-count half of the guard.
+// The block-count half of the guard.
 // ===========================================================================
 
-/// Port of `test_below_threshold_is_analysed`: a body well below the ceiling is
+/// A body well below the ceiling is
 /// not guarded and gets a real SSA (one SSA block per CFG block).
 #[test]
 fn below_threshold_is_analysed() {
@@ -114,13 +110,11 @@ fn below_threshold_is_analysed() {
     assert_eq!(ssa.blocks.len(), cfg.blocks.len()); // real SSA
 }
 
-/// Port of `test_above_threshold_is_guarded`: a body just over the ceiling is
-/// guarded, and `is_complexity_guarded` is what decides it.
+/// A body just over the ceiling is guarded, and `is_complexity_guarded` is what
+/// decides it.
 ///
-/// The Python test also calls `build_ssa(cfg)` and asserts an *empty* SSA
-/// because the Python `build_ssa` itself consults the guard and returns a
-/// trivial shell. The Rust `build_ssa(func, registry)` is the raw,
-/// always-builds primitive — the guard is applied one level up by the
+/// `build_ssa(func, registry)` is the raw, always-builds primitive — the guard
+/// is applied one level up by the
 /// `FunctionUnit` / `CompilationUnit` builders (which substitute
 /// `trivial_guarded`), not inside `build_ssa`. So here we assert the *decision*
 /// (`is_complexity_guarded`) and leave the "trivial unit" assertion to the
@@ -161,17 +155,15 @@ fn tiny_function_is_not_block_guarded() {
 }
 
 // ===========================================================================
-// TestComplexityGuardBodyBytes — the body-byte half of the guard.
+// The body-byte half of the guard.
 //
-// The byte half *does* exist in Rust (`DEEP_ANALYSIS_BODY_BYTES`, applied in
-// `CompilationUnit::build_for_with_config` over the proc's body span). These
-// tests exercise it end-to-end through `build_for` — the Rust analogue of the
-// Python `compile_source`.
+// The byte half is applied by `DEEP_ANALYSIS_BODY_BYTES` in
+// `CompilationUnit::build_for_with_config` over the proc's body span. These
+// tests exercise it end-to-end through `build_for`.
 // ===========================================================================
 
 /// One statement carrying a ~270 KB string literal: block-light (the block half
-/// would NOT fire) but byte-huge. The Rust analogue of the Python
-/// `_HUGE_BODY`-based `proc big {} { ... }`. Returns the source text.
+/// would NOT fire) but byte-huge. Returns the source text.
 fn byte_huge_proc_src() -> String {
     // 270_000 > DEEP_ANALYSIS_BODY_BYTES (262_144); one `set` statement, so the
     // CFG is a couple of blocks at most.
@@ -179,9 +171,7 @@ fn byte_huge_proc_src() -> String {
     format!("proc big {{}} {{ set x \"{big_literal}\" }}")
 }
 
-/// Port of `test_normal_proc_unknown_command_still_flagged` (control half) +
-/// the lattice assertions of `test_byte_guarded_proc_skips_ssa_and_dataflow`'s
-/// negative case: a normal hand-written proc is NOT guarded and gets a real
+/// A normal hand-written proc is NOT guarded and gets a real
 /// SSA + SCCP. This is the "normal procs are unaffected" invariant.
 #[test]
 fn normal_proc_is_not_guarded() {
@@ -202,7 +192,7 @@ fn normal_proc_is_not_guarded() {
     );
 }
 
-/// Port of `test_byte_guarded_proc_skips_ssa_and_dataflow`: a block-light but
+/// A block-light but
 /// byte-huge proc gets a trivial `FunctionUnit` (empty SSA + no facts) — the
 /// byte guard is decided *before* SSA/dataflow, so the O(blocks·vars) walk and
 /// the SCCP/taint/liveness passes never run on it.
@@ -227,7 +217,7 @@ fn byte_guarded_proc_skips_ssa_and_dataflow() {
     assert!(big.taints.is_empty(), "guarded unit has no taint facts");
 }
 
-/// Port of `test_guarded_proc_still_recorded`: the proc itself is still recorded
+/// The proc itself is still recorded
 /// (resolves as a command / built unit) — only its body is left un-analysed. A
 /// guarded unit is still a *valid trivial* `CompilationUnit` member.
 #[test]
@@ -244,11 +234,10 @@ fn guarded_proc_still_recorded() {
     assert_eq!(big.ssa.block_names().len(), big.cfg.block_names().len());
 }
 
-/// Port of `test_byte_guarded_proc_skips_ssa_and_dataflow`'s exclusion intent:
-/// a guarded function is dropped from the `analysable_functions` view the
+/// A guarded function is dropped from the `analysable_functions` view the
 /// per-proc diagnostic / optimiser passes iterate, so the empty lattices are
-/// never consumed as real facts (the W123-suppression effect the Python suite
-/// observes, asserted at its structural source).
+/// never consumed as real facts (the W123-suppression effect, asserted at its
+/// structural source).
 #[test]
 fn guarded_proc_excluded_from_analysable_functions() {
     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
@@ -262,10 +251,9 @@ fn guarded_proc_excluded_from_analysable_functions() {
     );
 }
 
-/// Port of `test_huge_body_does_not_crash_and_is_fast`: the guarded path must
-/// not panic or hang. We additionally assert it's well under the Python's
-/// generous 20 s budget — the whole point of the guard is that the byte-huge
-/// body is *cheap* because deep analysis is skipped.
+/// The guarded path must not panic or hang. We additionally assert it's well
+/// under a generous 20 s budget — the whole point of the guard is that the
+/// byte-huge body is *cheap* because deep analysis is skipped.
 #[test]
 fn huge_body_does_not_crash_and_is_fast() {
     let src = byte_huge_proc_src();
@@ -299,39 +287,34 @@ fn sub_ceiling_body_is_not_byte_guarded() {
 }
 
 // ===========================================================================
-// TestForceGuardShortCircuit — Python-only API surface.
+// Force-guard short-circuit — API surface with no analogue here.
 // ===========================================================================
 //
-// GAP: The Python `build_ssa(cfg, force_guard=True)` /
-// `analyse_function(cfg, ssa, force_guard=True)` keyword does not exist on the
-// Rust `build_ssa(func, registry)` / analysis primitives. In Rust the byte-half
-// short-circuit it models is realised structurally: the compilation-unit
+// GAP: there is no `force_guard=True` keyword on `build_ssa(func, registry)` /
+// the analysis primitives. The byte-half
+// short-circuit is realised structurally: the compilation-unit
 // builder selects `FunctionUnit::trivial_guarded(...)` *before* calling
 // `build_ssa`, so there is no expensive walk to force-skip — `build_ssa` is
-// simply never invoked for a guarded body. The observable end-state the
-// `force_guard` tests assert (a body the caller judged too large gets an empty
+// simply never invoked for a guarded body. The observable end-state
+// (a body the caller judged too large gets an empty
 // SSA + facts-free analysis) is therefore covered by
 // `byte_guarded_proc_skips_ssa_and_dataflow` and `guarded_proc_still_recorded`
-// above. The two `force_guard_*` cases have no direct Rust analogue and are not
-// ported (see the module-level divergence note and the port report).
-//
-//   * test_force_guard_build_ssa_is_trivial  -> no `force_guard` param in Rust
-//   * test_force_guard_analyse_is_trivial     -> no `force_guard` param in Rust
+// above. A forced short-circuit has no direct analogue here and is not
+// covered (see the module-level divergence note).
 
-/// Documents (and pins) that the block-half decision used by both the Python
-/// `force_guard` short-circuit's call sites and the Rust builder is the *same*
-/// `is_complexity_guarded` predicate over a small CFG: a 3-block chain (the
-/// Python `_chain_cfg(3)` the `force_guard` tests use) is not block-guarded, so
-/// the only way it becomes trivial is the *forced* byte-half path — which Rust
-/// expresses via `trivial_guarded`, not a `force_guard` flag.
+/// Documents (and pins) that the block-half decision is the
+/// `is_complexity_guarded` predicate over a small CFG: a 3-block chain
+/// is not block-guarded, so
+/// the only way it becomes trivial is the *forced* byte-half path — expressed
+/// via `trivial_guarded`, not a `force_guard` flag.
 #[test]
 fn force_guard_baseline_small_cfg_is_not_block_guarded() {
-    // GAP: stands in for `test_force_guard_*`'s shared precondition
-    // (`assert not is_complexity_guarded(_chain_cfg(3))`); the forced-trivial
-    // behaviour itself has no Rust `force_guard` analogue (see note above).
+    // Shared precondition of the forced short-circuit
+    // (`is_complexity_guarded` is false for a 3-block chain); the forced-trivial
+    // behaviour itself has no `force_guard` analogue (see note above).
     let cfg = chain_cfg(3);
     assert!(!is_complexity_guarded(&cfg));
-    // Full SSA by default (the Python `build_ssa(cfg).blocks == cfg.blocks`).
+    // Full SSA by default (blocks match the CFG one-to-one).
     let ssa = build_ssa(&cfg, registry());
     assert_eq!(ssa.blocks.len(), cfg.blocks.len());
 }

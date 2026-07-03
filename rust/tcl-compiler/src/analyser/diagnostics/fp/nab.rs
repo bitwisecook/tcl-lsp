@@ -1,9 +1,9 @@
 //! NAB family — not-a-bug / confirm-correct audits. Mostly TP confirmations
 //! that a real hazard still fires, plus a few FP guards.
-//! Pairs to `tests/test_fp_nab.py` and the §NAB entries in `docs/design/compiler/FP.md`.
+//! Pairs to the §NAB entries in `docs/design/compiler/FP.md`.
 //!
-//! Two Python NAB entries test internal APIs rather than diagnostics and are
-//! covered as Rust-structure tests elsewhere (not here):
+//! Two NAB entries test internal APIs rather than diagnostics and are
+//! covered as structure tests elsewhere (not here):
 //! FP-NAB-03 (interproc `pure` summary) lives in
 //! `interprocedural.rs::tests::fp_nab_03_*`; FP-NAB-12 (`is_pure_var_ref`
 //! value-shape parser) lives in
@@ -18,8 +18,7 @@ use tcl_registry::registry_for_dialect;
 const D: &str = "tcl8.6";
 
 /// Full `(code, message)` pipeline output INCLUDING optimiser suggestions
-/// (NAB-04 accepts W110 *or* its O120 optimiser near-duplicate), mirroring the
-/// Python `get_diagnostics` surface.
+/// (NAB-04 accepts W110 *or* its O120 optimiser near-duplicate).
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);

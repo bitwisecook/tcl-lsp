@@ -60,7 +60,7 @@ fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-/// `source → Module` (the Rust analogue of Python `lower_to_ir`).
+/// `source → Module`.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
 }

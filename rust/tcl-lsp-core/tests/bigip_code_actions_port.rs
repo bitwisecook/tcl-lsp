@@ -1,70 +1,40 @@
-//! Port of the Python `tests/test_bigip_code_actions.py`
-//! ("BIG-IP code-action provider").
+//! Tests for the BIG-IP code-action provider.
 //!
 //! ----------------------------------------------------------------------------
-//! Background / what the Python suite covers
+//! What the provider does
 //! ----------------------------------------------------------------------------
-//! The Python module `server.features._bigip_code_actions` exposes two
-//! entry points:
+//! `tcl_lsp_core::code_actions::bigip_code_actions(source, range, uri)` walks
+//! the parsed BIG-IP config for the stanza covering the cursor and emits:
 //!
-//!   * `get_bigip_code_actions(source, uri, range_)` — walks the parsed
-//!     BIG-IP config for the stanza covering the cursor and emits:
-//!       - "Rename <full-path>…"  → `editor.action.rename` command
-//!       - "Rename partition '<n>'…" (only on `auth partition`, never
-//!         `/Common`) → `tclLsp.renamePartition` command with arguments
-//!         `[uri, <bare-name>]`, and NO pre-baked workspace edit.
-//!   * `run_rename_partition(...)` — drives the `rename_partition(old,new)`
-//!     query-DSL expression through the F5 query engine to build the
-//!     `WorkspaceEdit` (with cascade + Common-refusal + name validation +
-//!     post-rewrite reparse guard).
+//!   * "Rename <full-path>…"  → `editor.action.rename` command
+//!   * "Rename partition '<n>'…" (only on `auth partition`, never `/Common`)
+//!     → `tclLsp.renamePartition` command with arguments `[uri, <bare-name>]`,
+//!     and NO pre-baked workspace edit.
 //!
-//! ----------------------------------------------------------------------------
-//! Parity-audit context (docs/.../python-rust-parity-audit-2026-06-22.md §3 #8)
-//! ----------------------------------------------------------------------------
-//! Before this port the Rust BIG-IP code-actions fell back to generic-Tcl:
-//! there was NO `bigip_code_actions` equivalent (the audit's gap #8). The
-//! BIG-IP *data* layer is, however, largely ported — `tcl-lsp-core`'s own
+//! The provider is a small arm over existing data: `tcl-lsp-core`'s own
 //! self-contained stanza parser (`src/bigip.rs`, already powering BIG-IP
 //! documentSymbols) decomposes every `module object-type identifier { … }`
-//! stanza with its source range. That made `get_bigip_code_actions`
-//! buildable as a SMALL provider arm over existing data (category (b)).
-//!
-//! IMPLEMENTATION ADDED (minimal, noted): `tcl_lsp_core::code_actions::
-//! bigip_code_actions(source, range, uri)` — a faithful port of the Python
-//! `get_bigip_code_actions`, plus a `string_args: Vec<String>` field on
-//! `ActionCommand` so a command can carry the `uri` / bare-partition-name
-//! textual arguments the BIG-IP commands require (the pre-existing
-//! integer-position rename command is unaffected; `string_args` is empty
-//! there). A `pub(crate) parse_stanzas` helper was added to `src/bigip.rs`
-//! reusing the existing `extract_blocks` / `parse_header` machinery.
+//! stanza with its source range. An `ActionCommand` carries a
+//! `string_args: Vec<String>` field so a command can carry the `uri` /
+//! bare-partition-name textual arguments the BIG-IP commands require (the
+//! integer-position rename command leaves `string_args` empty). A
+//! `pub(crate) parse_stanzas` helper in `src/bigip.rs` reuses the existing
+//! `extract_blocks` / `parse_header` machinery.
 //!
 //! ----------------------------------------------------------------------------
-//! Classification of the 8 Python tests (a = generic provider already;
-//! b = small arm over existing data; c = large unported feature)
+//! Out of scope for this provider file
 //! ----------------------------------------------------------------------------
-//!   1. `test_no_actions_for_non_bigip_text`          → (b) — covered here
-//!   2. `test_rename_action_for_object_at_cursor`      → (b) — covered here
-//!   3. `test_rename_partition_action_on_partition`…   → (b) — covered here
-//!   4. `test_no_partition_rename_action_for_common`…  → (b) — covered here
-//!   8. `test_no_actions_when_cursor_outside_any`…     → (b) — covered here
-//!
-//!   5. `test_run_rename_partition_drives_through_query_engine`  → (c) GAP
-//!   6. `test_run_rename_partition_safely_quotes_query_arguments` → (c) GAP
-//!   7. `test_run_rename_partition_refuses_common_renames`        → (c) GAP
-//!
-//! Tests 5–7 exercise the `run_rename_partition` LSP *wrapper*, which drives
-//! the F5 query engine's `rename_partition` builtin cascade. The engine
-//! itself IS ported in the *separate* `tcl-bigip-query` crate
-//! (`builtins/rename.rs::bi_rename_partition` — same name-validation
-//! "partition names must match [A-Za-z0-9_.-]+" and both-direction
-//! `/Common` refusal as Python), with its own parity coverage in
-//! `f5-cli/tests/query_mutation_parity.rs`. The unported piece is the LSP
-//! *glue* (`run_rename_partition`: JSON-quote args → `run_query` → reparse
-//! guard → single-file `WorkspaceEdit`), which belongs in `tcl-lsp-server`
-//! (it would force `tcl-lsp-core` to depend on `tcl-bigip-query`), not in a
-//! minimal `code_actions.rs` arm. So those three are GAPs *for this
-//! provider file* — see the `// GAP:` markers near the end — not absent
-//! engine functionality.
+//! The `run_rename_partition` LSP *wrapper* drives the F5 query engine's
+//! `rename_partition` builtin cascade to build the `WorkspaceEdit` (cascade +
+//! Common-refusal + name validation + reparse guard). The engine itself lives
+//! in the *separate* `tcl-bigip-query` crate
+//! (`builtins/rename.rs::bi_rename_partition` — name validation "partition
+//! names must match [A-Za-z0-9_.-]+" and both-direction `/Common` refusal),
+//! covered by `f5-cli/tests/query_mutation_parity.rs`. The LSP *glue*
+//! (`run_rename_partition`: JSON-quote args → `run_query` → reparse guard →
+//! single-file `WorkspaceEdit`) belongs in `tcl-lsp-server` (it would force
+//! `tcl-lsp-core` to depend on `tcl-bigip-query`), not in a minimal
+//! `code_actions.rs` arm — see the `// GAP:` markers near the end.
 //!
 //! ----------------------------------------------------------------------------
 //! Presentation vs semantic split
@@ -79,8 +49,8 @@ use tcl_lsp_core::code_actions::{ActionKind, CodeAction, bigip_code_actions};
 use tcl_lsp_core::definition::LspRange;
 
 // ---------------------------------------------------------------------------
-// Harness — mirror the Python `_range(line)` helper: a zero-width range at
-// the start of `line` (BIG-IP code actions key on `range.start.line`).
+// Harness — a zero-width range at the start of `line`
+// (BIG-IP code actions key on `range.start.line`).
 // ---------------------------------------------------------------------------
 
 /// A zero-width LSP range at `(line, 0)`.
@@ -101,11 +71,10 @@ fn action_titled<'a>(actions: &'a [CodeAction], prefix: &str) -> Option<&'a Code
 }
 
 // ===========================================================================
-// (b) test_no_actions_for_non_bigip_text
+// Non-BIG-IP text yields no actions
 // ===========================================================================
 
 /// Plain comment text parses to zero stanzas → no actions.
-/// Python: `get_bigip_code_actions("# not bigip\n", …) == []`.
 #[test]
 fn no_actions_for_non_bigip_text() {
     let actions = bigip_code_actions("# not bigip\n", range_at(0), URI);
@@ -116,13 +85,13 @@ fn no_actions_for_non_bigip_text() {
 }
 
 // ===========================================================================
-// (b) test_rename_action_for_object_at_cursor
+// Rename action for the object at the cursor
 // ===========================================================================
 
 /// Cursor inside a parsed stanza → a `Rename <full-path>…` action whose
 /// command is the editor's standard `editor.action.rename`.
-/// Python asserts: some title starts with "Rename /`Common/web_pool`" and the
-/// rename action's command is `editor.action.rename`.
+/// The rename action's title starts with "Rename /`Common/web_pool`" and its
+/// command is `editor.action.rename`.
 #[test]
 fn rename_action_for_object_at_cursor() {
     let source = "ltm pool /Common/web_pool { }\n";
@@ -130,7 +99,7 @@ fn rename_action_for_object_at_cursor() {
 
     let rename = action_titled(&actions, "Rename /Common/web_pool")
         .expect("expected a 'Rename /Common/web_pool…' action");
-    // RefactorRewrite kind (Python: `CodeActionKind.RefactorRewrite`).
+    // RefactorRewrite kind (LSP `CodeActionKind.RefactorRewrite`).
     assert_eq!(rename.kind, ActionKind::RefactorRewrite);
     let cmd = rename
         .command
@@ -179,7 +148,7 @@ fn pool_stanza_offers_only_object_rename() {
 }
 
 // ===========================================================================
-// (b) test_rename_partition_action_on_partition_stanza
+// Rename-partition action on a partition stanza
 // ===========================================================================
 
 /// An `auth partition` stanza gets an extra `Rename partition '<name>'…`
@@ -197,14 +166,14 @@ fn rename_partition_action_on_partition_stanza() {
     // No pre-baked workspace edit — the action triggers a command.
     assert!(
         partition.edits.is_empty(),
-        "partition rename must not carry a pre-baked edit (Python: edit is None)"
+        "partition rename must not carry a pre-baked edit"
     );
     let cmd = partition
         .command
         .as_ref()
         .expect("partition action must carry a command");
     assert_eq!(cmd.command, "tclLsp.renamePartition");
-    // Arguments mirror Python exactly: `[uri, "Tenant_A"]`.
+    // Arguments are exactly `[uri, "Tenant_A"]`.
     assert_eq!(
         cmd.string_args,
         vec![URI.to_string(), "Tenant_A".to_string()]
@@ -248,7 +217,7 @@ fn partition_stanza_offers_both_actions() {
 }
 
 // ===========================================================================
-// (b) test_no_partition_rename_action_for_common_partition
+// No partition-rename action for the /Common partition
 // ===========================================================================
 
 /// `rename_partition` refuses `/Common`, so the provider does not offer a
@@ -273,12 +242,12 @@ fn no_partition_rename_action_for_common_partition() {
 }
 
 // ===========================================================================
-// (b) test_no_actions_when_cursor_outside_any_stanza
+// No actions when the cursor is outside any stanza
 // ===========================================================================
 
 /// Cursor on a blank line between stanzas → no actions (no stanza range
-/// covers that line). Python: `source = "\n\nltm pool /Common/p { }\n"`,
-/// cursor line 0 → `[]`.
+/// covers that line). With `source = "\n\nltm pool /Common/p { }\n"`,
+/// cursor line 0 yields `[]`.
 #[test]
 fn no_actions_when_cursor_outside_any_stanza() {
     let source = "\n\nltm pool /Common/p { }\n";
@@ -304,7 +273,7 @@ fn cursor_on_the_stanza_line_does_yield_an_action() {
 }
 
 // ===========================================================================
-// Extra structural robustness (no Python sibling; guard the new arm)
+// Extra structural robustness (guard the new arm)
 // ===========================================================================
 
 /// Empty source → no actions, no panic.
@@ -350,10 +319,10 @@ fn cursor_inside_multiline_stanza_resolves_object() {
 }
 
 // ===========================================================================
-// (c) GAPs — run_rename_partition (the query-engine-backed LSP wrapper)
+// GAPs — run_rename_partition (the query-engine-backed LSP wrapper)
 // ===========================================================================
 //
-// The three Python tests below are NOT ported here. They drive
+// The behaviours below are NOT covered here. They drive
 // `run_rename_partition`, the LSP wrapper that builds a WorkspaceEdit by
 // running the `rename_partition(old, new)` query-DSL expression through the
 // F5 query engine. That wrapper has no `tcl-lsp-core` home: it would force
@@ -361,32 +330,32 @@ fn cursor_inside_multiline_stanza_resolves_object() {
 // JSON-quote → `run_query` → reparse-guard → WorkspaceEdit glue, which is
 // LSP-server territory, not a `code_actions.rs` arm.
 //
-// The underlying ENGINE is already ported and tested elsewhere:
+// The underlying ENGINE is already implemented and tested elsewhere:
 //   * `tcl-bigip-query/src/builtins/rename.rs::bi_rename_partition` performs
-//     the same name validation ("partition names must match [A-Za-z0-9_.-]+")
-//     and both-direction `/Common` refusal as the Python builtin.
+//     name validation ("partition names must match [A-Za-z0-9_.-]+")
+//     and both-direction `/Common` refusal.
 //   * `f5-cli/tests/query_mutation_parity.rs` covers the cascade rewrite.
 //
-// GAP: test_run_rename_partition_drives_through_query_engine — the
+// GAP: driving a rename through the query engine — the
 //      `run_rename_partition` wrapper (DSL build + run_query + reparse guard
-//      + single-file WorkspaceEdit) is unported in the LSP layer.
+//      + single-file WorkspaceEdit) is unimplemented in the LSP layer.
 //      Size: small–medium, belongs in tcl-lsp-server (needs a
 //      tcl-bigip-query dependency + a `tclLsp.renamePartition`
 //      execute_command verb).
 //
-// GAP: test_run_rename_partition_safely_quotes_query_arguments — same
-//      wrapper; the safe JSON-quoting of hostile arguments is part of the
-//      unported wrapper (the engine's name validation, which ultimately
-//      rejects the injection, is ported in tcl-bigip-query).
+// GAP: safely quoting query arguments — same wrapper; the safe JSON-quoting
+//      of hostile arguments is part of that wrapper (the engine's name
+//      validation, which ultimately rejects the injection, lives in
+//      tcl-bigip-query).
 //
-// GAP: test_run_rename_partition_refuses_common_renames — same wrapper; the
-//      `/Common` refusal surfacing as a user error is the wrapper's job
-//      (the refusal itself is enforced by the ported engine builtin).
+// GAP: refusing /Common renames — same wrapper; the `/Common` refusal
+//      surfacing as a user error is the wrapper's job (the refusal itself is
+//      enforced by the engine builtin).
 //
-// Also unported (parity-audit §3 #8, beyond this pytest's scope, noted for
-// completeness): the `tclLsp.renamePartition` execute_command verb in
-// tcl-lsp-server that the emitted action's command targets, plus the
-// server-side forwarding of `ActionCommand.string_args` into the lifted LSP
-// command arguments (the server currently forwards only the integer
-// `args`). The provider arm + its command payload are complete and tested
-// above; wiring them end-to-end through the server is the remaining step.
+// Also missing (beyond this file's scope, noted for completeness): the
+// `tclLsp.renamePartition` execute_command verb in tcl-lsp-server that the
+// emitted action's command targets, plus the server-side forwarding of
+// `ActionCommand.string_args` into the lifted LSP command arguments (the
+// server currently forwards only the integer `args`). The provider arm + its
+// command payload are complete and tested above; wiring them end-to-end
+// through the server is the remaining step.

@@ -1,17 +1,17 @@
 //! Live network-probe layer.
 //!
-//! Two surfaces, with different parity guarantees:
+//! Two surfaces, with different output guarantees:
 //!
-//! - **Byte-parity (golden-tested)**: [`x509_parse`] turns a PEM cert into the
+//! - **Byte-for-byte (golden-tested)**: [`x509_parse`] turns a PEM cert into the
 //!   x509 parse dict (subject / issuer / serial
 //!   / validity / SANs / fingerprint / key-alg / key-size / sig-alg / version
 //!   / public-key PEM), plus [`x509_eq`] and [`x509_from_config`] which are
 //!   deterministic projections. The `--enable-probes` gating error is also
-//!   byte-parity.
+//!   byte-for-byte.
 //! - **Faithful-but-not-golden**: the live network probes (`dns`, `rev_dns`,
 //!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
 //!   `url_*` HTTP family). These do real I/O with a structure / output shape
-//!   matching the reference impl, but are not asserted byte-for-byte against
+//!   matching the reference output, but are not asserted byte-for-byte against
 //!   live results (the test env has no reliable network).
 //!
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
@@ -44,7 +44,7 @@ pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError
     }
 }
 
-// x509_parse — the deterministic, byte-parity surface
+// x509_parse — the deterministic, byte-for-byte surface
 
 /// Parse a PEM certificate into the rich x509 parse dict.
 ///
@@ -712,7 +712,7 @@ pub(crate) fn dns(name: &str) -> Vec<Value> {
 
 /// Reverse DNS (`gethostbyaddr`-style). Returns the
 /// canonical name (empty on failure). `getnameinfo` yields one name, so the
-/// alias list a fuller resolver collects is not reproduced (best-effort parity).
+/// alias list a fuller resolver collects is not reproduced (best-effort).
 pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
     let Ok(addr) = ip.parse::<std::net::IpAddr>() else {
         return Vec::new();

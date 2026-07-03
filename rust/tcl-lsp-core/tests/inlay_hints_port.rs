@@ -1,4 +1,4 @@
-//! Port of `tests/test_inlay_hints.py` — the LSP inlay-hints provider.
+//! Tests for the LSP inlay-hints provider.
 //! Verifies `inlay_hints` emits inferred-type annotations (`: int`) and
 //! call-site parameter-name labels (`a:`), gated/positioned correctly.
 //!

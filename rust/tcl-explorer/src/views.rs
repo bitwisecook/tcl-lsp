@@ -10,7 +10,7 @@
 pub type ViewMeta = (&'static str, &'static str, &'static str);
 
 /// The ordered view-tab table. The parser produces a single red-green CST
-/// (no separate legacy "green tree"), so there is no `greentree` tab and
+/// (no separate standalone "green tree"), so there is no `greentree` tab and
 /// `cst` is the sole parse-tree view.
 pub const VIEW_META: &[ViewMeta] = &[
     ("cst", "CST", "compiler"),

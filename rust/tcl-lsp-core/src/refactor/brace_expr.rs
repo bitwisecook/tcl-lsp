@@ -1,6 +1,6 @@
 //! Brace an `expr` command's arguments — convert `expr "..."` or
 //! `expr $a + $b` to the braced `expr {$a + $b}` form for safety and
-//! performance. Mirrors the Python `tooling.refactoring._brace_expr`.
+//! performance.
 
 use tcl_registry::CommandRegistry;
 

@@ -1,6 +1,6 @@
-//! Render an [`XCTranslationResult`] as JSON matching the ves.io API schema —
-//! a faithful port of `dialects/f5/xc/json_api.py`. Object key order follows
-//! the Python dict insertion order (`serde_json` `preserve_order`).
+//! Render an [`XCTranslationResult`] as JSON matching the ves.io API schema.
+//! Object key order follows dict insertion order (`serde_json`
+//! `preserve_order`).
 
 use serde_json::{Map, Value, json};
 

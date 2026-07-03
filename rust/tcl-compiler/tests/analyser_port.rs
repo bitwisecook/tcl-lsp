@@ -1,11 +1,11 @@
-//! Port of the Python `tests/test_analyser.py` semantic-analyser suite.
+//! Semantic-analyser tests.
 //!
-//! The Python suite drives `analyser.analyse(src)` and asserts over the
+//! These drive `analyser.analyse(src)` and assert over the
 //! returned result's `.diagnostics` (W###/E###/I###/H### codes) *and* its
 //! structured semantic model (`global_scope`, `all_procs`, `all_classes`,
 //! `regex_patterns`, `package_requires`, `command_aliases`, `source_targets`,
-//! `unknown_proc_info`). The Rust [`tcl_compiler::analyser::AnalysisResult`]
-//! exposes the same fields, so both halves port directly.
+//! `unknown_proc_info`). [`tcl_compiler::analyser::AnalysisResult`]
+//! exposes all these fields.
 //!
 //! ## Diagnostic surface
 //!
@@ -13,7 +13,7 @@
 //! the in-crate harness `src/analyser/diagnostics/fp/mod.rs`: they merge the
 //! analyser pass with the `run_all_checks` compiler-checks pass (shimmer /
 //! taint / dead-store) and drop optimisation codes, exactly mirroring the
-//! user-facing `tcl diag` surface and the Python `analyse(src).diagnostics`.
+//! user-facing `tcl diag` surface.
 //!
 //! ## C-Tcl ground truth
 //!
@@ -31,14 +31,13 @@
 //! Pure static-analysis heuristics with no direct runtime analogue (unused
 //! params, dead stores, paste-error hints, etc.) are noted as such inline.
 //!
-//! ## Divergences from the Python suite
+//! ## Behavioural notes
 //!
-//! A handful of Python expectations target features the single-document
-//! analyser + `run_all_checks` surface does not reproduce (they live in the
-//! cross-file workspace index or were never ported). Each is adapted to the
-//! actual Rust verdict with an explanatory comment, or — where the behaviour
-//! genuinely differs and is tracked elsewhere — omitted and listed in the
-//! port report. See the per-section notes below.
+//! A handful of cases target features the single-document analyser +
+//! `run_all_checks` surface does not reproduce (they live in the cross-file
+//! workspace index). Each is asserted against the actual verdict with an
+//! explanatory comment; where the behaviour is tracked elsewhere it is omitted.
+//! See the per-section notes below.
 
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -51,8 +50,7 @@ const D: &str = "tcl8.6";
 /// Every diagnostic code the full pipeline surfaces for `src` under `dialect`,
 /// mirroring the user-facing `tcl diag` path: the analyser pass plus the
 /// `run_all_checks` compiler-checks pass (shimmer / taint / dead-store), with
-/// optimisation codes excluded exactly as `diag` excludes them. This is the
-/// Rust counterpart of Python `analyse(src).diagnostics`.
+/// optimisation codes excluded exactly as `diag` excludes them.
 ///
 /// Copied verbatim from `src/analyser/diagnostics/fp/mod.rs::codes`.
 fn codes(src: &str, dialect: &str) -> Vec<String> {
@@ -88,7 +86,7 @@ fn count(src: &str, dialect: &str, code: &str) -> usize {
 }
 
 /// Full `(code, message)` pairs from the *analyser pass only* — used when a
-/// Python test pins a message substring or message-scoped count (the analyser
+/// test pins a message substring or message-scoped count (the analyser
 /// pass owns every code those tests inspect: W210/W211/W213/W214/W215/W216/
 /// W123/E001/E002/E003/W001).
 fn analyser_diags(src: &str, dialect: &str) -> Vec<(String, String, Severity)> {
@@ -100,8 +98,7 @@ fn analyser_diags(src: &str, dialect: &str) -> Vec<(String, String, Severity)> {
         .collect()
 }
 
-/// Count of W210 diagnostics whose message names `var` (Python idiom
-/// `[d for d in diags if d.code=="W210" and var in d.message]`).
+/// Count of W210 diagnostics whose message names `var`.
 fn w210_for(src: &str, var: &str) -> usize {
     analyser_diags(src, D)
         .iter()
@@ -110,7 +107,7 @@ fn w210_for(src: &str, var: &str) -> usize {
 }
 
 // ===========================================================================
-// TestProcAnalysis — proc records in the semantic model.
+// Proc records in the semantic model.
 // ===========================================================================
 mod proc_analysis {
     use super::*;
@@ -186,7 +183,7 @@ mod proc_analysis {
 }
 
 // ===========================================================================
-// TestVariableAnalysis — variable definitions across scopes.
+// Variable definitions across scopes.
 // ===========================================================================
 mod variable_analysis {
     use super::*;
@@ -241,7 +238,7 @@ mod variable_analysis {
 }
 
 // ===========================================================================
-// TestNamespaceAnalysis — namespace scopes + qualified procs.
+// Namespace scopes + qualified procs.
 // ===========================================================================
 mod namespace_analysis {
     use super::*;
@@ -266,7 +263,7 @@ mod namespace_analysis {
 }
 
 // ===========================================================================
-// TestDiagnostics — arity (E001/E002/E003), unknown subcommand (W001),
+// Arity (E001/E002/E003), unknown subcommand (W001),
 // read-before-set (W210), and the constant-branch family (I230).
 // ===========================================================================
 mod diagnostics {
@@ -388,8 +385,7 @@ mod diagnostics {
 
     #[test]
     fn package_files_is_unknown_under_tcl86_per_tclsh() {
-        // DIVERGENCE from Python's #109 expectation, but matches tclsh: under
-        // tcl8.6 `package files` is NOT a subcommand — tclsh8.6 errors
+        // Under tcl8.6 `package files` is NOT a subcommand — tclsh8.6 errors
         //   `bad option "files": must be forget, ifneeded, names, …`
         // so W001 here is correct. (tclsh9.0 added `files`; this test pins 8.6.)
         assert!(fires("package files mypackage", D, "W001"));
@@ -397,9 +393,8 @@ mod diagnostics {
 
     #[test]
     fn error_diagnostics_have_a_span() {
-        // The Python suite checks the error anchors at the start of the script
-        // (line 0 / col 0). The Rust diagnostic carries a byte `span`; assert it
-        // starts at offset 0 (the `set` token) — the byte analogue of (0,0).
+        // The error anchors at the start of the script. The diagnostic carries
+        // a byte `span`; assert it starts at offset 0 (the `set` token).
         let r = Analyser::new().analyse("set", D);
         assert!(!r.diagnostics.is_empty());
         assert_eq!(r.diagnostics[0].span.start(), 0);
@@ -491,7 +486,7 @@ mod diagnostics {
 
     // `regsub … result` writes its trailing `result` variable (recognised via
     // the registry's `VarWrite` arg-role, like `set`/`lassign`/`scan`), so a
-    // later `$result` read is NOT read-before-set — matching the Python suite.
+    // later `$result` read is NOT read-before-set.
     // The `$text` argument is still unset and fires its own W210 (tclsh would
     // error on that first at runtime).
     #[test]
@@ -599,22 +594,18 @@ mod diagnostics {
     #[test]
     fn dead_while_zero_still_flagged() {
         // A constant-*false* loop condition means the body never runs.
-        // Rust reports this as W240 (loop-never-executes) rather than I230;
-        // the original Python checked I230. Adapted to the Rust code: the
-        // dead-loop fact is still surfaced.
+        // This is reported as W240 (loop-never-executes) rather than I230;
+        // the dead-loop fact is still surfaced.
         assert!(fires("proc f {} { while 0 { puts dead } }", D, "W240"));
     }
 
-    // NOTE — SKIPPED (constant-switch unreachable arm, I231): Python's
-    // `test_constant_switch_unreachable_arm` expects `switch 1 {1 {…} …}` to
-    // fire I231. The Rust analyser+run_all_checks surface does not fold a
-    // constant switch subject into an unreachable-arm diagnostic, so no I231
-    // fires. Listed in the port report.
+    // NOTE — no I231 for a constant switch: `switch 1 {1 {…} …}` does not fire
+    // I231. The analyser + run_all_checks surface does not fold a constant
+    // switch subject into an unreachable-arm diagnostic.
 }
 
 // ===========================================================================
-// TestDiagnostics (continued) — `set` dual-shape role resolution, observed
-// through behaviour rather than the Python-internal `arg_indices_for_role`.
+// `set` dual-shape role resolution, observed through behaviour.
 // ===========================================================================
 mod set_dual_shape {
     use super::*;
@@ -682,7 +673,7 @@ mod when_dialect_gating {
 }
 
 // ===========================================================================
-// TestControlFlow — bodies of if/while/for/foreach/dict-for are walked.
+// Bodies of if/while/for/foreach/dict-for are walked.
 // ===========================================================================
 mod control_flow {
     use super::*;
@@ -744,10 +735,9 @@ mod control_flow {
 
     #[test]
     fn command_subst_inside_expr_records_outer_var() {
-        // DIVERGENCE: Python expected the deeply-nested `[set y 1]` inside the
-        // `[expr {…}]` command-substitution to surface `y` in the scope's
-        // variable table. The Rust analyser records the outer `n` but does not
-        // hoist that nested expr-cmd-subst write into `global_scope.variables`.
+        // The analyser records the outer `n` but does not hoist the nested
+        // `[set y 1]` write (inside the `[expr {…}]` command-substitution) into
+        // `global_scope.variables`.
         let v = vars("set n [expr {[set y 1] + 2}]");
         assert!(v.contains("n"), "outer assignment `n` is recorded");
     }
@@ -765,7 +755,7 @@ mod control_flow {
             "oo::class create Dog {\n    method bark {} {\n        set message woof\n    }\n}\n";
         let r = Analyser::new().analyse(src, D);
         assert!(r.all_classes.contains_key("::Dog"));
-        // Rust names the method scope `::Dog::bark` (Python used `Dog::bark`).
+        // The method scope is named `::Dog::bark`.
         let scope = r
             .global_scope
             .children
@@ -777,7 +767,7 @@ mod control_flow {
 }
 
 // ===========================================================================
-// TestRegexPatterns + TestRegexVariablePropagation — recorded regex literals.
+// Recorded regex literals.
 // ===========================================================================
 mod regex_patterns {
     use super::*;
@@ -909,7 +899,7 @@ mod regex_patterns {
 }
 
 // ===========================================================================
-// TestPackageRequire — package require / provide records.
+// package require / provide records.
 // ===========================================================================
 mod package_require {
     use super::*;
@@ -967,7 +957,7 @@ mod package_require {
 }
 
 // ===========================================================================
-// TestUnusedProcParameters (W214) — pure static heuristic.
+// Unused proc parameters (W214) — pure static heuristic.
 // ===========================================================================
 mod unused_proc_parameters {
     use super::*;
@@ -1006,9 +996,8 @@ mod unused_proc_parameters {
 
     #[test]
     fn underscore_prefixed_param_is_still_flagged_rust_behaviour() {
-        // DIVERGENCE: Python treated a leading `_` as a deliberate "unused"
-        // marker and suppressed W214. The Rust analyser does not honour that
-        // convention — `_unused` still fires W214.
+        // A leading `_` is not treated as a deliberate "unused" marker —
+        // `_unused` still fires W214.
         let w = w214("proc foo {_unused x} { puts $x }");
         assert_eq!(w.len(), 1);
         assert!(w[0].contains("_unused"));
@@ -1100,11 +1089,10 @@ mod unused_proc_parameters {
 
     #[test]
     fn dict_for_braced_data_word_use_divergence() {
-        // Python expected `{$unused}` (a braced literal — braces inhibit
-        // substitution) NOT to count as a use, so `unused` should still fire
-        // W214. The Rust deep-body scan over the opaque ::tcl::dict::for barrier
-        // does NOT flag `unused` here (it does not exclude the braced data word),
-        // so no W214 fires. Adapted to the actual Rust verdict.
+        // `{$unused}` is a braced literal (braces inhibit substitution), so it
+        // would not count as a use. The deep-body scan over the opaque
+        // ::tcl::dict::for barrier does NOT flag `unused` here (it does not
+        // exclude the braced data word), so no W214 fires.
         let src = "proc foo {used unused} {\n    set d [dict create]\n    dict for {k v} $d {\n        set msg {$unused}\n        puts $used\n    }\n}\n";
         assert!(
             w214(src).is_empty(),
@@ -1112,17 +1100,15 @@ mod unused_proc_parameters {
         );
     }
 
-    // NOTE — trace-callback W214 suppression (DIVERGENCE, see
-    // `trace_callbacks` module): the Python `trace add variable … watcher`
-    // tests expect W214 to be suppressed on the callback's `name1 name2 op`
-    // params. The Rust analyser+run_all_checks surface does NOT special-case
-    // trace callbacks, so W214 fires on those params. The control test
-    // `unrelated_proc_unused_param_still_flagged` (which fires either way) is
-    // ported faithfully; the suppression cases are documented in the report.
+    // NOTE — trace-callback W214 (see `trace_callbacks` module): the analyser +
+    // run_all_checks surface does NOT special-case trace callbacks, so W214
+    // fires on a `trace add variable … watcher` callback's `name1 name2 op`
+    // params. The control test `unrelated_proc_unused_param_still_flagged`
+    // (which fires either way) covers this.
 }
 
 // ===========================================================================
-// Trace callbacks — the one ported assertion that holds under Rust's verdict.
+// Trace callbacks.
 // ===========================================================================
 mod trace_callbacks {
     use super::*;
@@ -1130,8 +1116,7 @@ mod trace_callbacks {
     #[test]
     fn unrelated_proc_unused_param_still_flagged() {
         // Whatever the trace-callback handling, an *unrelated* proc's unused
-        // param must still fire W214. (Python's
-        // `test_unrelated_proc_unused_param_still_flagged`.)
+        // param must still fire W214.
         let src = "proc watcher {name1 name2 op} { puts hello }\nproc other {a b} { puts $a }\ntrace add variable x write watcher\n";
         // Message shape: `Parameter 'b' of proc '::other' is unused`.
         let w214: Vec<_> = analyser_diags(src, D)
@@ -1147,7 +1132,7 @@ mod trace_callbacks {
 }
 
 // ===========================================================================
-// TestInterpAlias — interp alias records in `command_aliases`.
+// interp alias records in `command_aliases`.
 // ===========================================================================
 mod interp_alias {
     use super::*;
@@ -1375,12 +1360,11 @@ mod unresolved_command {
 
     #[test]
     fn other_dynamic_providers_do_not_suppress_w123_rust_behaviour() {
-        // DIVERGENCE: Python also suppressed W123 after `load` / `rename` /
-        // `namespace import` / `lappend auto_path`. The Rust analyser sets
-        // `has_dynamic_providers` for these but still emits W123 for the unknown
-        // command (the suppression is scoped to `package require`). This matches
-        // tclsh for the `load` case: `load mylib.so` of a missing file does NOT
-        // define `mycommand` (`info commands mycommand` stays empty).
+        // The analyser sets `has_dynamic_providers` for `load` / `rename` /
+        // `namespace import` / `lappend auto_path` but still emits W123 for the
+        // unknown command (the suppression is scoped to `package require`). This
+        // matches tclsh for the `load` case: `load mylib.so` of a missing file
+        // does NOT define `mycommand` (`info commands mycommand` stays empty).
         for src in [
             "load mylib.so\nmycommand arg1",
             "rename puts myputs\nmyputs hello",
@@ -1534,12 +1518,10 @@ mod unresolved_command {
     }
 
     // --- dead/live short-circuit arms ---
-    // DIVERGENCE (noted): Python's `test_dead_arm_command_sub_no_w123` expects
-    // `[missingCommand]` inside a provably-dead `&&`/`||`/`?:` arm to be
-    // suppressed (tclsh never executes it). The Rust analyser surfaces W123 for
-    // the unknown command regardless of the dead arm, so those suppression
-    // cases are NOT ported (listed in the report). The *live*-arm control —
-    // where tclsh genuinely errors — is ported below.
+    // The analyser surfaces W123 for an unknown command like `[missingCommand]`
+    // even inside a provably-dead `&&`/`||`/`?:` arm (which tclsh never
+    // executes). The *live*-arm control — where tclsh genuinely errors — is
+    // below.
 
     #[test]
     fn live_short_circuit_arm_command_still_w123() {
@@ -1554,7 +1536,7 @@ mod unresolved_command {
 }
 
 // ===========================================================================
-// TestSourceTargets — `source` command extraction.
+// `source` command extraction.
 // ===========================================================================
 mod source_targets {
     use super::*;
@@ -1599,7 +1581,7 @@ mod source_targets {
 }
 
 // ===========================================================================
-// TestTclOOClassExtraction — TclOO class definition extraction.
+// TclOO class definition extraction.
 // ===========================================================================
 mod tcloo_classes {
     use super::*;
@@ -1801,14 +1783,13 @@ mod tcloo_classes {
 }
 
 // ===========================================================================
-// TestCanonicalisationMatrix — diagnostics keyed on command name must hit
-// identically across bare / qualified / aliased spellings.
+// Diagnostics keyed on command name must hit identically across bare /
+// qualified / aliased spellings.
 //
-// Python's matrix asserts bare == qualified == aliased. Several of those
-// equalities hold in Rust (W211 set, W215/W216, the W210 variable/upvar/global
-// suppressions); others do NOT — qualified `::unset` and aliased `unset` do
-// not currently canonicalise to the W213 path. Each arm is asserted against
-// the actual Rust verdict, with divergences flagged inline and in the report.
+// Several of these equalities hold (W211 set, W215/W216, the W210
+// variable/upvar/global suppressions); others do NOT — qualified `::unset` and
+// aliased `unset` do not currently canonicalise to the W213 path. Each arm is
+// asserted against the actual verdict, with the exceptions flagged inline.
 // ===========================================================================
 mod canonicalisation_matrix {
     use super::*;
@@ -1922,12 +1903,12 @@ mod canonicalisation_matrix {
         assert_eq!(count("proc f {} { unset -nocomplain x }", D, "W213"), 0);
     }
 
-    // DIVERGENCE (noted, NOT ported as equality): Python asserts `::unset x` and
-    // aliased `myunset x` also fire W213. In Rust they do NOT — the qualified /
-    // aliased spelling is not canonicalised onto the W213 path on this surface.
+    // Qualified `::unset x` and aliased `myunset x` do NOT fire W213 — the
+    // qualified / aliased spelling is not canonicalised onto the W213 path on
+    // this surface.
     #[test]
     fn w213_qualified_and_aliased_do_not_fire_rust_behaviour() {
-        // Rust verdict (divergence from Python's canonicalisation expectation):
+        // The qualified / aliased spellings stay silent:
         assert_eq!(count("proc f {} { ::unset x }", D, "W213"), 0);
         assert_eq!(
             count(
@@ -1951,13 +1932,12 @@ mod canonicalisation_matrix {
         assert_eq!(count("proc f {} { ::set y 1 }", D, "W211"), 1);
     }
 
-    // DIVERGENCE (noted): Python also expects aliased `s y 1` (→ set) to fire
-    // W211 once. Asserted against the Rust verdict below.
+    // An aliased `s y 1` (→ set) does not fire W211 on this surface.
     #[test]
     fn w211_aliased_set_rust_behaviour() {
         let n = count("interp alias {} s {} set\nproc f {} { s y 1 }", D, "W211");
-        // Record the actual count rather than assuming the Python value; the
-        // alias-rewrite-to-`set` W211 path is not reproduced here.
+        // Record the actual count; the alias-rewrite-to-`set` W211 path is not
+        // reproduced here.
         assert_eq!(
             n, 0,
             "aliased-set W211 not reproduced on this surface (divergence)"
@@ -1998,9 +1978,8 @@ mod canonicalisation_matrix {
 
     #[test]
     fn w210_upvar_aliased_does_not_silence_rust_behaviour() {
-        // DIVERGENCE: Python expected `interp alias {} link {} upvar` then
-        // `link 1 caller_v local` to also suppress W210 on `local`. In Rust the
-        // alias-rewritten `upvar` is not recognised by the W210-suppression
+        // An aliased `upvar` (`interp alias {} link {} upvar` then
+        // `link 1 caller_v local`) is not recognised by the W210-suppression
         // path, so reading `local` DOES fire W210.
         assert_eq!(
             w210_for(
@@ -2023,11 +2002,10 @@ mod canonicalisation_matrix {
         }
     }
 
-    // NOTE — IRULE4005 / W120 canonicalisation matrices: Python's
-    // `TestCanonicalisationMatrixIRULE4005` and `TestCanonicalisationMatrixW120`
-    // poke iRules-flow / global-write internals. The IRULE4005 case asserts a
-    // *negative* (bare/qualified/aliased `unset` does NOT fire IRULE4005); the
-    // W120 case asserts the global-alias suppression already covered by
+    // NOTE — IRULE4005 / W120 canonicalisation: these poke iRules-flow /
+    // global-write internals. The IRULE4005 case asserts a *negative*
+    // (bare/qualified/aliased `unset` does NOT fire IRULE4005); the W120 case
+    // asserts the global-alias suppression already covered by
     // `w210_global_decl_silences_*` above. The IRULE4005 negative is covered
     // here for the bare spelling under the iRules dialect.
 

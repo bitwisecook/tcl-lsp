@@ -47,7 +47,7 @@ fn check(name: &str, keep_paths: &[&str], keep_partitions: &[&str]) {
 }
 
 #[test]
-fn cleanup_matches_python() {
+fn cleanup() {
     check("default", &[], &["/Common/"]);
     check("nokeepcommon", &[], &[]);
     check("keeppath", &["/Common/unused_pool"], &[]);

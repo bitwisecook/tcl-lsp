@@ -2,18 +2,18 @@
 //! `tcl-compiler` analysis surface: `src/inlining/mod.rs` and
 //! `src/interprocedural.rs`.
 //!
-//! The existing ports —
+//! The existing sibling suites —
 //!   * `inlining_port.rs`         (decision + call-site transform shapes),
 //!   * `inlining_rename_port.rs`  (the α-renamer descent),
 //!   * `compiler_analysis_residual_port.rs` (a first slice of
 //!     `classify_proc` / `inline_module` / `count_statements` declines),
 //!     — cover the *common* inlining paths.  This suite deliberately targets
 //!     the **remaining** uncovered branches, enumerated by walking every match
-//!     arm / if-branch / early-return the three ports do not reach:
+//!     arm / if-branch / early-return the sibling suites do not reach:
 //!
 //!   inlining/mod.rs
 //!     * `count_one` over `Block` / `UpFrame` / `For` / `While` / `If`-with-else
-//!       (the kinds the ports' count tests skip — only Try / Switch / Foreach /
+//!       (the kinds the sibling suites' count tests skip — only Try / Switch / Foreach /
 //!       Catch were exercised).
 //!     * `rewrite_stmt` recursion that mutates a `Catch` / `While` / `Foreach` /
 //!       `For` / `Switch` / `UpFrame` / `Try` body (changed == true arms).
@@ -82,7 +82,7 @@ fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-/// `source → Module`, the Rust analogue of Python's `lower_to_ir(source)`.
+/// `source → Module`.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
 }
@@ -200,7 +200,7 @@ fn binding_value(stmts: &[Statement], suffix: &str) -> Option<String> {
 // ###########################################################################
 
 // ---------------------------------------------------------------------------
-// A1. count_statements — the per-statement-kind arms the ports skip.
+// A1. count_statements — the per-statement-kind arms the sibling suites skip.
 //
 // The existing count tests cover empty / flat / nested-if (inlining_port) and
 // Try / Switch / Foreach / Catch (compiler_analysis_residual_port).  These pin
@@ -279,7 +279,7 @@ fn count_statements_bare_call_is_one() {
 
 // ---------------------------------------------------------------------------
 // A2. rewrite_stmt — recursion into a nested control-flow body that produces a
-// change (the `changed == true` arms).  The ports cover If / For bodies; these
+// change (the `changed == true` arms).  The sibling suites cover If / For bodies; these
 // pin Catch / While / Foreach / Switch / UpFrame / Try recursion by inlining an
 // empty-body `noop` *inside* each construct and asserting the inner call
 // vanishes while the construct survives.
@@ -901,7 +901,7 @@ fn proc_index_registers_bare_qualified_and_stripped_keys() {
 }
 
 // ---------------------------------------------------------------------------
-// B2. direct_calls vs calls (transitive). The ports assert `calls` (transitive
+// B2. direct_calls vs calls (transitive). The sibling suites assert `calls` (transitive
 // closure); `direct_calls` is the local, non-transitive set the callgraph verb
 // consumes — pin that it carries only the immediate callee, not A→C.
 // ---------------------------------------------------------------------------
@@ -1003,8 +1003,8 @@ fn effect_writes_propagate_through_transitive_callee() {
 }
 
 // ---------------------------------------------------------------------------
-// B5. classify_return / summarise_returns over the value shapes the ports skip
-// (ports cover int literal, $param passthrough, fall-through-not-constant,
+// B5. classify_return / summarise_returns over the value shapes the sibling suites skip
+// (the sibling suites cover int literal, $param passthrough, fall-through-not-constant,
 // fully-covered-if). These pin: float, bool, quoted string, braced literal,
 // ${param} brace passthrough, and the UsesParam (depends-on-params) shape.
 // ---------------------------------------------------------------------------
