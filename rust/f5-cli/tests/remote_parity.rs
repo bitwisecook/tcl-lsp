@@ -278,11 +278,15 @@ fn invalid_json_position_matches_python() {
     }
 }
 
-// SSH deferral + clap arg validation
+// SSH transport (missing binary) + clap arg validation
 
+// The SSH transport shells out to the system `ssh`; with an empty `PATH` the
+// binary cannot resolve, so the fetch fails with the not-found error. This is
+// the offline-testable slice of the SSH flow (the live scp/tmsh round-trip
+// needs a real device, exactly like REST).
 #[test]
-fn ssh_transport_is_deferred() {
-    let (_out, err, code) = run(
+fn ssh_transport_missing_binary() {
+    let (out, err, code) = run(
         &[
             "fetch",
             "--host",
@@ -292,14 +296,11 @@ fn ssh_transport_is_deferred() {
             "--transport",
             "ssh",
         ],
-        &[("F5_PASSWORD", "x")],
+        &[("F5_PASSWORD", "x"), ("PATH", "")],
     );
     assert_eq!(code, 2);
-    assert_eq!(
-        err,
-        "error: fetch failed: SSH transport is not yet ported to the Rust f5 CLI \
-         (use --transport rest, or run the Python f5 CLI for SSH/scp)\n"
-    );
+    assert!(out.is_empty(), "stdout empty on ssh failure");
+    assert_eq!(err, "error: fetch failed: 'ssh' not found on PATH\n");
 }
 
 #[test]

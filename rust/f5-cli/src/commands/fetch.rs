@@ -1,20 +1,20 @@
 //! `f5 fetch` — pull SCF/UCS from a live BIG-IP device.
 //!
-//! Handles credential resolution, the SSH-deferral, and the arg surfaces; the
+//! Handles credential resolution, transport dispatch, and the arg surfaces; the
 //! live REST flow (UCS save → poll-download → `ucs_to_scf` →
-//! cache-dir/`latest`/`fetch.meta`) is implemented but exercised only against a
-//! live device.
+//! cache-dir/`latest`/`fetch.meta`) and the SSH/scp flow are both implemented
+//! but exercised only against a live device.
 //!
-//! SSH transport is not supported: `--transport ssh` returns the deferral
-//! error, and `auto` falls back to it only when REST is unavailable.
+//! Two transports are supported: `rest` (iControl REST over HTTPS) and `ssh`
+//! (system `ssh` + `scp`). `auto` (the default) tries REST first and falls back
+//! to SSH on a connection failure.
 
 use std::path::{Path, PathBuf};
 
 use chrono::{SecondsFormat, Utc};
 
 use super::remote::auth::{Credentials, ResolveOptions, resolve_credentials, xdg_cache_dir};
-use super::remote::rest;
-use super::remote::ssh::SSH_DEFERRAL;
+use super::remote::{rest, ssh};
 
 /// Parameters for [`run_fetch`].
 #[allow(clippy::struct_excessive_bools)]
@@ -99,25 +99,34 @@ pub fn run_fetch(args: &FetchArgs) -> u8 {
     0
 }
 
-/// Dispatch the transport: REST is the default and the only live one; SSH (and
-/// the `auto` fallback to it) returns the deferral error.
+/// Dispatch the transport. `auto` tries REST first and falls back to SSH only
+/// when REST is unavailable (a connection error).
 fn fetch_scf(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
     match args.transport {
         "rest" => via_rest(creds, args),
-        "ssh" => Err(SSH_DEFERRAL.to_owned()),
-        // auto: try REST, fall back to the SSH deferral only when REST is
-        // unavailable (connection error).
+        "ssh" => via_ssh(creds, args),
         _ => match via_rest(creds, args) {
             Ok(r) => Ok(r),
-            Err(rest_err) => {
-                if rest_err.starts_with("REST connection to") {
-                    Err(SSH_DEFERRAL.to_owned())
-                } else {
-                    Err(rest_err)
-                }
-            }
+            Err(rest_err) if rest_err.starts_with("REST connection to") => via_ssh(creds, args),
+            Err(rest_err) => Err(rest_err),
         },
     }
+}
+
+/// The live SSH/scp flow: save the config on the device via `tmsh`, scp the
+/// artefact back, and (for a UCS-only fetch) reconstruct the SCF locally.
+fn via_ssh(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
+    let fetched_at = Utc::now();
+    let name = format!("f5_fetch_{}", fetched_at.timestamp());
+    let (scf_text, ucs_data) = ssh::fetch(creds, args.fmt, args.timeout, &name)?;
+    Ok(FetchResult {
+        host: creds.host.clone(),
+        transport: "ssh".to_owned(),
+        fmt: args.fmt.to_owned(),
+        fetched_at,
+        scf: scf_text,
+        ucs: ucs_data,
+    })
 }
 
 /// The live REST flow: trigger a UCS save, poll-download it, reconstruct the
