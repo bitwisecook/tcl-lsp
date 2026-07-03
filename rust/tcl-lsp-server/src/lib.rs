@@ -88,13 +88,13 @@ use tower_lsp_server::ls_types::{
     ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse, Range, ReferenceParams,
     Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
     RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
+    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
     TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
     UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
@@ -1180,6 +1180,18 @@ pub struct Backend {
     /// collections and renders every diagnostic twice (#721).  Editors that
     /// only understand push (no pull capability) keep receiving the push.
     client_supports_pull_diagnostics: std::sync::atomic::AtomicBool,
+    /// Per-URI cache of the last semantic-token stream we served — its
+    /// `resultId` and the packed integer data.  Lets
+    /// `textDocument/semanticTokens/full/delta` answer with a minimal
+    /// token-aligned [`core_semantic_tokens::diff`] edit instead of resending
+    /// the whole stream, the incremental behaviour rust-analyzer / clangd use.
+    /// Every editor that speaks `full/delta` (VS Code, Zed, Neovim, eglot, …)
+    /// benefits: a keystroke transmits a few changed tokens rather than the
+    /// entire document, which keeps the client's token round-trip — and, for
+    /// eglot, its stale-repaint window (issue #333) — small on large files.
+    /// Keyed by URI; the entry is refreshed on every `full` / `full/delta`
+    /// response and evicted on `did_close`.
+    last_semantic_tokens: Mutex<HashMap<Uri, (String, Vec<u32>)>>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -1433,6 +1445,7 @@ impl Backend {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
+            last_semantic_tokens: Mutex::new(HashMap::new()),
         }
     }
 
@@ -1939,6 +1952,30 @@ impl Backend {
             None => self.default_dialect.lock().await.clone(),
         };
         Some(DocumentState::new(text, dialect))
+    }
+
+    /// Compute the packed semantic-token stream for `uri` — from the memoised
+    /// query when warm, else a worker-thread fallback so a parser panic surfaces
+    /// as a JSON-RPC error rather than crashing the server.
+    async fn semantic_tokens_core_data(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+    ) -> jsonrpc::Result<Vec<u32>> {
+        if let Some(tokens) = self.db_semantic_tokens(uri).await {
+            return Ok(tokens.data);
+        }
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        tokio::task::spawn_blocking(move || {
+            core_semantic_tokens::full(&text, &dialect, &registry).data
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("semantic_tokens worker panicked: {err}").into(),
+            data: None,
+        })
     }
 
     /// Re-index a (now-closed) document from its on-disk contents so
@@ -4600,6 +4637,9 @@ impl LanguageServer for Backend {
         // sweep no longer reports the now-closed document and a later reopen
         // recomputes from scratch.
         self.pull_diag_cache.lock().await.remove(uri);
+        // Drop the cached semantic-token baseline so a reopened document starts
+        // from a fresh `full` rather than diffing against a stale stream.
+        self.last_semantic_tokens.lock().await.remove(uri);
         // Re-index the file from disk rather than dropping it: the file still
         // exists on disk and was (or would be) part of the on-disk index, so
         // cross-document definition / references / rename / call-hierarchy — and
@@ -5734,26 +5774,15 @@ impl LanguageServer for Backend {
         };
         // `S-semantic-tokens-rich`: real classification, served from the
         // memoised `semantic_tokens` query (packed integer stream, 5 ints per
-        // token `[deltaLine, deltaCol, length, type, modifiers]`).  The
-        // cold/cancelled fallback computes directly.
-        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await {
-            tokens.data
-        } else {
-            let registry = self.registry_for_dialect(&doc.dialect).await;
-            // Cold/cancelled fallback runs the tokeniser on a worker so a
-            // parser panic is contained as a JSON-RPC error.
-            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-            tokio::task::spawn_blocking(move || {
-                core_semantic_tokens::full(&text, &dialect, &registry).data
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("semantic_tokens worker panicked: {err}").into(),
-                data: None,
-            })?
-        };
+        // token `[deltaLine, deltaCol, length, type, modifiers]`).
+        let core_data = self.semantic_tokens_core_data(&uri, &doc).await?;
         let result_id = next_semantic_tokens_id();
+        // Remember this stream so a later `full/delta` with this `resultId` can
+        // diff against it.
+        self.last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), (result_id.clone(), core_data.clone()));
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
             result_id: Some(result_id),
             data: lift_semantic_token_data(&core_data),
@@ -5774,33 +5803,48 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        // The server no longer keeps a per-URI token snapshot to diff against
-        // (that hand-invalidated cache is gone).  A `full/delta` request is
-        // answered with the full token set from the memoised query — the LSP
-        // spec accepts `Tokens` in place of `TokensDelta`.
-        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await {
-            tokens.data
-        } else {
-            let registry = self.registry_for_dialect(&doc.dialect).await;
-            // Cold/cancelled fallback runs the tokeniser on a worker so a
-            // parser panic is contained as a JSON-RPC error.
-            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-            tokio::task::spawn_blocking(move || {
-                core_semantic_tokens::full(&text, &dialect, &registry).data
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("semantic_tokens worker panicked: {err}").into(),
-                data: None,
-            })?
+        let new_data = self.semantic_tokens_core_data(&uri, &doc).await?;
+        let result_id = next_semantic_tokens_id();
+        // Swap the cache to the freshly-served stream and grab the previous one
+        // *only if* its `resultId` matches the client's `previousResultId` — a
+        // stale / unknown id means we can't safely diff, so fall back to a full
+        // stream.  Doing the take-and-replace under one lock keeps concurrent
+        // requests for the same URI consistent.
+        let baseline = {
+            let mut cache = self.last_semantic_tokens.lock().await;
+            let prev = cache
+                .remove(&uri)
+                .filter(|(id, _)| *id == params.previous_result_id);
+            cache.insert(uri.clone(), (result_id.clone(), new_data.clone()));
+            prev
         };
-        Ok(Some(SemanticTokensFullDeltaResult::Tokens(
-            LspSemanticTokens {
-                result_id: Some(next_semantic_tokens_id()),
-                data: lift_semantic_token_data(&core_data),
-            },
-        )))
+        if let Some((_, old_data)) = baseline {
+            // Matching baseline: answer with the minimal token-aligned edit
+            // (an empty edit list when nothing changed) rather than the whole
+            // stream — the incremental path every `full/delta`-capable editor
+            // benefits from.
+            let edits = match core_semantic_tokens::diff(&old_data, &new_data) {
+                Some(edit) => vec![SemanticTokensEdit {
+                    start: edit.start,
+                    delete_count: edit.delete_count,
+                    data: Some(lift_semantic_token_data(&edit.data)),
+                }],
+                None => Vec::new(),
+            };
+            Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
+                SemanticTokensDelta {
+                    result_id: Some(result_id),
+                    edits,
+                },
+            )))
+        } else {
+            Ok(Some(SemanticTokensFullDeltaResult::Tokens(
+                LspSemanticTokens {
+                    result_id: Some(result_id),
+                    data: lift_semantic_token_data(&new_data),
+                },
+            )))
+        }
     }
 
     async fn semantic_tokens_range(
@@ -7224,14 +7268,20 @@ fn apply_docstring_formatting(
     obj: &serde_json::Map<String, serde_json::Value>,
     cfg: &mut core_formatting::FormatterConfig,
 ) {
-    if let Some(s) = obj.get("docstringStyle").and_then(serde_json::Value::as_str) {
+    if let Some(s) = obj
+        .get("docstringStyle")
+        .and_then(serde_json::Value::as_str)
+    {
         cfg.docstring_style = match s.to_ascii_lowercase().as_str() {
             "preceding" => core_formatting::DocstringStyle::Preceding,
             "body" => core_formatting::DocstringStyle::Body,
             _ => core_formatting::DocstringStyle::None,
         };
     }
-    if let Some(s) = obj.get("docstringTagStyle").and_then(serde_json::Value::as_str) {
+    if let Some(s) = obj
+        .get("docstringTagStyle")
+        .and_then(serde_json::Value::as_str)
+    {
         cfg.docstring_tag_style = match s.to_ascii_lowercase().as_str() {
             "plain" => core_formatting::DocstringTagStyle::Plain,
             "none" => core_formatting::DocstringTagStyle::None,
@@ -8741,8 +8791,14 @@ fn rename_file_operation_options() -> FileOperationRegistrationOptions {
     }
 }
 
-/// Build the semantic-tokens capability advertising the
-/// classifier's legend, range support, and delta support.
+/// Build the semantic-tokens capability advertising the classifier's legend,
+/// `range` support, and `full` **with** `delta` support.
+///
+/// The `full/delta` handler ([`Backend::semantic_tokens_full_delta`]) returns a
+/// real minimal edit (via [`core_semantic_tokens::diff`]) whenever the client's
+/// `previousResultId` matches the last stream we served, so advertising delta
+/// is a genuine incremental win for every client that uses it — the same shape
+/// rust-analyzer and clangd advertise.
 fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
     SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
         work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -8757,10 +8813,6 @@ fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
                 .collect(),
         },
         range: Some(true),
-        // Delta support — the handler implements the minimal
-        // valid shape (returns full tokens when
-        // previousResultId doesn't match, otherwise empty
-        // edits).
         full: Some(SemanticTokensFullOptions::Delta { delta: Some(true) }),
     })
 }
@@ -9488,6 +9540,19 @@ mod tests {
     }
 
     #[test]
+    fn semantic_tokens_capability_advertises_delta_and_range() {
+        use tower_lsp_server::ls_types::SemanticTokensServerCapabilities as Cap;
+        let Cap::SemanticTokensOptions(o) = semantic_tokens_capability() else {
+            panic!("expected SemanticTokensOptions");
+        };
+        assert_eq!(o.range, Some(true));
+        assert!(matches!(
+            o.full,
+            Some(SemanticTokensFullOptions::Delta { delta: Some(true) })
+        ));
+    }
+
+    #[test]
     fn settings_disabled_diagnostics_nested_and_flat() {
         let nested = serde_json::json!({
             "tclLsp": {"diagnostics": {"W001": true, "W108": false, "W111": false}}
@@ -10087,7 +10152,10 @@ mod tests {
             }),
             &opts,
         );
-        assert_eq!(cfg.docstring_style, core_formatting::DocstringStyle::Preceding);
+        assert_eq!(
+            cfg.docstring_style,
+            core_formatting::DocstringStyle::Preceding
+        );
         assert_eq!(
             cfg.docstring_tag_style,
             core_formatting::DocstringTagStyle::Plain
@@ -10990,6 +11058,7 @@ mod tests {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
+            last_semantic_tokens: Mutex::new(HashMap::new()),
         }
     }
 
