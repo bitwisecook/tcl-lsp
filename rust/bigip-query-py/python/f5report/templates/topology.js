@@ -42,10 +42,82 @@
     var bar = document.getElementById("f5qbar");
     if (!bar || !node) return;
     var expr = selectorFor(node);
-    bar.querySelector(".f5qbar-type").textContent = TYPE_LABEL[node.type] || node.type;
+    setBarExpr(bar, (TYPE_LABEL[node.type] || node.type), expr);
+    bar.classList.add("show");
+    // remember the active device + object so the path builder can default to it
+    var dEl = document.querySelector(".device.active");
+    bar.dataset.dev = dEl ? dEl.dataset.dev : "0";
+    bar.dataset.oid = node.oid || "";
+  }
+  function setBarExpr(bar, typeLabel, expr) {
+    bar.querySelector(".f5qbar-type").textContent = typeLabel;
     bar.querySelector(".f5qbar-expr").textContent = expr;
     bar.dataset.expr = expr;
-    bar.classList.add("show");
+  }
+
+  // ---- source → destination path query builder ---------------------------
+  // Shortest directed (source → target) path over the reference graph.
+  function forwardPath(ix, srcOid, dstOid) {
+    if (srcOid === dstOid) return [srcOid];
+    var prev = {}, seen = {}; seen[srcOid] = true;
+    var queue = [srcOid];
+    while (queue.length) {
+      var cur = queue.shift();
+      var nbrs = ix.fadj[cur] || [];
+      for (var i = 0; i < nbrs.length; i++) {
+        var nb = nbrs[i];
+        if (seen[nb]) continue;
+        seen[nb] = true; prev[nb] = cur;
+        if (nb === dstOid) {
+          var path = [nb]; var p = cur;
+          while (p !== undefined) { path.unshift(p); p = prev[p]; }
+          return path;
+        }
+        queue.push(nb);
+      }
+    }
+    return null;
+  }
+  // every object forward-reachable from `srcOid` (for the destination picker)
+  function reachableFrom(ix, srcOid) {
+    var seen = {}, out = [], queue = [srcOid];
+    while (queue.length) {
+      var cur = queue.shift();
+      (ix.fadj[cur] || []).forEach(function (nb) {
+        if (!seen[nb]) { seen[nb] = true; out.push(nb); queue.push(nb); }
+      });
+    }
+    return out;
+  }
+  // one DSL navigation step for a directed edge (source object already selected)
+  function stepFor(ix, edge, targetOid) {
+    var fp = ix.byOid[targetOid].fullPath;
+    switch (edge.kind) {
+      case "pool": return " | .pool";
+      case "snat": return " | .snatpool";
+      case "monitor": return " | .monitor";
+      case "rule": return ' | .rules[] | select(. == "' + fp + '")';
+      case "profile": return ' | .profiles[] | select(startswith("' + fp + '"))';
+      case "persist": return ' | .persist[] | select(. == "' + fp + '")';
+      case "policy": return ' | .policies[] | select(. == "' + fp + '")';
+      case "pool-irule": return ' | .refs.pools[] | select(. == "' + fp + '")';
+      case "datagroup": return ' | .refs."data-groups"[] | select(. == "' + fp + '")';
+      case "member":
+        var addr = ix.nodeAddr[fp];
+        return addr
+          ? ' | .members[] | select(.address == "' + addr + '")'
+          : ' | .members[] | select(.name | startswith("' + fp + ':"))';
+      default: return ' | refs[] | select(. == "' + fp + '")';
+    }
+  }
+  function pathQuery(ix, path) {
+    var q = selectorFor(ix.byOid[path[0]]);
+    for (var i = 1; i < path.length; i++) {
+      var e = ix.edgeDir[path[i - 1] + "->" + path[i]];
+      if (!e) return null;
+      q += stepFor(ix, e, path[i]);
+    }
+    return q;
   }
   function copyText(t) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -78,23 +150,92 @@
     bar.querySelector(".f5qbar-close").addEventListener("click", function () {
       bar.classList.remove("show");
     });
+
+    // ---- path-builder popover ----
+    var pop = bar.querySelector(".f5qbar-pop");
+    var srcSel = pop.querySelector(".pb-src");
+    var dstSel = pop.querySelector(".pb-dst");
+    var note = pop.querySelector(".pb-note");
+    var pathBtn = bar.querySelector(".f5qbar-path");
+
+    function ixForBar() { return IDX[parseInt(bar.dataset.dev || "0", 10)]; }
+
+    function optLabel(ix, oid) {
+      var n = ix.byOid[oid];
+      return (TYPE_LABEL[n.type] || n.type) + ": " + n.name;
+    }
+    function fillSources(ix, selectedOid) {
+      var nodes = ix.d.graph.nodes.slice().sort(function (a, b) {
+        return (a.type + a.name).localeCompare(b.type + b.name);
+      });
+      srcSel.innerHTML = nodes.map(function (n) {
+        return '<option value="' + n.oid + '"' + (n.oid === selectedOid ? " selected" : "") + ">" +
+          esc(optLabel(ix, n.oid)) + "</option>";
+      }).join("");
+    }
+    function fillDests(ix) {
+      var reach = reachableFrom(ix, srcSel.value)
+        .map(function (o) { return { oid: o, label: optLabel(ix, o) }; })
+        .sort(function (a, b) { return a.label.localeCompare(b.label); });
+      if (!reach.length) {
+        dstSel.innerHTML = '<option value="">(nothing reachable downstream)</option>';
+      } else {
+        dstSel.innerHTML = reach.map(function (r) {
+          return '<option value="' + r.oid + '">' + esc(r.label) + "</option>";
+        }).join("");
+      }
+      build();
+    }
+    function build() {
+      var ix = ixForBar();
+      var s = srcSel.value, d = dstSel.value;
+      if (!s || !d) { note.textContent = ""; return; }
+      var path = forwardPath(ix, s, d);
+      if (!path) { note.textContent = "No downstream path from source to destination."; return; }
+      var q = pathQuery(ix, path);
+      if (!q) { note.textContent = "Could not express this path as a query."; return; }
+      var hops = path.map(function (o) { return ix.byOid[o].name; }).join("  →  ");
+      note.textContent = hops;
+      setBarExpr(bar, "path", q);
+    }
+
+    pathBtn.addEventListener("click", function () {
+      var ix = ixForBar();
+      var open = pop.classList.toggle("open");
+      pathBtn.classList.toggle("active", open);
+      if (open) {
+        fillSources(ix, bar.dataset.oid || (ix.d.graph.nodes[0] || {}).oid);
+        fillDests(ix);
+      }
+    });
+    srcSel.addEventListener("change", function () { fillDests(ixForBar()); });
+    dstSel.addEventListener("change", build);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { pop.classList.remove("open"); pathBtn.classList.remove("active"); }
+    });
   })();
 
   // ---- per-device index --------------------------------------------------
   function indexDevice(d) {
-    var byOid = {}, adj = {}, short = {}, unshort = {}, i = 0;
+    var byOid = {}, adj = {}, fadj = {}, short = {}, unshort = {}, i = 0;
     d.graph.nodes.forEach(function (n) {
-      byOid[n.oid] = n; adj[n.oid] = {};
+      byOid[n.oid] = n; adj[n.oid] = {}; fadj[n.oid] = [];
       var sid = "N" + (i++); short[n.oid] = sid; unshort[sid] = n.oid;
     });
-    var edgesByPair = {};
+    var edgesByPair = {}, edgeDir = {};
     d.graph.edges.forEach(function (e) {
       if (!(e.from in adj) || !(e.to in adj)) return;
       adj[e.from][e.to] = true; adj[e.to][e.from] = true;
+      fadj[e.from].push(e.to);                 // directed source → target
+      edgeDir[e.from + "->" + e.to] = e;        // directed edge lookup
       edgesByPair[short[e.from] + "|" + short[e.to]] = e;
       edgesByPair[short[e.to] + "|" + short[e.from]] = e;
     });
-    return { d: d, byOid: byOid, adj: adj, short: short, unshort: unshort, edgesByPair: edgesByPair };
+    // node full-path → address, for member-step generation
+    var nodeAddr = {};
+    (d.nodes || []).forEach(function (n) { nodeAddr[n.fullPath] = n.address; });
+    return { d: d, byOid: byOid, adj: adj, fadj: fadj, short: short, unshort: unshort,
+      edgesByPair: edgesByPair, edgeDir: edgeDir, nodeAddr: nodeAddr };
   }
   var IDX = MODEL.devices.map(indexDevice);
 
