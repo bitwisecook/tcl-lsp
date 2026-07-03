@@ -756,7 +756,14 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
 
 /// Build `global -> namespace* -> proc` scopes mirroring the proc's lexical
 /// context (so nested defs qualify identically), returning the proc scope path.
-fn reconstruct_proc_scope(
+/// Build a `namespace`-rooted scope chain under `root` and push a `kind` scope
+/// named `scope_name` at its end, returning the path to that scope.
+///
+/// Used both by the per-item isolated re-analysis (to reconstruct a proc /
+/// method context) and by `handle_apply_command` (to root an `apply` lambda
+/// scope at the lambda's namespace rather than the caller's), so the inline and
+/// per-item walks build byte-identical structure.
+pub(crate) fn reconstruct_proc_scope(
     root: &mut super::types::Scope,
     namespace: &str,
     scope_name: &str,

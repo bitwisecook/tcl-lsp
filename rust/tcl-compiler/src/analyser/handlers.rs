@@ -472,7 +472,11 @@ impl Analyser {
     /// fresh proc scope and element 1 is walked as the body (deferred during the
     /// per-item shell pass, inline otherwise — mirroring
     /// [`Analyser::handle_proc_command`], so the incremental and full paths stay
-    /// byte-identical). Returns `true` when the command was an `apply` with a
+    /// byte-identical). The body is walked in the *lambda's* namespace — element
+    /// 2 of the lambda, or the global namespace `::` when absent — not the
+    /// caller's, so a nested `proc` registers under the qualified name the
+    /// runtime `apply` gives it (`::p`, not `::caller::p`). Returns `true` when
+    /// the command was an `apply` with a
     /// statically-inspectable braced lambda literal, so the caller skips the
     /// generic body recursion. A dynamic lambda (`apply $lambda …`) returns
     /// `false` and falls through to the generic path (whose `analyse_body` is a
@@ -537,7 +541,20 @@ impl Analyser {
             return true;
         }
 
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // `apply` runs the lambda body in the namespace named by lambda element
+        // 2, or the *global* namespace when it is absent — never the caller's
+        // namespace (Tcl `apply` manual). Derive the body namespace so a nested
+        // `proc` registers under the qualified name the runtime `apply` would
+        // give it (`::p`, not `::caller::p`). A non-`::`-qualified pin resolves
+        // relative to the caller (as `TclGetNamespaceFromObj`); absent → global.
+        let body_ns = match elements.get(2).map(|(_, t)| *t) {
+            Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
+                let caller_ns = self.namespace_from_scope_path(scope_path);
+                qualify(caller_ns.trim_start_matches(':'), ns)
+            }
+            _ => "::".to_string(),
+        };
+
         let params = parse_param_list(params_text);
         let body_text = body_text.to_string();
         let body_span = body_tok.span;
@@ -545,18 +562,20 @@ impl Analyser {
         // in `all_variables` (keyed `"<scope_name>::<var>"`).
         let scope_name = format!("apply@{}", lambda_tok.span.start());
 
-        let path = scope_path.to_vec();
-        let lambda_scope_idx = {
-            let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
-                .expect("scope_path resolved when handling apply must still resolve");
-            let mut child =
-                super::types::Scope::new(super::types::ScopeKind::Proc, scope_name.clone());
-            child.body_span = Some(body_span);
-            parent.children.push(child);
-            parent.children.len() - 1
-        };
-        let mut child_path = path;
-        child_path.push(lambda_scope_idx);
+        // Root the lambda scope at `body_ns` under the global scope — NOT under
+        // the caller — via the same `reconstruct_proc_scope` the per-item path
+        // uses, so the inline (full) and per-item (incremental) walks build
+        // byte-identical structure and nested definitions resolve to `body_ns`.
+        let child_path = super::per_item::reconstruct_proc_scope(
+            &mut self.result.global_scope,
+            &body_ns,
+            &scope_name,
+            super::types::ScopeKind::Proc,
+        );
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &child_path)
+        {
+            scope.body_span = Some(body_span);
+        }
 
         // Parameters become locals, each anchored to its name in the param-list
         // literal (issue #727) so go-to-definition / references / rename on a
@@ -585,7 +604,7 @@ impl Analyser {
                 body_tok,
                 scope_path: child_path.clone(),
                 is_method: false,
-                namespace: ns_prefix,
+                namespace: body_ns,
                 scope_name,
                 params,
                 class_variables: Vec::new(),
