@@ -213,8 +213,7 @@ pub fn find_command_at(
 /// registry-resolved body arguments (proc / when / if / while / foreach
 /// bodies, …). Returns `(texts, line, character)` per command — `texts` is the
 /// command's words (name first), `(line, character)` is the 0-based
-/// (UTF-16-counted) position of its start. Mirrors the Python
-/// `walk_all_commands`.
+/// (UTF-16-counted) position of its start.
 #[must_use]
 pub fn walk_commands(source: &str, registry: &CommandRegistry) -> Vec<(Vec<String>, u32, u32)> {
     let line_index = LineIndex::new(source);

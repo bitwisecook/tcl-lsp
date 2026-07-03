@@ -910,7 +910,7 @@ fn continue_at_loop_depth_two() {
     );
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::JUMP4), "inner continue → jump: {ops:?}");
-    assert!(ops.contains(&Op::MOD), "the parity test is emitted");
+    assert!(ops.contains(&Op::MOD), "the mod op is emitted");
 }
 
 #[test]

@@ -12,8 +12,8 @@ use indexmap::IndexMap;
 
 use crate::value::Value;
 
-const DEFERRED: &str = "live HTTP probe is not yet implemented in the Rust port \
-                        (run the query through the Python f5 CLI for live url_* probes)";
+const DEFERRED: &str = "live HTTP probe is not yet implemented \
+                        (live url_* probes are unsupported)";
 
 /// Shape the unsupported-`url_*` result dict.
 pub(super) fn request(

@@ -139,7 +139,7 @@ pub struct AnalyserConfig {
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` selects the
     /// built-in default set; `Some(list)` replaces it (an empty list disables
-    /// the check) — mirroring Python's `genericVariablePatterns` semantics.
+    /// the check).
     #[returns(ref)]
     pub generic_variable_patterns: Option<Vec<String>>,
 }

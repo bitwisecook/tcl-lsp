@@ -1,6 +1,5 @@
-//! Port of `tests/test_command_segmenter.py` — the command segmenter +
-//! error-recovery suite. Verifies the Rust `segment_commands` splits a Tcl
-//! script into commands and words the same way the Python segmenter did.
+//! Command segmenter + error-recovery suite. Verifies `segment_commands`
+//! splits a Tcl script into commands and words.
 //!
 //! C-Tcl proof: command/word splitting is exactly Tcl's own parsing, verified
 //! against tclsh8.6/9.0 — `set a 1` is a command with two args
@@ -15,7 +14,7 @@ fn names(cmds: &[SegmentedCommand]) -> Vec<&str> {
     cmds.iter().map(SegmentedCommand::name).collect()
 }
 
-// -- Basic segmentation (TestSegmentCommands) --
+// -- Basic segmentation --
 
 #[test]
 fn single_command() {
@@ -103,7 +102,7 @@ fn normal_commands_are_not_partial() {
     assert!(cmds.iter().all(|c| !c.is_partial));
 }
 
-// -- Error recovery (TestErrorRecovery) --
+// -- Error recovery --
 
 fn unclosed_source() -> String {
     // An unclosed proc brace that consumes to EOF, then valid commands.

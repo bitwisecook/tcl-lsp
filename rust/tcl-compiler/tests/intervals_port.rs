@@ -1,30 +1,27 @@
-//! Port of two Python interval suites onto the Rust `tcl-compiler`:
-//!   * `tests/test_interval_bounds.py` (54 tests) — `compiler.compilation_unit`
-//!     interval-driven dynamic bounds checks (W230 lindex / W231 lset / W232
+//! Interval analysis suites for `tcl-compiler`:
+//!   * Interval-driven dynamic bounds checks (W230 lindex / W231 lset / W232
 //!     string index / W233 divide-by-zero).
-//!   * `tests/test_intervals.py` (12 tests) — `compiler.cfg`-driven integer
-//!     interval lattice (arithmetic, join/meet/widen, `compute_intervals`, guard
-//!     narrowing).
+//!   * The CFG-driven integer interval lattice (arithmetic, join/meet/widen,
+//!     `compute_intervals`, guard narrowing).
 //!
 //! ## Two observation surfaces
 //!
-//! * **Diagnostic surface** (the bulk of `test_interval_bounds.py`). Python's
-//!   `analyse(src).diagnostics` filtered to W23x is mirrored by
+//! * **Diagnostic surface** (the bulk of the bounds checks). The W23x
+//!   diagnostics come from
 //!   `Analyser::new().analyse(src, dialect).diagnostics` — the same merged
 //!   surface the in-crate FP catalogue (`analyser/diagnostics/fp/bnd.rs`) and the
 //!   sibling `core_analyses_port.rs` use. W230/W231/W232/W233 all flow through
-//!   the analyser pass, so `Analyser::analyse` alone surfaces them (verified by
-//!   the probe used while authoring this file). `count(src, code)` is the Rust
-//!   spelling of `len(_codes(src, code))`.
+//!   the analyser pass, so `Analyser::analyse` alone surfaces them. `count(src,
+//!   code)` counts diagnostics of one code.
 //!
-//! * **Lattice surface** (`test_intervals.py`'s `TestComputeIntervals` /
-//!   `TestGuardNarrowing`). Python lowers (`lower_to_ir` → `build_cfg` →
-//!   `build_ssa` → `_sccp` → `compute_intervals`); in Rust the same bundle is
+//! * **Lattice surface** (`compute_intervals` / guard narrowing). The
+//!   lowering bundle (`lower_to_ir` → `build_cfg` →
+//!   `build_ssa` → `_sccp` → `compute_intervals`) is
 //!   reachable from a built `CompilationUnit`: `fu.cfg`, `fu.ssa`,
 //!   `fu.sccp.values`, fed to the public `compute_intervals` /
 //!   `build_guard_index` / `refine_interval`. An SSA value `(name, version)` is
 //!   keyed by an interned `(Symbol, Version)`; resolve a name with
-//!   `fu.ssa.var_symbol` (Python's tuple key `("j", 1)`).
+//!   `fu.ssa.var_symbol` (the tuple key `("j", 1)`).
 //!
 //! ## C-Tcl proof split
 //!
@@ -43,29 +40,28 @@
 //!   no direct Tcl observation. They are flagged "structural" at each site. The
 //!   raw arithmetic operators (`add`/`sub`/`mul`/`join`/`widen`/`intersect`/
 //!   `negate`) and the guard helpers are **private** to `intervals.rs`, so
-//!   `TestIntervalArithmetic` / `TestIntersect` cannot be called from an
+//!   they cannot be called from an
 //!   integration test; their algebra is already covered by the in-crate
 //!   `#[cfg(test)]` module (`add_sub_intervals`, `intersect_uses_none_as_identity`,
 //!   `join_absorbs_bottom_and_widens_to_inf`, …). Where a lattice fact is
 //!   *observable end-to-end* (a constant-fold value, a widened loop bound) it is
-//!   ported here through `compute_intervals`.
+//!   covered here through `compute_intervals`.
 //!
-//! ## Divergences (Rust sound but less aggressive — ported at the actual verdict)
+//! ## Divergences (sound but less aggressive — captured at the actual verdict)
 //!
-//! Two `test_interval_bounds.py` cases ask Rust to *fire* a finding it declines
+//! Two bounds-check cases would ideally *fire* a finding the analysis declines
 //! to (a sound under-approximation — silence is never a miscompile):
-//!   * `test_expr_embedded_fires` — `[lindex …]` nested in an `expr` *value*
-//!     position (`set u [expr {[lindex $l $i] + 1}]`). Rust collects the
-//!     candidate but the embedded command-sub's index var is not in the flat
-//!     `AssignExpr`'s use-version map, so no finding. The *same* shape in a
-//!     `return`/`while` condition DOES fire (ported below). Captured at the
+//!   * `[lindex …]` nested in an `expr` *value*
+//!     position (`set u [expr {[lindex $l $i] + 1}]`). The
+//!     candidate is collected but the embedded command-sub's index var is not in
+//!     the flat `AssignExpr`'s use-version map, so no finding. The *same* shape
+//!     in a `return`/`while` condition DOES fire (below). Captured at the
 //!     actual (silent) verdict.
-//!   * The `_MAX_ITERS` monkeypatch tests (`test_unconverged_*`) drive the
-//!     interval fixpoint to non-convergence by patching the module constant.
-//!     `MAX_ITERS` is a private `const` in Rust with no injection point, so the
-//!     *unconverged* branch is unreachable from a test. The *convergent*
+//!   * Driving the interval fixpoint to non-convergence requires patching the
+//!     `MAX_ITERS` constant, but it is a private `const` with no injection point,
+//!     so the *unconverged* branch is unreachable from a test. The *convergent*
 //!     counterpart (a well-behaved loop yields sound, non-bottom intervals) is
-//!     ported instead. Both are listed in the port report.
+//!     covered instead.
 //!
 //! ## Bug found and FIXED
 //!
@@ -89,13 +85,12 @@ use tcl_registry::registry_for_dialect;
 const D: &str = "tcl8.6";
 
 // ===========================================================================
-// Diagnostic-surface helpers — the Rust spelling of Python `_codes(src, code)`.
+// Diagnostic-surface helpers.
 // ===========================================================================
 
 /// How many diagnostics of `code` the analyser emits for `src`. The analyser
-/// pass owns W230/W231/W232/W233, so this single surface mirrors Python's
-/// `len(_codes(src, code))` (confirmed while authoring; matches the in-crate
-/// `bnd.rs` catalogue's behaviour).
+/// pass owns W230/W231/W232/W233, so this single surface suffices (matches the
+/// in-crate `bnd.rs` catalogue's behaviour).
 fn count(src: &str, code: &str) -> usize {
     Analyser::new()
         .analyse(src, D)
@@ -117,10 +112,10 @@ fn messages(src: &str, code: &str) -> Vec<String> {
 }
 
 // ===========================================================================
-// Lattice-surface helpers — the Rust spelling of Python's `_intervals(...)`.
+// Lattice-surface helpers.
 // ===========================================================================
 
-/// Build `src` and return its `::f` `FunctionUnit` (Python's lower→cfg→ssa→sccp
+/// Build `src` and return its `::f` `FunctionUnit` (the lower→cfg→ssa→sccp
 /// pipeline collapsed into the shared `CompilationUnit` build).
 fn func(src: &str) -> (CompilationUnit, String) {
     // Return the owning CU alongside the proc key so the borrow lives.
@@ -131,7 +126,7 @@ fn func(src: &str) -> (CompilationUnit, String) {
 }
 
 /// `compute_intervals` over `::f`, plus a name→Symbol resolver bound to it.
-/// Mirrors `_intervals(src, "::f")`, then `iv[("name", version)]`.
+/// Look up an interval as `iv[("name", version)]`.
 fn intervals_of(fu: &FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + '_ {
     let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
     move |name: &str, version: u32| {
@@ -160,7 +155,7 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestDynamicLindexOutOfRange (W230).
+// Dynamic lindex out of range (W230).
 // ===========================================================================
 mod dynamic_lindex_out_of_range {
     use super::*;
@@ -237,7 +232,7 @@ mod dynamic_lindex_out_of_range {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestNestedPositionLindex (W230 in nested shapes).
+// Nested-position lindex (W230 in nested shapes).
 // ===========================================================================
 mod nested_position_lindex {
     use super::*;
@@ -276,11 +271,11 @@ mod nested_position_lindex {
 
     #[test]
     fn expr_embedded_fires_diverges_silent() {
-        // DIVERGENCE (sound, less aggressive): Python `test_expr_embedded_fires`
-        // expects `[lindex $l $i]` embedded in an `expr` *value* position
-        // (`set u [expr {[lindex $l $i] + 1}]`, $l length 3, $i == 5) to fire
+        // DIVERGENCE (sound, less aggressive): `[lindex $l $i]` embedded in an
+        // `expr` *value* position (`set u [expr {[lindex $l $i] + 1}]`, $l length
+        // 3, $i == 5) would ideally fire
         // W230. tclsh: `lindex {a b c} 5` → "" so the access IS out of range —
-        // but Rust does not reach the command-sub index var from the flat
+        // but the analysis does not reach the command-sub index var from the flat
         // `AssignExpr` use-map, so no finding. Silence here is sound (the only
         // consumer turns a *proven* fact into a warning; missing one is never a
         // miscompile). The same shape in a `return`/branch position DOES fire —
@@ -321,7 +316,7 @@ mod nested_position_lindex {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestDynamicLsetOutOfRange (W231).
+// Dynamic lset out of range (W231).
 // ===========================================================================
 mod dynamic_lset_out_of_range {
     use super::*;
@@ -356,7 +351,7 @@ mod dynamic_lset_out_of_range {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestDynamicStringIndex (W232).
+// Dynamic string index (W232).
 // ===========================================================================
 mod dynamic_string_index {
     use super::*;
@@ -420,7 +415,7 @@ mod dynamic_string_index {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestDivideByZero (W233).
+// Divide by zero (W233).
 //
 // tclsh: `expr {1/0}` and `expr {5%0}` both raise *divide by zero* (8.6 + 9.0).
 // `expr` is lazy: a short-circuited `&&`/`||` operand and a non-selected `?:`
@@ -618,7 +613,7 @@ mod divide_by_zero {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestUnreachableBoundsSuppressed.
+// Unreachable bounds suppressed.
 //
 // Dynamic-bounds findings must not fire from statically unreachable blocks (the
 // same reachability discipline as divide-by-zero). tclsh: `expr {0}` → 0,
@@ -649,7 +644,7 @@ mod unreachable_bounds_suppressed {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestListExpansionLength.
+// List-expansion length.
 //
 // `[list {*}{...}]` expands at runtime, so its element count is not the arg
 // count.  FIXED — `list_command_length` now bails on any `{*}` expansion.
@@ -683,21 +678,20 @@ mod list_expansion_length {
 }
 
 // ===========================================================================
-// test_interval_bounds.py — TestIntervalFixpointSoundness.
+// Interval fixpoint soundness.
 //
-// The Python tests force non-convergence by monkeypatching `_MAX_ITERS = 1`.
+// Forcing non-convergence requires patching `MAX_ITERS = 1`.
 // `MAX_ITERS` is a private `const` in `intervals.rs` with no injection point, so
 // the *unconverged* degrade-to-TOP branch is unreachable from an integration
-// test. We port the *convergent* counterpart: a well-behaved loop fixpoint
+// test. We cover the *convergent* counterpart: a well-behaved loop fixpoint
 // yields sound, non-bottom intervals (and still fires the genuine OOR finding).
-// The two monkeypatch-only tests are noted in the port report as unportable.
 // ===========================================================================
 mod interval_fixpoint_soundness {
     use super::*;
 
     #[test]
     fn converged_fixpoint_still_fires_genuine_finding() {
-        // The counterpart to `test_unconverged_fixpoint_suppresses_findings`:
+        // The convergent counterpart to the unconverged-suppression case:
         // *with* convergence (the default cap), j proven past the end of a 3-list
         // → W230 fires. (The unconverged-suppression branch needs the private
         // MAX_ITERS=1 patch and is unreachable here.)
@@ -707,7 +701,7 @@ mod interval_fixpoint_soundness {
 
     #[test]
     fn converged_compute_intervals_are_sound() {
-        // The counterpart to `test_unconverged_compute_intervals_are_all_top`:
+        // The convergent counterpart to the all-TOP unconverged case:
         // the *converged* fixpoint for a counting loop produces a well-formed map
         // — every computed interval is a sound lattice element (never the empty
         // `lo > hi` sentinel), and the loop counter `i` is bounded below by 0.
@@ -735,7 +729,7 @@ mod interval_fixpoint_soundness {
 }
 
 // ===========================================================================
-// test_intervals.py — TestComputeIntervals (lattice surface, end-to-end).
+// compute_intervals (lattice surface, end-to-end).
 //
 // These port directly through the public `compute_intervals`. The constant
 // values are Tcl-grounded; the widened loop-bound shape is structural.
@@ -757,9 +751,9 @@ mod compute_intervals_suite {
     #[test]
     fn loop_induction_widens_soundly() {
         // STRUCTURAL: the loop-header phi for i is widened to [0, +inf) — sound
-        // (i >= 0), the upper bound unbounded without guard narrowing. (Rust's
-        // rotated-loop lowering keeps the header-phi at version 2, matching the
-        // Python `iv[("i", 2)]` key; verified while authoring.)
+        // (i >= 0), the upper bound unbounded without guard narrowing. (The
+        // rotated-loop lowering keeps the header-phi at version 2, the
+        // `("i", 2)` key.)
         let src = "proc f {} { for {set i 0} {$i < 10} {incr i} { puts $i } }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
@@ -784,13 +778,12 @@ mod compute_intervals_suite {
 }
 
 // ===========================================================================
-// test_intervals.py — TestGuardNarrowing (refine_interval at a use site).
+// Guard narrowing (refine_interval at a use site).
 //
-// Python pins `refine_interval(...) == (0, 9)` for `("i", 2)` at the loop body.
-// Rust lowers `for` to a *rotated* loop, so the body is dominated by the latch's
+// `for` lowers to a *rotated* loop, so the body is dominated by the latch's
 // `$i < 10` true edge and the narrowable version is the post-increment i₃, which
-// refines to [1, 9] (verified while authoring) rather than i₂→[0,9]. The Python
-// assertion's *intent* — the constant `< 10` guard pulls the widened upper bound
+// refines to [1, 9] rather than i₂→[0,9]. The
+// intent — the constant `< 10` guard pulls the widened upper bound
 // down to 9 inside the body — holds exactly; only the SSA version / lower bound
 // the loop-rotation assigns differs (a structural detail, not a Tcl fact). So we
 // assert the load-bearing fact (some version narrows to a bounded `hi == 9`) and
@@ -881,21 +874,21 @@ mod guard_narrowing {
 }
 
 // ===========================================================================
-// test_intervals.py — TestIntervalArithmetic / TestIntersect (observable subset).
+// Interval arithmetic / intersect (observable subset).
 //
 // The raw operators are private to `intervals.rs` (covered by its in-crate
 // `#[cfg(test)]` module). Their *observable* algebra surfaces end-to-end through
 // `compute_intervals`: a constant fold exercises `add` over point intervals, the
 // loop widening exercises `widen`/`join`, and the `set j [expr {$i + $n}]` fold
-// proves `add(const, const)` == const. These are ported here as the
-// integration-reachable slice of `TestIntervalArithmetic`.
+// proves `add(const, const)` == const. These cover the
+// integration-reachable slice of the interval arithmetic.
 // ===========================================================================
 mod interval_arithmetic_observable {
     use super::*;
 
     #[test]
     fn add_of_point_intervals_via_fold() {
-        // `add(const(2), const(3)) == const(5)` (the Python `test_add` head),
+        // `add(const(2), const(3)) == const(5)`,
         // observed through the analysis: `set a 2; set b 3; expr {$a + $b}` → 5.
         // tclsh: `expr {2 + 3}` → 5.
         let src = "proc f {} { set a 2\n set b 3\n set c [expr {$a + $b}]\n return $c }";
@@ -929,8 +922,7 @@ mod interval_arithmetic_observable {
 
     #[test]
     fn widen_sends_growing_loop_bound_to_infinity() {
-        // The Python `test_widen_sends_growing_bound_to_infinity` head
-        // (`widen([0,0], [0,1]) == [0, None]`) is exactly what the loop-induction
+        // `widen([0,0], [0,1]) == [0, None]` is exactly what the loop-induction
         // widening produces: the upper bound that grows each iteration is sent to
         // +inf while the stable lower bound (0) is kept. Observed via the loop
         // header phi i₂ == [0, +inf). STRUCTURAL (widening shape).

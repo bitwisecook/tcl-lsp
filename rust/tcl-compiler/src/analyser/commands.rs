@@ -741,8 +741,8 @@ impl Analyser {
         // `namespace import ::tcltest::*` followed by `test name desc { body }`
         // calls the registry's `tcltest::test`, whose body roles only resolve
         // under the qualified name. Re-query through each recorded import so the
-        // body walk reaches inside (matching the Python analyser, which resolves
-        // the import). Conservative: only when the bare name owns no body itself,
+        // body walk reaches inside the imported command's body. Conservative:
+        // only when the bare name owns no body itself,
         // and only against a namespace explicitly imported in this document.
         if body_indices.is_empty() && !cmd_name.contains("::") {
             for imp in &self.result.namespace_imports {
@@ -1078,8 +1078,8 @@ impl Analyser {
         // must reach substitution commands too: `set v [puts ${arr}(name)]`
         // hides the offending word inside a `[…]`, which the main `walk_body`
         // pass treats as an opaque value.  Without this the nested word escapes
-        // the check entirely (matching the Python analyser, which runs the
-        // brace-then-paren emitter on substitution commands).
+        // the check entirely, so the brace-then-paren emitter must run on
+        // substitution commands too.
         self.emit_w216_brace_then_paren(seg);
         // `lassign`/`scan`/`regexp`/`regsub` nested in a `[…]` substitution still
         // write their trailing variables into the enclosing scope — the
@@ -1103,8 +1103,8 @@ impl Analyser {
         // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
         // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
         // still binds its result/options variables in the enclosing scope, so
-        // record them for `symbols`/completion/hover — matching the Python
-        // analyser, which collects var-defs from substitution commands too.
+        // record them for `symbols`/completion/hover — var-defs are collected
+        // from substitution commands too.
         // `warn_if_unused = false`: the binding is a side effect of `catch`,
         // not a "set but never used" target (no W211).
         if cmd_name == "catch" {

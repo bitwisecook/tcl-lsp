@@ -1,19 +1,17 @@
-//! Port of the Python dataflow analysis suites — def-use chains, the SSA
-//! data-flow graph, and dead-store/dead-code elimination.
+//! Dataflow analysis tests — def-use chains, the SSA data-flow graph, and
+//! dead-store/dead-code elimination.
 //!
-//! Ported from three pytest files that drive the *Python* compiler:
-//!   * `tests/test_def_use.py`        → `build_def_use_chains` over SSA
-//!   * `tests/test_dataflow_graph.py` → `extract_dataflow_graph`
-//!   * `tests/test_dce.py`            → `compiler.passes.dce.dce_module`
+//! Three areas are covered:
+//!   * def-use chains built over SSA
+//!   * the SSA data-flow graph (`extract_dataflow_graph`)
+//!   * dead-store / dead-code elimination (`dead_stores::liveness_dead_stores`)
 //!
-//! The Rust pipeline driver is `CompilationUnit::build_for(src, registry,
-//! false)`, which runs lower → CFG → SSA → def-use → SCCP per function. Each
-//! [`FunctionUnit`] then carries `.cfg`, `.ssa`, `.def_use`, `.sccp`, `.types`
-//! — the same artefacts the Python helpers (`build_cfg` + `build_ssa` +
-//! `build_def_use_chains`) produce one at a time. The data-flow graph is built
-//! by feeding those per-function units to `extract_dataflow_graph` as
-//! [`FunctionInputs`] (the Rust API takes pre-built analyses, not a source
-//! string the way Python's `extract_dataflow_graph(src)` does).
+//! The pipeline driver is `CompilationUnit::build_for(src, registry, false)`,
+//! which runs lower → CFG → SSA → def-use → SCCP per function. Each
+//! [`FunctionUnit`] then carries `.cfg`, `.ssa`, `.def_use`, `.sccp`, `.types`.
+//! The data-flow graph is built by feeding those per-function units to
+//! `extract_dataflow_graph` as [`FunctionInputs`] (the API takes pre-built
+//! analyses, not a source string).
 //!
 //! ## Structural vs. semantic proof split
 //!
@@ -30,30 +28,30 @@
 //! `scripts/dev/tclsh_check.sh` and are cited inline next to the test with a
 //! `// tclsh:` comment.
 //!
-//! ## DCE: Rust `liveness_dead_stores` vs. Python `dce_module`
+//! ## Liveness detection vs. deletability
 //!
-//! The two implementations answer **different questions**, so the DCE port is
-//! against the Rust function the prompt names (`dead_stores::liveness_dead_stores`)
-//! and `DefUseChain::is_dead`, *not* a line-for-line copy of the Python
-//! `dce_module` expectations:
+//! `dead_stores::liveness_dead_stores` and `DefUseChain::is_dead` answer a
+//! narrow question — *"is this store's SSA value never read?"* — a pure liveness
+//! verdict (the def-use chain's "no uses"). That is the *prerequisite* to
+//! deletability, not deletability itself. Actually deleting an assignment has to
+//! additionally respect:
 //!
-//!   * Python `dce_module` answers *"can this assignment be deleted?"* — and so
-//!     guards the **terminal** statement (implicit return), **multi-write**
-//!     variables (its "only write" gate), **parameter** slots, and any RHS with
-//!     side effects. It conservatively *keeps* stores for those reasons even
-//!     when the value is never read back.
-//!   * Rust `liveness_dead_stores` answers *"is this store's SSA value never
-//!     read?"* — a pure liveness verdict (the def-use chain's "no uses"). It is
-//!     the *prerequisite* to deletability, not deletability itself.
+//!   * the **terminal** statement (implicit return),
+//!   * **multi-write** variables (an "only write" gate),
+//!   * **parameter** slots, and
+//!   * any RHS with side effects.
 //!
-//! Where the two agree (a store is both unread *and* safely droppable — the
-//! pure-literal cases) the behaviour matches and is asserted directly. Where
-//! Python keeps a store for a non-liveness reason (terminal/multi-write/param),
-//! Rust's liveness pass still — correctly — reports the value unread; that is a
-//! difference in *what the pass computes*, not a bug, and is noted at each site.
-//! The genuinely-shared semantic invariants (globals observable ⇒ kept; a
-//! command-substitution RHS ⇒ kept because of its side effect) hold in **both**
-//! and are the tclsh-anchored ones.
+//! A store must be *kept* for those reasons even when its value is never read
+//! back.
+//!
+//! Where a store is both unread *and* safely droppable — the pure-literal cases
+//! — the liveness verdict and deletability coincide, and that is asserted
+//! directly. Where a store is unread but must be kept for a non-liveness reason
+//! (terminal/multi-write/param), the liveness pass still — correctly — reports
+//! the value unread; a few tests pin that verdict and note it at each site. The
+//! genuinely semantic invariants (globals observable ⇒ kept; a
+//! command-substitution RHS ⇒ kept because of its side effect) are the
+//! tclsh-anchored ones.
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{
@@ -74,15 +72,12 @@ fn registry() -> &'static CommandRegistry {
     registry_for_dialect(TCL)
 }
 
-/// `source → CompilationUnit` (lower → CFG → SSA → def-use → SCCP), the Rust
-/// analogue of the Python `_build` helper's `lower_to_ir` + `build_cfg` +
-/// `build_ssa` + `build_def_use_chains`.
+/// `source → CompilationUnit` (lower → CFG → SSA → def-use → SCCP).
 fn build_cu(source: &str) -> CompilationUnit {
     CompilationUnit::build_for(source, registry(), false)
 }
 
-/// The top-level `FunctionUnit` (`::top`) — the Rust analogue of Python's
-/// `build_cfg(mod).top_level` def-use result.
+/// The top-level `FunctionUnit` (`::top`).
 fn top_fu(cu: &CompilationUnit) -> &FunctionUnit {
     &cu.top_level
 }
@@ -93,20 +88,19 @@ fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
         .unwrap_or_else(|| panic!("function {qname} not found"))
 }
 
-/// Look up the def-use chain for `(name, version)` in a unit (Python
-/// `du.chain_for(name, version)`).
+/// Look up the def-use chain for `(name, version)` in a unit.
 fn chain<'a>(fu: &'a FunctionUnit, name: &str, version: Version) -> Option<&'a DefUseChain> {
     fu.def_use.chain_for(name, version)
 }
 
-/// All SSA versions defined for `name` in a unit (Python `du.reaching_defs`).
+/// All SSA versions defined for `name` in a unit.
 fn reaching_defs(fu: &FunctionUnit, name: &str) -> Vec<(String, Version)> {
     fu.def_use.reaching_defs(name)
 }
 
-/// Build the module data-flow graph from a (memory-SSA populated) unit — the
-/// Rust analogue of Python `extract_dataflow_graph(src)`. Memory-SSA is needed
-/// for the alias summaries; SCCP / types feed the node display columns.
+/// Build the module data-flow graph from a (memory-SSA populated) unit.
+/// Memory-SSA is needed for the alias summaries; SCCP / types feed the node
+/// display columns.
 fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
     let inputs: Vec<FunctionInputs> = cu
         .functions()
@@ -136,8 +130,8 @@ fn graph_for(source: &str) -> DataFlowGraph {
 
 #[test]
 fn def_use_linear_single_use() {
-    // Python test_linear_single_use: `set x 1\nset y [expr {$x + 1}]` — x#1 has
-    // exactly one OPERAND use (read by the expr in `set y`).
+    // `set x 1\nset y [expr {$x + 1}]` — x#1 has exactly one OPERAND use (read
+    // by the expr in `set y`).
     // tclsh: set x 1; set y [expr {$x + 1}] ⇒ y == 2 (x is read once).
     let cu = build_cu("set x 1\nset y [expr {$x + 1}]");
     let fu = top_fu(&cu);
@@ -148,8 +142,8 @@ fn def_use_linear_single_use() {
 
 #[test]
 fn def_use_dead_store() {
-    // Python test_dead_store: `set x 1\nset x 2` — x#1 dead (overwritten before
-    // any read), x#2 dead (never read). tclsh: `set x 1; set x 2; puts done`
+    // `set x 1\nset x 2` — x#1 dead (overwritten before any read), x#2 dead
+    // (never read). tclsh: `set x 1; set x 2; puts done`
     // prints `done`; neither stored 1 nor 2 is ever observed.
     let cu = build_cu("set x 1\nset x 2");
     let fu = top_fu(&cu);
@@ -159,7 +153,7 @@ fn def_use_dead_store() {
 
 #[test]
 fn def_use_multiple_uses() {
-    // Python test_multiple_uses: `set x 1\nset y $x\nset z $x` — x#1 read twice.
+    // `set x 1\nset y $x\nset z $x` — x#1 read twice.
     let cu = build_cu("set x 1\nset y $x\nset z $x");
     let fu = top_fu(&cu);
     assert_eq!(chain(fu, "x", 1).expect("x#1").use_count(), 2);
@@ -167,7 +161,7 @@ fn def_use_multiple_uses() {
 
 #[test]
 fn def_use_reaching_defs() {
-    // Python test_reaching_defs: three sequential `set x` ⇒ three SSA defs of x.
+    // Three sequential `set x` ⇒ three SSA defs of x.
     let cu = build_cu("set x 1\nset x 2\nset x 3");
     let fu = top_fu(&cu);
     assert_eq!(reaching_defs(fu, "x").len(), 3);
@@ -175,9 +169,7 @@ fn def_use_reaching_defs() {
 
 #[test]
 fn def_use_dead_chains_property() {
-    // Python test_dead_chains_property: `set x 1\nset y 2` — both unused, so the
-    // dead-chain set has two entries. (Python `du.dead_chains`; Rust
-    // `dead_chains()`.)
+    // `set x 1\nset y 2` — both unused, so the dead-chain set has two entries.
     let cu = build_cu("set x 1\nset y 2");
     let fu = top_fu(&cu);
     assert_eq!(fu.def_use.dead_chains().len(), 2);
@@ -185,7 +177,7 @@ fn def_use_dead_chains_property() {
 
 #[test]
 fn def_use_total_counts() {
-    // Python test_total_counts: 2 defs (x, y), 1 use (x in the expr).
+    // 2 defs (x, y), 1 use (x in the expr).
     let cu = build_cu("set x 1\nset y [expr {$x + 1}]");
     let fu = top_fu(&cu);
     assert_eq!(fu.def_use.total_defs(), 2);
@@ -196,9 +188,8 @@ fn def_use_total_counts() {
 
 #[test]
 fn def_use_if_merge_creates_phi_chain() {
-    // Python test_if_merge_creates_phi_chain: an if/else both assigning `a`,
-    // read after the merge, creates a phi def of `a` that itself has ≥1 use
-    // (from `set b [expr {$a + 0}]`).
+    // An if/else both assigning `a`, read after the merge, creates a phi def of
+    // `a` that itself has ≥1 use (from `set b [expr {$a + 0}]`).
     let cu = build_cu("if {$cond} {set a 1} else {set a 2}\nset b [expr {$a + 0}]");
     let fu = top_fu(&cu);
     let phi_defs: Vec<_> = fu
@@ -214,9 +205,9 @@ fn def_use_if_merge_creates_phi_chain() {
 
 #[test]
 fn def_use_phi_incoming_edges_are_uses() {
-    // Python test_phi_incoming_edges_are_uses: with `a` read after the merge
-    // (`puts $a`), both branch defs (a#2, a#3) feed the phi via PHI_INCOMING
-    // uses ⇒ at least two phi-incoming uses across the reaching defs.
+    // With `a` read after the merge (`puts $a`), both branch defs (a#2, a#3)
+    // feed the phi via PHI_INCOMING uses ⇒ at least two phi-incoming uses across
+    // the reaching defs.
     let cu = build_cu("if {$cond} {set a 1} else {set a 2}\nputs $a");
     let fu = top_fu(&cu);
     let phi_uses = reaching_defs(fu, "a")
@@ -235,8 +226,8 @@ fn def_use_phi_incoming_edges_are_uses() {
 
 #[test]
 fn def_use_branch_condition_is_use() {
-    // Python test_branch_condition_is_use: `set cond 1\nif {$cond} {...}` —
-    // cond#1 is read by the branch, so it is live and has a TERMINATOR use.
+    // `set cond 1\nif {$cond} {...}` — cond#1 is read by the branch, so it is
+    // live and has a TERMINATOR use.
     let cu = build_cu("set cond 1\nif {$cond} { set x 1 }");
     let fu = top_fu(&cu);
     let cond = chain(fu, "cond", 1).expect("cond#1");
@@ -247,8 +238,8 @@ fn def_use_branch_condition_is_use() {
 
 #[test]
 fn def_use_while_condition_is_use() {
-    // Python test_while_condition_is_use: the phi-merged version of `i` is read
-    // by the `while {$i < 10}` condition ⇒ a TERMINATOR use exists.
+    // The phi-merged version of `i` is read by the `while {$i < 10}` condition
+    // ⇒ a TERMINATOR use exists.
     let cu = build_cu("set i 0\nwhile {$i < 10} {incr i}");
     let fu = top_fu(&cu);
     let has_terminator = reaching_defs(fu, "i")
@@ -266,8 +257,8 @@ fn def_use_while_condition_is_use() {
 
 #[test]
 fn def_use_loop_phi() {
-    // Python test_loop_phi: `set i 0\nwhile {$i < 10} {incr i}` has ≥2 defs of i
-    // (the initial store + the loop phi + the incr). tclsh: loop ends with i==10.
+    // `set i 0\nwhile {$i < 10} {incr i}` has ≥2 defs of i (the initial store +
+    // the loop phi + the incr). tclsh: loop ends with i==10.
     let cu = build_cu("set i 0\nwhile {$i < 10} {incr i}");
     let fu = top_fu(&cu);
     assert!(
@@ -281,9 +272,9 @@ fn def_use_loop_phi() {
 
 #[test]
 fn def_use_proc_parameters() {
-    // Python test_proc_parameters: in `proc foo {x y} { set z [expr {$x + $y}]
-    // return $z }`, params x and y are version-0 chains each read exactly once
-    // (in the `$x + $y` expr). tclsh: foo 3 4 ⇒ 7 (each param read once).
+    // In `proc foo {x y} { set z [expr {$x + $y}] return $z }`, params x and y
+    // are version-0 chains each read exactly once (in the `$x + $y` expr).
+    // tclsh: foo 3 4 ⇒ 7 (each param read once).
     let cu = build_cu("proc foo {x y} { set z [expr {$x + $y}]\n return $z }");
     let fu = proc_fu(&cu, "::foo");
     assert_eq!(fu.def_use.uses_of("x", 0).len(), 1);
@@ -303,8 +294,8 @@ fn def_use_proc_parameters() {
 
 #[test]
 fn def_use_is_dead_method() {
-    // Python test_is_dead_method: `set x 1\nset y $x` — x read (not dead), y
-    // never read (dead). Uses the `DefUseResult::is_dead(name, version)` method.
+    // `set x 1\nset y $x` — x read (not dead), y never read (dead). Uses the
+    // `DefUseResult::is_dead(name, version)` method.
     let cu = build_cu("set x 1\nset y $x");
     let fu = top_fu(&cu);
     assert!(!fu.def_use.is_dead("x", 1));
@@ -313,8 +304,7 @@ fn def_use_is_dead_method() {
 
 #[test]
 fn def_use_is_dead_nonexistent_key() {
-    // Python test_is_dead_nonexistent_key: a missing key is reported dead (the
-    // `is_none_or(is_dead)` contract).
+    // A missing key is reported dead (the `is_none_or(is_dead)` contract).
     let cu = build_cu("set x 1");
     let fu = top_fu(&cu);
     assert!(fu.def_use.is_dead("nonexistent", 99));
@@ -322,7 +312,7 @@ fn def_use_is_dead_nonexistent_key() {
 
 #[test]
 fn def_use_chain_for_returns_none() {
-    // Python test_chain_for_returns_none: a missing key yields None.
+    // A missing key yields None.
     let cu = build_cu("set x 1");
     let fu = top_fu(&cu);
     assert!(chain(fu, "nonexistent", 99).is_none());
@@ -330,8 +320,8 @@ fn def_use_chain_for_returns_none() {
 
 #[test]
 fn def_use_has_phi_use() {
-    // Python test_has_phi_use: with `a` read after the merge, at least one branch
-    // def has a phi use (`DefUseChain::has_phi_use`).
+    // With `a` read after the merge, at least one branch def has a phi use
+    // (`DefUseChain::has_phi_use`).
     let cu = build_cu("if {$cond} {set a 1} else {set a 2}\nputs $a");
     let fu = top_fu(&cu);
     let has_phi = reaching_defs(fu, "a")
@@ -345,8 +335,8 @@ fn def_use_has_phi_use() {
 
 #[test]
 fn def_use_if_inside_while() {
-    // Python test_if_inside_while: nested if-in-while gives ≥2 defs of i (init +
-    // loop phi) and ≥2 defs of x (the two branch stores).
+    // Nested if-in-while gives ≥2 defs of i (init + loop phi) and ≥2 defs of x
+    // (the two branch stores).
     let cu =
         build_cu("set i 0\nwhile {$i < 10} {\nif {$i > 5} {set x 1} else {set x 2}\nincr i\n}");
     let fu = top_fu(&cu);
@@ -356,8 +346,8 @@ fn def_use_if_inside_while() {
 
 #[test]
 fn def_use_foreach_loop() {
-    // Python test_foreach_loop: `foreach item {a b c} { set result $item }` has
-    // ≥1 def of the loop variable `item`. tclsh: after the loop item == c.
+    // `foreach item {a b c} { set result $item }` has ≥1 def of the loop
+    // variable `item`. tclsh: after the loop item == c.
     let cu = build_cu("foreach item {a b c} { set result $item }");
     let fu = top_fu(&cu);
     assert!(!reaching_defs(fu, "item").is_empty());
@@ -371,7 +361,7 @@ fn def_use_foreach_loop() {
 
 #[test]
 fn dataflow_simple_linear() {
-    // Python test_simple_linear: ≥1 function, ≥2 defs, ≥1 use.
+    // ≥1 function, ≥2 defs, ≥1 use.
     let g = graph_for("set x 1\nset y [expr {$x + 1}]");
     assert!(!g.functions.is_empty());
     assert!(g.total_defs() >= 2);
@@ -380,9 +370,8 @@ fn dataflow_simple_linear() {
 
 #[test]
 fn dataflow_dead_definition_detected() {
-    // Python test_dead_definition_detected: the never-read `unused` is a dead
-    // node. tclsh: `set unused 42` alone produces no observable effect — the
-    // value is never read.
+    // The never-read `unused` is a dead node. tclsh: `set unused 42` alone
+    // produces no observable effect — the value is never read.
     let g = graph_for("set unused 42");
     let top = &g.functions[0];
     let dead_vars: Vec<&str> = top
@@ -396,16 +385,16 @@ fn dataflow_dead_definition_detected() {
 
 #[test]
 fn dataflow_proc_extraction() {
-    // Python test_proc_extraction: top + ::foo ⇒ ≥2 functions.
+    // top + ::foo ⇒ ≥2 functions.
     let g = graph_for("proc foo {x} { return $x }\nset r [foo 42]");
     assert!(g.functions.len() >= 2);
 }
 
 #[test]
 fn dataflow_alias_detection() {
-    // Python test_alias_detection: `proc bar {} { global gvar\n set gvar 42 }`
-    // registers a `gvar` alias (the global binding). The Rust memory-SSA places
-    // the local name `gvar` and the Global location `gvar` in one alias set.
+    // `proc bar {} { global gvar\n set gvar 42 }` registers a `gvar` alias (the
+    // global binding). Memory-SSA places the local name `gvar` and the Global
+    // location `gvar` in one alias set.
     let g = graph_for("proc bar {} { global gvar\n set gvar 42 }");
     let bar = g
         .functions
@@ -421,8 +410,8 @@ fn dataflow_alias_detection() {
 
 #[test]
 fn dataflow_phi_edges() {
-    // Python test_phi_edges: if/else both writing `a`, read after via `set b $a`
-    // ⇒ ≥2 PHI edges (one per branch feeding the phi).
+    // If/else both writing `a`, read after via `set b $a` ⇒ ≥2 PHI edges (one
+    // per branch feeding the phi).
     let g = graph_for("if {$cond} {set a 1} else {set a 2}\nset b $a");
     let top = &g.functions[0];
     let phi_edges = top
@@ -437,8 +426,7 @@ fn dataflow_phi_edges() {
 
 #[test]
 fn dataflow_alias_info_present() {
-    // Python test_alias_info_present: the bar alias carries non-empty local/
-    // target kinds.
+    // The bar alias carries non-empty local/target kinds.
     let g = graph_for("proc bar {} { global gvar\n set gvar 42 }");
     let bar = g
         .functions
@@ -453,23 +441,23 @@ fn dataflow_alias_info_present() {
 
 #[test]
 fn dataflow_total_aliases_property() {
-    // Python test_total_aliases_property: ≥1 alias across the module.
+    // ≥1 alias across the module.
     let g = graph_for("proc bar {} { global gvar\n set gvar 42 }");
     assert!(g.total_aliases() >= 1);
 }
 
 #[test]
 fn dataflow_multi_proc_module() {
-    // Python test_multi_proc_module: top + foo + bar ⇒ ≥3 functions.
+    // top + foo + bar ⇒ ≥3 functions.
     let g = graph_for("proc foo {x} { return $x }\nproc bar {y} { return $y }");
     assert!(g.functions.len() >= 3);
 }
 
 #[test]
 fn dataflow_extract_function_dataflow_directly() {
-    // Python test_extract_function_dataflow_directly: build SSA + analysis for a
-    // single function and call `extract_function_dataflow("::top", …)` — the
-    // resulting graph is named `::top` with ≥2 defs (x, y).
+    // Build SSA + analysis for a single function and call
+    // `extract_function_dataflow("::top", …)` — the resulting graph is named
+    // `::top` with ≥2 defs (x, y).
     let cu = build_cu("set x 1\nset y $x");
     let fu = top_fu(&cu);
     let fg = extract_function_dataflow(
@@ -486,28 +474,26 @@ fn dataflow_extract_function_dataflow_directly() {
 
 #[test]
 fn dataflow_prebuilt_cu() {
-    // Python test_prebuilt_cu: passing a pre-built compilation unit to
-    // `extract_dataflow_graph` yields the same ≥2 defs. The Rust API *only*
-    // consumes pre-built per-function inputs, so this is the same path as
-    // `build_graph` but spelled out: reuse one `CompilationUnit`.
+    // Passing a pre-built compilation unit to `extract_dataflow_graph` yields
+    // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
+    // so this is the same path as `build_graph` but spelled out: reuse one
+    // `CompilationUnit`.
     let cu = build_cu("set x 1\nset y $x").with_memory_ssa();
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }
 
-// -- TestDataFlowGraphSerialisation (extraction-shape analogues) --
+// -- Graph-shape invariants --
 //
-// The Python suite's `dataflow_graph_to_dict` / `dataflow_graph_to_mermaid` /
-// `_sanitise_mermaid_id` are presentation-layer helpers that have NO equivalent
-// in the Rust `dataflow_graph` module (the Rust `DataFlowGraph` is the
-// structural value; JSON/mermaid rendering lives in separate tooling). So the
-// node/edge *shape* invariants those Python tests check are asserted here
-// directly against the structural graph instead.
+// Rendering helpers (JSON / mermaid serialisation) live in separate tooling,
+// not the `dataflow_graph` module — `DataFlowGraph` is the structural value.
+// So the node/edge *shape* invariants are asserted here directly against the
+// structural graph.
 
 #[test]
 fn dataflow_graph_has_nodes_and_edges() {
-    // Python test_to_dict_has_nodes_and_edges: ≥2 nodes, ≥1 edge, and each node
-    // exposes a name + version (the Rust `DataFlowNode.name` / `.version`).
+    // ≥2 nodes, ≥1 edge, and each node exposes a name + version
+    // (`DataFlowNode.name` / `.version`).
     let g = graph_for("set x 1\nset y [expr {$x + 1}]");
     let func = &g.functions[0];
     assert!(func.nodes.len() >= 2);
@@ -519,21 +505,21 @@ fn dataflow_graph_has_nodes_and_edges() {
 
 #[test]
 fn dataflow_empty_source() {
-    // Python test_empty_source: empty input ⇒ exactly one function (the top
-    // level) with zero defs. (Python reports functionCount == 1; the Rust
-    // module aggregator emits one `::top` function for an empty unit.)
+    // Empty input ⇒ exactly one function (the top level) with zero defs. The
+    // module aggregator emits one `::top` function for an empty unit.
     let g = graph_for("");
     assert_eq!(g.functions.len(), 1);
     assert_eq!(g.total_defs(), 0);
 }
 
 // ===========================================================================
-// test_dce.py  →  dead_stores::liveness_dead_stores  +  DefUseChain::is_dead
+// dead_stores::liveness_dead_stores  +  DefUseChain::is_dead
 //
-// See the module-level note: the Rust liveness pass answers "is the value
-// unread", the Python `dce_module` answers "is the assignment deletable". The
-// shared, tclsh-anchored invariants (globals/side-effects kept) hold in both;
-// the terminal/multi-write/param divergences are noted at each site.
+// See the module-level note: the liveness pass answers "is the value unread",
+// which is the prerequisite to deletability, not deletability itself. The
+// tclsh-anchored invariants (globals/side-effects kept) hold directly; the
+// terminal/multi-write/param cases where liveness flags a store a deletion pass
+// would keep are noted at each site.
 // ===========================================================================
 
 /// Variable names `liveness_dead_stores` flags as dead stores in `qname`.
@@ -546,38 +532,36 @@ fn dead_store_vars(source: &str, qname: &str) -> Vec<String> {
         .collect()
 }
 
-// -- shared invariants that match Python dce_module exactly --
+// -- invariants where liveness and deletability coincide --
 
 #[test]
 fn dce_unused_literal_store_is_dead() {
-    // Python test_unused_literal_store_removed: `set tmp 5` is never read, so it
-    // is a pure dead store. Rust's liveness pass flags `tmp` (and, being a pure
-    // literal store of a proc-local, it is also safely droppable — the case
-    // where the two analyses agree). tclsh: `set tmp 5; puts hi` ⇒ prints `hi`;
-    // the 5 is never observed.
+    // `set tmp 5` is never read, so it is a pure dead store. The liveness pass
+    // flags `tmp` (and, being a pure literal store of a proc-local, it is also
+    // safely droppable — the case where liveness and deletability agree). tclsh:
+    // `set tmp 5; puts hi` ⇒ prints `hi`; the 5 is never observed.
     let dead = dead_store_vars("proc f {} {\n  set tmp 5\n  puts \"hi\"\n}\n", "::f");
     assert!(dead.contains(&"tmp".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_used_var_not_dead() {
-    // Python test_used_var_kept: `set x 5; puts $x` — x is read, so it is NOT a
-    // dead store in either pass.
+    // `set x 5; puts $x` — x is read, so it is NOT a dead store.
     let dead = dead_store_vars("proc f {} {\n  set x 5\n  puts $x\n}\n", "::f");
     assert!(!dead.contains(&"x".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_var_used_in_braced_substitution_not_dead() {
-    // Python test_var_used_in_braced_substitution_kept: `${x}` form keeps x
-    // alive. The braced var-ref is a read, so x has a use and is not dead.
+    // `${x}` form keeps x alive. The braced var-ref is a read, so x has a use
+    // and is not dead.
     let dead = dead_store_vars("proc f {} {\n  set x 5\n  puts \"value=${x}\"\n}\n", "::f");
     assert!(!dead.contains(&"x".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_var_used_in_expr_not_dead() {
-    // Python test_var_used_in_expr_kept: `expr {$x + 1}` reads x ⇒ kept.
+    // `expr {$x + 1}` reads x ⇒ kept.
     let dead = dead_store_vars(
         "proc f {} {\n  set x 5\n  set y [expr {$x + 1}]\n  puts $y\n}\n",
         "::f",
@@ -587,10 +571,9 @@ fn dce_var_used_in_expr_not_dead() {
 
 #[test]
 fn dce_global_write_not_a_dead_store() {
-    // Python test_global_write_kept: writing `::result` is observable from
-    // outside the proc, so it must NOT be a removable dead store. Rust's
-    // liveness pass suppresses globals (ns != LOCAL_NS) and does not flag it —
-    // the analyses agree here, and the reason is a Tcl semantic fact.
+    // Writing `::result` is observable from outside the proc, so it must NOT be
+    // a removable dead store. The liveness pass suppresses globals (ns !=
+    // LOCAL_NS) and does not flag it — the reason is a Tcl semantic fact.
     // tclsh: `proc f {} { set ::result hello }; f; puts $::result` ⇒ `hello`.
     let dead = dead_store_vars("proc f {} {\n  set ::result \"hello\"\n}\n", "::f");
     assert!(
@@ -601,12 +584,11 @@ fn dce_global_write_not_a_dead_store() {
 
 #[test]
 fn dce_command_subst_rhs_not_a_dead_store() {
-    // Python TestSideEffects::test_iassign_value_with_command_subst_kept:
     // `set tmp [info commands]` — tmp is unread but the RHS has observable side
-    // effects, so the store must stay. Rust's dead_stores filter explicitly
+    // effects, so the store must stay. The dead_stores filter explicitly
     // excludes an `AssignValue` whose value contains `[` (a command subst), so
-    // `tmp` is NOT flagged — matching Python. tclsh: `set tmp [info commands]`
-    // runs `info commands` regardless of whether tmp is later read.
+    // `tmp` is NOT flagged. tclsh: `set tmp [info commands]` runs `info commands`
+    // regardless of whether tmp is later read.
     let dead = dead_store_vars(
         "proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n",
         "::f",
@@ -619,27 +601,24 @@ fn dce_command_subst_rhs_not_a_dead_store() {
 
 #[test]
 fn dce_pure_literal_assign_still_dead() {
-    // Python TestSideEffects::test_pure_literal_assign_still_removed: a plain
-    // `set tmp 5` (no RHS side effect) is still a dead store — the sanity check
-    // that the side-effect gate didn't go too wide.
+    // A plain `set tmp 5` (no RHS side effect) is still a dead store — the
+    // sanity check that the side-effect gate didn't go too wide.
     let dead = dead_store_vars("proc f {} {\n  set tmp 5\n  puts ok\n}\n", "::f");
     assert!(dead.contains(&"tmp".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_non_terminal_dead_set_still_dead() {
-    // Python TestImplicitReturn::test_non_terminal_dead_set_still_removed: in
-    // `proc p {} { set tmp 5; set y 42 }`, the earlier `set tmp 5` is a dead
-    // store. Rust flags `tmp`. (Rust ALSO flags `y` — see the divergence note in
-    // `dce_terminal_set_is_unread_but_implicit_return` — but the Python-shared
-    // invariant is that the non-terminal `tmp` is dead, which holds.)
+    // In `proc p {} { set tmp 5; set y 42 }`, the earlier `set tmp 5` is a dead
+    // store; the liveness pass flags `tmp`. (It ALSO flags `y` — see the note in
+    // `dce_terminal_set_is_unread_but_implicit_return` — but the invariant here
+    // is that the non-terminal `tmp` is dead, which holds.)
     let dead = dead_store_vars("proc p {} {\n  set tmp 5\n  set y 42\n}\n", "::p");
     assert!(dead.contains(&"tmp".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_dead_store_inside_if_clause() {
-    // Python TestNestedRecursion::test_dead_store_inside_if_clause_removed:
     // `if {1} { set y 42 }` with y unread — the liveness pass sees into the
     // branch body and flags `y`. tclsh: `if {1} { set y 42 }; puts ok` ⇒ `ok`;
     // the 42 is never read.
@@ -649,8 +628,7 @@ fn dce_dead_store_inside_if_clause() {
 
 #[test]
 fn dce_dead_store_inside_for_body() {
-    // Python test_dead_store_inside_for_body_removed: a dead `set y 42` inside a
-    // `for` body is flagged.
+    // A dead `set y 42` inside a `for` body is flagged.
     let dead = dead_store_vars(
         "proc f {} {\n  for {set i 0} {$i < 3} {incr i} { set y 42 }\n  puts ok\n}\n",
         "::f",
@@ -660,16 +638,15 @@ fn dce_dead_store_inside_for_body() {
 
 #[test]
 fn dce_used_var_inside_nested_if_not_dead() {
-    // Python test_used_var_inside_nested_if_kept: `set y 42` inside an if AND
-    // `puts $y` outside — y has a read, so it is not a dead store.
+    // `set y 42` inside an if AND `puts $y` outside — y has a read, so it is not
+    // a dead store.
     let dead = dead_store_vars("proc f {} {\n  if {1} { set y 42 }\n  puts $y\n}\n", "::f");
     assert!(!dead.contains(&"y".to_string()), "dead: {dead:?}");
 }
 
 #[test]
 fn dce_no_dead_stores_when_none() {
-    // Python TestPurity::test_no_change_when_no_dead_stores: a body with no dead
-    // store yields an empty dead-store set.
+    // A body with no dead store yields an empty dead-store set.
     let dead = dead_store_vars("proc f {} { puts \"hi\" }\n", "::f");
     assert!(dead.is_empty(), "expected no dead stores, got {dead:?}");
 }
@@ -686,22 +663,20 @@ fn dce_top_level_unused_is_dead() {
     assert!(dead.contains(&"unused".to_string()), "dead: {dead:?}");
 }
 
-// -- divergence-documenting tests (Rust liveness ≠ Python dce_module gate) --
+// -- tests where liveness flags a store a deletion pass would keep --
 
 #[test]
 fn dce_terminal_set_is_unread_but_implicit_return() {
-    // DIVERGENCE (different question, NOT a bug). Python
-    // TestImplicitReturn::test_terminal_set_kept_as_implicit_return KEEPS
-    // `set y 42` in `proc p {} { set y 42 }` because it is the proc's implicit
-    // return value (deleting it changes the returned value). Rust's
+    // A store a deletion pass must keep, yet liveness reports unread (NOT a
+    // bug). `set y 42` in `proc p {} { set y 42 }` is the proc's implicit return
+    // value, so deleting it changes the returned value and must be kept.
     // `liveness_dead_stores` answers the *liveness* question — `y`'s SSA value is
-    // never read by another statement — and so reports it dead. Both are
-    // internally correct: the value IS unread, AND deleting the store WOULD be
-    // unsound. This test pins Rust's actual (liveness) verdict and documents the
-    // gap. tclsh PROVES the return semantics: `proc p {} { set y 42 }; puts [p]`
-    // ⇒ `42` (set returns the stored value; it is the proc's result), so a
-    // *deletion* pass must keep it — `liveness_dead_stores` is a detector, not a
-    // rewriter, hence the safe divergence.
+    // never read by another statement — and so reports it dead. Both facts are
+    // correct: the value IS unread, AND deleting the store WOULD be unsound. This
+    // test pins the liveness verdict and documents the gap. tclsh PROVES the
+    // return semantics: `proc p {} { set y 42 }; puts [p]` ⇒ `42` (set returns
+    // the stored value; it is the proc's result), so a *deletion* pass must keep
+    // it — `liveness_dead_stores` is a detector, not a rewriter.
     let dead = dead_store_vars("proc p {} { set y 42 }\n", "::p");
     assert!(
         dead.contains(&"y".to_string()),
@@ -711,12 +686,12 @@ fn dce_terminal_set_is_unread_but_implicit_return() {
 
 #[test]
 fn dce_multiple_writes_both_unread_are_dead() {
-    // DIVERGENCE (different question, NOT a bug). Python
-    // test_multiple_writes_kept KEEPS both `set tmp 5` and `set tmp 6` because
-    // its "only write" gate declines multi-write variables. Rust's liveness pass
-    // flags BOTH (`tmp#1` is overwritten before any read; `tmp#2` is never
-    // read), which is the correct *liveness* verdict. tclsh: `set tmp 5; set tmp
-    // 6; puts hi` ⇒ `hi`; neither 5 nor 6 is ever observed.
+    // A store a deletion pass would keep, yet liveness reports unread (NOT a
+    // bug). A deletability "only write" gate declines multi-write variables and
+    // would keep both `set tmp 5` and `set tmp 6`. The liveness pass flags BOTH
+    // (`tmp#1` is overwritten before any read; `tmp#2` is never read), which is
+    // the correct *liveness* verdict. tclsh: `set tmp 5; set tmp 6; puts hi` ⇒
+    // `hi`; neither 5 nor 6 is ever observed.
     let dead = dead_store_vars(
         "proc f {} {\n  set tmp 5\n  set tmp 6\n  puts \"hi\"\n}\n",
         "::f",

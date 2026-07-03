@@ -82,8 +82,7 @@ impl OptimisationProfile {
     }
 
     /// The maximum optimiser passes for this profile: 5 for the multi-pass
-    /// `aggressive` tier, 1 for every single-pass profile. Mirrors the Python
-    /// `profile_spec(...).max_iterations`.
+    /// `aggressive` tier, 1 for every single-pass profile.
     #[must_use]
     pub fn max_iterations(self) -> usize {
         if self.is_multi_pass() { 5 } else { 1 }

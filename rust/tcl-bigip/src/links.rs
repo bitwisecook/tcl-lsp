@@ -5,10 +5,9 @@
 //! migrated TMSH property value that resolves to another object
 //! (`pool /Common/p`, `monitor /Common/m`,
 //! `profiles { /Common/clientssl { } }`), becomes a clickable link pointing
-//! at the target object's stanza in the same file. Mirrors Python
-//! `server/features/_bigip_links.py`.
+//! at the target object's stanza in the same file.
 //!
-//! Two engines, matching Python exactly:
+//! Two engines:
 //!
 //! - **iRule bodies** ([`extract_irules_object_references`]) — always emit a
 //!   link; the target is `None` when the reference doesn't resolve so the
@@ -19,8 +18,7 @@
 //!   reference resolves, pointing at the exact reference token.
 //!
 //! Single-file resolution: targets resolve within the open document only.
-//! Cross-file links (Python's `workspace_configs`) await a workspace config
-//! index in the Rust LSP.
+//! Cross-file links await a workspace config index in the LSP.
 
 use tcl_irules::extract_irules_object_references;
 use tcl_lexer::LineIndex;
@@ -105,7 +103,7 @@ fn irule_links(
             let abs_start = body_base + r.range.start() as usize;
             let abs_end = body_base + r.range.end() as usize;
             // First kind that resolves wins; `None` → unresolved (link still
-            // emitted with no target, matching Python).
+            // emitted with no target).
             let target_line = r.kinds.iter().find_map(|kind| {
                 resolve_kind_in_configs(kind, &r.name, configs, None, reg).map(|(_, rk)| rk.0)
             });

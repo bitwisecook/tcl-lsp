@@ -14,7 +14,7 @@ use tcl_compiler::analyser::ProcDef;
 use super::config::DocstringTagStyle;
 
 /// Characters that make up a decoration-only rule line (`# ......`), skipped
-/// when parsing description text. Mirrors Python `shared.docstrings`.
+/// when parsing description text.
 const DECORATION_CHARS: &str = ".-=*~#";
 
 /// Documentation for a single parameter.
@@ -41,7 +41,7 @@ pub struct DocstringInfo {
 
 impl DocstringInfo {
     /// Serialise to the JSON-friendly shape the AI tools consume — keys are
-    /// omitted when empty, matching Python `DocstringInfo.to_dict`.
+    /// omitted when empty.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
@@ -67,7 +67,7 @@ impl DocstringInfo {
 }
 
 /// Resolve a tag-style string to the enum (case-insensitive); anything other
-/// than `"plain"` maps to Doxygen. Mirrors Python `resolve_tag_style`.
+/// than `"plain"` maps to Doxygen.
 #[must_use]
 pub fn resolve_tag_style(style: &str) -> DocstringTagStyle {
     if style.eq_ignore_ascii_case("plain") {
@@ -137,7 +137,6 @@ pub fn parse_docstring(text: &str) -> DocstringInfo {
 }
 
 /// Render a [`DocstringInfo`] as a Tcl comment block (no trailing newline).
-/// Mirrors Python `render_comment_block`.
 #[must_use]
 pub fn render_comment_block(
     info: &DocstringInfo,
@@ -228,7 +227,7 @@ fn stub_param_doc(name: &str, has_default: bool, default_value: Option<&str>) ->
 }
 
 /// Generate a docstring stub from a [`ProcDef`], extracting parameter names and
-/// defaults from the signature. Mirrors Python `generate_stub_for_proc`.
+/// defaults from the signature.
 #[must_use]
 pub fn generate_stub_for_proc(
     proc_def: &ProcDef,

@@ -1,16 +1,16 @@
-//! Differential parity for `resolve_kind_in_configs` (the graph's name-
-//! resolution layer) against `object_registry.resolve_kind_in_configs`.
+//! Differential tests for `resolve_kind_in_configs` (the graph's name-
+//! resolution layer).
 //!
 //! Resolves a broad set of `(kind, reference, preferred_module)` probes over a
-//! representative `bigip.conf` and asserts each resolves to the same source span
-//! (or miss) as the reference. Self-contained — no external oracle at test time.
+//! representative `bigip.conf` and asserts each resolves to the expected source
+//! span (or miss). Self-contained — no external fixture generator at test time.
 
 use tcl_bigip::graph::resolve_kind_in_configs;
 use tcl_bigip::parser::parse_bigip_conf;
 use tcl_registry::BigipRegistry;
 
 #[test]
-fn resolve_kind_matches_python() {
+fn resolve_kind() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
     let golden = std::fs::read_to_string(format!("{dir}/resolve_kind.golden.tsv")).expect("golden");

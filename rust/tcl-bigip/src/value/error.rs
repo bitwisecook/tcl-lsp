@@ -2,7 +2,7 @@
 //! raised by the `parse` classmethods on the typed value dataclasses.
 //!
 //! The message text is kept stable where practical so
-//! differential-parity comparisons line up.
+//! differential comparisons line up.
 
 use std::fmt;
 

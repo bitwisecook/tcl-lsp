@@ -1,6 +1,6 @@
-//! Port of `tests/test_semantic_tokens.py` — the LSP semantic-tokens provider.
+//! Tests for the LSP semantic-tokens provider.
 //! Verifies `semantic_tokens::full` classifies source spans (function/keyword/
-//! variable/number/string/comment) the way the Python provider did.
+//! variable/number/string/comment) correctly.
 //!
 //! C-Tcl proof: the classification mirrors Tcl's parse — `puts`/`set`/`proc`/
 //! `if` are real commands (`info commands`), `$y` is a variable, `42` is a
@@ -18,8 +18,7 @@ struct Tok {
 }
 
 /// Decode the LSP delta-encoded token stream into absolute (line, char,
-/// length, type-name) tuples — the Rust counterpart of the Python
-/// `_decode_tokens`.
+/// length, type-name) tuples.
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
     let registry = registry_for_dialect(dialect);
     let st = full(source, dialect, registry);

@@ -1,4 +1,4 @@
-//! Integration port of `tests/test_tcl_expr_eval.py` (~331 pytest cases).
+//! Constant-folder integration tests over parsed `[expr]` bodies.
 //!
 //! These exercise the compiler's **compile-time constant folder** — the
 //! [`eval_tcl_expr`] tree-walk over a parsed `[expr]` body
@@ -13,25 +13,23 @@
 //! `src/tcl_expr_eval.rs`, and reuses the same `eval_str` / `eval_str_env` /
 //! `eval_irules` / `eval_irules_env` helper shape.
 //!
-//! Port notes (Python expectation adapted because Rust + tclsh prove the
-//! adaptation correct, not because the Python was wrong about C Tcl):
+//! Notes on deliberate folder behaviours worth calling out:
 //!
 //! * **`i64`-width folder.** The const-folder's value is `i64`/`f64`; a magnitude
 //!   past a wide is a Tcl `Big`, which "can't fold" → `None` (documented in the
 //!   module: "a value past a wide … callers fall through to the runtime form").
 //!   So `10 ** 19` (= 10000000000000000000 in tclsh, but > `i64::MAX`) folds to
-//!   `None` here, whereas Python's arbitrary-precision ints returned the bignum.
+//!   `None` here and the runtime form takes over.
 //!   `10 ** 18` (≤ `i64::MAX`) still folds. See
 //!   [`exponentiation_big_results_past_wide_decline_to_fold`].
-//! * **Dialect-aware leading zero.** Python drove the 8.x-vs-9.0 octal rule via a
-//!   `dialect_scope` context manager; the Rust equivalent is the explicit
-//!   [`eval_tcl_expr_in_dialect`] entry point. A bare leading-zero operand under
-//!   an *unknown* dialect is deliberately declined (`None`) rather than guessed.
-//! * **`format_tcl_value`** takes a `TclValue`, so the Python free-float cases
-//!   (`format_tcl_value(3.14)`) become `format_tcl_value(TclValue::Float(3.14))`.
+//! * **Dialect-aware leading zero.** The 8.x-vs-9.0 octal rule is resolved via
+//!   the explicit [`eval_tcl_expr_in_dialect`] entry point. A bare leading-zero
+//!   operand under an *unknown* dialect is deliberately declined (`None`) rather
+//!   than guessed.
+//! * **`format_tcl_value`** takes a `TclValue`, so free-float cases are written
+//!   `format_tcl_value(TclValue::Float(3.14))`.
 //!
-//! No test is `#[ignore]`d and no Python expectation was dropped as a Rust bug:
-//! every const-fold result here matches tclsh.
+//! No test is `#[ignore]`d; every const-fold result here matches tclsh.
 
 // Decimal literals such as `3.14` / `6.28` are the values Tcl yields for those
 // expression *strings*, not the math constants PI / TAU — `approx_constant`
@@ -81,8 +79,8 @@ fn float(f: f64) -> TclValue {
     TclValue::Float(f)
 }
 
-/// Bind a string variable (the only `EnvValue` Python's `{"a": "5"}` maps to
-/// for the iRules string-op cases and the auto-coercion tests).
+/// Bind a string variable (the only `EnvValue` the iRules string-op cases and
+/// the auto-coercion tests need).
 fn env_str(name: &str, value: &str) -> Env {
     let mut env = Env::new();
     env.insert(name.to_owned(), EnvValue::Str(value.to_owned()));
@@ -90,7 +88,7 @@ fn env_str(name: &str, value: &str) -> Env {
 }
 
 // =========================================================================
-// Literals  (Python: TestLiterals, TestTcl9NumberFormats, TestTcl9BoolLiterals)
+// Literals
 // =========================================================================
 
 #[test]
@@ -127,8 +125,7 @@ fn literal_boolean_words_fold_to_0_or_1() {
 }
 
 // =========================================================================
-// Arithmetic  (Python: TestArithmetic, TestTcl9ArithmeticExtended,
-//              TestTcl9TypeConversions)
+// Arithmetic
 // =========================================================================
 
 #[test]
@@ -200,7 +197,7 @@ fn division_and_modulo_by_zero_decline() {
 }
 
 // =========================================================================
-// Exponentiation  (Python: TestExponentiation, TestTcl9Exponentiation)
+// Exponentiation
 // =========================================================================
 
 #[test]
@@ -243,14 +240,14 @@ fn exponentiation_float_negative_exponent() {
 
 #[test]
 fn exponentiation_big_results_past_wide_decline_to_fold() {
-    // Ported with an i64-width adaptation. tclsh (bignum) gives:
+    // The folder is i64-width. tclsh (bignum) gives:
     //   10**17=100000000000000000   (≤ i64::MAX → folds)
     //   10**18=1000000000000000000  (≤ i64::MAX → folds)
     //   10**19=10000000000000000000 (> i64::MAX → a Tcl `Big`)
     // The const-folder's value is i64/f64, so a magnitude past a wide "can't
     // fold" → None (matching the documented "value past a wide" behaviour and
-    // the in-crate `overflow_returns_none` test). Python's arbitrary-precision
-    // ints returned the bignum; here the runtime form takes over instead.
+    // the in-crate `overflow_returns_none` test). Here the runtime form takes
+    // over instead.
     assert_eq!(eval_str("10 ** 17"), Some(int(100_000_000_000_000_000)));
     assert_eq!(eval_str("10 ** 18"), Some(int(1_000_000_000_000_000_000)));
     assert_eq!(eval_str("10 ** 19"), None); // 1e19 > i64::MAX → declined
@@ -267,7 +264,7 @@ fn exponentiation_huge_exponent_guard() {
 }
 
 // =========================================================================
-// Comparisons  (Python: TestComparisons, TestTcl9Comparisons)
+// Comparisons
 // =========================================================================
 
 #[test]
@@ -328,7 +325,7 @@ fn comparisons_word_eq_ne_on_numbers() {
 }
 
 // =========================================================================
-// Logical  (Python: TestLogical, TestTcl9Logical)
+// Logical
 // =========================================================================
 
 #[test]
@@ -367,7 +364,7 @@ fn logical_on_floats_and_chains() {
 }
 
 // =========================================================================
-// Bitwise & shifts  (Python: TestBitwise, TestTcl9Bitwise)
+// Bitwise & shifts
 // =========================================================================
 
 #[test]
@@ -415,7 +412,7 @@ fn bitwise_and_shift_require_integers() {
 }
 
 // =========================================================================
-// Ternary  (Python: TestTernary, TestTcl9TernaryExtended)
+// Ternary
 // =========================================================================
 
 #[test]
@@ -439,7 +436,7 @@ fn ternary_nested_and_with_operators() {
 }
 
 // =========================================================================
-// Unary  (Python: TestTcl9Unary)
+// Unary
 // =========================================================================
 
 #[test]
@@ -464,7 +461,7 @@ fn unary_logical_and_bitwise_not() {
 }
 
 // =========================================================================
-// Operator precedence  (Python: TestTcl9OperatorPrecedence)
+// Operator precedence
 // =========================================================================
 
 #[test]
@@ -526,8 +523,7 @@ fn parenthesised_and_complex_expressions() {
 }
 
 // =========================================================================
-// Math functions  (Python: TestMathFunctions, TestTcl9MathFunctionsExtended,
-//                  TestTcl9OptimiserFolding)
+// Math functions
 // =========================================================================
 
 #[test]
@@ -660,7 +656,7 @@ fn math_function_folding_combined_expressions() {
 }
 
 // =========================================================================
-// Variables  (Python: TestVariables)
+// Variables
 // =========================================================================
 
 #[test]
@@ -685,7 +681,7 @@ fn variable_resolution_and_coercion() {
 }
 
 // =========================================================================
-// Unevaluable  (Python: TestUnevaluable)
+// Unevaluable
 // =========================================================================
 
 #[test]
@@ -698,7 +694,7 @@ fn unevaluable_command_substitution_and_empty() {
 }
 
 // =========================================================================
-// format_tcl_value  (Python: TestFormatTclValue)
+// format_tcl_value
 // =========================================================================
 
 #[test]
@@ -740,7 +736,7 @@ fn format_tcl_value_specials_and_large() {
 }
 
 // =========================================================================
-// String comparison folding  (Python: TestStringComparisonFolding)
+// String comparison folding
 //   `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare operands AS STRINGS.
 // =========================================================================
 
@@ -774,7 +770,7 @@ fn word_eq_is_string_compare_not_numeric() {
 }
 
 // =========================================================================
-// Polymorphic equality folding  (Python: TestPolymorphicEqualityFolding)
+// Polymorphic equality folding
 //   `==`/`!=` are numeric when *both* operands are numbers, else string.
 // =========================================================================
 
@@ -834,8 +830,7 @@ fn polymorphic_equality_not_yet_folds_for_unbound_operand() {
 #[test]
 fn polymorphic_equality_leading_zero_is_dialect_aware() {
     // A bare leading-zero integer is octal in Tcl 8.x but decimal in 9.0
-    // (TIP 472); the fold follows the dialect (Python used `dialect_scope`,
-    // the Rust port uses `eval_tcl_expr_in_dialect`):
+    // (TIP 472); the fold follows the dialect (via `eval_tcl_expr_in_dialect`):
     //   tcl8.6: "08"=="8"=0 ("08" invalid octal→string), "010"=="10"=0
     //           (octal 8 ≠ 10), "010"=="8"=1 (octal 010 == 8).
     //   tcl9.0: "08"=="8"=1 (decimal), "010"=="10"=1 (decimal).
@@ -850,7 +845,7 @@ fn polymorphic_equality_leading_zero_is_dialect_aware() {
 }
 
 // =========================================================================
-// iRules `contains`  (Python: TestIRulesContains)
+// iRules `contains`
 // =========================================================================
 
 #[test]
@@ -882,7 +877,7 @@ fn irules_contains_with_variable() {
 }
 
 // =========================================================================
-// iRules `starts_with` / `ends_with`  (Python: TestIRulesStartsWith / EndsWith)
+// iRules `starts_with` / `ends_with`
 // =========================================================================
 
 #[test]
@@ -924,7 +919,7 @@ fn irules_ends_with() {
 }
 
 // =========================================================================
-// iRules `equals`  (Python: TestIRulesEquals)
+// iRules `equals`
 // =========================================================================
 
 #[test]
@@ -944,7 +939,7 @@ fn irules_equals() {
 }
 
 // =========================================================================
-// iRules `matches_glob`  (Python: TestIRulesMatchesGlob)
+// iRules `matches_glob`
 // =========================================================================
 
 #[test]
@@ -977,18 +972,17 @@ fn irules_matches_glob() {
 }
 
 // =========================================================================
-// iRules `matches_regex`  (Python: TestIRulesMatchesRegex)
+// iRules `matches_regex`
 //   Deliberately NEVER constant-folded (Rust `regex` != Tcl ARE) → always None.
 // =========================================================================
 
 #[test]
 fn irules_matches_regex_is_never_folded() {
-    // Python expected runtime regex *results* (1/0/None) here; the Rust folder
-    // instead defers ALL `matches_regex` to the runtime ARE engine (the Rust
+    // The folder defers ALL `matches_regex` to the runtime ARE engine (the Rust
     // `regex` crate's syntax/semantics differ from Tcl ARE), so every pattern —
-    // matching, non-matching, or invalid — folds to None. Adapted to the Rust
-    // contract; the in-crate `irules_matches_regex_is_not_folded` test is the
-    // canonical statement of this behaviour.
+    // matching, non-matching, or invalid — folds to None. The in-crate
+    // `irules_matches_regex_is_not_folded` test is the canonical statement of
+    // this behaviour.
     for expr in [
         r#""hello123" matches_regex "[a-z]+[0-9]+""#,
         r#""hello" matches_regex "^[0-9]+$""#,
@@ -1011,7 +1005,7 @@ fn irules_matches_regex_is_never_folded() {
 }
 
 // =========================================================================
-// iRules `in` / `ni`  (Python: TestIRulesIn / TestIRulesNi)
+// iRules `in` / `ni`
 // =========================================================================
 
 #[test]
@@ -1071,7 +1065,7 @@ fn irules_ni_negated_membership() {
 }
 
 // =========================================================================
-// iRules word logical (`and`/`or`/`not`)  (Python: TestIRulesWordLogical)
+// iRules word logical (`and`/`or`/`not`)
 // =========================================================================
 
 #[test]
@@ -1094,7 +1088,7 @@ fn irules_word_logical_short_circuits() {
 }
 
 // =========================================================================
-// iRules combined expressions  (Python: TestIRulesCombinedExpressions)
+// iRules combined expressions
 // =========================================================================
 
 #[test]

@@ -682,7 +682,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn memory_location_display_matches_python() {
+    fn memory_location_display() {
         let local = MemoryLocation::new(MemoryLocationKind::Local, "x");
         assert_eq!(local.display(), "x");
 

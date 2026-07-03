@@ -1836,7 +1836,7 @@ mod tests {
     }
 
     #[test]
-    fn pool_members_match_python() {
+    fn pool_members() {
         let cfg = config();
         let ModelObject::Pool(p) = find(&cfg, "pools", "/Common/web_pool") else {
             panic!("not a pool");
@@ -1885,7 +1885,7 @@ mod tests {
     }
 
     #[test]
-    fn snatpool_members_match_python() {
+    fn snatpool_members() {
         let cfg = config();
         let ModelObject::SnatPool(s) = find(&cfg, "snat_pools", "/Common/my_snatpool") else {
             panic!("not a snatpool");
@@ -1895,7 +1895,7 @@ mod tests {
     }
 
     #[test]
-    fn node_address_matches_python() {
+    fn node_address() {
         let cfg = config();
         let ModelObject::Node(n) = find(&cfg, "nodes", "/Common/web1") else {
             panic!("not a node");
@@ -1905,7 +1905,7 @@ mod tests {
     }
 
     #[test]
-    fn monitor_fields_match_python() {
+    fn monitor_fields() {
         let cfg = config();
         let ModelObject::Monitor(m) = find(&cfg, "monitors", "/Common/my_http_monitor") else {
             panic!("not a monitor");
@@ -1923,7 +1923,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_types_match_python() {
+    fn profile_types() {
         let cfg = config();
         let expect = [
             ("/Common/my_http_profile", ProfileType::Http, "", ""),
@@ -1948,7 +1948,7 @@ mod tests {
     }
 
     #[test]
-    fn persistence_fields_match_python() {
+    fn persistence_fields() {
         let cfg = config();
         let ModelObject::Persistence(c) = find(&cfg, "persistence", "/Common/my_cookie_persist")
         else {
@@ -1966,7 +1966,7 @@ mod tests {
     }
 
     #[test]
-    fn data_groups_match_python() {
+    fn data_groups() {
         let cfg = config();
         let expect: [(&str, &str, &[&str]); 4] = [
             (
@@ -2008,7 +2008,7 @@ mod tests {
     }
 
     #[test]
-    fn virtual_structured_fields_match_python() {
+    fn virtual_structured_fields() {
         let cfg = config();
         let ModelObject::VirtualServer(v) = find(&cfg, "virtual_servers", "/Common/www_vs") else {
             panic!("not a virtual");

@@ -47,7 +47,7 @@ const SECTIONS: &[(&str, &str)] = &[
 ];
 
 /// The sort rank of a section key (its index in [`SECTIONS`]); unknown keys
-/// sort last, matching the Python `section_idx.get(key, 999)`.
+/// sort last.
 fn section_rank(key: &str) -> usize {
     SECTIONS
         .iter()

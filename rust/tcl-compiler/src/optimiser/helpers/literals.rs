@@ -289,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn format_constant_matches_python() {
+    fn format_constant_rendering() {
         assert_eq!(
             format_constant(&ConstValue::Bool(true)).as_deref(),
             Some("1"),

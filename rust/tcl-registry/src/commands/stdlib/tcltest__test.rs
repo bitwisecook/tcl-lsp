@@ -3,8 +3,7 @@ use crate::prelude::*;
 
 /// Dynamic arg-role resolver for `tcltest::test`.
 ///
-/// Mirrors the Python `dialects/stdlib/tcltest.py::_test_arg_roles`. The
-/// command has two shapes whose script bodies must be recursed into:
+/// The command has two shapes whose script bodies must be recursed into:
 ///
 ///   * `test name description ?option value ...?` — the values of the
 ///     `-setup` / `-body` / `-cleanup` options are Tcl scripts.
@@ -12,8 +11,8 @@ use crate::prelude::*;
 ///     positional form, where the body is always the penultimate argument.
 ///
 /// Without these `Body` roles the analyser never descends into a `test`
-/// body, under-reporting every nested diagnostic relative to Python (real
-/// `*.test` suites are almost entirely composed of `test` blocks).
+/// body, under-reporting every nested diagnostic (real `*.test` suites are
+/// almost entirely composed of `test` blocks).
 fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     const BODY_OPTIONS: [&str; 3] = ["-setup", "-body", "-cleanup"];
     let mut roles: Vec<(u8, ArgRole)> = Vec::new();
@@ -21,8 +20,7 @@ fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     // Skip name (0) and description (1); scan option/value *pairs*, examining
     // only the option positions (step by 2). Advancing by 1 would let an option
     // whose value is literally `-body`/`-setup`/`-cleanup` (e.g. `-result -body`)
-    // be misread as an option and mark the following word as a body. Mirrors the
-    // Python `_test_arg_roles` (`i += 2`).
+    // be misread as an option and mark the following word as a body.
     let mut has_body_option = false;
     let mut i = 2usize;
     while i + 1 < n {

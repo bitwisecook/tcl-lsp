@@ -1,12 +1,11 @@
-//! Port of the Python `tests/test_checks.py` best-practice / security
-//! diagnostic-check suite.
+//! Best-practice / security diagnostic-check suite.
 //!
-//! Where `tests/test_analyser.py` (ported in `analyser_port.rs`) exercises the
+//! Where `analyser_port.rs` exercises the
 //! *semantic-model* surface plus the arity / read-before-set core, this suite
 //! drives the **compiler-checks** families: the style / injection / taint /
 //! IP-validation / iRules diagnostics (`W100`–`W126`, `W200`–`W313`,
-//! `IRULE2002`/`IRULE2003`/`IRULE3102`/`IRULE1002`, …). Each Python assertion
-//! that a diagnostic *fires* (or stays silent) maps to a Rust code firing /
+//! `IRULE2002`/`IRULE2003`/`IRULE3102`/`IRULE1002`, …). Each assertion
+//! that a diagnostic *fires* (or stays silent) checks a code firing /
 //! not firing through the same merged pipeline.
 //!
 //! ## Diagnostic surface
@@ -15,7 +14,7 @@
 //! `analyser_port.rs` template (itself copied from the in-crate harness
 //! `src/analyser/diagnostics/fp/mod.rs`): they merge the analyser pass with the
 //! `run_all_checks` compiler-checks pass and drop optimisation codes, exactly
-//! mirroring the user-facing `tcl diag` surface and Python `analyse(src).diagnostics`.
+//! mirroring the user-facing `tcl diag` surface.
 //! [`adiags`] returns `(code, message, severity, fixes)` from the analyser pass
 //! only, for the tests that pin a message substring, a severity, or a fix's
 //! `new_text` (every code those tests inspect is owned by the analyser pass).
@@ -41,29 +40,28 @@
 //! style `W201`, string-vs-list `W104`, `ReDoS` `W303`, credential-scan `W310`,
 //! …) are noted as such inline.
 //!
-//! ## Divergences from the Python suite
+//! ## Known divergences
 //!
-//! Several Python expectations target precision the Rust analyser +
-//! `run_all_checks` surface does not (yet) reproduce. Per the port brief, each
-//! is adapted to the **actual Rust verdict** with an explanatory comment (and,
-//! where Rust is provably wrong against tclsh, called out in the port report).
+//! Several expectations target precision the analyser +
+//! `run_all_checks` surface does not (yet) reproduce. Each
+//! is adapted to the **actual verdict** with an explanatory comment (and,
+//! where the analyser is provably wrong against tclsh, called out separately).
 //! The headline divergences:
 //! - `W104` fires on pure separators (`append msg ", "`) and usage notation
-//!   (`" ?opt?..."`) that Python suppresses — Rust's heuristic is coarser.
-//! - `W307` fires on `$cmd` iterating a `foreach` over *known* commands that
-//!   Python suppresses (no "known-command-list" provenance on this surface).
+//!   (`" ?opt?..."`) — the heuristic is coarse and does not suppress these.
+//! - `W307` fires on `$cmd` iterating a `foreach` over *known* commands
+//!   (no "known-command-list" provenance on this surface to suppress it).
 //! - `W210` no longer false-fires when a `catch {set x …}` body defines the
 //!   variable read in the surrounding `if` body (fixed: catch-body + branch-
 //!   condition out-var recovery).
 //! - `W210` now fires when a proc `unset`s (and never sets) a global later read
 //!   at top level, where tclsh errors `can't read` (fixed: `unset` excluded
 //!   from the proc global-write set).
-//! - `W308` is the *`TclOO` unknown-method* code in Rust; Python additionally
-//!   reused `W308` for a `subst`-without-`-nocommands` hint that has no Rust
-//!   analogue (those cases are out-of-surface; the `TclOO` `W308` cases are ported).
+//! - `W308` is the *`TclOO` unknown-method* code here; it does not cover the
+//!   `subst`-without-`-nocommands` hint (those cases are out-of-surface; the
+//!   `TclOO` `W308` cases are covered).
 //! - `W122` never fires on the single-document surface — the SSA-traced `W124`
-//!   supersedes it everywhere — so the IP tests assert "W122 or W124" exactly
-//!   like Python's `_ip_diags` helper.
+//!   supersedes it everywhere — so the IP tests assert "W122 or W124".
 //! - Per-event cross-`when` scoping, taint-pipeline-only `W201`/`W313`
 //!   internals, and a few message-format / fix-shape assertions are pinned to
 //!   the Rust shape (dead-store reported as `W220` "never read" rather than
@@ -82,8 +80,7 @@ const IR: &str = "f5-irules";
 /// Every diagnostic code the full pipeline surfaces for `src` under `dialect`,
 /// mirroring the user-facing `tcl diag` path: the analyser pass plus the
 /// `run_all_checks` compiler-checks pass (shimmer / taint / dead-store), with
-/// optimisation codes excluded exactly as `diag` excludes them. The Rust
-/// counterpart of Python `analyse(src).diagnostics`.
+/// optimisation codes excluded exactly as `diag` excludes them.
 ///
 /// Copied verbatim from `analyser_port.rs` (← `src/analyser/diagnostics/fp/mod.rs::codes`).
 fn codes(src: &str, dialect: &str) -> Vec<String> {
@@ -119,7 +116,7 @@ fn count(src: &str, dialect: &str, code: &str) -> usize {
 }
 
 /// Full `(code, message, severity, fix-new-texts)` tuples from the *analyser
-/// pass only* — used when a Python test pins a message substring, a severity,
+/// pass only* — used when a test pins a message substring, a severity,
 /// or a fix's `new_text`. Every code those tests inspect (W100–W126,
 /// W200–W313, IRULE*) is owned by the analyser pass.
 fn adiags(src: &str, dialect: &str) -> Vec<(String, String, Severity, Vec<String>)> {
@@ -413,10 +410,9 @@ mod open_pipeline {
 // space-separated string that looks like list construction; `lappend` is the
 // list-safe form.
 //
-// DIVERGENCE: the Rust heuristic is coarser than Python's. Python suppresses
-// pure separators (`", "` / `": "`) and usage notation (`" ?opt?..."`,
-// `" <value>"`); Rust fires on those too. Each case below is pinned to the
-// actual Rust verdict.
+// The heuristic is coarse: it does not suppress pure separators
+// (`", "` / `": "`) or usage notation (`" ?opt?..."`, `" <value>"`) — W104
+// fires on those too. Each case below is pinned to the actual verdict.
 // ===========================================================================
 mod string_list_confusion {
     use super::*;
@@ -446,9 +442,9 @@ mod string_list_confusion {
 
     #[test]
     fn pure_separator_and_usage_notation_fire_rust_behaviour() {
-        // DIVERGENCE: Python suppresses these (a separator joins a string; usage
-        // notation is display formatting). Rust's space-prefixed-value heuristic
-        // does not special-case them, so W104 fires. Pinned to the Rust verdict.
+        // These ideally would not flag (a separator joins a string; usage
+        // notation is display formatting), but the space-prefixed-value heuristic
+        // does not special-case them, so W104 fires. Pinned to the actual verdict.
         for src in [
             "append msg \", \"",
             "append msg \": \"",
@@ -908,12 +904,11 @@ mod literal_expected {
 
     #[test]
     fn concatenated_var_pattern_no_w306_rust_behaviour() {
-        // DIVERGENCE: Python flags `$pattern$suffix` (a multi-substitution
-        // concatenation) as W306. The Rust analyser only flags a *bracketed*
-        // command-substitution / quoted-live-`$var` pattern, not a bare
-        // var-concatenation, so W306 does NOT fire here. (The reads still
+        // The analyser only flags a *bracketed* command-substitution /
+        // quoted-live-`$var` pattern, not a bare var-concatenation like
+        // `$pattern$suffix`, so W306 does NOT fire here. (The reads still
         // surface W210 — `$pattern`/`$suffix`/`$text` are all unset.) Pinned to
-        // the Rust verdict; listed in the report.
+        // the actual verdict.
         assert!(!fires("regexp -- $pattern$suffix $text", D, "W306"));
     }
 
@@ -951,9 +946,9 @@ mod literal_expected {
 // dispatch (`$obj method`) and param-dispatcher idioms are recognised and
 // suppressed.
 //
-// DIVERGENCE: Python additionally suppresses `$cmd` in a `foreach` over a list
-// of *known* command names; that known-command-list provenance is absent on
-// this surface, so Rust fires W307 there (pinned below).
+// `$cmd` in a `foreach` over a list of *known* command names is not suppressed
+// here — that known-command-list provenance is absent on this surface, so W307
+// fires there (pinned below).
 // ===========================================================================
 mod non_literal_command {
     use super::*;
@@ -1002,8 +997,8 @@ mod non_literal_command {
 
     #[test]
     fn foreach_over_known_commands_fires_rust_behaviour() {
-        // DIVERGENCE: Python suppresses `$cmd` iterating a list of *known*
-        // commands; that provenance is not modelled here, so W307 fires.
+        // `$cmd` iterating a list of *known* commands is not suppressed —
+        // that provenance is not modelled here, so W307 fires.
         let known = "foreach cmd [list puts set expr] {\n    $cmd hello\n}\n";
         assert!(
             fires(known, D, "W307"),
@@ -1022,11 +1017,9 @@ mod non_literal_command {
 // method → W308. Built-in methods (`destroy`), classes with a `method unknown`,
 // `oo::objdefine`-added methods, and external/unknown classes suppress it.
 //
-// NOTE — the Python suite ALSO reuses the code `W308` for a
-// `subst`-without-`-nocommands` HINT (`TestSubstNocommands`). The Rust analyser
-// does not emit such a diagnostic on this surface (W308 is solely the TclOO
-// method check), so those four Python cases are out-of-surface and listed in
-// the report; the TclOO W308 behaviour is ported here.
+// NOTE — `W308` here is solely the TclOO method check; the analyser does not
+// emit a `subst`-without-`-nocommands` HINT on this surface, so those cases are
+// out-of-surface.
 // ===========================================================================
 mod tcloo_unknown_method {
     use super::*;
@@ -1385,9 +1378,8 @@ mod invalid_subnet_mask {
     #[test]
     fn invalid_mask_in_string_still_fires_with_suggestion() {
         // The invalid mask inside a string literal still fires; the suggested
-        // mask is in the message. DIVERGENCE: Python also attaches a CodeFix
-        // (`d.fixes`); the Rust diagnostic carries the suggestion in the message
-        // text but no structured fix object here, so assert on the message.
+        // mask is in the message. The diagnostic carries the suggestion in the
+        // message text but no structured fix object here, so assert on the message.
         let ds = of_code("puts \"mask is 255.255.255.1\"", D, "W121");
         assert_eq!(ds.len(), 1);
         assert!(ds[0].0.contains("255.255.255.0"));
@@ -1399,14 +1391,14 @@ mod invalid_subnet_mask {
 //
 // tclsh: `192.168.1.256` is not a valid IP (octet > 255). On this surface the
 // SSA-traced **W124** supersedes the lexical **W122** everywhere (W122 never
-// fires on its own), so — exactly like Python's `_ip_diags` helper — these
+// fires on its own), so these
 // tests assert "W122 OR W124" via [`ip_count`]. Octet > 255 → Error;
 // octal-ambiguous leading zero → Warning. OIDs / version numbers are excluded.
 // ===========================================================================
 mod mistyped_ipv4 {
     use super::*;
 
-    /// Count of W122 + W124 — the Rust analogue of Python's `_ip_diags`.
+    /// Count of W122 + W124.
     fn ip_count(src: &str) -> usize {
         count(src, D, "W122") + count(src, D, "W124")
     }
@@ -2307,10 +2299,10 @@ mod dead_store_and_unused {
 // enclosing proc's data flow, otherwise it would silence the proc's own W210 /
 // dead-store / W214 findings.
 //
-// DIVERGENCE (message shape): Python expects W210 + W211 + W214. Rust reports
-// the dead `set x 1` as **W220 ("never read")** rather than W211 ("set but
-// never used") — the structural-isolation intent (all three findings survive)
-// holds, so the assertion is pinned to the Rust code set {W210, W214, W220}.
+// Message shape: the dead `set x 1` surfaces as **W220 ("never read")** rather
+// than W211 ("set but never used") — the structural-isolation intent (all three
+// findings survive) holds, so the assertion is pinned to the code set
+// {W210, W214, W220}.
 // ===========================================================================
 mod structural_body_isolation {
     use super::*;
@@ -2328,7 +2320,7 @@ mod structural_body_isolation {
     fn structural_bodies_do_not_leak_into_outer_scope() {
         // For each structural call, the outer proc's own findings all survive:
         // W210 (read $y before set), W214 (unused param p), and the dead `set x`
-        // (W220 on this surface — Python's W211).
+        // (W220 on this surface).
         for structural_call in [
             "oo::class create C { method m {} { puts $x; set y 1; set p 2 } }",
             "oo::define C { method m {} { puts $x; set y 1; set p 2 } }",
@@ -2346,7 +2338,7 @@ mod structural_body_isolation {
                 cs.contains("W214"),
                 "missing W214 for {structural_call:?}: {cs:?}"
             );
-            // Dead `set x` surfaces as W220 (Rust) — Python looked for W211.
+            // Dead `set x` surfaces as W220 on this surface.
             assert!(
                 cs.contains("W220"),
                 "missing dead-store for {structural_call:?}: {cs:?}"
@@ -2516,10 +2508,9 @@ mod edge_cases {
 // consume the caller's variable when a literal name is passed (`f x`),
 // so the caller's otherwise-unused `set x 1` stays a dead store
 // (W211 / W220).  Only a genuine `upvar`-aliased write-back suppresses
-// it.  These pin parity with Python `proc_arg_traits.py`'s
-// `DYNAMIC_NAME_LOCAL` (PR #498 / #499 findings 10 / 6); the absence of
-// that refinement would re-open the caller-side false negatives the
-// parity audit (gap #6) warned about.
+// it.  These pin the `DYNAMIC_NAME_LOCAL` refinement (PR #498 / #499
+// findings 10 / 6); the absence of that refinement would re-open the
+// caller-side false negatives (gap #6) it guards against.
 // ===========================================================================
 mod call_by_name_dynamic_name_local {
     use super::*;

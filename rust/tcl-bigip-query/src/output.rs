@@ -28,7 +28,7 @@ pub(crate) fn flat(values: &[Value]) -> Vec<Value> {
 /// Render *values* in the named *mode* with no renderer options.
 ///
 /// Thin wrapper over [`render_with_opts`] passing an empty option map; kept
-/// so existing call sites (and the parity tests) need no change.
+/// so existing call sites (and the tests) need no change.
 ///
 /// # Errors
 ///

@@ -252,8 +252,7 @@ pub fn object_to_scf_stanza(kind: &str, obj: &Value) -> String {
 /// Parse a JSON payload, reproducing the
 /// `Expecting value: line L column C (char N)` decoder message for the common
 /// no-value / leading-garbage cases. The position is recomputed from the first
-/// non-whitespace character (serde reports a different offset), per the parity
-/// contract.
+/// non-whitespace character (serde reports a different offset).
 ///
 /// # Errors
 /// Returns `invalid JSON payload: <message>` on any parse failure.

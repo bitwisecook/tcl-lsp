@@ -289,7 +289,7 @@ fn gather_fixtures(dir: &Path) -> Vec<(String, String)> {
 /// The matching corpus must at least semantic-match the reference oracle — unless
 /// the oracle itself has drifted from tclsh.
 ///
-/// tclsh 9.0 is the reference standard (rust-rewrite §0), and each matching
+/// tclsh 9.0 is the reference standard, and each matching
 /// fixture's `.golden` is Rust output verified byte-true against it. So when Rust
 /// diverges from the *reference* oracle yet still matches its golden, the gap is
 /// **oracle drift** (the reference codegen has fallen behind tclsh — e.g. for

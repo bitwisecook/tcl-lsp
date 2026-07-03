@@ -1,6 +1,6 @@
 //! Diff verb: compare two sources at the AST / IR / CFG layers.
 //!
-//! Compares two sources across three layers, byte-parity with the captured
+//! Compares two sources across three layers, byte-for-byte with the captured
 //! golden output (modulo a residual CFG/SSA construction gap on complex scripts):
 //!
 //! - **AST** — segments each side (`tcl-compiler` segmenter) and serialises
@@ -38,7 +38,7 @@ const CONTEXT: usize = 3;
 /// the full set. Duplicates are dropped, preserving order.
 fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
     const KNOWN: [&str; 3] = ["ast", "ir", "cfg"];
-    // All three layers are implemented (`cfg` rides on the engine-parity
+    // All three layers are implemented (`cfg` rides on the
     // CFG/SSA serialisers).
     const ALL_IMPLEMENTED: [&str; 3] = ["ast", "ir", "cfg"];
     let mut selected: Vec<&'static str> = Vec::new();

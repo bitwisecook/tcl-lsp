@@ -186,8 +186,8 @@ mod tests {
 
     #[test]
     fn fp_nab_12_escaped_paren_array_index_companions() {
-        // FP-NAB-12 (Rust counterpart of the Python value_shapes test): the
-        // hand-rolled parser consumes a backslash-escaped close paren inside an
+        // FP-NAB-12: the hand-rolled parser consumes a backslash-escaped close
+        // paren inside an
         // array index so the reference does not terminate at the first `)`.
         assert!(is_pure_var_ref(r"$a(x\)y)"));
         // Companion controls locking in overall parser correctness.

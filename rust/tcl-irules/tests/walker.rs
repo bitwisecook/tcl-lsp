@@ -8,7 +8,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 
 #[test]
-fn walker_matches_python() {
+fn walker_matches_golden() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let cases: Vec<(String, String)> =
         serde_json::from_str(&std::fs::read_to_string(format!("{dir}/irule_cases.json")).unwrap())

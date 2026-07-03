@@ -224,7 +224,7 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
 /// the segment is empty.
 ///
 /// **Single-line only.**  Continuation lines, embedded `[…]`
-/// / `{…}` token nesting, and full segmenter parity are not
+/// / `{…}` token nesting, and full segmenter semantics are not
 /// handled.  For the common single-line editor
 /// cases this is sufficient.
 fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)> {

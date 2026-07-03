@@ -4542,8 +4542,8 @@ fn scratch_dup_e003_per_item() {
 #[test]
 fn catch_body_is_walked_for_syntactic_checks() {
     // `catch { … }` evaluates its script body, so the per-command syntactic
-    // checks (here W100, unbraced `expr`) must reach inside it — matching the
-    // Python analyser. Regression for the missing body walk in
+    // checks (here W100, unbraced `expr`) must reach inside it.
+    // Regression for the missing body walk in
     // `handle_catch_command` (it defined the result/options vars but never
     // recursed into args[0]).
     assert_eq!(count_code("catch { expr $x+1 }\n", "W100"), 1);
@@ -4583,8 +4583,8 @@ fn tcltest_test_body_is_walked_when_imported() {
 #[test]
 fn append_and_lappend_define_their_target_variable() {
     // `append`/`lappend` create their first argument if absent, so the target
-    // is a variable definition (it must surface in `symbols`/completion/hover,
-    // matching the Python analyser). Regression: previously only `set` /
+    // is a variable definition (it must surface in `symbols`/completion/hover).
+    // Regression: previously only `set` /
     // `variable` / `global` / `incr` defined vars, so an `append`/`lappend`
     // target was dropped from the symbol table.
     let mut a = crate::analyser::Analyser::new();
@@ -4605,7 +4605,7 @@ fn append_and_lappend_define_their_target_variable() {
 fn nested_catch_result_var_is_defined() {
     // `catch SCRIPT ?resultVar? ?optionsVar?` binds its result/options vars even
     // when the `catch` is nested in a `[...]` substitution, so they must reach
-    // the symbol table (symbols/completion/hover), matching the Python analyser.
+    // the symbol table (symbols/completion/hover).
     let mut a = crate::analyser::Analyser::new();
     let r = a.analyse("set out [catch {error x} msg opts]\n", "tcl8.6");
     assert!(

@@ -1,15 +1,13 @@
 //! SSA type-inference (type-propagation) integration tests.
 //!
-//! Ported from the Python `tests/test_type_propagation.py` suite. The Python
-//! side drives `helpers.analyse_types(src)` and reads `analysis.types` keyed by
-//! `(name, version)`; the Rust equivalent is the per-function
+//! Types are keyed by `(name, version)`: the per-function
 //! [`tcl_compiler::compilation_unit::FunctionUnit`] on a
 //! [`tcl_compiler::compilation_unit::CompilationUnit`], whose `types` field is a
 //! `HashMap<ValueKey, TypeLattice>` with `ValueKey = (Symbol, Version)`. A
 //! symbol resolves to its display name via `fu.ssa.var_name(sym)`.
 //!
 //! Each test asserts the *exact* inferred [`TclType`] / [`TypeKind`] for a
-//! given variable + version, mirroring the Python `var_type` "highest version
+//! given variable + version, using the `var_type` "highest version
 //! wins" rule.
 //!
 //! **C-Tcl proof.** Type inference predicts the runtime intrep/value a Tcl
@@ -21,9 +19,9 @@
 //! analogue (`Numeric` = the Int-or-Double join, `Shimmered`, `Overdefined`),
 //! that is noted instead.
 //!
-//! Divergences from the Python suite are documented at the bottom of this file
+//! Divergences are documented at the bottom of this file
 //! (see `mod skipped_divergences`); the only genuine one is `ceil`/`floor`,
-//! where the Rust pass infers `Int` but `tclsh` proves the value is a `Double`.
+//! where the pass infers `Int` but `tclsh` proves the value is a `Double`.
 
 use std::collections::HashMap;
 
@@ -34,8 +32,7 @@ use tcl_registry::registry_for_dialect;
 /// All `(version -> TypeLattice)` entries inferred for variable `var` in the
 /// function `qname` (`"::top"` for the top-level script) of `src`.
 ///
-/// Mirrors the Python `_all_var_types` / `_collect_versions`: it groups every
-/// `ValueKey` whose symbol name equals `var` by SSA version.
+/// Groups every `ValueKey` whose symbol name equals `var` by SSA version.
 fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
     let registry = registry_for_dialect("tcl8.6");
     let cu = CompilationUnit::build_for(src, registry, false);
@@ -56,7 +53,7 @@ fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
 }
 
 /// The inferred type of `var` at its highest SSA version in the top-level
-/// script of `src` — the Rust analogue of Python's `helpers.var_type`.
+/// script of `src`.
 fn var_type(src: &str, var: &str) -> Option<TypeLattice> {
     var_types(src, "::top", var)
         .into_iter()
@@ -65,14 +62,14 @@ fn var_type(src: &str, var: &str) -> Option<TypeLattice> {
 }
 
 /// Convenience: the `TclType` of `var`'s highest version (panics if the
-/// variable was never typed, matching the Python `assert t is not None`).
+/// variable was never typed).
 fn tcl_type(src: &str, var: &str) -> TclType {
     let t = var_type(src, var).unwrap_or_else(|| panic!("no type inferred for `{var}` in {src:?}"));
     t.tcl_type
         .unwrap_or_else(|| panic!("type for `{var}` has no tcl_type: {t} in {src:?}"))
 }
 
-// Literal types (TestLiteralTypes + TestLiteralTypeInference literal cases)
+// Literal types
 
 #[test]
 fn literal_scalar_types() {
@@ -111,7 +108,7 @@ fn boolean_literals_are_boolean() {
     }
 }
 
-// incr (TestIncr)
+// incr
 
 #[test]
 fn incr_produces_int() {
@@ -121,7 +118,7 @@ fn incr_produces_int() {
     assert_eq!(tcl_type("set x 0\nincr x 5", "x"), TclType::Int);
 }
 
-// Variable reference / interpolation (TestVariableReference)
+// Variable reference / interpolation
 
 #[test]
 fn variable_reference_inherits_type() {
@@ -139,7 +136,7 @@ fn string_interpolation_is_string() {
     );
 }
 
-// Command return types (TestCommandReturnTypes)
+// Command return types
 
 #[test]
 fn command_return_types() {
@@ -160,12 +157,12 @@ fn command_return_types() {
     assert_eq!(tcl_type("set x [concat {a b} {c d}]", "x"), TclType::List);
 }
 
-// expr known int (TestExprAssign)
+// expr known int
 
 #[test]
 fn expr_known_int() {
     // tclsh: `expr {1 + 2}` -> 3, `string is integer 3` = 1 => Int.
-    // Python accepts INT or NUMERIC (SCCP-dependent); Rust pins it to Int.
+    // Int or Numeric is acceptable (SCCP-dependent); this pass pins it to Int.
     let t = var_type("set x [expr {1 + 2}]", "x").expect("x typed");
     assert!(
         matches!(t.tcl_type, Some(TclType::Int | TclType::Numeric)),
@@ -178,7 +175,7 @@ fn expr_known_int() {
     );
 }
 
-// Phi merging (TestPhiMerging)
+// Phi merging
 
 #[test]
 fn phi_same_type_stays_int() {
@@ -195,7 +192,7 @@ fn phi_same_type_stays_int() {
             "version {ver} should be Int, got {t}"
         );
     }
-    // Highest version is also Int (Python `var_type` semantics).
+    // Highest version is also Int (`var_type` semantics).
     assert_eq!(tcl_type(src, "x"), TclType::Int);
 }
 
@@ -231,12 +228,12 @@ fn phi_incompatible_types_shimmer() {
     );
 }
 
-// Barrier (TestBarrier)
+// Barrier
 
 #[test]
 fn barrier_does_not_drop_var_type() {
-    // `set x 42; eval {set x hello}` — Python only requires the var stays
-    // typed across the barrier. Rust analyses the eval body inline, so the
+    // `set x 42; eval {set x hello}` — the requirement is that the var stays
+    // typed across the barrier. The eval body is analysed inline, so the
     // highest version reflects the `set x hello` inside it (String). Either
     // way the variable remains typed (not dropped to no-fact).
     let src = "set x 42\neval {set x hello}\n";
@@ -255,7 +252,7 @@ fn barrier_does_not_drop_var_type() {
     );
 }
 
-// Operator-aware expression inference (TestExpressionTypeInference)
+// Operator-aware expression inference
 
 #[test]
 fn expr_division_promotion() {
@@ -515,7 +512,7 @@ fn expr_min_max_join_operand_types() {
     );
 }
 
-// Ternary (TestTernaryTypeInference + ternary_join)
+// Ternary (ternary_join)
 
 #[test]
 fn expr_ternary_joins_branch_types() {
@@ -547,7 +544,7 @@ fn expr_ternary_joins_branch_types() {
     );
 }
 
-// Comparison operators (TestComparisonTypeInference)
+// Comparison operators
 
 #[test]
 fn comparison_operators_are_boolean() {
@@ -571,7 +568,7 @@ fn comparison_operators_are_boolean() {
     }
 }
 
-// Logical operators (TestLogicalTypeInference)
+// Logical operators
 
 #[test]
 fn logical_operators_are_boolean() {
@@ -588,7 +585,7 @@ fn logical_operators_are_boolean() {
     }
 }
 
-// Bitwise operators (TestBitwiseTypeInference)
+// Bitwise operators
 
 #[test]
 fn bitwise_operators_are_int() {
@@ -607,7 +604,7 @@ fn bitwise_operators_are_int() {
     }
 }
 
-// Literal type inference in expr context (TestLiteralTypeInference)
+// Literal type inference in expr context
 
 #[test]
 fn expr_integer_literal_spellings_are_int() {
@@ -640,13 +637,13 @@ fn bare_boolean_literal_assignments_are_boolean() {
     }
 }
 
-// Command substitution inside expr (TestCommandSubstitutionType)
+// Command substitution inside expr
 
 #[test]
 fn command_sub_in_expr_stays_typed() {
     // `expr {[some_cmd] + 1}` — the command-sub operand is unknown at analysis
-    // time, so the result is over-approximated. Python only requires it to be
-    // typed; Rust pins it to NUMERIC (an expr always yields a number, but the
+    // time, so the result is over-approximated. The requirement is that it be
+    // typed; this pass pins it to NUMERIC (an expr always yields a number, but the
     // exact Int-vs-Double can't be known statically — no single Tcl analogue).
     let t = var_type("set z [expr {[some_cmd] + 1}]", "z").expect("z typed");
     assert!(matches!(
@@ -659,7 +656,7 @@ fn command_sub_in_expr_stays_typed() {
     assert!(n.tcl_type.is_some(), "nested-expr result stays typed");
 }
 
-// Complex multi-operator expressions (TestComplexExpressionTypeInference)
+// Complex multi-operator expressions
 
 #[test]
 fn complex_expression_inference() {
@@ -690,7 +687,7 @@ fn complex_expression_inference() {
     );
 }
 
-// Variable-shape type propagation (TestVariableShapeTypePropagation)
+// Variable-shape type propagation
 //
 // These exercise how a qualified scalar / array-element name is keyed under its
 // *base* symbol in the type map. They are static-analysis properties: several
@@ -738,7 +735,7 @@ fn unbraced_array_ref_normalises_to_base_array_symbol() {
 
 #[test]
 fn namespace_var_commands_with_qualified_names_do_not_break_type_flow() {
-    // Mirrors the Python smoke test: a proc using global/upvar/unset on
+    // A smoke test: a proc using global/upvar/unset on
     // qualified namespace vars must still build a (non-panicking) type map.
     let src = "\
 namespace eval ::demo {
@@ -752,8 +749,7 @@ proc wire_namespace_vars {} {
 ";
     let registry = registry_for_dialect("tcl8.6");
     let cu = CompilationUnit::build_for(src, registry, false);
-    // The proc unit exists and carries a (possibly empty) type map — the Rust
-    // analogue of Python's `assert analysis.types is not None`.
+    // The proc unit exists and carries a (possibly empty) type map.
     let fu = cu
         .procedures
         .get("::wire_namespace_vars")
@@ -762,14 +758,13 @@ proc wire_namespace_vars {} {
     let _ = fu.types.len();
 }
 
-// Divergences from the Python suite — RESOLVED
+// Divergences — RESOLVED
 //
-// The Python `TestMathFunctionTypeInference::test_ceil_is_int` /
-// `::test_floor_is_int` expected INT, and the Rust pass also returned `Int`.
-// tclsh proved both wrong: `expr {ceil(3.14)}` → 4.0 and `expr {floor(3.7)}`
+// `ceil`/`floor` type inference once returned `Int`.
+// tclsh proves that wrong: `expr {ceil(3.14)}` → 4.0 and `expr {floor(3.7)}`
 // → 3.0 are *doubles* (`string is integer 4.0` → 0, `string is double` → 1),
 // unlike `round`/`int`/`entier`/`wide`/`isqrt` which genuinely return integers.
 // The bug in `type_infer::expr_call_type` (ceil/floor grouped with the
 // integer-returning conversions) has now been FIXED — ceil/floor are inferred
 // as DOUBLE — and the two cases are asserted in `expr_ceil_floor_are_double`
-// above (matching the real Tcl value type, not the Python suite's wrong INT).
+// above (matching the real Tcl value type).

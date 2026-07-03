@@ -1,7 +1,7 @@
 //! Encoding-category builtins: `base64` / `base64d` / `html` / `uri` /
 //! `tojson` / `fromjson` / `sh`.
 //!
-//! Parity notes:
+//! Behaviour notes:
 //! - `base64` / `base64d` use the standard alphabet with padding —
 //!   standard base64 encode / strict decode. The
 //!   `base64d` failure text is custom (the
@@ -204,8 +204,8 @@ mod tests {
 
     #[test]
     fn sh_quotes_strings_lists_and_embedded_quotes() {
-        // ::test_html_and_sh_quote (sh half) — jq `@sh` parity: every list
-        // element is single-quoted, embedded `'` → the `'\''` dance.
+        // jq `@sh` behaviour: every list element is single-quoted, embedded
+        // `'` → the `'\''` dance.
         assert_eq!(call(bi_sh, &[s("hello world")]), "'hello world'");
         assert_eq!(
             call(bi_sh, &[Value::List(vec![s("a"), s("b c")])]),

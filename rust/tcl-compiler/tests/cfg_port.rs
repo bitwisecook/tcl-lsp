@@ -1,19 +1,15 @@
-//! Port of the Python CFG suites — CFG construction from IR and the shared
-//! CFG edge-routing (lane) model.
+//! CFG construction from IR and the shared CFG edge-routing (lane) model.
 //!
-//! Ported from two pytest files that drive the *Python* compiler:
-//!   * `tests/test_cfg.py`        → `compiler.cfg.build_cfg` over lowered IR
-//!   * `tests/test_cfg_layout.py` → `tooling.explorer.cfg_layout` (`assign_lanes`,
-//!     `build_cfg_edges`)
+//! Two areas are covered:
+//!   * `build_cfg` over lowered IR
+//!   * the `cfg_layout` lane model (`assign_lanes`, `build_cfg_edges`,
+//!     `ordered_block_names`)
 //!
-//! The Rust pipeline is `build_cfg(&lower_to_ir(src, registry), false)`, the
-//! analogue of Python's `build_cfg(lower_to_ir(src))`. It returns a
-//! [`CfgModule`] whose `.top_level` is the `::top` script CFG and whose
-//! `.procedures` map holds each proc's [`Function`] — the same artefacts the
-//! Python `build_cfg(mod).top_level` / `.procedures["::foo"]` expose. The
-//! lane-routing model is `cfg_layout::{assign_lanes, build_cfg_edges,
-//! ordered_block_names}`, the single-source the SVG/ASCII renderers share (the
-//! Python `tooling.explorer.cfg_layout`).
+//! The Rust pipeline is `build_cfg(&lower_to_ir(src, registry), false)`. It
+//! returns a [`CfgModule`] whose `.top_level` is the `::top` script CFG and
+//! whose `.procedures` map holds each proc's [`Function`]. The lane-routing
+//! model is `cfg_layout::{assign_lanes, build_cfg_edges, ordered_block_names}`,
+//! the single source the SVG/ASCII renderers share.
 //!
 //! ## Structural vs. semantic proof split
 //!
@@ -36,14 +32,12 @@
 //!     tclsh: `proc foo {} { set x 1; return $x; set y 2 }; foo;
 //!     puts [info exists ::y]` ⇒ `0` (8.6 and 9.0).
 //!
-//! ## CFG-shape divergence from Python: loop rotation
+//! ## CFG-shape note: loop rotation
 //!
-//! Python's `build_cfg` emits header-tested loops, so its `test_for_creates_loop_cfg`
-//! finds the `$i < 3` condition on the `for_header` block. The Rust *analysis*
-//! `build_cfg` (`faithful_exceptions` on) ROTATES a provably-once loop to
-//! bottom-tested form: the `for_header` keeps a synthetic always-true `1`
-//! condition (so it still branches) and the real `$i < 3` condition moves to the
-//! latch (`for_step`). The port therefore asserts the rotated shape (header
+//! The analysis `build_cfg` (`faithful_exceptions` on) ROTATES a provably-once
+//! loop to bottom-tested form: the `for_header` keeps a synthetic always-true
+//! `1` condition (so it still branches) and the real `$i < 3` condition moves to
+//! the latch (`for_step`). The tests therefore assert the rotated shape (header
 //! branches; the real condition appears on *some* branch; `for_end` is a loop
 //! node). The un-rotated, header-tested shape is the codegen build's
 //! (`build_cfg_codegen`), pinned in a separate test so both shapes are covered.
@@ -66,19 +60,18 @@ fn registry() -> &'static CommandRegistry {
     registry_for_dialect(TCL)
 }
 
-/// `source → CfgModule` via the analysis (faithful) builder — the Rust analogue
-/// of Python `build_cfg(lower_to_ir(src))`. `defer_top_level = false` so the
-/// top-level script CFG is built eagerly (as Python's is).
+/// `source → CfgModule` via the analysis (faithful) builder.
+/// `defer_top_level = false` so the top-level script CFG is built eagerly.
 fn cfg(source: &str) -> CfgModule {
     build_cfg(&lower_to_ir(source, registry()), false)
 }
 
-/// The top-level (`::top`) script [`Function`] — Python `build_cfg(mod).top_level`.
+/// The top-level (`::top`) script [`Function`].
 fn top(module: &CfgModule) -> &Function {
     &module.top_level
 }
 
-/// A procedure's [`Function`] by qualified name — Python `cfgm.procedures["::foo"]`.
+/// A procedure's [`Function`] by qualified name.
 fn proc<'a>(module: &'a CfgModule, qname: &str) -> &'a Function {
     module
         .procedures
@@ -87,7 +80,7 @@ fn proc<'a>(module: &'a CfgModule, qname: &str) -> &'a Function {
 }
 
 /// Every terminator in a function (block order is irrelevant for the
-/// any/count predicates the Python tests use).
+/// any/count predicates the tests use).
 fn terminators(func: &Function) -> Vec<&Terminator> {
     func.blocks
         .values()
@@ -95,8 +88,7 @@ fn terminators(func: &Function) -> Vec<&Terminator> {
         .collect()
 }
 
-/// Does any block hold a `Statement::AssignConst` writing `name`? (Python
-/// `any(isinstance(s, IRAssignConst) and s.name == name …)`.)
+/// Does any block hold a `Statement::AssignConst` writing `name`?
 fn assigns_const(func: &Function, name: &str) -> bool {
     func.blocks.values().any(|b| {
         b.statements
@@ -106,10 +98,10 @@ fn assigns_const(func: &Function, name: &str) -> bool {
 }
 
 /// Does any block *reachable from entry* hold a `Statement::AssignConst` writing
-/// `name`? The faithful analogue of Python's "is this dead store on a live
-/// path?" — Rust retains dead-after-`return` statements in an explicitly
-/// `unreachable_*` block rather than dropping them, so the live-path question is
-/// asked over the reachable set (see `return_terminates_block`).
+/// `name`? This answers "is this dead store on a live path?" — dead-after-`return`
+/// statements are retained in an explicitly `unreachable_*` block rather than
+/// dropped, so the live-path question is asked over the reachable set (see
+/// `return_terminates_block`).
 fn assigns_const_reachable(func: &Function, name: &str) -> bool {
     let reachable = func.reachable_blocks();
     func.blocks.iter().any(|(id, b)| {
@@ -121,14 +113,13 @@ fn assigns_const_reachable(func: &Function, name: &str) -> bool {
 }
 
 // ===========================================================================
-// test_cfg.py — CFG construction
+// CFG construction
 // ===========================================================================
 
 #[test]
 fn linear_script_cfg() {
-    // Python TestCFG::test_linear_script_cfg: `set a 1\nset b 2` — the entry
-    // block holds both AssignConst statements and ends with a Goto (to the
-    // synthetic trailing exit block). STRUCTURAL.
+    // `set a 1\nset b 2` — the entry block holds both AssignConst statements and
+    // ends with a Goto (to the synthetic trailing exit block). STRUCTURAL.
     let module = cfg("set a 1\nset b 2");
     let func = top(&module);
     let entry = &func.blocks[&func.entry];
@@ -139,9 +130,9 @@ fn linear_script_cfg() {
 
 #[test]
 fn if_creates_branching_cfg() {
-    // Python TestCFG::test_if_creates_branching_cfg: an if/else creates a block
-    // ending in a Branch, and the post-if `set z 1` survives somewhere in the
-    // CFG. STRUCTURAL (which blocks branch is a property of the lowering).
+    // An if/else creates a block ending in a Branch, and the post-if `set z 1`
+    // survives somewhere in the CFG. STRUCTURAL (which blocks branch is a
+    // property of the lowering).
     let module = cfg("if {$x > 0} {set y 1} else {set y 0}\nset z 1");
     let func = top(&module);
     assert!(
@@ -157,10 +148,10 @@ fn if_creates_branching_cfg() {
 
 #[test]
 fn switch_creates_dispatch_branches() {
-    // Python TestCFG::test_switch_creates_dispatch_branches: a non-fallthrough
-    // EXACT switch is expanded (not opaque) into a dispatch chain — one Branch
-    // per arm — so ≥2 blocks end in a Branch. STRUCTURAL (the exact/expanded vs.
-    // glob/regexp/fallthrough/opaque split is a CFG-builder decision).
+    // A non-fallthrough EXACT switch is expanded (not opaque) into a dispatch
+    // chain — one Branch per arm — so ≥2 blocks end in a Branch. STRUCTURAL (the
+    // exact/expanded vs. glob/regexp/fallthrough/opaque split is a CFG-builder
+    // decision).
     let module = cfg("switch $x {a {set y 1} b {set y 2}}");
     let func = top(&module);
     let branch_count = terminators(func)
@@ -175,10 +166,9 @@ fn switch_creates_dispatch_branches() {
 
 #[test]
 fn switch_fallthrough_stays_opaque() {
-    // Python TestCFG::test_switch_fallthrough_stays_as_irswitch: an exact switch
-    // with a fall-through arm (`b - default`) cannot be expressed as structured
-    // control flow, so it is kept OPAQUE — a single `Statement::Switch` in the
-    // block (the Rust analogue of Python's IRSwitch staying put). STRUCTURAL.
+    // An exact switch with a fall-through arm (`b - default`) cannot be expressed
+    // as structured control flow, so it is kept OPAQUE — a single
+    // `Statement::Switch` in the block. STRUCTURAL.
     let module = cfg("switch $x {a {set y 1} b - default {set y 0}}");
     let func = top(&module);
     let switch_count = func
@@ -195,14 +185,14 @@ fn switch_fallthrough_stays_opaque() {
 
 #[test]
 fn for_creates_loop_cfg() {
-    // Python TestCFG::test_for_creates_loop_cfg: a `for` lowers to a loop with a
-    // `for_header` block that branches on the loop condition, true/false targets
-    // both present, and the false (exit) target recorded as a loop node.
+    // A `for` lowers to a loop with a `for_header` block that branches on the
+    // loop condition, true/false targets both present, and the false (exit)
+    // target recorded as a loop node.
     //
-    // CFG-SHAPE DIVERGENCE (analysis rotation): the faithful/analysis `build_cfg`
-    // rotates this provably-once loop to bottom-tested form. The `for_header`
-    // still ends in a Branch, but on a synthetic always-true `1` guard; the REAL
-    // `$i < 3` condition moves to the latch (`for_step`). So the port asserts:
+    // CFG-SHAPE (analysis rotation): the faithful/analysis `build_cfg` rotates
+    // this provably-once loop to bottom-tested form. The `for_header` still ends
+    // in a Branch, but on a synthetic always-true `1` guard; the REAL `$i < 3`
+    // condition moves to the latch (`for_step`). So the tests assert:
     // (a) a `for_header` block exists and branches, (b) the real `$i < 3`
     // condition appears on *some* Branch in the loop, (c) both of that branch's
     // targets are real blocks, and (d) the loop's exit block is a loop node.
@@ -248,9 +238,9 @@ fn for_creates_loop_cfg() {
         "false target is a real block"
     );
 
-    // (d) The loop's exit block (`for_end`) is recorded as a loop node — Python
-    // `term.false_target in cfg.loop_nodes`. `loop_nodes` is keyed by the loop's
-    // EXIT block id, so assert there is one and it names a `for_end` block.
+    // (d) The loop's exit block (`for_end`) is recorded as a loop node.
+    // `loop_nodes` is keyed by the loop's EXIT block id, so assert there is one
+    // and it names a `for_end` block.
     assert!(
         !func.loop_nodes.is_empty(),
         "the `for` must register a loop node"
@@ -265,20 +255,18 @@ fn for_creates_loop_cfg() {
 
 #[test]
 fn return_terminates_block() {
-    // Python TestCFG::test_return_terminates_block: in a proc whose body is
-    // `set x 1; return $x; set y 2`, some block ends in a Return, and the
-    // dead `set y 2` after the return is NOT reachable in the CFG.
+    // In a proc whose body is `set x 1; return $x; set y 2`, some block ends in a
+    // Return, and the dead `set y 2` after the return is NOT reachable in the CFG.
     //
-    // REPRESENTATION DIVERGENCE (NOT a bug). Python's builder *drops* the
-    // dead-after-return `set y 2` entirely, so its test checks "no block holds
-    // `set y 2`". Rust's faithful builder instead *isolates* it in an explicitly
-    // `unreachable_*` block — the entry block ends in `Return` right after
-    // `set x 1`, and a separate, non-entry-reachable `unreachable_2` block holds
-    // `set y 2` (retaining the source for diagnostics/LSP; downstream analyses
-    // filter on reachability). Both encode the SAME control-flow fact: `set y 2`
-    // never executes. The port asserts the live-path form: (a) a block ends in
-    // Return, and (b) `set y 2` is in NO reachable block. (Verified empirically:
-    // entry_1 `set x 1`→Return; unreachable_2 `set y 2` is not reachable.)
+    // REPRESENTATION NOTE (NOT a bug). The faithful builder *isolates* the
+    // dead-after-return `set y 2` in an explicitly `unreachable_*` block rather
+    // than dropping it — the entry block ends in `Return` right after `set x 1`,
+    // and a separate, non-entry-reachable `unreachable_2` block holds `set y 2`
+    // (retaining the source for diagnostics/LSP; downstream analyses filter on
+    // reachability). It still encodes that `set y 2` never executes. The tests
+    // assert the live-path form: (a) a block ends in Return, and (b) `set y 2` is
+    // in NO reachable block. (Verified empirically: entry_1 `set x 1`→Return;
+    // unreachable_2 `set y 2` is not reachable.)
     //
     // tclsh PROVES the dead-code fact the CFG encodes: `proc foo {} { set x 1;
     // return $x; set y 2 }; foo; puts [info exists ::y]` ⇒ `0` (8.6 and 9.0) —
@@ -291,12 +279,12 @@ fn return_terminates_block() {
             .any(|t| matches!(t, Terminator::Return { .. })),
         "the proc must have a Return terminator"
     );
-    // `set y 2` is unreachable (the live-path equivalent of Python's "not in the CFG").
+    // `set y 2` is unreachable (the live-path form of "not in the CFG").
     assert!(
         !assigns_const_reachable(func, "y"),
         "dead `set y 2` after return must not be on any reachable path"
     );
-    // And it IS retained (in an unreachable block) — pin the Rust representation
+    // And it IS retained (in an unreachable block) — pin this representation
     // so a future change that silently drops or revives it is caught.
     assert!(
         assigns_const(func, "y"),
@@ -311,42 +299,42 @@ fn return_terminates_block() {
 }
 
 // ===========================================================================
-// test_cfg_layout.py — shared CFG edge-routing (lane) model
+// Shared CFG edge-routing (lane) model
 // ===========================================================================
 
 /// Do two closed integer intervals overlap (touching endpoints count as
-/// overlap)? Mirrors the Python `_spans_overlap` helper.
+/// overlap)?
 fn spans_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
     let (lo1, hi1) = if a.0 <= a.1 { (a.0, a.1) } else { (a.1, a.0) };
     let (lo2, hi2) = if b.0 <= b.1 { (b.0, b.1) } else { (b.1, b.0) };
     !(hi1 < lo2 || lo1 > hi2)
 }
 
-// The branchy fixture from test_cfg_layout.py (`_BRANCHY`): a proc with a
-// for-loop whose body is an if/else — the loop header is a conditional branch,
-// so the routed edges include a true + false pair out of `for_header`.
+// The branchy fixture: a proc with a for-loop whose body is an if/else — the
+// loop header is a conditional branch, so the routed edges include a true +
+// false pair out of `for_header`.
 const BRANCHY: &str = "proc f {x} {\n    set total 0\n    for {set i 0} {$i < $x} {incr i} {\n        if {$i % 2 == 0} { incr total $i } else { incr total 1 }\n    }\n    return $total\n}\n";
 
-// -- TestAssignLanes (the routing contract) --
+// -- assign_lanes (the routing contract) --
 
 #[test]
 fn disjoint_spans_share_lane_zero() {
-    // Python test_disjoint_spans_share_lane_zero: sequential non-overlapping
-    // spans all nest into the innermost lane. STRUCTURAL (pure algorithm).
+    // Sequential non-overlapping spans all nest into the innermost lane.
+    // STRUCTURAL (pure algorithm).
     assert_eq!(assign_lanes(&[(0, 1), (2, 3), (4, 5)]), vec![0, 0, 0]);
 }
 
 #[test]
 fn touching_endpoints_force_distinct_lanes() {
-    // Python test_touching_endpoints_force_distinct_lanes: an edge into block 2
-    // and an edge out of block 2 must not share a lane (closed intervals).
+    // An edge into block 2 and an edge out of block 2 must not share a lane
+    // (closed intervals).
     assert_eq!(assign_lanes(&[(0, 2), (2, 4)]), vec![0, 1]);
 }
 
 #[test]
 fn shortest_span_gets_innermost_lane() {
-    // Python test_shortest_span_gets_innermost_lane: the longest span is
-    // processed last → outer lane, so the shorter span gets the inner lane.
+    // The longest span is processed last → outer lane, so the shorter span gets
+    // the inner lane.
     let lanes = assign_lanes(&[(0, 5), (1, 2)]);
     assert!(
         lanes[1] < lanes[0],
@@ -356,21 +344,20 @@ fn shortest_span_gets_innermost_lane() {
 
 #[test]
 fn empty_spans_assign_no_lanes() {
-    // Empty input → no lanes (the degenerate case the Python property test's
-    // `randint(1, 8)` never hits but the contract still requires).
+    // Empty input → no lanes (the degenerate case the property test's random
+    // span count never hits but the contract still requires).
     assert_eq!(assign_lanes(&[]), Vec::<usize>::new());
 }
 
 #[test]
 fn no_two_same_lane_edges_overlap() {
-    // Python test_no_two_same_lane_edges_overlap: a randomised property check —
-    // for 500 random span sets, no two spans sharing a lane overlap. Uses a
-    // DETERMINISTIC PRNG seeded by a constant (no time/thread entropy) so the
-    // run is reproducible. A small xorshift RNG stands in for Python's
-    // `random.Random(7)`; the contract is invariant to the exact sequence.
+    // A randomised property check — for 500 random span sets, no two spans
+    // sharing a lane overlap. Uses a DETERMINISTIC PRNG seeded by a constant (no
+    // time/thread entropy) so the run is reproducible; the contract is invariant
+    // to the exact sequence.
     let mut rng = XorShift::new(0x9E37_79B9_7F4A_7C15);
     for _ in 0..500 {
-        let n = 1 + (rng.next_u32() % 8) as usize; // 1..=8 spans (Python randint(1,8))
+        let n = 1 + (rng.next_u32() % 8) as usize; // 1..=8 spans
         let spans: Vec<(usize, usize)> = (0..n)
             .map(|_| {
                 (
@@ -397,16 +384,15 @@ fn no_two_same_lane_edges_overlap() {
     }
 }
 
-// -- TestBuildCfgEdges --
+// -- build_cfg_edges --
 
 #[test]
 fn branch_kinds_and_lanes() {
-    // Python TestBuildCfgEdges::test_branch_kinds_and_lanes: the loop header is a
-    // conditional branch, so its outgoing edges include one True and one False
-    // edge; every edge is routed (a lane is assigned) and no two same-lane edges
-    // overlap. (The Rust `build_cfg_edges` takes an explicit block order — the
-    // canonical creation order from `ordered_block_names` — where Python's reads
-    // it off `snap.cfg` directly.) STRUCTURAL.
+    // The loop header is a conditional branch, so its outgoing edges include one
+    // True and one False edge; every edge is routed (a lane is assigned) and no
+    // two same-lane edges overlap. (`build_cfg_edges` takes an explicit block
+    // order — the canonical creation order from `ordered_block_names`.)
+    // STRUCTURAL.
     let module = cfg(BRANCHY);
     let func = proc(&module, "::f");
     let order = ordered_block_names(func);
@@ -449,8 +435,7 @@ fn branch_kinds_and_lanes() {
 fn edge_kinds_classified_goto_true_false() {
     // Edge-kind classification (the routing model's other half): a Goto-only
     // function yields only Goto edges; the branchy function yields ≥1 True and
-    // ≥1 False edge. Mirrors the kind contract Python's serialised-edge test
-    // (`kind` ∈ {goto,true,false}) pins. STRUCTURAL.
+    // ≥1 False edge. The kind contract: `kind` ∈ {goto,true,false}. STRUCTURAL.
     let lin = cfg("set a 1\nset b 2");
     let lfunc = top(&lin);
     let lorder = ordered_block_names(lfunc);
@@ -540,9 +525,9 @@ fn block_ordering_follows_creation_order() {
 //
 // The analysis `for_creates_loop_cfg` above asserts the ROTATED shape. The
 // codegen builder (`build_cfg_codegen`, faithful_exceptions OFF) leaves the
-// loop header-tested — exactly Python's shape — so the `$i < 3` condition stays
-// on the `for_header` block. Pinning it here keeps both shapes covered and
-// documents the rotation as analysis-only.
+// loop header-tested — so the `$i < 3` condition stays on the `for_header`
+// block. Pinning it here keeps both shapes covered and documents the rotation
+// as analysis-only.
 // ===========================================================================
 
 #[test]

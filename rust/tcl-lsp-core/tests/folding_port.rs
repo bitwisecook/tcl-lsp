@@ -1,4 +1,4 @@
-//! Port of `tests/test_folding.py` — the LSP folding-range provider.
+//! Tests for the LSP folding-range provider.
 //! Verifies `folding_ranges` produces Region folds for multi-line braced
 //! bodies (proc/namespace/if/while/else) and Comment folds for comment blocks,
 //! and that sibling folds are pairwise disjoint-or-nested (VS Code's tree

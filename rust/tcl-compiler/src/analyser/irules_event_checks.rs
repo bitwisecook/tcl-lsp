@@ -1245,8 +1245,8 @@ mod tests {
     }
 
     // IRULE1001 — command-event-validity.  Messages and severities below are
-    // pinned against `check_command_event_validity` oracle (run on
-    // the same snippets) and the registry legality matrix.
+    // pinned against the command-event-validity checker (run on the same
+    // snippets) and the registry legality matrix.
 
     /// `(severity, message)` for every IRULE1001 diagnostic, whole-file.
     fn irule1001(source: &str) -> Vec<(Severity, String)> {

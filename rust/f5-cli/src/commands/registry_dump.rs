@@ -11,8 +11,8 @@
 //!   list is content-addressed via `validCommandsDigest`).
 //! - `commands` — the full per-command `traits`/`scalars` dicts and the hover
 //!   prose catalogue (`summary`) for the `f5-irules` dialect, from
-//!   [`tcl_registry::command_snapshot`] (the same byte-parity-tested snapshot
-//!   the `tcl registry-dump` verb serialises).
+//!   [`tcl_registry::command_snapshot`] (the same snapshot the `tcl
+//!   registry-dump` verb serialises).
 //! - `all` — every section in one object (`commands`/`events`/`objects`/`profiles`).
 
 use std::collections::BTreeMap;

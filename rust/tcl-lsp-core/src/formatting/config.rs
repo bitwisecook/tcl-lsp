@@ -1,8 +1,8 @@
 //! Formatter configuration.
 //!
-//! Defaults follow the F5 iRules Style Guide.  Every field the Python
-//! formatter config exposes is modelled here for editor-settings/config
-//! parity; the docstring-related knobs (`docstring_*`) are carried but the
+//! Defaults follow the F5 iRules Style Guide.  Every configurable
+//! formatter field is modelled here as an editor-settings/config knob;
+//! the docstring-related knobs (`docstring_*`) are carried but the
 //! docstring rewriter itself is not yet implemented, so they are not yet
 //! consulted by the engine.
 
@@ -25,9 +25,8 @@ pub enum IndentStyle {
 
 /// Where a docstring comment block is placed relative to a `proc`.
 ///
-/// Carried for editor-settings/config parity with the Python formatter; the
-/// docstring rewriter itself is not yet implemented, so the value is not yet
-/// consumed by the engine.
+/// Carried as an editor-settings/config knob; the docstring rewriter itself
+/// is not yet implemented, so the value is not yet consumed by the engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocstringStyle {
     /// Comment block above the `proc` statement.
@@ -113,17 +112,17 @@ pub struct FormatterConfig {
     /// Maximum consecutive blank lines to keep.
     pub max_consecutive_blank_lines: usize,
     /// Where docstrings are placed relative to `proc` definitions.
-    /// Carried for editor-settings/config parity; not yet engine-consumed
+    /// Carried as an editor-settings/config knob; not yet engine-consumed
     /// (the docstring rewriter is unimplemented).
     pub docstring_style: DocstringStyle,
-    /// Tag format used in docstrings. Carried for parity, not yet consumed.
+    /// Tag format used in docstrings. Carried as a config knob, not yet consumed.
     pub docstring_tag_style: DocstringTagStyle,
     /// Add decoration border lines (e.g. `# ......`) around docstrings.
-    /// Carried for parity, not yet consumed.
+    /// Carried as a config knob, not yet consumed.
     pub docstring_decoration: bool,
-    /// Character used for docstring decoration borders. Carried for parity.
+    /// Character used for docstring decoration borders. Carried as a config knob.
     pub docstring_decoration_char: char,
-    /// Width of docstring decoration border lines. Carried for parity.
+    /// Width of docstring decoration border lines. Carried as a config knob.
     pub docstring_decoration_width: usize,
 }
 

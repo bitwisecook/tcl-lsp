@@ -808,9 +808,8 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 /// code strings) on **every** pass.
 ///
 /// Returns `(final_source, applied_optimisations, iterations_used)` — the
-/// iteration count matches the Python `optimise_source_multipass`: one per pass
-/// attempted, including the final pass that finds nothing new. A single-pass
-/// profile is simply `max_iterations == 1`.
+/// iteration count is one per pass attempted, including the final pass that
+/// finds nothing new. A single-pass profile is simply `max_iterations == 1`.
 ///
 /// This is the shared core behind the `tcl opt` CLI verb and the
 /// `tcl_lsp_py` optimiser facade.

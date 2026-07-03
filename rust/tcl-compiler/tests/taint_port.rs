@@ -1,39 +1,33 @@
-//! Port of the Python `tests/test_taint.py` taint-analysis suite.
+//! Taint-analysis tests.
 //!
-//! The Python suite drives `find_taint_warnings(source)` and asserts over the
-//! returned `TaintWarning` list (`.code` / `.variable` / `.sink_command` /
-//! `.message`), plus a block of pure-lattice tests over `TaintLattice` /
-//! `TaintColour` / `taint_join`. The Rust counterparts are
-//! [`tcl_compiler::taint::find_taint_warnings_for_cu`] (the whole-unit taint
-//! pass that `run_all_checks` also drives) and the `pub`
-//! [`tcl_compiler::taint::TaintLattice`] / [`TaintColour`] types, so both halves
-//! port directly.
+//! These drive the taint pass and assert over the returned `TaintWarning` list
+//! (`.code` / `.variable` / `.sink_command` / `.message`), plus a block of
+//! pure-lattice tests over `TaintLattice` / `TaintColour` / `taint_join`. The
+//! driver is [`tcl_compiler::taint::find_taint_warnings_for_cu`] (the
+//! whole-unit taint pass that `run_all_checks` also drives), over the `pub`
+//! [`tcl_compiler::taint::TaintLattice`] / [`TaintColour`] types.
 //!
 //! ## Driving a snippet
 //!
 //! [`warns`] builds a [`CompilationUnit`] for the snippet and runs
-//! `find_taint_warnings_for_cu`, the exact `TaintWarning`-producing surface the
-//! Python `find_taint_warnings` exposes (sink detection T100–T106, setter
-//! constraints IRULE3101, iRules URI-split IRULE3103, destructive-file W313).
-//! [`codes`] is the sorted-code analogue of Python `_codes`; [`of_code`] is the
-//! `_taint_warnings(source, code)` analogue (filter by diagnostic code). The
-//! lattice join (`taint_join`) maps to [`TaintLattice::join`].
+//! `find_taint_warnings_for_cu`, the `TaintWarning`-producing surface (sink
+//! detection T100–T106, setter constraints IRULE3101, iRules URI-split
+//! IRULE3103, destructive-file W313). [`codes`] returns the sorted diagnostic
+//! codes; [`of_code`] filters warnings by diagnostic code. The lattice join is
+//! [`TaintLattice::join`].
 //!
-//! ## Dialect handling — the Python `configure_signatures` analogue
+//! ## Dialect handling
 //!
-//! The Python suite switches the *global* signature dialect with
-//! `configure_signatures(dialect=…)`. Rust threads the dialect explicitly into
-//! `find_taint_warnings_for_cu`, so each test passes the dialect it needs:
-//!   * Tests with no `configure_signatures` call run under [`D`] (`tcl8.6`).
+//! The dialect is threaded explicitly into `find_taint_warnings_for_cu`, so
+//! each test passes the dialect it needs:
+//!   * Dialect-agnostic tests run under [`D`] (`tcl8.6`).
 //!     iRules *sources* (`HTTP::uri`, `IP::client_addr`, …) still taint there —
 //!     they are registered in every dialect (registry test
 //!     `http_uri_is_a_source_in_every_dialect`) — so the T100/T101/T102/T103
-//!     source+sink tests work under plain Tcl exactly as the un-configured
-//!     Python tests do.
+//!     source+sink tests work under plain Tcl.
 //!   * iRules *sinks* (IRULE3001–3004, `log` → IRULE3003) only fire under
-//!     [`IR`] (`f5-irules`); those tests pass `IR`, matching the Python
-//!     `configure_signatures(dialect="f5-irules")` cases.
-//!   * The Python `…_not_in_tcl86` / `…_tcl_dialect_clean` cases pass `D`
+//!     [`IR`] (`f5-irules`); those tests pass `IR`.
+//!   * The `…_not_in_tcl86` / `…_tcl_dialect_clean` cases pass `D`
 //!     explicitly to prove the iRules sink does NOT fire under plain Tcl.
 //!
 //! ## Policy-vs-semantic proof split (C-Tcl)
@@ -42,7 +36,7 @@
 //! are policy-level — "this source is tainted", "this sink is flagged", "this
 //! colour suppresses that code" — and have no tclsh ground truth to pin: tclsh
 //! does not implement taint, so there is nothing to compare against. Those are
-//! ported as pure policy checks.
+//! pure policy checks.
 //!
 //! Where a test's *premise* is a Tcl-semantic fact — a command's actual
 //! behaviour, a string transform, whether the first list element becomes the
@@ -80,7 +74,7 @@ const D: &str = "tcl8.6";
 const IR: &str = "f5-irules";
 
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
-/// `dialect`. The Rust counterpart of Python `find_taint_warnings(source)`.
+/// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
@@ -88,7 +82,7 @@ fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
 }
 
-/// Sorted list of diagnostic codes from the taint pass — Python `_codes`.
+/// Sorted list of diagnostic codes from the taint pass.
 fn codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = warns(src, dialect)
         .iter()
@@ -98,7 +92,7 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
     out
 }
 
-/// Taint warnings of one diagnostic `code` — Python `_taint_warnings(src, code)`.
+/// Taint warnings of one diagnostic `code`.
 fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
     warns(src, dialect)
         .into_iter()
@@ -107,7 +101,7 @@ fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
 }
 
 // ===========================================================================
-// TestTaintJoin — lattice join semantics (`taint_join` → `TaintLattice::join`).
+// Lattice join semantics (`taint_join` → `TaintLattice::join`).
 //
 // Pure lattice algebra: taint is a may-have (union), mitigating colours are a
 // must-have (intersection). No tclsh analogue — this is the analyser's internal
@@ -163,13 +157,12 @@ mod taint_join {
 
     #[test]
     fn path_prefixed_join_with_untainted() {
-        // Python `taint_join(_PATH, _UNTAINTED)` returns `_PATH` unchanged
-        // (untainted is the join *identity*), so PATH_PREFIXED survives.
+        // Joining PATH with untainted returns PATH unchanged (untainted is the
+        // join *identity*), so PATH_PREFIXED survives.
         let r = join(TAINTED | TaintColour::PATH_PREFIXED, UNTAINTED);
         assert!(r.is_tainted());
         // FIXED: clean is now the join identity (not a mitigation annihilator),
-        // so PATH_PREFIXED survives. Python `taint_join(_PATH, _UNTAINTED)`
-        // == `_PATH`.
+        // so PATH_PREFIXED survives.
         assert!(r.colours.contains(TaintColour::PATH_PREFIXED));
     }
 
@@ -201,7 +194,6 @@ mod taint_join {
         let r = join(TAINTED | TaintColour::FQDN, UNTAINTED);
         assert!(r.is_tainted());
         // FIXED: clean is the join identity, so FQDN survives.
-        // Python `taint_join(_FQDN, _UNTAINTED)` == `_FQDN`.
         assert!(r.colours.contains(TaintColour::FQDN));
     }
 
@@ -219,7 +211,7 @@ mod taint_join {
 }
 
 // ===========================================================================
-// TestLatticeJoinNewColours — join semantics for the extended colour set.
+// Join semantics for the extended colour set.
 // ===========================================================================
 mod lattice_join_new_colours {
     use super::*;
@@ -252,7 +244,6 @@ mod lattice_join_new_colours {
         let r = join(t(TaintColour::CRLF_FREE), TaintColour::empty());
         assert!(r.is_tainted());
         // FIXED: clean is the join identity, so CRLF_FREE survives.
-        // Python `taint_join(_CRLF_FREE, _UNTAINTED)` == `_CRLF_FREE`.
         assert!(r.colours.contains(TaintColour::CRLF_FREE));
     }
 
@@ -338,7 +329,7 @@ mod lattice_join_new_colours {
 }
 
 // ===========================================================================
-// TestNoFalsePositives — clean code produces no taint warnings.
+// Clean code produces no taint warnings.
 //
 // tclsh: each snippet is ordinary, side-effect-free Tcl with no attacker
 // source, so flagging it would be a false positive.
@@ -380,7 +371,7 @@ mod no_false_positives {
 }
 
 // ===========================================================================
-// TestTclTaintSources — Tcl-core I/O commands taint their results (T100 at the
+// Tcl-core I/O commands taint their results (T100 at the
 // eval sink). `read`/`gets`/`exec`/`socket`/`chan` are real tclsh commands.
 // ===========================================================================
 mod tcl_taint_sources {
@@ -440,7 +431,7 @@ mod tcl_taint_sources {
 }
 
 // ===========================================================================
-// TestIRulesTaintSources — iRules I/O getters taint their results.
+// iRules I/O getters taint their results.
 // f5-dialect: HTTP::*, TCP::*, IP::* are not core-tclsh commands.
 // ===========================================================================
 mod irules_taint_sources {
@@ -485,7 +476,7 @@ mod irules_taint_sources {
 }
 
 // ===========================================================================
-// TestTaintPropagation — taint flows through assignments and interpolation.
+// Taint flows through assignments and interpolation.
 // ===========================================================================
 mod taint_propagation {
     use super::*;
@@ -541,7 +532,7 @@ mod taint_propagation {
 }
 
 // ===========================================================================
-// TestInterproceduralTaint — proc summaries propagate taint across calls.
+// Proc summaries propagate taint across calls.
 // ===========================================================================
 mod interprocedural_taint {
     use super::*;
@@ -572,7 +563,7 @@ mod interprocedural_taint {
 }
 
 // ===========================================================================
-// TestDangerousSinks (T100) — tainted data in eval/expr/exec/uplevel/subst.
+// Dangerous sinks (T100) — tainted data in eval/expr/exec/uplevel/subst.
 //
 // tclsh: each of these re-parses/executes its argument, so a tainted value is a
 // code-execution vector. (eval/uplevel/subst/exec run the value; unbraced expr
@@ -615,7 +606,7 @@ mod dangerous_sinks {
 }
 
 // ===========================================================================
-// TestWarningMessages — the T100 message names the sink and the variable.
+// The T100 message names the sink and the variable.
 // ===========================================================================
 mod warning_messages {
     use super::*;
@@ -630,7 +621,7 @@ mod warning_messages {
 }
 
 // ===========================================================================
-// TestOutputSinks (T101) — tainted data flowing into `puts`.
+// Output sinks (T101) — tainted data flowing into `puts`.
 //
 // tclsh: `puts ?-nonewline? ?channelId? string` — only the trailing content
 // word is output content; a tainted channel id is a destination handle and must
@@ -729,7 +720,7 @@ mod output_sinks {
 }
 
 // ===========================================================================
-// TestOptionInjection (T102) — tainted value in option position, no `--`.
+// Option injection (T102) — tainted value in option position, no `--`.
 //
 // tclsh: option-bearing commands (`regexp`, `glob`, …) parse a leading `-` as a
 // switch, so a tainted value whose runtime content could start with `-` is an
@@ -829,7 +820,7 @@ mod option_injection {
 }
 
 // ===========================================================================
-// TestIRulesOutputSinks — IRULE3001 (HTTP::respond body) / IRULE3002
+// IRULE3001 (HTTP::respond body) / IRULE3002
 // (HTTP::header|cookie insert|replace). f5-dialect; gated on the iRules dialect.
 // ===========================================================================
 mod irules_output_sinks {
@@ -897,7 +888,7 @@ mod irules_output_sinks {
 }
 
 // ===========================================================================
-// TestLogInjection (IRULE3003) — tainted data in `log`. f5-dialect.
+// Log injection (IRULE3003) — tainted data in `log`. f5-dialect.
 // ===========================================================================
 mod log_injection {
     use super::*;
@@ -922,7 +913,7 @@ mod log_injection {
 }
 
 // ===========================================================================
-// TestTaintColours — PATH_PREFIXED / NON_DASH colours propagate through copies
+// PATH_PREFIXED / NON_DASH colours propagate through copies
 // and interpolation, keeping later T102 suppressed. f5-dialect sources.
 // ===========================================================================
 mod taint_colours {
@@ -965,7 +956,7 @@ mod taint_colours {
 
     #[test]
     fn colour_kept_when_dynamic_leading_piece_is_path_prefixed() {
-        // Python: `${uri}/suffix` keeps PATH_PREFIXED (the leading dynamic
+        // `${uri}/suffix` keeps PATH_PREFIXED (the leading dynamic
         // piece is the path-prefixed uri), so T102 stays suppressed.
         // FIXED (lattice-join identity): `word_taint` seeds the interpolation
         // with `clean()` and folds `join` over each piece; with clean now the
@@ -1120,7 +1111,7 @@ mod t102_suppression {
 }
 
 // ===========================================================================
-// TestSetterConstraints (IRULE3101) — HTTP::uri / HTTP::path set to a value not
+// Setter constraints (IRULE3101) — HTTP::uri / HTTP::path set to a value not
 // provably starting with `/`. f5-dialect.
 // ===========================================================================
 mod setter_constraints {
@@ -1175,7 +1166,7 @@ mod setter_constraints {
 }
 
 // ===========================================================================
-// TestCrlfFree — CRLF_FREE colour suppresses IRULE3002 (header) and IRULE3003
+// CRLF_FREE colour suppresses IRULE3002 (header) and IRULE3003
 // (log). Produced by IP/PORT/FQDN sources and URI::/HTML::encode. f5-dialect.
 // ===========================================================================
 mod crlf_free {
@@ -1255,7 +1246,7 @@ mod crlf_free {
 
     #[test]
     fn crlf_free_survives_safe_concat() {
-        // Python: CRLF_FREE from an IP addr survives safe prefix/suffix
+        // CRLF_FREE from an IP addr survives safe prefix/suffix
         // interpolation, so IRULE3003 stays suppressed.
         // FIXED (lattice-join identity): `word_taint` seeds the interpolated
         // value with `clean()` then joins each `$var`; with clean now the join
@@ -1273,7 +1264,7 @@ mod crlf_free {
 
     #[test]
     fn interpolation_without_crlf_preserves() {
-        // Python: interpolation with no literal CR/LF preserves CRLF_FREE →
+        // Interpolation with no literal CR/LF preserves CRLF_FREE →
         // IRULE3003 suppressed.
         // FIXED (lattice-join identity): CRLF_FREE now survives the
         // interpolation `"client:${addr}"` (clean is the join identity), so
@@ -1290,7 +1281,7 @@ mod crlf_free {
 }
 
 // ===========================================================================
-// TestShellAtom — SHELL_ATOM augmented from IP/PORT/FQDN; does NOT suppress
+// SHELL_ATOM augmented from IP/PORT/FQDN; does NOT suppress
 // T100. f5-dialect sources.
 // ===========================================================================
 mod shell_atom {
@@ -1323,7 +1314,7 @@ mod shell_atom {
 }
 
 // ===========================================================================
-// TestListCanonical — [list]/concat produce LIST_CANONICAL, but `eval $lst`
+// [list]/concat produce LIST_CANONICAL, but `eval $lst`
 // still fires T100: the tainted first list element becomes the command word.
 //
 // tclsh (8.6 + 9.0): `proc marker args {puts EXECUTED}; set raw marker;
@@ -1436,7 +1427,7 @@ mod list_canonical {
 }
 
 // ===========================================================================
-// TestRegexLiteral — regex::quote / regexp::quote produce REGEX_LITERAL, lost
+// regex::quote / regexp::quote produce REGEX_LITERAL, lost
 // on interpolation, propagated through copies. (Does not suppress T100.)
 // ===========================================================================
 mod regex_literal {
@@ -1484,7 +1475,7 @@ mod regex_literal {
 }
 
 // ===========================================================================
-// TestPathNormalised — `file normalize` produces PATH_NORMALISED, lost on
+// `file normalize` produces PATH_NORMALISED, lost on
 // interpolation, propagated through copies. (Does not suppress T100.)
 // ===========================================================================
 mod path_normalised {
@@ -1522,7 +1513,7 @@ mod path_normalised {
 }
 
 // ===========================================================================
-// TestHtmlEscaped — HTML::encode / html_encode produce HTML_ESCAPED (+ CRLF_FREE);
+// HTML::encode / html_encode produce HTML_ESCAPED (+ CRLF_FREE);
 // suppress IRULE3001; lost on interpolation; T106 on double-encode. f5-dialect.
 // ===========================================================================
 mod html_escaped {
@@ -1622,7 +1613,7 @@ mod html_escaped {
 }
 
 // ===========================================================================
-// TestUrlEncoded — URI::encode / encode_component / escape produce URL_ENCODED
+// URI::encode / encode_component / escape produce URL_ENCODED
 // (+ CRLF_FREE); lost on interpolation; propagated through copies. f5-dialect.
 // ===========================================================================
 mod url_encoded {
@@ -1692,7 +1683,7 @@ mod url_encoded {
 }
 
 // ===========================================================================
-// TestHeaderTokenSafe — CRLF_FREE in header/cookie value position suppresses
+// CRLF_FREE in header/cookie value position suppresses
 // IRULE3002; generic taint fires it. f5-dialect.
 // ===========================================================================
 mod header_token_safe {
@@ -1734,7 +1725,7 @@ mod header_token_safe {
 }
 
 // ===========================================================================
-// TestSourceColourAugmentation — IP/PORT/FQDN/PATH sources suppress T102;
+// IP/PORT/FQDN/PATH sources suppress T102;
 // generic taint does not. f5-dialect sources.
 // ===========================================================================
 mod source_colour_augmentation {
@@ -1768,7 +1759,7 @@ mod source_colour_augmentation {
 }
 
 // ===========================================================================
-// TestNonDashPrefixedInterpolation — leading literal char of an interpolated
+// Leading literal char of an interpolated
 // word controls NON_DASH_PREFIXED / PATH_PREFIXED. f5-dialect sources.
 // ===========================================================================
 mod non_dash_prefixed_interpolation {
@@ -1845,7 +1836,7 @@ mod non_dash_prefixed_interpolation {
 }
 
 // ===========================================================================
-// TestInterproceduralColours — colour-aware interprocedural propagation.
+// Colour-aware interprocedural propagation.
 // f5-dialect helpers.
 // ===========================================================================
 mod interprocedural_colours {
@@ -1853,7 +1844,7 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_returning_uri_encode_suppresses_irule3003() {
-        // Python: a proc that returns `[URI::encode $x]` returns a CRLF_FREE
+        // A proc that returns `[URI::encode $x]` returns a CRLF_FREE
         // value, so the caller's `log local0. $safe` is IRULE3003-suppressed.
         let source = "proc encode_it {x} { return [URI::encode $x] }\nset raw [HTTP::query]\nset safe [encode_it $raw]\nlog local0. $safe\n";
         // FIXED (lattice-join identity): the return summary joins the helper's
@@ -1865,7 +1856,7 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_returning_html_encode_suppresses_irule3001() {
-        // Python: a proc returning `[HTML::encode $x]` returns HTML_ESCAPED →
+        // A proc returning `[HTML::encode $x]` returns HTML_ESCAPED →
         // caller's HTTP::respond is IRULE3001-suppressed.
         let source = "proc html_safe {x} { return [HTML::encode $x] }\nset raw [HTTP::query]\nset safe [html_safe $raw]\nHTTP::respond 200 content $safe\n";
         // FIXED (lattice-join identity): the HTML_ESCAPED return scenario now
@@ -1897,7 +1888,7 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_with_ip_addr_param_augmented() {
-        // Python: passing an IP_ADDRESS (CRLF_FREE) value into a helper that
+        // Passing an IP_ADDRESS (CRLF_FREE) value into a helper that
         // logs it keeps the colour at the parameter, so IRULE3003 is suppressed.
         let source =
             "proc log_addr {addr} { log local0. $addr }\nset a [IP::client_addr]\nlog_addr $a\n";
@@ -1909,7 +1900,7 @@ mod interprocedural_colours {
 }
 
 // ===========================================================================
-// TestInterpolationColourInvalidation — structural colours stripped on
+// Structural colours stripped on
 // interpolation; CRLF_FREE preserved (no literal CRLF). f5-dialect sources.
 // ===========================================================================
 mod interpolation_colour_invalidation {
@@ -1917,7 +1908,7 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn list_canonical_stripped() {
-        // Python: `[list [read $fd]]` is tainted (LIST_CANONICAL), the
+        // `[list [read $fd]]` is tainted (LIST_CANONICAL), the
         // interpolation `"pre $x suf"` strips that colour, and the now-generic
         // tainted `$y` fires T100 at eval.
         let source = "set x [list [read $fd]]\nset y \"pre $x suf\"\neval $y";
@@ -1929,7 +1920,7 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn path_normalised_stripped() {
-        // Python: `[file normalize [read $fd]]` is tainted; interpolation
+        // `[file normalize [read $fd]]` is tainted; interpolation
         // strips PATH_NORMALISED and T100 fires at eval.
         let source = "set x [file normalize [read $fd]]\nset y \"pre $x\"\neval $y";
         // FIXED: the `read` source nested inside `[file normalize [read $fd]]`
@@ -1971,7 +1962,7 @@ mod interpolation_colour_invalidation {
 }
 
 // ===========================================================================
-// TestTransformColourEdgeCases — transforms on untainted input stay clean;
+// Transforms on untainted input stay clean;
 // concat of mixed canonicality still propagates taint. f5-dialect sources.
 // ===========================================================================
 mod transform_colour_edge_cases {
@@ -2009,7 +2000,7 @@ mod transform_colour_edge_cases {
 }
 
 // ===========================================================================
-// TestSinkSuppressionMatrix — the colour→diagnostic suppression matrix.
+// The colour→diagnostic suppression matrix.
 // f5-dialect sources.
 // ===========================================================================
 mod sink_suppression_matrix {
@@ -2083,7 +2074,7 @@ mod t100_sink_suppression {
     #[test]
     fn exec_with_shell_atom_suppressed() {
         // f5-dialect: IP::client_addr → IP_ADDRESS augments to SHELL_ATOM, which
-        // in Python suppresses T100 for `exec` (a shell atom can't word-split).
+        // suppresses T100 for `exec` (a shell atom can't word-split).
         let source = "set addr [IP::client_addr]\nexec ping $addr";
         // FIXED: emit_sink_warnings now consults the registry's
         // taint_sink_safe_colour — exec's SHELL_ATOM (augmented from IP_ADDRESS)
@@ -2159,7 +2150,7 @@ mod t100_sink_suppression {
 
     #[test]
     fn exec_with_port_suppressed() {
-        // f5-dialect: PORT augments to SHELL_ATOM → Python suppresses exec T100.
+        // f5-dialect: PORT augments to SHELL_ATOM → suppresses exec T100.
         let source = "set port [TCP::client_port]\nexec firewall-cmd $port";
         // FIXED: exec's SHELL_ATOM safe colour (augmented from PORT) now
         // suppresses T100.
@@ -2241,7 +2232,7 @@ mod t103_regexp_pattern_injection {
 }
 
 // ===========================================================================
-// TestPathNormalisedSetterConstraint — PATH_NORMALISED / PATH_PREFIXED satisfy
+// PATH_NORMALISED / PATH_PREFIXED satisfy
 // the IRULE3101 setter constraint. f5-dialect.
 // ===========================================================================
 mod path_normalised_setter_constraint {
@@ -2267,7 +2258,7 @@ mod path_normalised_setter_constraint {
 }
 
 // ===========================================================================
-// TestIrule3004OpenRedirect — HTTP::redirect with a tainted URL. f5-dialect.
+// HTTP::redirect with a tainted URL. f5-dialect.
 // PATH_PREFIXED / PATH_NORMALISED (same-origin) suppress; HTML_ESCAPED does not.
 // ===========================================================================
 mod irule3004_open_redirect {
@@ -2527,7 +2518,7 @@ mod t105_interp_eval_sinks {
 }
 
 // ===========================================================================
-// TestIrule3103UriSplit — splitting HTTP::uri on `?` / `&` instead of using
+// Splitting HTTP::uri on `?` / `&` instead of using
 // HTTP::path / HTTP::query. f5-dialect.
 // ===========================================================================
 mod irule3103_uri_split {
@@ -2633,7 +2624,7 @@ mod irule3103_uri_split {
 }
 
 // ===========================================================================
-// TestIrule3103ExprOperators — expression operators on HTTP::uri suggesting
+// Expression operators on HTTP::uri suggesting
 // HTTP::path / HTTP::query. f5-dialect.
 // ===========================================================================
 mod irule3103_expr_operators {
@@ -2739,7 +2730,7 @@ mod irule3103_expr_operators {
 }
 
 // ===========================================================================
-// TestIrule3103StringMatch — string match / string first on HTTP::uri.
+// string match / string first on HTTP::uri.
 // f5-dialect.
 // ===========================================================================
 mod irule3103_string_match {
@@ -2821,7 +2812,7 @@ mod irule3103_string_match {
 }
 
 // ===========================================================================
-// TestIrule3103EdgeCases — glob/regex classifier edge cases and SSA correctness.
+// glob/regex classifier edge cases and SSA correctness.
 // f5-dialect.
 //
 // tclsh-semantic premises (glob/regex metacharacter meanings): glob `?` is a

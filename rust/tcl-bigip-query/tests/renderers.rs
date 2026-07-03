@@ -1,7 +1,7 @@
 //! Direct unit tests for the renderer plugins on synthetic `Value`s.
 //!
 //! Exercise the chain / dict / tree paths and the option parsers without
-//! going through the CLI; complements the byte-for-byte golden parity in
+//! going through the CLI; complements the byte-for-byte golden comparison in
 //! `f5-cli/tests/query_render_parity.rs`.
 
 use std::collections::BTreeMap;

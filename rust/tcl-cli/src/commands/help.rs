@@ -11,7 +11,7 @@
 //! match the captured golden output byte-for-byte, but the `rank` value is computed by whichever
 //! `SQLite` version is linked (this crate uses rusqlite's bundled
 //! one) and the two diverge in the low-order digits on some corpora — so it is
-//! not a cross-environment-stable parity field (the json golden is captured
+//! not a cross-environment-stable field (the json golden is captured
 //! from this binary).
 
 use std::io::Write as _;

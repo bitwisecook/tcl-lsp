@@ -1,4 +1,4 @@
-//! Port of `tests/test_call_hierarchy.py` — the LSP call-hierarchy provider
+//! Tests for the LSP call-hierarchy provider
 //! (single-document surface). Verifies `prepare` resolves the proc at the
 //! cursor, `incoming_calls` finds callers, and `outgoing_calls` finds callees.
 //!

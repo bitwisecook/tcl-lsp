@@ -1,9 +1,9 @@
-//! Minimal JSON dumper for the differential parity harness.
+//! Minimal JSON dumper for the differential test harness.
 //!
 //! Reads Tcl source (from `--source <text>`, a file path argument, or
 //! stdin when neither is given) and prints `serialise_result` as JSON.
-//! The differential parity harness shells out to this and compares
-//! the two implementations key-by-key.
+//! The differential test harness shells out to this and compares
+//! the output key-by-key.
 //!
 //! It deliberately has no dependencies beyond `std`.
 
@@ -14,7 +14,7 @@ fn main() {
     let mut source: Option<String> = None;
     let mut path: Option<String> = None;
     // When set, dump `build_view(view, serialise_result)` instead of the
-    // serialised result — used by the TUI-tree parity harness.
+    // serialised result — used by the TUI-tree test harness.
     let mut view_tree: Option<String> = None;
     // When set, read an already-serialised result as JSON from stdin and dump
     // `build_view(view, that)` — isolates the tree builder from any

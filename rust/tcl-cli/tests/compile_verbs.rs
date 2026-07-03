@@ -1,8 +1,8 @@
 //! Integration tests for the `dis` and `compwasm` verbs.
 //!
 //! These assert structural properties of the output rather than byte-for-byte
-//! Golden parity: the bytecode codegen and the greenfield WASM emitter are
-//! still reaching feature parity (notably `expr`/command-substitution inlining),
+//! golden output: the bytecode codegen and the greenfield WASM emitter are
+//! still maturing (notably `expr`/command-substitution inlining),
 //! so the verbs are asserted to faithfully render whatever the current
 //! pipeline produces — a valid disassembly and a structurally valid WASM module.
 

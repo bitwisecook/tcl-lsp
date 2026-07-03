@@ -3,8 +3,8 @@
 //! Exposes a single `compile(source, dialect) -> String` that returns the
 //! explorer contract JSON (`docs/design/contracts/wasm-explorer-view.md`
 //! and the de-facto `explorer-core.js` shape). The standalone web worker
-//! and the editor webviews call this directly — no Pyodide, no Python at
-//! runtime, no `executeCommand` server round-trip.
+//! and the editor webviews call this directly — a self-contained WASM module
+//! with no runtime interpreter and no `executeCommand` server round-trip.
 //!
 //! The compile path is pure compute over a string (no WASI I/O), so this
 //! builds for `wasm32-unknown-unknown` with `wasm-bindgen`.

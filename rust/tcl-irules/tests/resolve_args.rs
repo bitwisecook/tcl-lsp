@@ -1,11 +1,11 @@
-//! Differential parity for `resolve_object_ref_args` (the iRules command→
-//! `(arg_index, kinds)` table + the `class`/`persist` custom resolvers) against
-//! `irules_object_refs.resolve_object_ref_args`. Self-contained.
+//! Golden-driven tests for `resolve_object_ref_args` (the iRules command→
+//! `(arg_index, kinds)` table + the `class`/`persist` custom resolvers).
+//! Self-contained.
 
 use tcl_irules::resolve_object_ref_args;
 
 #[test]
-fn resolve_args_match_python() {
+fn resolve_args_match_golden() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/resolve_args.golden.tsv"

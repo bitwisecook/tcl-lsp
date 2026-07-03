@@ -1424,7 +1424,7 @@ pub fn translate_irule_with_registry(
     // Walk each event handler (procedures keyed `::when::EVENT`), in a
     // deterministic order (BTreeMap-sorted qualified name) so the item order
     // is stable. The resulting item set is order-independent for
-    // diagnostics, and the parity harness compares as a multiset.
+    // diagnostics, and the differential harness compares as a multiset.
     let mut event_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
         .procedures
         .iter()

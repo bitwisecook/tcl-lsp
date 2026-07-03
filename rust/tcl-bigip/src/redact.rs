@@ -1510,10 +1510,10 @@ pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport,
 
 // MT19937 random generator
 
-/// A from-scratch implementation of an MT19937-based `random`-style PRNG
-/// sufficient for `shuffle` byte-parity: `init_by_array` integer seeding,
-/// `getrandbits`, `_randbelow_with_getrandbits`, and the reverse Fisher-Yates
-/// `shuffle`.
+/// A from-scratch implementation of an MT19937-based `random`-style PRNG that
+/// reproduces the MT19937 permutation used by `shuffle`: `init_by_array`
+/// integer seeding, `getrandbits`, `_randbelow_with_getrandbits`, and the
+/// reverse Fisher-Yates `shuffle`.
 mod mt19937 {
     const N: usize = 624;
     const M: usize = 397;
@@ -1779,7 +1779,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mt19937_shuffle_matches_cpython() {
+    fn mt19937_shuffle() {
         // MT19937 seeded with N, Fisher-Yates shuffling the indices 0..16.
         let cases: [(u128, [u32; 16]); 4] = [
             (0, [10, 14, 5, 1, 9, 2, 3, 11, 13, 7, 8, 4, 0, 6, 15, 12]),
@@ -1799,7 +1799,7 @@ mod tests {
     }
 
     #[test]
-    fn mt19937_perm256_matches_cpython() {
+    fn mt19937_perm256() {
         // The first source-CIDR shuffle key for `--shuffle --seed 42`.
         let key = derive_key("42", "93.184.216.0/24");
         let (fwd, _inv) = build_permutation(8, &key);

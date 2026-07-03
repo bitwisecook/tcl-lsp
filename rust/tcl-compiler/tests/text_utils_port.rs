@@ -1,7 +1,6 @@
-//! Port of the Python pytest suite `tests/test_text_utils.py`
-//! ("shared.text — edit distance and suggestion utilities").
+//! Edit-distance and suggestion utilities.
 //!
-//! The Rust feature under test lives in `tcl-compiler/src/text.rs`
+//! The feature under test lives in `tcl-compiler/src/text.rs`
 //! and is re-exported via `pub mod text;` in `lib.rs`, so it is
 //! reachable from an integration test as
 //! `tcl_compiler::text::{edit_distance, suggest_similar}`.
@@ -9,30 +8,22 @@
 //! Edit distance is a pure algorithm (no Tcl semantics), so the
 //! values are asserted directly — no `tclsh` round-trip needed.
 //!
-//! Signature note (Python vs Rust):
-//!
-//! - Python: `suggest_similar(attempted, candidates, *,
-//!   max_suggestions=3, max_distance=3)` — keyword-only with
-//!   defaults.
-//! - Rust:   `suggest_similar(attempted, candidates,
-//!   max_suggestions, max_distance)` — all four positional, no
-//!   defaults, and `max_suggestions` precedes `max_distance`.
-//!
-//! Where the pytest relies on Python's defaults, this port passes
-//! the explicit values `max_suggestions = 3, max_distance = 3`.
+//! Signature note: `suggest_similar(attempted, candidates,
+//! max_suggestions, max_distance)` takes all four positionally, with
+//! no defaults, and `max_suggestions` precedes `max_distance`. Tests
+//! that want the default behaviour pass the explicit values
+//! `max_suggestions = 3, max_distance = 3`.
 
 use tcl_compiler::text::{edit_distance, suggest_similar};
 
 // ---------------------------------------------------------------------------
-// TestEditDistance
+// Edit distance
 // ---------------------------------------------------------------------------
 //
-// Both the Python `edit_distance` and the Rust one are plain
+// `edit_distance` is plain
 // Levenshtein (substitution / insertion / deletion, no
-// transposition). The pytest `test_transposition` even documents
-// this: a swap of adjacent chars costs 2, not 1. So there is no
-// Damerau divergence between the two implementations — the asserted
-// values match exactly. (No `// GAP:` needed.)
+// transposition). A swap of adjacent chars therefore costs 2, not 1
+// (no Damerau transposition), and the asserted values reflect that.
 
 #[test]
 fn test_identical() {
@@ -75,13 +66,13 @@ fn test_completely_different() {
 }
 
 // ---------------------------------------------------------------------------
-// TestSuggestSimilar
+// suggest_similar
 // ---------------------------------------------------------------------------
 //
-// The Rust `suggest_similar` borrows `&'a str` from the candidate
+// `suggest_similar` borrows `&'a str` from the candidate
 // iterator and returns `Vec<&'a str>`, so the candidate slices are
-// bound to `&str` literals here. The default arguments the pytest
-// leans on (`max_suggestions=3`, `max_distance=3`) are supplied
+// bound to `&str` literals here. The default arguments
+// (`max_suggestions=3`, `max_distance=3`) are supplied
 // explicitly.
 
 #[test]
@@ -103,16 +94,14 @@ fn test_close_match() {
 #[test]
 fn test_no_match_beyond_max_distance() {
     // With max_distance = 2, "xyzzy" is too far from every
-    // candidate -> empty result. (Python: max_distance=2,
-    // max_suggestions defaults to 3.)
+    // candidate -> empty result.
     let result = suggest_similar("xyzzy", ["puts", "set", "string"], 3, 2);
     assert_eq!(result, Vec::<&str>::new());
 }
 
 #[test]
 fn test_max_suggestions() {
-    // Cap the number of returned suggestions at 2. (Python:
-    // max_suggestions=2, max_distance=3.)
+    // Cap the number of returned suggestions at 2.
     let candidates = ["aa", "ab", "ac", "ad"];
     let result = suggest_similar("aa", candidates, 2, 3);
     assert!(result.len() <= 2);

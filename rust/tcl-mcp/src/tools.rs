@@ -2,7 +2,7 @@
 //!
 //! Handlers take the JSON `arguments` object and return a JSON result `Value`;
 //! [`call`] renders it into the MCP `content[].text` wire shape (a JSON string),
-//! matching what the Python server emitted so existing clients are unaffected.
+//! kept stable so existing clients are unaffected.
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{AnalysisResult, Analyser, Diagnostic};
@@ -18,7 +18,7 @@ const IRULES_DIALECT: &str = "f5-irules";
 const DEFAULT_DIALECT: &str = "tcl9.0";
 
 /// Process-wide session dialect — the detection default set by `set_dialect`,
-/// mirroring the Python server's `_session_dialect` module global.
+/// held in a `_session_dialect` module global.
 fn session_dialect() -> &'static std::sync::Mutex<String> {
     static SESSION: std::sync::OnceLock<std::sync::Mutex<String>> = std::sync::OnceLock::new();
     SESSION.get_or_init(|| std::sync::Mutex::new(DEFAULT_DIALECT.to_owned()))
@@ -96,7 +96,7 @@ fn arg_bool(args: &Value, key: &str) -> bool {
 }
 
 /// `{line, character}` for a byte offset, using byte columns (matching the
-/// Python facade's `SourceMap`-based diagnostic ranges).
+/// facade's `SourceMap`-based diagnostic ranges).
 fn byte_pos(sm: &SourceMap<'_>, offset: u32) -> Value {
     let p = sm.position_at(offset);
     json!({ "line": p.line, "character": p.character.get() })
@@ -115,7 +115,7 @@ fn lsp_range_json(r: &LspRange) -> Value {
 }
 
 /// Serialise one analyser diagnostic to `{code, severity, message, range,
-/// category, fixes?}` (the Python `_facade_diagnostic_to_dict` wire shape).
+/// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape).
 fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
     let code = d.code.as_str();
     let mut obj = json!({
@@ -183,7 +183,7 @@ fn event_order_list(source: &str) -> Vec<Value> {
 }
 
 /// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
-/// appearance only — mirrors the Python `_detect_events` regex
+/// appearance only — mirrors the `_detect_events` regex
 /// `^\s*when\s+([A-Z][A-Z0-9_]{2,})\b`.
 fn detect_events(source: &str) -> Vec<Value> {
     let mut out = Vec::new();
@@ -212,7 +212,7 @@ fn detect_events(source: &str) -> Vec<Value> {
     out
 }
 
-/// Split `s` into lines keeping each trailing `\n` (like Python
+/// Split `s` into lines keeping each trailing `\n` (like
 /// `splitlines(keepends=True)` over `\n`); re-joining with `concat()` is
 /// loss-free. Mirrors the `insert_docstring_stubs` facade helper.
 fn split_keep_ends(s: &str) -> Vec<String> {
@@ -253,7 +253,7 @@ fn def_use_chains(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let mut graph = tcl_lsp_core::graphs::def_use_graph(source, registry(&dialect), &dialect);
-    // Optional variable filter (mirrors the Python tool).
+    // Optional variable filter.
     let variable = arg_str(args, "variable");
     if !variable.is_empty()
         && let Some(functions) = graph.get_mut("functions").and_then(Value::as_array_mut)
