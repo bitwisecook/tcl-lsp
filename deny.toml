@@ -23,7 +23,17 @@ version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-ignore = []
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin timing side-channel in the `rsa` crate. No
+    # fixed version exists (a constant-time rewrite is still in progress). It is
+    # pulled only transitively, via `russh`'s RSA host-key support in the
+    # `f5-cli` / `tcl-mcp` SSH fetch transport. The attack requires an adversary
+    # to observe the timing of an RSA *private-key* operation over the network;
+    # our SSH transport is a password-authenticated client that performs no RSA
+    # private-key signing, so the leak is not reachable here. Revisit when the
+    # `rsa` crate ships a constant-time release.
+    "RUSTSEC-2023-0071",
+]
 
 # --------------------------------------------------------------------
 # 2. License policy.  The workspace itself is AGPL-3.0-or-later, so
