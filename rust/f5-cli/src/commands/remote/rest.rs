@@ -24,6 +24,32 @@ pub struct RestResponse {
     pub body: Vec<u8>,
 }
 
+/// A REST transport error. Split so callers can react to a failed *connection*
+/// (the `auto` fetch transport falls back to SSH on one) without matching on
+/// human-facing error text.
+#[derive(Debug)]
+pub enum RestError {
+    /// The device could not be reached — a connect / TLS / transport failure.
+    Connection(String),
+    /// Any other REST failure: a non-2xx HTTP status, a body read failure, or
+    /// request construction.
+    Other(String),
+}
+
+impl std::fmt::Display for RestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connection(m) | Self::Other(m) => f.write_str(m),
+        }
+    }
+}
+
+impl From<RestError> for String {
+    fn from(e: RestError) -> Self {
+        e.to_string()
+    }
+}
+
 /// Build the `Authorization: Basic …` header value for *credentials*.
 fn auth_header(credentials: &Credentials) -> String {
     let raw = format!("{}:{}", credentials.user, credentials.password);
@@ -56,7 +82,8 @@ const MAX_BODY: u64 = 256 * 1024 * 1024;
 /// downloads. Returns the status + buffered body.
 ///
 /// # Errors
-/// Returns a transport-error string on connection / TLS / read failure.
+/// [`RestError::Connection`] on a connect / TLS failure, [`RestError::Other`]
+/// on a request-build / read failure.
 pub fn request(
     credentials: &Credentials,
     method: &str,
@@ -64,7 +91,7 @@ pub fn request(
     body: Option<&[u8]>,
     insecure: bool,
     timeout: f64,
-) -> Result<RestResponse, String> {
+) -> Result<RestResponse, RestError> {
     request_with_accept(
         credentials,
         method,
@@ -95,7 +122,8 @@ impl Accept {
 /// Issue one request with an explicit `Accept` header.
 ///
 /// # Errors
-/// Returns a transport-error string on connection / TLS / read failure.
+/// [`RestError::Connection`] on a connect / TLS failure, [`RestError::Other`]
+/// on a request-build / read failure.
 pub fn request_with_accept(
     credentials: &Credentials,
     method: &str,
@@ -104,7 +132,7 @@ pub fn request_with_accept(
     accept: Accept,
     insecure: bool,
     timeout: f64,
-) -> Result<RestResponse, String> {
+) -> Result<RestResponse, RestError> {
     let agent = build_agent(insecure, timeout);
     let url = format!("https://{}:{}{}", credentials.host, credentials.port, path);
 
@@ -119,14 +147,14 @@ pub fn request_with_accept(
     let owned = body.map(<[u8]>::to_vec).unwrap_or_default();
     let request = req
         .body(owned)
-        .map_err(|e| format!("REST request to {}: {e}", credentials.host))?;
+        .map_err(|e| RestError::Other(format!("REST request to {}: {e}", credentials.host)))?;
 
     let mut resp = agent
         .run(request)
-        .map_err(|e| format!("REST connection to {}: {e}", credentials.host))?;
+        .map_err(|e| RestError::Connection(format!("REST connection to {}: {e}", credentials.host)))?;
     let status = resp.status().as_u16();
     let bytes = read_body(resp.body_mut())
-        .map_err(|e| format!("REST read from {}: {e}", credentials.host))?;
+        .map_err(|e| RestError::Other(format!("REST read from {}: {e}", credentials.host)))?;
     Ok(RestResponse {
         status,
         body: bytes,
@@ -166,15 +194,16 @@ pub fn repr_bytes(data: &[u8], limit: usize) -> String {
 /// UCS-archive creation on the device.
 ///
 /// # Errors
-/// Returns a transport / HTTP error string.
+/// [`RestError::Connection`] if the device is unreachable, else
+/// [`RestError::Other`] (serialisation / non-2xx HTTP status).
 pub fn save_ucs(
     credentials: &Credentials,
     name: &str,
     insecure: bool,
     timeout: f64,
-) -> Result<(), String> {
+) -> Result<(), RestError> {
     let payload = serde_json::json!({"command": "save", "name": name});
-    let body = serde_json::to_vec(&payload).map_err(|e| e.to_string())?;
+    let body = serde_json::to_vec(&payload).map_err(|e| RestError::Other(e.to_string()))?;
     let resp = request(
         credentials,
         "POST",
@@ -184,11 +213,11 @@ pub fn save_ucs(
         timeout,
     )?;
     if resp.status >= 400 {
-        return Err(format!(
+        return Err(RestError::Other(format!(
             "POST /mgmt/tm/sys/ucs -> HTTP {}: {}",
             resp.status,
             repr_bytes(&resp.body, 400)
-        ));
+        )));
     }
     Ok(())
 }
@@ -196,13 +225,14 @@ pub fn save_ucs(
 /// GET `path`, retrying briefly (404 / 503) while the device flushes the file.
 ///
 /// # Errors
-/// Returns the last HTTP error string once the poll window elapses.
+/// [`RestError::Connection`] if the device is unreachable, else
+/// [`RestError::Other`] with the last HTTP error once the poll window elapses.
 pub fn download(
     credentials: &Credentials,
     path: &str,
     insecure: bool,
     timeout: f64,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, RestError> {
     let poll_interval = Duration::from_millis(500);
     let deadline = std::time::Instant::now() + Duration::from_mins(1);
     let mut last_status = 0u16;
@@ -228,8 +258,8 @@ pub fn download(
         }
         break;
     }
-    Err(format!(
+    Err(RestError::Other(format!(
         "GET {path} -> HTTP {last_status}: {}",
         repr_bytes(&last_body, 200)
-    ))
+    )))
 }
