@@ -149,7 +149,3 @@ body{padding-bottom:52px}
 .lm-dest{font-size:12px}
 .lm-meta{font-size:11px;color:var(--muted)}
 .tier-arrow{text-align:center;color:var(--muted);font-size:11px;padding:6px 0}
-
-/* backend lookup */
-.bl-sec{margin-bottom:18px}
-.bl-sec h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
