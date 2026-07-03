@@ -2,18 +2,20 @@
 //!
 //! Handles credential resolution, transport dispatch, and the arg surfaces; the
 //! live REST flow (UCS save → poll-download → `ucs_to_scf` →
-//! cache-dir/`latest`/`fetch.meta`) and the SSH/scp flow are both implemented
-//! but exercised only against a live device.
+//! cache-dir/`latest`/`fetch.meta`) and the SSH flow are both implemented but
+//! exercised only against a live device.
 //!
 //! Two transports are supported: `rest` (iControl REST over HTTPS) and `ssh`
-//! (system `ssh` + `scp`). `auto` (the default) tries REST first and falls back
-//! to SSH on a connection failure.
+//! (the in-process pure-Rust `russh` client + SFTP subsystem — see
+//! [`super::remote::ssh`]). `auto` (the default) tries REST first and falls back
+//! to SSH when REST cannot connect.
 
 use std::path::{Path, PathBuf};
 
 use chrono::{SecondsFormat, Utc};
 
 use super::remote::auth::{Credentials, ResolveOptions, resolve_credentials, xdg_cache_dir};
+use super::remote::rest::RestError;
 use super::remote::{rest, ssh};
 
 /// Parameters for [`run_fetch`].
@@ -100,21 +102,24 @@ pub fn run_fetch(args: &FetchArgs) -> u8 {
 }
 
 /// Dispatch the transport. `auto` tries REST first and falls back to SSH only
-/// when REST is unavailable (a connection error).
+/// when REST cannot connect ([`RestError::Connection`]) — any other REST failure
+/// (a non-2xx status, a read error) propagates rather than masking the device's
+/// response behind an SSH attempt.
 fn fetch_scf(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
     match args.transport {
-        "rest" => via_rest(creds, args),
+        "rest" => via_rest(creds, args).map_err(String::from),
         "ssh" => via_ssh(creds, args),
         _ => match via_rest(creds, args) {
             Ok(r) => Ok(r),
-            Err(rest_err) if rest_err.starts_with("REST connection to") => via_ssh(creds, args),
-            Err(rest_err) => Err(rest_err),
+            Err(RestError::Connection(_)) => via_ssh(creds, args),
+            Err(other) => Err(other.to_string()),
         },
     }
 }
 
-/// The live SSH/scp flow: save the config on the device via `tmsh`, scp the
-/// artefact back, and (for a UCS-only fetch) reconstruct the SCF locally.
+/// The live SSH flow: save the config on the device via `tmsh`, pull the
+/// artefact back over the SFTP subsystem, and (for a UCS-only fetch) reconstruct
+/// the SCF locally.
 fn via_ssh(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
     let fetched_at = Utc::now();
     let name = format!("f5_fetch_{}", fetched_at.timestamp());
@@ -130,8 +135,10 @@ fn via_ssh(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String>
 }
 
 /// The live REST flow: trigger a UCS save, poll-download it, reconstruct the
-/// SCF locally via `tcl_bigip_io::ucs_to_scf`.
-fn via_rest(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
+/// SCF locally via `tcl_bigip_io::ucs_to_scf`. Returns a [`RestError`] so
+/// `fetch_scf` can tell a failed connection (fall back to SSH) from any other
+/// failure (propagate).
+fn via_rest(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, RestError> {
     let fetched_at = Utc::now();
     let name = format!("f5_fetch_{}", fetched_at.timestamp());
     rest::save_ucs(creds, &name, args.insecure, args.timeout)?;
@@ -141,7 +148,8 @@ fn via_rest(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String
         args.insecure,
         args.timeout,
     )?;
-    let scf_text = tcl_bigip_io::ucs_to_scf(&ucs_data, false).map_err(|e| e.to_string())?;
+    let scf_text =
+        tcl_bigip_io::ucs_to_scf(&ucs_data, false).map_err(|e| RestError::Other(e.to_string()))?;
     let keep_ucs = matches!(args.fmt, "ucs" | "both");
     Ok(FetchResult {
         host: creds.host.clone(),
