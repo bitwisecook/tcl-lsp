@@ -14,11 +14,12 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The committed baseline directory (`tests/baselines/registry`), resolved
-/// relative to this crate's manifest.
+/// The committed baseline directory, resolved relative to this crate's manifest.
+/// These golden CSVs live in the crate (`tests/fixtures/registry/`) so the
+/// registry-contract test is self-contained now that the repo-root `tests/`
+/// tree is gone.
 fn baseline_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/baselines/registry")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/registry")
 }
 
 /// A parsed CSV row keyed by header name. The registry baselines use plain,

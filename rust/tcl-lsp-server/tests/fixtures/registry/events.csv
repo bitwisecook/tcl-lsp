@@ -1,0 +1,177 @@
+event,known,deprecated,side,multiplicity,valid_commands
+ACCESS2_POLICY_EXPRESSION_EVAL,true,false,client-side,unknown,1119
+ACCESS_ACL_ALLOWED,true,false,client-side,per_request,1119
+ACCESS_ACL_DENIED,true,false,client-side,per_request,1119
+ACCESS_PER_REQUEST_AGENT_EVENT,true,false,client-side,per_request,1119
+ACCESS_POLICY_AGENT_EVENT,true,false,client-side,once_per_connection,1119
+ACCESS_POLICY_COMPLETED,true,false,client-side,once_per_connection,1119
+ACCESS_SAML_ASSERTION,true,false,client-side,unknown,1119
+ACCESS_SAML_AUTHN,true,false,client-side,unknown,1119
+ACCESS_SAML_SLO_REQ,true,false,client-side,unknown,1119
+ACCESS_SAML_SLO_RESP,true,false,client-side,unknown,1119
+ACCESS_SESSION_CLOSED,true,false,client-side,once_per_connection,1115
+ACCESS_SESSION_STARTED,true,false,client-side,once_per_connection,1119
+ADAPT_REQUEST_HEADERS,true,false,client-side,unknown,1201
+ADAPT_REQUEST_RESULT,true,false,client-side,unknown,1201
+ADAPT_RESPONSE_HEADERS,true,false,client-side and server-side,unknown,1205
+ADAPT_RESPONSE_RESULT,true,false,client-side and server-side,unknown,1205
+ANTIFRAUD_ALERT,true,false,client-side,unknown,1228
+ANTIFRAUD_LOGIN,true,false,client-side and server-side,unknown,1232
+ASM_REQUEST_BLOCKING,true,false,client-side,per_request,1253
+ASM_REQUEST_DONE,true,false,client-side,per_request,1253
+ASM_REQUEST_VIOLATION,true,false,client-side,per_request,1253
+ASM_RESPONSE_LOGIN,true,false,client-side and server-side,unknown,1257
+ASM_RESPONSE_VIOLATION,true,false,client-side and server-side,per_request,1257
+AUTH_ERROR,true,false,client-side,unknown,1113
+AUTH_FAILURE,true,false,client-side,unknown,1113
+AUTH_RESULT,true,false,client-side,unknown,1118
+AUTH_SUCCESS,true,false,client-side,unknown,1113
+AUTH_WANTCREDENTIAL,true,false,client-side,unknown,1118
+AVR_CSPM_INJECTION,true,false,client-side and server-side,unknown,1205
+BOTDEFENSE_ACTION,true,false,client-side,per_request,1222
+BOTDEFENSE_REQUEST,true,false,client-side,per_request,1222
+CACHE_REQUEST,true,false,client-side,per_request,1211
+CACHE_RESPONSE,true,false,client-side and server-side,per_request,1210
+CACHE_UPDATE,true,false,client-side and server-side,per_request,1215
+CATEGORY_MATCHED,true,false,client-side,unknown,1209
+CLASSIFICATION_DETECTED,true,false,client-side,unknown,1119
+CLIENTSSL_CLIENTCERT,true,false,client-side,once_per_connection,1128
+CLIENTSSL_CLIENTHELLO,true,false,client-side,once_per_connection,1123
+CLIENTSSL_DATA,true,false,client-side,unknown,1123
+CLIENTSSL_HANDSHAKE,true,false,client-side,once_per_connection,1128
+CLIENTSSL_PASSTHROUGH,true,false,client-side,once_per_connection,1123
+CLIENTSSL_SERVERHELLO_SEND,true,false,client-side,once_per_connection,1123
+CLIENT_ACCEPTED,true,false,client-side,once_per_connection,1146
+CLIENT_CLOSED,true,false,client-side,once_per_connection,1123
+CLIENT_DATA,true,false,client-side,unknown,1138
+CONNECTOR_OPEN,true,false,client-side,unknown,1112
+DIAMETER_EGRESS,true,false,client-side and server-side,unknown,1139
+DIAMETER_INGRESS,true,false,client-side,unknown,1135
+DIAMETER_RETRANSMISSION,true,false,client-side,unknown,1135
+DNS_REQUEST,true,false,client-side,per_request,1130
+DNS_RESPONSE,true,false,client-side and server-side,per_request,1131
+ECA_REQUEST_ALLOWED,true,false,client-side,unknown,1111
+ECA_REQUEST_DENIED,true,false,client-side,unknown,1111
+EPI_NA_CHECK_HTTP_REQUEST,true,false,client-side,unknown,1111
+FIX_HEADER,true,false,client-side,unknown,1112
+FIX_MESSAGE,true,false,client-side,unknown,1112
+FLOW_INIT,true,false,client-side,once_per_connection,1134
+GENERICMESSAGE_EGRESS,true,false,client-side and server-side,unknown,1116
+GENERICMESSAGE_INGRESS,true,false,client-side,unknown,1112
+GTP_GPDU_EGRESS,true,false,client-side and server-side,unknown,1105
+GTP_GPDU_INGRESS,true,false,client-side,unknown,1104
+GTP_PRIME_EGRESS,true,false,client-side and server-side,unknown,1115
+GTP_PRIME_INGRESS,true,false,client-side,unknown,1111
+GTP_SIGNALLING_EGRESS,true,false,client-side and server-side,unknown,1105
+GTP_SIGNALLING_INGRESS,true,false,client-side,unknown,1104
+HTML_COMMENT_MATCHED,true,false,client-side,unknown,1202
+HTML_TAG_MATCHED,true,false,client-side,unknown,1202
+HTTP_CLASS_FAILED,true,false,client-side,per_request,1205
+HTTP_CLASS_SELECTED,true,false,client-side,per_request,1205
+HTTP_DISABLED,true,false,client-side,unknown,1200
+HTTP_PROXY_CONNECT,true,false,client-side,unknown,1200
+HTTP_PROXY_REQUEST,true,false,client-side,per_request,1200
+HTTP_PROXY_RESPONSE,true,false,client-side and server-side,unknown,1204
+HTTP_REJECT,true,false,client-side,unknown,1200
+HTTP_REQUEST,true,false,client-side,per_request,1236
+HTTP_REQUEST_DATA,true,false,client-side,per_request,1205
+HTTP_REQUEST_RELEASE,true,false,client-side and server-side,per_request,1204
+HTTP_REQUEST_SEND,true,false,client-side and server-side,per_request,1204
+HTTP_RESPONSE,true,false,client-side and server-side,per_request,1235
+HTTP_RESPONSE_CONTINUE,true,false,client-side and server-side,per_request,1204
+HTTP_RESPONSE_DATA,true,false,client-side and server-side,per_request,1204
+HTTP_RESPONSE_RELEASE,true,false,client-side and server-side,per_request,1204
+ICAP_REQUEST,true,false,client-side,unknown,1116
+ICAP_RESPONSE,true,false,client-side and server-side,unknown,1120
+IN_DOSL7_ATTACK,true,false,client-side,per_request,1231
+IP_GTM,true,false,global,unknown,1079
+IVS_ENTRY_REQUEST,true,false,client-side,unknown,1112
+IVS_ENTRY_RESPONSE,true,false,client-side and server-side,unknown,1116
+JSON_REQUEST,true,false,client-side,unknown,1200
+JSON_REQUEST_ERROR,true,false,client-side,unknown,1200
+JSON_REQUEST_MISSING,true,false,client-side,unknown,1200
+JSON_RESPONSE,true,false,client-side and server-side,unknown,1204
+JSON_RESPONSE_ERROR,true,false,client-side and server-side,unknown,1204
+JSON_RESPONSE_MISSING,true,false,client-side and server-side,unknown,1204
+L7CHECK_CLIENT_DATA,true,false,client-side,unknown,1112
+L7CHECK_SERVER_DATA,true,false,client-side and server-side,unknown,1116
+LB_FAILED,true,false,client-side,per_request,1127
+LB_QUEUED,true,false,client-side and server-side,per_request,1126
+LB_SELECTED,true,false,client-side and server-side,per_request,1138
+MQTT_CLIENT_DATA,true,false,client-side,unknown,1138
+MQTT_CLIENT_EGRESS,true,false,client-side,unknown,1138
+MQTT_CLIENT_INGRESS,true,false,client-side,unknown,1138
+MQTT_CLIENT_SHUTDOWN,true,false,client-side,unknown,1138
+MQTT_SERVER_DATA,true,false,client-side and server-side,unknown,1142
+MQTT_SERVER_EGRESS,true,false,client-side and server-side,unknown,1142
+MQTT_SERVER_INGRESS,true,false,client-side and server-side,unknown,1142
+MR_DATA,true,false,client-side,unknown,1148
+MR_EGRESS,true,false,client-side and server-side,unknown,1162
+MR_FAILED,true,false,client-side,unknown,1155
+MR_INGRESS,true,false,client-side,unknown,1167
+NAME_RESOLVED,true,false,client-side,unknown,1114
+PCP_REQUEST,true,false,client-side,unknown,1107
+PCP_RESPONSE,true,false,client-side and server-side,unknown,1108
+PEM_POLICY,true,false,client-side,unknown,1111
+PEM_SUBS_SESS_CREATED,true,false,client-side,unknown,1111
+PEM_SUBS_SESS_DELETED,true,false,client-side,unknown,1111
+PEM_SUBS_SESS_UPDATED,true,false,client-side,unknown,1111
+PERSIST_DOWN,true,false,global,unknown,1082
+PING_REQUEST_READY,true,false,client-side,unknown,1200
+PING_RESPONSE_READY,true,false,client-side and server-side,unknown,1204
+PROTOCOL_INSPECTION_MATCH,true,false,client-side,unknown,1112
+QOE_PARSE_DONE,true,false,client-side,unknown,1203
+RADIUS_AAA_ACCT_REQUEST,true,false,client-side,unknown,1104
+RADIUS_AAA_ACCT_RESPONSE,true,false,client-side and server-side,unknown,1105
+RADIUS_AAA_AUTH_REQUEST,true,false,client-side,unknown,1104
+RADIUS_AAA_AUTH_RESPONSE,true,false,client-side and server-side,unknown,1105
+REWRITE_REQUEST,true,false,client-side,unknown,1204
+REWRITE_REQUEST_DONE,true,false,client-side,unknown,1204
+REWRITE_RESPONSE,true,false,client-side and server-side,unknown,1208
+REWRITE_RESPONSE_DONE,true,false,client-side and server-side,unknown,1208
+RTSP_REQUEST,true,false,client-side,unknown,1117
+RTSP_REQUEST_DATA,true,false,client-side,unknown,1117
+RTSP_RESPONSE,true,false,client-side and server-side,unknown,1116
+RTSP_RESPONSE_DATA,true,false,client-side and server-side,unknown,1116
+RULE_INIT,true,false,global,init,1072
+SA_PICKED,true,false,client-side,per_request,1128
+SERVERSSL_CLIENTHELLO_SEND,true,false,client-side and server-side,per_request,1123
+SERVERSSL_DATA,true,false,client-side and server-side,unknown,1123
+SERVERSSL_HANDSHAKE,true,false,client-side and server-side,per_request,1123
+SERVERSSL_SERVERCERT,true,false,client-side and server-side,per_request,1123
+SERVERSSL_SERVERHELLO,true,false,client-side and server-side,per_request,1123
+SERVER_CLOSED,true,false,client-side and server-side,per_request,1126
+SERVER_CONNECTED,true,false,client-side and server-side,per_request,1143
+SERVER_DATA,true,false,client-side and server-side,unknown,1131
+SERVER_INIT,true,false,client-side and server-side,per_request,1125
+SIP_REQUEST,true,false,client-side,per_request,1145
+SIP_REQUEST_DONE,true,false,client-side and server-side,unknown,1114
+SIP_REQUEST_SEND,true,false,client-side and server-side,per_request,1141
+SIP_RESPONSE,true,false,client-side and server-side,per_request,1141
+SIP_RESPONSE_DONE,true,false,client-side and server-side,unknown,1114
+SIP_RESPONSE_SEND,true,false,client-side and server-side,per_request,1114
+SOCKS_REQUEST,true,false,client-side,unknown,1114
+SSE_RESPONSE,true,false,client-side and server-side,unknown,1205
+STREAM_MATCHED,true,false,client-side,per_request,1127
+TAP_REQUEST,true,false,client-side,unknown,1113
+TCP_GTM,true,false,client-side,unknown,1111
+TDS_REQUEST,true,false,client-side,unknown,1113
+TDS_RESPONSE,true,false,client-side and server-side,unknown,1117
+UDP_GTM,true,false,client-side,unknown,1104
+USER_REQUEST,true,false,client-side and server-side,unknown,1115
+USER_RESPONSE,true,false,client-side and server-side,unknown,1115
+WS_CLIENT_DATA,true,false,client-side,unknown,1200
+WS_CLIENT_FRAME,true,false,client-side,unknown,1200
+WS_CLIENT_FRAME_DONE,true,false,client-side,unknown,1200
+WS_REQUEST,true,false,client-side,unknown,1200
+WS_RESPONSE,true,false,client-side and server-side,unknown,1204
+WS_SERVER_DATA,true,false,client-side and server-side,unknown,1204
+WS_SERVER_FRAME,true,false,client-side and server-side,unknown,1204
+WS_SERVER_FRAME_DONE,true,false,client-side and server-side,unknown,1204
+XML_BEGIN_DOCUMENT,true,false,client-side,unknown,1231
+XML_BEGIN_ELEMENT,true,false,client-side,unknown,1231
+XML_CDATA,true,false,client-side,unknown,1231
+XML_CONTENT_BASED_ROUTING,true,false,client-side,unknown,1231
+XML_END_DOCUMENT,true,false,client-side,unknown,1231
+XML_END_ELEMENT,true,false,client-side,unknown,1231
+XML_EVENT,true,false,client-side,unknown,1231
