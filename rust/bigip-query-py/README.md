@@ -6,6 +6,25 @@ interactive HTML report: virtual servers, pools and members, nodes, monitors,
 iRules, data groups and SSL profiles, plus a **reference/orphan analysis** that
 flags every object nothing points at.
 
+It also embeds four interactive views, all client-side in the one HTML file:
+
+- **Topology** — a Mermaid object graph (vendored Mermaid, inlined). Every
+  object is clickable → a detail drawer with its neighbourhood diagram; for a
+  virtual, its processing-flow diagram and its static **plus iRule-driven**
+  profiles. Pools referenced *inside* an iRule appear as dashed edges. Clicking
+  a connector line lights up the whole connected component.
+- **Listener Matcher / simulator** — enter a client flow (source/dest/port/
+  protocol/VLAN/route-domain, IPv4 **and** IPv6); the most-specific listener is
+  highlighted and the fall-through order shown. Click a listener to load the
+  exact flow that reaches it and simulate its processing: client SSL
+  (cert/key/ciphers, SNI), the applied profiles, LTM policy rules evaluated
+  against the request, iRule actions (pool selection, header rewrites, redirects,
+  persistence), the resulting HTTP request, and load-balancing / member
+  selection.
+- **Query Console** — the real `f5-query` DSL compiled to **WebAssembly** and
+  embedded with the config, so you can run live queries against the device
+  entirely in the browser (nothing leaves the page).
+
 It exists to demonstrate the power of the tcl-lsp **BIG-IP query engine**
 (`tcl-bigip-query`, the jq-flavoured `f5-query` DSL). Every fact in the report
 is pulled from that engine in-process through a PyO3 binding — **no subprocess,

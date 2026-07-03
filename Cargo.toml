@@ -75,6 +75,10 @@ exclude = [
     # libpython, which the rest of the workspace must not require. See
     # `rust/bigip-query-py/` and the `f5report` Python package it backs.
     "rust/bigip-query-py",
+    # wasm32 build of the query engine for the report's in-browser console.
+    # Excluded for the same reasons as bigip-query-py: wasm-bindgen glue needs
+    # `unsafe`, and it targets wasm32 with its own lockfile.
+    "rust/bigip-query-wasm",
     # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
     # wasm-bindgen's generated glue needs `unsafe`, which the workspace
     # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.

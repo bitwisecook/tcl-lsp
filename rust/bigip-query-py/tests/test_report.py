@@ -69,6 +69,21 @@ def test_build_report_html_self_contained():
     assert "cdn." not in html.split("<script id=\"f5-model\"")[0]
 
 
+def test_wasm_console_embedded_when_vendored():
+    from importlib import resources
+
+    have_wasm = resources.files("f5report.vendor").joinpath("f5query_wasm_bg.wasm").is_file()
+    html = build_report(f5report.load_paths([UCS1]), title="Console")
+    if have_wasm:
+        assert 'id="f5-wasm"' in html  # base64 wasm blob embedded
+        assert 'data-panel="console"' in html
+        assert "wasm_bindgen" in html
+        # the device config is embedded so the console can query it
+        assert '"configText"' in html
+    else:  # pragma: no cover - depends on build environment
+        assert 'data-panel="console"' not in html
+
+
 def test_json_model_serialisable():
     import json
 

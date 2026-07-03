@@ -9,6 +9,7 @@ listener views, all embedded (no external assets, no CDN).
 
 from __future__ import annotations
 
+import base64
 import datetime as _dt
 import json
 from importlib import resources
@@ -46,6 +47,14 @@ def _vendor_text(name: str) -> str:
     return resources.files("f5report.vendor").joinpath(name).read_text("utf-8")
 
 
+def _vendor_bytes(name: str) -> bytes:
+    return resources.files("f5report.vendor").joinpath(name).read_bytes()
+
+
+def _has_vendor(name: str) -> bool:
+    return resources.files("f5report.vendor").joinpath(name).is_file()
+
+
 def _asset_text(name: str) -> str:
     """Read a CSS/JS asset from the templates dir verbatim.
 
@@ -73,4 +82,15 @@ def render_report(model: dict[str, Any]) -> str:
     model["topology_css"] = _asset_text("topology.css")
     model["report_js"] = _asset_text("report.js")
     model["topology_js"] = _asset_text("topology.js")
+
+    # In-browser query console: the wasm build of the query engine, inlined.
+    # Optional — a report still renders (minus the console) if the wasm artifacts
+    # were not vendored (e.g. the toolchain was unavailable at build time).
+    if _has_vendor("f5query_wasm_bg.wasm") and _has_vendor("f5query_wasm.js"):
+        model["wasm_glue"] = _vendor_text("f5query_wasm.js")
+        model["wasm_b64"] = base64.b64encode(_vendor_bytes("f5query_wasm_bg.wasm")).decode("ascii")
+        model["console_js"] = _asset_text("console.js")
+        model["has_console"] = True
+    else:
+        model["has_console"] = False
     return template.render(**model)

@@ -382,6 +382,9 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
         v["dynamicProfiles"] = acts
 
     device["graph"] = _graph.build_graph(device)
+    # The raw SCF/config text, embedded so the in-browser wasm query console can
+    # run live queries against this exact device.
+    device["configText"] = source
     device["counts"] = {key: len(device.get(key, [])) for key in _CONTAINERS}
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())

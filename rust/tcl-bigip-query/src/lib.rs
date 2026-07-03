@@ -41,6 +41,7 @@ pub mod lexer;
 pub mod manual;
 pub mod output;
 pub mod parser;
+#[cfg(feature = "probes")]
 pub mod probes;
 pub mod projection;
 pub mod renderers;

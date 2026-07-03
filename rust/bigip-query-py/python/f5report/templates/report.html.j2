@@ -79,6 +79,9 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
+    {% if has_console %}
+    <button class="tab" data-panel="console">Query Console</button>
+    {% endif %}
   </nav>
 
   {#: ---------------- Virtual Servers ---------------- :#}
@@ -299,6 +302,29 @@
     <div class="lm-sim"></div>
   </div>
 
+  {% if has_console %}
+  {#: ---------------- Query Console (WASM) ---------------- :#}
+  <div class="panel" data-panel="console">
+    <p class="lm-field-note">Run the real <code>f5-query</code> DSL against this device, live in your browser — the query engine is compiled to WebAssembly and embedded in this page along with the config. Nothing leaves the page. Press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to run.</p>
+    <div class="qc">
+      <div class="qc-bar">
+        <select class="qc-examples"></select>
+        <select class="qc-mode" title="Output mode">
+          <option value="json">json</option>
+          <option value="auto">auto</option>
+          <option value="raw">raw</option>
+          <option value="paths">paths</option>
+          <option value="table">table</option>
+        </select>
+        <button class="qc-run">Run ▸</button>
+      </div>
+      <textarea class="qc-expr" rows="3" spellcheck="false" placeholder=".ltm.virtual[] | {name, destination, pool}"></textarea>
+      <div class="qc-status muted"></div>
+      <pre class="qc-out"></pre>
+    </div>
+  </div>
+  {% endif %}
+
 </article>
 {% endfor %}
 
@@ -327,5 +353,13 @@
 <script>
 {{ topology_js | safe }}
 </script>
+{% if has_console %}
+<!-- in-browser query engine: wasm-bindgen glue + base64 wasm (the f5-query DSL compiled to WebAssembly) -->
+<script id="f5-wasm" type="application/octet-stream">{{ wasm_b64 }}</script>
+<script>{{ wasm_glue | safe }}</script>
+<script>
+{{ console_js | safe }}
+</script>
+{% endif %}
 </body>
 </html>
