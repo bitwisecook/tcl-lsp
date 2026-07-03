@@ -127,7 +127,8 @@ pub fn dispatch_lowering_hook(
         | LoweringHookId::Try
         | LoweringHookId::Dict
         | LoweringHookId::Eval
-        | LoweringHookId::Uplevel => None,
+        | LoweringHookId::Uplevel
+        | LoweringHookId::Apply => None,
     }
 }
 

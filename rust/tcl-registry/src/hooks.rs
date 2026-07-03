@@ -84,6 +84,13 @@ pub enum LoweringHookId {
     /// `uplevel ?level? ?arg ...?` — runtime barrier with optional
     /// static-body relaxation under the same gate.
     Uplevel,
+    /// `apply {{params} body ?ns?} ?arg ...?` — an anonymous lambda.
+    /// Runs its body in a separate frame, so the call stays a runtime
+    /// barrier; but a braced literal body is still walked (in a fresh
+    /// frame) so nested `proc` definitions and other module-level
+    /// effects register — like `NamespaceEval`, not the fully opaque
+    /// default barrier.
+    Apply,
 }
 
 /// Typed identifier for a `TclVM` bytecode codegen specialisation.
