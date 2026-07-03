@@ -110,6 +110,23 @@ table.grid.mini{font-size:12px}
   font-family:var(--mono);font-size:12px;line-height:1.5;max-height:460px;overflow:auto;white-space:pre;min-height:60px}
 .qc-out.qc-err{color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,var(--line))}
 kbd{font-family:var(--mono);font-size:11px;background:var(--tag-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+
+/* floating f5-query selector status bar (fixed to the viewport bottom) */
+#f5qbar{position:fixed;left:0;right:0;bottom:0;z-index:46;display:none;align-items:center;gap:10px;
+  padding:8px 14px;background:color-mix(in srgb,var(--panel) 94%,transparent);
+  backdrop-filter:blur(8px);border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(8,12,20,.12);font-size:13px}
+#f5qbar.show{display:flex}
+.f5qbar-tag{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-ink);
+  background:var(--accent);padding:2px 8px;border-radius:20px;font-weight:700;flex:0 0 auto}
+.f5qbar-type{font-size:11px;color:var(--muted);flex:0 0 auto}
+.f5qbar-expr{flex:1 1 auto;font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:6px 10px;overflow-x:auto;white-space:nowrap;cursor:text}
+.f5qbar-copy,.f5qbar-close{flex:0 0 auto;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);color:var(--ink);cursor:pointer;font-size:14px}
+.f5qbar-copy:hover,.f5qbar-close:hover{border-color:var(--accent)}
+.f5qbar-copy.ok{color:var(--green);border-color:var(--green)}
+/* keep page content clear of the fixed bar */
+body{padding-bottom:52px}
 .tier-key{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;font-family:var(--mono)}
 .tier-vs{display:flex;flex-wrap:wrap;gap:10px}
 .lm-card{flex:1 1 240px;min-width:220px;text-align:left;display:flex;flex-direction:column;gap:3px;

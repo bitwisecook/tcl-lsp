@@ -26,6 +26,59 @@
     vs: "Virtual", pool: "Pool", node: "Node", mon: "Monitor", rule: "iRule",
     prof: "Profile", persist: "Persistence", policy: "Policy", snat: "SNAT Pool", dg: "Data Group",
   };
+  // f5-query container path for each node type, for the selector status bar.
+  var CONTAINER = {
+    vs: ".ltm.virtual", pool: ".ltm.pool", node: ".ltm.node", mon: ".ltm.monitor",
+    rule: ".ltm.rule", prof: ".ltm.profile", persist: ".ltm.persistence",
+    policy: ".ltm.policy", snat: ".ltm.snatpool", dg: '.ltm."data-group"',
+  };
+
+  // ---- floating f5-query selector status bar -----------------------------
+  function selectorFor(node) {
+    var c = CONTAINER[node.type] || ".ltm";
+    return c + '[] | select(."full-path" == "' + node.fullPath + '")';
+  }
+  function showSelector(node) {
+    var bar = document.getElementById("f5qbar");
+    if (!bar || !node) return;
+    var expr = selectorFor(node);
+    bar.querySelector(".f5qbar-type").textContent = TYPE_LABEL[node.type] || node.type;
+    bar.querySelector(".f5qbar-expr").textContent = expr;
+    bar.dataset.expr = expr;
+    bar.classList.add("show");
+  }
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t).catch(function () { fallbackCopy(t); });
+    }
+    fallbackCopy(t); return Promise.resolve();
+  }
+  function fallbackCopy(t) {
+    var ta = document.createElement("textarea");
+    ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand("copy"); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+  (function initBar() {
+    var bar = document.getElementById("f5qbar");
+    if (!bar) return;
+    var btn = bar.querySelector(".f5qbar-copy");
+    btn.addEventListener("click", function () {
+      copyText(bar.dataset.expr || "").then(function () {
+        var old = btn.textContent; btn.textContent = "✓"; btn.classList.add("ok");
+        setTimeout(function () { btn.textContent = old; btn.classList.remove("ok"); }, 1100);
+      });
+    });
+    // click the expression to select it for manual copy
+    bar.querySelector(".f5qbar-expr").addEventListener("click", function () {
+      var r = document.createRange(); r.selectNodeContents(this);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    });
+    bar.querySelector(".f5qbar-close").addEventListener("click", function () {
+      bar.classList.remove("show");
+    });
+  })();
 
   // ---- per-device index --------------------------------------------------
   function indexDevice(d) {
@@ -247,6 +300,7 @@
   // ---- Object drawer (per-object diagram + details + flow) ---------------
   function openDrawer(ix, oid) {
     var n = ix.byOid[oid]; if (!n) return;
+    showSelector(n);
     var drawer = document.getElementById("objDrawer");
     var body = drawer.querySelector(".drawer-body");
     drawer.querySelector(".drawer-title").innerHTML =
@@ -745,6 +799,7 @@
     // Reverse-populate the form with the most-specific flow that lands on `v`,
     // then re-match and open its processing simulator.
     function selectVs(v) {
+      showSelector({ type: "vs", fullPath: v.fullPath });
       var L = v.listener;
       f.dst.value = L.anyAddr ? (L.family === "IPv6" ? "::" : "0.0.0.0") : L.address;
       f.port.value = L.port ? String(L.port) : "";
