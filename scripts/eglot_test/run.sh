@@ -5,9 +5,10 @@
 # binary and:
 #   * diffs eglot's `face` text-properties between (a) an in-buffer edit
 #     sequence and (b) a fresh didOpen of the same final content, and
-#   * verifies our server-side eglot-compatibility mode
-#     (`tclLsp.compatibility.eglot`) end-to-end: the advertised capability
-#     shape flips and real eglot stops issuing `semanticTokens/full/delta`.
+#   * verifies the server's incremental `semanticTokens/full/delta`
+#     end-to-end (the `semantic-tokens-delta` scenario): after a
+#     token-changing edit, real eglot's `full/delta` response carries
+#     `edits` (only the changed tokens) rather than a full `data` re-send.
 #
 # This is NOT part of `make test` / CI gates — it needs network (to install
 # eglot) and a real Emacs, and it exercises upstream eglot internals.
