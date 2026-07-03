@@ -19,7 +19,7 @@ on:
       - "rust/tcl-bigip-query/**"
       - "rust/tcl-bigip/**"
       - "rust/tcl-bigip-io/**"
-      - ".github/workflows/bigip-report-pages.yml"
+      - ".github/workflows/github-pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -59,12 +59,15 @@ jobs:
           # python/f5report/vendor/) are embedded — GitHub Pages has no strict
           # CSP, so the in-browser query console works when hosted.
           ( cd rust/bigip-query-py && maturin develop --release )
-          mkdir -p site
+          # Serve the report from a named subpath (…/tcl-lsp/bigip-report-demo/)
+          # rather than the shared Pages root, which the Compiler-Explorer
+          # pages.yml also targets.
+          mkdir -p site/bigip-report-demo
           python -m f5report \
             rust/bigip-query-py/tests/data/lab-device-01.ucs \
             rust/bigip-query-py/tests/data/lab-device-02.ucs \
             -t "F5 BIG-IP Estate — example report" \
-            -o site/index.html
+            -o site/bigip-report-demo/index.html
           # A .nojekyll file keeps Pages from post-processing the single-file app.
           touch site/.nojekyll
 
