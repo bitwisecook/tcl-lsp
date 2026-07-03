@@ -160,7 +160,7 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
         }
     }
     Err(QueryError::builtin(format!(
-        "cert_load: {expanded}: X.509 parsing is not yet supported in the \
-         Rust port (deferred to the probes increment)"
+        "cert_load: {expanded}: X.509 parsing is not yet supported \
+          (deferred to the probes increment)"
     )))
 }

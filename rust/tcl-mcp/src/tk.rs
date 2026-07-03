@@ -82,8 +82,8 @@ fn short_type(cmd: &str) -> String {
     cmd.strip_prefix("ttk::").map_or_else(|| cmd.to_owned(), |rest| format!("ttk-{rest}"))
 }
 
-/// Parse `-option value` pairs, first-seen order, last value wins (Tcl/Python
-/// dict semantics).
+/// Parse `-option value` pairs, first-seen order, last value wins (Tcl dict
+/// semantics).
 fn parse_options(words: &[&str]) -> Vec<(String, String)> {
     let mut order: Vec<String> = Vec::new();
     let mut map: HashMap<String, String> = HashMap::new();
@@ -107,8 +107,8 @@ fn filter_options(opts: Vec<(String, String)>, allowed: &[&str]) -> Vec<(String,
     opts.into_iter().filter(|(k, _)| allowed.contains(&k.as_str())).collect()
 }
 
-/// Split on whitespace runs with at most `n` splits (like Python
-/// `str.split(None, n)`): the remainder after the `n`th split stays intact.
+/// Split on whitespace runs with at most `n` splits: the remainder after the
+/// `n`th split stays intact.
 fn splitn_ws(s: &str, n: usize) -> Vec<&str> {
     let mut out = Vec::new();
     let mut rest = s.trim_start();

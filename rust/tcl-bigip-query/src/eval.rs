@@ -1347,7 +1347,7 @@ pub fn stream_items(value: Value) -> Vec<Value> {
 }
 
 /// Map a [`QueryError::Builtin`] raised by a helper into the `EvalError`
-/// channel the regex-subscript path uses (`str(exc)` parity).
+/// channel the regex-subscript path uses, carrying the underlying message text.
 fn eval_from_builtin(e: QueryError) -> QueryError {
     QueryError::Eval(e.message().to_string())
 }

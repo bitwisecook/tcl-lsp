@@ -2689,7 +2689,7 @@ mod tests {
     }
 
     #[test]
-    fn legend_modifiers_match_python_order() {
+    fn legend_modifiers_order() {
         // Order is load-bearing: `defaultLibrary` must be bit index 3.
         let mods = legend_token_modifiers();
         assert_eq!(

@@ -7,7 +7,7 @@
 //! so nothing silently disappears.
 //!
 //! The declaration is built as an insertion-ordered [`Json`] tree and rendered
-//! with [`crate::jsonfmt::json_string`] for 2-space-indented JSON byte-parity.
+//! with [`crate::jsonfmt::json_string`] for byte-exact 2-space-indented JSON.
 
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -518,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn json_indent2_matches_python_shapes() {
+    fn json_indent2_shapes() {
         let v = Json::Object(vec![
             ("class".to_owned(), Json::Str("Pool".to_owned())),
             ("members".to_owned(), Json::Array(vec![])),

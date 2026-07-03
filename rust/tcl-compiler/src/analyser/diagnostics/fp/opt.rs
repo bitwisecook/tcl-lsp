@@ -585,10 +585,9 @@ fn fp_opt_12_duplicate_in_body_method_not_pure() {
     );
 }
 
-// bridge-only: test_FP_OPT_12_nested_proc_in_method_body_not_lifted
-// Tests `lower_to_ir(src).procedures` and `m.methods` — an IR-structure
-// assertion on `ir_module.procedures` with no diagnostic / rewrite analogue.
-// The Rust IR module API is structurally different from Python's lowering API.
+// bridge-only: nested proc in method body not lifted.
+// An IR-structure assertion on `ir_module.procedures` / `m.methods` with no
+// diagnostic / rewrite analogue, so it is not reproduced here.
 
 // bridge-only: test_FP_OPT_12_methods_survive_incremental_chunk_cache
 // Tests `lower_commands_to_ir` + `lower_to_ir(src, chunk_ir=cache, chunks=chunks)`

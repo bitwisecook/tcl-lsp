@@ -1143,13 +1143,19 @@ impl<'r> Lowerer<'r> {
             // ``$body`` source text as a script.  The runtime
             // ``proc`` IRCall below carries the actual body bytes.
             Script::default()
-        } else if let Some(cache) = self.body_cache.filter(|_| self.proc_depth == 1) {
+        } else if let Some(cache) = self
+            .body_cache
+            .filter(|_| self.proc_depth == 1 && body_cache_eligible(body_text))
+        {
             // SRV-INCREMENTAL Task 3: a top-level proc's static body is lowered in
             // isolation through the memo (offset 0) and rebased to its real offset.
-            // Installed only for context-free files, where this is byte-identical to
-            // the in-place `lower_body` (the const-map is a fresh empty frame here, so
-            // a literal body has no cross-item dependency) — guarded by the corpus
-            // differential gates (`file_analysis_corpus` / `compiler_check_corpus`).
+            // Gated per-body on [`body_cache_eligible`]: a body free of the
+            // cross-item constructs the isolated lowering would drop lowers
+            // byte-identically to the in-place `lower_body` (the const-map is a fresh
+            // empty frame here, so a literal body has no cross-item dependency) — so a
+            // context-carrying sibling no longer disables the cache for this one.
+            // Guarded by the corpus differential gates (`file_analysis_corpus` /
+            // `compiler_check_corpus` / `per_item_corpus`).
             let mut s = cache(body_text, namespace);
             crate::lattice_rebase::rebase_script(&mut s, i64::from(body_offset));
             s
@@ -2102,6 +2108,159 @@ pub fn lower_proc_body_isolated(
     lowerer.const_map_stack.pop();
     lowerer.proc_depth -= 1;
     body
+}
+
+/// Whether a single top-level `proc` body can be lowered in isolation (through
+/// the SRV-INCREMENTAL Task 3 body-cache memo) byte-identically to the in-place
+/// [`Lowerer::lower_body`].
+///
+/// The isolated lowering runs against a fresh [`Lowerer`] with an empty
+/// const-map frame, so it drops every *cross-item* side effect `lower_body`
+/// performs while lowering a body — registering a nested `IRProcedure`, tracking
+/// `namespace import`/`export`, recording command aliases, and `TclOO` / `when`
+/// definitions. A body qualifies exactly when it carries none of those
+/// constructs, so its lowering is a pure function of `(body_text, namespace,
+/// dialect, config)`.
+///
+/// This is a **per-body** gate: a context-carrying sibling `proc` (or top-level
+/// `namespace eval` / OO / `when` code) no longer disqualifies the *other* bodies
+/// in the same file. The scan is deliberately conservative — a false negative
+/// only forgoes reuse (falling back to the identical in-place lowering); a false
+/// positive would corrupt the IR — and is backstopped by the corpus differential
+/// gates.
+///
+/// **Precondition:** the caller must also check [`source_may_alias_commands`] at
+/// the *file* level. A command alias declared outside any body (`interp alias`)
+/// populates the lowerer's alias table that `resolve_alias` consults while
+/// lowering every body; this per-body scan cannot see it, so a file that
+/// establishes aliases must not install the cache at all.
+#[must_use]
+pub fn body_cache_eligible(body: &str) -> bool {
+    // Command keywords whose body-level use carries a cross-item effect the
+    // isolated lowering drops. `proc` covers a nested procedure definition.
+    // Matched as a word followed by Tcl inter-word whitespace (space, tab, CR,
+    // newline, or a `\`-continuation), so a tab-separated `interp\talias` trips
+    // it too.
+    const WORD_DISQUALIFIERS: &[&str] = &[
+        "namespace", "interp", "rename", "method", "when", "apply", "alias", "proc",
+    ];
+    // Substring markers (the token itself is the marker — no trailing arg).
+    const SUBSTR_DISQUALIFIERS: &[&str] = &["oo::", "::oo", "itcl"];
+    !SUBSTR_DISQUALIFIERS.iter().any(|kw| body.contains(kw))
+        && !WORD_DISQUALIFIERS
+            .iter()
+            .any(|kw| contains_word_followed_by_ws(body, kw))
+}
+
+/// Whether `source` may establish a command alias (`interp alias {} name {}
+/// target`) that a cached proc body could reference.
+///
+/// `interp alias` populates the lowerer's alias table, and `resolve_alias`
+/// consults it while lowering *every* subsequent body — but the isolated
+/// body-cache lowering starts with an empty table, so an alias declared at the
+/// top level (outside any body the per-body [`body_cache_eligible`] scan
+/// inspects) would silently resolve differently there. The whole file must
+/// therefore forgo the body cache when this returns `true`. `interp` is the only
+/// command that feeds the alias table (see `detect_interp_alias`), so scanning
+/// for it as a word is both sufficient and conservative.
+#[must_use]
+pub fn source_may_alias_commands(source: &str) -> bool {
+    contains_word_followed_by_ws(source, "interp")
+}
+
+/// True when `word` occurs in `source` followed by Tcl inter-word whitespace —
+/// i.e. used as a command with an argument. Ignores the character *before* the
+/// word (a preceding non-boundary only over-disqualifies, which is safe).
+fn contains_word_followed_by_ws(source: &str, word: &str) -> bool {
+    source.match_indices(word).any(|(i, _)| {
+        source
+            .as_bytes()
+            .get(i + word.len())
+            .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | b'\\'))
+    })
+}
+
+#[cfg(test)]
+mod body_cache_eligible_tests {
+    use super::body_cache_eligible;
+
+    #[test]
+    fn plain_bodies_are_eligible() {
+        assert!(body_cache_eligible("set x 1"));
+        assert!(body_cache_eligible("puts \"hi $name\"\nreturn $x"));
+        assert!(body_cache_eligible("if {$x} { foo } else { bar }"));
+        assert!(body_cache_eligible(""));
+    }
+
+    #[test]
+    fn cross_item_constructs_disqualify() {
+        for body in [
+            "namespace eval x { }",
+            "namespace import ::ns::*",
+            "interp alias {} x {} y",
+            "rename set myset",
+            "apply {{} { }}",
+            "when HTTP_REQUEST { }",
+            "oo::class create C { }",
+            "itcl::class C { }",
+            "proc inner {} { }",
+        ] {
+            assert!(!body_cache_eligible(body), "should disqualify: {body}");
+        }
+    }
+
+    #[test]
+    fn tab_separated_command_still_disqualifies() {
+        assert!(!body_cache_eligible("interp\talias {} x {} y"));
+        assert!(!body_cache_eligible("namespace\timport ::ns::*"));
+    }
+
+    #[test]
+    fn substring_only_use_is_safe() {
+        assert!(body_cache_eligible("set myproclist {a b c}"));
+        assert!(body_cache_eligible("set renamed 1"));
+    }
+
+    #[test]
+    fn source_may_alias_commands_flags_interp() {
+        use super::source_may_alias_commands;
+        // `interp alias` establishes an alias a cached body cannot see.
+        assert!(source_may_alias_commands(
+            "interp alias {} = {} expr\nproc f {} { = 1 }\n"
+        ));
+        assert!(source_may_alias_commands("interp\talias {} = {} expr"));
+        // No `interp` -> safe to cache.
+        assert!(!source_may_alias_commands(
+            "proc f {x} { set y $x }\nproc g {} { return 1 }\n"
+        ));
+        // `interp` as a substring of a bareword does not trip it.
+        assert!(!source_may_alias_commands("set interpreter 1"));
+    }
+
+    // Proves *why* `source_may_alias_commands` must guard the file (Codex #739
+    // P2): with a top-level `interp alias {} = {} expr` in scope, lowering `f`'s
+    // body through the isolated body cache (empty alias table) resolves `=` as an
+    // unknown command, whereas the in-place whole-file lowering resolves it to
+    // `expr` — so the module IRs differ. The db therefore must not install the
+    // cache for such a file.
+    #[test]
+    fn alias_in_scope_makes_body_cache_diverge() {
+        use tcl_registry::CommandRegistry;
+
+        use super::{lower_proc_body_isolated, lower_to_ir_with_body_cache, lower_to_ir_with_config};
+
+        let reg = CommandRegistry::build_default();
+        let cfg = tcl_lexer::LexerConfig::default();
+        let src = "interp alias {} = {} expr\nproc f {x} { return [= {$x + 1}] }\n";
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg);
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, &cache);
+        let fresh = lower_to_ir_with_config(src, &reg, cfg);
+        assert_ne!(
+            format!("{cached:?}"),
+            format!("{fresh:?}"),
+            "an alias-in-scope body cache is expected to diverge from the in-place lowering"
+        );
+    }
 }
 
 /// Like [`lower_to_ir_with_config`] but with a memoised per-procedure body-lowering

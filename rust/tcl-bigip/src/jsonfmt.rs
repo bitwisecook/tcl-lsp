@@ -2,7 +2,7 @@
 //! matching a 2-space-indented JSON encoding exactly — including
 //! full ASCII-escaping, which escapes every non-ASCII char as `\uXXXX`
 //! (surrogate pairs for astral code points). `serde_json` emits raw UTF-8, so a
-//! bespoke escaper is needed for byte-parity.
+//! bespoke escaper is needed to emit byte-exact ASCII-escaped output.
 
 /// An ASCII-escaped, double-quoted JSON string literal.
 #[must_use]

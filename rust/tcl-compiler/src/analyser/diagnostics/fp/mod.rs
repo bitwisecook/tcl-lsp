@@ -1,15 +1,13 @@
 //! FP precision catalogue → Rust regression tests.
 //!
 //! Mirrors `docs/design/compiler/FP.md` (the false-positive / true-positive
-//! catalogue) and the Python `tests/test_fp_*.py` suite, giving the Rust
-//! analyser a standalone precision net that survives Python retirement. Each
+//! catalogue), giving the analyser a standalone precision net. Each
 //! test pins a *must-stay-silent* (FP) arm and, where the catalogue has one, a
 //! *must-fire* (TP) control.
 //!
-//! Reproducers are copied verbatim from the paired Python test (the Python
-//! suite already guarantees they match the FP.md reproducer). Where the Rust
-//! analyser legitimately diverges from the Python verdict — a different
-//! structure, or a feature not yet ported — the test captures the *actual* Rust
+//! Reproducers are copied verbatim from the FP.md catalogue entries. Where the
+//! analyser legitimately diverges from the catalogue verdict — a different
+//! structure, or a feature not yet implemented — the test captures the *actual*
 //! behaviour and the divergence is called out in a comment (and, when it is a
 //! genuine residual false positive, marked `#[ignore]` with the FP id so it is
 //! tracked, not silently green). See `docs/design/rust/fp-rust-port-plan.md`.
@@ -27,7 +25,7 @@ pub(super) const D: &str = "tcl8.6";
 /// mirroring the user-facing `tcl diag` path (`collect_rows`): the analyser
 /// pass plus the `run_all_checks` compiler-checks pass (shimmer / taint /
 /// dead-store), with optimisation codes excluded exactly as `diag` excludes
-/// them. This is the Rust counterpart of Python `analyse(src).diagnostics`.
+/// them.
 pub(super) fn codes(src: &str, dialect: &str) -> Vec<String> {
     let mut out: Vec<String> = Analyser::new()
         .analyse(src, dialect)

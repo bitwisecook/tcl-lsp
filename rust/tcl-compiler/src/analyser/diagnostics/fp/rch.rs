@@ -12,9 +12,8 @@ use tcl_registry::registry_for_dialect;
 
 /// Full diagnostic codes for `src`, INCLUDING the optimiser's suggestions.
 /// `O107` (unreachable dead code) is produced by the optimiser pass, not by the
-/// analyser or `run_all_checks` — the Python `get_diagnostics` surface that the
-/// RCH catalogue was authored against includes optimiser reachability
-/// suggestions, so this helper unions all three sources.
+/// analyser or `run_all_checks`; the RCH catalogue includes optimiser
+/// reachability suggestions, so this helper unions all three sources.
 fn all_codes(src: &str, dialect: &str) -> Vec<String> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);

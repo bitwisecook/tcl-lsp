@@ -764,8 +764,7 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
 
 // def-use / SSA data-flow graph
 
-/// One function unit's SSA def-use view, serialised to the camelCase wire dict
-/// shared with the Python `dataflow_graph_to_dict`.
+/// One function unit's SSA def-use view, serialised to the camelCase wire dict.
 fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph) -> Value {
     let nodes: Vec<Value> = f
         .nodes
@@ -827,9 +826,8 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
 }
 
 /// Build the SSA **def-use chain** graph — per-function def nodes (with use
-/// counts, lattice values, types), def→use edges, and memory-SSA alias info —
-/// mirroring the Python `dataflow_graph_to_dict`. The top-level scope is
-/// included first, then each procedure.
+/// counts, lattice values, types), def→use edges, and memory-SSA alias info.
+/// The top-level scope is included first, then each procedure.
 #[must_use]
 pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
     fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
@@ -906,8 +904,7 @@ fn memory_function_json(name: &str, mem: Option<&tcl_compiler::memory_ssa::Memor
 
 /// Build the memory-SSA **alias** graph — per-function alias sets (variables the
 /// analysis proved may refer to the same storage, via `upvar` / `global` /
-/// `variable`) with the reason and locations, plus memory-op counts. Mirrors
-/// the Python `mcp.memory_aliases` shape.
+/// `variable`) with the reason and locations, plus memory-op counts.
 #[must_use]
 pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
     let cu = CompilationUnit::build_for(source, registry, false)

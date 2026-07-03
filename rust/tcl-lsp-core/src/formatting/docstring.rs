@@ -14,7 +14,7 @@ use tcl_compiler::analyser::ProcDef;
 use super::config::DocstringTagStyle;
 
 /// Characters that make up a decoration-only rule line (`# ......`), skipped
-/// when parsing description text. Mirrors Python `shared.docstrings`.
+/// when parsing description text.
 const DECORATION_CHARS: &str = ".-=*~#";
 
 /// Documentation for a single parameter.
@@ -41,7 +41,7 @@ pub struct DocstringInfo {
 
 impl DocstringInfo {
     /// Serialise to the JSON-friendly shape the AI tools consume — keys are
-    /// omitted when empty, matching Python `DocstringInfo.to_dict`.
+    /// omitted when empty.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
@@ -67,7 +67,7 @@ impl DocstringInfo {
 }
 
 /// Resolve a tag-style string to the enum (case-insensitive); anything other
-/// than `"plain"` maps to Doxygen. Mirrors Python `resolve_tag_style`.
+/// than `"plain"` maps to Doxygen.
 #[must_use]
 pub fn resolve_tag_style(style: &str) -> DocstringTagStyle {
     if style.eq_ignore_ascii_case("plain") {
@@ -137,7 +137,6 @@ pub fn parse_docstring(text: &str) -> DocstringInfo {
 }
 
 /// Render a [`DocstringInfo`] as a Tcl comment block (no trailing newline).
-/// Mirrors Python `render_comment_block`.
 #[must_use]
 pub fn render_comment_block(
     info: &DocstringInfo,
@@ -228,7 +227,7 @@ fn stub_param_doc(name: &str, has_default: bool, default_value: Option<&str>) ->
 }
 
 /// Generate a docstring stub from a [`ProcDef`], extracting parameter names and
-/// defaults from the signature. Mirrors Python `generate_stub_for_proc`.
+/// defaults from the signature.
 #[must_use]
 pub fn generate_stub_for_proc(
     proc_def: &ProcDef,
@@ -283,5 +282,68 @@ mod tests {
         assert_eq!(resolve_tag_style("PLAIN"), DocstringTagStyle::Plain);
         assert_eq!(resolve_tag_style("doxygen"), DocstringTagStyle::Doxygen);
         assert_eq!(resolve_tag_style("whatever"), DocstringTagStyle::Doxygen);
+    }
+
+    fn sample() -> DocstringInfo {
+        DocstringInfo {
+            brief: "does a thing".to_owned(),
+            description: String::new(),
+            params: vec![
+                ParamDoc {
+                    name: "x".to_owned(),
+                    description: "the x".to_owned(),
+                },
+                ParamDoc {
+                    name: "y".to_owned(),
+                    description: String::new(),
+                },
+            ],
+            returns: "the sum".to_owned(),
+        }
+    }
+
+    #[test]
+    fn render_doxygen_block() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, false, '.', 70, "");
+        assert_eq!(
+            out,
+            "# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum"
+        );
+    }
+
+    #[test]
+    fn render_plain_block_uses_arguments_section() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Plain, false, '.', 70, "");
+        assert_eq!(
+            out,
+            "# does a thing\n#\n# Arguments:\n#   x - the x\n#   y\n#\n# Returns: the sum"
+        );
+    }
+
+    #[test]
+    fn render_decoration_wraps_the_block() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, true, '=', 3, "");
+        assert_eq!(
+            out,
+            "# ===\n# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum\n# ==="
+        );
+    }
+
+    #[test]
+    fn render_honours_indent() {
+        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, false, '.', 70, "    ");
+        assert!(out.starts_with("    # @brief does a thing\n    # @param x - the x"));
+    }
+
+    #[test]
+    fn to_json_omits_empty_fields() {
+        let json = sample().to_json();
+        assert_eq!(json["brief"], "does a thing");
+        assert_eq!(json["returns"], "the sum");
+        assert_eq!(json["params"][0]["name"], "x");
+        assert_eq!(json["params"][0]["description"], "the x");
+        assert_eq!(json["params"][1]["description"], "");
+        // Empty description is omitted entirely.
+        assert!(json.get("description").is_none());
     }
 }

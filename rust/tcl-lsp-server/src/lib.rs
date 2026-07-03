@@ -256,7 +256,7 @@ struct DiagSlot {
 struct DiagToggles {
     /// Master diagnostics switch (`tclLsp.features.diagnostics`). When `false`
     /// the pipeline publishes an empty set (clearing squiggles) instead of
-    /// analysing, mirroring the Python `diagnostics_enabled` gate.
+    /// analysing.
     diagnostics_enabled: bool,
     /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
     optimiser_enabled: bool,
@@ -453,8 +453,7 @@ impl DeliveryCtx<'_> {
 
 /// Master switch (`tclLsp.features.diagnostics = false`): publish an empty set
 /// so any existing squiggles clear, then settle — the analyser, compiler
-/// checks, and F5 validators are all skipped.  Mirrors the Python pipeline's
-/// empty-publish when `diagnostics_enabled` is off.  Always settled (`true`).
+/// checks, and F5 validators are all skipped.  Always settled (`true`).
 async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
     if delivery.is_current().await {
         delivery.cache_and_deliver(Vec::new()).await;
@@ -977,8 +976,8 @@ async fn publish_diagnostics_result(
     // cheap `Unchanged` report.
     delivery.cache_and_deliver(diags).await;
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
-    // The Rust analyser runs a single, full ("deep") pass per publish — there is
-    // no separate fast/deep split like the retired Python pipeline.  Emit the
+    // The analyser runs a single, full ("deep") pass per publish — there is
+    // no separate fast/deep split.  Emit the
     // `[timing] deep diagnostics` marker anyway so tooling that waits for the
     // deep pass to finish (the VS Code test harness' `waitForDeepDiagnostics`,
     // which keys on this exact line + `uri=`) has a reliable signal that O1xx /
@@ -1098,22 +1097,20 @@ pub struct Backend {
     /// Editor-provided `tclLsp.libraryPaths` (the `auto_path` the user picked /
     /// typed). Merged with the config-file layers (`config.ini [global]`,
     /// `.tcl-lsp.ini [project]`) and discovery when building the package
-    /// database. Mirrors the Python server's `libraryPaths` setting.
+    /// database.
     editor_library_paths: Mutex<Vec<String>>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
-    /// known by the unknown-command (W123) check. Mirrors the Python
-    /// `extra_commands` setting; mirrored onto the salsa `AnalyserConfig`.
+    /// known by the unknown-command (W123) check; mirrored onto the salsa
+    /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
     /// default set; `Some(list)` replaces it (an empty list disables the check).
-    /// Mirrors the Python `generic_variable_patterns` setting; mirrored onto the
-    /// salsa `AnalyserConfig`.
+    /// Mirrored onto the salsa `AnalyserConfig`.
     generic_variable_patterns: Mutex<Option<Vec<String>>>,
     /// Resolved `tclLsp.formatting` settings object (the whole section), used
     /// to build the formatter `FormatterConfig` for the document-formatting
-    /// handlers. `Null`/absent keys keep the formatter defaults. Mirrors the
-    /// Python formatter-settings passthrough.
+    /// handlers. `Null`/absent keys keep the formatter defaults.
     formatting_settings: Mutex<serde_json::Value>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
@@ -1126,7 +1123,7 @@ pub struct Backend {
     optimiser_enabled: Mutex<bool>,
     /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
     /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
-    /// on. Mirrors the Python `shimmer_enabled` setting.
+    /// on.
     shimmer_enabled: Mutex<bool>,
     /// Optimisation profile (`tclLsp.optimiser.profile`) controlling which
     /// O-code categories surface as diagnostics. Default
@@ -1143,7 +1140,7 @@ pub struct Backend {
     line_length: Mutex<u32>,
     /// Resolved source-style line length (`tclLsp.style.lineLength`) — the W111
     /// "line too long" threshold, distinct from the formatter width above.
-    /// Default 120, matching the Python `line_length` style setting and
+    /// Default 120, matching
     /// [`tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH`].
     style_line_length: Mutex<u32>,
     /// Incremental query database (salsa 0.26) — the single memoised store of
@@ -1849,7 +1846,7 @@ impl Backend {
         // 8.6+-only commands like `try` in an 8.4/8.5 file.  An explicit
         // versioned or non-Tcl `languageId` still takes precedence (it is a
         // deliberate editor choice), so only the bare `"tcl"` id defers here.
-        // Mirrors the Python oracle `detect_dialect_from_source`
+        // Delegates to `detect_dialect_from_source`
         // (directive > shebang > `package require Tcl`).
         if language_id == "tcl"
             && let Some(d) = tcl_registry::detect_dialect_from_source(text)
@@ -3069,10 +3066,10 @@ impl Backend {
         // Accept nested / flat-dotted / unwrapped payload shapes (some clients,
         // e.g. JetBrains, don't send the nested `tclLsp` object).
         let cfg = normalize_config_payload(&cfg);
-        // Full config parity with the Python server: layer the editor's pulled
+        // Layer the editor's pulled
         // `tclLsp` settings between the user `config.ini` `[global]` (lowest)
-        // and the project `.tcl-lsp.ini` `[project]` (highest). Same precedence
-        // and merge rules as `server/settings.py`.
+        // and the project `.tcl-lsp.ini` `[project]` (highest), applying the
+        // documented precedence and merge rules.
         let global_ini = read_ini_layer(
             core_tcl_install::user_config_path(),
             config_ini::Layer::Global,
@@ -3171,8 +3168,7 @@ impl Backend {
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
     /// `auto_path` (the user's picked installation / hand-entered paths).
-    /// Mirrors the Python server's `libraryPaths` setting. A change rebuilds
-    /// the database so the new paths take effect immediately.
+    /// A change rebuilds the database so the new paths take effect immediately.
     async fn apply_global_library_paths(&self, cfg: &serde_json::Value) {
         if let Some(paths) = cfg
             .get("libraryPaths")
@@ -3310,8 +3306,7 @@ impl Backend {
         }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
         // IRULE4002 generic-name set (an explicit empty list disables the
-        // check; an absent key leaves the default). Mirrors the Python
-        // `genericVariablePatterns` handling in `server/settings.py`.
+        // check; an absent key leaves the default).
         if let Some(patterns) = cfg
             .get("diagnostics")
             .and_then(serde_json::Value::as_object)
@@ -3881,8 +3876,7 @@ impl Backend {
         language_id: &str,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
         // Master switch off (`tclLsp.features.diagnostics = false`): the pull
-        // path returns an empty report, matching the push path's empty-publish
-        // and the Python `diagnostics_enabled` gate.
+        // path returns an empty report, matching the push path's empty-publish.
         if !self.feature_enabled("diagnostics", uri).await {
             return Vec::new();
         }
@@ -4663,8 +4657,7 @@ impl LanguageServer for Backend {
         let mut config_changed = false;
         for change in params.changes {
             // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
-            // layered config — same live-reload the Python server gives these
-            // files.
+            // layered config — a live-reload for these files.
             if is_config_file(&change.uri) {
                 config_changed = true;
                 continue;
@@ -5843,7 +5836,7 @@ impl LanguageServer for Backend {
         params: WorkspaceSymbolParams,
     ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
         // Workspace-wide query (no document URI): gate on the process-global
-        // toggle, as the Python server does with `workspace_symbols_enabled`.
+        // `workspaceSymbols` toggle.
         if !self
             .feature_toggles
             .lock()
@@ -6620,8 +6613,8 @@ impl LanguageServer for Backend {
         &self,
         params: RenameFilesParams,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
-        // Workspace-wide file operation: gate on the process-global toggle,
-        // as the Python server does with `workspace_file_ops_enabled`.
+        // Workspace-wide file operation: gate on the process-global
+        // `workspaceFileOps` toggle.
         if !self
             .feature_toggles
             .lock()
@@ -6688,8 +6681,7 @@ impl LanguageServer for Backend {
     /// entries and re-index the renamed file from its new path so
     /// cross-document features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
-        // Same workspace-file-ops gate as `will_rename_files` (mirrors the
-        // Python `workspace_file_ops_enabled` handler guard).
+        // Same workspace-file-ops gate as `will_rename_files`.
         if !self
             .feature_toggles
             .lock()
@@ -7047,7 +7039,7 @@ fn lift_bigip_range(r: tcl_bigip::Range) -> Range {
 ///
 /// String args are emitted first, then int args. Because each command uses
 /// only one kind, the concatenation yields the exact `arguments` array the
-/// client (and Python's `_bigip_code_actions`) expects, without this
+/// client expects, without this
 /// conversion needing to know which kind it is handling. Forwarding
 /// `string_args` here is what stops the BIG-IP rename actions from reaching
 /// the editor argument-less.
@@ -7121,8 +7113,8 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
 /// Build a [`core_formatting::FormatterConfig`] from the resolved
 /// `tclLsp.formatting` settings object, then apply the request's LSP
 /// `FormattingOptions` (`tabSize` / `insertSpaces`) as the indentation override
-/// (the editor's per-request indentation wins, per the LSP contract). Mirrors
-/// Python's `_normalise_formatter_settings` field mapping so editor- and
+/// (the editor's per-request indentation wins, per the LSP contract). Applies
+/// the formatter field mapping so editor- and
 /// config-file-set formatter options actually take effect.
 /// Apply the `tclLsp.formatting.*` JSON object (camelCase keys) onto `cfg`,
 /// coercing each key per its type. Split out of [`formatter_config_from`] so
@@ -7216,7 +7208,7 @@ fn apply_formatting_object(
 }
 
 /// Read the `docstring*` `tclLsp.formatting.*` settings into `cfg`. Kept for
-/// config parity (round-tripped into the config) even though the docstring
+/// config compatibility (round-tripped into the config) even though the docstring
 /// rewriter that would consume them is not yet implemented. Split out of
 /// [`apply_formatting_object`] to keep each per-key block under the
 /// `too_many_lines` lint.
@@ -7306,8 +7298,7 @@ fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json
 }
 
 /// Normalise a pulled configuration payload into the unwrapped `tclLsp`-content
-/// object [`Backend::apply_global_config`] expects, accepting the three shapes
-/// Python's `_extract_tcl_lsp_settings` handles:
+/// object [`Backend::apply_global_config`] expects, accepting three shapes:
 ///
 /// 1. **Nested** — `{ "tclLsp": { "optimiser": { "O109": false } } }`.
 /// 2. **Flat dotted** — `{ "tclLsp.optimiser.O109": false }` (or without the
@@ -7676,13 +7667,11 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
 /// Diagnostic codes that are *default-off* (opt-in) in the editor catalogue.
 /// They are seeded into the resolved disabled-diagnostics set so the analyser
 /// suppresses them by default, and `tclLsp.diagnostics.<CODE>: true` removes a
-/// code from the disabled set to enable it — mirroring Python's
-/// `default_disabled_diagnostics()` + per-code enable in `server/settings.py`.
+/// code from the disabled set to enable it.
 const DEFAULT_OFF_CODES: &[&str] = &["W242"];
 
 /// A fresh disabled-diagnostics set seeded with the opt-in [`DEFAULT_OFF_CODES`]
-/// — the starting point every resolution builds on (Python's
-/// `set(default_disabled_diagnostics())`).
+/// — the starting point every resolution builds on.
 fn default_disabled_set() -> HashSet<String> {
     DEFAULT_OFF_CODES.iter().map(|c| (*c).to_owned()).collect()
 }
@@ -8096,8 +8085,7 @@ fn lift_analyser_diagnostics(
 }
 
 /// Append the O111 "brace expression performance" hint next to every W100
-/// (unbraced-expression) diagnostic, mirroring the Python publish pipeline
-/// (`server/features/diagnostics.py`): when the optimiser is enabled and O111
+/// (unbraced-expression) diagnostic: when the optimiser is enabled and O111
 /// is not disabled, each W100 gets a paired `Information` hint at the same
 /// range suggesting the user brace the expression for bytecode compilation.
 fn append_brace_expr_perf_hints(
@@ -8380,8 +8368,8 @@ fn build_package_resolver(
     resolver
 }
 
-/// The effective `auto_path` for the package database, layering the sources the
-/// Python server honoured plus on-disk discovery (deduped, in priority order):
+/// The effective `auto_path` for the package database, layering the configured
+/// sources plus on-disk discovery (deduped, in priority order):
 ///
 /// 1. editor `tclLsp.libraryPaths`,
 /// 2. user config `config.ini` `[global] libraryPaths`,
@@ -9296,8 +9284,8 @@ mod tests {
     #[tokio::test]
     async fn default_off_w242_hidden_by_default_enableable_via_config() {
         // End-to-end: a default-off W242 is not published by default, but
-        // `tclLsp.diagnostics.W242: true` turns it on (the Rust server now has a
-        // per-code enable path, matching Python).
+        // `tclLsp.diagnostics.W242: true` turns it on (the server has a
+        // per-code enable path).
         let backend = test_backend();
         let uri = Uri::from_str("file:///w242.tcl").unwrap();
         let src = "while {$x < 10} {puts hi}\n"; // emits W242 from the analyser
@@ -9917,8 +9905,7 @@ mod tests {
     #[test]
     fn action_command_forwards_string_args_for_bigip_rename_partition() {
         // The BIG-IP code-action provider emits `tclLsp.renamePartition`
-        // with `string_args = [uri, partition]` (Python:
-        // `arguments=[uri, partition_short]`).  The server conversion must
+        // with `string_args = [uri, partition]`.  The server conversion must
         // forward those — dropping `string_args` left the rename action
         // argument-less and the client could not run it.
         let cmd = core_code_actions::ActionCommand {
@@ -10074,8 +10061,8 @@ mod tests {
 
     #[test]
     fn formatter_config_round_trips_docstring_settings() {
-        // The docstring knobs are carried for config parity (not yet consumed
-        // by the engine); a settings object still flows them into the config.
+        // The docstring knobs are carried for config compatibility (not yet
+        // consumed by the engine); a settings object still flows them into the config.
         let opts = tower_lsp_server::ls_types::FormattingOptions::default();
         let cfg = formatter_config_from(
             &serde_json::json!({
@@ -10095,7 +10082,7 @@ mod tests {
         assert!(cfg.docstring_decoration);
         assert_eq!(cfg.docstring_decoration_char, '=');
         assert_eq!(cfg.docstring_decoration_width, 80);
-        // Defaults match the Python config (style none, tag doxygen, char '.').
+        // Defaults are style none, tag doxygen, char '.'.
         let dflt = core_formatting::FormatterConfig::default();
         assert_eq!(dflt.docstring_style, core_formatting::DocstringStyle::None);
         assert_eq!(
@@ -13274,7 +13261,7 @@ mod tests {
     #[tokio::test]
     async fn diagnostics_master_switch_clears_the_report() {
         // `tclLsp.features.diagnostics = false` yields an empty diagnostic
-        // report (clearing squiggles), mirroring the Python pipeline.
+        // report (clearing squiggles).
         let backend = test_backend();
         let uri = Uri::from_str("file:///d.tcl").unwrap();
         // Trailing whitespace → W112 (a source-style hint, on by default and
@@ -13306,7 +13293,7 @@ mod tests {
 
     #[tokio::test]
     async fn o111_brace_expr_hint_pairs_with_w100() {
-        // Python pairs an O111 "brace your expression" Information hint with
+        // An O111 "brace your expression" Information hint is paired with
         // every W100; the pairing is gated on the optimiser being enabled and
         // O111 not being disabled.
         let backend = test_backend();

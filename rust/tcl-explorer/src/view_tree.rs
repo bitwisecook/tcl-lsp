@@ -14,7 +14,7 @@ use serde_json::Value;
 
 /// One expandable row: a summary `label`, a `detail` table, and children.
 ///
-/// `Serialize` is for the differential parity harness (compared against
+/// `Serialize` is for the differential test harness (compared against
 /// `ViewNode`), not part of the explorer JSON contract.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct ViewNode {

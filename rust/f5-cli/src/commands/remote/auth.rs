@@ -23,9 +23,7 @@ pub struct Credentials {
     pub user: String,
     pub password: String,
     pub port: u16,
-    // Consumed only by the SSH transport, which is not implemented, so it is
-    // otherwise unused.
-    #[allow(dead_code)]
+    /// The SSH port used by the `ssh` / `auto` fetch transports.
     pub ssh_port: u16,
 }
 

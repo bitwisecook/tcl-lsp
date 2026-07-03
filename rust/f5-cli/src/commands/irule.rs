@@ -419,7 +419,7 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
 /// Print the standard error for an unimplemented sub and return the exit
 /// code (2).
 fn deferred(sub: &str, engine: &str) -> u8 {
-    eprintln!("error: f5 irule {sub} is not yet ported (requires the {engine} engine)");
+    eprintln!("error: f5 irule {sub} is not yet implemented (requires the {engine} engine)");
     2
 }
 
@@ -664,7 +664,7 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
 
     // The iRule lint category only inspects rule bodies, so the `sources`
     // argument is the rule bodies joined back together by origin URI (the
-    // built-in rules ignore it, but pass it for signature parity).
+    // built-in rules ignore it, but pass it to satisfy the signature).
     let sources_for_lint: Vec<(String, String)> = loaded
         .configs
         .iter()

@@ -3,7 +3,7 @@
 //! `inside` / `limit` / `nth` (stream); `basename` / `partition` /
 //! `with_partition` (path).
 //!
-//! Parity notes:
+//! Behaviour notes:
 //! - `in(key)` is the inverse of `has` and `inside(container)` the inverse
 //!   of `contains`; both delegate to the already-registered implementations
 //!   via [`crate::builtins::lookup`] with the arguments swapped, so their
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn all_any_follow_jq_empty_semantics() {
-        // jq parity: all([]) is true (vacuous), any([]) is false; null/false
+        // jq behaviour: all([]) is true (vacuous), any([]) is false; null/false
         // are falsy.
         assert!(call_bool(bi_all, &[Value::List(vec![])]));
         assert!(!call_bool(bi_any, &[Value::List(vec![])]));

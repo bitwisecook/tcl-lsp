@@ -6,7 +6,7 @@
 //! `localtime` / `mktime`), the `strftime` / `strptime` formatters, and the
 //! `dateadd` / `datesub` arithmetic shims.
 //!
-//! Parity notes:
+//! Behaviour notes:
 //! - Calendar conversions route through `chrono` (`DateTime<Utc>` /
 //!   `NaiveDateTime`), whose civil-date algorithm reproduces the proleptic
 //!   Gregorian calendar, so the UTC-based
@@ -15,7 +15,7 @@
 //! - **`now`** returns the current Unix time as a float (non-deterministic);
 //!   it is exercised by a unit test here, not the golden fixture.
 //! - **Timezone**: the DSL's `localtime` / `mktime` / `strftime` follow the
-//!   process timezone. The generator and the parity test both pin `TZ=UTC`,
+//!   process timezone. The generator and the differential test both pin `TZ=UTC`,
 //!   so every case is deterministic. With `TZ=UTC`, local time equals UTC, so
 //!   `localtime` shares the UTC broken-down conversion (documented here rather
 //!   than reading `TZ` via libc, which chrono's `Local` does only
@@ -157,7 +157,7 @@ fn bi_gmtime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_localtime(args: &[Value]) -> Result<Value, QueryError> {
-    // With `TZ=UTC` (pinned by the generator and the parity test), local time
+    // With `TZ=UTC` (pinned by the generator and the differential test), local time
     // equals UTC, so this shares the UTC broken-down conversion.
     let n = num_f64(&as_number(&args[0], "localtime", 1)?);
     let Some(dt) = utc_from_unix(n) else {

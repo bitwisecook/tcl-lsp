@@ -1,4 +1,4 @@
-//! Differential parity for the graph's **pilot value-spec edge path**
+//! Differential tests for the graph's **pilot value-spec edge path**
 //! (`references_via_spec` dispatch) across every reference-producing pilot spec:
 //! `ListSpec(ObjectRefSpec)` (`rules`/`policies`/`vlans`/firewall lists),
 //! `Profile`/`Persistence` attachments, `MonitorExpressionSpec`, `SnatModeSpec`,
@@ -6,15 +6,15 @@
 //!
 //! The fixture exercises pilot-only edges (`policies`/`vlans`/`persist`, whose
 //! legacy references are cleared) plus the compound specs (monitor min-of, SNAT
-//! pool, cert-key-chain, firewall source/destination lists). The Rust graph
-//! reproduces the expected edge set exactly — the registry-data regen cleared the
-//! former drift. Self-contained — no external oracle at test time.
+//! pool, cert-key-chain, firewall source/destination lists). The graph
+//! reproduces the expected edge set exactly. Self-contained — no external
+//! fixture generator at test time.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
-fn graph_pilot_edges_match_python() {
+fn graph_pilot_edges() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_pilot.conf")).expect("read config");
     let golden = std::fs::read_to_string(format!("{dir}/graph_pilot.golden.tsv")).expect("golden");
@@ -39,8 +39,8 @@ fn graph_pilot_edges_match_python() {
         .collect();
     let want: Vec<&str> = golden.lines().collect();
 
-    // Exact ordered parity — including the pilot-only `policies`/`vlans`/`persist`
-    // edges legacy can't emit, with no drift edges after the registry-data regen.
+    // Exact ordered comparison — including the pilot-only
+    // `policies`/`vlans`/`persist` edges the legacy path can't emit.
     assert_eq!(got, want, "pilot graph edges differ from the expected set");
     assert!(
         got.iter()

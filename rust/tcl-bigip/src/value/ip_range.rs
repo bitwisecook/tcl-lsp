@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn to_cidrs_matches_python_example() {
+    fn to_cidrs_example() {
         // summarize_address_range(192.0.2.0, 192.0.2.130)
         let r = IPRange::parse("192.0.2.0-192.0.2.130").unwrap();
         let cidrs = r.to_cidrs();

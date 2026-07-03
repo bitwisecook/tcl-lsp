@@ -5,7 +5,7 @@
 //! source-combining rule the verbs share, output writers (with faithful
 //! tab expansion), and the per-dialect [`CommandRegistry`] cache.
 //!
-//! Behaviour here is part of the parity contract (asserted against the captured golden output), so the
+//! Behaviour here is asserted against the captured golden output, so the
 //! discovery order, supported-extension set, skip-directory set, and the
 //! `"\n\n".join(rstrip)` combine rule all match the captured behaviour exactly.
 

@@ -813,7 +813,7 @@ mod tests {
     }
 
     #[test]
-    fn py_repr_matches_cpython() {
+    fn py_repr_quotes_and_escapes() {
         assert_eq!(py_repr("ok"), "'ok'");
         // A double quote inside keeps single outer quotes, double unescaped.
         assert_eq!(py_repr(r#"bad option "-x""#), r#"'bad option "-x"'"#);
@@ -836,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn render_json_matches_python_json_dumps_indent2() {
+    fn render_json_two_space_indent() {
         let entries = vec![
             Entry {
                 command: "lsearch",

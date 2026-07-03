@@ -144,8 +144,7 @@ pub enum ProcArgTrait {
     /// the refinement only matters for caller-side dead-store /
     /// unused-variable suppression, which must skip a param that is
     /// `DynamicNameLocal` without also being a genuine `VarWrite`.
-    /// Mirrors Python `proc_arg_traits.py`'s `DYNAMIC_NAME_LOCAL`
-    /// (PR #498 / #499 deep-review finding 10 / 6).
+    /// See PR #498 / #499 (deep-review finding 10 / 6).
     DynamicNameLocal,
 }
 

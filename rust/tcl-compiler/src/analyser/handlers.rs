@@ -947,8 +947,8 @@ impl Analyser {
         // The script body (args[0]) is evaluated by `catch`, so walk it like
         // every other body-bearing command — otherwise the per-command
         // syntactic checks (W100 unbraced `expr`, W104, W304, …) never reach
-        // inside a `catch { … }`, under-reporting relative to the Python
-        // analyser. `analyse_body` no-ops on a dynamic body (`catch $cmd`).
+        // inside a `catch { … }`, under-reporting. `analyse_body` no-ops on a
+        // dynamic body (`catch $cmd`).
         //
         // The body is a *guarded probe*: `catch { package require Foo }` is the
         // idiomatic optional-dependency check, so facts recorded inside it
@@ -978,8 +978,7 @@ impl Analyser {
     /// variadic capture tail), so this reuses it rather than re-deriving the
     /// layout per command.  Binding these makes the destructured / captured
     /// names visible to completion, hover, and go-to-definition in the
-    /// enclosing scope — matching the Python analyser, which collects var-defs
-    /// from these commands.  `warn_if_unused = false`: like `catch`'s result
+    /// enclosing scope.  `warn_if_unused = false`: like `catch`'s result
     /// variable, the binding is a documented side effect, not a "set but never
     /// read" target, so it must not raise W211.
     ///
@@ -1843,12 +1842,11 @@ impl Analyser {
     /// Handle `append VARNAME ?value ...?` / `lappend VARNAME ?value ...?`.
     ///
     /// Both read-modify-write their first argument, creating it if absent, so
-    /// the target is a variable *definition* for symbol/scope purposes — the
-    /// Python analyser records it (it surfaces in `symbols` / completion /
-    /// hover), and the Rust side previously did not. `warn_if_unused = false`
-    /// because the command itself reads the prior value, so an
-    /// `append`/`lappend` target is never "set but never used" (Python emits no
-    /// W211 for it either).
+    /// the target is a variable *definition* for symbol/scope purposes and must
+    /// surface in `symbols` / completion / hover (it previously did not).
+    /// `warn_if_unused = false` because the command itself reads the prior
+    /// value, so an `append`/`lappend` target is never "set but never used"
+    /// (no W211 for it).
     pub fn handle_append_lappend_command(
         &mut self,
         cmd_name: &str,

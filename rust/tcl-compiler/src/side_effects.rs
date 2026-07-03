@@ -1116,10 +1116,10 @@ mod tests {
     #[test]
     fn http_uri_family_reads_http_state_region() {
         // Regression: `HTTP::uri` / `HTTP::path` / `HTTP::query` getters carry a
-        // read-only `HttpUri` side effect (mirroring the Python registry), so
-        // they classify into the `HTTP_STATE` *read* region. Previously their
-        // Rust specs had no `side_effects`, so callgraph/dataflow reported
-        // `NONE` where Python reported `HTTP_STATE`.
+        // read-only `HttpUri` side effect, so they classify into the
+        // `HTTP_STATE` *read* region. Previously their specs had no
+        // `side_effects`, so callgraph/dataflow reported `NONE` instead of
+        // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
         reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {

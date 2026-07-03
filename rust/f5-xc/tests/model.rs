@@ -1,6 +1,6 @@
 //! Model-level assertions for the `f5-xc` translator — cover a subset of
 //! cases that check the *shape* of the produced XC constructs (which the
-//! summary-only parity fixture does not capture).
+//! summary-only differential fixture does not capture).
 
 use f5_xc::model::TranslateStatus;
 use f5_xc::translate_irule;

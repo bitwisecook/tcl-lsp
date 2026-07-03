@@ -907,7 +907,7 @@ mod tests {
     }
 
     #[test]
-    fn irules_top_level_only_matches_python_registry() {
+    fn irules_top_level_only_matches_registry() {
         // `proc` is the only command tagged with the
         // `IRULES_TOP_LEVEL_ONLY` trait, so the result is exactly
         // `{"proc"}`. Pinning the set surfaces registry-spec drift

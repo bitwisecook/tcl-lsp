@@ -534,7 +534,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn json_escaping_matches_python() {
+    fn json_escaping_is_correct() {
         assert_eq!(Json::s("a/b").dumps_indent2(), "\"a/b\"");
         assert_eq!(Json::s("x\"y").dumps_indent2(), "\"x\\\"y\"");
         assert_eq!(Json::s("uni\u{e9}").dumps_indent2(), "\"uni\\u00e9\"");

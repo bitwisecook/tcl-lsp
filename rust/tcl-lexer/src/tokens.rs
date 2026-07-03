@@ -343,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn token_type_equality_matches_python_semantics() {
+    fn token_type_equality() {
         // Same variant compares equal; different variants do not.
         assert_eq!(TokenType::Esc, TokenType::Esc);
         assert_ne!(TokenType::Esc, TokenType::Str);

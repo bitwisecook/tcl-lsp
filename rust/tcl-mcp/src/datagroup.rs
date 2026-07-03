@@ -1,15 +1,13 @@
-//! AI-enhanced data-group extraction scan (native port of the Python
-//! `ai/shared/datagroup_suggest.py` heuristic).
+//! AI-enhanced data-group extraction scan.
 //!
 //! Scans iRules source for `if`/`switch` patterns that could become
 //! data-groups and returns structured context (pattern type, inferred value
 //! type, CIDR detection, body-shape analysis, confidence) for an LLM to
-//! refine, plus whether the deterministic Rust extractor
+//! refine, plus whether the deterministic extractor
 //! ([`extract_to_datagroup`]) can handle the construct at its cursor.
 //!
-//! This is an AI-only heuristic, but it is decoupled from the retiring Python
-//! packages: segmentation comes from [`walk_commands`] and the
-//! static-extractability check from [`extract_to_datagroup`].
+//! This is an AI-only heuristic: segmentation comes from [`walk_commands`] and
+//! the static-extractability check from [`extract_to_datagroup`].
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -29,7 +27,7 @@ pub fn suggest_datagroup_extractions(args: &Value) -> Value {
     json!({ "candidates": candidates, "total": candidates.len() })
 }
 
-/// A structured extraction candidate — mirrors the Python wire entry (minus the
+/// A structured extraction candidate — the wire entry (minus the
 /// non-serialisable `static_result`, replaced by `has_static_extraction`).
 struct Candidate {
     line: u32,
@@ -103,7 +101,7 @@ fn strip_quotes(s: &str) -> &str {
 }
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range,
-/// reproducing Python's `ipaddress.ip_network` / `ip_address` acceptance.
+/// reproducing `ipaddress.ip_network` / `ip_address` acceptance.
 fn is_ip_or_cidr(value: &str) -> bool {
     let v = strip_quotes(value);
     is_ip_network(v) || is_ip_address(v)
@@ -184,7 +182,7 @@ fn any_cidr(values: &[String]) -> bool {
 
 // ── Equality-condition parsing ────────────────────────────────────────
 
-/// Lazily-compiled regexes matching the Python `_EQ_COND_RE` / `_EQ_COND_REV_RE`.
+/// Lazily-compiled regexes for the forward/reverse equality conditions.
 struct EqRegexes {
     forward: Regex,
     reverse: Regex,
@@ -208,8 +206,8 @@ fn eq_regexes() -> &'static EqRegexes {
     })
 }
 
-/// Parse a simple equality test into `(var, value, negated)`, matching Python
-/// `_parse_eq` (unwraps `{ … }`, handles a leading `!( … )` negation).
+/// Parse a simple equality test into `(var, value, negated)` (unwraps
+/// `{ … }`, handles a leading `!( … )` negation).
 fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     let mut cond = cond.trim();
     if cond.len() >= 2 && cond.starts_with('{') && cond.ends_with('}') {
@@ -320,7 +318,7 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
 }
 
 /// Classify a set of arm bodies as `set_mapping`, `return_mapping`, or
-/// `complex`, matching Python `_classify_body_shape`.
+/// `complex`.
 fn classify_body_shape(bodies: &[String]) -> &'static str {
     let mut target_var: Option<String> = None;
     let mut use_return: Option<bool> = None;
@@ -378,8 +376,7 @@ fn confidence_for(shape: &str) -> &'static str {
 
 // ── switch body tokeniser ─────────────────────────────────────────────
 
-/// Split a braced switch body into whitespace/brace/quote-delimited tokens,
-/// matching Python `_tokenise_switch_body`.
+/// Split a braced switch body into whitespace/brace/quote-delimited tokens.
 fn tokenise_switch_body(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -452,7 +449,7 @@ fn parse_braced_pairs(text: &str) -> Vec<(String, String)> {
 // ── Pattern analysis ──────────────────────────────────────────────────
 
 /// Analyse an `if`/`elseif` chain (or single OR-chain condition) comparing one
-/// variable to literals. Mirrors Python `_analyse_if_chain`.
+/// variable to literals.
 fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
     if texts.len() < 3 {
         return None;
@@ -523,8 +520,7 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
     })
 }
 
-/// Analyse a `switch -exact` over literal patterns. Mirrors Python
-/// `_analyse_switch`.
+/// Analyse a `switch -exact` over literal patterns.
 fn analyse_switch(texts: &[String], line: u32) -> Option<Candidate> {
     let mut i = 1;
     let mut mode = "exact";

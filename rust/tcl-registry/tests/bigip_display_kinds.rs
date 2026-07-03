@@ -1,4 +1,4 @@
-//! Differential parity for `candidate_registry_kinds_for_display` (display
+//! Differential tests for `candidate_registry_kinds_for_display` (display
 //! `Reference.target_kind` → registry kinds) against the captured golden
 //! registry.
 //!
@@ -10,7 +10,7 @@
 use tcl_registry::bigip::default_registry;
 
 #[test]
-fn display_kinds_match_python() {
+fn display_kinds_match_golden() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/display_kinds.golden.tsv"

@@ -1223,11 +1223,9 @@ pub fn find_hoistable_set_warnings(
 // span wins. The pattern set is configurable (`tclLsp.diagnostics.
 // genericVariablePatterns`): pass `None` for the built-in default set,
 // `Some(&[])` to disable the check, or `Some(custom)` to replace the
-// defaults — a faithful port of Python's `genericVariablePatterns`.
+// defaults.
 
-/// Default generic `static::` variable-name patterns — a faithful port of
-/// Python's `DEFAULT_GENERIC_VARIABLE_PATTERNS`
-/// (`compiler/irules_static_names.py`). Each is matched case-insensitively
+/// Default generic `static::` variable-name patterns. Each is matched case-insensitively
 /// (the bare name is lowercased) against the part after the `static::`
 /// prefix. A user-supplied list replaces this set wholesale.
 pub const DEFAULT_GENERIC_VARIABLE_PATTERNS: &[&str] = &[
@@ -1255,8 +1253,7 @@ pub const DEFAULT_GENERIC_VARIABLE_PATTERNS: &[&str] = &[
 /// Compile the generic-name patterns for IRULE4002. `None` selects the
 /// built-in [`DEFAULT_GENERIC_VARIABLE_PATTERNS`]; `Some(custom)` uses the
 /// caller's list verbatim (an empty slice compiles to no patterns, which
-/// disables the check). Invalid regexes are skipped — matching Python's
-/// `re.error` swallow in `get_generic_patterns`.
+/// disables the check). Invalid regexes are skipped.
 fn compile_generic_patterns(patterns: Option<&[String]>) -> Vec<regex::Regex> {
     let build = |src: &str| {
         regex::RegexBuilder::new(src)

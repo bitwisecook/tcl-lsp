@@ -143,7 +143,7 @@ async fn document_symbol_smoke() {
 }
 
 /// `append` / `lappend` create their target variable, so it must surface as a
-/// `Variable`-kind document symbol — the same as `set`. Guards the parity fix
+/// `Variable`-kind document symbol — the same as `set`. Guards the fix
 /// that made the analyser record `append`/`lappend` targets.
 #[tokio::test]
 async fn document_symbol_includes_append_lappend_vars() {

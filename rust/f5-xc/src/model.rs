@@ -39,8 +39,7 @@ pub enum XCConstructKind {
 }
 
 impl TranslateStatus {
-    /// Lower-case status name — matches the Python `status.name.lower()` used
-    /// in the JSON-API / MCP output.
+    /// Lower-case status name, as used in the JSON-API / MCP output.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -53,7 +52,7 @@ impl TranslateStatus {
 }
 
 impl XCConstructKind {
-    /// Lower-case construct-kind name — matches the Python `kind.name.lower()`.
+    /// Lower-case construct-kind name.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {

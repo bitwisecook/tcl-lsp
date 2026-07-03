@@ -136,8 +136,8 @@ impl CodeAction {
 
 /// `refactor.rewrite` — "Brace expr for safety and performance".  Offered
 /// whenever the request range touches a line carrying an unbraced-expr (W100)
-/// diagnostic, matching the Python refactoring catalogue (which finds the
-/// `expr` command at the cursor).  Keyed on *line* overlap rather than the
+/// diagnostic, which corresponds to the `expr` command at the cursor.
+/// Keyed on *line* overlap rather than the
 /// diagnostic's argument span so it is available with the cursor on the `expr`
 /// keyword itself (VS Code invokes refactors at the caret, e.g. column 0), not
 /// only over the arguments.  Reuses the diagnostic's own brace-wrapping fix, so
@@ -300,8 +300,7 @@ pub fn code_actions(
 
 /// BIG-IP-specific code actions for the cursor at `range`'s start.
 ///
-/// Ports the Python `server.features._bigip_code_actions.get_bigip_code_actions`
-/// provider.  A BIG-IP `.conf` is a tree of `module object-type identifier
+/// A BIG-IP `.conf` is a tree of `module object-type identifier
 /// { … }` stanzas (NOT Tcl), so this drives the [`crate::bigip`] stanza
 /// parser rather than the Tcl analyser, walks for the stanza whose range
 /// covers the cursor line, and emits:
@@ -320,15 +319,14 @@ pub fn code_actions(
 ///
 /// Returns an empty vector when the cursor is not inside a parseable
 /// stanza or the document is not BIG-IP.  `range`'s start *line* selects
-/// the object (matching the Python provider, which keys on
-/// `range.start.line`).
+/// the object (keyed on `range.start.line`).
 #[must_use]
 pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeAction> {
     let cursor_line = range.start_line;
     let stanzas = crate::bigip::parse_stanzas(source);
 
     // The object whose stanza covers the cursor line — first match in
-    // source order, mirroring Python's `_object_at_cursor` walk.  A
+    // source order.  A
     // nameless singleton (empty identifier) has no path to rename, so it
     // is not a rename target.
     let Some(stanza) = stanzas.iter().find(|s| {

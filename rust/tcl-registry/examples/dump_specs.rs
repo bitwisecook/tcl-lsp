@@ -1,4 +1,4 @@
-//! Registry-parity dumper.
+//! Registry spec dumper.
 //!
 //! Emits one JSON object per command spec (JSONL) for a given dialect
 //! group, using a normalised schema shared with the reference dumper.
@@ -96,7 +96,7 @@ use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::SubCommand;
 use tcl_registry::traits::Traits;
 
-/// Schema field name -> Rust trait, for the content-parity audit's `bools`.
+/// Schema field name -> Rust trait, for the content audit's `bools`.
 const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
     ("has_loop_body", Traits::HAS_LOOP_BODY),
