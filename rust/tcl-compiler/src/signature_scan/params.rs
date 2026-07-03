@@ -26,8 +26,8 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        while i < bytes.len() && is_whitespace_byte(bytes[i]) {
-            i += 1;
+        while let Some(len) = separator_len(bytes, i) {
+            i += len;
         }
         if i >= bytes.len() {
             break;
@@ -67,9 +67,7 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
             }
         } else {
             let start = i;
-            while i < bytes.len() && !is_whitespace_byte(bytes[i]) {
-                i += 1;
-            }
+            i = scan_bare_word(bytes, i);
             let word = &text[start..i];
             if !word.is_empty() {
                 params.push(ParamDef {
@@ -109,8 +107,8 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
     let mut out = Vec::new();
     let mut i = lo;
     while i < hi {
-        while i < hi && is_whitespace_byte(bytes[i]) {
-            i += 1;
+        while let Some(len) = separator_len(&bytes[..hi], i) {
+            i += len;
         }
         if i >= hi {
             break;
@@ -143,9 +141,7 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
             i = j;
         } else {
             let start = i;
-            while i < hi && !is_whitespace_byte(bytes[i]) {
-                i += 1;
-            }
+            i = scan_bare_word(&bytes[..hi], i);
             if i > start {
                 out.push(tcl_lexer::Span::new(abs(start), abs(i)));
             }
@@ -157,6 +153,51 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
 #[inline]
 fn is_whitespace_byte(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
+}
+
+/// Length of the element separator starting at `bytes[i]`, if any.
+///
+/// A separator is either a single whitespace byte, or a **backslash-newline
+/// line continuation** (`\<LF>`, `\<CR><LF>`, or `\<CR>`).  In Tcl list
+/// parsing — which is how a `proc` / method parameter list is split — a
+/// backslash-newline collapses to element-separating whitespace, so a long
+/// parameter list wrapped across lines with `\` yields distinct parameters
+/// (`{a b\<newline>c}` → `a`, `b`, `c`), not a bogus `b\` name (issue #743).
+/// Every other backslash escape keeps the following byte inside the element
+/// (see [`scan_bare_word`]).
+#[inline]
+fn separator_len(bytes: &[u8], i: usize) -> Option<usize> {
+    let b = *bytes.get(i)?;
+    if is_whitespace_byte(b) {
+        return Some(1);
+    }
+    if b == b'\\' {
+        return match bytes.get(i + 1) {
+            Some(b'\n') => Some(2),
+            Some(b'\r') if bytes.get(i + 2) == Some(&b'\n') => Some(3),
+            Some(b'\r') => Some(2),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// Scan one bare (unbraced) list element starting at `bytes[i]`, returning the
+/// index one past its final byte.  Stops at the next [`separator_len`]
+/// separator; a backslash that escapes any non-newline byte (`a\ b`, `a\tb`)
+/// consumes both bytes so the escaped whitespace stays within the element,
+/// mirroring Tcl's `TclFindElement`.
+#[inline]
+fn scan_bare_word(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() && separator_len(bytes, i).is_none() {
+        // A backslash before a non-newline byte escapes it into the element.
+        i += if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            2
+        } else {
+            1
+        };
+    }
+    i
 }
 
 /// Split on the first run of whitespace. Returns `None` when the input
@@ -248,6 +289,43 @@ mod tests {
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a");
         assert_eq!(params[1].name, "b");
+    }
+
+    #[test]
+    fn backslash_newline_continuation_splits_params() {
+        // Issue #743: a long parameter list wrapped with `\` at end-of-line.
+        // Tcl list parsing treats the backslash-newline as element-separating
+        // whitespace, so the last name on the wrapped line is `ddrtol`, not
+        // `ddrtol\`.
+        let params = parse_param_list("a b ddrtol\\\n            ddatol c");
+        let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "b", "ddrtol", "ddatol", "c"]);
+        assert!(params.iter().all(|p| !p.name.contains('\\')));
+
+        // `\r\n` line endings behave identically.
+        let crlf = parse_param_list("x\\\r\ny");
+        let crlf_names: Vec<&str> = crlf.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(crlf_names, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn backslash_escape_keeps_char_in_element() {
+        // A non-newline backslash escape keeps the following byte in the same
+        // element (matches Tcl `{a\ b}` → single element `a b`).
+        let params = parse_param_list("a\\ b c");
+        let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a\\ b", "c"]);
+    }
+
+    #[test]
+    fn param_name_spans_skip_continuation_backslash() {
+        use tcl_lexer::Span;
+        // `{a b\<newline>c}` — the span for `b` must not include the trailing
+        // backslash, and `c` is a separate parameter.
+        let raw = "{a b\\\nc}";
+        let spans = param_name_spans(raw, 0);
+        // a @1..2, b @3..4 (backslash at 4 excluded), c @6..7
+        assert_eq!(spans, vec![Span::new(1, 2), Span::new(3, 4), Span::new(6, 7)]);
     }
 
     #[test]
