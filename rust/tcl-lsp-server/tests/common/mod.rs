@@ -46,6 +46,54 @@ pub fn unique_uri(suffix: &str) -> String {
     format!("file:///e2e/{}_{n}.{suffix}", std::process::id())
 }
 
+/// A reproducible `xorshift64*` PRNG — the same generator the `tcl-fuzz` crate
+/// uses (`rust/tcl-fuzz/src/rng.rs`), so seeded stress tests stay deterministic
+/// without pulling the `rand` crate into the workspace. Identical seeds yield
+/// identical streams. The `random`/`randint`/`choice` surface mirrors Python's
+/// `random.Random`, easing ports of seeded pytest fixtures.
+pub struct Rng {
+    state: u64,
+}
+
+impl Rng {
+    /// Seed the generator. A zero seed is remapped (xorshift needs non-zero state).
+    #[must_use]
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed },
+        }
+    }
+
+    /// Next raw 64-bit value.
+    pub fn next_u64(&mut self) -> u64 {
+        let mut x = self.state;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.state = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    /// Uniform float in `[0, 1)` (53-bit mantissa), like `random.random()`.
+    pub fn random(&mut self) -> f64 {
+        (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    /// Inclusive integer in `[lo, hi]`, like `random.randint(lo, hi)`.
+    pub fn randint(&mut self, lo: usize, hi: usize) -> usize {
+        if hi <= lo {
+            return lo;
+        }
+        lo + (self.next_u64() as usize) % (hi - lo + 1)
+    }
+
+    /// Pick a reference to a random element of a non-empty slice, like
+    /// `random.choice(seq)`.
+    pub fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
+        &items[(self.next_u64() as usize) % items.len()]
+    }
+}
+
 /// State shared between the harness and its background reader thread.
 struct Shared {
     /// The child's stdin write half — shared so both the client (requests) and

@@ -14,16 +14,19 @@
 //! of the apply-change algorithm ([`TextMirror`]) lives here, local to this file,
 //! and exists only so a divergence between it and the server is a failure.
 //!
-//! The `random.Random(seed)` fixtures from the pytest source are replaced by a
-//! local deterministic RNG. The oracle (mirror-vs-server equivalence) validates
-//! the server for *any* edit sequence, so the exact byte-for-byte reproduction of
-//! Python's Mersenne Twister is not load-bearing — a deterministic, hostile mix
-//! of insert/delete/replace/newline/astral edits is.
+//! The `random.Random(seed)` fixtures from the pytest source are driven by the
+//! project's canonical reproducible generator ([`common::Rng`], the `xorshift64*`
+//! the `tcl-fuzz` crate uses) seeded with the same explicit seeds — the seeds are
+//! kept because a stress test wants reproducible replay. The oracle
+//! (mirror-vs-server equivalence) validates the server for *any* edit sequence,
+//! so the exact byte-for-byte reproduction of Python's Mersenne Twister stream is
+//! not load-bearing — a deterministic, hostile mix of
+//! insert/delete/replace/newline/astral edits is.
 
 mod common;
 
 use common::helpers::*;
-use common::{Lsp, unique_uri};
+use common::{Lsp, Rng, unique_uri};
 
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -121,46 +124,6 @@ impl TextMirror {
         next.push_str(&edit.text);
         next.push_str(&self.text[end..]);
         self.text = next;
-    }
-}
-
-/// A small deterministic RNG (SplitMix64) standing in for `random.Random(seed)`.
-struct Rng {
-    state: u64,
-}
-
-impl Rng {
-    fn new(seed: u64) -> Self {
-        // Mix the seed so small seeds (1, 3, 7 ...) still diverge quickly.
-        Rng {
-            state: seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(0x1234_5678),
-        }
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// Uniform float in [0, 1).
-    fn random(&mut self) -> f64 {
-        (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
-    }
-
-    /// Inclusive integer in `[lo, hi]`.
-    fn randint(&mut self, lo: usize, hi: usize) -> usize {
-        if hi <= lo {
-            return lo;
-        }
-        lo + (self.next_u64() as usize) % (hi - lo + 1)
-    }
-
-    fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
-        let i = (self.next_u64() as usize) % items.len();
-        &items[i]
     }
 }
 
