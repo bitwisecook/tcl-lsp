@@ -897,6 +897,11 @@ impl<'r> Lowerer<'r> {
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
+            // `apply {{params} body ?ns?} …` — walk the braced body so nested
+            // definitions register (like `namespace eval`), keeping the call a
+            // runtime barrier because the body runs in a separate frame.
+            LoweringHookId::Apply => Some(self.lower_apply(seg, namespace)),
+
             // Straightforward control-flow forms.  Each is a
             // single-method dispatch with no arity / shared-method /
             // subcommand complications.
@@ -1585,6 +1590,66 @@ impl<'r> Lowerer<'r> {
             namespace: namespace.to_string(),
             tokens: Some(Self::cmd_tokens(seg)),
         })
+    }
+
+    /// `apply {{params} body ?ns?} ?arg ...?` — an anonymous lambda.
+    ///
+    /// The body runs in a *separate* frame (its own locals, bound parameters),
+    /// so — like `namespace eval` — the `apply` itself stays a runtime
+    /// [`Statement::Barrier`]: codegen executes it via the runtime `apply` and
+    /// the body's frame-local effects are conservatively opaque to the caller's
+    /// CFG. But a braced literal body is still walked through [`Self::lower_body`]
+    /// (in a fresh const-map / proc-depth frame, as `lower_proc` does) so nested
+    /// `proc` definitions and other module-level effects register — where the
+    /// old `lower_default` barrier discarded the body wholesale, losing them.
+    ///
+    /// A `$var` / `[cmd]` lambda, or a lambda whose body element is not a braced
+    /// literal, stays fully opaque (nothing statically walkable).
+    fn lower_apply(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        use tcl_lexer::TokenType;
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+
+        // Locate the body element (index 1) of a braced literal lambda. Split
+        // the lambda's content into list elements by flattening the segmented
+        // words — a newline splits *commands* but not *list elements*, matching
+        // the analyser's `handle_apply_command`.
+        let body_info: Option<(String, u32)> = match (args.first(), arg_tokens.first()) {
+            (Some(lambda_text), Some(&lambda_tok)) if lambda_tok.kind == TokenType::Str => {
+                let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+                let elems = segment_commands_with_offset_and_config(lambda_text, base, self.config);
+                elems
+                    .iter()
+                    .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter()))
+                    .nth(1)
+                    .filter(|(tok, _)| tok.kind == TokenType::Str)
+                    .map(|(tok, text)| {
+                        (text.clone(), tok.span.start() + u32::from(tok.content_offset))
+                    })
+            }
+            _ => None,
+        };
+
+        if let Some((body_text, body_offset)) = body_info {
+            // Fresh frame for the lambda body: its own runtime frame means the
+            // caller's tracked scalars must not fold into it (a bare `$x` in the
+            // body is an unbound local, not the caller's `x`).  Mirror
+            // `lower_proc`'s const-map / proc-depth push.
+            self.proc_depth += 1;
+            self.const_map_stack.push(HashMap::new());
+            let _body = self.lower_body(&body_text, body_offset, namespace);
+            self.const_map_stack.pop();
+            self.proc_depth -= 1;
+        }
+
+        Statement::Barrier {
+            span: seg.span,
+            reason: "unsupported body command".into(),
+            command: seg.name().into(),
+            canonical_command: None,
+            args: args.to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
+        }
     }
 
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {

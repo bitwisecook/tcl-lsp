@@ -110,7 +110,50 @@ fn package_require_tcl_version() {
 
 #[test]
 fn package_require_non_tcl_ignored() {
-    // Lowercase `tcl` is not the Tcl core package (regex is case-sensitive).
+    // Lowercase `tcl` is not the Tcl core package (matched case-sensitively).
     assert_eq!(detect("package require tcl 8.6\n"), None);
     assert_eq!(detect("package require Tk 8.6\n"), None);
+}
+
+// --- tokenised `package vsatisfies [package require Tcl] <x.y>` guard ---
+// (the idiomatic runtime minimum-version check — Tcl 9's own tclshrc uses it).
+
+#[test]
+fn package_vsatisfies_tcl_version() {
+    assert_eq!(
+        detect("[package vsatisfies [package require Tcl] 9.0]\n"),
+        Some("tcl9.0")
+    );
+    assert_eq!(
+        detect("[package vsatisfies [package require Tcl] 9.1]\n"),
+        Some("tcl9.1")
+    );
+    // Nested inside an `if` condition (the tclshrc shape) is still found.
+    assert_eq!(
+        detect("if {[package vsatisfies [package require Tcl] 9.0]} then {\n  setup\n}\n"),
+        Some("tcl9.0")
+    );
+    // …and nested inside a proc body.
+    assert_eq!(
+        detect("proc init {} {\n  if {[package vsatisfies [package require Tcl] 9.0]} { x }\n}\n"),
+        Some("tcl9.0")
+    );
+}
+
+#[test]
+fn package_vsatisfies_non_tcl_ignored() {
+    // A `vsatisfies` over some other package must not pick a Tcl dialect.
+    assert_eq!(detect("[package vsatisfies [package require Foo] 9.0]\n"), None);
+}
+
+#[test]
+fn version_guard_in_comment_or_string_ignored() {
+    // Tokenised detection (vs. plain string matching) does not match a
+    // commented-out or string-literal `package require` / `vsatisfies`.
+    assert_eq!(detect("# package require Tcl 8.4\nset x 1\n"), None);
+    assert_eq!(detect("set msg \"package require Tcl 8.4\"\n"), None);
+    assert_eq!(
+        detect("# [package vsatisfies [package require Tcl] 9.0]\nset x 1\n"),
+        None
+    );
 }
