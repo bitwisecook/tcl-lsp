@@ -21,6 +21,7 @@ pub fn spec() -> CommandSpec {
             | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
+        lowering_hook: Some(crate::hooks::LoweringHookId::Apply),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Apply an anonymous function",

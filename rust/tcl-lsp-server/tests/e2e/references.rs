@@ -5,10 +5,9 @@
 //! `starts(&result)` gives the `(line, character)` start set and
 //! `start_lines(&result)` the set of start lines.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 // -- TestProcReferences --------------------------------------------------
 

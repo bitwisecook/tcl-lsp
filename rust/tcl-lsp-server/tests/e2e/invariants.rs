@@ -5,10 +5,9 @@
 //! document: well-formed ranges, disjoint `WorkspaceEdit`s, and that hostile
 //! inputs never wedge/crash the server or emit a malformed span.
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 
@@ -88,24 +87,51 @@ fn exercise_all_providers(lsp: &mut Lsp, uri: &str) -> Vec<(&'static str, Value)
 
 // -- TestRangeInvariants -------------------------------------------------
 
-/// Every Range from every provider is well-formed, over the whole corpus.
-#[test]
-fn test_all_provider_ranges_well_formed() {
+/// For one corpus entry: every Range from every provider is well-formed, and
+/// (implicitly) the server neither hangs nor errors on the input — the request
+/// helpers panic on a JSON-RPC error or time out, so reaching the end *is* the
+/// "survives and responds" assertion. Each entry is its own `#[test]` so the
+/// 15 (formerly two serial corpus loops) run in parallel.
+fn provider_ranges_well_formed_for(idx: usize) {
     let mut lsp = Lsp::tcl();
-    for (name, source) in corpus() {
-        let uri = unique_uri("tcl");
-        lsp.open_ready(&uri, &source);
-        let results = exercise_all_providers(&mut lsp, &uri);
-        let mut violations: Vec<String> = Vec::new();
-        for (req, res) in &results {
-            violations.extend(range_violations(res, &source, &format!("{name}/{req}"), false));
-        }
-        assert!(
-            violations.is_empty(),
-            "malformed ranges:\n{}",
-            violations.join("\n")
-        );
+    let entries = corpus();
+    let (name, source) = &entries[idx];
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, source);
+    let results = exercise_all_providers(&mut lsp, &uri);
+    let mut violations: Vec<String> = Vec::new();
+    for (req, res) in &results {
+        violations.extend(range_violations(res, source, &format!("{name}/{req}"), false));
     }
+    assert!(
+        violations.is_empty(),
+        "malformed ranges for corpus[{idx}] ({name}):\n{}",
+        violations.join("\n")
+    );
+}
+
+macro_rules! corpus_range_tests {
+    ($($test:ident = $idx:literal;)+) => {
+        /// Guard: the explicit per-entry list must cover the whole corpus, so a
+        /// new corpus entry can't silently escape the invariant sweep.
+        #[test]
+        fn corpus_index_list_is_complete() {
+            let covered = [$($idx),+];
+            assert_eq!(
+                covered.len(), corpus().len(),
+                "corpus size changed — add/remove a corpus_range_tests entry"
+            );
+        }
+        $( #[test] fn $test() { provider_ranges_well_formed_for($idx); } )+
+    };
+}
+
+corpus_range_tests! {
+    ranges_entry_00 = 0;  ranges_entry_01 = 1;  ranges_entry_02 = 2;
+    ranges_entry_03 = 3;  ranges_entry_04 = 4;  ranges_entry_05 = 5;
+    ranges_entry_06 = 6;  ranges_entry_07 = 7;  ranges_entry_08 = 8;
+    ranges_entry_09 = 9;  ranges_entry_10 = 10; ranges_entry_11 = 11;
+    ranges_entry_12 = 12; ranges_entry_13 = 13; ranges_entry_14 = 14;
 }
 
 // -- TestWorkspaceEditInvariants -----------------------------------------
@@ -153,29 +179,10 @@ fn test_code_action_edits_do_not_overlap() {
 
 // -- TestRobustnessAdversarial -------------------------------------------
 
-/// Hostile inputs never hang/crash the server and never yield bad spans.
-#[test]
-fn test_server_survives_and_responds() {
-    let mut lsp = Lsp::tcl();
-    for (name, source) in corpus() {
-        let uri = unique_uri("tcl");
-        // `open_ready` itself proves the analysis pipeline didn't wedge.
-        lsp.open_ready(&uri, &source);
-        // The full battery must return for every adversarial input (the request
-        // helpers panic on a JSON-RPC error or time out, so reaching the end is
-        // the assertion) and every span must be well-formed.
-        let results = exercise_all_providers(&mut lsp, &uri);
-        let mut violations: Vec<String> = Vec::new();
-        for (req, res) in &results {
-            violations.extend(range_violations(res, &source, &format!("{name}/{req}"), false));
-        }
-        assert!(
-            violations.is_empty(),
-            "malformed ranges on adversarial input:\n{}",
-            violations.join("\n")
-        );
-    }
-}
+// The former `test_server_survives_and_responds` (a second serial loop over the
+// same corpus with the same range-well-formedness check) is now covered
+// per-entry by `corpus_range_tests!` above — each entry's `#[test]` proves both
+// "ranges well-formed" and "server survives/responds" for that input.
 
 #[test]
 fn test_server_still_responsive_after_adversarial_burst() {

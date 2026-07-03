@@ -11,6 +11,7 @@ authors.workspace = true
 
 [dependencies]
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-core-types = { path = "../tcl-core-types" }
 bitflags = "2"
 sha2 = "0.10"

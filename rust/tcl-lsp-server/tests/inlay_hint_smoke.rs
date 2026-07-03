@@ -141,5 +141,5 @@ async fn inlay_hints_default_off_returns_empty_list() {
         .unwrap();
     drop(client_write);
 
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }

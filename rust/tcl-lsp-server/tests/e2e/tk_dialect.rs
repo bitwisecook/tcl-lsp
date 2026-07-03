@@ -15,10 +15,9 @@
 //! server. The Tk-availability gating is driven by `# tcl-dialect:` directives
 //! in ordinary `tcl`-language documents (not a `tk` language id).
 
-mod common;
 
-use common::helpers::*;
-use common::{Lsp, unique_uri};
+use crate::common::helpers::*;
+use crate::common::{Lsp, unique_uri};
 
 /// Open `src`, then return the completion labels at `(line, char)`.
 fn complete(lsp: &mut Lsp, uri: &str, src: &str, line: u32, ch: u32) -> std::collections::BTreeSet<String> {

@@ -123,8 +123,6 @@ pub fn available_dialects() -> &'static [&'static str] {
 
 /// Number of leading lines scanned for a `# tcl-dialect:` directive.
 pub const DIALECT_DIRECTIVE_SCAN_LINES: usize = 5;
-/// Number of leading lines scanned for a `package require Tcl` line.
-const PKG_REQUIRE_SCAN_LINES: usize = 30;
 
 /// Map a bare Tcl `<major.minor>` version to its canonical dialect name.
 fn tcl_version_dialect(ver: &str) -> Option<&'static str> {
@@ -188,26 +186,13 @@ fn shebang_tclsh_version(lower: &str) -> Option<String> {
     None
 }
 
-/// Extract `<x.y>` from a `^\s*package\s+require\s+(-exact\s+)?Tcl\s*<x.y>` line.
-/// (`Tcl` is matched case-sensitively.)
-fn package_require_tcl_version(line: &str) -> Option<String> {
-    let mut t = line.trim_start().strip_prefix("package")?;
-    if !t.starts_with(char::is_whitespace) {
-        return None;
-    }
-    t = t.trim_start().strip_prefix("require")?;
-    if !t.starts_with(char::is_whitespace) {
-        return None;
-    }
-    t = t.trim_start();
-    if let Some(rest) = t.strip_prefix("-exact") {
-        if !rest.starts_with(char::is_whitespace) {
-            return None;
-        }
-        t = rest.trim_start();
-    }
-    let t = t.strip_prefix("Tcl")?.trim_start();
-    let bytes = t.as_bytes();
+/// Extract a leading `<major>.<minor>` version from `s` — one or more digits, a
+/// `.`, and one or more digits. Trailing content (a patchlevel `.z`, a `-`
+/// range suffix, whitespace) is ignored, so `"9.0"`, `"9.0.3"`, and `"8.5-9.0"`
+/// all yield the leading `major.minor`. Returns `None` when `s` doesn't start
+/// with a `major.minor` pair.
+fn extract_major_minor(s: &str) -> Option<String> {
+    let bytes = s.as_bytes();
     let mut j = 0;
     while j < bytes.len() && bytes[j].is_ascii_digit() {
         j += 1;
@@ -223,7 +208,169 @@ fn package_require_tcl_version(line: &str) -> Option<String> {
     if j == d2 {
         return None;
     }
-    Some(t[..j].to_string())
+    Some(s[..j].to_string())
+}
+
+/// Maximum nesting depth `scan_tokens_for_tcl_version` descends into command
+/// substitutions / braced words. The version guard is always near the top of a
+/// file at shallow nesting (`if { [package vsatisfies …] }` is depth 2), so a
+/// small bound keeps the scan cheap while covering every real idiom.
+const VERSION_SCAN_DEPTH: u8 = 8;
+
+/// One word of a tokenised command: its lexer kind and delimiter-stripped text.
+struct ScanWord {
+    kind: tcl_lexer::TokenType,
+    text: String,
+}
+
+/// Tokenise `script` and search its *command structure* for a Tcl version
+/// requirement, descending into command substitutions (`[…]`) and braced words
+/// (`{…}`) so a guard nested inside `if { … }` is found too. Recognises both:
+///
+/// - `package require ?-exact? Tcl <x.y>` — the direct minimum-version require;
+/// - `package vsatisfies [package require Tcl] <x.y>` — the idiomatic runtime
+///   guard (Tcl 9's own `tclshrc` uses exactly this).
+///
+/// Working from tokens rather than raw text means a commented-out or
+/// string-literal `package require` never matches (the lexer classes those as
+/// `Comment` / a single quoted word), and bracket / brace nesting is handled
+/// structurally instead of by fragile delimiter counting. Returns the first
+/// `<major.minor>` found in reading order, or `None`.
+fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
+    if depth >= VERSION_SCAN_DEPTH {
+        return None;
+    }
+    let tokens = tcl_lexer::Lexer::new(script).tokenise_all().ok()?;
+    let sm = tcl_lexer::SourceMap::new(script);
+    let mut cmd: Vec<ScanWord> = Vec::new();
+    for tok in tokens {
+        match tok.kind {
+            // Command boundary: match the accumulated words, then reset.
+            tcl_lexer::TokenType::Eol | tcl_lexer::TokenType::Eof => {
+                if let Some(v) = match_version_command(&cmd, depth) {
+                    return Some(v);
+                }
+                cmd.clear();
+            }
+            // Non-word tokens carry no command word.
+            tcl_lexer::TokenType::Sep
+            | tcl_lexer::TokenType::Comment
+            | tcl_lexer::TokenType::Expand => {}
+            _ => cmd.push(ScanWord {
+                kind: tok.kind,
+                text: sm.token_text(tok).to_string(),
+            }),
+        }
+    }
+    match_version_command(&cmd, depth)
+}
+
+/// Whether a command evaluates its *braced / quoted* word arguments as script or
+/// expression bodies — the gate for whether the version scan may recurse into
+/// them. Command substitutions (`[…]`) are always genuine scripts and are
+/// recursed into regardless of the command; this gate applies only to braced /
+/// quoted words, so inert data such as `set msg {package require Tcl 8.4}` is
+/// never mis-tokenised as a script and used to select a bogus dialect. The name
+/// is matched with any leading `::` stripped so fully-qualified builtins
+/// (`::if`, `::namespace`) are recognised too.
+fn is_script_body_command(name: &str) -> bool {
+    matches!(
+        name.trim_start_matches("::"),
+        "if" | "while"
+            | "for"
+            | "foreach"
+            | "catch"
+            | "try"
+            | "eval"
+            | "namespace"
+            | "uplevel"
+            | "apply"
+            | "expr"
+            | "subst"
+            | "proc"
+            | "time"
+            | "coroutine"
+    )
+}
+
+/// Match one tokenised command against the two Tcl-version idioms, first
+/// descending into any command-substitution / script-body argument so a guard
+/// nested inside this command (e.g. `if { [package vsatisfies …] }`) is found.
+fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
+    // Recurse into command substitutions unconditionally (they are always real
+    // scripts), but into braced / quoted words only when this command evaluates
+    // them as script / expression bodies. The gate is applied at *every* nesting
+    // level, so even `if {$c} {set msg {package require Tcl 8.4}}` leaves the
+    // inner `set` data untouched. (Reading order.)
+    let descend_braced = cmd
+        .first()
+        .is_some_and(|w| is_script_body_command(&w.text));
+    for w in cmd {
+        let recurse = match w.kind {
+            tcl_lexer::TokenType::Cmd => true,
+            tcl_lexer::TokenType::Str => descend_braced,
+            _ => false,
+        };
+        if recurse
+            && let Some(v) = scan_tokens_for_tcl_version(&w.text, depth + 1)
+        {
+            return Some(v);
+        }
+    }
+    // This command's own shape must start with `package`.
+    if cmd.first().map(|w| w.text.as_str()) != Some("package") {
+        return None;
+    }
+    match cmd.get(1).map(|w| w.text.as_str()) {
+        // `package require ?-exact? Tcl <x.y>`.
+        Some("require") => {
+            let mut i = 2;
+            if cmd.get(i).map(|w| w.text.as_str()) == Some("-exact") {
+                i += 1;
+            }
+            // `Tcl` is matched case-sensitively — `tcl` / `Tk` are other packages.
+            if cmd.get(i).map(|w| w.text.as_str()) != Some("Tcl") {
+                return None;
+            }
+            cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text))
+        }
+        // `package vsatisfies [package require Tcl] <x.y>` — the subject must be
+        // a `[package require Tcl]` substitution so a `vsatisfies` over some
+        // other package can't select a Tcl dialect.
+        Some("vsatisfies") => {
+            let subject = cmd.get(2)?;
+            if subject.kind != tcl_lexer::TokenType::Cmd
+                || !is_package_require_tcl(&subject.text)
+            {
+                return None;
+            }
+            cmd.get(3).and_then(|w| extract_major_minor(&w.text))
+        }
+        _ => None,
+    }
+}
+
+/// Whether `s` tokenises to exactly the command `package require Tcl` — the
+/// subject of a `vsatisfies` Tcl-version guard.
+fn is_package_require_tcl(s: &str) -> bool {
+    let Ok(tokens) = tcl_lexer::Lexer::new(s).tokenise_all() else {
+        return false;
+    };
+    let sm = tcl_lexer::SourceMap::new(s);
+    let words: Vec<&str> = tokens
+        .iter()
+        .filter(|t| {
+            matches!(
+                t.kind,
+                tcl_lexer::TokenType::Esc
+                    | tcl_lexer::TokenType::Str
+                    | tcl_lexer::TokenType::Var
+                    | tcl_lexer::TokenType::Cmd
+            )
+        })
+        .map(|t| sm.token_text(*t))
+        .collect();
+    words.as_slice() == ["package", "require", "Tcl"]
 }
 
 /// Return the dialect named by a `# tcl-dialect: <dialect>` comment directive in
@@ -262,10 +409,34 @@ mod detect_tests {
     }
 
     #[test]
-    fn extension_beats_generic_content() {
+    fn extension_is_the_fallback_for_generic_content() {
+        // With no content signal, the extension decides.
         assert_eq!(detect_dialect("puts hi\n", Some("x.irule"), DEF), "f5-irules");
         assert_eq!(detect_dialect("spawn ssh host\n", Some("y.exp"), DEF), "expect");
         assert_eq!(detect_dialect("read_xdc c.xdc\n", Some("c.xdc"), DEF), "xilinx-eda-tcl");
+    }
+
+    #[test]
+    fn content_signals_beat_extension() {
+        // A `package require Tcl` guard outranks the filename extension …
+        assert_eq!(
+            detect_dialect("package require Tcl 9.0\n", Some("x.exp"), DEF),
+            "tcl9.0"
+        );
+        // … and so does a `when`-clause content signature.
+        assert_eq!(
+            detect_dialect("when HTTP_REQUEST {\n  pool web\n}\n", Some("x.tcl"), DEF),
+            "f5-irules"
+        );
+    }
+
+    #[test]
+    fn late_signal_in_large_script_is_caught() {
+        // A version guard past the head-scan window is still found by the
+        // full-source fallback pass.
+        let mut s = "set x 1\n".repeat(2000); // ~16 KB of filler > DETECT_SCAN_BYTES
+        s.push_str("if {[package vsatisfies [package require Tcl] 9.0]} { x }\n");
+        assert_eq!(detect_dialect(&s, None, DEF), "tcl9.0");
     }
 
     #[test]
@@ -413,66 +584,106 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     None
 }
 
+/// The dialect named by a `#!…` shebang on the first line (`expect`, or
+/// `tclsh<x.y>`), or `None`.
+fn shebang_dialect(source: &str) -> Option<&'static str> {
+    let first = source.lines().next()?;
+    if !first.starts_with("#!") {
+        return None;
+    }
+    let lower = first.to_ascii_lowercase();
+    if has_word(&lower, "expect") {
+        return Some("expect");
+    }
+    shebang_tclsh_version(&lower).and_then(|ver| tcl_version_dialect(&ver))
+}
+
+/// The *content-borne* dialect signals, in the priority the project wants:
+/// a `package require` / `vsatisfies` Tcl-version guard (tokenised, so comments
+/// and string literals never match) first, then the command / `when`-clause
+/// content signatures (iRules, F5 tmsh / iApp, EDA tools, expect). Returns the
+/// dialect for the first signal found in `head`, or `None`.
+///
+/// Split out from [`detect_dialect`] so it can be applied to a cheap head
+/// first and — only on a miss — the full source, catching a signal that a very
+/// large script reveals only near its end without paying that cost on the
+/// common (signal-near-the-top) path.
+fn detect_content_signals(head: &str) -> Option<&'static str> {
+    if let Some(ver) = scan_tokens_for_tcl_version(head, 0)
+        && let Some(d) = tcl_version_dialect(&ver)
+    {
+        return Some(d);
+    }
+    detect_from_content(head)
+}
+
 /// The canonical dialect detector shared by the LSP, editors, CLI tooling, and
 /// AI integrations. Given a document's `source` and optional `filename`,
 /// returns a best-guess dialect (never fails — falls back to `default` when no
 /// heuristic fires).
 ///
-/// Heuristics are applied in priority order over the first
-/// [`DETECT_SCAN_BYTES`] bytes:
-/// 1. an explicit `# tcl-dialect: <name>` directive;
-/// 2. the filename extension ([`dialect_from_extension`]);
-/// 3. the `#!…` shebang (`expect`, `tclsh<x.y>`);
+/// Heuristics are applied in this priority order, most-trusted first:
+/// 1. an explicit `# tcl-dialect: <name>` directive (first
+///    [`DIALECT_DIRECTIVE_SCAN_LINES`] lines);
+/// 2. the `#!…` shebang (`expect`, `tclsh<x.y>`);
+/// 3. a tokenised `package require ?-exact? Tcl <x.y>` or `package vsatisfies
+///    [package require Tcl] <x.y>` version guard;
 /// 4. content signatures — iRules `when EVENT {`, F5 `tmsh::` / iApp, EDA-tool
 ///    commands (Xilinx / Synopsys / Cadence / Quartus / Mentor), `expect`;
-/// 5. a `package require ?-exact? Tcl <x.y>` line.
+/// 5. the filename extension ([`dialect_from_extension`]) — a fallback, since a
+///    `.tcl` file's *content* is a stronger signal than its name;
+/// 6. the caller's `default` (the editor / LSP / XDG configuration).
+///
+/// The BigIP config-object tier (tier between content and extension in the
+/// project's model) is applied by the `tcl-bigip` layer, which wraps this
+/// detector — it isn't reachable from the registry crate.
+///
+/// Tiers 3–4 (the *content-borne* signals) are scanned streaming-style: the
+/// cheap [`DETECT_SCAN_BYTES`]-byte head is tried first and, only if it is
+/// inconclusive, the full source — so a signal that a very large script reveals
+/// only near its end is still caught without paying that cost when a signal
+/// sits near the top (the common case).
+///
+/// An explicit editor / workspace-folder dialect is applied by the caller
+/// *above* this function and overrides everything here.
 #[must_use]
 pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static str) -> &'static str {
-    let head = scan_head(source);
-
     // 1. Explicit directive always wins.
-    if let Some(d) = detect_dialect_directive(head) {
+    if let Some(d) = detect_dialect_directive(source) {
         return d;
     }
-    // 2. Extension (a decisive `.irule` / `.exp` beats ambiguous content).
+    // 2. Shebang.
+    if let Some(d) = shebang_dialect(source) {
+        return d;
+    }
+    // 3-4. Content-borne signals (package/vsatisfies version, then content
+    //       signatures). Try the cheap head first; on a miss, scan the whole
+    //       source so a late signal in a huge script is still caught.
+    let head = scan_head(source);
+    if let Some(d) =
+        detect_content_signals(head).or_else(|| {
+            (source.len() > head.len())
+                .then(|| detect_content_signals(source))
+                .flatten()
+        })
+    {
+        return d;
+    }
+    // 5. Filename extension — only when the content gave nothing away.
     if let Some(d) = filename.and_then(dialect_from_extension) {
         return d;
     }
-    // 3. Shebang.
-    if let Some(first) = head.lines().next()
-        && first.starts_with("#!")
-    {
-        let lower = first.to_ascii_lowercase();
-        if has_word(&lower, "expect") {
-            return "expect";
-        }
-        if let Some(ver) = shebang_tclsh_version(&lower)
-            && let Some(d) = tcl_version_dialect(&ver)
-        {
-            return d;
-        }
-    }
-    // 4. Content signatures.
-    if let Some(d) = detect_from_content(head) {
-        return d;
-    }
-    // 5. `package require Tcl <x.y>`.
-    for line in head.lines().take(PKG_REQUIRE_SCAN_LINES) {
-        if let Some(ver) = package_require_tcl_version(line)
-            && let Some(d) = tcl_version_dialect(&ver)
-        {
-            return d;
-        }
-    }
+    // 6. Caller default (editor / LSP / XDG config).
     default
 }
 
 /// Detect a Tcl dialect from a script's *content* — used when no explicit
 /// dialect is configured. Checks, in priority order: a `# tcl-dialect:`
 /// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a
-/// `#!…tclsh<x.y>` / `#!…expect` shebang (first line), then a
-/// `package require ?-exact? Tcl <x.y>` line (first 30 lines). Returns `None`
-/// when no hint is found.
+/// `#!…tclsh<x.y>` / `#!…expect` shebang (first line), then a tokenised
+/// `package require ?-exact? Tcl <x.y>` or `package vsatisfies [package require
+/// Tcl] <x.y>` version guard over the first [`DETECT_SCAN_BYTES`] bytes.
+/// Returns `None` when no hint is found.
 ///
 /// (Conf-wrapped-iRules detection is an additional fallback; it depends on
 /// the BIG-IP layer and is handled there.)
@@ -494,14 +705,13 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
             return Some(d);
         }
     }
-    for line in source.lines().take(PKG_REQUIRE_SCAN_LINES) {
-        if let Some(ver) = package_require_tcl_version(line)
-            && let Some(d) = tcl_version_dialect(&ver)
-        {
-            return Some(d);
-        }
-    }
-    None
+    let head = scan_head(source);
+    let scan = |s: &str| {
+        scan_tokens_for_tcl_version(s, 0).and_then(|ver| tcl_version_dialect(&ver))
+    };
+    // Head first (cheap); on a miss, the full source so a late guard in a huge
+    // script is still caught.
+    scan(head).or_else(|| (source.len() > head.len()).then(|| scan(source)).flatten())
 }
 
 impl DialectSet {

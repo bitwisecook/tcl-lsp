@@ -139,7 +139,7 @@ async fn document_symbol_smoke() {
         .unwrap();
     drop(client_write);
 
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
 
 /// `append` / `lappend` create their target variable, so it must surface as a
@@ -224,5 +224,5 @@ async fn document_symbol_includes_append_lappend_vars() {
         .await
         .unwrap();
     drop(client_write);
-    let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
+    server.abort();
 }
