@@ -304,6 +304,15 @@ mod tests {
             "web",
             "stub-only ACCESS::session must dispatch, not abort the handler"
         );
+        // The generic stub must log the call under the command's real
+        // (category, action) — the data table replaced ~1500 per-command stub
+        // procs, so guard that the decision log is unchanged for a stub-only
+        // command (`ACCESS::session` -> {access session}).
+        let decisions = s.decisions().unwrap();
+        assert!(
+            decisions.contains("access session"),
+            "stub dispatch must record the decision under its real category/action; got: {decisions}"
+        );
     }
 
     #[test]
