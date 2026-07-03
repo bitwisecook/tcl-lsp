@@ -40,30 +40,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
   — a highlight over a braced word covers `{$condition` instead of
   `{$condition}`, dropping the closing delimiter.
-- [kcs-issue-shadowed-builtin-breaks-highlighting.md](kcs-issue-shadowed-builtin-breaks-highlighting.md)
-  — `else`/`elseif` render as strings, and a bareword built-in
-  (`dict set frame proc "…"`) breaks the closing-brace colour.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
-- [kcs-issue-code-lens-zero-references.md](kcs-issue-code-lens-zero-references.md)
-  — the reference-count lens reads "0 references" above a proc that
-  **Find All References** clearly shows is used (issue #637).
-- [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
-  — `expr {1 / 0}` returns 0 in compiled WASM instead of raising
-  `divide by zero`.
-- [kcs-issue-wasm-ignores-missing-var.md](kcs-issue-wasm-ignores-missing-var.md)
-  — `expr {$undefined + 1}` returned `1` in compiled WASM instead of
-  raising `can't read "undefined": no such variable` (issue #263).
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
-- [kcs-issue-try-dash-handler-body-false-error.md](kcs-issue-try-dash-handler-body-false-error.md)
-  — a `try` handler with a `-` fallthrough body is wrongly flagged
-  "too few arguments for '-'" (issue #703).
-- [kcs-issue-vm-set-test-codegen.md](kcs-issue-vm-set-test-codegen.md)
-  — VM `set.test` core slice: nested array-set, brace-suppressed array
-  keys, array reads in word templates, and `while executing` errorInfo
-  frames (now matches C Tcl 9: 63 / 1 / 0).
 
 ## Q&A
 

@@ -187,7 +187,7 @@ the Command's import-machinery slots independent.
 ## 7. Compiler: conservative proc-index flush
 
 `_collect_dynamically_modified_procs` in
-[`compiler/codegen/wasm/proc_scan.py`](../../../compiler/codegen/wasm/proc_scan.py)
+`compiler/codegen/wasm/proc_scan.py`
 now returns `(affected, full_flush)`.  When it sees any of
 `interp create` / `interp eval` / `interp delete` anywhere in the
 IR, `full_flush` is set.  The caller responds by clearing
@@ -307,10 +307,10 @@ Three layers:
    dedicated WASM exports (`tcl_test_interp_create`,
    `tcl_test_interp_lookup`, `tcl_test_interp_delete`,
    `tcl_test_interp_eval_script`, `tcl_test_hidden_find_in`):
-   - [`tests/runtime/test_tcl_interp_children.py`](../../../tests/runtime/test_tcl_interp_children.py)
+   - `tests/runtime/test_tcl_interp_children.py`
 2. **End-to-end Tcl → WASM → runtime tests**:
    - `TestInterpChildren` in
-     [`tests/test_wasm_execution.py`](../../../tests/test_wasm_execution.py)
+     `tests/test_wasm_execution.py`
      covers create + eval + exists + slaves + delete, plus the
      cross-interp promotions for `alias` / `hide` /
      `invokehidden`.

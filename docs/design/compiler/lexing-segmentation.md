@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 1183),
-[`shared/tokens.py`](../../../shared/tokens.py),
-[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 344)
+Source: `compiler/parsing/lexer.py` (`tokenise_all` at line 1183),
+`shared/tokens.py`,
+`compiler/parsing/command_segmenter.py` (`segment_commands` at line 344)
 
 ## Content
 
@@ -72,7 +72,7 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 `segment_commands()` no longer runs its own hand-rolled token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
-([`compiler/parsing/syntax/`](../../../compiler/parsing/syntax/), see
+(`compiler/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
 it.  The derivation is byte-identical to the former loop — `range`, `argv`,
 `texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
@@ -115,7 +115,7 @@ more runtime args) from a literal `*${list}` word.
 
 The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
 `configure_signatures()` in
-[`compiler/registry/runtime.py`](../../../compiler/registry/runtime.py)
+`compiler/registry/runtime.py`
 sets the flag based on the active dialect:
 
 - **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl

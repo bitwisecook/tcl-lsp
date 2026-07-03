@@ -2,7 +2,7 @@
 
 This page summarises one full sweep of the Tcl 9.0.3 test suite (the
 non-platform-specific files listed in `_IN_SCOPE` of
-[`tests/external/run_tcl9_tests.py`](../tests/external/run_tcl9_tests.py))
+`tests/external/run_tcl9_tests.py`)
 through both **C tclsh 9.0.3** (built from `tmp/tcl9.0.3/unix/` with the
 default `./configure && make`) and our **Zig WASM runtime** (Release-Fast
 build, executed under wasmtime 43.0.1).
@@ -10,9 +10,9 @@ build, executed under wasmtime 43.0.1).
 The per-bundle data lives in
 [`c-tcl-9.0.3-tcltest-baseline.csv`](c-tcl-9.0.3-tcltest-baseline.csv).
 The two sweep harnesses live at
-[`scripts/dev/tcl9_ctcl_baseline.py`](../scripts/dev/tcl9_ctcl_baseline.py) and
-[`scripts/dev/tcl9_wasm_sweep.py`](../scripts/dev/tcl9_wasm_sweep.py); the CSV
-combiner is [`scripts/dev/tcl9_baseline_to_csv.py`](../scripts/dev/tcl9_baseline_to_csv.py).
+`scripts/dev/tcl9_ctcl_baseline.py` and
+`scripts/dev/tcl9_wasm_sweep.py`; the CSV
+combiner is `scripts/dev/tcl9_baseline_to_csv.py`.
 
 ## Headline
 
@@ -139,8 +139,8 @@ needed by `_arg_was_braced`.
 **Suggested fix path:**
 
 1. Verify in
-   [`compiler/codegen/wasm/_emitter/_statements.py:728`
-   `_resolve_proc`](../compiler/codegen/wasm/_emitter/_statements.py)
+   `compiler/codegen/wasm/_emitter/_statements.py:728`
+   `_resolve_proc`
    that `args`-tail procs land in `_proc_index` so they hit the
    direct-call path. The reproducer above shows `_resolve_proc` was
    *not* invoked for `test` — the dispatch went somewhere else
@@ -150,8 +150,8 @@ needed by `_arg_was_braced`.
    TokenType.STR`. Re-quote with `_tcl_list_quote` whenever the
    brace-status of an arg can't be recovered.
 3. Defensive backstop in
-   [`compiler/codegen/wasm/_emitter/_statements.py:1183`
-   `_emit_eval_fallback`](../compiler/codegen/wasm/_emitter/_statements.py)
+   `compiler/codegen/wasm/_emitter/_statements.py:1183`
+   `_emit_eval_fallback`
    — when `tokens is None`, drop the `elif a.startswith("[")` shortcut
    and always go through `_tcl_list_quote`. That branch is currently
    "trust the input is a substitution"; the args-tail path can break
@@ -383,7 +383,7 @@ bundles trapping out before reaching a tcltest summary.
    not parameterised callees), or (b) route compiled-proc local
    reads/writes through the runtime frame table. Both are
    substantial; the documented note in
-   [`tests/test_barrier_relaxation_runtime.py`](../tests/test_barrier_relaxation_runtime.py)
+   `tests/test_barrier_relaxation_runtime.py`
    explains the trade-off in detail.
 4. **`opt` package stubs** — `opt.test` needs the
    `tcl9.0.3/library/opt/optparse.tcl` package's
