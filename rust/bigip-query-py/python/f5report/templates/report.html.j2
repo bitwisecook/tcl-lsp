@@ -173,7 +173,7 @@
       <tbody>
       {% for mo in d.monitors %}
       <tr class="searchable{{ ' orphan' if not mo.usedBy }}">
-        <td class="mono strong">{{ mo.name }}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="mon:{{ mo.fullPath }}">{{ mo.name }}</span></td>
         <td><span class="tag">{{ mo.type }}</span></td>
         <td class="mono">{{ mo.interval }}</td>
         <td class="mono">{{ mo.timeout }}</td>
@@ -217,7 +217,7 @@
       {% for g in d.dataGroups %}
       <tr class="searchable expandable{{ ' orphan' if not g.usedBy }}">
         <td class="expander">{% if g.records %}▸{% endif %}</td>
-        <td class="mono strong">{{ g.name }}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="dg:{{ g.fullPath }}">{{ g.name }}</span></td>
         <td><span class="tag">{{ g.type }}</span></td>
         <td class="mono">{{ g.recordCount }}</td>
         <td class="mono small">{{ g.usedBy|length }}</td>
@@ -239,7 +239,7 @@
       <tbody>
       {% for p in d.profiles %}
       <tr class="searchable">
-        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="prof:{{ p.fullPath }}">{{ p.name }}</span></td>
         <td><span class="tag{{ ' green' if 'SSL' in p.type }}">{{ p.type }}</span></td>
         <td class="mono small">{{ p.parent.split('/')[-1] if p.parent else '—' }}</td>
         <td class="mono small">{{ p.cert.split('/')[-1] if p.cert else '—' }}</td>

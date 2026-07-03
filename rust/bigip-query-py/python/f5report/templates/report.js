@@ -55,24 +55,10 @@
     });
   });
 
-  // --- search: global box filters the visible panel's rows ------------------
-  function filter(scope, q) {
-    q = q.trim().toLowerCase();
-    scope.querySelectorAll("tr.searchable").forEach(function (row) {
-      var hit = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
-      row.classList.toggle("hidden", !hit);
-      // keep a searchable row's detail row in sync
-      var det = row.nextElementSibling;
-      if (det && det.classList.contains("detail")) det.classList.toggle("hidden", !hit);
-    });
-  }
+  // --- search: "/" focuses the global box; the graph-aware filtering itself
+  //     lives in topology.js (it needs the reference graph). ------------------
   var search = document.getElementById("globalSearch");
   if (search) {
-    search.addEventListener("input", function () {
-      var device = document.querySelector(".device.active") || document;
-      device.querySelectorAll(".panel").forEach(function (p) { filter(p, search.value); });
-    });
-    // "/" focuses search
     document.addEventListener("keydown", function (e) {
       if (e.key === "/" && document.activeElement !== search) {
         e.preventDefault();

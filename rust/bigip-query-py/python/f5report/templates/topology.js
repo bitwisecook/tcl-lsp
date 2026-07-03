@@ -1035,4 +1035,65 @@
   var scrim = document.getElementById("drawerScrim");
   if (scrim) scrim.addEventListener("click", closeDrawer);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDrawer(); });
+
+  // ---- graph-aware global search ----------------------------------------
+  // Filters every object table (across all tabs) of the active device to rows
+  // that match the query, plus the rows *linked* to a match (one hop in the
+  // reference graph), which render dimmed to show they didn't match directly.
+  (function initSearch() {
+    var search = document.getElementById("globalSearch");
+    if (!search) return;
+
+    function detailOf(row) {
+      var d = row.nextElementSibling;
+      return (d && d.classList.contains("detail")) ? d : null;
+    }
+
+    function run() {
+      var dEl = document.querySelector(".device.active");
+      if (!dEl) return;
+      var ix = IDX[parseInt(dEl.dataset.dev, 10)];
+      var q = search.value.trim().toLowerCase();
+      var rows = dEl.querySelectorAll(".panel tr.searchable");
+
+      if (!q) {
+        rows.forEach(function (r) {
+          r.classList.remove("hidden", "search-linked");
+          var d = detailOf(r); if (d) d.classList.remove("hidden");
+        });
+        return;
+      }
+
+      // 1st pass: direct text matches, remember matched object ids
+      var info = [], direct = {};
+      rows.forEach(function (r) {
+        var el = r.querySelector("[data-oid]");
+        var oid = el ? el.dataset.oid : null;
+        var tm = r.textContent.toLowerCase().indexOf(q) >= 0;
+        info.push({ row: r, oid: oid, tm: tm });
+        if (tm && oid) direct[oid] = true;
+      });
+
+      // expand to one-hop neighbours of every directly-matched object
+      var linked = {};
+      Object.keys(direct).forEach(function (o) {
+        Object.keys(ix.adj[o] || {}).forEach(function (nb) {
+          if (!direct[nb]) linked[nb] = true;
+        });
+      });
+
+      info.forEach(function (ri) {
+        var show = ri.tm || (ri.oid && linked[ri.oid]);
+        ri.row.classList.toggle("hidden", !show);
+        ri.row.classList.toggle("search-linked", !!(show && !ri.tm));
+        var d = detailOf(ri.row); if (d) d.classList.toggle("hidden", !show);
+      });
+    }
+
+    search.addEventListener("input", run);
+    // re-apply when switching devices so the filter follows the visible device
+    document.querySelectorAll(".dev-tab").forEach(function (b) {
+      b.addEventListener("click", function () { setTimeout(run, 0); });
+    });
+  })();
 })();
