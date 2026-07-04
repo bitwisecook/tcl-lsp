@@ -1406,7 +1406,8 @@ fn classify_regex_component(matched: &str) -> TokenKind {
 }
 
 /// Push one regex sub-token at absolute byte offset `abs_off` covering
-/// `text`.  Skips empty / multi-line runs.
+/// `text`.  Skips empty runs; a multi-line run is split into one entry per
+/// covered line (see [`push_span_entries`]).
 fn push_subtoken(
     source: &str,
     line_index: &LineIndex,
@@ -1415,12 +1416,59 @@ fn push_subtoken(
     kind: TokenKind,
     entries: &mut Vec<Entry>,
 ) {
-    if text.is_empty() || text.contains('\n') {
+    push_span_entries(source, line_index, abs_off, text, kind, 0, entries);
+}
+
+/// Emit token [`Entry`] values for `text` at absolute byte offset `abs_off`.
+///
+/// The LSP semantic-tokens encoding cannot represent a single token spanning
+/// a newline (each token carries only a length, not an end position), so a
+/// multi-line token is split into one entry per covered line, each covering
+/// that line's slice of the token.  This keeps multi-line literals — braced
+/// (`{…}`) or quoted (`"…"`) strings that span lines (issue #757) — highlighted
+/// rather than dropped.  Empty per-line slices (blank lines, the trailing
+/// slice after a final newline) are skipped, and the newline / `\r` bytes
+/// themselves are never covered.
+fn push_span_entries(
+    source: &str,
+    line_index: &LineIndex,
+    abs_off: usize,
+    text: &str,
+    kind: TokenKind,
+    modifiers: u32,
+    entries: &mut Vec<Entry>,
+) {
+    if text.is_empty() {
         return;
     }
-    let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, 0));
+    if !text.contains('\n') {
+        let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
+        entries.push((
+            pos.line,
+            pos.character.get(),
+            utf16_len(text),
+            kind,
+            modifiers,
+        ));
+        return;
+    }
+    let mut off = 0usize;
+    for line in text.split_inclusive('\n') {
+        let seg = line.strip_suffix('\n').unwrap_or(line);
+        let seg = seg.strip_suffix('\r').unwrap_or(seg);
+        if !seg.is_empty() {
+            let pos =
+                line_index.position_at_utf16(u32::try_from(abs_off + off).unwrap_or(0), source);
+            entries.push((
+                pos.line,
+                pos.character.get(),
+                utf16_len(seg),
+                kind,
+                modifiers,
+            ));
+        }
+        off += line.len();
+    }
 }
 
 /// Maximum body / expr / command-substitution recursion depth — guards
@@ -2215,16 +2263,19 @@ fn push_token(
     if end <= start {
         return;
     }
-    let pos = line_index.position_at_utf16(start, source);
     let text = source.get(start as usize..end as usize).unwrap_or("");
-    // Skip multi-line tokens — LSP encoding wants per-line
-    // entries; multi-line tokens would need splitting.
-    // Drop them.
-    if text.contains('\n') {
-        return;
-    }
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, modifiers));
+    // The LSP encoding wants per-line entries, so a multi-line token (a braced
+    // or quoted string literal spanning lines) is split into one entry per
+    // line rather than dropped — see [`push_span_entries`] and issue #757.
+    push_span_entries(
+        source,
+        line_index,
+        start as usize,
+        text,
+        kind,
+        modifiers,
+        entries,
+    );
 }
 
 /// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s

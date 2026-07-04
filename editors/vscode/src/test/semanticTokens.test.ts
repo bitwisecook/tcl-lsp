@@ -99,4 +99,44 @@ suite("Semantic Tokens", () => {
       `bareword 'proc' argument must stay a string, got '${procTok.type}'`,
     );
   });
+
+  // Issue #757: a braced string literal spanning multiple lines lost its
+  // highlighting (the enclosing multi-line `string` token was dropped).  It
+  // must now carry a `string` token on every covered line, just like the
+  // quoted form.
+  test("multi-line braced string literal is highlighted on every line", async () => {
+    const uri = getDocUri("multilineString.tcl");
+    await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const stringLines = new Set(decoded.filter((t) => t.type === "string").map((t) => t.line));
+    // The braced literal spans lines 0..2; each must carry a string token.
+    for (const line of [0, 1, 2]) {
+      assert.ok(
+        stringLines.has(line),
+        `braced literal line ${line} must carry a string token, got string lines ${JSON.stringify([
+          ...stringLines,
+        ])}`,
+      );
+    }
+    // The quoted literal spans lines 3..5 — highlighted the same way.
+    for (const line of [3, 4, 5]) {
+      assert.ok(
+        stringLines.has(line),
+        `quoted literal line ${line} must carry a string token, got string lines ${JSON.stringify([
+          ...stringLines,
+        ])}`,
+      );
+    }
+  });
 });
