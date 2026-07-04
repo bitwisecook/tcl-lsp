@@ -1541,17 +1541,39 @@ fn collect_switch_case_list(
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
-    // Flatten every word across the (possibly multi-line) case list.
+    // Flatten every element of the case list.  A Tcl `switch` case list is a
+    // *list*, not a script: `;` and `#` are ordinary pattern elements, not a
+    // command separator / comment.  Split it with the list grammar
+    // (`find_element`) rather than the command segmenter, then rebuild each
+    // element into a `Token` following the lexer's inner-end + `content_offset`
+    // convention (`span.end()` sits at the closing `}`/`"`; `content_offset`
+    // strips the opener) so the downstream pattern/body helpers work unchanged.
     let mut words: Vec<(Token, String)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-    ) {
-        for (i, t) in seg.argv.iter().enumerate() {
-            let text = seg.texts.get(i).cloned().unwrap_or_default();
-            words.push((*t, text));
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let bytes = inner.as_bytes();
+        let (kind, content_offset, span_start) =
+            if el.value.start > 0 && bytes[el.value.start - 1] == b'{' {
+                (TokenType::Str, 1u8, el.value.start - 1)
+            } else if el.value.start > 0 && bytes[el.value.start - 1] == b'"' {
+                (TokenType::Esc, 1u8, el.value.start - 1)
+            } else {
+                (TokenType::Esc, 0u8, el.value.start)
+            };
+        let word_tok = Token::with_content_offset(
+            kind,
+            tcl_lexer::Span::new(
+                u32::try_from(cstart + span_start).unwrap_or(0),
+                u32::try_from(cstart + el.value.end).unwrap_or(0),
+            ),
+            content_offset,
+        );
+        let text = inner.get(el.value.clone()).unwrap_or_default().to_owned();
+        words.push((word_tok, text));
+        if el.next <= scan {
+            break;
         }
+        scan = el.next;
     }
     for (idx, (word_tok, text)) in words.iter().enumerate() {
         if idx % 2 == 0 {
@@ -2244,9 +2266,11 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             // A `#` is only a Tcl comment in command position.  This naive scan
             // can't see command position, but a physical line already covered by
             // an emitted token is inside a multi-line string / braced literal
-            // (whose per-line entries are pushed before this scan), so the `#`
-            // there is literal text, not a comment.  Suppress the comment to
-            // avoid an overlapping token the LSP client would reject (#757).
+            // (whose per-line entries are pushed before this scan), or is a
+            // `switch` case-list `#` pattern element (not a comment — Tcl's
+            // "comments don't work in switch" gotcha), so the `#` there is not a
+            // comment.  Suppress it to avoid an overlapping token the LSP client
+            // would reject (#757, #758).
             let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
                 *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
             });
