@@ -59,8 +59,9 @@
 //! of the BIG-IP taxonomy) is handled.
 
 use rustc_hash::FxHashMap;
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
@@ -278,7 +279,26 @@ fn is_operator_command(name: &str) -> bool {
 /// Compute semantic tokens for the entire document.
 #[must_use]
 pub fn full(source: &str, dialect: &str, registry: &CommandRegistry) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry);
+    full_with_cu(source, dialect, registry, None)
+}
+
+/// Compute semantic tokens with an optional [`CompilationUnit`] for the same
+/// document.
+///
+/// When `cu` is `Some`, a `regexp`/`regsub` pattern supplied through a
+/// provably-constant string variable (`set my_re ".*abc"; regexp $my_re $s`)
+/// causes the *originating* `set` literal to be highlighted as a regex — see
+/// [`tcl_compiler::regex_source`].  With `cu == None` the result is identical
+/// to the pure-segmentation tokenisation (the feature is simply absent), so
+/// callers without an analysis pay nothing.
+#[must_use]
+pub fn full_with_cu(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry, cu);
     encode_entries(&entries)
 }
 
@@ -294,7 +314,20 @@ pub fn range(
     range: crate::definition::LspRange,
     registry: &CommandRegistry,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry);
+    range_with_cu(source, dialect, range, registry, None)
+}
+
+/// [`range`] with an optional [`CompilationUnit`] enabling regex-source
+/// highlighting (see [`full_with_cu`]).
+#[must_use]
+pub fn range_with_cu(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, dialect, registry, cu);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -999,39 +1032,11 @@ fn insert_role_overrides(
                 .or_insert(ArgOverride::KeywordArg);
         }
     }
-
-    // TclOO definition-keyword heads used inside a class / object definition
-    // script (`oo::class create C { method m args {body} … }`) carry a
-    // trailing script body that the registry cannot role-tag — the bare
-    // `method` / `constructor` / … word has no `CommandSpec`.  Without this,
-    // everything inside a method body (the bulk of real TclOO code) stays an
-    // opaque string.  Recurse the trailing body so its commands / vars /
-    // strings tokenise like any other script.
-    if let Some(bi) = oo_definition_body_arg(head, arg_texts.len())
-        && let Some(tok) = seg.argv.get(bi + 1)
-        && matches!(tok.kind, TokenType::Str)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::BodyScript);
-    }
-}
-
-/// 0-based (after-head) index of the trailing script body for a `TclOO`
-/// definition keyword used as a command head inside a class / object
-/// definition script.  Only keywords whose body is unambiguously the last
-/// argument are handled (`method`/`classmethod NAME PARAMS BODY`,
-/// `constructor PARAMS BODY`, `destructor BODY`); modifier-prefixable words
-/// (`private`, `self`, …) are left alone to avoid mis-recursing a non-body
-/// trailing argument.
-fn oo_definition_body_arg(head: &str, n_args: usize) -> Option<usize> {
-    let min = match head {
-        "method" | "classmethod" => 3,
-        "constructor" => 2,
-        "destructor" => 1,
-        _ => return None,
-    };
-    (n_args >= min).then_some(n_args - 1)
+    // Note: recursing the body of a `method` / `constructor` / … keyword used
+    // as a command head inside a class-definition script is handled
+    // context-sensitively by `insert_oo_body_overrides` (issue #747), which
+    // only fires inside an actual OO definition body — so a same-named user
+    // proc is never misclassified.
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -1737,6 +1742,9 @@ struct ScriptCtx<'a> {
     /// into — see [`crate::oo_body`].  Outside one, a same-named user proc
     /// must not be treated as an OO definition.
     inside_oo_body: bool,
+    /// Def-site literal value words to highlight as regex (regex-source
+    /// tracking), keyed by word start.  Empty when disabled.
+    regex_sources: &'a FxHashMap<u32, Span>,
 }
 
 fn collect_switch_regexp_case_list(
@@ -1960,7 +1968,23 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        let mut overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        // Regex-source tracking: retag a `set` value word that feeds a regexp
+        // pattern as a (substitution-aware) regex.  Keyed on the def-site word
+        // start; the compiler-supplied span is authoritative for the fragment
+        // scan (the segmenter's token span can clamp a closing delimiter).
+        if !ctx.regex_sources.is_empty() {
+            for word in &seg.argv {
+                if let Some(&full_span) = ctx.regex_sources.get(&word.span.start()) {
+                    mark_literal_fragments(
+                        &seg,
+                        full_span,
+                        ArgOverride::RegexPattern,
+                        &mut overrides,
+                    );
+                }
+            }
+        }
 
         // The `inside_oo_body` context the recursion into THIS command's
         // body arguments should carry: an outer OO definition body switches
@@ -2273,9 +2297,25 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
 
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
-fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Entry> {
+fn collect_entries(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
+
+    // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
+    // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
+    // the walk can retag the matching argument.  Empty (no map lookups) when
+    // there is no analysis or no such flow.
+    let regex_sources: FxHashMap<u32, Span> = cu.map_or_else(FxHashMap::default, |cu| {
+        tcl_compiler::regex_source::regex_source_literal_spans(source, cu, registry, dialect)
+            .into_iter()
+            .map(|span| (span.start(), span))
+            .collect()
+    });
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -2285,6 +2325,7 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
         registry,
         line_index: &line_index,
         inside_oo_body: false,
+        regex_sources: &regex_sources,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -3003,6 +3044,81 @@ mod tests {
                 .any(|(_, _, _, k, _)| *k == TokenKind::RegexpAnchor as u32),
             "the `$` must not be a regex anchor; got {toks:?}"
         );
+    }
+
+    #[test]
+    fn regex_source_variable_highlights_def_site_literal() {
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
+        // Without a CompilationUnit the `set` value is a plain string.
+        let plain = decode_full(src, "tcl9.0", &registry);
+        assert!(
+            !plain
+                .iter()
+                .any(|&(l, _, _, k, _)| l == 0 && k == TokenKind::RegexpQuantifier as u32),
+            "no regex tokens without a CU; got {plain:?}"
+        );
+        // With a CU, the `.*abc` literal at the `set` reads as a regex.
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let st = full_with_cu(src, "tcl9.0", &registry, Some(&cu));
+        let toks = decode_semantic(&st);
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, _)| l == 0 && k == TokenKind::RegexpQuantifier as u32),
+            "expected the `*` from the def-site literal as a regex quantifier; got {toks:?}"
+        );
+        // No overlaps introduced.
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_source_tracks_inside_oo_method_body() {
+        // TclOO method bodies are lowered as their own `FunctionUnit`s, so a
+        // `set re "…"; regexp $re` inside a method highlights the def-site
+        // literal just like one in a proc — end-to-end through the CU overlay.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C {\n  method m {s} {\n    set re \".*x\"\n    regexp $re $s\n  }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the method-body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    /// Decode a `SemanticTokens` value directly into
+    /// `(line, col, len, kind, mods)` tuples.
+    fn decode_semantic(st: &SemanticTokens) -> Vec<(u32, u32, u32, u32, u32)> {
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len, kind, mods) = (c[0], c[1], c[2], c[3], c[4]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            out.push((line, col, len, kind, mods));
+        }
+        out
     }
 
     #[test]
