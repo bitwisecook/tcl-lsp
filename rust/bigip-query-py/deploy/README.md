@@ -42,7 +42,9 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
   allow it under Settings → Environments → github-pages.
 - **No wasm toolchain needed.** The Mermaid library and the wasm query engine
   are vendored in the repo, so CI only builds the PyO3 extension (Rust + Python
-  3.14 + maturin). GitHub Pages imposes no strict CSP, so the hosted page is the
-  *full* report — the in-browser query console works there too.
+  + maturin). The extension targets the CPython stable ABI (`abi3`, 3.9 floor),
+  so any CPython ≥ 3.9 on the runner can build a wheel that runs on 3.9+; this
+  workflow happens to use 3.14. GitHub Pages imposes no strict CSP, so the
+  hosted page is the *full* report — the in-browser query console works there too.
 - Change the input configs by editing the `python -m f5report …` line in the
   workflow (e.g. point it at your own committed `bigip.conf` / `.ucs`).
