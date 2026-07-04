@@ -119,6 +119,13 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "switch_braced",
             "switch $x {\n  {a b} { puts one }\n  default { puts def }\n}\n",
         ),
+        // Issue #757 review (Codex P1): a `#`-leading physical line inside a
+        // multi-line literal must not produce a `comment` token overlapping the
+        // per-line `string` token.  Exercises the non-overlap invariant.
+        (
+            "hash_in_multiline_literal",
+            "set x {a\n# not a comment\nb}\nset y \"a\n  # also literal\nb\"\n",
+        ),
     ];
     v.sort_by(|a, b| a.0.cmp(b.0));
     v
@@ -277,6 +284,49 @@ fn test_braced_string() {
     let uri = open_doc(&mut lsp, "puts {hello world}\n");
     let types: Vec<String> = typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
     assert!(types.iter().any(|t| t == "string"));
+}
+
+#[test]
+fn test_multiline_braced_string_highlighted_per_line() {
+    // Issue #757: a braced string literal spanning multiple lines used to lose
+    // its highlighting (the enclosing multi-line `string` token was dropped).
+    // End-to-end it must now carry a `string` token on every covered line,
+    // exactly like the quoted form.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let braced = open_doc(&mut lsp, "set x {some long\nstring that spans\nmultiple lines}\n");
+    let btoks = typed(&mut lsp, &lg, &braced);
+    for line in 0..=2 {
+        assert!(
+            btoks.iter().any(|t| t.line == line && t.ttype == "string"),
+            "braced literal line {line} must carry a string token: {btoks:?}",
+        );
+    }
+    // The quoted counterpart highlights the same span the same way.
+    let quoted = open_doc(&mut lsp, "set x \"some long\nstring that spans\nmultiple lines\"\n");
+    let qtoks = typed(&mut lsp, &lg, &quoted);
+    let strings = |toks: &[TypedToken]| -> Vec<(i64, i64, i64)> {
+        toks.iter()
+            .filter(|t| t.ttype == "string")
+            .map(|t| (t.line, t.char, t.length))
+            .collect()
+    };
+    assert_eq!(
+        strings(&btoks),
+        strings(&qtoks),
+        "braced and quoted multi-line string literals must highlight identically",
+    );
+    // No emitted token may span a newline (LSP encoding invariant).
+    for t in &btoks {
+        let line = "set x {some long\nstring that spans\nmultiple lines}\n"
+            .split('\n')
+            .nth(t.line as usize)
+            .unwrap_or("");
+        assert!(
+            (t.char + t.length) as usize <= line.chars().count(),
+            "token {t:?} overruns its line",
+        );
+    }
 }
 
 #[test]
