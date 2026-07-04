@@ -116,6 +116,58 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
     )
 }
 
+/// Build the `files` / `file` / `glob` / `grep` reader the query engine injects:
+/// enumerate a source's forensic UCS members (metadata) or read one member's
+/// content, decrypting the archive as needed with the shared passphrase.
+fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
+    use tcl_bigip_io::{MemberScope, list_ucs_members};
+    use tcl_bigip_query::eval::FileOp;
+
+    let opts = crate::cli::PassphraseArgs::default().to_options();
+    std::rc::Rc::new(
+        move |config_uri: &str, op: &FileOp| -> Result<Value, QueryError> {
+            let path = ucs_uri_to_path(config_uri).ok_or_else(|| {
+                QueryError::builtin(format!(
+                    "files: source {config_uri} is not a local file-backed UCS"
+                ))
+            })?;
+            let raw = std::fs::read(&path)
+                .map_err(|e| QueryError::builtin(format!("files: cannot read UCS {path}: {e}")))?;
+            let provider = || resolve_passphrase(&opts);
+            match op {
+                FileOp::Inventory => {
+                    let entries = list_ucs_members(&raw, &provider, &path, MemberScope::Forensic)
+                        .map_err(|e| {
+                            QueryError::builtin(format!(
+                                "files: {path}: {e} \
+                                 (a plain bigip.conf is not an archive — read the UCS itself)"
+                            ))
+                        })?;
+                    let list = entries
+                        .into_iter()
+                        .map(|e| {
+                            Value::object([
+                                ("path".to_owned(), Value::Str(e.path)),
+                                (
+                                    "size".to_owned(),
+                                    Value::Int(i64::try_from(e.size).unwrap_or(i64::MAX)),
+                                ),
+                                ("sha256".to_owned(), Value::Str(e.sha256)),
+                                ("is_text".to_owned(), Value::Bool(e.is_text)),
+                            ])
+                        })
+                        .collect();
+                    Ok(Value::List(list))
+                }
+                FileOp::Content(member) => match read_ucs_member(&raw, member, &provider, &path) {
+                    Ok(bytes) => Ok(Value::Str(String::from_utf8_lossy(&bytes).into_owned())),
+                    Err(_) => Ok(Value::Null),
+                },
+            }
+        },
+    )
+}
+
 /// Whether *path*'s extension is `.ucs` (case-insensitive).
 fn has_ucs_suffix(path: &str) -> bool {
     Path::new(path)
@@ -801,6 +853,9 @@ pub fn run_query_verb(
         // inject a reader using the same passphrase resolution the input
         // loader uses.
         ucs_cert_reader: Some(make_ucs_cert_reader()),
+        // `files` / `file` / `glob` / `grep` read the OS files inside a UCS;
+        // inject a reader over the same passphrase resolution.
+        files_reader: Some(make_files_reader()),
         merge: flags.merge,
     };
 

@@ -65,6 +65,9 @@ pub struct QueryOptions {
     /// `ucs_cert` reader hook (the CLI injects a UCS-aware reader). Threaded
     /// onto [`EvalContext::ucs_cert_reader`].
     pub ucs_cert_reader: Option<crate::eval::UcsCertReader>,
+    /// `files` / `file` / `glob` / `grep` reader hook (the CLI injects a
+    /// UCS-aware reader). Threaded onto [`EvalContext::files_reader`].
+    pub files_reader: Option<crate::eval::FilesReader>,
     /// Treat every loaded config as one logical namespace (`--merge`). When
     /// `true`, the query runs once over every source (concatenating each
     /// root's projection), `refs` / `referenced_by` walk references across
@@ -82,6 +85,7 @@ impl std::fmt::Debug for QueryOptions {
             .field("enable_probes", &self.enable_probes)
             .field("ca_bundle", &self.ca_bundle)
             .field("ucs_cert_reader", &self.ucs_cert_reader.is_some())
+            .field("files_reader", &self.files_reader.is_some())
             .field("merge", &self.merge)
             .finish()
     }
@@ -271,6 +275,7 @@ pub fn run_query(
                 probes_enabled: opts.enable_probes,
                 ca_bundle: opts.ca_bundle.clone(),
                 ucs_cert_reader: opts.ucs_cert_reader.clone(),
+                files_reader: opts.files_reader.clone(),
                 merge_graph: std::cell::RefCell::new(None),
             };
             accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
@@ -621,6 +626,7 @@ fn eval_merge_statement(
             probes_enabled: opts.enable_probes,
             ca_bundle: opts.ca_bundle.clone(),
             ucs_cert_reader: opts.ucs_cert_reader.clone(),
+            files_reader: opts.files_reader.clone(),
             merge_graph: std::cell::RefCell::new(None),
         };
         accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);

@@ -87,10 +87,12 @@ def render_report(model: dict[str, Any], *, embed_console: bool | None = None) -
     model["topology_css"] = _asset_text("topology.css")
     model["certs_css"] = _asset_text("certs.css")
     model["secrets_css"] = _asset_text("secrets.css")
+    model["forensics_css"] = _asset_text("forensics.css")
     model["report_js"] = _asset_text("report.js")
     model["topology_js"] = _asset_text("topology.js")
     model["certs_js"] = _asset_text("certs.js")
     model["secrets_js"] = _asset_text("secrets.js")
+    model["forensics_js"] = _asset_text("forensics.js")
     model["irule_flow_js"] = _asset_text("irule-flow.js")
 
     # In-browser query console: the wasm build of the query engine, inlined.
