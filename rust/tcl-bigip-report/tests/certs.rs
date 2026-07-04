@@ -323,6 +323,64 @@ fn constrained_pattern_filters_orphans_by_name() {
     assert_eq!(web["orphanMatches"][0]["pattern"], "web_*");
 }
 
+// A `/Common` iRule attached only to a `/TenantA` virtual resolves its
+// unqualified `pool web_…` in TenantA (with /Common visible). A pool in
+// /TenantB is therefore provably unreachable by that rule.
+const SCF_PARTITION: &str = r"
+ltm pool /TenantA/web_a { members { /TenantA/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /TenantB/web_b { members { /TenantB/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /TenantA/vsA { destination /TenantA/10.0.0.1:80 rules { /Common/dyn } }
+";
+
+#[test]
+fn orphan_reachability_is_partition_aware() {
+    let d = device0(SCF_PARTITION);
+    let confirmed: Vec<&str> = d["orphans"]["pools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    let possible: Vec<&str> = d["possibleOrphans"]["pools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    // Rule runs in TenantA -> web_a reachable (possible), web_b provably orphaned.
+    assert!(
+        possible.contains(&"web_a"),
+        "web_a reachable in TenantA: possible={possible:?}"
+    );
+    assert!(
+        confirmed.contains(&"web_b"),
+        "web_b in TenantB unreachable by a TenantA-only rule: confirmed={confirmed:?}"
+    );
+
+    // The rule's per-partition table lists web_a under the TenantA group only.
+    let rule = d["rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "dyn")
+        .unwrap();
+    let groups = rule["referencedObjects"]["dynamic"].as_array().unwrap();
+    let ta = groups
+        .iter()
+        .find(|g| g["partition"] == "TenantA")
+        .expect("TenantA group present");
+    let objs: Vec<&str> = ta["filters"][0]["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["name"].as_str().unwrap())
+        .collect();
+    assert!(objs.contains(&"web_a"), "TenantA filter matches web_a: {objs:?}");
+    assert!(!objs.contains(&"web_b"), "TenantA filter must not match web_b");
+    assert_eq!(ta["virtuals"][0], "vsA");
+}
+
 // --- iRule syntax highlighting -----------------------------------------------
 
 use tcl_bigip_report::highlight_tcl;

@@ -9,7 +9,7 @@
 //!   specificity;
 //! * per-iRule **dynamic actions** surfaced on the virtuals that attach a rule.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 
@@ -229,27 +229,63 @@ fn dynamic_cmds() -> Vec<DynCmd> {
 /// `referenced_by` (`.refs`), so only a *non-literal* argument counts here.
 pub(crate) const ATTACH_TYPES: &[&str] = &["pools", "nodes", "snatpools"];
 
-/// One dynamic attachment an iRule performs: the reconstructed name pattern plus
-/// the rule that builds it (for attribution in the report).
-pub(crate) struct RulePattern {
+/// One dynamic attachment an iRule performs: the reconstructed name pattern, the
+/// rule that builds it, and the partition contexts the rule executes in (the
+/// partitions of the virtuals it is attached to).
+pub(crate) struct Attach {
     pub rule: String,
+    /// Partitions the rule runs in (partitions of its attaching virtuals). Empty
+    /// when the rule is not attached to any virtual — it never executes, so it
+    /// makes nothing reachable.
+    pub ctx: std::collections::BTreeSet<String>,
     pub pattern: tcl_diagram::AttachPattern,
 }
 
-/// Build, per attachable object type, the list of `(rule, name-pattern)` an
-/// iRule could dynamically construct.
+/// Partition-aware reachability: can `pat`, evaluated by a rule running in the
+/// `ctx` partitions, build a name that resolves to the given object?
+///
+/// BIG-IP name resolution for an *unqualified* object name in an iRule is
+/// relative to the partition of the **virtual server** carrying the traffic
+/// (with `/Common` always visible as a fallback) — not the iRule's own folder.
+/// So a `/Common` iRule doing `pool "web_[HTTP::host]"` attached to a virtual in
+/// `/TenantA` selects `/TenantA/web_*` (or `/Common/web_*`), never `/TenantB/…`.
+///
+/// * an `unconstrained` pattern (`pool $x`) could be any name in any partition;
+/// * a pattern rooted at `/partition/…` is absolute — match the full path;
+/// * an unqualified pattern reaches only objects in a context partition (or
+///   `/Common`) whose leaf name matches.
+pub(crate) fn pattern_reaches(
+    pat: &tcl_diagram::AttachPattern,
+    obj_leaf: &str,
+    obj_full: &str,
+    obj_partition: &str,
+    ctx: &std::collections::BTreeSet<String>,
+) -> bool {
+    if pat.unconstrained {
+        return true;
+    }
+    if pat.prefix.starts_with('/') {
+        return pat.matches(obj_full);
+    }
+    let visible = obj_partition == "Common" || ctx.contains(obj_partition);
+    visible && pat.matches(obj_leaf)
+}
+
+/// Build, per attachable object type, the [`Attach`] records an iRule could
+/// dynamically construct, tagged with the partition contexts the rule runs in.
 ///
 /// This supersedes the old all-or-nothing "risk" heuristic: instead of demoting
 /// an *entire* object type the moment any rule attaches it dynamically, each
 /// attach expression is reconstructed (via [`tcl_diagram::attach_reach`]) into a
-/// prefix / contained / suffix name pattern. Orphan classification then filters
-/// candidate objects by name — a pool called `db_backend` stays a *confirmed*
-/// orphan even when a rule does `pool "web_[HTTP::host]"`, because that
-/// expression can only ever build a `web_`-prefixed name. Only a truly
-/// unconstrained expression (`pool $x`, `pool [class match …]`) still puts the
-/// whole type in play.
-pub(crate) fn attach_index(rules: &[J]) -> std::collections::BTreeMap<&'static str, Vec<RulePattern>> {
-    let mut index: std::collections::BTreeMap<&'static str, Vec<RulePattern>> =
+/// prefix / contained / suffix name pattern, resolved *per partition*. A pool
+/// called `db_backend` stays a *confirmed* orphan even when a rule does
+/// `pool "web_[HTTP::host]"`, and a `/TenantB/web_pool` stays orphaned when the
+/// rule only runs on `/TenantA` virtuals.
+pub(crate) fn attach_index(
+    rules: &[J],
+    rule_ctx: &HashMap<String, std::collections::BTreeSet<String>>,
+) -> std::collections::BTreeMap<&'static str, Vec<Attach>> {
+    let mut index: std::collections::BTreeMap<&'static str, Vec<Attach>> =
         std::collections::BTreeMap::new();
     for r in rules {
         let Some(rm) = r.as_object() else { continue };
@@ -257,18 +293,16 @@ pub(crate) fn attach_index(rules: &[J]) -> std::collections::BTreeMap<&'static s
         if body.is_empty() {
             continue;
         }
+        let fp = bstr(rm, "fullPath").to_string();
         let name = bstr(rm, "name");
-        let rule_name = if name.is_empty() {
-            bstr(rm, "fullPath")
-        } else {
-            name
-        }
-        .to_string();
+        let rule_name = if name.is_empty() { &fp } else { name }.to_string();
+        let ctx = rule_ctx.get(&fp).cloned().unwrap_or_default();
         let reach = tcl_diagram::attach_reach(body);
         for ty in ATTACH_TYPES {
             for pat in reach.patterns_for(ty) {
-                index.entry(*ty).or_default().push(RulePattern {
+                index.entry(*ty).or_default().push(Attach {
                     rule: rule_name.clone(),
+                    ctx: ctx.clone(),
                     pattern: pat.clone(),
                 });
             }
@@ -277,22 +311,35 @@ pub(crate) fn attach_index(rules: &[J]) -> std::collections::BTreeMap<&'static s
     index
 }
 
-/// The `{rule, pattern}` records whose name-pattern could attach an object with
-/// any of `names` (its leaf name, full path, and — for nodes — address).
+/// The `{rule, pattern}` records whose name-pattern could attach the given
+/// object, resolved per the rule's partition context. Only rules that are
+/// actually attached to a virtual (non-empty context) can reach anything.
 /// Returns an empty vec when the object is provably unreachable by every rule.
-pub(crate) fn attach_matches(patterns: &[RulePattern], names: &[&str]) -> Vec<J> {
+pub(crate) fn attach_matches(
+    attaches: &[Attach],
+    leaf: &str,
+    full: &str,
+    partition: &str,
+    address: &str,
+) -> Vec<J> {
     let mut out: Vec<J> = Vec::new();
     let mut seen: HashSet<(String, String)> = HashSet::new();
-    for rp in patterns {
-        if !names.iter().any(|n| rp.pattern.matches(n)) {
+    for a in attaches {
+        if a.ctx.is_empty() {
+            continue; // unattached rule never executes
+        }
+        let hit = pattern_reaches(&a.pattern, leaf, full, partition, &a.ctx)
+            || (!address.is_empty()
+                && pattern_reaches(&a.pattern, address, address, partition, &a.ctx));
+        if !hit {
             continue;
         }
-        let glob = rp.pattern.glob();
-        if !seen.insert((rp.rule.clone(), glob.clone())) {
+        let glob = a.pattern.glob();
+        if !seen.insert((a.rule.clone(), glob.clone())) {
             continue;
         }
         let mut o = Map::new();
-        o.insert("rule".into(), J::String(rp.rule.clone()));
+        o.insert("rule".into(), J::String(a.rule.clone()));
         o.insert("pattern".into(), J::String(glob));
         out.push(J::Object(o));
     }

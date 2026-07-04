@@ -356,19 +356,10 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         "dynamicActions".into(),
         J::Array(crate::graph::irule_dynamic_actions(&body)),
     );
-    // Reconstructed object-name patterns this rule could dynamically attach
-    // (`pool "web_[HTTP::host]"` → `web_*`), for the iRule view and the orphan
-    // filtering. Only the non-empty attachable types are carried.
-    let reach = tcl_diagram::attach_reach(&body).to_json();
-    let mut attachments = Map::new();
-    if let Some(rm) = reach.as_object() {
-        for (ty, arr) in rm {
-            if arr.as_array().is_some_and(|a| !a.is_empty()) {
-                attachments.insert(ty.clone(), arr.clone());
-            }
-        }
-    }
-    o.insert("dynamicAttachments".into(), J::Object(attachments));
+    // The reconstructed dynamic-attach name patterns and their resolved objects
+    // are attached later as `referencedObjects` (once the device's object lists
+    // and per-virtual partition contexts are known — see
+    // `annotate_rule_reachability`).
     J::Object(o)
 }
 
@@ -598,6 +589,187 @@ fn insights(device: &Map<String, J>) -> Vec<J> {
     out
 }
 
+/// Singular label for an attachable object-type key.
+fn attach_singular(ty: &str) -> &'static str {
+    match ty {
+        "pools" => "pool",
+        "nodes" => "node",
+        "snatpools" => "snatpool",
+        _ => "object",
+    }
+}
+
+fn json_ref(ty: &str, full_path: &str) -> J {
+    // Stable object id prefix matching the topology graph / navigation index.
+    let prefix = match ty {
+        "pool" => "pool",
+        "node" => "node",
+        "snatpool" => "snat",
+        "data-group" => "dg",
+        other => other,
+    };
+    let mut o = Map::new();
+    o.insert("type".into(), J::String(ty.into()));
+    o.insert("name".into(), J::String(leaf(full_path).into()));
+    o.insert("fullPath".into(), J::String(full_path.into()));
+    o.insert("oid".into(), J::String(format!("{prefix}:{full_path}")));
+    J::Object(o)
+}
+
+/// Per-rule partition contexts (partitions of the virtuals attaching a rule).
+type RuleCtx = HashMap<String, BTreeSet<String>>;
+/// Per-rule attaching virtuals, as `(virtual full path, virtual partition)`.
+type RuleVirtuals = HashMap<String, Vec<(String, String)>>;
+
+/// Map each iRule to the partitions it executes in (partitions of its attaching
+/// virtuals) and the attaching virtuals themselves. Virtuals may reference a
+/// rule by leaf name or full path.
+fn build_rule_contexts(device: &Map<String, J>) -> (RuleCtx, RuleVirtuals) {
+    let mut leaf_to_fp: HashMap<String, String> = HashMap::new();
+    let mut known_fp: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            if let Some(rm) = r.as_object() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if fp.is_empty() {
+                    continue;
+                }
+                leaf_to_fp.insert(leaf(&fp).to_string(), fp.clone());
+                known_fp.insert(fp);
+            }
+        }
+    }
+    let mut ctx: HashMap<String, BTreeSet<String>> = HashMap::new();
+    let mut vs: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    if let Some(J::Array(virtuals)) = device.get("virtuals") {
+        for v in virtuals {
+            let Some(vm) = v.as_object() else { continue };
+            let vfp = bstr(vm, "fullPath").to_string();
+            let vpart = bstr(vm, "partition").to_string();
+            for rr in sarr(vm, "rules") {
+                let fp = if known_fp.contains(rr) {
+                    rr.to_string()
+                } else if let Some(f) = leaf_to_fp.get(leaf(rr)) {
+                    f.clone()
+                } else {
+                    continue;
+                };
+                ctx.entry(fp.clone()).or_default().insert(vpart.clone());
+                vs.entry(fp).or_default().push((vfp.clone(), vpart.clone()));
+            }
+        }
+    }
+    (ctx, vs)
+}
+
+/// Attach a per-iRule reachability table: the objects it statically references,
+/// plus the objects each reconstructed dynamic filter could select — resolved
+/// per attaching-virtual partition, so a `/Common` rule attached across
+/// partitions shows a VS-specific candidate set for each.
+fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtuals) {
+    // Snapshot attachable objects (name, fullPath, partition, address) per type.
+    let mut snap: HashMap<&'static str, Vec<(String, String, String, String)>> = HashMap::new();
+    for ty in crate::graph::ATTACH_TYPES {
+        let mut v = Vec::new();
+        if let Some(J::Array(objs)) = device.get(*ty) {
+            for o in objs {
+                if let Some(om) = o.as_object() {
+                    let fp = bstr(om, "fullPath").to_string();
+                    let part = partition_of(&fp);
+                    v.push((
+                        bstr(om, "name").to_string(),
+                        fp,
+                        part,
+                        bstr(om, "address").to_string(),
+                    ));
+                }
+            }
+        }
+        snap.insert(*ty, v);
+    }
+
+    let Some(J::Array(rules)) = device.get_mut("rules") else {
+        return;
+    };
+    for r in rules.iter_mut() {
+        let Some(rm) = r.as_object_mut() else { continue };
+        let body = bstr(rm, "body").to_string();
+        let fp = bstr(rm, "fullPath").to_string();
+        let own_part = partition_of(&fp);
+
+        // Static references (absolute paths from the engine's `.refs`).
+        let mut static_refs: Vec<J> = Vec::new();
+        for p in sarr(rm, "refPools") {
+            static_refs.push(json_ref("pool", p));
+        }
+        for dg in sarr(rm, "refDataGroups") {
+            static_refs.push(json_ref("data-group", dg));
+        }
+
+        // Dynamic references grouped by the partition of the attaching virtuals.
+        let reach = tcl_diagram::attach_reach(&body);
+        let has_dynamic = crate::graph::ATTACH_TYPES
+            .iter()
+            .any(|ty| !reach.patterns_for(ty).is_empty());
+        let mut by_part: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        if has_dynamic {
+            if let Some(vlist) = rule_vs.get(&fp) {
+                for (vfp, vpart) in vlist {
+                    by_part.entry(vpart.clone()).or_default().push(vfp.clone());
+                }
+            }
+            if by_part.is_empty() {
+                // Unattached: still surface the determined filters, resolved
+                // informationally in the rule's own partition.
+                by_part.insert(own_part.clone(), Vec::new());
+            }
+        }
+        let attached = rule_vs.get(&fp).is_some_and(|v| !v.is_empty());
+
+        let mut groups: Vec<J> = Vec::new();
+        for (part, vlist) in &by_part {
+            let mut ctx = BTreeSet::new();
+            ctx.insert(part.clone());
+            let mut filters: Vec<J> = Vec::new();
+            for ty in crate::graph::ATTACH_TYPES {
+                for pat in reach.patterns_for(ty) {
+                    let objs = snap.get(*ty).map_or(&[][..], Vec::as_slice);
+                    let mut matched: Vec<J> = Vec::new();
+                    for (nm, ofp, opart, addr) in objs {
+                        let hit = crate::graph::pattern_reaches(pat, nm, ofp, opart, &ctx)
+                            || (!addr.is_empty()
+                                && crate::graph::pattern_reaches(pat, addr, addr, opart, &ctx));
+                        if hit {
+                            matched.push(json_ref(attach_singular(ty), ofp));
+                        }
+                    }
+                    let mut f = pat.to_json();
+                    if let Some(fo) = f.as_object_mut() {
+                        fo.insert("type".into(), J::String(attach_singular(ty).into()));
+                        fo.insert("objects".into(), J::Array(matched));
+                    }
+                    filters.push(f);
+                }
+            }
+            let mut g = Map::new();
+            g.insert("partition".into(), J::String(part.clone()));
+            g.insert(
+                "virtuals".into(),
+                J::Array(vlist.iter().map(|s| J::String(leaf(s).into())).collect()),
+            );
+            g.insert("attached".into(), J::Bool(attached));
+            g.insert("filters".into(), J::Array(filters));
+            groups.push(J::Object(g));
+        }
+
+        let mut refs = Map::new();
+        refs.insert("static".into(), J::Array(static_refs));
+        refs.insert("dynamic".into(), J::Array(groups));
+        rm.insert("referencedObjects".into(), J::Object(refs));
+    }
+}
+
 fn collect_device(uri: &str, source: &str) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
@@ -662,7 +834,12 @@ fn collect_device(uri: &str, source: &str) -> J {
         .and_then(J::as_array)
         .cloned()
         .unwrap_or_default();
-    let attach_idx = crate::graph::attach_index(&rules_arr);
+    // Rule execution contexts: the partitions of the virtuals each rule is
+    // attached to. A `/Common` iRule attached to virtuals in several partitions
+    // resolves its unqualified names *per partition*, so orphan reachability is
+    // partition-aware.
+    let (rule_ctx, rule_vs) = build_rule_contexts(&device);
+    let attach_idx = crate::graph::attach_index(&rules_arr, &rule_ctx);
     // orphanRisk: the types some rule attaches dynamically at all (summary /
     // topology use); the per-object filtering below is what actually classifies.
     device.insert(
@@ -675,10 +852,10 @@ fn collect_device(uri: &str, source: &str) -> J {
     for (ty, pats) in &attach_idx {
         let arr: Vec<J> = pats
             .iter()
-            .map(|rp| {
-                let mut o = rp.pattern.to_json();
+            .map(|a| {
+                let mut o = a.pattern.to_json();
                 if let Some(om) = o.as_object_mut() {
-                    om.insert("rule".into(), J::String(rp.rule.clone()));
+                    om.insert("rule".into(), J::String(a.rule.clone()));
                 }
                 o
             })
@@ -687,11 +864,11 @@ fn collect_device(uri: &str, source: &str) -> J {
     }
     device.insert("attachPatterns".into(), J::Object(attach_patterns));
 
-    let no_patterns: Vec<crate::graph::RulePattern> = Vec::new();
+    let no_patterns: Vec<crate::graph::Attach> = Vec::new();
     let mut orphans = Map::new();
     let mut possible = Map::new();
     for name in REFERABLE {
-        let patterns = attach_idx
+        let attaches = attach_idx
             .get(name)
             .map_or(no_patterns.as_slice(), Vec::as_slice);
         // Annotate each object with its orphan status, then collect the sets.
@@ -704,19 +881,17 @@ fn collect_device(uri: &str, source: &str) -> J {
                         .is_none_or(Vec::is_empty);
                     let status = if !empty {
                         ""
-                    } else if patterns.is_empty() {
+                    } else if attaches.is_empty() {
                         "orphan"
                     } else {
-                        // Match the object's name / full path / address against
-                        // each rule's reconstructed pattern.
+                        // Partition-aware match of the object against each rule's
+                        // reconstructed pattern in its execution context.
                         let leaf_name = bstr(om, "name").to_string();
                         let fp = bstr(om, "fullPath").to_string();
+                        let part = partition_of(&fp);
                         let addr = bstr(om, "address").to_string();
-                        let mut candidates: Vec<&str> = vec![leaf_name.as_str(), fp.as_str()];
-                        if !addr.is_empty() {
-                            candidates.push(addr.as_str());
-                        }
-                        let matches = crate::graph::attach_matches(patterns, &candidates);
+                        let matches =
+                            crate::graph::attach_matches(attaches, &leaf_name, &fp, &part, &addr);
                         if matches.is_empty() {
                             "orphan"
                         } else {
@@ -747,6 +922,11 @@ fn collect_device(uri: &str, source: &str) -> J {
     }
     device.insert("orphans".into(), J::Object(orphans));
     device.insert("possibleOrphans".into(), J::Object(possible));
+
+    // Per-iRule reachability tables: statically referenced objects plus the
+    // objects each dynamic filter could select, resolved per attaching-virtual
+    // partition (VS-specific).
+    annotate_rule_reachability(&mut device, &rule_vs);
 
     // Propagate each iRule's dynamic (runtime) actions onto the virtuals that
     // attach it.

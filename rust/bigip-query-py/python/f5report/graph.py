@@ -193,44 +193,197 @@ def _pattern_matches(pat: dict[str, Any], name: str) -> bool:
     return True
 
 
-def attach_index(rules: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    """Per attachable object type, the ``{rule, …pattern…}`` records an iRule
-    could dynamically construct.
+def _partition_of(full_path: str) -> str:
+    """``/TenantA/foo`` -> ``TenantA``; ``""`` for a relative path."""
+    if full_path.startswith("/"):
+        parts = full_path.split("/")
+        return parts[1] if len(parts) > 1 else ""
+    return ""
 
-    Supersedes the all-or-nothing risk heuristic: each attach expression is
-    reconstructed (by the real IR walk + ``set`` constant propagation in
-    ``_engine.irule_attach_patterns``) into a prefix / contained / suffix name
-    pattern, so orphan classification can filter candidate objects by name.
+
+def _leaf(s: str) -> str:
+    return s.rsplit("/", 1)[-1]
+
+
+def pattern_reaches(
+    pat: dict[str, Any], obj_leaf: str, obj_full: str, obj_partition: str, ctx: set[str]
+) -> bool:
+    """Partition-aware reachability. Mirrors ``graph::pattern_reaches`` in Rust.
+
+    An unqualified pool/node/snatpool name in an iRule resolves in the partition
+    of the *virtual* carrying the traffic (with ``/Common`` always visible), not
+    the iRule's own folder. So a ``/Common`` rule doing ``pool "web_[…]"``
+    attached to a ``/TenantA`` virtual selects ``/TenantA/web_*`` (or Common),
+    never ``/TenantB/…``.
+    """
+    if pat.get("unconstrained"):
+        return True
+    if pat.get("prefix", "").startswith("/"):
+        return _pattern_matches(pat, obj_full)
+    visible = obj_partition == "Common" or obj_partition in ctx
+    return visible and _pattern_matches(pat, obj_leaf)
+
+
+def build_rule_contexts(
+    device: dict[str, Any],
+) -> tuple[dict[str, set[str]], dict[str, list[tuple[str, str]]]]:
+    """Map each iRule (by full path) to the partitions it executes in (partitions
+    of its attaching virtuals) and the attaching virtuals themselves."""
+    leaf_to_fp: dict[str, str] = {}
+    known_fp: set[str] = set()
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if not fp:
+            continue
+        leaf_to_fp[_leaf(fp)] = fp
+        known_fp.add(fp)
+    ctx: dict[str, set[str]] = {}
+    vs: dict[str, list[tuple[str, str]]] = {}
+    for v in device.get("virtuals", []):
+        vfp = v.get("fullPath", "")
+        vpart = v.get("partition", "")
+        for rr in v.get("rules", []) or []:
+            if rr in known_fp:
+                fp = rr
+            elif _leaf(rr) in leaf_to_fp:
+                fp = leaf_to_fp[_leaf(rr)]
+            else:
+                continue
+            ctx.setdefault(fp, set()).add(vpart)
+            vs.setdefault(fp, []).append((vfp, vpart))
+    return ctx, vs
+
+
+def attach_index(
+    rules: list[dict[str, Any]], rule_ctx: dict[str, set[str]]
+) -> dict[str, list[dict[str, Any]]]:
+    """Per attachable object type, the ``{rule, rule_fp, ctx, …pattern…}`` records
+    an iRule could dynamically construct, tagged with the partition contexts the
+    rule runs in. Mirrors ``graph::attach_index`` in Rust.
     """
     index: dict[str, list[dict[str, Any]]] = {}
     for r in rules:
         body = r.get("body", "") or ""
         if not body:
             continue
-        rule_name = r.get("name") or r.get("fullPath", "")
+        fp = r.get("fullPath", "")
+        rule_name = r.get("name") or fp
+        ctx = rule_ctx.get(fp, set())
         reach = json.loads(_engine.irule_attach_patterns(body))
         for ty in ATTACH_TYPES:
             for pat in reach.get(ty, []):
-                index.setdefault(ty, []).append({"rule": rule_name, **pat})
+                index.setdefault(ty, []).append(
+                    {"rule": rule_name, "rule_fp": fp, "ctx": ctx, **pat}
+                )
     return index
 
 
 def attach_matches(
-    patterns: list[dict[str, Any]], names: list[str]
+    attaches: list[dict[str, Any]],
+    leaf: str,
+    full: str,
+    partition: str,
+    address: str,
 ) -> list[dict[str, str]]:
-    """The ``{rule, pattern}`` records whose name-pattern could attach an object
-    with any of ``names`` (leaf name, full path, and — for nodes — address)."""
+    """The ``{rule, pattern}`` records whose name-pattern could attach the given
+    object, resolved per the rule's partition context. Only rules attached to a
+    virtual (non-empty context) can reach anything."""
     out: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
-    for rp in patterns:
-        if not any(_pattern_matches(rp, n) for n in names):
+    for a in attaches:
+        ctx = a.get("ctx") or set()
+        if not ctx:
+            continue  # unattached rule never executes
+        hit = pattern_reaches(a, leaf, full, partition, ctx) or (
+            bool(address) and pattern_reaches(a, address, address, partition, ctx)
+        )
+        if not hit:
             continue
-        key = (rp["rule"], rp["glob"])
+        key = (a["rule"], a["glob"])
         if key in seen:
             continue
         seen.add(key)
-        out.append({"rule": rp["rule"], "pattern": rp["glob"]})
+        out.append({"rule": a["rule"], "pattern": a["glob"]})
     return out
+
+
+_ATTACH_SINGULAR = {"pools": "pool", "nodes": "node", "snatpools": "snatpool"}
+_OID_PREFIX = {"pool": "pool", "node": "node", "snatpool": "snat", "data-group": "dg"}
+
+
+def _obj_ref(ty: str, full_path: str) -> dict[str, str]:
+    prefix = _OID_PREFIX.get(ty, ty)
+    return {
+        "type": ty,
+        "name": _leaf(full_path),
+        "fullPath": full_path,
+        "oid": f"{prefix}:{full_path}",
+    }
+
+
+def annotate_rule_reachability(
+    device: dict[str, Any], rule_vs: dict[str, list[tuple[str, str]]]
+) -> None:
+    """Attach a per-iRule reachability table: statically referenced objects plus
+    the objects each reconstructed dynamic filter could select, resolved per
+    attaching-virtual partition (VS-specific). Mirrors the Rust
+    ``annotate_rule_reachability``."""
+    snap: dict[str, list[tuple[str, str, str, str]]] = {}
+    for ty in ATTACH_TYPES:
+        rows = []
+        for o in device.get(ty, []):
+            if isinstance(o, dict):
+                fp = o.get("fullPath", "")
+                rows.append(
+                    (o.get("name", ""), fp, _partition_of(fp), o.get("address", ""))
+                )
+        snap[ty] = rows
+
+    for r in device.get("rules", []):
+        body = r.get("body", "") or ""
+        fp = r.get("fullPath", "")
+        own_part = _partition_of(fp)
+
+        static_refs = [_obj_ref("pool", p) for p in (r.get("refPools") or [])]
+        static_refs += [_obj_ref("data-group", d) for d in (r.get("refDataGroups") or [])]
+
+        reach = json.loads(_engine.irule_attach_patterns(body)) if body else {}
+        has_dynamic = any(reach.get(ty) for ty in ATTACH_TYPES)
+        by_part: dict[str, list[str]] = {}
+        if has_dynamic:
+            for vfp, vpart in rule_vs.get(fp, []):
+                by_part.setdefault(vpart, []).append(vfp)
+            if not by_part:
+                by_part[own_part] = []
+        attached = bool(rule_vs.get(fp))
+
+        groups = []
+        for part in sorted(by_part):
+            vlist = by_part[part]
+            ctx = {part}
+            filters = []
+            for ty in ATTACH_TYPES:
+                for pat in reach.get(ty, []):
+                    matched = []
+                    for nm, ofp, opart, addr in snap.get(ty, []):
+                        hit = pattern_reaches(pat, nm, ofp, opart, ctx) or (
+                            bool(addr) and pattern_reaches(pat, addr, addr, opart, ctx)
+                        )
+                        if hit:
+                            matched.append(_obj_ref(_ATTACH_SINGULAR[ty], ofp))
+                    f = dict(pat)
+                    f["type"] = _ATTACH_SINGULAR[ty]
+                    f["objects"] = matched
+                    filters.append(f)
+            groups.append(
+                {
+                    "partition": part,
+                    "virtuals": [_leaf(v) for v in vlist],
+                    "attached": attached,
+                    "filters": filters,
+                }
+            )
+        r["referencedObjects"] = {"static": static_refs, "dynamic": groups}
 
 
 def irule_dynamic_actions(body: str) -> list[dict[str, str]]:

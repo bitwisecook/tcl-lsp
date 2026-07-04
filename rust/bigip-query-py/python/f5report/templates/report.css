@@ -197,9 +197,71 @@ pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
 .irule-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card);min-height:0}
 .irule-flow-diagram svg{max-width:100%;height:auto}
 /* Reconstructed dynamic object-name patterns (deep orphan analysis). */
-.irule-attach{margin:4px 0 8px;font-size:12px;line-height:1.9}
-.irule-attach-lbl{color:var(--muted);margin-right:4px}
-.attach-pat{display:inline-block;margin:1px 4px 1px 0;padding:1px 7px;border-radius:6px;
+.attach-pat{display:inline-block;padding:1px 7px;border-radius:6px;
   background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);
   font-family:var(--mono,monospace);font-size:11px;cursor:help}
-.irule-attach-note{color:var(--muted);font-style:italic;margin-left:4px}
+/* Per-iRule referenced / potentially-referenced objects table. */
+.irule-refs{margin:2px 0 12px;font-size:12px}
+.refs-static{margin:2px 0 10px;line-height:1.9}
+.refs-lbl{color:var(--muted);margin-right:4px;font-weight:600}
+.ref-obj{display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;border-radius:6px;
+  background:var(--tag-bg);color:var(--tag-ink);cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.refs-none{margin:2px 0 8px;font-size:12px}
+.refs-dyn{margin:6px 0 10px}
+.refs-ctx{color:var(--muted);margin-bottom:4px}
+.refs-ctx code{font-family:var(--mono,monospace);color:var(--ink)}
+.refs-table{width:100%;border-collapse:collapse;font-size:12px}
+.refs-table th,.refs-table td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.refs-table th{color:var(--muted);font-weight:600}
+
+/* ---- Responsive / mobile ------------------------------------------------- */
+/* Never let the page itself scroll sideways; wide content (tables, code,
+   diagrams) scrolls inside its own container instead. `clip` (not `hidden`)
+   avoids establishing a scroll container, which would break the sticky topbar. */
+html,body{max-width:100%;overflow-x:clip}
+.refs-dyn{overflow-x:auto}
+
+@media (max-width:760px){
+  body{font-size:13px}
+  /* Topbar: let the brand + search + actions wrap instead of overflowing. */
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .topbar h1{font-size:15px}
+  .topbar-actions{width:100%;order:3}
+  #globalSearch{flex:1 1 auto;width:auto;min-width:0}
+  .summary{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;padding:14px 14px 4px}
+  .chip{padding:11px 12px}
+  .chip-val{font-size:22px}
+  .device{padding:8px 14px 32px}
+  .device-switch{padding:8px 14px 0}
+  .insights{grid-template-columns:1fr;margin:10px 0 14px}
+
+  /* Tabs: a single, horizontally-scrollable row (never a tall wrapped block)
+     so every panel is one tap away and the tapped tab reads clearly. */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    gap:2px;margin-bottom:12px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:11px 13px;white-space:nowrap;min-height:44px}
+  /* Clearer active state on touch: a filled pill, not just a hairline border. */
+  .tab.active{background:color-mix(in srgb,var(--accent) 14%,transparent);
+    border-radius:8px 8px 0 0}
+
+  /* Denser tables; keep them scrollable inside .tablewrap. */
+  table.grid{font-size:12px}
+  .grid thead th,.grid tbody td{padding:8px 9px}
+  .refs-table th,.refs-table td{padding:4px 6px}
+}
+
+@media (max-width:420px){
+  .summary{grid-template-columns:1fr 1fr}
+  .chip-val{font-size:20px}
+  .device-head{flex-wrap:wrap;gap:6px}
+  .device-head h2{font-size:17px}
+}
+
+/* Coarse-pointer (touch) devices: bigger hit targets regardless of width. */
+@media (pointer:coarse){
+  .tab{min-height:44px}
+  .chip.chip-link,.dev-tab,.expander,.ref-obj{min-height:32px}
+  tr.expandable{cursor:pointer}
+}
