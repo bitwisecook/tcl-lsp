@@ -11,10 +11,11 @@
 //!   address) is served by a virtual server (or listener) on the other device.
 //!   That IP overlap is the physical evidence of a tier hop, so it needs no
 //!   configuration to find.
-//! * **a manifest** — an optional user-supplied JSON document that names each
-//!   device's role and tier and can declare links explicitly. It overrides and
-//!   augments auto-detection (a manifest link auto-detection missed is still
-//!   added; a device's manifest tier/role wins over the inferred one).
+//! * **a manifest** — an optional user-supplied *Tcl script* (parsed with the
+//!   project's own Tcl tokeniser) that names each device's role and tier and can
+//!   declare links explicitly. It overrides and augments auto-detection (a
+//!   manifest link auto-detection missed is still added; a device's manifest
+//!   tier/role wins over the inferred one).
 //!
 //! The result is an `architecture` object embedded in the report model: the
 //! ordered devices with their resolved role/tier, the inter-device links with
@@ -239,10 +240,11 @@ fn resolve_device(matcher: &str, devices: &[J]) -> Option<usize> {
     })
 }
 
-/// Parse a manifest, auto-detecting the format. A document whose first
-/// non-space character is `{` or `[` is treated as JSON (kept for
-/// compatibility); anything else is the Tcl manifest DSL — the natural spelling
-/// in this project, parsed with the real Tcl tokeniser:
+/// Parse the architecture manifest — a small Tcl script — with the project's
+/// own Tcl tokeniser. Recognised commands are `device <match> [-role R] [-tier
+/// N] [-label L]` and `link <from> <to> [-label L]`; unknown commands and flags
+/// are skipped leniently. Unbalanced braces / quotes make the tokeniser fail,
+/// surfaced as `Err(message)` so the report can show it without aborting.
 ///
 /// ```tcl
 /// # one line per device; options are Tcl-style flags
@@ -255,23 +257,69 @@ fn resolve_device(matcher: &str, devices: &[J]) -> Option<usize> {
 /// link edge.ucs core.ucs -label internal
 /// ```
 fn parse_manifest(text: &str) -> Result<Manifest, String> {
-    if matches!(text.trim_start().chars().next(), Some('{' | '[')) {
-        parse_manifest_json(text)
-    } else {
-        Ok(parse_manifest_tcl(text))
+    let commands = tcl_commands(text)?;
+    let mut devices = Vec::new();
+    let mut links = Vec::new();
+
+    // Read `-flag value` pairs from a word slice into (role, tier, label).
+    let read_opts = |words: &[String]| -> (Option<String>, Option<i64>, Option<String>) {
+        let (mut role, mut tier, mut label) = (None, None, None);
+        let mut i = 0;
+        while i + 1 < words.len() {
+            let (flag, val) = (words[i].as_str(), words[i + 1].clone());
+            match flag {
+                "-role" => role = Some(val),
+                "-tier" => tier = val.parse::<i64>().ok(),
+                "-label" | "-name" => label = Some(val),
+                _ => {}
+            }
+            i += 2;
+        }
+        (role, tier, label)
+    };
+
+    for cmd in commands {
+        match cmd.first().map(String::as_str) {
+            Some("device") if cmd.len() >= 2 => {
+                let (role, tier, label) = read_opts(&cmd[2..]);
+                devices.push(DeviceSpec {
+                    matcher: cmd[1].clone(),
+                    role,
+                    tier,
+                    label,
+                });
+            }
+            Some("link") if cmd.len() >= 3 => {
+                let (_r, _t, label) = read_opts(&cmd[3..]);
+                links.push(LinkSpec {
+                    from: cmd[1].clone(),
+                    to: cmd[2].clone(),
+                    label,
+                });
+            }
+            _ => {}
+        }
     }
+    Ok(Manifest { devices, links })
 }
 
 /// Split a Tcl script into commands, each a list of literal words, using the
 /// real Tcl tokeniser (so braces, quotes, comments and `;` separators are
 /// handled exactly as Tcl would). Substitutions (`$var`, `[cmd]`) are taken
-/// literally — the manifest DSL never needs them.
-fn tcl_commands(src: &str) -> Vec<Vec<String>> {
-    use tcl_lexer::{Lexer, SourceMap, TokenType};
+/// literally — the manifest DSL never needs them. A tokeniser failure (an
+/// unbalanced brace / quote) is returned as `Err(message)`.
+fn tcl_commands(src: &str) -> Result<Vec<Vec<String>>, String> {
+    use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
-    let Ok(tokens) = Lexer::new(src).tokenise_all() else {
-        return Vec::new();
+    // Strict quoting so an unbalanced brace / quote is a hard error we can
+    // report, rather than a silently truncated word.
+    let config = LexerConfig {
+        strict_quoting: true,
+        ..LexerConfig::default()
     };
+    let tokens = Lexer::with_source_map(SourceMap::new(src), config)
+        .tokenise_all()
+        .map_err(|e| format!("invalid Tcl manifest: {e}"))?;
     let sm = SourceMap::new(src);
     let mut commands: Vec<Vec<String>> = Vec::new();
     let mut cmd: Vec<String> = Vec::new();
@@ -308,109 +356,7 @@ fn tcl_commands(src: &str) -> Vec<Vec<String>> {
     if !cmd.is_empty() {
         commands.push(cmd);
     }
-    commands
-}
-
-/// Interpret the Tcl manifest DSL. Recognised commands are `device <match>
-/// [-role R] [-tier N] [-label L]` and `link <from> <to> [-label L]`; unknown
-/// commands and unknown flags are skipped leniently.
-fn parse_manifest_tcl(text: &str) -> Manifest {
-    let mut devices = Vec::new();
-    let mut links = Vec::new();
-
-    // Read `-flag value` pairs from a word slice into (role, tier, label).
-    let read_opts = |words: &[String]| -> (Option<String>, Option<i64>, Option<String>) {
-        let (mut role, mut tier, mut label) = (None, None, None);
-        let mut i = 0;
-        while i + 1 < words.len() {
-            let (flag, val) = (words[i].as_str(), words[i + 1].clone());
-            match flag {
-                "-role" => role = Some(val),
-                "-tier" => tier = val.parse::<i64>().ok(),
-                "-label" | "-name" => label = Some(val),
-                _ => {}
-            }
-            i += 2;
-        }
-        (role, tier, label)
-    };
-
-    for cmd in tcl_commands(text) {
-        match cmd.first().map(String::as_str) {
-            Some("device") if cmd.len() >= 2 => {
-                let (role, tier, label) = read_opts(&cmd[2..]);
-                devices.push(DeviceSpec {
-                    matcher: cmd[1].clone(),
-                    role,
-                    tier,
-                    label,
-                });
-            }
-            Some("link") if cmd.len() >= 3 => {
-                let (_r, _t, label) = read_opts(&cmd[3..]);
-                links.push(LinkSpec {
-                    from: cmd[1].clone(),
-                    to: cmd[2].clone(),
-                    label,
-                });
-            }
-            _ => {}
-        }
-    }
-    Manifest { devices, links }
-}
-
-/// Parse the manifest JSON. Accepts a top-level object with `devices` and
-/// `links` arrays. Every field is optional and leniently typed; a malformed
-/// document yields `Err(message)` so the caller can surface it without failing
-/// the whole report.
-fn parse_manifest_json(text: &str) -> Result<Manifest, String> {
-    let root: J = serde_json::from_str(text).map_err(|e| format!("invalid manifest JSON: {e}"))?;
-    let obj = root
-        .as_object()
-        .ok_or_else(|| "manifest must be a JSON object".to_string())?;
-
-    let sstr = |m: &Map<String, J>, k: &str| m.get(k).and_then(J::as_str).map(str::to_string);
-
-    let mut devices = Vec::new();
-    if let Some(arr) = obj.get("devices").and_then(J::as_array) {
-        for d in arr {
-            let Some(dm) = d.as_object() else { continue };
-            // Accept `match`, `uri`, or `name` as the matcher key.
-            let matcher = sstr(dm, "match")
-                .or_else(|| sstr(dm, "uri"))
-                .or_else(|| sstr(dm, "name"))
-                .unwrap_or_default();
-            if matcher.is_empty() {
-                continue;
-            }
-            devices.push(DeviceSpec {
-                matcher,
-                role: sstr(dm, "role"),
-                tier: dm.get("tier").and_then(J::as_i64),
-                label: sstr(dm, "label"),
-            });
-        }
-    }
-
-    let mut links = Vec::new();
-    if let Some(arr) = obj.get("links").and_then(J::as_array) {
-        for l in arr {
-            let Some(lm) = l.as_object() else { continue };
-            let from = sstr(lm, "from").unwrap_or_default();
-            let to = sstr(lm, "to").unwrap_or_default();
-            if from.is_empty() || to.is_empty() {
-                continue;
-            }
-            links.push(LinkSpec {
-                from,
-                to,
-                label: sstr(lm, "label"),
-            });
-        }
-    }
-
-    Ok(Manifest { devices, links })
+    Ok(commands)
 }
 
 /// Auto-detect links by IP overlap: an upstream device targets an address that a

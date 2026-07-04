@@ -146,14 +146,13 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 /// * `generated_at` — a generation timestamp string (the caller stamps it with
 ///   the browser's local clock; the engine itself is time-free).
 /// * `embed_console` — embed the in-browser `f5-query` WASM console.
-/// * `architecture_json` — an optional architecture manifest declaring each
+/// * `architecture_manifest` — an optional architecture manifest declaring each
 ///   device's role/tier and explicit inter-device links. It is a small **Tcl
 ///   script** (`device <match> -role R -tier N -label L`, `link <from> <to>`),
-///   parsed with the project's Tcl tokeniser; a JSON document (first character
-///   `{`/`[`) is still accepted for compatibility. Empty means pure
-///   auto-detection (an upstream device's pool member / GTM server address that a
-///   downstream device serves is a tier hop). A malformed manifest is surfaced in
-///   the report's Architecture section, not fatal.
+///   parsed with the project's Tcl tokeniser. Empty means pure auto-detection
+///   (an upstream device's pool member / GTM server address that a downstream
+///   device serves is a tier hop). A malformed manifest is surfaced in the
+///   report's Architecture section, not fatal.
 ///
 /// Returns the full HTML document, or a `JsError` carrying the engine's error.
 #[wasm_bindgen]
@@ -163,7 +162,7 @@ pub fn generate_report(
     title: &str,
     generated_at: &str,
     embed_console: bool,
-    architecture_json: &str,
+    architecture_manifest: &str,
 ) -> Result<String, JsError> {
     let sources: Vec<Source> = serde_json::from_str(sources_json)
         .map_err(|e| JsError::new(&format!("invalid sources JSON: {e}")))?;
@@ -177,10 +176,10 @@ pub fn generate_report(
             serde_json::from_str(cert_files_json)
                 .map_err(|e| JsError::new(&format!("invalid cert-files JSON: {e}")))?
         };
-    let architecture = if architecture_json.trim().is_empty() {
+    let architecture = if architecture_manifest.trim().is_empty() {
         None
     } else {
-        Some(architecture_json.to_owned())
+        Some(architecture_manifest.to_owned())
     };
     let opts = RenderOptions {
         title: title.to_owned(),
