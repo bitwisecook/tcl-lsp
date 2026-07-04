@@ -366,6 +366,11 @@ html,body{max-width:100%}
   padding:16px 18px;margin:0 0 18px}
 .arch-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .arch-head h2{margin:0;font-size:16px}
+.arch-diagram{margin:4px 0 14px;overflow-x:auto}
+.arch-diagram:empty{display:none}
+.arch-diagram svg{display:block;margin:0 auto}
+.arch-diagram .mm-node:hover{filter:brightness(1.08)}
+.arch-tiers-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:0 0 6px}
 .arch-tiers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;align-items:stretch}
 .arch-tier{flex:0 0 auto;min-width:150px;border:1px dashed var(--line);border-radius:10px;padding:10px;
   display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--bg) 50%,transparent)}

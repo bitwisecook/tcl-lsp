@@ -75,6 +75,8 @@
   {% if architecture.manifestError %}
   <div class="insight warn"><span class="dot"></span>Manifest ignored: {{ architecture.manifestError }}</div>
   {% endif %}
+  <div class="arch-diagram diag-host" id="archDiagram" aria-label="Interactive architecture diagram — click a device to jump to it"></div>
+  <div class="arch-tiers-lbl">Devices by tier</div>
   <div class="arch-tiers">
     {% for t in architecture.tiers %}
     <div class="arch-tier">
