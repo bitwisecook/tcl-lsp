@@ -7,7 +7,7 @@ name = "f5report"
 version = "0.1.0"
 description = "Interactive HTML reports for F5 BIG-IP configs, powered by the f5-query engine via PyO3"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.9"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "tcl-lsp contributors" }]
 keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]

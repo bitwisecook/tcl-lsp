@@ -28,9 +28,12 @@ name = "_engine"
 crate-type = ["cdylib"]
 
 [dependencies]
-# abi3 is deliberately NOT enabled: the wheel is built against the exact
-# interpreter (CPython 3.14) so the full C-API is available.
-pyo3 = { version = "0.29", features = ["extension-module"] }
+# abi3 (the CPython stable ABI / limited API) is enabled with a 3.9 floor so a
+# single wheel loads on every CPython from 3.9 up — the interpreter used to
+# build it no longer has to match the one that runs it. The binding only uses
+# the subset of the C-API covered by the limited API, so nothing here needs the
+# full, version-specific C-API.
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-bigip-io = { path = "../tcl-bigip-io" }
 tcl-bigip-query = { path = "../tcl-bigip-query" }
