@@ -396,8 +396,8 @@
         </span>
       </div>
       <div class="apm-graph">
-        <pre class="apm-src">{{ p.mermaid }}</pre>
-        <div class="apm-diagram diag-host"></div>
+        <script type="application/json" class="apm-graph-data">{{ p.graph | tojson }}</script>
+        <div class="apm-diagram"></div>
       </div>
     </div>
     {% endfor %}
@@ -534,6 +534,11 @@
 </script>
 <script>
 {{ irule_flow_js | safe }}
+</script>
+<!-- vendored elkjs (EPL-2.0) for the orthogonal APM graph, inlined for a fully self-contained page -->
+<script>{{ elk_js | safe }}</script>
+<script>
+{{ elk_graph_js | safe }}
 </script>
 <script>
 {{ apm_js | safe }}

@@ -38,8 +38,11 @@ GUI):
   (network-access → lease pool and client DNS, webtops, remote-desktop and
   portal-access resources).
 
-Boxes are rectangular with orthogonal (right-angle) connectors; the **Start**
-and **Allow** endings are green and **Deny** is red, matching the editor.
+Boxes are rectangular with true orthogonal (right-angle) connectors — the
+graph is laid out by [elkjs](https://github.com/kieler/elkjs), which routes the
+edges into separate channels with each arrowhead seated on the node border. The
+**Start** and **Allow** endings are green and **Deny** is red, matching the
+editor.
 
 ## Example
 

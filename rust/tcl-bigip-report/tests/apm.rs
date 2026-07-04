@@ -58,24 +58,27 @@ fn model_carries_apm_walk() {
 }
 
 #[test]
-fn mermaid_is_vpe_shaped() {
+fn graph_model_is_vpe_shaped() {
     let m = collect_model(&[scf()], "APM");
-    let mmd = m["devices"][0]["apmProfiles"][0]["mermaid"]
-        .as_str()
-        .expect("mermaid");
-    // Left-to-right, like the VPE. Orthogonal routing / boxes come from the
-    // report's global ELK Mermaid layout, not a per-diagram directive.
-    assert!(mmd.contains("flowchart LR"));
-    // The item flow, with branch captions on the connectors.
-    assert!(mmd.contains("Logon Page"));
-    assert!(mmd.contains("AD Auth"));
-    assert!(mmd.contains("|Successful|") || mmd.contains("Successful"));
-    // Green start/allow, red deny classes are applied.
-    assert!(mmd.contains(":::start"));
-    assert!(mmd.contains(":::allow"));
-    assert!(mmd.contains(":::deny"));
+    let graph = &m["devices"][0]["apmProfiles"][0]["graph"];
+    let nodes = graph["nodes"].as_array().expect("nodes");
+    let edges = graph["edges"].as_array().expect("edges");
+    assert!(!nodes.is_empty() && !edges.is_empty());
+    let labels: Vec<&str> = nodes.iter().filter_map(|n| n["label"].as_str()).collect();
+    let classes: std::collections::BTreeSet<&str> =
+        nodes.iter().filter_map(|n| n["cls"].as_str()).collect();
+    let edge_labels: Vec<&str> = edges.iter().filter_map(|e| e["label"].as_str()).collect();
+    // The item flow and its branch captions.
+    assert!(labels.iter().any(|l| l.contains("Logon Page")));
+    assert!(labels.iter().any(|l| l.contains("AD Auth")));
+    assert!(edge_labels.contains(&"Successful"));
+    // Green start/allow, red deny styling classes are applied.
+    for cls in ["start", "allow", "deny"] {
+        assert!(classes.contains(cls), "missing node class {cls}");
+    }
     // Both remote-desktop resources are linked (inline word-list in the config).
-    assert!(mmd.contains("JB-JC") && mmd.contains("JB-NC"));
+    assert!(labels.iter().any(|l| l.contains("JB-JC")));
+    assert!(labels.iter().any(|l| l.contains("JB-NC")));
 }
 
 #[test]
@@ -89,7 +92,8 @@ fn report_has_apm_tab() {
     let html = build_report(&[scf()], &opts).expect("render");
     assert!(html.contains("data-panel=\"apm\""), "APM tab/panel present");
     assert!(html.contains("apm-profile"), "profile card rendered");
-    assert!(html.contains("flowchart LR"), "mermaid embedded");
+    assert!(html.contains("apm-graph-data"), "graph model embedded");
+    assert!(html.contains("ElkGraph"), "elkjs renderer embedded");
     // No unrendered template tags.
     assert!(
         !html.contains("{{ ") && !html.contains("{% "),

@@ -27,7 +27,7 @@ via [`bigip-report-wasm`](../bigip-report-wasm).
 | `src/model.rs` | port of `f5report.report` — the per-object shaping + orphan/insight passes. |
 | `src/graph.rs` | port of `f5report.graph` — the object graph, listener fields, iRule dynamic actions. |
 | `src/certs.rs` | the SSL-certificate + private-key inventory (read from the parsed model, since the DSL only projects `ltm`). |
-| `src/apm.rs` | the APM access-profile walk — parses the `apm …` stanzas from the config text and emits a per-profile dependency graph (Mermaid) plus its linked-object list. |
+| `src/apm.rs` | the APM access-profile walk — parses the `apm …` stanzas from the config text and emits a per-profile `{nodes, edges}` dependency-graph model (rendered client-side by the elkjs orthogonal renderer, `templates/elk-graph.js`) plus its linked-object list. |
 | `src/secrets.rs` | `f5mku` master-key secret decryption. |
 | `src/render.rs` + `templates/` | minijinja rendering to one HTML file (CSS/JS/Mermaid/wasm-console embedded). |
 

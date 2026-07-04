@@ -6,9 +6,35 @@
 .apm-meta { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
 .apm-graph { padding: .6rem; overflow-x: auto; }
 .apm-graph .apm-diagram { min-height: 2rem; }
-.apm-src { display: none; }
+.apm-graph-data { display: none; }
 .apm-empty { padding: 1rem; opacity: .7; }
+
+/* elkjs-rendered orthogonal graph. */
+.elk-svg { display: block; }
+.elk-node-box { stroke-width: 1.2; }
+.elk-node .elk-node-text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #0f172a; }
+.elk-measure .elk-label { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
+.elk-node.vs .elk-node-box { fill: #ffffff; stroke: #334155; }
+.elk-node.cp .elk-node-box { fill: #ffffff; stroke: #0284c7; }
+.elk-node.ap .elk-node-box { fill: #ffcf87; stroke: #b45309; }
+.elk-node.pol .elk-node-box { fill: #bfe3ff; stroke: #0369a1; }
+.elk-node.start .elk-node-box { fill: #a4fdaf; stroke: #15803d; }
+.elk-node.action .elk-node-box { fill: #ffffff; stroke: #475569; }
+.elk-node.allow .elk-node-box { fill: #a4fdaf; stroke: #15803d; }
+.elk-node.deny .elk-node-box { fill: #f8b4b4; stroke: #b91c1c; }
+.elk-node.aaa .elk-node-box { fill: #f9c9d6; stroke: #be185d; }
+.elk-node.res .elk-node-box { fill: #e2e8f0; stroke: #475569; }
+.elk-edge { fill: none; stroke: #64748b; stroke-width: 1.4; }
+.elk-arrowhead { fill: #64748b; }
+.elk-edge-label-bg { fill: #ffffff; opacity: .85; }
+.elk-edge-label-t { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #334155; }
+
 @media (prefers-color-scheme: dark) {
   .apm-profile { border-color: #2b3546; }
   .apm-profile > .apm-head { background: #1b2333; border-bottom-color: #2b3546; }
+  /* The node fills are light chips; keep dark text on them and lighten edges. */
+  .elk-edge { stroke: #94a3b8; }
+  .elk-arrowhead { fill: #94a3b8; }
+  .elk-edge-label-bg { fill: #0f1622; }
+  .elk-edge-label-t { fill: #cbd5e1; }
 }
