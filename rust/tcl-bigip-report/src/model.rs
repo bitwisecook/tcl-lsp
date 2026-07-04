@@ -1309,21 +1309,25 @@ pub fn collect_model(sources: &[Source], title: &str) -> J {
 
 /// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
 ///
-/// `cert_pems` maps a `sys file ssl-cert` `cache-path` (as it appears in the
-/// stanza) to the PEM text of that member, read out of the archive by the
-/// caller (the CLI / wasm entry points, which have the raw UCS bytes). The
-/// certs tab parses these to fill metadata-free stanzas and reconstruct the
-/// trust chain; an empty map falls back to config metadata only.
+/// `cert_pems` is keyed **by source URI** and then by a `sys file ssl-cert`
+/// `cache-path` (as it appears in the stanza) → the PEM text of that member,
+/// read out of the archive by the caller (the CLI / wasm entry points, which
+/// have the raw UCS bytes). Scoping by source URI keeps a filestore
+/// `cache-path` shared across two UCS files in one report from resolving to the
+/// wrong device's certificate. The certs tab parses these to fill
+/// metadata-free stanzas and reconstruct the trust chain; an empty map falls
+/// back to config metadata only.
 #[must_use]
 #[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
 pub fn collect_model_with_certs(
     sources: &[Source],
     title: &str,
-    cert_pems: &HashMap<String, String>,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
 ) -> J {
+    let empty = HashMap::new();
     let devices: Vec<J> = sources
         .iter()
-        .map(|(uri, src)| collect_device(uri, src, cert_pems))
+        .map(|(uri, src)| collect_device(uri, src, cert_pems.get(uri).unwrap_or(&empty)))
         .collect();
 
     let mut totals: Map<String, J> = Map::new();

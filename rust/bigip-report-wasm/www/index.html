@@ -351,16 +351,18 @@
     }));
   }
 
-  // Merge every file's filestore certificates into one {cache_path: pem} map.
+  // Each file's filestore certificates, nested by source name:
+  // {name: {cache_path: pem}}. Keeping them per-source stops two devices that
+  // share a filestore cache-path from clobbering each other's certificate.
   function collectCertFiles(items, pass) {
-    var merged = {};
+    var bySource = {};
     items.forEach(function (it) {
       try {
-        var m = JSON.parse(wasm_bindgen.extract_cert_files(it.name, it.bytes, pass, it.scf));
-        Object.keys(m).forEach(function (k) { merged[k] = m[k]; });
+        bySource[it.name] = JSON.parse(
+          wasm_bindgen.extract_cert_files(it.name, it.bytes, pass, it.scf));
       } catch (e) { /* best effort — fall back to config metadata */ }
     });
-    return merged;
+    return bySource;
   }
 
   // Best-effort probe (on file / passphrase change): reveal the master-key
