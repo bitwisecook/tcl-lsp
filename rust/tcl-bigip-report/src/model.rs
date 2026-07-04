@@ -929,7 +929,7 @@ fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtual
     }
 }
 
-fn collect_device(uri: &str, source: &str) -> J {
+fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1162,7 +1162,7 @@ fn collect_device(uri: &str, source: &str) -> J {
     device.insert("configText".into(), J::String(source.into()));
 
     // Certificate inventory (SSL cert expiry & inventory tab).
-    let certs = crate::certs::collect_certs(&sources, &device);
+    let certs = crate::certs::collect_certs(&sources, &device, cert_pems);
     device.insert("certificates".into(), certs);
 
     // Secret inventory (Secrets tab). Values are clear text only when the
@@ -1239,10 +1239,28 @@ fn collect_device(uri: &str, source: &str) -> J {
 }
 
 /// Build the full report model from loaded `(uri, text)` sources.
+#[must_use]
 pub fn collect_model(sources: &[Source], title: &str) -> J {
+    collect_model_with_certs(sources, title, &HashMap::new())
+}
+
+/// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
+///
+/// `cert_pems` maps a `sys file ssl-cert` `cache-path` (as it appears in the
+/// stanza) to the PEM text of that member, read out of the archive by the
+/// caller (the CLI / wasm entry points, which have the raw UCS bytes). The
+/// certs tab parses these to fill metadata-free stanzas and reconstruct the
+/// trust chain; an empty map falls back to config metadata only.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_with_certs(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, String>,
+) -> J {
     let devices: Vec<J> = sources
         .iter()
-        .map(|(uri, src)| collect_device(uri, src))
+        .map(|(uri, src)| collect_device(uri, src, cert_pems))
         .collect();
 
     let mut totals: Map<String, J> = Map::new();

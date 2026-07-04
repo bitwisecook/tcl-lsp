@@ -55,6 +55,67 @@ pub fn extract_source(name: &str, bytes: &[u8], passphrase: &str) -> Result<Stri
     }
 }
 
+/// Recover the certificate PEMs from a UCS filestore, keyed by `cache-path`.
+///
+/// A modern `sys file ssl-cert` stanza is metadata-free — subject / issuer /
+/// validity / SANs live only in the PEM in `/config/filestore/...`, not the
+/// config — so the certs tab needs the actual bytes. Given the same archive
+/// `bytes` that [`extract_source`] flattened and its resulting `scf`, this parses
+/// every `sys file ssl-cert` cache-path and reads that member out of the
+/// archive, returning a JSON object `{cache_path: pem}`. A non-UCS input (a
+/// bare `bigip.conf`) has no filestore and returns `{}`. Feed the merged map of
+/// all files into [`generate_report`].
+#[wasm_bindgen]
+pub fn extract_cert_files(
+    name: &str,
+    bytes: &[u8],
+    passphrase: &str,
+    scf: &str,
+) -> Result<String, JsError> {
+    use std::collections::BTreeMap;
+
+    use tcl_bigip::model::ModelObject;
+    use tcl_bigip::parser::driver::parse_bigip_conf;
+    use tcl_bigip_io::read_ucs_member;
+
+    let is_ucs_ext = std::path::Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("ucs"));
+    if !(is_pgp_bytes(bytes) || (is_ucs_bytes(bytes) && is_ucs_ext)) {
+        return Ok("{}".to_string());
+    }
+
+    let opts = PassphraseOptions {
+        explicit: (!passphrase.is_empty()).then(|| passphrase.to_owned()),
+        allow_prompt: false,
+        ..PassphraseOptions::default()
+    };
+    let provider = move || resolve_passphrase(&opts);
+
+    let config = parse_bigip_conf(scf, "Common");
+    let mut map: BTreeMap<String, String> = BTreeMap::new();
+    for placed in &config.objects {
+        if let ModelObject::SysFileSslCert(c) = &placed.object {
+            let member = if !c.cache_path.is_empty() {
+                c.cache_path.clone()
+            } else {
+                c.source_path
+                    .strip_prefix("file://")
+                    .unwrap_or(&c.source_path)
+                    .to_string()
+            };
+            if member.is_empty() || map.contains_key(&member) {
+                continue;
+            }
+            if let Ok(pem) = read_ucs_member(bytes, &member, &provider, name) {
+                map.insert(member, String::from_utf8_lossy(&pem).into_owned());
+            }
+        }
+    }
+    serde_json::to_string(&map).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Count the `f5mku` `$M$…` encrypted secrets in an SCF source.
 ///
 /// The page uses this to decide whether to ask for a master key at all — the
@@ -78,6 +139,9 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 ///
 /// * `sources_json` — an ordered JSON array of `[uri, scf_text]` pairs (each
 ///   `uri` a display name, each `scf_text` the output of [`extract_source`]).
+/// * `cert_files_json` — a JSON object `{cache_path: pem}` merged from every
+///   file's [`extract_cert_files`], so the certs tab can parse the real
+///   certificates (issue date, SANs, trust chain). `"{}"` for none.
 /// * `title` — the report title.
 /// * `generated_at` — a generation timestamp string (the caller stamps it with
 ///   the browser's local clock; the engine itself is time-free).
@@ -87,6 +151,7 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 #[wasm_bindgen]
 pub fn generate_report(
     sources_json: &str,
+    cert_files_json: &str,
     title: &str,
     generated_at: &str,
     embed_console: bool,
@@ -96,10 +161,18 @@ pub fn generate_report(
     if sources.is_empty() {
         return Err(JsError::new("no config sources provided"));
     }
+    let cert_pems: std::collections::HashMap<String, String> =
+        if cert_files_json.trim().is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            serde_json::from_str(cert_files_json)
+                .map_err(|e| JsError::new(&format!("invalid cert-files JSON: {e}")))?
+        };
     let opts = RenderOptions {
         title: title.to_owned(),
         generated_at: generated_at.to_owned(),
         embed_console,
+        cert_pems,
     };
     build_report(&sources, &opts).map_err(|e| JsError::new(&e.to_string()))
 }

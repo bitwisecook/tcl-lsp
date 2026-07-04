@@ -46,6 +46,18 @@
 .cert-detail > div { display: grid; grid-template-columns: 7rem 1fr; gap: .5rem; align-items: baseline; }
 .cert-detail .cd-k { color: var(--muted, #6b7280); font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
 
+/* Trust chain: leaf → intermediate(s) → root, each link on its own line with a
+   subtle connector so the order reads at a glance. */
+.chain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.chain-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; position: relative; padding-left: 1.1rem; }
+.chain-list li::before { content: ""; position: absolute; left: .35rem; top: .55rem; bottom: -.25rem; width: 1px; background: var(--border, #d0d7de); }
+.chain-list li:last-child::before { display: none; }
+.chain-list li::after { content: ""; position: absolute; left: .2rem; top: .35rem; width: .35rem; height: .35rem; border-radius: 50%; background: var(--muted, #6b7280); }
+.chain-list .chain-leaf::after { background: #2563eb; }
+.chain-list .chain-root::after { background: #16a34a; }
+.chain-list .chain-gap { padding-left: 1.1rem; }
+.chain-list .muted { color: var(--muted, #6b7280); }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .cert-summary .cs.warn { color: #fbbf24; }
   :root:not([data-theme="light"]) .cert-row.cert-warn td.cert-remaining { color: #fbbf24; }

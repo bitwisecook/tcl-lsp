@@ -136,6 +136,7 @@ fn build_report_html_self_contained() {
         title: "Solo".into(),
         generated_at: "2026-07-03 00:00:00 UTC".into(),
         embed_console: true,
+        ..Default::default()
     };
     let html = build_report(&sources, &opts).expect("render");
     assert!(html.starts_with("<!doctype html>"), "doctype");
@@ -172,6 +173,7 @@ fn console_can_be_disabled() {
         title: "NoConsole".into(),
         generated_at: String::new(),
         embed_console: false,
+        ..Default::default()
     };
     let html = build_report(&sources, &opts).expect("render");
     // The console tab/panel elements (`…data-panel="console">`) are gone; a bare

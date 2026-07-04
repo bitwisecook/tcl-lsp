@@ -11,8 +11,10 @@ authors.workspace = true
 
 [dependencies]
 # The query engine, without the network-probe layer so this crate also builds
-# for wasm32 (the in-browser report generator). A report never probes.
-tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
+# for wasm32 (the in-browser report generator). A report never probes — but the
+# `x509` surface (pure Rust: x509-parser + sha2, no socket/TLS) is on so the
+# certs tab can parse certificate files read out of a UCS filestore.
+tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false, features = ["x509"] }
 # The BIG-IP object model + parser. The query DSL only projects the `ltm`
 # module, so the certificate inventory reads `sys file ssl-cert` objects from
 # the parsed model directly (the same parser the engine uses).
@@ -29,6 +31,9 @@ tcl-f5mku = { path = "../tcl-f5mku", default-features = false }
 regex = "1"
 ipnet = "2"
 base64 = "0.22"
+# Parse the x509 ISO validity strings to an epoch (for the live countdown) and a
+# human date. `default-features = false` — no clock; a report is time-free.
+chrono = { version = "0.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde"] }

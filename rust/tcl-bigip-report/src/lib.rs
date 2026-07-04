@@ -33,7 +33,7 @@ mod services;
 
 pub use tcl_lexer::highlight_tcl;
 
-pub use model::{ENGINE_VERSION, collect_model};
+pub use model::{ENGINE_VERSION, collect_model, collect_model_with_certs};
 pub use query::{ReportError, Source};
 pub use render::{RenderOptions, build_report};
 pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};

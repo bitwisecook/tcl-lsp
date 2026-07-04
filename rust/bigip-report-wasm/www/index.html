@@ -336,7 +336,10 @@
       return f.arrayBuffer().then(function (buf) {
         var bytes = new Uint8Array(buf);
         try {
-          return [f.name, wasm_bindgen.extract_source(f.name, bytes, pass)];
+          var scf = wasm_bindgen.extract_source(f.name, bytes, pass);
+          // Keep the raw bytes so the certs tab can pull the real cert PEMs
+          // out of the UCS filestore (metadata-free stanzas need them).
+          return { name: f.name, scf: scf, bytes: bytes };
         } catch (e) {
           var msg = (e && e.message) ? e.message : String(e);
           if (/passphrase/i.test(msg)) {
@@ -348,13 +351,25 @@
     }));
   }
 
+  // Merge every file's filestore certificates into one {cache_path: pem} map.
+  function collectCertFiles(items, pass) {
+    var merged = {};
+    items.forEach(function (it) {
+      try {
+        var m = JSON.parse(wasm_bindgen.extract_cert_files(it.name, it.bytes, pass, it.scf));
+        Object.keys(m).forEach(function (k) { merged[k] = m[k]; });
+      } catch (e) { /* best effort — fall back to config metadata */ }
+    });
+    return merged;
+  }
+
   // Best-effort probe (on file / passphrase change): reveal the master-key
   // field only if the config actually carries $M$ secrets. Silent on failure
   // (e.g. an encrypted UCS whose passphrase isn't entered yet).
   function probeSecrets() {
     if (!wasmReady || files.length === 0 || mkuGroup.style.display !== "none") return;
-    extractAll(passEl.value || "").then(function (sources) {
-      var n = sources.reduce(function (a, s) { return a + wasm_bindgen.secret_count(s[1]); }, 0);
+    extractAll(passEl.value || "").then(function (items) {
+      var n = items.reduce(function (a, s) { return a + wasm_bindgen.secret_count(s.scf); }, 0);
       if (n > 0) revealMku(n);
     }).catch(function () { /* passphrase not ready yet — try again later */ });
   }
@@ -365,16 +380,20 @@
     var title = titleEl.value.trim() || "F5 BIG-IP Configuration Report";
     var embed = !!consoleEl.checked;
 
-    return extractAll(pass).then(function (sources) {
+    return extractAll(pass).then(function (items) {
       // Detect encrypted secrets; reveal the master-key field when needed.
-      var secretTotal = sources.reduce(function (a, s) { return a + wasm_bindgen.secret_count(s[1]); }, 0);
+      var secretTotal = items.reduce(function (a, s) { return a + wasm_bindgen.secret_count(s.scf); }, 0);
       if (secretTotal > 0) revealMku(secretTotal);
+
+      // Certificates come straight from the archive filestore (not affected by
+      // the f5mku secret decryption below).
+      var certFiles = collectCertFiles(items, pass);
 
       // Decrypt with the master key when one was supplied.
       if (mku && secretTotal > 0) {
         statusEl.innerHTML = '<span class="spinner"></span> decrypting secrets…';
-        sources = sources.map(function (s) {
-          try { return [s[0], wasm_bindgen.decrypt_secrets(s[1], mku)]; }
+        items = items.map(function (s) {
+          try { return { name: s.name, scf: wasm_bindgen.decrypt_secrets(s.scf, mku), bytes: s.bytes }; }
           catch (e) {
             var msg = (e && e.message) ? e.message : String(e);
             throw new Error(msg + " — check the base64 key from `f5mku -K`.");
@@ -383,11 +402,13 @@
       }
       statusEl.innerHTML = '<span class="spinner"></span> running the query engine & rendering…';
       var locked = secretTotal > 0 && !mku;
+      var sources = items.map(function (s) { return [s.name, s.scf]; });
       return new Promise(function (resolve) {
-        setTimeout(function () { resolve({ sources: sources, locked: locked }); }, 20);
+        setTimeout(function () { resolve({ sources: sources, certFiles: certFiles, locked: locked }); }, 20);
       });
     }).then(function (st) {
-      var html = wasm_bindgen.generate_report(JSON.stringify(st.sources), title, utcStamp(), embed);
+      var html = wasm_bindgen.generate_report(
+        JSON.stringify(st.sources), JSON.stringify(st.certFiles), title, utcStamp(), embed);
       deliver(html, st.sources.length, st.locked);
     });
   }

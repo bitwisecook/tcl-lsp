@@ -17,8 +17,11 @@
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
 //! flag). The pure x509 helpers are NOT gated.
 
+#[cfg(feature = "probes")]
 use std::io::{Read as _, Write as _};
+#[cfg(feature = "probes")]
 use std::net::{TcpStream, ToSocketAddrs, UdpSocket};
+#[cfg(feature = "probes")]
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
@@ -31,6 +34,7 @@ use crate::errors::QueryError;
 use crate::value::Value;
 
 /// The `--enable-probes` gate. Reproduces the error text verbatim.
+#[cfg(feature = "probes")]
 pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError> {
     if enabled {
         Ok(())
@@ -394,6 +398,7 @@ fn spki_to_pem(spki_der: &[u8]) -> String {
 // x509_eq / x509_from_config — deterministic projections
 
 /// Structural equality of two parsed x509 dicts.
+#[cfg(feature = "probes")]
 pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
     let (Value::Object(l), Value::Object(r)) = (as_dict(left), as_dict(right)) else {
         return crate::value::py_eq(left, right);
@@ -408,6 +413,7 @@ pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
         && dict_str(&l, "serial").eq_ignore_ascii_case(&dict_str(&r, "serial"))
 }
 
+#[cfg(feature = "probes")]
 fn as_dict(v: &Value) -> Value {
     match v {
         Value::ObjectRef(o) => Value::Object(o.fields.clone()),
@@ -415,6 +421,7 @@ fn as_dict(v: &Value) -> Value {
     }
 }
 
+#[cfg(feature = "probes")]
 fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
     match map.get(key) {
         Some(Value::Str(s)) => s.clone(),
@@ -425,6 +432,7 @@ fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
 
 /// Map BIG-IP `key-type` tokens to the `key_alg` strings the x509 parse
 /// uses.
+#[cfg(feature = "probes")]
 fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
     Some(match key_type {
         "rsa-public" | "rsa-private" => "RSAPublicKey",
@@ -438,6 +446,7 @@ fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
 
 /// Project a BIG-IP config-object cert into the `x509_parse` shape. `cert`
 /// is an `ObjectRef` (or dict) carrying the BIG-IP cert metadata fields.
+#[cfg(feature = "probes")]
 pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
     if matches!(cert, Value::Null) {
         return Err(QueryError::builtin("x509_from_config: cannot project None"));
@@ -529,6 +538,7 @@ pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
 
 /// Read a config field — accept attribute / dict-key / `ObjectRef`
 /// field form, with both `_`-and-`-` spellings, stripping surrounding quotes.
+#[cfg(feature = "probes")]
 fn field_get(cert: &Value, name: &str) -> String {
     let tmsh_name = name.replace('_', "-");
     let lookup = |fields: &IndexMap<String, Value>| -> String {
@@ -554,6 +564,7 @@ fn field_get(cert: &Value, name: &str) -> String {
     }
 }
 
+#[cfg(feature = "probes")]
 fn scalar_str(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),
@@ -567,6 +578,7 @@ fn scalar_str(v: &Value) -> String {
 }
 
 /// Parse a TMSH `expiration-string` → ISO-8601 UTC.
+#[cfg(feature = "probes")]
 fn parse_x509_date(text: &str) -> Option<String> {
     use chrono::{NaiveDateTime, TimeZone as _, Utc};
     if text.is_empty() {
@@ -605,6 +617,7 @@ fn parse_x509_date(text: &str) -> Option<String> {
 /// byte-identically to `x509_parse`. A single cert returns the dict; multiple
 /// return a list in file order. PKCS#12 (`.pfx` / `.p12`) is unsupported and
 /// returns a clear `BuiltinError` (PKCS#12 decoding is not supported).
+#[cfg(feature = "probes")]
 pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, QueryError> {
     let expanded = expanduser(path);
     let raw = match std::fs::read(&expanded) {
@@ -666,6 +679,7 @@ pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, Qu
 }
 
 /// Tilde expansion of a leading `~` / `~/` in the path.
+#[cfg(feature = "probes")]
 fn expanduser(path: &str) -> String {
     if (path == "~" || path.starts_with("~/"))
         && let Some(home) = std::env::var_os("HOME")
@@ -682,6 +696,7 @@ fn expanduser(path: &str) -> String {
 
 /// Split into one PEM string per `CERTIFICATE` block, in file order
 /// (key / other block types skipped).
+#[cfg(feature = "probes")]
 fn split_pem_blocks(text: &str) -> Vec<String> {
     let mut blocks: Vec<String> = Vec::new();
     let mut in_cert = false;
@@ -708,6 +723,7 @@ fn split_pem_blocks(text: &str) -> Vec<String> {
 // Live network probes (faithful-but-not-golden)
 
 /// Build a result dict `{ok, rtt_ms, error}`.
+#[cfg(feature = "probes")]
 fn ok_rtt_error(ok: bool, rtt_ms: Option<f64>, error: Option<String>) -> Value {
     let mut m: IndexMap<String, Value> = IndexMap::new();
     m.insert("ok".to_owned(), Value::Bool(ok));
@@ -721,6 +737,7 @@ fn ok_rtt_error(ok: bool, rtt_ms: Option<f64>, error: Option<String>) -> Value {
 
 /// Forward DNS via the system resolver. Returns the
 /// sorted, unique list of resolved addresses (empty on failure).
+#[cfg(feature = "probes")]
 pub(crate) fn dns(name: &str) -> Vec<Value> {
     // Mirrors `getaddrinfo(name, None, type=SOCK_STREAM)`. `(host, 0)` with
     // `to_socket_addrs` resolves both A and AAAA.
@@ -736,6 +753,7 @@ pub(crate) fn dns(name: &str) -> Vec<Value> {
 /// Reverse DNS (`gethostbyaddr`-style). Returns the
 /// canonical name (empty on failure). `getnameinfo` yields one name, so the
 /// alias list a fuller resolver collects is not reproduced (best-effort).
+#[cfg(feature = "probes")]
 pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
     let Ok(addr) = ip.parse::<std::net::IpAddr>() else {
         return Vec::new();
@@ -747,6 +765,7 @@ pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
 }
 
 /// ICMP echo via the system `ping` command.
+#[cfg(feature = "probes")]
 pub(crate) fn ping(ip: &str) -> Value {
     let timeout_s = 2u64;
     let output = std::process::Command::new("ping")
@@ -774,6 +793,7 @@ pub(crate) fn ping(ip: &str) -> Value {
 }
 
 /// Pull the `time=NN ms` value out of `ping`'s first reply line.
+#[cfg(feature = "probes")]
 fn parse_ping_rtt(stdout: &str) -> Option<f64> {
     for line in stdout.lines() {
         if let Some((_, rest)) = line.split_once("time=") {
@@ -785,6 +805,7 @@ fn parse_ping_rtt(stdout: &str) -> Option<f64> {
 }
 
 /// TCP connect / UDP send timing.
+#[cfg(feature = "probes")]
 pub(crate) fn portping(ip: &str, port: i64, protocol: &str) -> Result<Value, QueryError> {
     let proto = protocol.to_lowercase();
     if proto != "tcp" && proto != "udp" {
@@ -833,6 +854,7 @@ pub(crate) fn portping(ip: &str, port: i64, protocol: &str) -> Result<Value, Que
 }
 
 /// Subprocess `traceroute` invocation.
+#[cfg(feature = "probes")]
 pub(crate) fn traceroute(ip: &str) -> Value {
     let max_hops = 30u32;
     let timeout_s = 2u32;
@@ -902,6 +924,7 @@ pub(crate) fn traceroute(ip: &str) -> Value {
 }
 
 /// TCP connect, optional send, read a banner.
+#[cfg(feature = "probes")]
 pub(crate) fn socket_get(host: &str, port: i64, send: &str) -> Result<Value, QueryError> {
     let recv_max = 4096usize;
     let timeout = Duration::from_secs(5);
@@ -934,6 +957,7 @@ pub(crate) fn socket_get(host: &str, port: i64, send: &str) -> Result<Value, Que
 /// (`protocol` / `cipher` / `peer_cert` / `alpn_selected` / `verify_status` /
 /// `reason` / `error`). Verification failures don't abort — the peer cert is
 /// captured from the (non-verifying) handshake so audit queries still get it.
+#[cfg(feature = "probes")]
 pub(crate) fn tls_handshake(
     host: &str,
     port: i64,
@@ -966,6 +990,7 @@ pub(crate) fn tls_handshake(
 /// Faithful-but-not-golden: `{status, headers, body, body_json, peer_cert,
 /// reason, error}`. The `peer_cert` capture from the live handshake is not
 /// reproduced (ureq doesn't expose it) — it is always `null`, documented.
+#[cfg(feature = "probes")]
 pub(crate) fn url_request(
     method: &str,
     url: &str,
@@ -992,16 +1017,21 @@ pub(crate) fn url_request(
     http::request(method, url, body, headers, ca_bundle)
 }
 
+#[cfg(feature = "probes")]
 mod http;
+#[cfg(feature = "probes")]
 mod tls;
 
 // Registry wiring
 
+#[cfg(feature = "probes")]
 use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain};
+#[cfg(feature = "probes")]
 use crate::eval::EvalContext;
 
 /// Optional positional-string arg with a default, matching the
 /// `protocol`=`tcp` / `send`=empty / `sni`=none parameter defaults.
+#[cfg(feature = "probes")]
 fn opt_str<'a>(
     args: &'a [Value],
     idx: usize,
@@ -1017,19 +1047,23 @@ fn opt_str<'a>(
 // `dns` / `rev_dns` are NOT gated (they have no probe-gate
 // call) — a forward / reverse name lookup is treated as benign. They stay
 // `Plain` to match: a bare `dns("host")` resolves without `--enable-probes`.
+#[cfg(feature = "probes")]
 fn bi_dns(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(dns(&as_str(&args[0], "dns", 1)?)))
 }
 
+#[cfg(feature = "probes")]
 fn bi_rev_dns(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(rev_dns(&as_str(&args[0], "rev_dns", 1)?)))
 }
 
+#[cfg(feature = "probes")]
 fn bi_ping(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     require_probes("ping", ctx.probes_enabled)?;
     Ok(ping(&as_str(&args[0], "ping", 1)?))
 }
 
+#[cfg(feature = "probes")]
 fn bi_portping(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     require_probes("portping", ctx.probes_enabled)?;
     let ip = as_str(&args[0], "portping", 1)?;
@@ -1038,11 +1072,13 @@ fn bi_portping(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryErro
     portping(&ip, port, &proto)
 }
 
+#[cfg(feature = "probes")]
 fn bi_traceroute(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     require_probes("traceroute", ctx.probes_enabled)?;
     Ok(traceroute(&as_str(&args[0], "traceroute", 1)?))
 }
 
+#[cfg(feature = "probes")]
 fn bi_socket_get(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     require_probes("socket_get", ctx.probes_enabled)?;
     let host = as_str(&args[0], "socket_get", 1)?;
@@ -1051,6 +1087,7 @@ fn bi_socket_get(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryEr
     socket_get(&host, port, &send)
 }
 
+#[cfg(feature = "probes")]
 fn bi_tls_handshake(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     require_probes("tls_handshake", ctx.probes_enabled)?;
     let host = as_str(&args[0], "tls_handshake", 1)?;
@@ -1064,6 +1101,7 @@ fn bi_tls_handshake(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
 }
 
 /// One `url_<method>` builtin.
+#[cfg(feature = "probes")]
 fn url_method(
     method: &'static str,
     args: &[Value],
@@ -1102,37 +1140,46 @@ fn url_method(
 
 /// Coerce an object of header values to `(name, value)` string pairs,
 /// stringifying both key and value.
+#[cfg(feature = "probes")]
 fn headers_from_object(m: &IndexMap<String, Value>) -> Vec<(String, String)> {
     m.iter().map(|(k, v)| (k.clone(), scalar_str(v))).collect()
 }
 
+#[cfg(feature = "probes")]
 fn bi_url_get(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
     url_method("GET", a, c)
 }
+#[cfg(feature = "probes")]
 fn bi_url_head(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
     url_method("HEAD", a, c)
 }
+#[cfg(feature = "probes")]
 fn bi_url_options(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
     url_method("OPTIONS", a, c)
 }
+#[cfg(feature = "probes")]
 fn bi_url_post(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
     url_method("POST", a, c)
 }
 
 // --- ungated pure x509 surface (plain; not probe-gated) ---
 
+#[cfg(feature = "probes")]
 fn bi_x509_parse(args: &[Value]) -> Result<Value, QueryError> {
     x509_parse(&as_str(&args[0], "x509_parse", 1)?)
 }
 
+#[cfg(feature = "probes")]
 fn bi_x509_from_config(args: &[Value]) -> Result<Value, QueryError> {
     x509_from_config(&args[0])
 }
 
+#[cfg(feature = "probes")]
 fn bi_x509_eq(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(x509_eq(&args[0], &args[1])))
 }
 
+#[cfg(feature = "probes")]
 fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     let path = as_str(&args[0], "cert_load", 1)?;
     let password = match args.get(1) {
@@ -1142,6 +1189,7 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     cert_load(&path, password.as_deref())
 }
 
+#[cfg(feature = "probes")]
 fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let Value::ObjectRef(obj) = &args[0] else {
         return Err(QueryError::builtin(
@@ -1197,6 +1245,7 @@ fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryErro
 
 /// Probe builtin registrations — folded into the global registry by
 /// [`crate::builtins`].
+#[cfg(feature = "probes")]
 pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
         // DNS lookups are ungated (benign name resolution).
