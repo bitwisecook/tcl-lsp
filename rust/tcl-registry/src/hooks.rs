@@ -130,6 +130,9 @@ pub enum CodegenHookId {
     Dict,
     /// `array <subcommand> ...`.
     Array,
+    /// `namespace <subcommand> ...` — the `eval` form compiles to the
+    /// ensemble-rewrite `invokeReplace` of `::tcl::namespace::eval`.
+    Namespace,
     /// `append varName ?value ...?`.
     Append,
     /// `lappend varName ?value ...?`.

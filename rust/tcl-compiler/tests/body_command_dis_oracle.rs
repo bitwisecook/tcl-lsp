@@ -81,15 +81,21 @@ fn our_codegen_keeps_body_commands_opaque() {
             case.body_fragment
         );
 
-        // Exactly one runtime invoke — the outer command. An inline-compiled
-        // body would add opcodes / invokes for its inner commands.
+        // Exactly one runtime invoke — the outer command (an `invokeStk` for
+        // the resolved-ensemble / plain form, or an `invokeReplace` for the
+        // ensemble-rewrite form C Tcl uses for `namespace eval`). An
+        // inline-compiled body would add opcodes / invokes for its inner
+        // commands.
         let invokes = dis
             .lines()
-            .filter(|l| l.trim_start().starts_with('(') && l.contains("invokeStk"))
+            .filter(|l| {
+                let t = l.trim_start();
+                t.starts_with('(') && (t.contains("invokeStk") || t.contains("invokeReplace"))
+            })
             .count();
         assert_eq!(
             invokes, 1,
-            "{}: expected exactly one invokeStk (opaque body); got {invokes}:\n{dis}",
+            "{}: expected exactly one runtime invoke (opaque body); got {invokes}:\n{dis}",
             case.name
         );
     }
