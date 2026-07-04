@@ -300,10 +300,11 @@ pre.code.conf{white-space:pre;overflow-x:auto}
 }
 
 /* ---- Responsive / mobile ------------------------------------------------- */
-/* Never let the page itself scroll sideways; wide content (tables, code,
-   diagrams) scrolls inside its own container instead. `clip` (not `hidden`)
-   avoids establishing a scroll container, which would break the sticky topbar. */
-html,body{max-width:100%;overflow-x:clip}
+/* Keep wide content (tables, code, diagrams) scrolling inside its own container
+   rather than widening the page. We deliberately do NOT set overflow-x on
+   html/body — on iOS WebKit that caps vertical scrolling — so instead each wide
+   block is capped/contained on small screens (see the mobile rules below). */
+html,body{max-width:100%}
 .refs-dyn{overflow-x:auto}
 
 @media (max-width:760px){
