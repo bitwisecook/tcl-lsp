@@ -1162,7 +1162,7 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 	@# Guard against a silent regression of the above: assert the externref
 	@# table can actually grow (best-effort — needs node, present in CI).
 	@command -v node >/dev/null 2>&1 \
-		&& node $(ROOT)scripts/verify-explorer-wasm.mjs $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm \
+		&& node $(ROOT)scripts/verify-wasm-externref.mjs $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm \
 		|| echo "    note: node not found — skipping wasm growability check"
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
