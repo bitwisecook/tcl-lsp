@@ -12,18 +12,19 @@
   } catch (e) { return; }
 
   if (window.mermaid) {
-    // ELK (layered) layout with `step` edges — right-angle connectors and
-    // rectangular boxes, graphviz-style — applied to every diagram in the
-    // report (topology, per-virtual traffic pipeline / flow, iRule flowcharts,
-    // the APM access-profile walk). ELK gives the layered node placement;
-    // `curve: "step"` is what makes the connectors orthogonal (a straight/
-    // `linear` curve would draw diagonal lines between the layout points). The
-    // ELK renderer emits the same SVG structure as the default layout
+    // ELK (layered) layout for the Mermaid-drawn diagrams (topology, the
+    // per-virtual traffic pipeline / flow, and the iRule flowcharts). ELK gives
+    // a clean layered node placement; the edges use a smooth curve because
+    // Mermaid does not expose ELK's orthogonal edge *routing* — a `step` curve
+    // fakes right angles but overlaps parallel edges and mis-seats arrowheads.
+    // The genuinely orthogonal diagram (the APM walk) is drawn by the dedicated
+    // elkjs renderer (elk-graph.js), which routes edges through ELK itself.
+    // The ELK layout emits the same SVG structure as the default layout
     // (`.node` / `flowchart-N…` ids, `path.flowchart-link` / `LS-`/`LE-`
     // classes), so the click-to-focus and edge-highlight wiring is unaffected.
     mermaid.initialize({
       startOnLoad: false, securityLevel: "loose", theme: "neutral", layout: "elk",
-      flowchart: { htmlLabels: true, curve: "step", nodeSpacing: 40, rankSpacing: 55 },
+      flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 40, rankSpacing: 55 },
     });
   }
 

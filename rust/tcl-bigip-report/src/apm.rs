@@ -7,9 +7,11 @@
 //! between them), the agents on each item, the AAA servers those agents
 //! authenticate against, and the resources a resource-assign agent hands out
 //! (network-access → lease pool / client DNS, webtops, remote-desktop
-//! resources) — and emits a per-profile dependency graph as Mermaid, laid out
-//! left-to-right with rectangular nodes and orthogonal edges the way the F5
-//! Visual Policy Editor (and the original graphviz visitor) drew it.
+//! resources) — and emits a per-profile `{nodes, edges}` dependency-graph
+//! model. The report's elkjs renderer (`elk-graph.js`) lays it out left-to-right
+//! with rectangular nodes and true orthogonal edge routing — right-angle
+//! connectors, separated channels, arrowheads seated on the node border — the
+//! way the F5 Visual Policy Editor (and the original graphviz visitor) drew it.
 //!
 //! Why a bespoke parse rather than the `f5-query` engine: the query projection
 //! only covers the `ltm` module, and even the parsed `tcl-bigip` model keeps
@@ -300,31 +302,37 @@ fn index_apm(source: &str) -> Apm {
     apm
 }
 
-// --- Mermaid graph builder ---------------------------------------------------
+// --- graph builder -----------------------------------------------------------
 
-/// Accumulates the Mermaid nodes and edges for one profile's walk, de-duping so
-/// a shared object (an agent, a lease pool) is drawn once.
+/// Accumulates the nodes and edges for one profile's walk, de-duping so a
+/// shared object (an agent, a lease pool) is drawn once. Serialised to a
+/// `{nodes, edges}` model that the client-side elkjs renderer lays out with
+/// orthogonal edge routing (`elk-graph.js`).
 #[derive(Default)]
 struct Graph {
     ids: BTreeMap<String, String>,
-    nodes: Vec<String>,
-    edges: Vec<String>,
+    nodes: Vec<J>,
+    edges: Vec<J>,
     seen_edges: BTreeSet<String>,
     objects: Vec<J>,
 }
 
 impl Graph {
     /// Register a node keyed by `id_key` (usually its full path), returning its
-    /// stable short id. `shape`/`class` follow the original's box styling.
+    /// stable short id. `class` drives the box styling via CSS. A `\n` in the
+    /// label is a line break the renderer honours.
     fn node(&mut self, id_key: &str, label: &str, class: &str) -> String {
         if let Some(id) = self.ids.get(id_key) {
             return id.clone();
         }
         let id = format!("N{}", self.ids.len());
         self.ids.insert(id_key.to_string(), id.clone());
-        self.nodes
-            .push(format!("  {id}[\"{}\"]:::{class}", esc(label)));
-        id.clone()
+        let mut o = Map::new();
+        o.insert("id".into(), J::String(id.clone()));
+        o.insert("label".into(), J::String(label.into()));
+        o.insert("cls".into(), J::String(class.into()));
+        self.nodes.push(J::Object(o));
+        id
     }
 
     fn edge(&mut self, from: &str, to: &str, label: &str) {
@@ -332,12 +340,13 @@ impl Graph {
         if !self.seen_edges.insert(key) {
             return;
         }
-        if label.is_empty() {
-            self.edges.push(format!("  {from} --> {to}"));
-        } else {
-            self.edges
-                .push(format!("  {from} -->|{}| {to}", esc_label(label)));
+        let mut o = Map::new();
+        o.insert("from".into(), J::String(from.into()));
+        o.insert("to".into(), J::String(to.into()));
+        if !label.is_empty() {
+            o.insert("label".into(), J::String(label.into()));
         }
+        self.edges.push(J::Object(o));
     }
 
     /// Record a linked object for the panel's object list / search index.
@@ -350,22 +359,7 @@ impl Graph {
     }
 }
 
-/// Escape a Mermaid node label (`"` breaks the `["…"]` quoting; newlines break
-/// the line-oriented syntax).
-fn esc(s: &str) -> String {
-    s.replace('"', "&quot;").replace(['\n', '\r'], " ")
-}
-
-/// Edge labels sit inside Mermaid's `|…|`, which chokes on quotes and the
-/// bracket/brace metacharacters — drop them.
-fn esc_label(s: &str) -> String {
-    s.chars()
-        .filter(|c| !matches!(c, '"' | '|' | '{' | '}' | '[' | ']' | '(' | ')'))
-        .collect::<String>()
-        .replace(['\n', '\r'], " ")
-}
-
-/// The Mermaid class for a policy item, from its `item-type` / caption, echoing
+/// The style class for a policy item, from its `item-type` / caption, echoing
 /// the original's green start / green allow / red deny / plain action fills.
 fn item_class(item_type: &str, caption: &str) -> &'static str {
     let cap = caption.to_ascii_lowercase();
@@ -377,13 +371,13 @@ fn item_class(item_type: &str, caption: &str) -> &'static str {
     }
 }
 
-/// Build the walk graph for one access profile. Returns `(mermaid, objects)`.
+/// Build the walk graph for one access profile. Returns `(graph, objects)`.
 fn walk_profile(
     apm: &Apm,
     full_path: &str,
     profile_body: &[Node],
     virtuals: &[(String, Vec<String>)],
-) -> (String, Vec<J>) {
+) -> (J, Vec<J>) {
     let mut g = Graph::default();
 
     let ap = g.node(
@@ -395,7 +389,6 @@ fn walk_profile(
 
     // Virtual servers that attach this access profile, and their connectivity
     // profile (a sibling profile on the same virtual).
-    let mut vs_ids = Vec::new();
     for (vfp, profiles) in virtuals {
         if !profiles.iter().any(|p| p == full_path) {
             continue;
@@ -407,7 +400,6 @@ fn walk_profile(
         );
         g.object("ltm virtual", vfp);
         g.edge(&vs, &ap, "");
-        vs_ids.push(vs.clone());
         for cp in profiles {
             if apm.connectivity_profiles.contains(cp) {
                 let cpn = g.node(
@@ -435,7 +427,7 @@ fn walk_profile(
         walk_policy(&mut g, apm, &pol, pol_body);
     }
 
-    (render_mermaid(&g), g.objects)
+    (graph_model(&g), g.objects)
 }
 
 /// Walk an access policy: its items, the `next-item` flow between them, and the
@@ -629,40 +621,23 @@ fn scalar(nodes: &[Node], key: &str) -> Option<String> {
         .map(|n| n.words[1..].join(" "))
 }
 
-// --- Mermaid document assembly ----------------------------------------------
+// --- graph model assembly ----------------------------------------------------
 
-fn render_mermaid(g: &Graph) -> String {
-    if g.nodes.is_empty() {
-        return String::new();
-    }
-    let mut lines = Vec::new();
-    // Laid out left-to-right like the F5 Visual Policy Editor (Start on the
-    // left, the Allow / Deny endings on the right). The report initialises
-    // Mermaid with the ELK layout globally, so the connectors are drawn with
-    // orthogonal (right-angle) routing and rectangular nodes — no per-diagram
-    // directive needed.
-    lines.push("flowchart LR".to_string());
-    lines.extend(g.nodes.iter().cloned());
-    lines.extend(g.edges.iter().cloned());
-    // Class styling mirrors the original fills.
-    lines.push("classDef vs fill:#ffffff,stroke:#334155,color:#0f172a;".to_string());
-    lines.push("classDef cp fill:#ffffff,stroke:#0284c7,color:#053345;".to_string());
-    lines.push("classDef ap fill:#ffcf87,stroke:#b45309,color:#4a2c05;".to_string());
-    lines.push("classDef pol fill:#bfe3ff,stroke:#0369a1,color:#052f4a;".to_string());
-    lines.push("classDef start fill:#a4fdaf,stroke:#15803d,color:#052e16;".to_string());
-    lines.push("classDef action fill:#ffffff,stroke:#475569,color:#1e3a8a;".to_string());
-    lines.push("classDef allow fill:#a4fdaf,stroke:#15803d,color:#052e16;".to_string());
-    lines.push("classDef deny fill:#f8b4b4,stroke:#b91c1c,color:#450a0a;".to_string());
-    lines.push("classDef aaa fill:#f9c9d6,stroke:#be185d,color:#500724;".to_string());
-    lines.push("classDef res fill:#e2e8f0,stroke:#475569,color:#1e293b;".to_string());
-    lines.join("\n")
+/// The `{nodes, edges}` model the client-side elkjs renderer lays out. Node
+/// `cls` values map to CSS fills; the item flow is drawn left-to-right like the
+/// F5 Visual Policy Editor.
+fn graph_model(g: &Graph) -> J {
+    let mut o = Map::new();
+    o.insert("nodes".into(), J::Array(g.nodes.clone()));
+    o.insert("edges".into(), J::Array(g.edges.clone()));
+    J::Object(o)
 }
 
 // --- public entry ------------------------------------------------------------
 
 /// Build the APM access-profile walk for a device: one entry per
-/// `apm profile access`, each carrying its Mermaid dependency graph and the
-/// flat list of objects it links to.
+/// `apm profile access`, each carrying its dependency-graph model and the flat
+/// list of objects it links to.
 pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
     let apm = index_apm(source);
     if apm.access_profiles.is_empty() {
@@ -691,7 +666,7 @@ pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
 
     let mut out = Vec::new();
     for (full_path, body) in &apm.access_profiles {
-        let (mermaid, objects) = walk_profile(&apm, full_path, body, &virtuals);
+        let (graph, objects) = walk_profile(&apm, full_path, body, &virtuals);
         let using: Vec<J> = virtuals
             .iter()
             .filter(|(_, profs)| profs.iter().any(|p| p == full_path))
@@ -708,7 +683,7 @@ pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
         o.insert("virtuals".into(), J::Array(using));
         o.insert("objectCount".into(), J::from(objects.len()));
         o.insert("objects".into(), J::Array(objects));
-        o.insert("mermaid".into(), J::String(mermaid));
+        o.insert("graph".into(), graph);
         out.push(J::Object(o));
     }
     J::Array(out)
@@ -784,8 +759,15 @@ mod tests {
         let p = arr[0].as_object().unwrap();
         assert_eq!(bstr(p, "name"), "mycave");
         assert_eq!(bstr(p, "policy"), "mycave");
-        let mermaid = bstr(p, "mermaid");
-        assert!(mermaid.contains("flowchart LR"));
+        // The graph model carries nodes + edges for the elkjs renderer.
+        let graph = &p["graph"];
+        let node_labels: Vec<&str> = graph["nodes"]
+            .as_array()
+            .expect("nodes")
+            .iter()
+            .filter_map(|n| n["label"].as_str())
+            .collect();
+        assert!(!graph["edges"].as_array().expect("edges").is_empty());
         // The full walk reached the AAA server, the network-access resource, its
         // lease pool and a webtop — linking to everything.
         for needle in [
@@ -798,7 +780,10 @@ mod tests {
             "Virtual Server",
             "Connectivity",
         ] {
-            assert!(mermaid.contains(needle), "missing {needle} in graph");
+            assert!(
+                node_labels.iter().any(|l| l.contains(needle)),
+                "missing {needle} in graph"
+            );
         }
         // The connectivity profile edge came from the sibling virtual profile.
         assert!(

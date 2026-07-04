@@ -36,7 +36,7 @@ base64 = "0.22"
 chrono = { version = "0.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde"] }
+minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde", "json"] }
 
 [dev-dependencies]
 # Load the shared UCS fixtures the Python f5report tests use, so the port is
