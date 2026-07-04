@@ -12,9 +12,17 @@
   } catch (e) { return; }
 
   if (window.mermaid) {
+    // ELK (layered) layout with orthogonal edge routing — right-angle
+    // connectors and boxes, graphviz-style — applied to every diagram in the
+    // report (topology, per-virtual traffic pipeline / flow, iRule flowcharts,
+    // the APM access-profile walk). `curve: "linear"` draws ELK's bend points
+    // as straight segments so the routing reads as crisp right angles. The
+    // ELK renderer emits the same SVG structure as the default layout
+    // (`.node` / `flowchart-N…` ids, `path.flowchart-link` / `LS-`/`LE-`
+    // classes), so the click-to-focus and edge-highlight wiring is unaffected.
     mermaid.initialize({
-      startOnLoad: false, securityLevel: "loose", theme: "neutral",
-      flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 40, rankSpacing: 55 },
+      startOnLoad: false, securityLevel: "loose", theme: "neutral", layout: "elk",
+      flowchart: { htmlLabels: true, curve: "linear", nodeSpacing: 40, rankSpacing: 55 },
     });
   }
 

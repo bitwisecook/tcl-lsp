@@ -636,14 +636,11 @@ fn render_mermaid(g: &Graph) -> String {
         return String::new();
     }
     let mut lines = Vec::new();
-    // Per-diagram init: rectangular nodes with orthogonal (right-angle) edges,
-    // laid out left-to-right like the F5 Visual Policy Editor (Start on the
-    // left, the Allow / Deny endings on the right) — the alignment the original
-    // policy visitor drew.
-    lines.push(
-        "%%{init: {'flowchart': {'curve': 'stepAfter', 'nodeSpacing': 28, 'rankSpacing': 60}}}%%"
-            .to_string(),
-    );
+    // Laid out left-to-right like the F5 Visual Policy Editor (Start on the
+    // left, the Allow / Deny endings on the right). The report initialises
+    // Mermaid with the ELK layout globally, so the connectors are drawn with
+    // orthogonal (right-angle) routing and rectangular nodes — no per-diagram
+    // directive needed.
     lines.push("flowchart LR".to_string());
     lines.extend(g.nodes.iter().cloned());
     lines.extend(g.edges.iter().cloned());
@@ -789,7 +786,6 @@ mod tests {
         assert_eq!(bstr(p, "policy"), "mycave");
         let mermaid = bstr(p, "mermaid");
         assert!(mermaid.contains("flowchart LR"));
-        assert!(mermaid.contains("stepAfter"), "orthogonal edges");
         // The full walk reached the AAA server, the network-access resource, its
         // lease pool and a webtop — linking to everything.
         for needle in [

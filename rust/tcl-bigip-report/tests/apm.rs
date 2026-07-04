@@ -63,9 +63,9 @@ fn mermaid_is_vpe_shaped() {
     let mmd = m["devices"][0]["apmProfiles"][0]["mermaid"]
         .as_str()
         .expect("mermaid");
-    // Left-to-right, orthogonal edges, rectangular nodes — like the VPE.
+    // Left-to-right, like the VPE. Orthogonal routing / boxes come from the
+    // report's global ELK Mermaid layout, not a per-diagram directive.
     assert!(mmd.contains("flowchart LR"));
-    assert!(mmd.contains("stepAfter"));
     // The item flow, with branch captions on the connectors.
     assert!(mmd.contains("Logon Page"));
     assert!(mmd.contains("AD Auth"));
