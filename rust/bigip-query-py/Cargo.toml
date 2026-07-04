@@ -36,6 +36,8 @@ tcl-bigip-io = { path = "../tcl-bigip-io" }
 tcl-bigip-query = { path = "../tcl-bigip-query" }
 # F5 master-key (`f5mku`) secret decryption, shared with the wasm report.
 tcl-f5mku = { path = "../tcl-f5mku" }
+# The real Tcl tokeniser + HTML highlighter, for the iRule source view.
+tcl-lexer = { path = "../tcl-lexer", features = ["html"] }
 # The certificate projection serialises the parsed `sys file ssl-cert` field
 # maps to JSON for the pure-Python report layer to consume.
 serde_json = { version = "1", features = ["preserve_order"] }

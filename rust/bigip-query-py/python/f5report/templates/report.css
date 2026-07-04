@@ -156,16 +156,13 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 @media print {
   :root{color-scheme:light}
   body{background:#fff;color:#000}
-  /* Interactive chrome and browser-only views don't belong on paper. */
-  .topbar-actions,.device-switch,.tabs,#f5qbar,#drawerScrim,#objDrawer,
-  .topo-controls,.legend,.diag-host,.lm-form,.qc,.cert-controls,
+  /* Print exactly what is on screen: the active device + active tab, with any
+     search / row / secret filters already applied (rows hidden in the UI stay
+     hidden, revealed secrets stay revealed). Only the interactive chrome and
+     the toggle buttons are stripped. */
+  .topbar-actions,#f5qbar,#drawerScrim,#objDrawer,
+  .topo-controls,.qc-bar,.lm-form,.cert-controls,
   .secret-reveal,.secret-reveal-all,.expander{display:none!important}
-  .panel[data-panel="topology"],.panel[data-panel="listener"],
-  .panel[data-panel="console"]{display:none!important}
-  /* Print every data view, not just the active tab, so the paper report is
-     complete; expand the detail rows too. */
-  .panel{display:block!important;break-inside:auto}
-  tr.detail,tr.detail.open{display:table-row!important}
   pre.code{white-space:pre-wrap}
   table.grid{font-size:10px}
   thead{display:table-header-group}
@@ -174,3 +171,23 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
   .print-only{display:block}
   .foot{border-top:1px solid #999}
 }
+
+/* Clickable references (objlink applied by topology.js to data-oid/data-oref). */
+.tag.objlink,a.ref.objlink{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+
+/* iRule (Tcl) syntax highlighting — colours the real tcl-lexer token stream. */
+pre.code.tcl .tk-cmd{color:#8250df;font-weight:600}
+pre.code.tcl .tk-ns{color:#0550ae}
+pre.code.tcl .tk-event{color:#116329;font-weight:600}
+pre.code.tcl .tk-var{color:#953800}
+pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) pre.code.tcl .tk-cmd{color:#d2a8ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-ns{color:#79c0ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-event{color:#7ee787}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-var{color:#ffa657}
+}
+:root[data-theme="dark"] pre.code.tcl .tk-cmd{color:#d2a8ff}
+:root[data-theme="dark"] pre.code.tcl .tk-ns{color:#79c0ff}
+:root[data-theme="dark"] pre.code.tcl .tk-event{color:#7ee787}
+:root[data-theme="dark"] pre.code.tcl .tk-var{color:#ffa657}

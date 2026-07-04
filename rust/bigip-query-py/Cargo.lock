@@ -121,6 +121,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-f5mku",
+ "tcl-lexer",
 ]
 
 [[package]]

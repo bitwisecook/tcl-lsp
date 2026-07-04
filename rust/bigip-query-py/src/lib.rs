@@ -372,6 +372,16 @@ fn list_secrets(text: &str) -> PyResult<String> {
         .map_err(|e| QueryError::new_err(e.to_string()))
 }
 
+/// Syntax-highlight an iRule/Tcl source string to HTML.
+///
+/// Uses the real [`tcl_lexer`] tokeniser (the same one the LSP/compiler use), so
+/// the report's iRule source view matches the engine's understanding of the
+/// code. Returns self-contained, pre-escaped HTML (`<span class="tk-…">`).
+#[pyfunction]
+fn highlight_tcl(body: &str) -> String {
+    tcl_lexer::highlight_tcl(body)
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -384,5 +394,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sys_file_ssl_keys, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
+    m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
     Ok(())
 }

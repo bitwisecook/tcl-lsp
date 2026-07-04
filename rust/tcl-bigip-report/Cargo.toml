@@ -17,6 +17,8 @@ tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
 # module, so the certificate inventory reads `sys file ssl-cert` objects from
 # the parsed model directly (the same parser the engine uses).
 tcl-bigip = { path = "../tcl-bigip" }
+# The real Tcl tokeniser + its HTML highlighter, for the iRule source view.
+tcl-lexer = { path = "../tcl-lexer", features = ["html"] }
 # F5 master-key (`f5mku`) secret decryption. `default-features = false` drops
 # the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm
 # build entropy-free — a report only ever *decrypts*.

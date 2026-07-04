@@ -333,6 +333,10 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         J::Array(events.into_iter().map(J::String).collect()),
     );
     o.insert("body".into(), J::String(body.clone()));
+    o.insert(
+        "bodyHtml".into(),
+        J::String(tcl_lexer::highlight_tcl(&body)),
+    );
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));
     o.insert("refPools".into(), J::Array(clean_arr(&refs, "pools")));
     o.insert(
