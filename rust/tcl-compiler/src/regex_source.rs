@@ -476,6 +476,26 @@ mod tests {
     }
 
     #[test]
+    fn pattern_inside_array_for_body_tracked() {
+        // `array for {k v} arr body` (Tcl 9.0) runs its body as a fresh-frame
+        // body unit bound to the loop vars, so a `set re`/`regexp` inside the
+        // body tracks its def-site literal like a proc body.
+        let src = "array for {k v} a {\n  set re \".*x\"\n  regexp $re $v\n}\n";
+        let got = spans_text(src);
+        assert_eq!(got, vec!["\".*x\"".to_owned()]);
+    }
+
+    #[test]
+    fn array_for_loop_var_is_not_a_def_site() {
+        // The pattern variable is the loop var `v` (bound per entry), not a body
+        // literal — so there is no def-site literal to highlight. Proves the
+        // body unit binds the loop vars as params.
+        let src = "array for {k v} a {\n  regexp $v $s\n}\n";
+        let got = spans_text(src);
+        assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
     fn namespace_eval_body_unit_does_not_change_bytecode() {
         // Recording a body unit is analysis-only: the module still emits the
         // `namespace` runtime barrier, and codegen never reads `body_units`, so

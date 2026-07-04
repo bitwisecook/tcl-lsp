@@ -908,6 +908,13 @@ impl<'r> Lowerer<'r> {
             // runtime barrier because the body runs in a separate frame.
             LoweringHookId::Apply => Some(self.lower_apply(seg, namespace)),
 
+            // `array for {k v} arr body` (Tcl 9.0) — iterate array entries.
+            // Like `apply`, the call stays a runtime barrier (C Tcl invokes
+            // `::tcl::array::for` with the body as an unparsed literal), but a
+            // braced literal body is walked in a fresh frame bound to the two
+            // loop variables so it is analysable.
+            LoweringHookId::ArrayFor => Some(self.lower_array_for(seg, namespace)),
+
             // Straightforward control-flow forms.  Each is a
             // single-method dispatch with no arity / shared-method /
             // subcommand complications.
@@ -1729,6 +1736,50 @@ impl<'r> Lowerer<'r> {
             args: args.to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
         }
+    }
+
+    /// `array for {keyVar valueVar} arrayName body` (Tcl 9.0).
+    ///
+    /// The body runs in the caller's frame with the two loop variables bound
+    /// per entry. C Tcl compiles this to an `invokeStk` of `::tcl::array::for`
+    /// with the body pushed as an unparsed literal — it does not compile the
+    /// body — so, exactly like [`Self::lower_apply`], the call itself stays a
+    /// runtime [`Statement::Barrier`] (codegen unchanged, byte-identical to C
+    /// Tcl). But a braced literal body is walked in a fresh frame bound to the
+    /// loop variables and recorded as a body unit so static analysis reaches
+    /// inside it. A `$var` / `[cmd]` body stays fully opaque.
+    fn lower_array_for(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        use tcl_lexer::TokenType;
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let arg_single = seg.arg_single_token();
+
+        // `array for {k v} arr body` → args = [for, {k v}, arr, body].
+        // The body (index 3) must be a single braced-literal token to walk.
+        let body_is_braced = arg_tokens.get(3).is_some_and(|t| t.kind == TokenType::Str)
+            && arg_single.get(3).copied() == Some(true);
+        if args.len() == 4 && body_is_braced {
+            let body_tok = arg_tokens[3];
+            let body_text = &args[3];
+            let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+            // Fresh frame bound to the two loop variables (a `$k` / `$v` read
+            // in the body resolves to the loop var, not a caller scalar).
+            self.proc_depth += 1;
+            self.const_map_stack.push(HashMap::new());
+            let body = self.lower_body(body_text, body_offset, namespace);
+            self.const_map_stack.pop();
+            self.proc_depth -= 1;
+
+            let params = parse_param_names(&args[1]);
+            let span = tcl_lexer::Span::new(
+                body_offset,
+                body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
+            );
+            self.register_body_unit("array-for", params, span, body);
+        }
+
+        // Codegen path unchanged: the runtime barrier re-emits `array for …`.
+        self.lower_default(seg, namespace)
     }
 
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
