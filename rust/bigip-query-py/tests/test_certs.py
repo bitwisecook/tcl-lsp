@@ -111,3 +111,48 @@ def test_wrong_master_key_raises():
     import pytest
     with pytest.raises(Exception):
         collect_model([("inline.scf", SCF_ENC)], title="TLS", master_key="AAAAAAAAAAAAAAAAAAAAAA==")
+
+
+# --- real certificate parsed out of the UCS filestore ------------------------
+
+import os
+
+from f5report import load_paths
+
+_FIXTURE = os.path.join(os.path.dirname(__file__), "data", "certs-chain.ucs")
+
+
+def test_cert_fields_parsed_from_ucs_filestore():
+    """A metadata-free stanza is filled from the real PEM in the filestore."""
+    sources = load_paths([_FIXTURE])
+    d = collect_model(sources, title="Chain")["devices"][0]
+    leaf = next(c for c in d["certificates"] if c["name"] == "www.acme.example.crt")
+    # None of this is in the config stanza — it came from the cert file.
+    assert leaf["fromCertFile"] is True
+    assert leaf["cn"] == "www.acme.example"
+    assert "Acme Intermediate CA" in leaf["issuer"]
+    assert leaf["notBefore"]  # the issue date is only recoverable from the file
+    assert leaf["expirationDate"].isdigit()  # epoch → live countdown works
+    assert "api.acme.example" in leaf["subjectAlternativeName"]
+    assert "10.0.0.5" in leaf["subjectAlternativeName"]
+    assert leaf["sigAlg"]
+    assert leaf["keyType"] == "rsa"
+    assert leaf["usedByVirtuals"] == ["acme_https_vs"]
+
+
+def test_cert_chain_walks_to_self_signed_root():
+    sources = load_paths([_FIXTURE])
+    d = collect_model(sources, title="Chain")["devices"][0]
+    leaf = next(c for c in d["certificates"] if c["name"] == "www.acme.example.crt")
+    roles = [link["role"] for link in leaf["chain"]]
+    assert roles == ["leaf", "intermediate", "root"]
+    assert leaf["chain"][-1]["selfSigned"] is True
+    assert "Root CA" in leaf["chain"][-1]["cn"]
+
+
+def test_report_html_shows_issue_date_and_chain():
+    sources = load_paths([_FIXTURE])
+    html = build_report(sources, title="Chain")
+    assert "parsed from cert file" in html
+    assert "chain-list" in html
+    assert "www.acme.example" in html

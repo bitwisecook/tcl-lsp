@@ -67,6 +67,29 @@ pub fn x509_parse(pem: &str) -> Result<Value, QueryError> {
     x509_parse_der(&der)
 }
 
+/// Parse every PEM `CERTIFICATE` block in a file into `x509_parse` dicts.
+///
+/// A BIG-IP filestore entry is frequently a *bundle* — the leaf followed by its
+/// intermediate(s) and (sometimes) the root, all concatenated. The report's
+/// chain view needs every link, so this returns one dict per parseable
+/// `CERTIFICATE` block in document order (leaf first). Blocks that aren't
+/// certificates (or don't decode) are skipped rather than failing the whole
+/// read, so a stray key/DH-params block in the same file is tolerated.
+#[must_use]
+pub fn x509_parse_all(pem: &str) -> Vec<Value> {
+    let mut out = Vec::new();
+    for item in Pem::iter_from_buffer(pem.as_bytes()) {
+        let Ok(block) = item else { break };
+        if block.label != "CERTIFICATE" {
+            continue;
+        }
+        if let Ok(v) = x509_parse_der(&block.contents) {
+            out.push(v);
+        }
+    }
+    out
+}
+
 /// Parse a single DER cert into the `x509_parse`-shaped dict.
 pub(crate) fn x509_parse_der(der: &[u8]) -> Result<Value, QueryError> {
     let (_, cert) = X509Certificate::from_der(der)
