@@ -5,10 +5,9 @@
 
 ## Summary
 
-The standalone BIG-IP HTML report (produced by `f5-query` /
-[`tcl-bigip-report`](../../../rust/tcl-bigip-report)) grows an **APM** tab
-that walks each `apm profile access` out to everything it depends on and
-draws it as a Visual-Policy-Editor-style dependency graph.
+An APM tab in the standalone BIG-IP HTML report that walks each
+`apm profile access` out to every object it depends on and draws it as a
+Visual-Policy-Editor-style dependency graph.
 
 ## Applies to
 

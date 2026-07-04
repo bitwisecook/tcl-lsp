@@ -31,7 +31,7 @@ F5 iApp APL (Application Presentation Language) files.
 MCP Tools (2):
   FakeCMP Tools: Deterministic TMM hash lookup and multi-TMM test distribution planner for iRule testing without hardware.
   MCP Server: Model Context Protocol server exposing analysis/refactoring tools for AI agent integration.
-Other (7):
+Other (8):
   `f5 encrypt-secrets` / `f5 decrypt-secrets`: `f5 encrypt-secrets` and `f5 decrypt-secrets` convert the
 credential-bearing values in a `bigip.conf` / SCF between clear text and
 the encrypted form BIG-IP stores, using the unit master key.  The master
@@ -56,6 +56,9 @@ and every BIG-IP editor feature (document links, go-to-definition,
 references, rename, semantic-token highlighting).
   BIG-IP Query DSL: `f5` CLI tool with a `query` verb that runs a small jq-flavoured DSL over a `bigip.conf` / SCF, projecting fields, filtering objects, and rewriting matched values — including readdressing virtual servers, renaming objects everywhere they appear, and adjusting iRule references.
   BIG-IP Related-Object Grep: `f5` CLI tool with a `grep` verb that finds every BIG-IP object related to a given object name, regex, or CIDR — by walking the same forward-and-reverse reference graph the cleanup analysis uses.  CIDR mode also scans IP literals buried inside iRule script bodies.
+  BIG-IP report APM access-profile tab: An APM tab in the standalone BIG-IP HTML report that walks each
+`apm profile access` out to every object it depends on and draws it as a
+Visual-Policy-Editor-style dependency graph.
   Chat Slash Commands: Slash commands inside the VS Code Copilot Chat participants (`@irule`, `@tcl`, `@tk`) that create, explain, fix, validate, optimise, and review Tcl and iRules code with LSP-backed analysis.
 VS Code AI Chat (3):
   @irule Chat Participant: VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, and transforming F5 BIG-IP iRules.
