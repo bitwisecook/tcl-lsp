@@ -45,6 +45,17 @@ const CONTAINERS: &[(&str, &str)] = &[
     ("virtualAddresses", ".ltm.\"virtual-address\""),
 ];
 
+// GTM object containers the report walks, in display order. A GTM (DNS) tier
+// fronts the LTM tiers; surfacing these lets the report show the wide-IP ->
+// pool -> server chain and link the GTM to the downstream LTM virtuals.
+const GTM_CONTAINERS: &[(&str, &str)] = &[
+    ("gtmWideips", ".gtm.wideip"),
+    ("gtmPools", ".gtm.pool"),
+    ("gtmServers", ".gtm.server"),
+    ("gtmDatacenters", ".gtm.datacenter"),
+    ("gtmListeners", ".gtm.listener"),
+];
+
 // Leaf object types that are *referenced* by something else; an empty referrer
 // set means the object is orphaned. Virtuals / virtual-addresses are entry
 // points, so they are never treated as orphans.
@@ -411,6 +422,107 @@ fn shape_data_group(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     o.insert("recordCount".into(), J::from(record_count));
     o.insert("records".into(), J::Array(shown));
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+// --- GTM shaping -------------------------------------------------------------
+
+/// `map[key]` as an array of plain strings (skips non-strings).
+fn str_array(m: &Map<String, J>, key: &str) -> Vec<J> {
+    sarr(m, key).iter().map(|s| J::String((*s).into())).collect()
+}
+
+fn shape_gtm_wideip(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
+    o.insert("pools".into(), J::Array(clean_arr(f, "pools")));
+    o.insert("aliases".into(), J::Array(str_array(f, "aliases")));
+    o.insert("poolLbMode".into(), J::String(bstr(f, "pool-lb-mode").into()));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_pool(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let members: Vec<J> = barr(f, "members")
+        .iter()
+        .filter_map(J::as_object)
+        .map(|mm| {
+            let mut mo = Map::new();
+            mo.insert("name".into(), J::String(bstr(mm, "name").into()));
+            mo.insert("servicePort".into(), J::String(bstr(mm, "service-port").into()));
+            mo.insert("ratio".into(), J::String(bstr(mm, "ratio").into()));
+            mo.insert(
+                "staticTarget".into(),
+                J::String(bstr(mm, "static-target").into()),
+            );
+            mo.insert("state".into(), J::String(bstr(mm, "state").into()));
+            J::Object(mo)
+        })
+        .collect();
+    let fp = bstr(f, "full-path");
+    let member_count = members.len();
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
+    o.insert("lbMode".into(), J::String(bstr(f, "load-balancing-mode").into()));
+    o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    o.insert("members".into(), J::Array(members));
+    o.insert("memberCount".into(), J::from(member_count));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_server(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("datacenter".into(), J::String(clean_field(f, "datacenter")));
+    o.insert("product".into(), J::String(bstr(f, "product").into()));
+    o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    // The raw virtual-server destinations (e.g. `10.2.0.20:443`) — the report's
+    // architecture layer resolves these against downstream devices' served
+    // virtual addresses to link this GTM to the LTM tiers it balances.
+    o.insert(
+        "virtualServers".into(),
+        J::Array(str_array(f, "virtual-servers")),
+    );
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_datacenter(f: &Map<String, J>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("location".into(), J::String(bstr(f, "location").into()));
+    o.insert("contact".into(), J::String(bstr(f, "contact").into()));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    J::Object(o)
+}
+
+fn shape_gtm_listener(f: &Map<String, J>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("address".into(), J::String(bstr(f, "address").into()));
+    o.insert("port".into(), J::String(bstr(f, "port").into()));
+    o.insert("pool".into(), J::String(clean_field(f, "pool")));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
     J::Object(o)
 }
 
@@ -1036,6 +1148,23 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
                     J::Object(o)
                 })
                 .collect(),
+        };
+        device.insert((*key).into(), J::Array(shaped));
+    }
+
+    // GTM object inventory (the DNS tier). Shaped separately from the LTM
+    // containers — these feed the GTM section and the cross-device architecture
+    // linker (a GTM server's virtual-server destinations point at LTM virtuals).
+    let gtm_used: HashMap<String, Vec<J>> = HashMap::new();
+    for (key, container) in GTM_CONTAINERS {
+        let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
+        let shaped: Vec<J> = match *key {
+            "gtmWideips" => rows.iter().map(|f| shape_gtm_wideip(f, &gtm_used)).collect(),
+            "gtmPools" => rows.iter().map(|f| shape_gtm_pool(f, &gtm_used)).collect(),
+            "gtmServers" => rows.iter().map(|f| shape_gtm_server(f, &gtm_used)).collect(),
+            "gtmDatacenters" => rows.iter().map(shape_gtm_datacenter).collect(),
+            "gtmListeners" => rows.iter().map(shape_gtm_listener).collect(),
+            _ => Vec::new(),
         };
         device.insert((*key).into(), J::Array(shaped));
     }
