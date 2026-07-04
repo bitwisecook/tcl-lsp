@@ -2779,7 +2779,87 @@ optimiser's IR-level static-`for` summary is unaffected; codegen
 
 - `analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars`
   (FP: statically-true entry condition; TP controls: false entry condition,
-  stale-constant `set i $n` init, `incr` in init).
+  provably-empty `incr` init; may-run stale-constant `set i $n` init and
+  upvar-writing init are now silent — see FP-RBS-19).
+
+---
+
+### FP-RBS-19 — a may-run loop whose body defines a variable is assumed to run (#756)
+
+- **Verdict:** FALSE POSITIVE (W210) — a variable assigned inside a loop body
+  and read *after* the loop was flagged read-before-set because the loop
+  *might* iterate zero times. tclsh only errors when the iterator list /
+  condition is actually empty at runtime; on real (non-empty) data the body
+  runs and the variable is defined, so the after-loop read is safe.
+- **Status:** FIXED. Reported by a user (issue #756) hitting the
+  `foreach … { lappend acc … }` accumulator idiom on real code
+  (SpiceGenTcl / ngspice). Supersedes the earlier decision (FP-RBS-16/17/18 TP
+  controls) that a may-run loop *must* fire; only a **provably** zero-iteration
+  loop, or a body that leaves the variable unset on some run, still fires.
+- **Codes:** W210
+- **Corpus:** `SpiceGenTcl` `foreach time [dict get $data time] … { lappend
+  timeVout … }` and the accumulate-in-loop idiom throughout.
+
+#### Reproducer
+
+```tcl
+set data [getDataDict]
+foreach time [dict get $data time] vout [dict get $data osc_out] {
+    lappend timeVout [list $time $vout]
+}
+puts $timeVout   ;# defined whenever the loop ran — not read-before-set
+```
+
+#### Per-line reasoning
+
+1. `foreach time [dict get $data time] …` — a *dynamic* iterator list. The
+   analyser cannot prove it non-empty, so it models the loop as possibly zero
+   iterations (the header's zero-trip exit edge stays executable).
+2. `lappend timeVout …` — the body **unconditionally** assigns `timeVout` on
+   every iteration; the loop-header phi that reaches the after-loop read is
+   undef **only** via the zero-trip entry edge.
+3. `puts $timeVout` — reached only *after* the loop. Matching C Tcl (which
+   errors only when `[dict get $data time]` is actually empty at runtime, not
+   merely when it could be), we assume a may-run loop runs, so `timeVout` is
+   defined. No W210.
+
+#### tclsh ground truth (8.6 / 9.0)
+
+`set l {1 2 3}; foreach x $l { set y $x }; puts $y` → `3` (no error). Only an
+actually-empty list errors: `set l {}; foreach x $l { set y $x }; puts $y` →
+`can't read "y"`. A *provably* empty literal (`foreach x {} …`) or a
+`while 0` / false-on-entry `for` is statically empty and still fires.
+
+#### Why the analyser reaches that verdict
+
+`build_loop_entry_only_undef` (in `analyser/diagnostics/helpers.rs`) walks the
+natural-loop forest (built over the SCCP-executable subgraph, so a provably
+dead body forms no loop). For each loop-header phi in `can_undef` whose every
+*back-edge* operand is itself defined — the body assigns the variable on every
+iteration — it records the phi as loop-entry-only-undef together with the
+loop's body-block set. A provably-empty `foreach` (all iterator lists split to
+zero elements) is excluded, so it keeps firing. The read-before-set emitters
+(`record_chain_w210_uses` and `return_read_fires_w210`) then suppress a read of
+such a version when its block is **outside** the loop body — a read *inside*
+the body (a first-iteration use before the set) still fires. `while`/`for`
+loops with a constant-false condition are already pruned by SCCP, so only the
+opaque-`foreach`-empty-literal case needs the explicit provably-empty guard.
+
+#### Tests
+
+- `analyser::diagnostics::fp::rbs::fp_rbs_19_*` (FP: the reporter's
+  dynamic-foreach `lappend` accumulator; may-run `while`/`for`; TP controls:
+  provably-empty literal, conditional-def-in-body, first-iteration in-body
+  read).
+- Flipped TP controls now asserting silence: `fp_rbs_16_normal_while_*`,
+  `fp_rbs_17_dynamic_list_*`, `fp_rbs_18_unknown_bound_*`,
+  `fp_rbs_18_stale_const_init_*`, and `tests::w210_loop_body_accumulator_*`.
+- Rotation-classification coverage that the flipped W210 proxies used to
+  provide moved to `cfg::for_rotation_requires_a_non_stale_constant_init`.
+- LSP e2e: `tests::e2e::diagnostics::{foreach_accumulator_after_loop_silent,
+  foreach_empty_literal_after_loop_still_fires, normal_while_body_defined_silent}`.
+- VS Code: `precisionFalsePositives.test.ts` "dynamic-loop after-loop reads
+  stay silent (#756)" over `controlFlowRbs.tcl`.
 
 ---
 

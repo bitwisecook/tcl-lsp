@@ -398,6 +398,20 @@ pub(super) struct UndefSuppression {
     /// read of one is read-before-set; the def-use pass can't express this
     /// because the read targets the *phi* version, not a version-0 origin.
     pub(super) can_undef: FxHashSet<(String, crate::ssa::Version)>,
+    /// Loop-header phi versions whose *only* undef source is the loop's entry
+    /// (zero-trip) edge — the loop body assigns the variable on every back
+    /// edge, so the value is defined whenever the loop ran ≥1 time. Maps each
+    /// such `(name, version)` to the loop's body-block name set.
+    ///
+    /// A read of the version reached *after* the loop (a block outside the
+    /// set) is not read-before-set: matching C Tcl — which errors only when
+    /// the iterator list / condition is actually empty at runtime, not merely
+    /// when it *could* be — we assume a loop that may run does run. A read
+    /// *inside* the loop body (a block in the set) still fires, because a
+    /// first-iteration read before the body's assignment is a genuine error.
+    /// A *provably* empty loop (`foreach x {}`, or a constant-false
+    /// `while`/`for` SCCP already prunes) is excluded, so it keeps firing.
+    pub(super) loop_entry_only_undef: FxHashMap<(String, crate::ssa::Version), FxHashSet<String>>,
 }
 
 impl UndefSuppression {
@@ -411,6 +425,21 @@ impl UndefSuppression {
             || (self.has_dict_with
                 && self.dict_with_any_unknown
                 && !self.explicitly_defined.contains(name))
+    }
+
+    /// True when reading `key` at `block` is a safe *after-loop* read of a
+    /// variable the loop body defines on every iteration (see
+    /// [`Self::loop_entry_only_undef`]): the version is loop-entry-only-undef
+    /// and `block` is outside the loop body. A read inside the loop body still
+    /// fires (first-iteration undef is real).
+    pub(super) fn after_loop_defined(
+        &self,
+        key: &(String, crate::ssa::Version),
+        block: &str,
+    ) -> bool {
+        self.loop_entry_only_undef
+            .get(key)
+            .is_some_and(|body| !body.contains(block))
     }
 
     /// Like [`Self::suppresses`] but **without** the unknown-shape blanket —
@@ -602,11 +631,21 @@ pub(super) fn build_undef_suppression(
             can_undef.insert(key.clone());
         }
     }
+    let loop_entry_only_undef = build_loop_entry_only_undef(
+        fu,
+        considered,
+        &phi_def,
+        &phi_block,
+        &killed,
+        &exists_guards,
+        &can_undef,
+    );
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
         killed,
         can_undef,
+        loop_entry_only_undef,
         ..Default::default()
     };
     harvest_dict_with_suppression(fu, considered, &mut s);
@@ -636,6 +675,128 @@ pub(super) fn build_undef_suppression(
 
     s.alias_tails = collect_qualified_variable_alias_tails(fu, considered);
     s
+}
+
+/// Build the [`UndefSuppression::loop_entry_only_undef`] map: loop-header phi
+/// versions whose sole undef origin is the loop's zero-trip entry edge.
+///
+/// For each natural loop (built over the SCCP-executable subgraph, so a
+/// provably-dead loop body never forms a loop) whose header carries a phi in
+/// `can_undef`, the phi qualifies when *every* back-edge (in-loop
+/// predecessor) operand is itself defined — i.e. the loop body assigns the
+/// variable on each iteration and the only way the phi is undef is by skipping
+/// the loop entirely. A provably-empty `foreach` (all iterator lists are
+/// empty literals) is excluded: its body never runs, so tclsh always errors,
+/// and the read must keep firing.
+fn build_loop_entry_only_undef(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+    phi_def: &PhiDefMap,
+    phi_block: &PhiBlockMap,
+    killed: &FxHashSet<(String, crate::ssa::Version)>,
+    exists_guards: &[(String, BlockId)],
+    can_undef: &FxHashSet<(String, crate::ssa::Version)>,
+) -> FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> {
+    let mut out: FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> = FxHashMap::default();
+    if can_undef.is_empty() {
+        return out;
+    }
+    let forest = crate::loops::build_loop_forest(&fu.cfg, &fu.ssa, considered);
+    let ctx = PhiUndefCtx {
+        phi_def,
+        phi_block,
+        killed,
+        considered,
+        executable_edges: &fu.sccp.executable_edges,
+        exists_guards,
+        ssa: &fu.ssa,
+    };
+    // Fixpoint over the loop forest so *nested* accumulators converge: an inner
+    // loop whose body defines the variable is itself loop-entry-only-undef, so
+    // for the enclosing loop its exit operand counts as defined (we assume both
+    // loops run). Innermost loops are marked first; a pass that marks nothing
+    // new terminates. Bounded by the forest size (each pass marks ≥1 phi or
+    // stops), so at most `loops.len()` passes.
+    loop {
+        let mut changed = false;
+        for natural in &forest.loops {
+            let Some(header_id) = fu.cfg.block_id(&natural.header) else {
+                continue;
+            };
+            // A provably-empty `foreach` runs zero times: its body-assigned
+            // variables are never set, so tclsh always errors — keep firing.
+            if foreach_header_provably_empty(fu, header_id) {
+                continue;
+            }
+            let body_blocks: FxHashSet<String> = natural.blocks.iter().cloned().collect();
+            let Some(ssa_header) = fu.ssa.blocks.get(&header_id) else {
+                continue;
+            };
+            for phi in &ssa_header.phis {
+                let name = fu.ssa.var_name(phi.name).to_owned();
+                let key = (name.clone(), phi.version);
+                if out.contains_key(&key) || !can_undef.contains(&key) {
+                    continue;
+                }
+                // The phi is "entry-only undef" when no *back-edge* operand can
+                // be undef: a body predecessor that still merges an unset value
+                // is a conditional-def-in-body case (or a break/continue before
+                // the set) that tclsh can still leave unset — those keep firing.
+                // An operand already proven loop-entry-only-undef (a nested
+                // loop's result) counts as defined here.
+                let entry_only = phi.incoming.iter().all(|(&pred, &ver_in)| {
+                    // Only in-loop (back-edge) predecessors gate the verdict;
+                    // the pre-header entry edge carries the zero-trip undef we
+                    // assume away. Non-executable predecessors never read.
+                    if !considered.contains(&pred) {
+                        return true;
+                    }
+                    if !body_blocks.contains(fu.cfg.block_name(pred)) {
+                        return true;
+                    }
+                    if out.contains_key(&(name.clone(), ver_in)) {
+                        return true;
+                    }
+                    let mut seen = FxHashSet::default();
+                    !phi_can_undef(&name, ver_in, &ctx, &mut seen)
+                });
+                if entry_only {
+                    out.insert(key, body_blocks.clone());
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    out
+}
+
+/// True when `header_id` is the header of a `foreach` / `lmap` / `dict for`
+/// whose iterator lists are *all* statically-empty literals (so the loop body
+/// provably never runs). The synthetic iterator-binding node placed at the
+/// loop header records each iterator list's text in `args`; an argument splits
+/// to zero elements only for an empty literal (a `$`/`[` substitution splits
+/// to a single opaque element, a non-empty literal to ≥1 element).
+fn foreach_header_provably_empty(
+    fu: &crate::compilation_unit::FunctionUnit,
+    header_id: BlockId,
+) -> bool {
+    use crate::ir::Statement;
+    let Some(block) = fu.cfg.blocks.get(&header_id) else {
+        return false;
+    };
+    block.statements.iter().any(|stmt| {
+        matches!(
+            stmt,
+            Statement::Call { foreach_groups: Some(_), args, .. }
+                if !args.is_empty()
+                    && args
+                        .iter()
+                        .all(|a| crate::tcl_expr_eval::split_tcl_list(a).is_empty())
+        )
+    })
 }
 
 /// Local-alias tail names declared by a *qualified* `variable`

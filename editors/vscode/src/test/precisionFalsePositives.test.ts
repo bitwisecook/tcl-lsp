@@ -155,6 +155,23 @@ suite("Control-flow read-before-set (PR #634)", () => {
       );
     }
   });
+
+  // FP-RBS-19 (#756): a may-run loop whose body defines the variable is assumed
+  // to run, so the after-loop reads (`return $acc` on line 21, `puts $y` on
+  // line 25) must stay silent — while the provably-empty foreach read (line 15)
+  // still fires.
+  test("dynamic-loop after-loop reads stay silent (false case, #756)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W210"),
+    });
+    for (const ln of linesWithCode(diags, "W210")) {
+      assert.ok(
+        ![21, 25].includes(ln),
+        `unexpected W210 on a may-run-loop after-loop read (line ${ln})`,
+      );
+    }
+  });
 });
 
 // FP-STY-15 — `$` before a closing `"` is a literal regex end-anchor.

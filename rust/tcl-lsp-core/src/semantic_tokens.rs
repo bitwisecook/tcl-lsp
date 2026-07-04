@@ -357,6 +357,12 @@ enum ArgOverride {
     /// the pattern elements are sub-tokenised as regexes and the body
     /// elements recursed as scripts.
     SwitchRegexpCaseList,
+    /// The braced case-list argument of a plain `switch … { pat body … }`
+    /// (exact / glob mode): the pattern elements are classified as ordinary
+    /// literals and the body elements recursed as scripts.  Without this the
+    /// whole `{ pat body … }` list would be walked as one script, leaving the
+    /// bodies opaque and unhighlighted.
+    SwitchCaseList,
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -507,7 +513,7 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
-    insert_switch_regexp_override(seg, &mut overrides);
+    insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
 
@@ -670,15 +676,20 @@ fn insert_option_and_subcommand_overrides(
     }
 }
 
-/// `switch -regexp … { pat body … }` — the braced case list (the final
-/// word, when option-skipped past `-regexp`/`--`) carries regex patterns.
-/// Tag it so `collect_script` sub-tokenises the patterns as regexes and
-/// recurses the bodies, rather than treating the whole list as one opaque
-/// body.
-fn insert_switch_regexp_override(
+/// `switch … { pat body … }` — the braced case list (the final word, when
+/// option-skipped past the mode flags / `--`) holds all the pattern/body
+/// pairs.  Tag it so `collect_script` pairs the elements and recurses each
+/// body as a script, rather than walking the whole list as one opaque body
+/// (which would leave the bodies unhighlighted).  `-regexp` mode additionally
+/// sub-tokenises the patterns as regexes.
+fn insert_switch_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    // Options that consume a following value argument (`-matchvar var`,
+    // `-indexvar var`) — mirror the registry's `switch` arg-role resolver so
+    // the value word is not mistaken for the subject string.
+    const VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
     if seg.texts[0] != "switch" {
         return;
     }
@@ -692,21 +703,28 @@ fn insert_switch_regexp_override(
             i += 1;
             break;
         }
+        if VALUE_OPTIONS.contains(&seg.texts[i].as_str()) {
+            i += 1;
+        }
         i += 1;
     }
     // Skip the switch value/string argument; the case list is the last
     // word (braced-list form only — the inline `pat body …` form has
     // more than one trailing word).
     let case_idx = i + 1;
-    if is_regexp
-        && case_idx == seg.texts.len() - 1
+    if case_idx == seg.texts.len() - 1
         && seg
             .argv
             .get(case_idx)
             .is_some_and(|t| matches!(t.kind, TokenType::Str))
         && let Some(tok) = seg.argv.get(case_idx)
     {
-        overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
+        let ov = if is_regexp {
+            ArgOverride::SwitchRegexpCaseList
+        } else {
+            ArgOverride::SwitchCaseList
+        };
+        overrides.insert(tok.span.start(), ov);
     }
 }
 
@@ -1480,14 +1498,15 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// `…::` prefix plus a command token for the final segment.  A bare head
 /// is emitted whole, carrying `defaultLibrary` when it resolves to a
 /// registry built-in.
-/// Sub-tokenise the braced case list of `switch -regexp … { pat body … }`.
+/// Sub-tokenise the braced case list of `switch … { pat body … }`.
 ///
 /// The inner script is re-segmented into commands; the words are flattened
 /// across all command lines and paired (even index → pattern, odd index →
 /// body), since a Tcl `switch` case list is one flat list whose line breaks
-/// are insignificant whitespace.  Pattern words (except the literal
-/// `default`) are sub-tokenised as regexes; body words are recursed as
-/// scripts.
+/// are insignificant whitespace.  Body words are recursed as scripts.
+/// Pattern words (except the literal `default`) are sub-tokenised as regexes
+/// when `regexp` is set (`-regexp` mode), otherwise classified as ordinary
+/// literals.
 /// Immutable context threaded through the recursive script-tokenisation
 /// walk.  Bundling these read-only borrows keeps each recursive helper to a
 /// small, focused signature (the mutable `entries` sink and the `depth`
@@ -1507,11 +1526,12 @@ struct ScriptCtx<'a> {
     inside_oo_body: bool,
 }
 
-fn collect_switch_regexp_case_list(
+fn collect_switch_case_list(
     ctx: ScriptCtx<'_>,
     tok: Token,
     entries: &mut Vec<Entry>,
     depth: u32,
+    regexp: bool,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
@@ -1521,26 +1541,51 @@ fn collect_switch_regexp_case_list(
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
-    // Flatten every word across the (possibly multi-line) case list.
+    // Flatten every element of the case list.  A Tcl `switch` case list is a
+    // *list*, not a script: `;` and `#` are ordinary pattern elements, not a
+    // command separator / comment.  Split it with the list grammar
+    // (`find_element`) rather than the command segmenter, then rebuild each
+    // element into a `Token` following the lexer's inner-end + `content_offset`
+    // convention (`span.end()` sits at the closing `}`/`"`; `content_offset`
+    // strips the opener) so the downstream pattern/body helpers work unchanged.
     let mut words: Vec<(Token, String)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-    ) {
-        for (i, t) in seg.argv.iter().enumerate() {
-            let text = seg.texts.get(i).cloned().unwrap_or_default();
-            words.push((*t, text));
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let bytes = inner.as_bytes();
+        let (kind, content_offset, span_start) =
+            if el.value.start > 0 && bytes[el.value.start - 1] == b'{' {
+                (TokenType::Str, 1u8, el.value.start - 1)
+            } else if el.value.start > 0 && bytes[el.value.start - 1] == b'"' {
+                (TokenType::Esc, 1u8, el.value.start - 1)
+            } else {
+                (TokenType::Esc, 0u8, el.value.start)
+            };
+        let word_tok = Token::with_content_offset(
+            kind,
+            tcl_lexer::Span::new(
+                u32::try_from(cstart + span_start).unwrap_or(0),
+                u32::try_from(cstart + el.value.end).unwrap_or(0),
+            ),
+            content_offset,
+        );
+        let text = inner.get(el.value.clone()).unwrap_or_default().to_owned();
+        words.push((word_tok, text));
+        if el.next <= scan {
+            break;
         }
+        scan = el.next;
     }
     for (idx, (word_tok, text)) in words.iter().enumerate() {
         if idx % 2 == 0 {
-            // Pattern element — regex unless it is the `default` keyword.
-            if text == "default" {
-                if let Some(kind) = classify_arg_token(*word_tok, full_source) {
-                    push_token(line_index, full_source, *word_tok, kind, 0, entries);
-                }
-            } else if !push_regex_subtokens(line_index, full_source, *word_tok, entries) {
+            // Pattern element.  In `-regexp` mode a non-`default` pattern is
+            // sub-tokenised as a regex; otherwise (exact / glob, or the
+            // `default` keyword) it is classified as an ordinary literal.
+            if regexp
+                && text != "default"
+                && push_regex_subtokens(line_index, full_source, *word_tok, entries)
+            {
+                // emitted as regex sub-tokens
+            } else if regexp && text != "default" {
                 push_token(
                     line_index,
                     full_source,
@@ -1549,6 +1594,8 @@ fn collect_switch_regexp_case_list(
                     0,
                     entries,
                 );
+            } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+                push_token(line_index, full_source, *word_tok, kind, 0, entries);
             }
         } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
             // Body element — recurse as a script.
@@ -1826,7 +1873,10 @@ fn emit_arg_token(
             collect_expr(plain_ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::SwitchRegexpCaseList) => {
-            collect_switch_regexp_case_list(body_ctx, *tok, entries, depth + 1);
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, true);
+        }
+        Some(ArgOverride::SwitchCaseList) => {
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, false);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
@@ -2216,9 +2266,11 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             // A `#` is only a Tcl comment in command position.  This naive scan
             // can't see command position, but a physical line already covered by
             // an emitted token is inside a multi-line string / braced literal
-            // (whose per-line entries are pushed before this scan), so the `#`
-            // there is literal text, not a comment.  Suppress the comment to
-            // avoid an overlapping token the LSP client would reject (#757).
+            // (whose per-line entries are pushed before this scan), or is a
+            // `switch` case-list `#` pattern element (not a comment — Tcl's
+            // "comments don't work in switch" gotcha), so the `#` there is not a
+            // comment.  Suppress it to avoid an overlapping token the LSP client
+            // would reject (#757, #758).
             let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
                 *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
             });

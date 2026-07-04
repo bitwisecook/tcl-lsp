@@ -577,6 +577,36 @@ fn test_switch_glob_no_regexp_tokens() {
     assert_eq!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count(), 0);
 }
 
+/// Regression for #758: the braced case-list form of a plain (non-`-regexp`)
+/// `switch` must recurse each body as a script so the commands inside are
+/// highlighted, rather than treating the whole `{ pat body … }` list as one
+/// opaque body.  Before the fix the bodies received no tokens at all.
+#[test]
+fn test_switch_plain_braced_case_list_recurses_bodies() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let source = "switch -exact -- $var {\n    \"a\" {\n        set x 1\n        puts hi\n    }\n    default {\n        return 2\n    }\n}\n";
+    let uri = open_doc(&mut lsp, source);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // Body commands are recursed and highlighted as functions.
+    let fns: Vec<&str> = tokens
+        .iter()
+        .filter(|t| t.ttype == "function")
+        .map(|t| covered(source, t))
+        .collect();
+    assert!(fns.contains(&"set"), "set not highlighted: {fns:?}");
+    assert!(fns.contains(&"puts"), "puts not highlighted: {fns:?}");
+    // `return` is a control-flow keyword inside the second body.
+    assert!(
+        tokens
+            .iter()
+            .any(|t| t.ttype == "keyword" && covered(source, t) == "return"),
+        "expected `return` in the default body to be a keyword",
+    );
+    // Plain (non-regexp) mode emits no regex sub-tokens.
+    assert_eq!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count(), 0);
+}
+
 #[test]
 fn test_regsub_backref_highlighted() {
     let mut lsp = Lsp::tcl();
