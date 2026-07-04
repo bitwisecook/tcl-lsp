@@ -522,7 +522,10 @@ def build_graph(device: dict[str, Any]) -> dict[str, Any]:
                 is_orphan = o["orphanStatus"] == "orphan"
             else:
                 is_orphan = bool(not o.get("usedBy")) if "usedBy" in o else False
-            n = add_node(prefix, fp, o.get("name", ""), {"orphan": is_orphan})
+            extra = {"orphan": is_orphan}
+            if o.get("isDefault"):
+                extra["isDefault"] = True
+            n = add_node(prefix, fp, o.get("name", ""), extra)
             node_by_path[fp] = nodes[n]
             if key == "nodes" and o.get("address"):
                 node_by_addr[o["address"]] = nodes[n]

@@ -673,6 +673,29 @@ pub(crate) fn build_graph(device: &Map<String, J>) -> J {
         }
     }
 
+    // Mark built-in / system (default) nodes so diagrams can render them as
+    // terminal leaves — shown where directly linked, but never traversed through
+    // (a shared default profile must not bridge one app's graph into another's).
+    let mut default_paths: HashSet<String> = HashSet::new();
+    for (key, _) in NODE_TYPES {
+        if let Some(J::Array(objs)) = device.get(*key) {
+            for o in objs {
+                if let Some(om) = o.as_object()
+                    && om.get("isDefault").and_then(J::as_bool) == Some(true)
+                {
+                    default_paths.insert(bstr(om, "fullPath").to_string());
+                }
+            }
+        }
+    }
+    for n in &mut nodes {
+        if let Some(nm) = n.as_object_mut()
+            && default_paths.contains(bstr(nm, "fullPath"))
+        {
+            nm.insert("isDefault".into(), J::Bool(true));
+        }
+    }
+
     let mut g = Map::new();
     g.insert("nodes".into(), J::Array(nodes));
     g.insert("edges".into(), J::Array(edges));

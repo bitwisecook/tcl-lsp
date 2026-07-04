@@ -261,12 +261,18 @@
 
   // BFS the undirected connected component containing `startOids`, bounded by
   // `depth` (Infinity = whole component).
+  function isDefaultNode(ix, oid) { var n = ix.byOid[oid]; return !!(n && n.isDefault); }
+
   function neighborhood(ix, startOids, depth) {
     var seen = {}, frontier = [], d = 0;
     startOids.forEach(function (o) { if (ix.byOid[o]) { seen[o] = true; frontier.push(o); } });
     while (frontier.length && d < depth) {
       var next = [];
       frontier.forEach(function (o) {
+        // Built-in/system objects (a shared default profile, `_sys_*` rule, …)
+        // are terminal: shown where directly linked, never traversed *through*
+        // — otherwise a default profile bridges one app's graph into another's.
+        if (isDefaultNode(ix, o)) return;
         Object.keys(ix.adj[o] || {}).forEach(function (nb) {
           if (!seen[nb]) { seen[nb] = true; next.push(nb); }
         });
@@ -1215,6 +1221,34 @@
     });
   })();
 
+  // ---- Built-in / system objects: hidden from the flat catalog tables by
+  //      default (they're shown wherever they're directly linked — on a virtual,
+  //      in a reference table, in a diagram). A per-device toggle reveals them. --
+  (function initSystemToggle() {
+    MODEL.devices.forEach(function (d, di) {
+      var deviceEl = document.querySelector('.device[data-dev="' + di + '"]') ||
+        document.querySelectorAll(".device")[di];
+      if (!deviceEl) return;
+      var defaults = {};
+      ["virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
+        "profiles", "policies", "snatpools", "persistence", "certificates"].forEach(function (k) {
+        (d[k] || []).forEach(function (o) { if (o && o.isDefault && o.fullPath) defaults[o.fullPath] = true; });
+      });
+      deviceEl.querySelectorAll(".grid tbody tr.searchable").forEach(function (row) {
+        var m = (row.getAttribute("data-search") || "").match(/(\/[^\s]+)/);
+        if (m && defaults[m[1]]) {
+          row.classList.add("sys-row");
+          var det = row.nextElementSibling;
+          if (det && det.classList.contains("detail")) det.classList.add("sys-row");
+        }
+      });
+      var chk = deviceEl.querySelector(".show-system");
+      if (chk) chk.addEventListener("change", function () {
+        deviceEl.classList.toggle("show-system-on", chk.checked);
+      });
+    });
+  })();
+
   // ---- App bundling: group virtuals into a named "app", saved in the browser,
   //      with a combined flow diagram and every object it touches shown with a
   //      syntax-highlighted config and cross-links. ------------------------------
@@ -1283,6 +1317,9 @@
       startOids.forEach(function (o) { if (ix.byOid[o]) { seen[o] = true; queue.push(o); } });
       while (queue.length) {
         var cur = queue.shift();
+        // Default objects are terminal (see neighborhood): include them as leaves
+        // but don't expand, so a shared default profile can't pull in other apps.
+        if (isDefaultNode(ix, cur)) continue;
         (ix.fadj[cur] || []).forEach(function (nb) { if (!seen[nb]) { seen[nb] = true; queue.push(nb); } });
       }
       return seen;

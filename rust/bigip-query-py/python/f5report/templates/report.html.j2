@@ -81,6 +81,10 @@
   </div>
   {% endif %}
 
+  <div class="view-controls">
+    <label class="sys-toggle"><input type="checkbox" class="show-system"> Show built-in / system objects (default profiles, monitors, <code>_sys_*</code>)</label>
+  </div>
+
   {% if d.insights %}
   <div class="insights">
     {% for ins in d.insights %}

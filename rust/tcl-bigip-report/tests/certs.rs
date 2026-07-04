@@ -431,6 +431,57 @@ fn cross_irule_proc_call_links_library() {
     assert!(!orphan_rules.contains(&"Lib"), "Lib not orphaned: {orphan_rules:?}");
 }
 
+// Built-in / system objects (from the default config members) are tagged
+// isDefault, excluded from counts, and never flagged as orphans.
+const SCF_DEFAULTS: &str = "\
+#
+# config/profile_base.conf
+#
+ltm profile tcp tcp { }
+ltm rule /Common/_sys_https_redirect { when HTTP_REQUEST { HTTP::respond 301 } }
+#
+# config/bigip.conf
+#
+ltm profile http /Common/app_http { }
+ltm pool /Common/lonely_pool { members { /Common/10.0.0.9:80 { address 10.0.0.9 } } }
+";
+
+#[test]
+fn default_objects_are_tagged_and_never_orphans() {
+    let d = device0(SCF_DEFAULTS);
+    let profiles = d["profiles"].as_array().unwrap();
+    let tcp = profiles.iter().find(|p| p["name"] == "tcp").unwrap();
+    let apphttp = profiles.iter().find(|p| p["name"] == "app_http").unwrap();
+    assert_eq!(tcp["isDefault"], true, "default profile tagged");
+    assert_eq!(apphttp["isDefault"], false, "user profile not tagged");
+
+    // `_sys_*` rule is a default even though declared with a full path.
+    let sys = d["rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "_sys_https_redirect");
+    assert!(sys.is_some_and(|r| r["isDefault"] == true), "_sys_ rule tagged");
+
+    // Counts exclude defaults: only the one user profile.
+    assert_eq!(d["counts"]["profiles"], 1, "counts exclude defaults");
+
+    // Defaults are never orphans; the user's unreferenced pool still is.
+    let orphan_profiles: Vec<&str> = d["orphans"]["profiles"]
+        .as_array()
+        .map(|a| a.iter().map(|v| v.as_str().unwrap()).collect())
+        .unwrap_or_default();
+    assert!(!orphan_profiles.contains(&"tcp"), "default not orphaned");
+    let orphan_rules: Vec<&str> = d["orphans"]["rules"]
+        .as_array()
+        .map(|a| a.iter().map(|v| v.as_str().unwrap()).collect())
+        .unwrap_or_default();
+    assert!(
+        !orphan_rules.contains(&"_sys_https_redirect"),
+        "_sys_ default not orphaned"
+    );
+}
+
 // --- iRule syntax highlighting -----------------------------------------------
 
 use tcl_bigip_report::highlight_tcl;
