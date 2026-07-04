@@ -51,6 +51,29 @@ def test_irule_events_extracted():
     assert any(r["events"] for r in d["rules"])
 
 
+def test_virtual_profiles_in_traffic_order():
+    # app1_t80_vs lists `http` then `tcp` in the config; a BIG-IP processes the
+    # stack transport-first, so the report must show TCP ahead of HTTP.
+    m = _model()
+    vs = next(
+        v for d in m["devices"] for v in d["virtuals"] if v["name"] == "app1_t80_vs"
+    )
+    profs = vs["profiles"]
+    tcp = next(i for i, p in enumerate(profs) if p.endswith("/tcp"))
+    http = next(i for i, p in enumerate(profs) if p.endswith("/http"))
+    assert tcp < http, profs
+
+
+def test_rule_events_in_firing_order():
+    # Events are ordered by canonical firing order, not alphabetically:
+    # CLIENT_ACCEPTED precedes CLIENTSSL_HANDSHAKE wherever both appear.
+    for d in _model()["devices"]:
+        for r in d["rules"]:
+            evs = r["events"]
+            if "CLIENT_ACCEPTED" in evs and "CLIENTSSL_HANDSHAKE" in evs:
+                assert evs.index("CLIENT_ACCEPTED") < evs.index("CLIENTSSL_HANDSHAKE"), evs
+
+
 def test_totals_sum_devices():
     m = _model()
     assert m["totals"]["virtuals"] == sum(dv["counts"]["virtuals"] for dv in m["devices"])

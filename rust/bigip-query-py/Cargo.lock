@@ -1110,6 +1110,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-bigip",
+ "tcl-registry",
  "ureq",
  "x509-parser",
 ]
@@ -1119,6 +1120,15 @@ name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
  "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-cmd-core"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -1180,15 +1190,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-platform"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags",
  "rustc-hash",
  "sha2",
+ "tcl-cmd-core",
  "tcl-core-types",
  "tcl-lexer",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
 ]
 
 [[package]]
