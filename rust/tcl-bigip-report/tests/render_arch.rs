@@ -60,6 +60,11 @@ fn architecture_section_renders() {
     assert!(html.contains("auto-detected"), "auto-detect note shown");
     // The GTM->LTM link with its evidencing address.
     assert!(html.contains("10.1.0.10"), "link evidence address rendered");
+    // The interactive diagram host + its wiring are present.
+    assert!(html.contains("id=\"archDiagram\""), "interactive diagram host present");
+    assert!(html.contains("initArchitecture"), "architecture init wired in topology.js");
+    // The Mermaid definition (embedded in the model) drives the diagram.
+    assert!(html.contains("flowchart LR"), "mermaid architecture diagram source present");
 }
 
 #[test]
@@ -69,6 +74,15 @@ fn gtm_and_firewall_tabs_render() {
     assert!(html.contains("app.example.com"), "wide-IP shown");
     assert!(html.contains("data-panel=\"firewall\""), "firewall panel present");
     assert!(html.contains("app-rules"), "rule-list shown");
+}
+
+/// Helper (opt-in): write a full report to `$WRITE_REPORT` for browser checks.
+#[test]
+fn write_report_for_browser() {
+    let Ok(path) = std::env::var("WRITE_REPORT") else {
+        return;
+    };
+    std::fs::write(&path, render()).expect("write report html");
 }
 
 #[test]
