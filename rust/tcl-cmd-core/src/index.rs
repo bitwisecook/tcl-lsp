@@ -108,28 +108,40 @@ fn parse(spec: &str, len: usize) -> Option<i64> {
     if connector != b'+' && connector != b'-' {
         return None;
     }
-    let operand: i64 = rest[1..].trim().parse().ok()?;
+    let operand = parse_int_whole(rest[1..].trim())?;
     let offset = if connector == b'-' { -operand } else { operand };
     Some(base + offset)
 }
 
-/// Parse a leading optionally-signed integer, returning its value and the
-/// unconsumed tail. `None` if no digits follow the optional sign.
+/// [`ParseFlags`](tcl_syntax::number::ParseFlags) for an index integer: reject a
+/// fractional part / exponent, but otherwise the full Tcl integer syntax
+/// (`0x`/`0o`/`0b`/`0d` radices, `_` separators) — so a hex index like `0x2`
+/// resolves the way real Tcl's `Tcl_GetIntForIndex` does (verified against the
+/// tclsh 8.6 / 9.0 oracle). Leading-zero integers follow Tcl 9 (decimal, not
+/// legacy octal), matching the modern default.
+const INDEX_INT_FLAGS: tcl_syntax::number::ParseFlags = tcl_syntax::number::ParseFlags {
+    integer_only: true,
+    no_whitespace: false,
+    no_underscore: false,
+};
+
+/// Parse a leading Tcl integer, returning its value and the unconsumed tail via
+/// the canonical [`tcl_syntax::number`] parser (so every radix the runtime
+/// accepts resolves identically). `None` if `s` does not start with an integer,
+/// or the value is a non-integer / bignum (`Int` only).
 fn parse_int_prefix(s: &str) -> Option<(i64, &str)> {
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    if matches!(bytes.first(), Some(b'+' | b'-')) {
-        i += 1;
+    let parsed = tcl_syntax::number::parse(s, INDEX_INT_FLAGS)?;
+    match parsed.number {
+        tcl_syntax::number::Number::Int(v) => Some((v, &s[parsed.end..])),
+        _ => None,
     }
-    let digits_start = i;
-    while i < bytes.len() && bytes[i].is_ascii_digit() {
-        i += 1;
-    }
-    if i == digits_start {
-        return None;
-    }
-    let val: i64 = s[..i].parse().ok()?;
-    Some((val, &s[i..]))
+}
+
+/// Parse `s` as a whole Tcl integer — the [`parse_int_prefix`] value only when
+/// nothing but trailing space follows it.
+fn parse_int_whole(s: &str) -> Option<i64> {
+    let (val, tail) = parse_int_prefix(s)?;
+    tail.trim().is_empty().then_some(val)
 }
 
 /// The canonical `bad index "<spec>": …` error.
@@ -170,6 +182,36 @@ mod tests {
         assert!(resolve("1.5", 10).is_err());
         assert_eq!(resolve_opt("bad", 10), None);
         assert_eq!(resolve_opt("end-1", 10), Some(8));
+    }
+
+    #[test]
+    fn resolve_matches_tclsh_oracle() {
+        // Ground truth captured from real tclsh 8.6 and 9.0 (identical) via
+        // `string index`/`lindex` over a length-5 container (end = 4). Each
+        // `resolve_opt` returns the raw resolved index (callers clamp for
+        // out-of-range); a `None` is a `bad index` error at runtime.
+        let ok: &[(&str, i64)] = &[
+            // integers, signs, whitespace
+            ("0", 0), ("1", 1), ("4", 4), ("5", 5), ("-1", -1), ("-2", -2), ("-0", 0),
+            (" 1", 1), ("1 ", 1),
+            // end and end offsets (`end--1` = end - (-1) = end + 1)
+            ("end", 4), ("end-1", 3), ("end+1", 5), ("end-4", 0), ("end-5", -1),
+            ("end--1", 5), ("end+-1", 3), ("end+0", 4),
+            // arithmetic operands
+            ("1+1", 2), ("0-1", -1), ("2+2", 4), ("3-1", 2), ("end-2", 2),
+            // radix prefixes (hex / octal / binary / 0d) — oracle accepts these
+            ("0x2", 2), ("0xa", 10), ("0xf", 15), ("0o7", 7), ("0b101", 5), ("0d5", 5),
+            ("+0x2", 2), ("-0x1", -1),
+            // radices inside the arithmetic operands
+            ("end-0x2", 2), ("end-0o3", 1), ("0x2+1", 3), ("1+0x1", 2),
+        ];
+        for &(spec, want) in ok {
+            assert_eq!(resolve_opt(spec, 5), Some(want), "resolve_opt({spec:?})");
+        }
+        // Syntactically bad — a `bad index` error at runtime.
+        for spec in ["1.0", "1+", "end-", "foo", "", "1 1", "0x", "0xg", "2e0"] {
+            assert_eq!(resolve_opt(spec, 5), None, "resolve_opt({spec:?}) should be None");
+        }
     }
 
     #[test]
