@@ -69,6 +69,11 @@ pub struct RenderOptions {
     /// [`tcl_bigip_io::list_ucs_members`] / `read_ucs_member`). Empty = no
     /// archive behind the source (e.g. a bare `bigip.conf`).
     pub files: std::collections::HashMap<String, Vec<serde_json::Value>>,
+    /// Optional *architecture manifest* — a small Tcl script (see
+    /// [`crate::architecture`]). Declares each device's role/tier and can add
+    /// explicit inter-device links, overriding and augmenting auto-detection.
+    /// Empty = pure auto-detection.
+    pub architecture: Option<String>,
 }
 
 impl Default for RenderOptions {
@@ -79,6 +84,7 @@ impl Default for RenderOptions {
             embed_console: true,
             cert_pems: std::collections::HashMap::new(),
             files: std::collections::HashMap::new(),
+            architecture: None,
         }
     }
 }
@@ -178,6 +184,12 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
 
 /// Collect the model from `sources` and render it to a standalone HTML document.
 pub fn build_report(sources: &[Source], opts: &RenderOptions) -> Result<String, ReportError> {
-    let model = collect_model_full(sources, &opts.title, &opts.cert_pems, &opts.files);
+    let model = collect_model_full(
+        sources,
+        &opts.title,
+        &opts.cert_pems,
+        &opts.files,
+        opts.architecture.as_deref(),
+    );
     render_report(model, opts)
 }
