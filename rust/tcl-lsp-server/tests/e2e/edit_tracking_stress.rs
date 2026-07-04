@@ -343,6 +343,53 @@ const SEED_DOC: &str = "proc greet {name} {\n    puts \"Hello $name\"\n}\nset to
 
 // -- TestRandomEditStorm -------------------------------------------------
 
+/// Dumps the full state of a random-seeded run when the test thread is
+/// unwinding, so a failure — a mirror-vs-server divergence *or* the diagnostics
+/// barrier inside [`assert_buffer_equiv`] timing out under load — is
+/// reproducible from the CI log alone. Without this a random test that flakes
+/// leaves only a bare panic message and the seed is not enough to see *what*
+/// edit stream provoked it.
+struct ReproDump<'a> {
+    seed: u64,
+    version: i64,
+    edits: &'a [Edit],
+    final_text: &'a str,
+}
+
+impl Drop for ReproDump<'_> {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            return;
+        }
+        eprintln!("\n==== edit_tracking_stress repro (seed={}) ====", self.seed);
+        eprintln!(
+            "applied {} edits, reached version {}; barrier awaited diagnostics at version {}",
+            self.edits.len(),
+            self.version,
+            self.version + 1,
+        );
+        for (i, e) in self.edits.iter().enumerate() {
+            // version starts at 1; the first edit lands at version 2.
+            eprintln!(
+                "  edit #{i} (v{}): [{},{})..[{},{}) <- {:?}",
+                i + 2,
+                e.start.0,
+                e.start.1,
+                e.end.0,
+                e.end.1,
+                e.text,
+            );
+        }
+        eprintln!(
+            "final buffer ({} bytes, {} lines):\n{}",
+            self.final_text.len(),
+            self.final_text.lines().count(),
+            self.final_text,
+        );
+        eprintln!("==== end repro (seed={}) ====\n", self.seed);
+    }
+}
+
 fn random_incremental_edits_match_fresh_open(seed: u64) {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -350,14 +397,24 @@ fn random_incremental_edits_match_fresh_open(seed: u64) {
     let mut mirror = TextMirror::new(SEED_DOC);
     let mut rng = Rng::new(seed);
     let mut version = 1i64;
+    let mut applied: Vec<Edit> = Vec::with_capacity(60);
     for _ in 0..60 {
         let edit = random_edit(&mirror, &mut rng);
         mirror.apply(&edit);
         version += 1;
         lsp.change_document(&uri, version, json!([edit.as_content_change()]));
+        applied.push(edit);
     }
     let fresh = unique_uri("tcl");
     let text = mirror.text.clone();
+    // Past this point every borrow of `applied`/`text` is read-only, so the
+    // guard can hold them and dump on any unwind out of `assert_buffer_equiv`.
+    let _repro = ReproDump {
+        seed,
+        version,
+        edits: &applied,
+        final_text: &text,
+    };
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
