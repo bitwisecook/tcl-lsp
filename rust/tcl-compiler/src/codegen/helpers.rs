@@ -18,139 +18,36 @@ pub const DEFAULT_TRIM_CHARS: &str = "\t\n\x0b\x0c\r \
 /// Handles braces, quotes, and backslash escaping.  Does not validate
 /// syntax strictly — used only for known-good constant arguments.
 ///
-/// Deliberately **not** the canonical [`tcl_syntax::list::split_list`]: this
-/// preserves each element's *raw* text (it does **not** backslash-decode), so a
-/// split-then-[`tcl_list_element`] round-trip re-emits the original literal
-/// rather than a decoded value. The shared splitter decodes, which is wrong for
-/// this re-emit use.
+/// Split a list into each element's **raw** text — braces / quotes stripped but
+/// backslashes *not* decoded — so a split-then-[`tcl_list_element`] round-trip
+/// re-emits the original literal rather than a decoded value.
+///
+/// Thin wrapper over the shared grammar
+/// [`tcl_syntax::list::split_list_raw_lenient`]: the raw (non-decoding) split,
+/// tolerant of a malformed tail. [`split_list_values`] is the decoding sibling
+/// for when the runtime *value* is wanted instead.
 #[must_use]
 pub fn split_list_simple(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut result = Vec::new();
-    let mut i = 0;
-
-    while i < n {
-        // Skip whitespace
-        while i < n && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-
-        if bytes[i] == b'{' {
-            // Braced element
-            let mut level: u32 = 1;
-            i += 1;
-            let start = i;
-            while i < n && level > 0 {
-                if bytes[i] == b'\\' {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    level += 1;
-                } else if bytes[i] == b'}' {
-                    level -= 1;
-                }
-                i += 1;
-            }
-            // i now points past the closing }
-            result.push(text[start..i.saturating_sub(1)].to_owned());
-        } else if bytes[i] == b'"' {
-            // Quoted element
-            i += 1;
-            let start = i;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
-            }
-            result.push(text[start..i].to_owned());
-            if i < n {
-                i += 1; // skip closing "
-            }
-        } else {
-            // Bare word
-            let start = i;
-            while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
-            }
-            result.push(text[start..i].to_owned());
-        }
-    }
-    result
+    tcl_syntax::list::split_list_raw_lenient(text)
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 /// Split a list like [`split_list_simple`], but return each element's decoded
 /// *value*: braced words are kept verbatim while quoted and bare words are run
-/// through [`tcl_lexer::backslash_subst`]. This is what the runtime `list`
-/// command sees as its arguments, so constant-folding `[list …]` must decode the
-/// same way (e.g. `"\x00"` → a NUL byte) before re-quoting each element.
+/// through backslash substitution. This is what the runtime `list` command sees
+/// as its arguments, so constant-folding `[list …]` must decode the same way
+/// (e.g. `"\x00"` → a NUL byte) before re-quoting each element.
+///
+/// Thin wrapper over the shared grammar
+/// [`tcl_syntax::list::split_list_lenient`], whose literal/decoded policy (brace
+/// verbatim, else `backslash_subst`) is exactly this.
 fn split_list_values(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut result = Vec::new();
-    let mut i = 0;
-
-    while i < n {
-        while i < n && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-
-        if bytes[i] == b'{' {
-            // Braced element — verbatim, no decoding.
-            let mut level: u32 = 1;
-            i += 1;
-            let start = i;
-            while i < n && level > 0 {
-                if bytes[i] == b'\\' {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    level += 1;
-                } else if bytes[i] == b'}' {
-                    level -= 1;
-                }
-                i += 1;
-            }
-            result.push(text[start..i.saturating_sub(1)].to_owned());
-        } else if bytes[i] == b'"' {
-            // Quoted element — backslash-decode the content.
-            i += 1;
-            let start = i;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
-            }
-            result.push(tcl_lexer::backslash_subst(&text[start..i]).into_owned());
-            if i < n {
-                i += 1; // skip closing "
-            }
-        } else {
-            // Bare word — backslash-decode.
-            let start = i;
-            while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
-            }
-            result.push(tcl_lexer::backslash_subst(&text[start..i]).into_owned());
-        }
-    }
-    result
+    tcl_syntax::list::split_list_lenient(text)
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
 }
 
 /// Compute the Tcl string hash (matches `Tcl_HashString`).

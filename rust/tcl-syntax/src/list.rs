@@ -11,6 +11,18 @@
 //! need collapsing run through [`tcl_lexer::backslash_subst`] (the one canonical
 //! decoder, matching `TclParseBackslash`).
 //!
+//! ## Split utilities
+//!
+//! [`find_element`] is the single grammar primitive; every splitter is a thin
+//! layer over it, so callers should reach for one of these rather than hand-roll
+//! another brace/quote/backslash scan:
+//!
+//! - [`split_list`] — decoded element *values* (`Tcl_SplitList`), strict.
+//! - [`split_list_raw`] — verbatim element *text* (no backslash decode), strict —
+//!   for re-emitting the original literal.
+//! - [`split_list_lenient`] / [`split_list_raw_lenient`] — the same two, but
+//!   returning the elements parsed before a malformed tail instead of `Err`.
+//!
 //! ## The list grammar (`FindElement`)
 //!
 //! - Leading/trailing element whitespace is space/tab/newline/CR/FF/VT (note:
@@ -270,6 +282,54 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
         pos = el.next;
     }
     Ok(out)
+}
+
+/// Split `s` into its Tcl list elements **verbatim** — each element's raw
+/// interior text (delimiters stripped, backslashes *not* decoded), borrowing
+/// `s`. This is the split for consumers that re-emit the original literal or
+/// keep raw text (a split-then-[`list_element`] round-trip reproduces the
+/// source), where [`split_list`]'s backslash decoding would be wrong.
+pub fn split_list_raw(s: &str) -> Result<Vec<&str>, ListError> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Some(el) = find_element(s, pos)? {
+        out.push(&s[el.value.clone()]);
+        pos = el.next;
+    }
+    Ok(out)
+}
+
+/// [`split_list`] that never fails: on a malformed tail (unmatched brace/quote,
+/// junk after a delimiter) it returns the elements parsed *before* the error
+/// rather than `Err`. For best-effort consumers (constant folding, `llength` /
+/// `in` estimates) that would rather see a partial list than nothing.
+#[must_use]
+pub fn split_list_lenient(s: &str) -> Vec<Cow<'_, str>> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Ok(Some(el)) = find_element(s, pos) {
+        let raw = &s[el.value.clone()];
+        out.push(if el.literal {
+            Cow::Borrowed(raw)
+        } else {
+            Cow::Owned(backslash_subst(raw).into_owned())
+        });
+        pos = el.next;
+    }
+    out
+}
+
+/// [`split_list_raw`] that never fails, mirroring [`split_list_lenient`]'s
+/// error tolerance — verbatim elements up to the first malformed tail.
+#[must_use]
+pub fn split_list_raw_lenient(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Ok(Some(el)) = find_element(s, pos) {
+        out.push(&s[el.value.clone()]);
+        pos = el.next;
+    }
+    out
 }
 
 /// The largest number of elements `s` could hold as a list: a count of
@@ -547,6 +607,40 @@ mod tests {
         assert_eq!(split_list("\"unmatched"), Err(ListError::UnmatchedQuote));
         assert_eq!(split_list("{a}b"), Err(ListError::BraceFollowedByJunk));
         assert_eq!(split_list("\"a\"b"), Err(ListError::QuoteFollowedByJunk));
+    }
+
+    #[test]
+    fn split_list_raw_keeps_backslashes() {
+        // Raw split strips delimiters but does NOT decode backslashes — the
+        // element text is verbatim, unlike `split_list`.
+        assert_eq!(split_list_raw("a\\ b").unwrap(), ["a\\ b"]); // one element, undecoded
+        assert_eq!(split_list_raw("c\\td").unwrap(), ["c\\td"]); // `\t` NOT a tab
+        assert_eq!(split_list_raw("{a b} c").unwrap(), ["a b", "c"]);
+        assert_eq!(split_list_raw("\"a\\tb\"").unwrap(), ["a\\tb"]);
+        // Same error set as `split_list`.
+        assert_eq!(split_list_raw("{unmatched"), Err(ListError::UnmatchedBrace));
+    }
+
+    #[test]
+    fn lenient_variants_recover_on_malformed_tail() {
+        // A malformed tail yields the elements parsed before the error, not Err.
+        assert_eq!(
+            split_list_lenient("a b {unmatched")
+                .into_iter()
+                .map(Cow::into_owned)
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(split_list_raw_lenient("a b {unmatched"), ["a", "b"]);
+        // Well-formed input matches the strict variants (raw stays undecoded).
+        assert_eq!(split_list_raw_lenient("a\\ b"), ["a\\ b"]);
+        assert_eq!(
+            split_list_lenient("a\\ b")
+                .into_iter()
+                .map(Cow::into_owned)
+                .collect::<Vec<_>>(),
+            ["a b"] // decoded: escaped space, one element
+        );
     }
 
     #[test]
