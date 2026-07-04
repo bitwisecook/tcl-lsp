@@ -269,6 +269,85 @@
   // strip those to keep the flowchart parseable.
   function escLbl(s) { return String(s).replace(/[()|{}\[\]"]/g, "").replace(/\n/g, " "); }
 
+  // ---- shared config-source rendering ------------------------------------
+  // Escape config text for a <pre> *without* collapsing newlines (unlike esc(),
+  // which is for single-line Mermaid labels): a config stanza is multi-line, so
+  // its line breaks must survive.
+  function escConf(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; });
+  }
+
+  // Extract one object's raw bigip.conf stanza (brace-matched) from the device
+  // config text. iRules are shown from the model's highlighted body instead.
+  function stanzaFor(cfg, fullPath) {
+    if (!cfg || !fullPath) return null;
+    var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
+    var m = re.exec(cfg);
+    if (!m) return null;
+    var i = cfg.indexOf("{", m.index);
+    if (i < 0) return null;
+    var depth = 0;
+    for (var j = i; j < cfg.length; j++) {
+      var c = cfg[j];
+      if (c === "{") depth++;
+      else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
+    }
+    return cfg.slice(m.index);
+  }
+
+  // Escape a config stanza, then wrap every object path (linkable when
+  // isLinked(path) is truthy) and each line's leading keyword for syntax
+  // highlighting. isLinked: (fullPath) -> bool, may be omitted for no links.
+  function highlightConf(text, isLinked) {
+    var out = escConf(text);
+    out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
+      return isLinked && isLinked(m0)
+        ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
+        : '<span class="conf-path">' + m0 + "</span>";
+    });
+    out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
+    return out;
+  }
+
+  function ruleByPath(ix, fp) {
+    var rules = ix.d.rules || [];
+    for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
+    return null;
+  }
+
+  // The syntax-highlighted, cross-linked source for one object: the model's
+  // highlighted Tcl body for iRules, otherwise the brace-matched bigip.conf
+  // stanza. Object paths resolving to another object in this device become
+  // links (the caller wires the clicks). Empty string when no source is found.
+  function sourceHtml(ix, n) {
+    if (n.type === "rule") {
+      var r = ruleByPath(ix, n.fullPath);
+      if (r && (r.bodyHtml || r.body)) {
+        return '<pre class="code tcl">' + (r.bodyHtml || escConf(r.body || "")) + "</pre>";
+      }
+    }
+    var stanza = stanzaFor(ix.d.configText, n.fullPath);
+    if (!stanza) return "";
+    var html = highlightConf(stanza, function (fp) {
+      return fp !== n.fullPath && !!ix.byPath[fp];
+    });
+    return '<pre class="code conf">' + html + "</pre>";
+  }
+
+  // Render an object full-path as a chip that wireObjLinks() makes clickable
+  // when the path resolves to an object in this device (otherwise it stays
+  // plain text). `extra` adds tag colour class(es).
+  function refChip(p, extra) {
+    if (!p) return '<span class="muted">—</span>';
+    return '<span class="tag ' + (extra || "") + '" data-oref="' + esc(p) + '" title="' +
+      esc(p) + '">' + esc(p.split("/").pop()) + "</span>";
+  }
+  function refChips(paths, extra) {
+    if (!paths || !paths.length) return '<span class="muted">none</span>';
+    return paths.map(function (p) { return refChip(p, extra); }).join(" ");
+  }
+
   // BFS the undirected connected component containing `startOids`, bounded by
   // `depth` (Infinity = whole component).
   function isDefaultNode(ix, oid) { var n = ix.byOid[oid]; return !!(n && n.isDefault); }
@@ -538,6 +617,47 @@
     host.querySelectorAll(".edgeLabel").forEach(function (el) { /* labels stay */ });
   }
 
+  // ---- Cross-device architecture diagram ---------------------------------
+  // The top-level Architecture section renders the tier graph (one node per
+  // loaded device) interactively: click a device node to jump to its section.
+  function activateDevice(di) {
+    var tab = document.querySelector('.dev-tab[data-dev="' + di + '"]');
+    if (tab) tab.click();
+    var dev = document.querySelector('.device[data-dev="' + di + '"]');
+    if (dev) dev.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function initArchitecture() {
+    var arch = MODEL.architecture;
+    if (!arch || !arch.mermaid || (arch.deviceCount || 0) < 2) return;
+    var host = document.getElementById("archDiagram");
+    if (!host) return;
+    if (!window.mermaid) { host.style.display = "none"; return; }
+    var id = "archmmd" + (_rid++);
+    mermaid.render(id, arch.mermaid).then(function (res) {
+      host.innerHTML = res.svg;
+      var svg = host.querySelector("svg");
+      if (svg) { svg.style.maxWidth = "100%"; svg.style.maxHeight = "60vh"; svg.style.height = "auto"; }
+      // Each device node's element id is `flowchart-d<index>-<seq>`.
+      host.querySelectorAll(".node").forEach(function (el) {
+        var m = /flowchart-d(\d+)-/.exec(el.id || "");
+        if (!m) return;
+        var di = parseInt(m[1], 10);
+        el.classList.add("mm-node");
+        el.style.cursor = "pointer";
+        el.setAttribute("title", "Jump to this device");
+        el.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          activateDevice(di);
+        });
+      });
+    }).catch(function (err) {
+      // Fall back to the static tier columns already in the section.
+      host.style.display = "none";
+      if (window.console) console.warn("architecture diagram error:", err);
+    });
+  }
+
   // ---- Topology tab ------------------------------------------------------
   function initTopology(deviceEl, ix) {
     var panel = deviceEl.querySelector('.panel[data-panel="topology"]');
@@ -605,8 +725,14 @@
     var parts = [];
     if (n.type === "vs") parts.push(vsDetail(ix, oid));
     else if (n.type === "pool") parts.push(poolDetail(ix, oid));
+    else if (n.type === "rule") {
+      var refs = ruleRefs(ix, oid);
+      if (refs) parts.push('<h4>References</h4>' + refs);
+    }
     parts.push('<h4>Neighbourhood</h4><div class="diag-host drawer-diag"></div>');
     if (n.type === "vs") parts.push('<h4>Processing flow</h4><div class="diag-host flow-diag"></div>');
+    var src = sourceHtml(ix, n);
+    if (src) parts.push('<h4>Source</h4>' + src);
     body.innerHTML = parts.join("");
 
     var oids = Object.keys(neighborhood(ix, [oid], 2));
@@ -616,6 +742,16 @@
       renderInto(body.querySelector(".flow-diag"), buildFlow(ix, oid), ix,
         function (o) { openDrawer(ix, o); });
     }
+    // Cross-links inside the source stanza jump to that object's drawer.
+    body.querySelectorAll(".conf-link[data-goto]").forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        var toOid = ix.byPath[a.getAttribute("data-goto")];
+        if (toOid) openDrawer(ix, toOid);
+      });
+    });
+    // Make the referenced-object chips (iRule refs, etc.) clickable.
+    wireObjLinks(body, ix);
     drawer.classList.add("open");
     document.getElementById("drawerScrim").classList.add("open");
   }
@@ -645,9 +781,23 @@
       return "<tr><th>" + r[0] + "</th><td>" + r[1] + "</td></tr>";
     }).join("") + "</table>";
 
-    var staticProfiles = (v.profiles || []).map(function (p) {
-      return '<span class="tag prof">' + esc(p.split("/").pop()) + "</span>";
-    }).join("") || '<span class="muted">none</span>';
+    // Object properties, each linked to the object it references (clickable
+    // when that object exists in this device — wired by wireObjLinks()).
+    var snat = v.snatpool
+      ? refChip(v.snatpool, "snat")
+      : (v.sourceXlate ? esc(v.sourceXlate) : '<span class="muted">—</span>');
+    var propRows = [
+      ["Pool", refChip(v.pool, "pool")],
+      ["iRules", refChips(v.rules, "rule")],
+      ["Persistence", refChips(v.persist, "persist")],
+      ["Policies", refChips(v.policies, "policy")],
+      ["SNAT", snat],
+    ];
+    var props = '<table class="kv">' + propRows.map(function (r) {
+      return "<tr><th>" + r[0] + "</th><td>" + r[1] + "</td></tr>";
+    }).join("") + "</table>";
+
+    var staticProfiles = refChips(v.profiles, "prof");
 
     var dyn = (v.dynamicProfiles || []).map(function (a) {
       return '<span class="tag amber" title="via iRule ' + esc(a.rule) + '">' +
@@ -658,6 +808,7 @@
       : "";
 
     return '<h4>Listener</h4>' + meta +
+      '<h4>Properties</h4>' + props +
       '<h4>Static profiles</h4><div class="tagwrap">' + staticProfiles + "</div>" + dynBlock;
   }
 
@@ -669,6 +820,66 @@
     }).join("") || "<tr><td colspan=3 class='muted'>no members</td></tr>";
     return "<h4>Members</h4><table class='grid mini'><thead><tr><th>Member</th><th>Address</th><th>Port</th></tr></thead><tbody>" +
       rows + "</tbody></table>";
+  }
+
+  function findRule(ix, oid) {
+    var fp = oid.split(":").slice(1).join(":");
+    return (ix.d.rules || []).find(function (r) { return r.fullPath === fp; });
+  }
+
+  // The iRule's referenced-object tables — statically referenced objects, plus
+  // the objects each reconstructed dynamic filter could select, resolved per
+  // attaching-virtual partition. Mirrors the inline iRule-row detail so the
+  // drawer inspector carries the same linked / potentially-linked / resolved
+  // information. Object chips are wired clickable by wireObjLinks().
+  function ruleRefs(ix, oid) {
+    var r = findRule(ix, oid); if (!r) return "";
+    var ro = r.referencedObjects; if (!ro) return "";
+    var hasStatic = ro.static && ro.static.length;
+    var hasDyn = ro.dynamic && ro.dynamic.length;
+    var out = '<div class="irule-refs">';
+    if (hasStatic) {
+      out += '<div class="refs-static"><span class="refs-lbl">Referenced objects:</span> ';
+      ro.static.forEach(function (o) {
+        out += '<span class="ref-obj" data-oid="' + esc(o.oid) + '" title="' +
+          esc(o.type + " " + o.fullPath) + '">' + esc(o.type + " " + o.name) + "</span> ";
+      });
+      out += "</div>";
+    }
+    if (!hasStatic && !hasDyn) {
+      out += '<div class="refs-none muted">No pool / node / snatpool / data-group references (static or dynamic) in this iRule.</div>';
+    }
+    (ro.dynamic || []).forEach(function (g) {
+      out += '<div class="refs-dyn"><div class="refs-ctx">Potentially referenced objects';
+      if (g.attached) {
+        out += " — resolved for ";
+        (g.virtuals || []).forEach(function (vn) { out += '<span class="tag">' + esc(vn) + "</span>"; });
+        out += " in partition <code>/" + esc(g.partition) + "</code>";
+      } else {
+        out += " — this iRule is not attached to any virtual; filters resolved in <code>/" + esc(g.partition) + "</code>";
+      }
+      out += '</div><table class="refs-table"><thead><tr><th>Determined filter</th><th>Type</th><th>Matching objects (this partition)</th></tr></thead><tbody>';
+      (g.filters || []).forEach(function (f) {
+        out += '<tr><td><code class="attach-pat" title="' +
+          esc("reconstructed from the iRule source: " + (f.raw || "")) + '">' + esc(f.glob || "") + "</code>";
+        if (f.unconstrained) out += ' <span class="muted small">(any name)</span>';
+        else if (f.exact) out += ' <span class="muted small">(exact)</span>';
+        out += '</td><td class="mono small">' + esc(f.type || "") + "</td><td>";
+        if (f.objects && f.objects.length) {
+          f.objects.forEach(function (o) {
+            out += '<span class="ref-obj" data-oid="' + esc(o.oid) + '" title="' +
+              esc(o.fullPath) + '">' + esc(o.name) + "</span> ";
+          });
+        } else {
+          out += '<span class="muted">' +
+            (f.unconstrained ? "any " + esc(f.type || "") + " in scope" : "none defined match") + "</span>";
+        }
+        out += "</td></tr>";
+      });
+      out += "</tbody></table></div>";
+    });
+    out += "</div>";
+    return out;
   }
 
   // ---- Per-virtual processing flow --------------------------------------
@@ -1188,6 +1399,9 @@
     });
   });
 
+  // The cross-device architecture diagram (top-level, always visible).
+  initArchitecture();
+
   // drawer close handlers
   var closeBtn = document.querySelector("#objDrawer .drawer-close");
   if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
@@ -1402,49 +1616,11 @@
       catch (e) { return false; }
     }
 
-    // Extract one object's raw bigip.conf stanza (brace-matched) from the device
-    // config text. iRules are shown from the model's highlighted body instead.
-    function stanzaFor(cfg, fullPath) {
-      if (!cfg || !fullPath) return null;
-      var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
-      var m = re.exec(cfg);
-      if (!m) return null;
-      var i = cfg.indexOf("{", m.index);
-      if (i < 0) return null;
-      var depth = 0;
-      for (var j = i; j < cfg.length; j++) {
-        var c = cfg[j];
-        if (c === "{") depth++;
-        else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
-      }
-      return cfg.slice(m.index);
-    }
-
-    // Escape, then wrap object paths (clickable when the target is in the app)
-    // and each line's leading keyword.
-    function highlightConf(text, inApp) {
-      var out = esc(text);
-      out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
-        return inApp[m0]
-          ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
-          : '<span class="conf-path">' + m0 + "</span>";
-      });
-      out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
-      return out;
-    }
-
     function blockId(oid) { return "appobj:" + oid; }
     function scrollToBlock(host, oid) {
       var el = host.querySelector('[id="' + (window.CSS && CSS.escape ? CSS.escape(blockId(oid)) : blockId(oid)) + '"]');
       if (!el) { var all = host.querySelectorAll(".app-obj"); for (var k = 0; k < all.length; k++) { if (all[k].getAttribute("data-oid") === oid) { el = all[k]; break; } } }
       if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("app-obj-flash"); setTimeout(function () { el.classList.remove("app-obj-flash"); }, 1200); }
-    }
-
-    function ruleByPath(ix, fp) {
-      var rules = ix.d.rules || [];
-      for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
-      return null;
     }
 
     // Everything an app's virtual servers forward-reach (their pools, nodes,
@@ -1509,7 +1685,7 @@
           }
         } else {
           var stanza = stanzaFor(ix.d.configText, n.fullPath);
-          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, inApp) : '<span class="muted">config not found</span>') + "</pre>";
+          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, function (fp) { return !!inApp[fp]; }) : '<span class="muted">config not found</span>') + "</pre>";
         }
         html += "</div>";
       });

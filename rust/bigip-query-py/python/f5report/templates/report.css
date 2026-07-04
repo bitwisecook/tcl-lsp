@@ -161,6 +161,22 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 @media (hover:hover){.chip.chip-link:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.12)}}
 .chip.chip-link:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
 
+/* ---- F5 Sites — community / support / security-IR resources tab ---------- */
+.f5sites-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:4px 0 22px}
+.f5sites-group{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:14px 16px;box-shadow:var(--shadow)}
+.f5sites-group h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.f5sites-group.danger{border-color:color-mix(in srgb,var(--amber) 45%,var(--line))}
+.f5sites-group.danger h3{color:var(--amber)}
+.f5sites-links{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.f5sites-links a{display:block;padding:6px 8px;border-radius:7px;color:var(--ink);font-size:13px;text-decoration:none}
+.f5sites-links a::after{content:"\2197";color:var(--muted);font-size:10px;margin-left:5px;vertical-align:1px}
+@media (hover:hover){.f5sites-links a:hover{background:var(--bg);color:var(--accent)}}
+.f5sites-links a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.f5sites-links .k{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--tag-bg);border-radius:5px;padding:1px 5px;margin-right:6px}
+.f5sites-h{font-size:14px;margin:6px 0 8px}
+.f5sites-ioc{margin:14px 0 4px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line));border-left:3px solid var(--amber);border-radius:9px;background:color-mix(in srgb,var(--amber) 6%,var(--panel));font-size:12.5px;line-height:1.55}
+.f5sites-ioc code{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+
 /* ---- Print stylesheet ---------------------------------------------------- */
 @media print {
   :root{color-scheme:light}
@@ -360,3 +376,39 @@ html,body{max-width:100%}
   .chip.chip-link,.dev-tab,.expander,.ref-obj{min-height:32px}
   tr.expandable{cursor:pointer}
 }
+
+/* --- Architecture (multi-device tiers) ------------------------------------ */
+.architecture{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin:0 0 18px}
+.arch-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.arch-head h2{margin:0;font-size:16px}
+.arch-diagram{margin:4px 0 14px;overflow-x:auto}
+.arch-diagram:empty{display:none}
+.arch-diagram svg{display:block;margin:0 auto}
+.arch-diagram .mm-node:hover{filter:brightness(1.08)}
+.arch-tiers-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:0 0 6px}
+.arch-tiers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;align-items:stretch}
+.arch-tier{flex:0 0 auto;min-width:150px;border:1px dashed var(--line);border-radius:10px;padding:10px;
+  display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--bg) 50%,transparent)}
+.arch-tier-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.arch-node{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);
+  display:flex;flex-direction:column;gap:2px;border-left:3px solid var(--muted)}
+.arch-node-name{font-family:var(--mono);font-size:12px;font-weight:600}
+.arch-node-role{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.arch-role-gtm{border-left-color:var(--green)}
+.arch-role-ltm{border-left-color:var(--blue)}
+.arch-role-afm,.arch-role-firewall{border-left-color:var(--amber)}
+.arch-links{margin-top:14px}
+.arch-arrow{text-align:center;color:var(--muted);font-size:15px}
+.arch-mermaid-src{margin-top:12px}
+.arch-mermaid-src summary{cursor:pointer;color:var(--muted);font-size:12px}
+.arch-mermaid-src .mermaid-code{white-space:pre;overflow-x:auto;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;padding:10px;font-family:var(--mono);font-size:11px;margin:8px 0 0}
+
+/* --- GTM + Firewall panels ------------------------------------------------- */
+.subhead{margin:18px 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.subhead:first-child{margin-top:4px}
+.subhead .n{background:var(--tag-bg);color:var(--muted);border-radius:10px;padding:0 8px;font-size:11px;font-weight:600}
+.rule-list-block{margin:0 0 14px}
+.rule-list-name{margin:10px 0 6px;font-size:12px}
+.fw-rules td{vertical-align:top}

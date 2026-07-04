@@ -214,6 +214,83 @@ fn build_report_html_self_contained() {
 }
 
 #[test]
+fn forensics_tab_present_with_file_inventory() {
+    // A file inventory (as the wasm/CLI entry points extract it) drives the
+    // Forensics tab: the tab appears, and the checklist verdicts are embedded.
+    let files = std::collections::HashMap::from([(
+        "dev.ucs".to_string(),
+        vec![
+            serde_json::json!({
+                "path": "root/.ssh/authorized_keys", "size": 24, "sha256": "a".repeat(64),
+                "isText": true, "content": "ssh-rsa AAAAB3Nz attacker\n"
+            }),
+            serde_json::json!({
+                "path": "etc/passwd", "size": 28, "sha256": "b".repeat(64),
+                "isText": true, "content": "root:x:0:0::/root:/bin/bash\n"
+            }),
+        ],
+    )]);
+    let opts = RenderOptions {
+        title: "Forensics".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        files,
+        ..Default::default()
+    };
+    let sources = vec![("dev.ucs".to_string(), "ltm pool /Common/p { }\n".to_string())];
+    let html = build_report(&sources, &opts).expect("render");
+    assert!(
+        html.contains("data-panel=\"forensics\""),
+        "forensics tab/panel present when files exist"
+    );
+    // The model (embedded JSON) carries the checklist; the non-empty
+    // authorized_keys must be flagged.
+    assert!(html.contains("ssh-authorized-keys"), "checklist embedded");
+    assert!(
+        html.contains("\\\"verdict\\\":\\\"alert\\\"") || html.contains("\"verdict\":\"alert\""),
+        "authorized_keys flagged alert"
+    );
+}
+
+#[test]
+fn web_shell_irule_surfaces_forensics_tab_without_files() {
+    // A config-only source (no UCS) whose iRule uses eval in an HTTP event:
+    // the forensic file inventory is empty, but the flagged finding must still
+    // surface the Forensics tab.
+    let scf = "ltm rule /Common/shell { when HTTP_REQUEST { eval [b64decode [HTTP::header X-Cmd]] } }\n\
+               ltm virtual /Common/vs { destination /Common/1.2.3.4:80 rules { /Common/shell } }\n";
+    let opts = RenderOptions {
+        title: "WebShell".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let html = build_report(&[("x.conf".to_string(), scf.to_string())], &opts).expect("render");
+    assert!(
+        html.contains("data-panel=\"forensics\""),
+        "forensics tab present for a flagged iRule even with no files"
+    );
+    assert!(html.contains("irule-backdoor"), "the iRule finding is embedded");
+}
+
+#[test]
+fn no_forensics_tab_without_files() {
+    // A bare bigip.conf source (no archive) → no forensic files → no tab.
+    let opts = RenderOptions {
+        title: "NoFx".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let sources = vec![("x.conf".to_string(), "ltm pool /Common/p { }\n".to_string())];
+    let html = build_report(&sources, &opts).expect("render");
+    assert!(
+        !html.contains("data-panel=\"forensics\">"),
+        "no forensics panel without a file inventory"
+    );
+}
+
+#[test]
 fn console_can_be_disabled() {
     let sources = vec![load("lab-device-01.ucs")];
     let opts = RenderOptions {

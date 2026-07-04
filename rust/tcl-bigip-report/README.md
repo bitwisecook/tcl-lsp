@@ -5,8 +5,10 @@ loaded `(uri, scf_text)` configs it produces a single, self-contained,
 interactive HTML report — object tables, a reference/orphan analysis, an
 **SSL-certificate expiry inventory**, an **APM access-profile walk** (a
 Visual-Policy-Editor-style dependency graph per `apm profile access`), a Mermaid
-topology explorer, a listener/flow simulator and an embedded in-browser
-`f5-query` console — with no server and no external assets.
+topology explorer, a listener/flow simulator, an **F5 Sites** tab of community /
+support / security incident-response references plus a UCS forensic
+(ATT&CK-mapped) hunting checklist, and an embedded in-browser `f5-query` console
+— with no server and no external assets.
 
 The heavy lifting (config parsing, object projection, the `referenced_by`
 reference-graph walk) is done by [`tcl-bigip-query`](../tcl-bigip-query); this
