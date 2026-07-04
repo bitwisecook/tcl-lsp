@@ -978,6 +978,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            is_array_iteration: false,
             raw_tokens: None,
         }]);
 
