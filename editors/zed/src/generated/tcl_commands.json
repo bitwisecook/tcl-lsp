@@ -477,6 +477,23 @@
       "summary": "Skip to the next iteration of a loop"
     },
     {
+      "name": "control::assert",
+      "summary": "Raise an error if a boolean expression is false (when enabled)."
+    },
+    {
+      "name": "control::control",
+      "summary": "Configure the customizable commands of the control package."
+    },
+    {
+      "name": "control::do",
+      "summary": "Evaluate a script repeatedly while/until a condition holds."
+    },
+    {
+      "name": "control::no-op",
+      "summary": "Take any number of arguments and do nothing.",
+      "pure": true
+    },
+    {
       "name": "coroinject",
       "summary": "Inject a command into a suspended coroutine."
     },
