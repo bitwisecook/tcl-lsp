@@ -357,6 +357,12 @@ enum ArgOverride {
     /// the pattern elements are sub-tokenised as regexes and the body
     /// elements recursed as scripts.
     SwitchRegexpCaseList,
+    /// The braced case-list argument of a plain `switch … { pat body … }`
+    /// (exact / glob mode): the pattern elements are classified as ordinary
+    /// literals and the body elements recursed as scripts.  Without this the
+    /// whole `{ pat body … }` list would be walked as one script, leaving the
+    /// bodies opaque and unhighlighted.
+    SwitchCaseList,
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -471,9 +477,16 @@ fn push_regsub_subtokens(
 ///   `pattern_type == Regex`, option-skipped first positional) →
 ///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
+///
+/// `arg_texts` holds the command's argument words (`seg.texts[1..]`, head
+/// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
+/// with the registry-role and OO-body override passes, so the hot path makes
+/// only a single bridging allocation per command.
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    inside_oo_body: bool,
+    arg_texts: &[&str],
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
     let head = &seg.texts[0];
@@ -500,10 +513,46 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
-    insert_switch_regexp_override(seg, &mut overrides);
-    insert_role_overrides(seg, registry, &mut overrides);
+    insert_switch_case_list_override(seg, &mut overrides);
+    insert_role_overrides(seg, registry, arg_texts, &mut overrides);
+    insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
 
     overrides
+}
+
+/// Mark the script-body arguments of a context-sensitive `TclOO` inner
+/// definition command (`method` / `constructor` / `destructor` / `self …`
+/// / `property -get/-set` / …) as [`ArgOverride::BodyScript`] so they are
+/// recursed into rather than emitted as one opaque `string`.
+///
+/// Only consulted when `inside_oo_body` — i.e. this segment is a top-level
+/// word of an `oo::class create … { … }` / `oo::define … { … }` block —
+/// so a same-named user proc at top level is never misclassified.  The
+/// outer OO commands themselves carry their body roles in the registry
+/// (`arg_indices_for_role`, applied by [`insert_role_overrides`]); this
+/// covers only the bare inner sub-keywords, which have no `CommandSpec`.
+fn insert_oo_body_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    inside_oo_body: bool,
+    arg_texts: &[&str],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    if !inside_oo_body || !crate::oo_body::is_inner_oo_definition_command(head) {
+        return;
+    }
+    // `inner_oo_body_indices` indexes the argument words (excluding the
+    // head); `seg.argv[idx + 1]` is the representative token (argv[0] is the
+    // head).  Only braced (`Str`) bodies recurse.
+    for idx in crate::oo_body::inner_oo_body_indices(head, arg_texts) {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::BodyScript);
+        }
+    }
 }
 
 /// Regex pattern / regsub-replacement overrides for a `pattern_type ==
@@ -627,15 +676,20 @@ fn insert_option_and_subcommand_overrides(
     }
 }
 
-/// `switch -regexp … { pat body … }` — the braced case list (the final
-/// word, when option-skipped past `-regexp`/`--`) carries regex patterns.
-/// Tag it so `collect_script` sub-tokenises the patterns as regexes and
-/// recurses the bodies, rather than treating the whole list as one opaque
-/// body.
-fn insert_switch_regexp_override(
+/// `switch … { pat body … }` — the braced case list (the final word, when
+/// option-skipped past the mode flags / `--`) holds all the pattern/body
+/// pairs.  Tag it so `collect_script` pairs the elements and recurses each
+/// body as a script, rather than walking the whole list as one opaque body
+/// (which would leave the bodies unhighlighted).  `-regexp` mode additionally
+/// sub-tokenises the patterns as regexes.
+fn insert_switch_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    // Options that consume a following value argument (`-matchvar var`,
+    // `-indexvar var`) — mirror the registry's `switch` arg-role resolver so
+    // the value word is not mistaken for the subject string.
+    const VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
     if seg.texts[0] != "switch" {
         return;
     }
@@ -649,21 +703,28 @@ fn insert_switch_regexp_override(
             i += 1;
             break;
         }
+        if VALUE_OPTIONS.contains(&seg.texts[i].as_str()) {
+            i += 1;
+        }
         i += 1;
     }
     // Skip the switch value/string argument; the case list is the last
     // word (braced-list form only — the inline `pat body …` form has
     // more than one trailing word).
     let case_idx = i + 1;
-    if is_regexp
-        && case_idx == seg.texts.len() - 1
+    if case_idx == seg.texts.len() - 1
         && seg
             .argv
             .get(case_idx)
             .is_some_and(|t| matches!(t.kind, TokenType::Str))
         && let Some(tok) = seg.argv.get(case_idx)
     {
-        overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
+        let ov = if is_regexp {
+            ArgOverride::SwitchRegexpCaseList
+        } else {
+            ArgOverride::SwitchCaseList
+        };
+        overrides.insert(tok.span.start(), ov);
     }
 }
 
@@ -673,6 +734,7 @@ fn insert_switch_regexp_override(
 fn insert_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let head = &seg.texts[0];
@@ -680,12 +742,11 @@ fn insert_role_overrides(
     // `expr {expr}`, … — keyed on each word's representative token
     // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
     // recurse; non-literal words fall through.
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for (role, ov) in [
         (tcl_registry::ArgRole::Body, ArgOverride::BodyScript),
         (tcl_registry::ArgRole::Expr, ArgOverride::ExprScript),
     ] {
-        for i in registry.arg_indices_for_role(head, &arg_texts, role) {
+        for i in registry.arg_indices_for_role(head, arg_texts, role) {
             if let Some(tok) = seg.argv.get(i + 1)
                 && matches!(tok.kind, TokenType::Str)
             {
@@ -700,7 +761,7 @@ fn insert_role_overrides(
     // registry's `Keyword` role marks them; highlight as keywords.  Unlike
     // body/expr these are bare (`Esc`) or quoted (`Str`) literal words, so
     // no `Str`-only guard.
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword) {
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Keyword) {
         if let Some(tok) = seg.argv.get(i + 1)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)
         {
@@ -1363,7 +1424,8 @@ fn classify_regex_component(matched: &str) -> TokenKind {
 }
 
 /// Push one regex sub-token at absolute byte offset `abs_off` covering
-/// `text`.  Skips empty / multi-line runs.
+/// `text`.  Skips empty runs; a multi-line run is split into one entry per
+/// covered line (see [`push_span_entries`]).
 fn push_subtoken(
     source: &str,
     line_index: &LineIndex,
@@ -1372,12 +1434,59 @@ fn push_subtoken(
     kind: TokenKind,
     entries: &mut Vec<Entry>,
 ) {
-    if text.is_empty() || text.contains('\n') {
+    push_span_entries(source, line_index, abs_off, text, kind, 0, entries);
+}
+
+/// Emit token [`Entry`] values for `text` at absolute byte offset `abs_off`.
+///
+/// The LSP semantic-tokens encoding cannot represent a single token spanning
+/// a newline (each token carries only a length, not an end position), so a
+/// multi-line token is split into one entry per covered line, each covering
+/// that line's slice of the token.  This keeps multi-line literals — braced
+/// (`{…}`) or quoted (`"…"`) strings that span lines (issue #757) — highlighted
+/// rather than dropped.  Empty per-line slices (blank lines, the trailing
+/// slice after a final newline) are skipped, and the newline / `\r` bytes
+/// themselves are never covered.
+fn push_span_entries(
+    source: &str,
+    line_index: &LineIndex,
+    abs_off: usize,
+    text: &str,
+    kind: TokenKind,
+    modifiers: u32,
+    entries: &mut Vec<Entry>,
+) {
+    if text.is_empty() {
         return;
     }
-    let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, 0));
+    if !text.contains('\n') {
+        let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
+        entries.push((
+            pos.line,
+            pos.character.get(),
+            utf16_len(text),
+            kind,
+            modifiers,
+        ));
+        return;
+    }
+    let mut off = 0usize;
+    for line in text.split_inclusive('\n') {
+        let seg = line.strip_suffix('\n').unwrap_or(line);
+        let seg = seg.strip_suffix('\r').unwrap_or(seg);
+        if !seg.is_empty() {
+            let pos =
+                line_index.position_at_utf16(u32::try_from(abs_off + off).unwrap_or(0), source);
+            entries.push((
+                pos.line,
+                pos.character.get(),
+                utf16_len(seg),
+                kind,
+                modifiers,
+            ));
+        }
+        off += line.len();
+    }
 }
 
 /// Maximum body / expr / command-substitution recursion depth — guards
@@ -1389,14 +1498,15 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// `…::` prefix plus a command token for the final segment.  A bare head
 /// is emitted whole, carrying `defaultLibrary` when it resolves to a
 /// registry built-in.
-/// Sub-tokenise the braced case list of `switch -regexp … { pat body … }`.
+/// Sub-tokenise the braced case list of `switch … { pat body … }`.
 ///
 /// The inner script is re-segmented into commands; the words are flattened
 /// across all command lines and paired (even index → pattern, odd index →
 /// body), since a Tcl `switch` case list is one flat list whose line breaks
-/// are insignificant whitespace.  Pattern words (except the literal
-/// `default`) are sub-tokenised as regexes; body words are recursed as
-/// scripts.
+/// are insignificant whitespace.  Body words are recursed as scripts.
+/// Pattern words (except the literal `default`) are sub-tokenised as regexes
+/// when `regexp` is set (`-regexp` mode), otherwise classified as ordinary
+/// literals.
 /// Immutable context threaded through the recursive script-tokenisation
 /// walk.  Bundling these read-only borrows keeps each recursive helper to a
 /// small, focused signature (the mutable `entries` sink and the `depth`
@@ -1407,13 +1517,21 @@ struct ScriptCtx<'a> {
     dialect: &'a str,
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
+    /// Whether this script is a `TclOO` definition body (an
+    /// `oo::class create … { … }` / `oo::define … { … }` block).  Inside
+    /// one, the context-sensitive OO sub-keywords (`method`, `constructor`,
+    /// `property`, `self …`, …) carry script bodies that must be recursed
+    /// into — see [`crate::oo_body`].  Outside one, a same-named user proc
+    /// must not be treated as an OO definition.
+    inside_oo_body: bool,
 }
 
-fn collect_switch_regexp_case_list(
+fn collect_switch_case_list(
     ctx: ScriptCtx<'_>,
     tok: Token,
     entries: &mut Vec<Entry>,
     depth: u32,
+    regexp: bool,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
@@ -1423,26 +1541,51 @@ fn collect_switch_regexp_case_list(
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
-    // Flatten every word across the (possibly multi-line) case list.
+    // Flatten every element of the case list.  A Tcl `switch` case list is a
+    // *list*, not a script: `;` and `#` are ordinary pattern elements, not a
+    // command separator / comment.  Split it with the list grammar
+    // (`find_element`) rather than the command segmenter, then rebuild each
+    // element into a `Token` following the lexer's inner-end + `content_offset`
+    // convention (`span.end()` sits at the closing `}`/`"`; `content_offset`
+    // strips the opener) so the downstream pattern/body helpers work unchanged.
     let mut words: Vec<(Token, String)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-    ) {
-        for (i, t) in seg.argv.iter().enumerate() {
-            let text = seg.texts.get(i).cloned().unwrap_or_default();
-            words.push((*t, text));
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let bytes = inner.as_bytes();
+        let (kind, content_offset, span_start) =
+            if el.value.start > 0 && bytes[el.value.start - 1] == b'{' {
+                (TokenType::Str, 1u8, el.value.start - 1)
+            } else if el.value.start > 0 && bytes[el.value.start - 1] == b'"' {
+                (TokenType::Esc, 1u8, el.value.start - 1)
+            } else {
+                (TokenType::Esc, 0u8, el.value.start)
+            };
+        let word_tok = Token::with_content_offset(
+            kind,
+            tcl_lexer::Span::new(
+                u32::try_from(cstart + span_start).unwrap_or(0),
+                u32::try_from(cstart + el.value.end).unwrap_or(0),
+            ),
+            content_offset,
+        );
+        let text = inner.get(el.value.clone()).unwrap_or_default().to_owned();
+        words.push((word_tok, text));
+        if el.next <= scan {
+            break;
         }
+        scan = el.next;
     }
     for (idx, (word_tok, text)) in words.iter().enumerate() {
         if idx % 2 == 0 {
-            // Pattern element — regex unless it is the `default` keyword.
-            if text == "default" {
-                if let Some(kind) = classify_arg_token(*word_tok, full_source) {
-                    push_token(line_index, full_source, *word_tok, kind, 0, entries);
-                }
-            } else if !push_regex_subtokens(line_index, full_source, *word_tok, entries) {
+            // Pattern element.  In `-regexp` mode a non-`default` pattern is
+            // sub-tokenised as a regex; otherwise (exact / glob, or the
+            // `default` keyword) it is classified as an ordinary literal.
+            if regexp
+                && text != "default"
+                && push_regex_subtokens(line_index, full_source, *word_tok, entries)
+            {
+                // emitted as regex sub-tokens
+            } else if regexp && text != "default" {
                 push_token(
                     line_index,
                     full_source,
@@ -1451,6 +1594,8 @@ fn collect_switch_regexp_case_list(
                     0,
                     entries,
                 );
+            } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+                push_token(line_index, full_source, *word_tok, kind, 0, entries);
             }
         } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
             // Body element — recurse as a script.
@@ -1575,13 +1720,45 @@ fn collect_script(
             entries,
         );
 
-        let overrides = special_arg_kinds(&seg, registry);
+        // The command's argument words (head excluded), borrowed once as
+        // `&[&str]` and shared by every registry-driven pass below — the
+        // override builder and the OO-body context check both need it, and
+        // the registry API takes `&[&str]`, so building it here keeps the
+        // hot path to a single bridging allocation per command.
+        let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+
+        let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+
+        // The `inside_oo_body` context the recursion into THIS command's
+        // body arguments should carry: an outer OO definition body switches
+        // it on, an inner OO command (inside an OO body) switches it off,
+        // everything else inherits.  `oo::define`/`oo::objdefine` only switch
+        // it on for their bare script form, not their member (`method …`)
+        // forms — hence the args are consulted.  Command substitutions and
+        // expressions always run in ordinary (non-definition) context.
+        let next_oo = crate::oo_body::next_inside_oo_body(
+            head_text,
+            &arg_texts,
+            ctx.inside_oo_body,
+            registry,
+        );
+        let body_ctx = ScriptCtx {
+            inside_oo_body: next_oo,
+            ..ctx
+        };
 
         for tok in &seg.all_tokens {
             if tok.span == head_tok.span {
                 continue;
             }
-            emit_arg_token(ctx, *tok, overrides.get(&tok.span.start()), entries, depth);
+            emit_arg_token(
+                ctx,
+                body_ctx,
+                *tok,
+                overrides.get(&tok.span.start()),
+                entries,
+                depth,
+            );
         }
     }
 }
@@ -1603,6 +1780,7 @@ fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mu
 
 fn emit_arg_token(
     ctx: ScriptCtx<'_>,
+    body_ctx: ScriptCtx<'_>,
     tok: Token,
     override_kind: Option<&ArgOverride>,
     entries: &mut Vec<Entry>,
@@ -1611,6 +1789,12 @@ fn emit_arg_token(
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let tok = &tok;
+    // Command substitutions / expressions never run in OO definition
+    // context, whatever the enclosing command is.
+    let plain_ctx = ScriptCtx {
+        inside_oo_body: false,
+        ..ctx
+    };
     match override_kind {
         Some(ArgOverride::RegexPattern) => {
             if !push_regex_subtokens(line_index, full_source, *tok, entries) {
@@ -1669,8 +1853,13 @@ fn emit_arg_token(
         }
         Some(ArgOverride::BodyScript) => {
             if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
+                // Recurse with the OO-body context computed for this
+                // command's bodies (`body_ctx`) so a method / constructor /
+                // property-accessor body inside a class definition is walked
+                // as ordinary code, while the class body itself stays in OO
+                // context.
                 collect_script(
-                    ctx,
+                    body_ctx,
                     inner,
                     u32::try_from(cstart).unwrap_or(0),
                     entries,
@@ -1681,15 +1870,18 @@ fn emit_arg_token(
             }
         }
         Some(ArgOverride::ExprScript) => {
-            collect_expr(ctx, *tok, entries, depth + 1);
+            collect_expr(plain_ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::SwitchRegexpCaseList) => {
-            collect_switch_regexp_case_list(ctx, *tok, entries, depth + 1);
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, true);
+        }
+        Some(ArgOverride::SwitchCaseList) => {
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, false);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
         }
-        None => emit_default_arg_token(ctx, *tok, entries, depth),
+        None => emit_default_arg_token(plain_ctx, *tok, entries, depth),
     }
 }
 
@@ -1842,6 +2034,7 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
         dialect,
         registry,
         line_index: &line_index,
+        inside_oo_body: false,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -2070,13 +2263,26 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
             let len_utf16 = utf16_len(&source[idx..p]);
-            entries.push((
-                pos.line,
-                pos.character.get(),
-                len_utf16,
-                TokenKind::Comment,
-                0,
-            ));
+            // A `#` is only a Tcl comment in command position.  This naive scan
+            // can't see command position, but a physical line already covered by
+            // an emitted token is inside a multi-line string / braced literal
+            // (whose per-line entries are pushed before this scan), or is a
+            // `switch` case-list `#` pattern element (not a comment — Tcl's
+            // "comments don't work in switch" gotcha), so the `#` there is not a
+            // comment.  Suppress it to avoid an overlapping token the LSP client
+            // would reject (#757, #758).
+            let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
+                *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
+            });
+            if !already_covered {
+                entries.push((
+                    pos.line,
+                    pos.character.get(),
+                    len_utf16,
+                    TokenKind::Comment,
+                    0,
+                ));
+            }
             // Skip the remainder of the comment line; the terminating `\n`
             // (at `p`) is processed normally and resets `line_start`.
             skip_until = p;
@@ -2120,16 +2326,19 @@ fn push_token(
     if end <= start {
         return;
     }
-    let pos = line_index.position_at_utf16(start, source);
     let text = source.get(start as usize..end as usize).unwrap_or("");
-    // Skip multi-line tokens — LSP encoding wants per-line
-    // entries; multi-line tokens would need splitting.
-    // Drop them.
-    if text.contains('\n') {
-        return;
-    }
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, modifiers));
+    // The LSP encoding wants per-line entries, so a multi-line token (a braced
+    // or quoted string literal spanning lines) is split into one entry per
+    // line rather than dropped — see [`push_span_entries`] and issue #757.
+    push_span_entries(
+        source,
+        line_index,
+        start as usize,
+        text,
+        kind,
+        modifiers,
+        entries,
+    );
 }
 
 /// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s

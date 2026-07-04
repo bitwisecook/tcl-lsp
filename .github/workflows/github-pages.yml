@@ -56,12 +56,10 @@ jobs:
       - name: Add wasm target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Install wasm-pack + wasm-bindgen-cli
+      - name: Install wasm-pack
         uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
         with:
-          # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
-          # rust/bigip-report-wasm/Cargo.toml.
-          tool: wasm-pack,wasm-bindgen-cli@0.2.126
+          tool: wasm-pack
 
       # No wasm-opt/binaryen: it is intentionally disabled for this module
       # (see rust/tcl-explorer-wasm/Cargo.toml + the explorer-wasm Make target).
@@ -70,11 +68,6 @@ jobs:
       - name: Build the compiler-explorer GUI bundle (WASM + Mermaid)
         # Emits the wasm/js bundle + vendored Mermaid into rust/tcl-cli/gui/.
         run: make explorer-build
-
-      - name: Build the in-browser report generator (Rust → WASM)
-        # Assembles the single-file upload app into
-        # rust/bigip-report-wasm/dist/index.html (WASM + glue inlined).
-        run: bash rust/bigip-report-wasm/build-wasm.sh
 
       # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
       - name: Set up Python 3.14
@@ -101,11 +94,6 @@ jobs:
             rust/bigip-query-py/tests/data/lab-device-02.ucs \
             -t "F5 BIG-IP Estate — example report" \
             -o site/bigip-report-demo/index.html
-
-          # Interactive report generator (upload a UCS/SCF, all in-browser) →
-          # /bigip-report/ (single self-contained file built above).
-          mkdir -p site/bigip-report
-          cp rust/bigip-report-wasm/dist/index.html site/bigip-report/index.html
 
           # Compiler Explorer → /compiler-explorer/ (bundle built above; the
           # wasm/js/mermaid assets are gitignored build outputs, so copy the
@@ -136,11 +124,6 @@ jobs:
               <li><a href="compiler-explorer/">Tcl compiler explorer</a> —
                   lex / parse / bytecode / diagnostics, compiled to WASM and run
                   in your browser.</li>
-              <li><a href="bigip-report/">F5 BIG-IP report generator</a> —
-                  upload your own <code>.ucs</code> / <code>bigip.conf</code>
-                  and generate a report entirely in your browser (nothing is
-                  uploaded; encrypted UCS + <code>f5mku</code> secrets
-                  supported).</li>
               <li><a href="bigip-report-demo/">F5 BIG-IP estate report</a> —
                   an example report with an in-browser query console, rendered
                   from sample UCS fixtures.</li>

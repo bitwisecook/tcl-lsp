@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Headless eglot reproducer for tcl-lsp issue #333.
 #
-# Drives a real eglot 1.23 (GNU ELPA) against `uv run python -m server` and
-# diffs eglot's `face` text-properties between (a) an in-buffer edit
-# sequence with delta semantic-token updates and (b) a fresh didOpen of
-# the same final content.  Mismatches reproduce the bug.
+# Drives a real eglot (GNU ELPA >= 1.20) against the native `tcl-lsp-server`
+# binary and:
+#   * diffs eglot's `face` text-properties between (a) an in-buffer edit
+#     sequence and (b) a fresh didOpen of the same final content, and
+#   * verifies the server's incremental `semanticTokens/full/delta`
+#     end-to-end (the `semantic-tokens-delta` scenario): after a
+#     token-changing edit, real eglot's `full/delta` response carries
+#     `edits` (only the changed tokens) rather than a full `data` re-send.
+#
+# This is NOT part of `make test` / CI gates — it needs network (to install
+# eglot) and a real Emacs, and it exercises upstream eglot internals.
 #
 # Usage:    scripts/eglot_test/run.sh [LOGFILE]
+# Env:      TCL_LSP_SERVER_BIN  path to a prebuilt tcl-lsp-server (skips build)
 # Exit:     0=all scenarios pass, 1=at least one mismatch, 2=script error
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -19,6 +27,28 @@ if ! command -v emacs >/dev/null 2>&1; then
   echo "emacs not installed; install with: sudo apt-get install -y emacs-nox" >&2
   exit 2
 fi
+
+# 1b. Locate (or build) the native tcl-lsp-server binary.
+if [ -n "${TCL_LSP_SERVER_BIN:-}" ] && [ -x "${TCL_LSP_SERVER_BIN}" ]; then
+  server_bin="$TCL_LSP_SERVER_BIN"
+else
+  server_bin=""
+  for cand in "$repo/target/release/tcl-lsp-server" "$repo/target/debug/tcl-lsp-server"; do
+    if [ -x "$cand" ]; then server_bin="$cand"; break; fi
+  done
+  if [ -z "$server_bin" ]; then
+    echo "Building tcl-lsp-server (release)..." >&2
+    # The workspace manifest is the repo-root Cargo.toml; run cargo from there
+    # (there is no rust/Cargo.toml) with the -p form used elsewhere.
+    if ! (cd "$repo" && cargo build --release -p tcl-lsp-server) >&2; then
+      echo "cargo build failed; build tcl-lsp-server yourself and set TCL_LSP_SERVER_BIN" >&2
+      exit 2
+    fi
+    server_bin="$repo/target/release/tcl-lsp-server"
+  fi
+fi
+export TCL_LSP_SERVER_BIN="$server_bin"
+echo "Using server binary: $server_bin" >&2
 
 # 2. Build -L args from any existing ELPA dirs (used both for the
 #    capability probe below and for the final harness invocation).
@@ -76,7 +106,7 @@ emacs -Q -batch \
   "${load_args[@]}" \
   --eval "(setq debug-on-error t)" \
   -l "$repo/scripts/eglot_test/test_issue333.el" 2>&1 | tee "$log" \
-  | { grep -E "^(==========|  (text-equal|PASS|FAIL|XFAIL|XPASS|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL|XPASS)))" || true; }
+  | { grep -E "^(==========|  (text-equal|protocol|default |compat |PASS|FAIL|XFAIL|XPASS|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL|XPASS)))" || true; }
 status="${PIPESTATUS[0]}"
 echo
 echo "Full log: $log"

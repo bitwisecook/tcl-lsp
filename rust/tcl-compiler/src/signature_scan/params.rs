@@ -1,8 +1,14 @@
 //! Parameter-list parser for Tcl proc declarations.
 //!
-//! Splits a parameter-list
-//! string (the literal `args` argument to `proc`) into [`ParamDef`]
-//! records, recognising the bare-word and `{name default}` forms.
+//! Splits a parameter-list string (the literal `args` argument to `proc`) into
+//! [`ParamDef`] records. A proc / method parameter list is list-parsed by Tcl,
+//! so this mirrors that two-level grammar: the list is split into element
+//! *specs*, and each spec is itself a list whose first element is the parameter
+//! name and whose remainder is the optional default (`a`, `{name default}`, and
+//! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
+
+use tcl_lexer::backslash_subst;
+use tcl_syntax::list::{find_element, split_list};
 
 use super::types::ParamDef;
 
@@ -21,13 +27,66 @@ use super::types::ParamDef;
 /// ```
 #[must_use]
 pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
+    // A parameter list is a **braced word** at the command level, so any
+    // backslash-newline line continuation has already collapsed to a space
+    // before Tcl list-parses the list. `split_list` (the list grammar) treats a
+    // backslash as escaping the next byte, so we must collapse continuations
+    // first — otherwise `a b\<newline>c` would parse as the two-word element
+    // `b c` instead of the two params `b`, `c` (issue #743).
+    let collapsed = collapse_line_continuations(param_str);
+    // Top-level split: each element is one parameter *spec*.
+    let Ok(specs) = split_list(&collapsed) else {
+        // Unbalanced braces / quotes (common while a list is being typed) —
+        // fall back to a tolerant scan so we still surface partial params.
+        return parse_param_list_lenient(&collapsed);
+    };
+    specs.iter().filter_map(|spec| spec_to_param(spec)).collect()
+}
+
+/// Turn one parameter *spec* (a list element value, delimiters already
+/// stripped) into a [`ParamDef`]. The spec is itself a list: its first element
+/// is the parameter name; any remaining text is the (lenient) default value.
+/// So `a` → name `a`; `x 1` / `{x 1}` → name `x` default `1`; `a b` (from an
+/// escaped `a\ b`) → name `a` default `b`; and a braced-verbatim `a\ b` (from
+/// `{a\ b}`) → the single name `a b`. Returns `None` for an empty / nameless
+/// spec (which Tcl itself rejects).
+fn spec_to_param(spec: &str) -> Option<ParamDef> {
+    let first = find_element(spec, 0).ok().flatten()?;
+    let name_raw = spec.get(first.value.clone())?;
+    let name = if first.literal {
+        name_raw.to_string()
+    } else {
+        backslash_subst(name_raw).into_owned()
+    };
+    if name.is_empty() {
+        return None;
+    }
+    let rest = spec.get(first.next..).unwrap_or("").trim();
+    let (has_default, default_value) = if rest.is_empty() {
+        (false, None)
+    } else {
+        (true, Some(rest.to_string()))
+    };
+    Some(ParamDef {
+        name,
+        has_default,
+        default_value,
+    })
+}
+
+/// Tolerant fallback used when a parameter list does not parse as a well-formed
+/// Tcl list (an unmatched brace / quote, typically mid-edit). Splits on
+/// whitespace and line continuations, treating a leading `{` as a
+/// `{name default}` spec, so a partially-typed signature still yields as many
+/// params as can be recovered.
+fn parse_param_list_lenient(param_str: &str) -> Vec<ParamDef> {
     let mut params: Vec<ParamDef> = Vec::new();
     let text = param_str.trim();
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        while i < bytes.len() && is_whitespace_byte(bytes[i]) {
-            i += 1;
+        while let Some(len) = separator_len(bytes, i) {
+            i += len;
         }
         if i >= bytes.len() {
             break;
@@ -44,9 +103,6 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
                 }
                 i += 1;
             }
-            // `i` now points one past the matching '}' (or end-of-input
-            // for an unbalanced brace, which we tolerate by treating
-            // the entire remainder as the inner text).
             let inner_end = if level == 0 { i - 1 } else { i };
             let inner = text[start..inner_end].trim();
             if inner.is_empty() {
@@ -67,9 +123,7 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
             }
         } else {
             let start = i;
-            while i < bytes.len() && !is_whitespace_byte(bytes[i]) {
-                i += 1;
-            }
+            i = scan_bare_word(bytes, i);
             let word = &text[start..i];
             if !word.is_empty() {
                 params.push(ParamDef {
@@ -81,6 +135,60 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
         }
     }
     params
+}
+
+/// Collapse Tcl backslash-newline line continuations to a single space.
+///
+/// A parameter list is a braced word, and Tcl collapses `\<newline>` (including
+/// `\<CR><LF>` and `\<CR>`) to one space at the command-parse level — before the
+/// value is ever list-parsed, and regardless of any surrounding braces. Every
+/// other backslash escape (`\}`, `\ `, …) is left intact for the list grammar
+/// to interpret, so the following byte is copied through verbatim.
+fn collapse_line_continuations(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if bytes[i] == b'\\' && i + 1 < n {
+            match bytes[i + 1] {
+                b'\r' if i + 2 < n && bytes[i + 2] == b'\n' => {
+                    out.push(' ');
+                    i += 3;
+                }
+                b'\n' | b'\r' => {
+                    out.push(' ');
+                    i += 2;
+                }
+                // Any other escape: copy the backslash through untouched and
+                // let the next iteration copy the escaped character (which may
+                // be multi-byte UTF-8) so the list grammar can handle it.
+                _ => {
+                    out.push('\\');
+                    i += 1;
+                }
+            }
+        } else {
+            // ASCII fast path plus correct handling of multi-byte UTF-8: copy
+            // the whole char starting at `i`.
+            let ch_len = utf8_char_len(bytes[i]);
+            let end = (i + ch_len).min(n);
+            out.push_str(&s[i..end]);
+            i = end;
+        }
+    }
+    out
+}
+
+/// Byte length of the UTF-8 character whose leading byte is `b`.
+#[inline]
+fn utf8_char_len(b: u8) -> usize {
+    match b {
+        0x00..=0x7f => 1,
+        0xc0..=0xdf => 2,
+        0xe0..=0xef => 3,
+        _ => 4,
+    }
 }
 
 /// Source spans of each parameter *name*, in declaration order, within the
@@ -109,14 +217,16 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
     let mut out = Vec::new();
     let mut i = lo;
     while i < hi {
-        while i < hi && is_whitespace_byte(bytes[i]) {
-            i += 1;
+        while let Some(len) = separator_len(&bytes[..hi], i) {
+            i += len;
         }
         if i >= hi {
             break;
         }
         if bytes[i] == b'{' {
-            // `{name default}` — the name is the first word inside the braces.
+            // Braced spec `{name ?default?}`, taken verbatim: the name is its
+            // first list sub-element, so the span covers `b` in `{b 1}` and the
+            // whole `a\ b` in `{a\ b}` (whose decoded name is `a b`).
             let inner_start = i + 1;
             let mut level: u32 = 1;
             let mut j = inner_start;
@@ -129,25 +239,25 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
                 j += 1;
             }
             let inner_end = if level == 0 { j - 1 } else { j };
-            let mut ns = inner_start;
-            while ns < inner_end && is_whitespace_byte(bytes[ns]) {
-                ns += 1;
-            }
-            let mut ne = ns;
-            while ne < inner_end && !is_whitespace_byte(bytes[ne]) {
-                ne += 1;
-            }
-            if ne > ns {
-                out.push(tcl_lexer::Span::new(abs(ns), abs(ne)));
+            if let Some(inner) = raw.get(inner_start..inner_end)
+                && let Ok(Some(el)) = find_element(inner, 0)
+                && el.value.end > el.value.start
+            {
+                out.push(tcl_lexer::Span::new(
+                    abs(inner_start + el.value.start),
+                    abs(inner_start + el.value.end),
+                ));
             }
             i = j;
         } else {
+            // Bare spec: the name is the element's first sub-element, so an
+            // escaped-whitespace spec `a\ b` spans only `a` (its default `b`
+            // must stay outside the rename / go-to-definition range).
             let start = i;
-            while i < hi && !is_whitespace_byte(bytes[i]) {
-                i += 1;
-            }
-            if i > start {
-                out.push(tcl_lexer::Span::new(abs(start), abs(i)));
+            i = scan_bare_word(&bytes[..hi], i);
+            let name_len = bare_name_len(&bytes[start..i]);
+            if name_len > 0 {
+                out.push(tcl_lexer::Span::new(abs(start), abs(start + name_len)));
             }
         }
     }
@@ -157,6 +267,81 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
 #[inline]
 fn is_whitespace_byte(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
+}
+
+/// Length of the element separator starting at `bytes[i]`, if any.
+///
+/// A separator is either a single whitespace byte, or a **backslash-newline
+/// line continuation** (`\<LF>`, `\<CR><LF>`, or `\<CR>`).  In Tcl list
+/// parsing — which is how a `proc` / method parameter list is split — a
+/// backslash-newline collapses to element-separating whitespace, so a long
+/// parameter list wrapped across lines with `\` yields distinct parameters
+/// (`{a b\<newline>c}` → `a`, `b`, `c`), not a bogus `b\` name (issue #743).
+/// Every other backslash escape keeps the following byte inside the element
+/// (see [`scan_bare_word`]).
+#[inline]
+fn separator_len(bytes: &[u8], i: usize) -> Option<usize> {
+    let b = *bytes.get(i)?;
+    if is_whitespace_byte(b) {
+        return Some(1);
+    }
+    if b == b'\\' {
+        return match bytes.get(i + 1) {
+            Some(b'\r') if bytes.get(i + 2) == Some(&b'\n') => Some(3),
+            Some(b'\n' | b'\r') => Some(2),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// Scan one bare (unbraced) list element starting at `bytes[i]`, returning the
+/// index one past its final byte.  Stops at the next [`separator_len`]
+/// separator; a backslash that escapes any non-newline byte (`a\ b`, `a\tb`)
+/// consumes both bytes so the escaped whitespace stays within the element,
+/// mirroring Tcl's `TclFindElement`.
+#[inline]
+fn scan_bare_word(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() && separator_len(bytes, i).is_none() {
+        // A backslash before a non-newline byte escapes it into the element.
+        i += if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            2
+        } else {
+            1
+        };
+    }
+    i
+}
+
+/// Byte length of the parameter *name* within one bare list element `elem` —
+/// the element's first list sub-element. A backslash escape that decodes to
+/// Tcl list whitespace (`\ `, `\t`, `\n`, `\r`, `\v`, `\f`, and the literal
+/// forms) ends the name and begins the default, so `a\ b` → name length 1
+/// (`a`); every other escape stays part of the name (`a\\b` → 4). Mirrors the
+/// second level of [`parse_param_list`]'s spec parse so the name span stays
+/// aligned with the decoded [`ParamDef`].
+fn bare_name_len(elem: &[u8]) -> usize {
+    let mut i = 0;
+    while i < elem.len() {
+        match elem[i] {
+            b'\\' => match elem.get(i + 1) {
+                // Escapes decoding to list whitespace: literal whitespace bytes
+                // and the `\t \n \r \v \f` letter escapes.
+                Some(
+                    b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b't' | b'n' | b'r' | b'v'
+                    | b'f',
+                ) => return i,
+                // Any other escape (or a trailing lone `\`) stays in the name.
+                Some(_) => i += 2,
+                None => i += 1,
+            },
+            // An unescaped whitespace byte would have ended the element already,
+            // but guard so the name never runs into a following field.
+            b if is_whitespace_byte(b) => return i,
+            _ => i += 1,
+        }
+    }
+    elem.len()
 }
 
 /// Split on the first run of whitespace. Returns `None` when the input
@@ -248,6 +433,98 @@ mod tests {
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a");
         assert_eq!(params[1].name, "b");
+    }
+
+    #[test]
+    fn backslash_newline_continuation_splits_params() {
+        // Issue #743: a long parameter list wrapped with `\` at end-of-line.
+        // Tcl list parsing treats the backslash-newline as element-separating
+        // whitespace, so the last name on the wrapped line is `ddrtol`, not
+        // `ddrtol\`.
+        let params = parse_param_list("a b ddrtol\\\n            ddatol c");
+        let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "b", "ddrtol", "ddatol", "c"]);
+        assert!(params.iter().all(|p| !p.name.contains('\\')));
+
+        // `\r\n` line endings behave identically.
+        let crlf = parse_param_list("x\\\r\ny");
+        let crlf_names: Vec<&str> = crlf.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(crlf_names, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn escaped_whitespace_spec_yields_name_and_default() {
+        // A bare spec with an escaped space is one list element `a b`, which
+        // Tcl then reads as a two-field spec: name `a`, default `b`. Verified
+        // against tclsh: `proc p {a\ b c}` → `info args` = `a c`, and
+        // `info default p a d` sets d = `b`.
+        let params = parse_param_list("a\\ b c");
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "a");
+        assert!(params[0].has_default);
+        assert_eq!(params[0].default_value.as_deref(), Some("b"));
+        assert_eq!(params[1].name, "c");
+        assert!(!params[1].has_default);
+        // An escaped tab behaves the same way (the tab is a field separator
+        // inside the spec).
+        let tabbed = parse_param_list("a\\tb");
+        assert_eq!(tabbed.len(), 1);
+        assert_eq!(tabbed[0].name, "a");
+        assert_eq!(tabbed[0].default_value.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn braced_spec_with_escaped_space_is_one_name() {
+        // A braced spec is taken verbatim, then list-parsed: `{a\ b}` → the
+        // single element `a b`, i.e. a parameter literally named `a b` with no
+        // default. Verified against tclsh: `proc q {{a\ b} c}` → `info args`
+        // = `{a b} c`.
+        let params = parse_param_list("{a\\ b} c");
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "a b");
+        assert!(!params[0].has_default);
+        assert_eq!(params[1].name, "c");
+    }
+
+    #[test]
+    fn unbalanced_braces_fall_back_gracefully() {
+        // A half-typed list must not panic and should still recover params.
+        let params = parse_param_list("a {b");
+        let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn param_name_spans_skip_continuation_backslash() {
+        use tcl_lexer::Span;
+        // `{a b\<newline>c}` — the span for `b` must not include the trailing
+        // backslash, and `c` is a separate parameter.
+        let raw = "{a b\\\nc}";
+        let spans = param_name_spans(raw, 0);
+        // a @1..2, b @3..4 (backslash at 4 excluded), c @6..7
+        assert_eq!(spans, vec![Span::new(1, 2), Span::new(3, 4), Span::new(6, 7)]);
+    }
+
+    #[test]
+    fn param_name_spans_align_with_decoded_specs() {
+        use tcl_lexer::Span;
+        // Bare escaped-whitespace spec: the name span must cover only `a`, not
+        // the whole `a\ b` element, so rename / go-to-definition on `$a` never
+        // touch the default text.
+        let raw = "{a\\ b c}";
+        let spans = param_name_spans(raw, 0);
+        // a @1..2 (the `\ b` default is excluded), c @6..7.
+        assert_eq!(spans, vec![Span::new(1, 2), Span::new(6, 7)]);
+        // The span count and order stay aligned with the parsed params.
+        assert_eq!(spans.len(), parse_param_list("a\\ b c").len());
+
+        // Braced escaped-whitespace spec: the whole `a\ b` is the name (decoded
+        // `a b`), so the span covers it verbatim.
+        let braced = "{{a\\ b} c}";
+        let bspans = param_name_spans(braced, 0);
+        // `a\ b` @2..6, c @8..9.
+        assert_eq!(bspans, vec![Span::new(2, 6), Span::new(8, 9)]);
+        assert_eq!(bspans.len(), parse_param_list("{a\\ b} c").len());
     }
 
     #[test]

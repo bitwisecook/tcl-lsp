@@ -66,15 +66,41 @@ does not fix it. Reverting the buffer (`M-x revert-buffer`) or closing
 and reopening the file does fix it.
 
 **Cause:** Tracked at
-[bitwisecook/tcl-lsp#333](https://github.com/bitwisecook/tcl-lsp/issues/333);
+[bitwisecook/tcl-lsp#333](https://github.com/bitwisecook/tcl-lsp/issues/333).
+This is an upstream eglot painter bug: `eglot--semtok-font-lock-2`
+repaints from stale local properties with `add-face-text-property`
+(which *appends* rather than replaces) while a semantic-tokens response
+is in flight, so each repaint stacks another `eglot-semantic-*` face on
+the same character until a fresh full paint (buffer revert / reopen)
+clears them. It shows up most on large files, where the round-trip is
+slow enough for eglot to repaint several times before the response
+lands. The server serves correct tokens throughout — verified by a
+spec-correct reference client driven through the same edits
+(`rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs`) — so
+this is purely how eglot paints them.
 
-This may be an eglot bug.
+The accumulation was reproduced against real Tcl code and measured
+under several fixes (see `scripts/eglot_test/prove_fix.el`): the
+**client-side painter advice below collapses a 7-deep face stack to a
+single correct face**, whereas a purely server-side capability tweak
+made **no difference** — confirming the bug lives entirely in eglot's
+painter. The same accumulation reproduces with rust-analyzer and clangd,
+so it is not tcl-lsp-specific.
+
+The server does its part to *shrink* that stale window: it implements
+proper `semanticTokens/full/delta`, so a keystroke transmits only the
+changed tokens (a few bytes) instead of the whole document — the same
+incremental behaviour rust-analyzer uses. That reduces how often eglot
+is caught mid-refresh, but the definitive fix is still the painter
+advice below. Running the **native binary** rather than an older Python
+`.pyz`, and lowering `eglot-send-changes-idle-time`, also help by
+keeping the round-trip short.
 
 **Workarounds (pick one):**
 
-1. **Apply this advice in your `init.el`** (strips stale
-   `eglot-semantic-*` faces before each repaint, preserving everything
-   else):
+1. **Apply this advice in your `init.el`** (recommended — this is the
+   one that actually stops it). It strips stale `eglot-semantic-*` faces
+   before each repaint, preserving every other face:
 
    ```elisp
    (with-eval-after-load 'eglot
