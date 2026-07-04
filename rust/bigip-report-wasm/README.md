@@ -47,8 +47,14 @@ bash build-wasm.sh          # → dist/index.html (WASM + glue inlined, one file
 
 `dist/index.html` is fully self-contained — host it on any static server, or
 just open it from disk. `target/` and `dist/` are build outputs (gitignored);
-CI (`rust/bigip-query-py/deploy/github-pages.yml`) builds and publishes it to
-`/bigip-report/`.
+CI (the `github-pages` workflow) builds and publishes it to
+`/bigip-report-generator/`.
+
+> Note: `build-wasm.sh` deliberately skips `wasm-opt`. On modern rustc layouts
+> binaryen rebinds the `__wbindgen_externrefs` export onto the fixed-size
+> funcref table, which makes `Table.grow` fail at runtime and the page never
+> initialises; the raw wasm-bindgen output is correct and, gzipped, within ~1%
+> of the optimised size.
 
 This crate is **excluded from the Cargo workspace** (like `bigip-query-wasm`):
 wasm-bindgen's generated glue needs `unsafe`, which the workspace

@@ -4,8 +4,8 @@
 # upload a UCS/SCF, get a standalone HTML report, entirely client-side.
 #
 # Requires: the rustup wasm32-unknown-unknown target, wasm-bindgen-cli (matching
-# the wasm-bindgen crate version pinned in Cargo.toml), wasm-opt (binaryen), and
-# python3 (for the byte-safe asset injection).
+# the wasm-bindgen crate version pinned in Cargo.toml), and python3 (for the
+# byte-safe asset injection). Node, if present, is used to verify the module.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -21,11 +21,21 @@ wasm="$here/target/wasm32-unknown-unknown/release/bigip_report_wasm.wasm"
 echo "==> wasm-bindgen (no-modules)"
 wasm-bindgen "$wasm" --out-dir "$out" --target no-modules --no-typescript
 
-echo "==> wasm-opt -Os"
-wasm-opt -Os "$out/bigip_report_wasm_bg.wasm" -o "$out/opt.wasm"
+# wasm-opt is intentionally NOT run. On modern rustc layouts, binaryen rebinds
+# the `__wbindgen_externrefs` export from the growable externref table onto the
+# fixed-size funcref table, so `Table.grow` throws at runtime ("could not grow
+# the table") and the page never initialises — the same regression that broke
+# the compiler explorer. The raw wasm-bindgen output has the correct binding;
+# gzipped it is within ~1% of the -Os output.
+echo "==> verifying the externref table is growable"
+if command -v node >/dev/null 2>&1; then
+    node "$here/../../scripts/verify-wasm-externref.mjs" "$out/bigip_report_wasm_bg.wasm"
+else
+    echo "    note: node not found — skipping wasm growability check"
+fi
 
 echo "==> assembling single-file dist/index.html"
-python3 - "$here/www/index.html" "$out/bigip_report_wasm.js" "$out/opt.wasm" "$dist/index.html" <<'PY'
+python3 - "$here/www/index.html" "$out/bigip_report_wasm.js" "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" <<'PY'
 import base64, sys
 tmpl_path, glue_path, wasm_path, out_path = sys.argv[1:5]
 tmpl = open(tmpl_path, encoding="utf-8").read()
