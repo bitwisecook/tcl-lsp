@@ -4177,6 +4177,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-regex",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]

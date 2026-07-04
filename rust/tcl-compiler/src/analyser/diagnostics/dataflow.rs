@@ -881,7 +881,7 @@ file; this call falls through to the 'unknown' handler."
             if supp.suppresses(var) {
                 continue;
             }
-            self.record_chain_w210_uses(fu, chain, &exists_guards, &mut w210_min);
+            self.record_chain_w210_uses(fu, chain, &exists_guards, supp, &mut w210_min);
         }
 
         let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
@@ -911,6 +911,7 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         chain: &crate::def_use::DefUseChain,
         exists_guards: &[(String, crate::cfg::BlockId)],
+        supp: &UndefSuppression,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::UseKind;
@@ -919,6 +920,14 @@ file; this call falls through to the 'unknown' handler."
         let (var, _version) = &chain.key;
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
+                continue;
+            }
+            // An after-loop read of a variable the loop body defines on every
+            // iteration is not read-before-set (see
+            // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
+            // loop runs, matching C Tcl. A read *inside* the loop body still
+            // fires.
+            if supp.after_loop_defined(&chain.key, &use_site.block) {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -1151,6 +1160,15 @@ file; this call falls through to the 'unknown' handler."
             || is_implicit_var(name)
             || name.contains("::")
             || ctx.supp.suppresses(name)
+        {
+            return false;
+        }
+        // An after-loop `return` of a variable the loop body defines on every
+        // iteration is not read-before-set (we assume a may-run loop runs,
+        // matching C Tcl); the return block sits outside the loop body.
+        if ctx
+            .supp
+            .after_loop_defined(&(name.to_string(), ver), fu.cfg.block_name(bn))
         {
             return false;
         }
