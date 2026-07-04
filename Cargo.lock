@@ -4175,6 +4175,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-irules",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-registry",
 ]
 

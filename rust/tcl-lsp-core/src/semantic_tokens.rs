@@ -1559,18 +1559,41 @@ fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
 }
 
 /// Scan a bracket expression `[…]` starting at `b[i] == '['`.
-/// `[` optional `^` optional leading `]` then `([^]\\]|\\.)* ]`.
+///
+/// `[` optional `^` optional leading `]`, then members up to the closing `]`.
+/// A member is a `\`-escape (ARE recognises backslash escapes inside brackets,
+/// e.g. `[\d]`), or a POSIX / collating / equivalence **sub-bracket**
+/// (`[:alpha:]`, `[.ch.]`, `[=a=]`) whose internal `]` does **not** close the
+/// outer bracket — so `[[:alpha:]]` scans as one char class, matching the ARE
+/// engine (and C Tcl), not `[[:alpha:]` + a dangling `]`.
 fn scan_are_class(b: &[u8], i: usize) -> Option<usize> {
     let len = b.len();
     let mut j = i + 1;
     if b.get(j) == Some(&b'^') {
         j += 1;
     }
+    // A `]` immediately after `[` / `[^` is a literal member, not the close.
     if b.get(j) == Some(&b']') {
         j += 1;
     }
     while j < len && b[j] != b']' {
-        j += if b[j] == b'\\' && j + 1 < len { 2 } else { 1 };
+        if b[j] == b'[' && matches!(b.get(j + 1), Some(b':' | b'.' | b'=')) {
+            // Sub-bracket `[X … X]` (X ∈ `:.=`): skip to the matching `X]`.
+            let delim = b[j + 1];
+            let mut k = j + 2;
+            while k + 1 < len && !(b[k] == delim && b[k + 1] == b']') {
+                k += 1;
+            }
+            if k + 1 < len {
+                j = k + 2; // past the closing `X]`
+            } else {
+                return None; // unterminated sub-bracket → not a token
+            }
+        } else if b[j] == b'\\' && j + 1 < len {
+            j += 2;
+        } else {
+            j += 1;
+        }
     }
     (j < len).then_some(j + 1) // unterminated class → not a token
 }
@@ -3347,6 +3370,52 @@ mod tests {
         );
         // `\d` is an ARE class shortcut → char class.
         assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn scan_are_class_spans_posix_collating_equivalence_subbrackets() {
+        // `[[:alpha:]]` is one bracket expression (the inner `[:alpha:]` is a
+        // POSIX class whose `]` does not close the outer bracket) — the scanner
+        // must span the whole thing, not stop at the first `]`.
+        assert_eq!(scan_are_class(b"[[:alpha:]]", 0), Some(11));
+        assert_eq!(scan_are_class(b"[[:digit:]xyz]", 0), Some(14));
+        assert_eq!(scan_are_class(b"[[.ch.]]", 0), Some(8));
+        assert_eq!(scan_are_class(b"[[=a=]]", 0), Some(7));
+        // A plain class is unaffected; a leading literal `]` still works.
+        assert_eq!(scan_are_class(b"[a-z]", 0), Some(5));
+        assert_eq!(scan_are_class(b"[]a]", 0), Some(4));
+        // An unterminated sub-bracket is not a token.
+        assert_eq!(scan_are_class(b"[[:alpha", 0), None);
+    }
+
+    #[test]
+    fn regex_posix_class_has_no_dangling_bracket_token() {
+        // Before the sub-bracket fix, `[[:alpha:]]+` mis-scanned as `[[:alpha:]`
+        // (char class) + a stray literal `]` + `+`. Now the whole
+        // `[[:alpha:]]` is one char class and `+` its quantifier — and, per the
+        // token-overlap invariant, no token may start inside another.
+        let src = "regexp {[[:alpha:]]+} $s\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpCharClass as u32),
+            "expected a char-class token; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpQuantifier as u32),
+            "expected the trailing `+` as a quantifier; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(
+                    c1 >= c0 + len0,
+                    "token overlap in POSIX class; toks={toks:?}"
+                );
+            }
+        }
     }
 
     #[test]
