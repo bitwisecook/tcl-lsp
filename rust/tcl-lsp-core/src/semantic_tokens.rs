@@ -638,9 +638,28 @@ fn insert_format_overrides(
     }
 }
 
-/// Known `-option` switches → `Decorator` (only real options, so `puts
-/// -foo` stays a string); subcommand word at arg index 1 → keyword carrying
-/// `defaultLibrary`.  Both consult the command's registry spec.
+/// Known `-option` switches → `Decorator` (only real options declared in
+/// the registry, so `puts -foo` stays a string); subcommand word at arg
+/// index 1 → keyword carrying `defaultLibrary`.  Both consult the command's
+/// registry spec.
+///
+/// The recognised-option set is the [`OptionSpec`]-driven answer to
+/// issue #748 ("highlight words starting with `-` as options"): rather than
+/// treat every `-`-prefixed word as an option — which would mishighlight a
+/// bare minus, a negative number, or a `-$var` substitution — we highlight
+/// exactly the switches the command declares.  The set spans the command's
+/// flat [`CommandSpec::options`] *and* every [`CommandForm`]'s options (via
+/// [`CommandSpec::switch_names`]), plus — when arg 1 selects a known
+/// subcommand — that subcommand's own options (via
+/// [`SubCommand::switch_names`]).  That is what makes the issue's own
+/// example, `file delete -force filename`, light up: `-force` is declared on
+/// the `delete` subcommand, not on `file` itself.
+///
+/// Matching is against the literal word text, so `-$variable` /
+/// `-{$variable}` / `-[command]` — whose word text is not a declared option
+/// name — never match; only a literal `-force`-style word does.
+///
+/// [`OptionSpec`]: tcl_registry::OptionSpec
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -650,23 +669,35 @@ fn insert_option_and_subcommand_overrides(
     let Some(spec) = registry.get(head) else {
         return;
     };
+
+    // Command-level options — the flat `options` list plus every
+    // command-form's options.  Dialect-agnostic (`None`): a switch is still
+    // visually an option even when it was introduced in a later Tcl release.
+    let mut option_names = spec.switch_names(None);
+
+    // A known subcommand at arg index 1 is highlighted as a keyword, and its
+    // per-subcommand options (`file delete -force`, `file link -symbolic`)
+    // join the recognised set.
+    if let Some(sub_text) = seg.texts.get(1)
+        && let Some(sub) = spec.subcommand(sub_text)
+    {
+        option_names.extend(sub.switch_names(None, spec.dialects));
+        if let Some(tok) = seg.argv.get(1) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::SubcommandKeyword);
+        }
+    }
+
     for (i, text) in seg.texts.iter().enumerate().skip(1) {
         if text.starts_with('-')
-            && spec.options.iter().any(|o| o.name == text.as_str())
+            && option_names.contains(&text.as_str())
             && let Some(tok) = seg.argv.get(i)
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::Decorator);
         }
-    }
-    if let Some(sub_text) = seg.texts.get(1)
-        && spec.subcommand(sub_text).is_some()
-        && let Some(tok) = seg.argv.get(1)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::SubcommandKeyword);
     }
 }
 
@@ -2446,6 +2477,37 @@ mod tests {
         // `puts -foo` — `-foo` is not an option of `puts` → not a decorator.
         let ks = kinds("puts -foo\n", "tcl", &reg());
         assert!(!ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn subcommand_option_classified_as_decorator() {
+        // Issue #748's own example: `file delete -force filename`.  `-force`
+        // is declared on the `delete` *subcommand* (not on `file` itself), so
+        // it is only recognised once subcommand options are consulted.
+        let ks = kinds("file delete -force filename\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -force decorator; got {ks:?}"
+        );
+        // A subcommand option on a different subcommand: `file link -symbolic`.
+        let ks = kinds("file link -symbolic a b\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -symbolic decorator; got {ks:?}"
+        );
+        // A `-`-word that is not a declared option stays a plain string, even
+        // on a command that has subcommand options elsewhere.
+        let ks = kinds("file delete -bogus filename\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-bogus is not a real option; got {ks:?}"
+        );
+        // A `-$var` substitution word must never be treated as an option.
+        let ks = kinds("file delete -$flag filename\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-$flag is a substitution, not an option; got {ks:?}"
+        );
     }
 
     #[test]
