@@ -15,8 +15,10 @@
 //! accepts the full grammar; using it here would fold *more* (changing optimiser
 //! output), so the policy stays local on purpose.
 //!
-//! `parse_index` / `clamp_range` are the canonical home for the index
-//! grammar shared with the `string` subcommand folds.
+//! `parse_index` delegates to the shared [`tcl_cmd_core::index`] grammar (the
+//! same parser the runtime uses), so the optimiser folds exactly the index
+//! forms Tcl resolves at run time. `clamp_range` is the post-resolution range
+//! clamp shared with the `string` subcommand folds.
 
 const fn is_list_ws(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
@@ -121,22 +123,17 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
         .join(" ")
 }
 
-/// Parse a Tcl index expression (`end`, `end-N`, `end+N`, integer)
-/// against a string/list of `length`.  May return a negative or out-of-range
-/// value — the caller clamps.
+/// Parse a Tcl index expression against a string/list of `length`, returning the
+/// resolved index (which may be negative or `>= length` — the caller clamps).
+///
+/// Delegates to the shared [`tcl_cmd_core::index`] grammar — the *same* parser
+/// the runtime's `lindex` / `lrange` / `string index` use — so the optimiser
+/// folds exactly the forms Tcl resolves at run time: `end`, `end±N`, the
+/// arithmetic operands (`1+1`, `0-1`, `end--1`), and every integer radix
+/// (`0x2`, `0o7`, `0b101`). Previously this was a narrower local copy that only
+/// accepted `end`, `end-N`, `end+N`, and a plain decimal integer.
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
-    let s = s.trim();
-    let len = i64::try_from(length).ok()?;
-    if s == "end" {
-        return Some(len - 1);
-    }
-    if let Some(rest) = s.strip_prefix("end-") {
-        return rest.parse::<i64>().ok().map(|n| len - 1 - n);
-    }
-    if let Some(rest) = s.strip_prefix("end+") {
-        return rest.parse::<i64>().ok().map(|n| len - 1 + n);
-    }
-    s.parse::<i64>().ok()
+    tcl_cmd_core::index::resolve_opt(s, length)
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
@@ -471,6 +468,23 @@ mod tests {
         );
         // Malformed list arg → no fold.
         assert_eq!(fold_llength(&["{a b"]), None);
+    }
+
+    #[test]
+    fn index_folds_match_tclsh_oracle() {
+        // Now that `parse_index` shares the runtime grammar, the optimiser folds
+        // the arithmetic and radix index forms it previously declined. Expected
+        // results captured from real tclsh over `{a b c d e}` (end = 4).
+        assert_eq!(fold_lindex(&["a b c d e", "1+1"]).as_deref(), Some("c"));
+        assert_eq!(fold_lindex(&["a b c d e", "3-1"]).as_deref(), Some("c"));
+        assert_eq!(fold_lindex(&["a b c d e", "0x2"]).as_deref(), Some("c"));
+        assert_eq!(fold_lindex(&["a b c d e", "end-1"]).as_deref(), Some("d"));
+        // `end--1` = end + 1 → out of range → empty.
+        assert_eq!(fold_lindex(&["a b c d e", "end--1"]).as_deref(), Some(""));
+        assert_eq!(fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(), Some("c d e"));
+        // Still declines genuinely bad specs.
+        assert_eq!(fold_lindex(&["a b c d e", "1.0"]), None);
+        assert_eq!(fold_lindex(&["a b c d e", "foo"]), None);
     }
 
     // `fold_list` is registered through the `ConstFoldFn` callback contract

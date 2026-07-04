@@ -4265,6 +4265,7 @@ dependencies = [
  "bitflags 2.13.0",
  "rustc-hash",
  "sha2 0.10.9",
+ "tcl-cmd-core",
  "tcl-core-types",
  "tcl-lexer",
  "tcl-syntax",
