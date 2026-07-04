@@ -1575,6 +1575,30 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("secrets".into(), J::from(secret_total));
+    // Aggregate GTM + firewall/NAT object counts (for the tab badges).
+    let len_of = |keys: &[&str]| -> usize {
+        keys.iter()
+            .map(|k| device.get(*k).and_then(J::as_array).map_or(0, Vec::len))
+            .sum()
+    };
+    let gtm_total = len_of(&[
+        "gtmWideips",
+        "gtmPools",
+        "gtmServers",
+        "gtmDatacenters",
+        "gtmListeners",
+    ]);
+    counts.insert("gtm".into(), J::from(gtm_total));
+    let firewall_total = len_of(&[
+        "firewallPolicies",
+        "firewallRuleLists",
+        "firewallAddressLists",
+        "firewallPortLists",
+        "natPolicies",
+        "natSourceTranslations",
+        "natDestinationTranslations",
+    ]);
+    counts.insert("firewall".into(), J::from(firewall_total));
     device.insert("counts".into(), J::Object(counts));
 
     let ins = insights(&device);

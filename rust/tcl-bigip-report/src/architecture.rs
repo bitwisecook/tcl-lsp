@@ -481,9 +481,17 @@ pub(crate) fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> 
                     J::Object(vo)
                 })
                 .collect();
+            let label_of = |i: usize| -> String {
+                dev_json
+                    .get(i)
+                    .and_then(J::as_object)
+                    .map_or(String::new(), |m| bstr(m, "label").to_string())
+            };
             let mut o = Map::new();
             o.insert("from".into(), J::from(l.from));
             o.insert("to".into(), J::from(l.to));
+            o.insert("fromLabel".into(), J::String(label_of(l.from)));
+            o.insert("toLabel".into(), J::String(label_of(l.to)));
             o.insert("source".into(), J::String(l.source.clone()));
             if let Some(lbl) = &l.label {
                 o.insert("label".into(), J::String(lbl.clone()));
@@ -496,10 +504,27 @@ pub(crate) fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> 
 
     let mermaid = build_mermaid(&dev_json, &links, &tiers);
 
+    // Pre-group devices by tier (ascending) so the report can render tier
+    // columns without regrouping in the template.
+    let mut tier_map: BTreeMap<i64, Vec<J>> = BTreeMap::new();
+    for (i, d) in dev_json.iter().enumerate() {
+        tier_map.entry(tiers[i]).or_default().push(d.clone());
+    }
+    let tier_json: Vec<J> = tier_map
+        .into_iter()
+        .map(|(tier, devs)| {
+            let mut o = Map::new();
+            o.insert("tier".into(), J::from(tier));
+            o.insert("devices".into(), J::Array(devs));
+            J::Object(o)
+        })
+        .collect();
+
     let mut arch = Map::new();
     arch.insert("defined".into(), J::Bool(manifest.is_some()));
     arch.insert("deviceCount".into(), J::from(n));
     arch.insert("devices".into(), J::Array(dev_json));
+    arch.insert("tiers".into(), J::Array(tier_json));
     arch.insert("links".into(), J::Array(link_json));
     arch.insert("mermaid".into(), J::String(mermaid));
     if let Some(e) = manifest_error {

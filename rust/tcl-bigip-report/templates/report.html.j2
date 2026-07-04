@@ -40,6 +40,18 @@
 <div class="chip {{ tone }}{{ ' chip-link' if target }}"{% if target %} data-target="{{ target }}" role="button" tabindex="0" title="Go to {{ label }}"{% endif %}><span class="chip-val">{{ value }}</span><span class="chip-lbl">{{ label }}</span></div>
 {% endmacro %}
 
+{#: Render a firewall rule endpoint (source / destination) compactly. :#}
+{% macro fw_endpoint(e) %}
+{%- if not e or (not e.addresses and not e.addressLists and not e.ports and not e.portLists) -%}
+<span class="muted">any</span>
+{%- else -%}
+{% for x in e.addresses %}<span class="tag">{{ x }}</span>{% endfor %}
+{%- for x in e.addressLists %}<span class="tag blue" title="address-list">{{ x | leaf }}</span>{% endfor %}
+{%- for x in e.ports %}<span class="tag amber">:{{ x }}</span>{% endfor %}
+{%- for x in e.portLists %}<span class="tag" title="port-list">:{{ x | leaf }}</span>{% endfor %}
+{%- endif -%}
+{% endmacro %}
+
 <section class="summary">
   {{ chip('Virtual Servers', totals.virtuals, '', 'virtuals') }}
   {{ chip('Pools', totals.pools, '', 'pools') }}
@@ -51,6 +63,61 @@
   {{ chip('Orphaned Objects', totals.orphans, 'warn' if totals.orphans else 'ok') }}
   {{ chip('SSL Certificates', totals.certificates, '', 'certificates') }}
 </section>
+
+{% if architecture and architecture.deviceCount > 1 %}
+<section class="architecture" id="architecture">
+  <div class="arch-head">
+    <h2>Architecture</h2>
+    <span class="muted">how the loaded devices relate as tiers —
+      {%- if architecture.defined %} from manifest{% else %} auto-detected from address overlap{% endif -%}
+    </span>
+  </div>
+  {% if architecture.manifestError %}
+  <div class="insight warn"><span class="dot"></span>Manifest ignored: {{ architecture.manifestError }}</div>
+  {% endif %}
+  <div class="arch-tiers">
+    {% for t in architecture.tiers %}
+    <div class="arch-tier">
+      <div class="arch-tier-lbl">Tier {{ t.tier }}</div>
+      {% for d in t.devices %}
+      <div class="arch-node arch-role-{{ d.role }}">
+        <span class="arch-node-name">{{ d.label }}</span>
+        <span class="arch-node-role">{{ d.role }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if architecture.links %}
+  <div class="tablewrap">
+  <table class="grid arch-links">
+    <thead><tr><th>Upstream</th><th></th><th>Downstream</th><th>Source</th><th>Evidence</th></tr></thead>
+    <tbody>
+      {% for l in architecture.links %}
+      <tr>
+        <td class="mono strong">{{ l.fromLabel }}</td>
+        <td class="arch-arrow">→</td>
+        <td class="mono strong">{{ l.toLabel }}</td>
+        <td>{% if l.source == 'auto' %}<span class="tag">auto</span>{% elif l.source == 'manifest' %}<span class="tag blue">manifest</span>{% else %}<span class="tag green">manifest + auto</span>{% endif %}</td>
+        <td class="mono">
+          {%- if l.vias %}
+          {% for v in l.vias[:4] %}<span class="tag" title="{{ v.fromObj }} → {{ v.toObj }}">{{ v.address }}{% if v.port %}:{{ v.port }}{% endif %}</span>{% endfor %}
+          {%- if l.viaCount > 4 %}<span class="muted">+{{ l.viaCount - 4 }} more</span>{% endif %}
+          {%- elif l.label %}<span class="muted">{{ l.label }}</span>
+          {%- else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <details class="arch-mermaid-src">
+    <summary>Mermaid diagram source</summary>
+    <pre class="mermaid-code">{{ architecture.mermaid }}</pre>
+  </details>
+</section>
+{% endif %}
 
 {% if devices|length > 1 %}
 <nav class="device-switch" role="tablist" aria-label="Devices">
@@ -103,6 +170,8 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
+    {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
+    {% if d.counts.firewall %}<button class="tab" data-panel="firewall">Firewall / NAT <span class="n">{{ d.counts.firewall }}</span></button>{% endif %}
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
     <button class="tab" data-panel="apps">Apps <span class="n app-badge">0</span></button>
@@ -375,6 +444,224 @@
       </tbody>
     </table>
     </div>
+  </div>
+  {% endif %}
+
+  {#: ---------------- GTM / DNS ---------------- :#}
+  {% if d.counts.gtm %}
+  <div class="panel" data-panel="gtm">
+    <p class="lm-field-note">The GTM (BIG-IP DNS) global load-balancing tier: wide-IPs resolve a name to a pool, whose members select a <code>server</code>'s virtual server. A server's virtual-server destinations are the downstream LTM virtual addresses — the link the <a href="#architecture">Architecture</a> view uses to place this GTM in front of its LTM tiers.</p>
+
+    {% if d.gtmWideips %}
+    <h3 class="subhead">Wide-IPs <span class="n">{{ d.gtmWideips | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Wide-IP</th><th>Type</th><th>Pools</th><th>Aliases</th><th>LB mode</th></tr></thead>
+      <tbody>
+      {% for w in d.gtmWideips %}
+      <tr class="searchable" data-search="{{ w.name }} {{ w.fullPath }}">
+        <td class="mono strong">{{ w.name }}</td>
+        <td>{% if w.recordType %}<span class="tag">{{ w.recordType | upper }}</span>{% endif %}</td>
+        <td class="mono">{% for p in w.pools %}<span class="tag blue">{{ p | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for a in w.aliases %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ w.poolLbMode or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmPools %}
+    <h3 class="subhead">Pools <span class="n">{{ d.gtmPools | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Pool</th><th>Type</th><th>LB mode</th><th>Members</th></tr></thead>
+      <tbody>
+      {% for p in d.gtmPools %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td>{% if p.recordType %}<span class="tag">{{ p.recordType | upper }}</span>{% endif %}</td>
+        <td>{{ p.lbMode or '—' }}</td>
+        <td class="mono small">{% for m in p.members %}<span class="tag" title="{{ m.state }}">{{ m.name }}{% if m.staticTarget %} → {{ m.staticTarget }}{% endif %}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmServers %}
+    <h3 class="subhead">Servers <span class="n">{{ d.gtmServers | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Server</th><th>Datacenter</th><th>Product</th><th>Addresses</th><th>Virtual-server targets</th></tr></thead>
+      <tbody>
+      {% for s in d.gtmServers %}
+      <tr class="searchable" data-search="{{ s.name }} {{ s.fullPath }}">
+        <td class="mono strong">{{ s.name }}</td>
+        <td class="mono">{{ s.datacenter | leaf or '—' }}</td>
+        <td>{{ s.product or '—' }}</td>
+        <td class="mono small">{% for a in s.addresses %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for v in s.virtualServers %}<span class="tag green">{{ v }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmDatacenters %}
+    <h3 class="subhead">Datacenters <span class="n">{{ d.gtmDatacenters | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Datacenter</th><th>Location</th><th>Contact</th></tr></thead>
+      <tbody>
+      {% for c in d.gtmDatacenters %}
+      <tr class="searchable" data-search="{{ c.name }} {{ c.fullPath }}">
+        <td class="mono strong">{{ c.name }}</td>
+        <td>{{ c.location or '—' }}</td>
+        <td>{{ c.contact or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {#: ---------------- Firewall / NAT ---------------- :#}
+  {% if d.counts.firewall %}
+  <div class="panel" data-panel="firewall">
+    <p class="lm-field-note">The AFM firewall and NAT posture: policies and the rule-lists they enforce, the address-/port-lists rules match on, and the NAT policies and source/destination translations.</p>
+
+    {% if d.firewallPolicies %}
+    <h3 class="subhead">Firewall policies <span class="n">{{ d.firewallPolicies | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Policy</th><th>Rule-lists</th><th>Inline rules</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallRuleLists %}
+    <h3 class="subhead">Rule-lists <span class="n">{{ d.firewallRuleLists | length }}</span></h3>
+    {% for rl in d.firewallRuleLists %}
+    <div class="rule-list-block">
+      <div class="rule-list-name mono strong">{{ rl.name }} <span class="muted">({{ rl.ruleCount }} rule{{ '' if rl.ruleCount == 1 else 's' }})</span></div>
+      <div class="tablewrap">
+      <table class="grid fw-rules">
+        <thead><tr><th>Rule</th><th>Action</th><th>Proto</th><th>Source</th><th>Destination</th><th>Log</th></tr></thead>
+        <tbody>
+        {% for r in rl.rules %}
+        <tr class="searchable" data-search="{{ r.name }} {{ rl.name }}">
+          <td class="mono strong">{{ r.name }}</td>
+          <td><span class="tag {{ 'green' if r.action == 'accept' else 'red' if r.action in ['drop','reject'] else '' }}">{{ r.action or '—' }}</span></td>
+          <td class="mono">{{ r.ipProtocol or 'any' }}</td>
+          <td class="mono small">{{ fw_endpoint(r.source) }}</td>
+          <td class="mono small">{{ fw_endpoint(r.destination) }}{% if r.ruleList %} <span class="tag blue">list {{ r.ruleList | leaf }}</span>{% endif %}</td>
+          <td>{% if r.log %}<span class="tag amber">log</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if d.firewallAddressLists %}
+    <h3 class="subhead">Address-lists <span class="n">{{ d.firewallAddressLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Address-list</th><th>Addresses</th><th>Nested lists</th><th>FQDNs</th></tr></thead>
+      <tbody>
+      {% for a in d.firewallAddressLists %}
+      <tr class="searchable" data-search="{{ a.name }} {{ a.fullPath }}">
+        <td class="mono strong">{{ a.name }}</td>
+        <td class="mono small">{% for x in a.addresses %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.addressLists %}<span class="tag blue">{{ x | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.fqdns %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallPortLists %}
+    <h3 class="subhead">Port-lists <span class="n">{{ d.firewallPortLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Port-list</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPortLists %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono small">{% for x in p.ports %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.natPolicies or d.natSourceTranslations or d.natDestinationTranslations %}
+    <h3 class="subhead">NAT</h3>
+    {% if d.natPolicies %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>NAT policy</th><th>Rule-lists</th><th>Rules</th></tr></thead>
+      <tbody>
+      {% for p in d.natPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% if d.natSourceTranslations or d.natDestinationTranslations %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Translation</th><th>Direction</th><th>Type</th><th>Addresses</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for t in d.natSourceTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">source</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      {% for t in d.natDestinationTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">destination</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% endif %}
   </div>
   {% endif %}
 

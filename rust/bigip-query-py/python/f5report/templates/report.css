@@ -360,3 +360,34 @@ html,body{max-width:100%}
   .chip.chip-link,.dev-tab,.expander,.ref-obj{min-height:32px}
   tr.expandable{cursor:pointer}
 }
+
+/* --- Architecture (multi-device tiers) ------------------------------------ */
+.architecture{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin:0 0 18px}
+.arch-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.arch-head h2{margin:0;font-size:16px}
+.arch-tiers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;align-items:stretch}
+.arch-tier{flex:0 0 auto;min-width:150px;border:1px dashed var(--line);border-radius:10px;padding:10px;
+  display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--bg) 50%,transparent)}
+.arch-tier-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.arch-node{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);
+  display:flex;flex-direction:column;gap:2px;border-left:3px solid var(--muted)}
+.arch-node-name{font-family:var(--mono);font-size:12px;font-weight:600}
+.arch-node-role{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.arch-role-gtm{border-left-color:var(--green)}
+.arch-role-ltm{border-left-color:var(--blue)}
+.arch-role-afm,.arch-role-firewall{border-left-color:var(--amber)}
+.arch-links{margin-top:14px}
+.arch-arrow{text-align:center;color:var(--muted);font-size:15px}
+.arch-mermaid-src{margin-top:12px}
+.arch-mermaid-src summary{cursor:pointer;color:var(--muted);font-size:12px}
+.arch-mermaid-src .mermaid-code{white-space:pre;overflow-x:auto;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;padding:10px;font-family:var(--mono);font-size:11px;margin:8px 0 0}
+
+/* --- GTM + Firewall panels ------------------------------------------------- */
+.subhead{margin:18px 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.subhead:first-child{margin-top:4px}
+.subhead .n{background:var(--tag-bg);color:var(--muted);border-radius:10px;padding:0 8px;font-size:11px;font-weight:600}
+.rule-list-block{margin:0 0 14px}
+.rule-list-name{margin:10px 0 6px;font-size:12px}
+.fw-rules td{vertical-align:top}

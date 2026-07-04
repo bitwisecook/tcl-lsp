@@ -1,0 +1,90 @@
+//! End-to-end HTML render check: the Architecture, GTM and Firewall/NAT
+//! sections appear in the generated report.
+
+use tcl_bigip_report::{RenderOptions, Source, build_report};
+
+const GTM: &str = r"#TMSH-VERSION: 15.1.0
+gtm datacenter /Common/dc-east { location Boston }
+gtm server /Common/ltm-edge {
+    datacenter /Common/dc-east
+    addresses { 10.0.0.5 { } }
+    virtual-servers { app_vs { destination 10.1.0.10:443 } }
+}
+gtm pool a /Common/app_pool {
+    members { ltm-edge:app_vs { } }
+}
+gtm wideip a /Common/app.example.com {
+    pools { app_pool { } }
+}
+";
+
+const LTM: &str = r"#TMSH-VERSION: 15.1.0
+ltm virtual /Common/app_vs {
+    destination /Common/10.1.0.10:443
+    pool /Common/app_pool
+}
+ltm pool /Common/app_pool {
+    members { /Common/10.9.0.9:8080 { address 10.9.0.9 } }
+}
+ltm virtual-address /Common/10.1.0.10 { address 10.1.0.10 }
+security firewall address-list /Common/webservers {
+    addresses { 10.0.0.0/24 { } }
+}
+security firewall rule-list /Common/app-rules {
+    rules {
+        allow-web {
+            action accept
+            ip-protocol tcp
+            source { address-lists { /Common/webservers } }
+        }
+    }
+}
+";
+
+fn render() -> String {
+    let sources: Vec<Source> = vec![
+        ("gtm.scf".to_string(), GTM.to_string()),
+        ("ltm.scf".to_string(), LTM.to_string()),
+    ];
+    let opts = RenderOptions {
+        embed_console: false,
+        ..RenderOptions::default()
+    };
+    build_report(&sources, &opts).expect("report renders")
+}
+
+#[test]
+fn architecture_section_renders() {
+    let html = render();
+    assert!(html.contains("class=\"architecture\""), "architecture section present");
+    assert!(html.contains("auto-detected"), "auto-detect note shown");
+    // The GTM->LTM link with its evidencing address.
+    assert!(html.contains("10.1.0.10"), "link evidence address rendered");
+}
+
+#[test]
+fn gtm_and_firewall_tabs_render() {
+    let html = render();
+    assert!(html.contains("data-panel=\"gtm\""), "GTM panel present");
+    assert!(html.contains("app.example.com"), "wide-IP shown");
+    assert!(html.contains("data-panel=\"firewall\""), "firewall panel present");
+    assert!(html.contains("app-rules"), "rule-list shown");
+}
+
+#[test]
+fn manifest_note_when_defined() {
+    let sources: Vec<Source> = vec![
+        ("gtm.scf".to_string(), GTM.to_string()),
+        ("ltm.scf".to_string(), LTM.to_string()),
+    ];
+    let opts = RenderOptions {
+        embed_console: false,
+        architecture: Some(
+            r#"{"devices":[{"match":"gtm.scf","role":"gtm","label":"DNS Edge"}]}"#.to_string(),
+        ),
+        ..RenderOptions::default()
+    };
+    let html = build_report(&sources, &opts).expect("renders");
+    assert!(html.contains("from manifest"), "manifest note shown");
+    assert!(html.contains("DNS Edge"), "manifest label applied");
+}
