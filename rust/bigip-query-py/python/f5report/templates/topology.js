@@ -325,6 +325,19 @@
     return '<pre class="code conf">' + html + "</pre>";
   }
 
+  // Render an object full-path as a chip that wireObjLinks() makes clickable
+  // when the path resolves to an object in this device (otherwise it stays
+  // plain text). `extra` adds tag colour class(es).
+  function refChip(p, extra) {
+    if (!p) return '<span class="muted">—</span>';
+    return '<span class="tag ' + (extra || "") + '" data-oref="' + esc(p) + '" title="' +
+      esc(p) + '">' + esc(p.split("/").pop()) + "</span>";
+  }
+  function refChips(paths, extra) {
+    if (!paths || !paths.length) return '<span class="muted">none</span>';
+    return paths.map(function (p) { return refChip(p, extra); }).join(" ");
+  }
+
   // BFS the undirected connected component containing `startOids`, bounded by
   // `depth` (Infinity = whole component).
   function isDefaultNode(ix, oid) { var n = ix.byOid[oid]; return !!(n && n.isDefault); }
@@ -717,9 +730,23 @@
       return "<tr><th>" + r[0] + "</th><td>" + r[1] + "</td></tr>";
     }).join("") + "</table>";
 
-    var staticProfiles = (v.profiles || []).map(function (p) {
-      return '<span class="tag prof">' + esc(p.split("/").pop()) + "</span>";
-    }).join("") || '<span class="muted">none</span>';
+    // Object properties, each linked to the object it references (clickable
+    // when that object exists in this device — wired by wireObjLinks()).
+    var snat = v.snatpool
+      ? refChip(v.snatpool, "snat")
+      : (v.sourceXlate ? esc(v.sourceXlate) : '<span class="muted">—</span>');
+    var propRows = [
+      ["Pool", refChip(v.pool, "pool")],
+      ["iRules", refChips(v.rules, "rule")],
+      ["Persistence", refChips(v.persist, "persist")],
+      ["Policies", refChips(v.policies, "policy")],
+      ["SNAT", snat],
+    ];
+    var props = '<table class="kv">' + propRows.map(function (r) {
+      return "<tr><th>" + r[0] + "</th><td>" + r[1] + "</td></tr>";
+    }).join("") + "</table>";
+
+    var staticProfiles = refChips(v.profiles, "prof");
 
     var dyn = (v.dynamicProfiles || []).map(function (a) {
       return '<span class="tag amber" title="via iRule ' + esc(a.rule) + '">' +
@@ -730,6 +757,7 @@
       : "";
 
     return '<h4>Listener</h4>' + meta +
+      '<h4>Properties</h4>' + props +
       '<h4>Static profiles</h4><div class="tagwrap">' + staticProfiles + "</div>" + dynBlock;
   }
 
