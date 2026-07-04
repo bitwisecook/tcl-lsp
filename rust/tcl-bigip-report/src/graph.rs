@@ -223,49 +223,80 @@ fn dynamic_cmds() -> Vec<DynCmd> {
         .collect()
 }
 
-/// The object types an iRule can attach *dynamically* — with a computed name
-/// (`$var` / `[cmd]`) the static reference graph cannot resolve. If any rule
-/// selects one of these dynamically, objects of that type can never be *proven*
-/// orphaned (some traffic path might reach them at runtime), so they are demoted
-/// from "orphan" to "possible orphan" rather than flagged outright.
-///
-/// Only the direct-attachment commands are considered: `pool` (LB target),
-/// `node` (direct node), `snatpool` (SNAT). Literal iRule references
-/// (`pool /Common/x`) are already captured by the engine's `referenced_by`
-/// (`.refs`), so only a *non-literal* argument counts as a dynamic risk.
-pub(crate) fn dynamic_attach_risk(rules: &[J]) -> std::collections::BTreeSet<&'static str> {
-    let specs: &[(&str, &str)] = &[
-        (r"(?i)\bpool\s+(\S+)", "pools"),
-        (r"(?i)\bnode\s+(\S+)", "nodes"),
-        (r"(?i)\bsnatpool\s+(\S+)", "snatpools"),
-    ];
-    let compiled: Vec<(Regex, &str)> = specs
-        .iter()
-        .map(|(re, ty)| (Regex::new(re).expect("valid risk regex"), *ty))
-        .collect();
+/// The attachable object types considered for dynamic (iRule) reachability:
+/// `pool` (LB target), `node` (direct node), `snatpool` (SNAT). Literal iRule
+/// references (`pool /Common/x`) are already captured by the engine's
+/// `referenced_by` (`.refs`), so only a *non-literal* argument counts here.
+pub(crate) const ATTACH_TYPES: &[&str] = &["pools", "nodes", "snatpools"];
 
-    let mut risk = std::collections::BTreeSet::new();
+/// One dynamic attachment an iRule performs: the reconstructed name pattern plus
+/// the rule that builds it (for attribution in the report).
+pub(crate) struct RulePattern {
+    pub rule: String,
+    pub pattern: tcl_diagram::AttachPattern,
+}
+
+/// Build, per attachable object type, the list of `(rule, name-pattern)` an
+/// iRule could dynamically construct.
+///
+/// This supersedes the old all-or-nothing "risk" heuristic: instead of demoting
+/// an *entire* object type the moment any rule attaches it dynamically, each
+/// attach expression is reconstructed (via [`tcl_diagram::attach_reach`]) into a
+/// prefix / contained / suffix name pattern. Orphan classification then filters
+/// candidate objects by name — a pool called `db_backend` stays a *confirmed*
+/// orphan even when a rule does `pool "web_[HTTP::host]"`, because that
+/// expression can only ever build a `web_`-prefixed name. Only a truly
+/// unconstrained expression (`pool $x`, `pool [class match …]`) still puts the
+/// whole type in play.
+pub(crate) fn attach_index(rules: &[J]) -> std::collections::BTreeMap<&'static str, Vec<RulePattern>> {
+    let mut index: std::collections::BTreeMap<&'static str, Vec<RulePattern>> =
+        std::collections::BTreeMap::new();
     for r in rules {
-        let body = r.as_object().map_or("", |m| bstr(m, "body"));
+        let Some(rm) = r.as_object() else { continue };
+        let body = bstr(rm, "body");
         if body.is_empty() {
             continue;
         }
-        for (re, ty) in &compiled {
-            if risk.contains(ty) {
-                continue;
-            }
-            // Dynamic iff the command's argument is a variable / command
-            // substitution rather than a literal object name.
-            let dynamic = re.captures_iter(body).any(|c| {
-                c.get(1)
-                    .is_some_and(|m| m.as_str().contains('$') || m.as_str().contains('['))
-            });
-            if dynamic {
-                risk.insert(*ty);
+        let name = bstr(rm, "name");
+        let rule_name = if name.is_empty() {
+            bstr(rm, "fullPath")
+        } else {
+            name
+        }
+        .to_string();
+        let reach = tcl_diagram::attach_reach(body);
+        for ty in ATTACH_TYPES {
+            for pat in reach.patterns_for(ty) {
+                index.entry(*ty).or_default().push(RulePattern {
+                    rule: rule_name.clone(),
+                    pattern: pat.clone(),
+                });
             }
         }
     }
-    risk
+    index
+}
+
+/// The `{rule, pattern}` records whose name-pattern could attach an object with
+/// any of `names` (its leaf name, full path, and — for nodes — address).
+/// Returns an empty vec when the object is provably unreachable by every rule.
+pub(crate) fn attach_matches(patterns: &[RulePattern], names: &[&str]) -> Vec<J> {
+    let mut out: Vec<J> = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    for rp in patterns {
+        if !names.iter().any(|n| rp.pattern.matches(n)) {
+            continue;
+        }
+        let glob = rp.pattern.glob();
+        if !seen.insert((rp.rule.clone(), glob.clone())) {
+            continue;
+        }
+        let mut o = Map::new();
+        o.insert("rule".into(), J::String(rp.rule.clone()));
+        o.insert("pattern".into(), J::String(glob));
+        out.push(J::Object(o));
+    }
+    out
 }
 
 /// Return the profile/processing-changing commands a rule issues.

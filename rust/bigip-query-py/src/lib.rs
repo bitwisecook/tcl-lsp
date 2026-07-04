@@ -392,6 +392,19 @@ fn irule_flowchart(body: &str) -> String {
     tcl_diagram::irule_flowchart_mermaid(body, tcl_registry::registry_for_dialect("f5-irules"))
 }
 
+/// Reconstruct the object-name patterns an iRule could dynamically attach.
+///
+/// Returns a JSON string `{"pools": [...], "nodes": [...], "snatpools": [...]}`
+/// where each entry is `{raw, prefix, contains, suffix, glob, exact,
+/// unconstrained}`. The report's orphan analysis uses these prefix / contained /
+/// suffix fragments to filter candidate objects by name instead of demoting a
+/// whole object type — powered by the same [`tcl_diagram::attach_reach`] the
+/// Rust/WASM report uses (real IR walk + `set` constant propagation).
+#[pyfunction]
+fn irule_attach_patterns(body: &str) -> String {
+    tcl_diagram::irule_attach_patterns(body).to_string()
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -406,5 +419,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
     m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
     Ok(())
 }

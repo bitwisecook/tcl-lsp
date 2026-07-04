@@ -196,3 +196,10 @@ pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
 .irule-flow{margin:4px 0 10px}
 .irule-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card);min-height:0}
 .irule-flow-diagram svg{max-width:100%;height:auto}
+/* Reconstructed dynamic object-name patterns (deep orphan analysis). */
+.irule-attach{margin:4px 0 8px;font-size:12px;line-height:1.9}
+.irule-attach-lbl{color:var(--muted);margin-right:4px}
+.attach-pat{display:inline-block;margin:1px 4px 1px 0;padding:1px 7px;border-radius:6px;
+  background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);
+  font-family:var(--mono,monospace);font-size:11px;cursor:help}
+.irule-attach-note{color:var(--muted);font-style:italic;margin-left:4px}

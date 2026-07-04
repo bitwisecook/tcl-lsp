@@ -129,3 +129,46 @@ def test_dynamic_profiles_propagate_to_virtuals():
     v = next((x for x in d["virtuals"] if x.get("dynamicProfiles")), None)
     assert v is not None
     assert all("rule" in a for a in v["dynamicProfiles"])
+
+
+# --- Deep orphan analysis: dynamic-attach name-pattern reconstruction --------
+
+SCF_ORPHAN_PREFIX = """
+ltm pool /Common/web_backend { members { /Common/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /Common/db_backend { members { /Common/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm pool /Common/used_pool { members { /Common/10.0.0.8:80 { address 10.0.0.8 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 pool /Common/used_pool rules { /Common/dyn } }
+"""
+
+
+def test_attach_reach_patterns():
+    from f5report import _engine
+    import json
+    reach = json.loads(_engine.irule_attach_patterns(
+        'when HTTP_REQUEST { set p "web_[HTTP::host]"; pool $p }'))
+    assert reach["pools"][0]["glob"] == "web_*"
+    assert reach["pools"][0]["prefix"] == "web_"
+    assert reach["pools"][0]["unconstrained"] is False
+
+
+def test_pattern_matches_helper():
+    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    assert graph._pattern_matches(web, "web_backend")
+    assert not graph._pattern_matches(web, "db_backend")
+
+
+def test_constrained_pattern_filters_orphans_by_name():
+    d = collect_model([("o.scf", SCF_ORPHAN_PREFIX)])["devices"][0]
+    confirmed = d["orphans"]["pools"]
+    possible = d["possibleOrphans"]["pools"]
+    # db_backend can't be built by web_[HTTP::host] -> provably orphaned.
+    assert "db_backend" in confirmed, (confirmed, possible)
+    # web_backend could be web_<host> -> only a possible orphan.
+    assert "web_backend" in possible
+    assert "web_backend" not in confirmed
+    # Reconstructed pattern surfaced for the report UI.
+    assert any(p["glob"] == "web_*" for p in d["attachPatterns"]["pools"])
+    web = next(p for p in d["pools"] if p["name"] == "web_backend")
+    assert web["orphanStatus"] == "possible"
+    assert web["orphanMatches"][0]["pattern"] == "web_*"

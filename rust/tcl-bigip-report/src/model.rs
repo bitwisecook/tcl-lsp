@@ -356,6 +356,19 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         "dynamicActions".into(),
         J::Array(crate::graph::irule_dynamic_actions(&body)),
     );
+    // Reconstructed object-name patterns this rule could dynamically attach
+    // (`pool "web_[HTTP::host]"` → `web_*`), for the iRule view and the orphan
+    // filtering. Only the non-empty attachable types are carried.
+    let reach = tcl_diagram::attach_reach(&body).to_json();
+    let mut attachments = Map::new();
+    if let Some(rm) = reach.as_object() {
+        for (ty, arr) in rm {
+            if arr.as_array().is_some_and(|a| !a.is_empty()) {
+                attachments.insert(ty.clone(), arr.clone());
+            }
+        }
+    }
+    o.insert("dynamicAttachments".into(), J::Object(attachments));
     J::Object(o)
 }
 
@@ -516,7 +529,7 @@ fn insights(device: &Map<String, J>) -> Vec<J> {
             out.push(insight(
                 "info",
                 format!(
-                    "{n} {kind} have no static reference but an iRule selects {kind} dynamically — can't be proven unused"
+                    "{n} {kind} have no static reference but an iRule could build a matching name dynamically — can't be proven unused"
                 ),
             ));
         }
@@ -638,23 +651,49 @@ fn collect_device(uri: &str, source: &str) -> J {
     }
 
     // Orphans: a referable leaf object is *confirmed* orphaned only when it has
-    // an empty referrer set AND no iRule could dynamically attach its type. When
-    // an iRule selects that type dynamically (`pool $x`, `pool [class match …]`)
-    // we cannot prove the object is unreachable, so it is a *possible* orphan.
-    let risk: std::collections::BTreeSet<&'static str> = device
+    // an empty referrer set AND no iRule could dynamically attach an object of
+    // its *name*. Rather than demote a whole type the moment any rule attaches
+    // it dynamically, each attach expression is reconstructed into a
+    // prefix/contained/suffix name pattern (`pool "web_[HTTP::host]"` → `web_*`);
+    // an object is a *possible* orphan only when some rule's pattern could build
+    // its name, and stays a *confirmed* orphan otherwise.
+    let rules_arr = device
         .get("rules")
         .and_then(J::as_array)
-        .map(|rules| crate::graph::dynamic_attach_risk(rules))
+        .cloned()
         .unwrap_or_default();
+    let attach_idx = crate::graph::attach_index(&rules_arr);
+    // orphanRisk: the types some rule attaches dynamically at all (summary /
+    // topology use); the per-object filtering below is what actually classifies.
     device.insert(
         "orphanRisk".into(),
-        J::Array(risk.iter().map(|t| J::String((*t).into())).collect()),
+        J::Array(attach_idx.keys().map(|t| J::String((*t).into())).collect()),
     );
+    // Surface the reconstructed patterns themselves so the report can explain
+    // *why* an object is only a possible orphan.
+    let mut attach_patterns = Map::new();
+    for (ty, pats) in &attach_idx {
+        let arr: Vec<J> = pats
+            .iter()
+            .map(|rp| {
+                let mut o = rp.pattern.to_json();
+                if let Some(om) = o.as_object_mut() {
+                    om.insert("rule".into(), J::String(rp.rule.clone()));
+                }
+                o
+            })
+            .collect();
+        attach_patterns.insert((*ty).into(), J::Array(arr));
+    }
+    device.insert("attachPatterns".into(), J::Object(attach_patterns));
 
+    let no_patterns: Vec<crate::graph::RulePattern> = Vec::new();
     let mut orphans = Map::new();
     let mut possible = Map::new();
     for name in REFERABLE {
-        let at_risk = risk.contains(name);
+        let patterns = attach_idx
+            .get(name)
+            .map_or(no_patterns.as_slice(), Vec::as_slice);
         // Annotate each object with its orphan status, then collect the sets.
         if let Some(J::Array(objs)) = device.get_mut(*name) {
             for o in objs.iter_mut() {
@@ -665,10 +704,25 @@ fn collect_device(uri: &str, source: &str) -> J {
                         .is_none_or(Vec::is_empty);
                     let status = if !empty {
                         ""
-                    } else if at_risk {
-                        "possible"
-                    } else {
+                    } else if patterns.is_empty() {
                         "orphan"
+                    } else {
+                        // Match the object's name / full path / address against
+                        // each rule's reconstructed pattern.
+                        let leaf_name = bstr(om, "name").to_string();
+                        let fp = bstr(om, "fullPath").to_string();
+                        let addr = bstr(om, "address").to_string();
+                        let mut candidates: Vec<&str> = vec![leaf_name.as_str(), fp.as_str()];
+                        if !addr.is_empty() {
+                            candidates.push(addr.as_str());
+                        }
+                        let matches = crate::graph::attach_matches(patterns, &candidates);
+                        if matches.is_empty() {
+                            "orphan"
+                        } else {
+                            om.insert("orphanMatches".into(), J::Array(matches));
+                            "possible"
+                        }
                     };
                     om.insert("orphanStatus".into(), J::String(status.into()));
                 }
