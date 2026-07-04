@@ -9,8 +9,9 @@ use std::collections::HashMap;
 use serde_json::Value as J;
 use tcl_bigip_report::{Source, collect_model, collect_model_with_architecture};
 
-/// Empty cert-PEM map for the architecture-only tests.
-fn no_certs() -> HashMap<String, String> {
+/// Empty cert-PEM map for the architecture-only tests (source-scoped:
+/// `uri -> {cache_path -> pem}`).
+fn no_certs() -> HashMap<String, HashMap<String, String>> {
     HashMap::new()
 }
 

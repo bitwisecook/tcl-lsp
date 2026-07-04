@@ -1235,7 +1235,12 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
     }
 }
 
-fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
+fn collect_device(
+    uri: &str,
+    source: &str,
+    cert_pems: &HashMap<String, String>,
+    files: &[J],
+) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1516,6 +1521,15 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         J::Array(crate::secrets::collect_secrets(source)),
     );
 
+    // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
+    // from the UCS members the entry point extracted (empty for a bare
+    // bigip.conf) plus a web-shell scan of this device's iRules.
+    let rule_slice = device.get("rules").and_then(J::as_array).cloned().unwrap_or_default();
+    device.insert(
+        "forensics".into(),
+        crate::forensics::collect_forensics(files, &rule_slice),
+    );
+
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a
     // partition while always keeping shared /Common objects visible.
@@ -1599,6 +1613,12 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         "natDestinationTranslations",
     ]);
     counts.insert("firewall".into(), J::from(firewall_total));
+    let file_total = device
+        .get("forensics")
+        .and_then(|f| f.get("files"))
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("files".into(), J::from(file_total));
     device.insert("counts".into(), J::Object(counts));
 
     let ins = insights(&device);
@@ -1609,45 +1629,79 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
 /// Build the full report model from loaded `(uri, text)` sources.
 #[must_use]
 pub fn collect_model(sources: &[Source], title: &str) -> J {
-    collect_model_with_certs(sources, title, &HashMap::new())
+    collect_model_full(sources, title, &HashMap::new(), &HashMap::new(), None)
 }
 
 /// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
 ///
-/// `cert_pems` maps a `sys file ssl-cert` `cache-path` (as it appears in the
-/// stanza) to the PEM text of that member, read out of the archive by the
-/// caller (the CLI / wasm entry points, which have the raw UCS bytes). The
-/// certs tab parses these to fill metadata-free stanzas and reconstruct the
-/// trust chain; an empty map falls back to config metadata only.
+/// `cert_pems` is keyed **by source URI** and then by a `sys file ssl-cert`
+/// `cache-path` (as it appears in the stanza) → the PEM text of that member,
+/// read out of the archive by the caller (the CLI / wasm entry points, which
+/// have the raw UCS bytes). Scoping by source URI keeps a filestore
+/// `cache-path` shared across two UCS files in one report from resolving to the
+/// wrong device's certificate. The certs tab parses these to fill
+/// metadata-free stanzas and reconstruct the trust chain; an empty map falls
+/// back to config metadata only.
 #[must_use]
 #[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
 pub fn collect_model_with_certs(
     sources: &[Source],
     title: &str,
-    cert_pems: &HashMap<String, String>,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
 ) -> J {
-    collect_model_with_architecture(sources, title, cert_pems, None)
+    collect_model_full(sources, title, cert_pems, &HashMap::new(), None)
 }
 
-/// [`collect_model_with_certs`] plus an optional *architecture manifest*.
+/// [`collect_model_with_certs`] plus an optional *architecture manifest* (a Tcl
+/// script; see [`crate::architecture`]).
 ///
 /// The report always auto-detects how the loaded devices relate as tiers (an
 /// upstream device whose pool member / GTM server address is served by another
-/// device's virtual is one tier up). `manifest` is an optional Tcl script
-/// (see [`crate::architecture`]) that overrides each device's role/tier and can
-/// declare links explicitly; `None` (or empty) uses pure auto-detection. A
-/// malformed manifest is reported inside the model rather than failing the build.
+/// device's virtual is one tier up). `manifest` overrides each device's
+/// role/tier and can declare links explicitly; `None` (or empty) uses pure
+/// auto-detection. A malformed manifest is reported inside the model rather than
+/// failing the build.
 #[must_use]
 #[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
 pub fn collect_model_with_architecture(
     sources: &[Source],
     title: &str,
-    cert_pems: &HashMap<String, String>,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
     manifest: Option<&str>,
 ) -> J {
+    collect_model_full(sources, title, cert_pems, &HashMap::new(), manifest)
+}
+
+/// [`collect_model_with_certs`] plus the per-device UCS **file inventory** that
+/// powers the Forensics tab, and an optional architecture manifest.
+///
+/// `files` is keyed by source URI → the list of that device's extracted UCS
+/// members (each a JSON object `{path, size, sha256, isText, content?}`, from
+/// [`tcl_bigip_io::list_ucs_members`] / `read_ucs_member` at the wasm/CLI
+/// entry). Both `cert_pems` and `files` are source-scoped so nothing bleeds
+/// between devices in a multi-UCS report. `manifest` is the optional Tcl
+/// architecture manifest. Empty maps / `None` reproduce [`collect_model`] exactly.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_full(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
+    files: &HashMap<String, Vec<J>>,
+    manifest: Option<&str>,
+) -> J {
+    let empty_pems = HashMap::new();
+    let empty_files: Vec<J> = Vec::new();
     let devices: Vec<J> = sources
         .iter()
-        .map(|(uri, src)| collect_device(uri, src, cert_pems))
+        .map(|(uri, src)| {
+            collect_device(
+                uri,
+                src,
+                cert_pems.get(uri).unwrap_or(&empty_pems),
+                files.get(uri).map_or(&empty_files, |v| v.as_slice()),
+            )
+        })
         .collect();
 
     let architecture = crate::architecture::build_architecture(&devices, manifest);

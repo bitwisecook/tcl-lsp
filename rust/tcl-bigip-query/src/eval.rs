@@ -140,6 +140,22 @@ pub fn root_container(root: &Rc<Root>) -> Value {
 /// means "not wired", and `ucs_cert` raises a clear error.
 pub type UcsCertReader = Rc<dyn Fn(&str, &str) -> Result<Value, QueryError>>;
 
+/// A file operation the DSL's forensic file builtins ask a [`FilesReader`] to
+/// perform against a source's UCS archive.
+pub enum FileOp {
+    /// List the archive's forensic members with metadata (`path`, `size`,
+    /// `sha256`, `is_text`) and no content — a light inventory.
+    Inventory,
+    /// Read one member's content as a UTF-8-lossy string.
+    Content(String),
+}
+
+/// Reader hook for the `files` / `file` / `glob` / `grep` builtins: given a
+/// source `config_uri` and a [`FileOp`], returns the requested [`Value`]. The
+/// CLI injects this (it holds the archive bytes); `None` means "not wired"
+/// (e.g. the in-browser console), and the file builtins raise a clear error.
+pub type FilesReader = Rc<dyn Fn(&str, &FileOp) -> Result<Value, QueryError>>;
+
 /// Evaluation context.
 pub struct EvalContext {
     pub root: Rc<Root>,
@@ -167,6 +183,9 @@ pub struct EvalContext {
     /// Reader hook for `ucs_cert`. `None` means
     /// no reader is wired (e.g. when driven outside the f5 CLI).
     pub ucs_cert_reader: Option<UcsCertReader>,
+    /// Reader hook for the forensic `files` / `file` / `glob` / `grep`
+    /// builtins. `None` means no reader is wired (e.g. the in-browser console).
+    pub files_reader: Option<FilesReader>,
     /// Lazily built merged reference graph spanning every [`merge_roots`]
     /// entry — built on first graph-builtin call in merge mode and memoised
     /// for the duration of the statement so cross-file `refs` /
@@ -226,6 +245,7 @@ impl EvalContext {
             probes_enabled: false,
             ca_bundle: None,
             ucs_cert_reader: None,
+            files_reader: None,
             merge_graph: RefCell::new(None),
         }
     }
