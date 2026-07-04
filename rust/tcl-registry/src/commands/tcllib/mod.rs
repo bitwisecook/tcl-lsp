@@ -14,6 +14,10 @@ mod cmdline__typedgetopt;
 mod cmdline__typedgetoptions;
 mod cmdline__typedusage;
 mod cmdline__usage;
+mod control__assert;
+mod control__control;
+mod control__do;
+mod control__no_op;
 mod csv__iscomplete;
 mod csv__join;
 mod csv__joinlist;
@@ -239,7 +243,7 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     specs
 }
 
-/// `base64::*`, `cmdline::*`, `csv::*`, and `dns::*`.
+/// `base64::*`, `cmdline::*`, `control::*`, `csv::*`, and `dns::*`.
 fn base64_cmdline_csv_dns_specs() -> Vec<CommandSpec> {
     vec![
         base64__decode::spec(),
@@ -254,6 +258,10 @@ fn base64_cmdline_csv_dns_specs() -> Vec<CommandSpec> {
         cmdline__typedgetoptions::spec(),
         cmdline__typedusage::spec(),
         cmdline__usage::spec(),
+        control__assert::spec(),
+        control__control::spec(),
+        control__do::spec(),
+        control__no_op::spec(),
         csv__iscomplete::spec(),
         csv__join::spec(),
         csv__joinlist::spec(),
@@ -499,6 +507,7 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
     match name.split("::").next()? {
         "base64" => Some("base64"),
         "cmdline" => Some("cmdline"),
+        "control" => Some("control"),
         "csv" => Some("csv"),
         "dns" => Some("dns"),
         "fileutil" => Some("fileutil"),
@@ -570,5 +579,64 @@ mod tests {
             reg.get("csv::split").and_then(|s| s.required_package),
             Some("csv"),
         );
+    }
+
+    #[test]
+    fn control_package_maps_to_control() {
+        // The `control` module's control-flow commands are gated on the
+        // `control` package (issue #760).
+        let specs = tcllib_command_specs();
+        let names = [
+            "control::do",
+            "control::assert",
+            "control::control",
+            "control::no-op",
+        ];
+        for name in names {
+            let spec = specs.iter().find(|s| s.name == name);
+            assert_eq!(
+                spec.and_then(|s| s.required_package),
+                Some("control"),
+                "missing/incorrect required_package for `{name}`",
+            );
+        }
+    }
+
+    #[test]
+    fn control_do_recurses_body_expr_and_keyword() {
+        // `control::do body ?option test?` — the body is a script, the
+        // option word (`while`/`until`) is a keyword, and the test is an
+        // expression.  These roles drive semantic-token recursion (#760).
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let args = ["{body}", "while", "{$x < 10}"];
+        let bodies = reg.arg_indices_for_role("control::do", &args, ArgRole::Body);
+        let keywords = reg.arg_indices_for_role("control::do", &args, ArgRole::Keyword);
+        let exprs = reg.arg_indices_for_role("control::do", &args, ArgRole::Expr);
+        assert_eq!(bodies, vec![0], "body role");
+        assert_eq!(keywords, vec![1], "keyword role");
+        assert_eq!(exprs, vec![2], "expr role");
+    }
+
+    #[test]
+    fn control_assert_recurses_expr() {
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let args = ["{$x == 10}", "msg"];
+        let exprs = reg.arg_indices_for_role("control::assert", &args, ArgRole::Expr);
+        assert_eq!(exprs, vec![0], "control::assert expr role");
+    }
+
+    #[test]
+    fn struct_list_foreachperm_recurses_body() {
+        // `struct::list foreachperm var sequence body` — subcommand-level
+        // body/var roles (indices are +1 for the subcommand word).
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let args = ["foreachperm", "p", "{a b c}", "{body}"];
+        let bodies = reg.arg_indices_for_role("struct::list", &args, ArgRole::Body);
+        let writes = reg.arg_indices_for_role("struct::list", &args, ArgRole::VarWrite);
+        assert_eq!(bodies, vec![3], "foreachperm body index");
+        assert_eq!(writes, vec![1], "foreachperm var index");
     }
 }

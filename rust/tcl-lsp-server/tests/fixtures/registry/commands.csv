@@ -88,6 +88,10 @@ tcl8.4,cmdline::usage,1,2,0,0
 tcl8.4,concat,0,,0,0
 tcl8.4,const,2,2,0,0
 tcl8.4,continue,0,0,0,0
+tcl8.4,control::assert,1,,0,0
+tcl8.4,control::control,2,,0,0
+tcl8.4,control::do,1,3,0,0
+tcl8.4,control::no-op,0,,0,0
 tcl8.4,csv::iscomplete,1,1,0,0
 tcl8.4,csv::join,1,4,0,0
 tcl8.4,csv::joinlist,1,4,0,0
@@ -765,6 +769,10 @@ tcl8.5,cmdline::usage,1,2,0,0
 tcl8.5,concat,0,,0,0
 tcl8.5,const,2,2,0,0
 tcl8.5,continue,0,0,0,0
+tcl8.5,control::assert,1,,0,0
+tcl8.5,control::control,2,,0,0
+tcl8.5,control::do,1,3,0,0
+tcl8.5,control::no-op,0,,0,0
 tcl8.5,csv::iscomplete,1,1,0,0
 tcl8.5,csv::join,1,4,0,0
 tcl8.5,csv::joinlist,1,4,0,0
@@ -1445,6 +1453,10 @@ tcl8.6,cmdline::usage,1,2,0,0
 tcl8.6,concat,0,,0,0
 tcl8.6,const,2,2,0,0
 tcl8.6,continue,0,0,0,0
+tcl8.6,control::assert,1,,0,0
+tcl8.6,control::control,2,,0,0
+tcl8.6,control::do,1,3,0,0
+tcl8.6,control::no-op,0,,0,0
 tcl8.6,coroutine,2,,0,0
 tcl8.6,csv::iscomplete,1,1,0,0
 tcl8.6,csv::join,1,4,0,0
@@ -2144,6 +2156,10 @@ tcl9.0,cmdline::usage,1,2,0,0
 tcl9.0,concat,0,,0,0
 tcl9.0,const,2,2,0,0
 tcl9.0,continue,0,0,0,0
+tcl9.0,control::assert,1,,0,0
+tcl9.0,control::control,2,,0,0
+tcl9.0,control::do,1,3,0,0
+tcl9.0,control::no-op,0,,0,0
 tcl9.0,coroinject,2,,0,0
 tcl9.0,coroprobe,2,,0,0
 tcl9.0,coroutine,2,,0,0
@@ -2857,6 +2873,10 @@ tcl9.1,cmdline::usage,1,2,0,0
 tcl9.1,concat,0,,0,0
 tcl9.1,const,2,2,0,0
 tcl9.1,continue,0,0,0,0
+tcl9.1,control::assert,1,,0,0
+tcl9.1,control::control,2,,0,0
+tcl9.1,control::do,1,3,0,0
+tcl9.1,control::no-op,0,,0,0
 tcl9.1,coroinject,2,,0,0
 tcl9.1,coroprobe,2,,0,0
 tcl9.1,coroutine,2,,0,0
@@ -4425,6 +4445,10 @@ f5-irules,concat,0,,0,0
 f5-irules,connect,0,,0,7
 f5-irules,const,2,2,0,0
 f5-irules,continue,0,0,0,0
+f5-irules,control::assert,1,,0,0
+f5-irules,control::control,2,,0,0
+f5-irules,control::do,1,3,0,0
+f5-irules,control::no-op,0,,0,0
 f5-irules,cpu,0,,0,0
 f5-irules,crc32,0,,0,0
 f5-irules,csv::iscomplete,1,1,0,0
@@ -5062,6 +5086,10 @@ f5-iapps,cmdline::usage,1,2,0,0
 f5-iapps,concat,0,,0,0
 f5-iapps,const,2,2,0,0
 f5-iapps,continue,0,0,0,0
+f5-iapps,control::assert,1,,0,0
+f5-iapps,control::control,2,,0,0
+f5-iapps,control::do,1,3,0,0
+f5-iapps,control::no-op,0,,0,0
 f5-iapps,csv::iscomplete,1,1,0,0
 f5-iapps,csv::join,1,4,0,0
 f5-iapps,csv::joinlist,1,4,0,0
