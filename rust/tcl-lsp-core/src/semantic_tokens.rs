@@ -360,6 +360,9 @@ enum ArgOverride {
     /// A variable name a command declares / writes (`ArgRole::VarWrite`) →
     /// `Variable` + `declaration` modifier.
     VarDecl,
+    /// The `{params body ?ns?}` lambda literal argument of `apply` — its
+    /// second list element (the body) is re-segmented as a script.
+    ApplyLambda,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
@@ -520,6 +523,7 @@ fn special_arg_kinds(
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
     insert_enum_value_overrides(seg, registry, &mut overrides);
     insert_oo_define_keyword_overrides(seg, &mut overrides);
+    insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_regexp_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
@@ -769,7 +773,7 @@ fn insert_enum_value_overrides(
 /// definition word at an argument position, where it would otherwise render
 /// as a plain string.  The target (class / object) sits at `seg.texts[1]`,
 /// so the definition keyword is `seg.texts[2]`; `self` introduces a second,
-/// inner keyword at `seg.texts[3]`.  The recognised words are the TclOO
+/// inner keyword at `seg.texts[3]`.  The recognised words are the `TclOO`
 /// definition sub-keywords already enumerated in
 /// [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
 fn insert_oo_define_keyword_overrides(
@@ -807,6 +811,27 @@ fn insert_oo_define_keyword_overrides(
             .is_some_and(|w| LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w.as_str()))
     {
         mark_keyword(3);
+    }
+}
+
+/// `apply {params body ?ns?} …` — mark the braced lambda literal so its body
+/// (the second list element) is re-segmented as a script.  Only a braced
+/// literal first argument qualifies; `apply $lambda …` (a variable) is left
+/// alone.  Matches C Tcl, where `apply`'s first argument is a 2- or 3-element
+/// list `{argList body ?namespace?}`.
+fn insert_apply_lambda_override(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if seg.texts[0] != "apply" {
+        return;
+    }
+    if let Some(tok) = seg.argv.get(1)
+        && matches!(tok.kind, TokenType::Str)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::ApplyLambda);
     }
 }
 
@@ -927,6 +952,39 @@ fn insert_role_overrides(
                 .or_insert(ArgOverride::KeywordArg);
         }
     }
+
+    // TclOO definition-keyword heads used inside a class / object definition
+    // script (`oo::class create C { method m args {body} … }`) carry a
+    // trailing script body that the registry cannot role-tag — the bare
+    // `method` / `constructor` / … word has no `CommandSpec`.  Without this,
+    // everything inside a method body (the bulk of real TclOO code) stays an
+    // opaque string.  Recurse the trailing body so its commands / vars /
+    // strings tokenise like any other script.
+    if let Some(bi) = oo_definition_body_arg(head, arg_texts.len())
+        && let Some(tok) = seg.argv.get(bi + 1)
+        && matches!(tok.kind, TokenType::Str)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::BodyScript);
+    }
+}
+
+/// 0-based (after-head) index of the trailing script body for a `TclOO`
+/// definition keyword used as a command head inside a class / object
+/// definition script.  Only keywords whose body is unambiguously the last
+/// argument are handled (`method`/`classmethod NAME PARAMS BODY`,
+/// `constructor PARAMS BODY`, `destructor BODY`); modifier-prefixable words
+/// (`private`, `self`, …) are left alone to avoid mis-recursing a non-body
+/// trailing argument.
+fn oo_definition_body_arg(head: &str, n_args: usize) -> Option<usize> {
+    let min = match head {
+        "method" | "classmethod" => 3,
+        "constructor" => 2,
+        "destructor" => 1,
+        _ => return None,
+    };
+    (n_args >= min).then_some(n_args - 1)
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -1692,6 +1750,54 @@ fn collect_switch_regexp_case_list(
     }
 }
 
+/// Recurse the body of an `apply {params body ?ns?}` lambda literal.
+///
+/// The braced lambda is a Tcl list; its second element is the body script
+/// and is re-segmented so its commands / vars / strings tokenise like any
+/// other body.  The first element (the argument list) and an optional third
+/// (the namespace) are emitted with their default classification, so no part
+/// of the lambda is dropped.  Mirrors C Tcl's `apply` lambda shape.
+fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        // Not a braced literal (should not happen — the override only fires
+        // for `Str` tokens); fall back to a plain classification.
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    // Flatten the lambda's list elements (params, body, ?ns?).
+    let mut words: Vec<Token> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        inner,
+        u32::try_from(cstart).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+    ) {
+        words.extend(seg.argv.iter().copied());
+    }
+    for (idx, word_tok) in words.iter().enumerate() {
+        // Element 1 is the body — recurse it as a script when braced.
+        if idx == 1
+            && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
+        {
+            collect_script(
+                ctx,
+                body,
+                u32::try_from(bstart).unwrap_or(0),
+                entries,
+                depth + 1,
+            );
+        } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+            push_token(line_index, full_source, *word_tok, kind, 0, entries);
+        }
+    }
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
@@ -1828,7 +1934,14 @@ fn collect_script(
         };
 
         for tok in &seg.all_tokens {
-            if tok.span == head_tok.span {
+            // Skip every token that falls inside the head *word* — not just
+            // the exact head token.  A computed head (`chartV$node`,
+            // `${prefix}cmd`) is one word whose representative token
+            // `emit_command_head` already emitted as a single token, but
+            // whose sub-fragments (`chartV`, `$node`) also appear in
+            // `all_tokens`; emitting those would overlap the head token
+            // (invalid — LSP clients reject overlapping semantic tokens).
+            if tok.span.start() >= head_tok.span.start() && tok.span.end() <= head_tok.span.end() {
                 continue;
             }
             emit_arg_token(
@@ -1920,6 +2033,9 @@ fn emit_arg_token(
                 MOD_DECLARATION,
                 entries,
             );
+        }
+        Some(ArgOverride::ApplyLambda) => {
+            collect_apply_lambda(ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::SubcommandKeyword) => {
             push_token(
@@ -2767,6 +2883,79 @@ mod tests {
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
             "expected inner $i variable token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn method_body_recurses_in_class_definition_script() {
+        // `oo::class create C { method m {} { set z 3 } }` — the method body
+        // must be tokenised (C Tcl evaluates it as a script), so `set` reads
+        // as a function and `z` as a variable declaration, not one opaque
+        // string.
+        let src = "oo::class create C {\n  method m {} {\n    set z 3\n  }\n}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `z` as a variable declaration inside the method body; got {toks:?}"
+        );
+        // constructor body too.
+        let src = "oo::class create C {\n  constructor {} {\n    set q 9\n  }\n}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `q` declared inside the constructor body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn computed_command_head_does_not_overlap() {
+        // `chartV$node SetOptions …` — a command head containing a `$node`
+        // substitution must emit as a single head token, not the whole head
+        // plus overlapping `chartV` / `$node` fragment tokens (LSP clients
+        // reject overlapping semantic tokens).
+        let toks = decode("chartV$node SetOptions -x {}\n", "tcl", &reg());
+        for w in toks.windows(2) {
+            let (l0, c0, len0) = w[0];
+            let (l1, c1, _) = w[1];
+            if l0 == l1 {
+                assert!(
+                    c1 >= c0 + len0,
+                    "overlap: token at col {c1} starts before prev end {}; toks={toks:?}",
+                    c0 + len0
+                );
+            }
+        }
+        // The head is still present as one token starting at col 0.
+        assert!(
+            toks.iter()
+                .any(|&(l, c, len)| l == 0 && c == 0 && len == 11),
+            "expected single 11-wide head token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn apply_lambda_body_recurses() {
+        // `apply {{} { set z 3 }}` — the lambda body (list element 1) is a
+        // script; `set`/`z` must tokenise rather than sit inside one string.
+        let src = "apply {{} { set z 3 }}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Function as u32),
+            "expected `set` function token inside the lambda body; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `z` declared inside the lambda body; got {toks:?}"
+        );
+        // `apply $lambda` (a variable, not a literal) must not be recursed.
+        let ks = kinds("apply $lambda a b\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Variable as u32)),
+            "expected the $lambda variable token; got {ks:?}"
         );
     }
 
