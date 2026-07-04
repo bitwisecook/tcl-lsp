@@ -1,0 +1,18 @@
+[package]
+name = "tcl-diagram"
+publish.workspace = true
+description = "Control-flow diagram extraction from the Tcl/iRules IR ({events, procedures}), plus a deterministic Mermaid serialiser. Independent of the LSP."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+serde_json = "1"
+
+[lints]
+workspace = true

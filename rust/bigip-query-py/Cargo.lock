@@ -120,8 +120,10 @@ dependencies = [
  "tcl-bigip",
  "tcl-bigip-io",
  "tcl-bigip-query",
+ "tcl-diagram",
  "tcl-f5mku",
  "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -1139,6 +1141,15 @@ dependencies = [
 [[package]]
 name = "tcl-core-types"
 version = "0.1.0"
+
+[[package]]
+name = "tcl-diagram"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-registry",
+]
 
 [[package]]
 name = "tcl-f5mku"

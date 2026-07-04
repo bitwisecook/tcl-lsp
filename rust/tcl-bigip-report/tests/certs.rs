@@ -302,3 +302,11 @@ fn irule_highlight_marks_commands_vars_events() {
         "bodyHtml present"
     );
 }
+
+#[test]
+fn irule_flowchart_is_mermaid() {
+    let d = device0(SCF_ORPHAN_DYN);
+    let fc = d["rules"][0]["flowchart"].as_str().unwrap();
+    assert!(fc.starts_with("flowchart TD"), "mermaid flowchart: {fc}");
+    assert!(fc.contains("HTTP_REQUEST"), "event node present");
+}

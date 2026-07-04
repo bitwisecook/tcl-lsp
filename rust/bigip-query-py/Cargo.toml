@@ -38,6 +38,9 @@ tcl-bigip-query = { path = "../tcl-bigip-query" }
 tcl-f5mku = { path = "../tcl-f5mku" }
 # The real Tcl tokeniser + HTML highlighter, for the iRule source view.
 tcl-lexer = { path = "../tcl-lexer", features = ["html"] }
+# IR-based control-flow diagram & Mermaid serialiser for the iRule flowchart.
+tcl-diagram = { path = "../tcl-diagram" }
+tcl-registry = { path = "../tcl-registry" }
 # The certificate projection serialises the parsed `sys file ssl-cert` field
 # maps to JSON for the pure-Python report layer to consume.
 serde_json = { version = "1", features = ["preserve_order"] }
