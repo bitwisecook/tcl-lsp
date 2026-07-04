@@ -56,6 +56,22 @@ const GTM_CONTAINERS: &[(&str, &str)] = &[
     ("gtmListeners", ".gtm.listener"),
 ];
 
+// AFM security-firewall + NAT object containers. Surfacing these gives the
+// report a firewall / NAT posture view: the policies and rule-lists, the
+// address-/port-lists they match on, and the NAT policies and translations.
+const SECURITY_CONTAINERS: &[(&str, &str)] = &[
+    ("firewallPolicies", ".security.\"firewall-policy\""),
+    ("firewallRuleLists", ".security.\"firewall-rule-list\""),
+    ("firewallAddressLists", ".security.\"firewall-address-list\""),
+    ("firewallPortLists", ".security.\"firewall-port-list\""),
+    ("natPolicies", ".security.\"nat-policy\""),
+    ("natSourceTranslations", ".security.\"nat-source-translation\""),
+    (
+        "natDestinationTranslations",
+        ".security.\"nat-destination-translation\"",
+    ),
+];
+
 // Leaf object types that are *referenced* by something else; an empty referrer
 // set means the object is orphaned. Virtuals / virtual-addresses are entry
 // points, so they are never treated as orphans.
@@ -523,6 +539,125 @@ fn shape_gtm_listener(f: &Map<String, J>) -> J {
     o.insert("port".into(), J::String(bstr(f, "port").into()));
     o.insert("pool".into(), J::String(clean_field(f, "pool")));
     o.insert("state".into(), J::String(bstr(f, "state").into()));
+    J::Object(o)
+}
+
+// --- Security (firewall + NAT) shaping ---------------------------------------
+
+/// Shape a firewall-rule endpoint (source / destination) into flat string lists.
+fn shape_fw_endpoint(m: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("addresses".into(), J::Array(str_array(m, "addresses")));
+    o.insert(
+        "addressLists".into(),
+        J::Array(clean_arr(m, "address-lists")),
+    );
+    o.insert("ports".into(), J::Array(str_array(m, "ports")));
+    o.insert("portLists".into(), J::Array(clean_arr(m, "port-lists")));
+    J::Object(o)
+}
+
+fn shape_fw_rule(m: &Map<String, J>) -> J {
+    let empty = Map::new();
+    let src = m.get("source").and_then(J::as_object).unwrap_or(&empty);
+    let dst = m.get("destination").and_then(J::as_object).unwrap_or(&empty);
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(m, "name").into()));
+    o.insert("action".into(), J::String(bstr(m, "action").into()));
+    o.insert("ipProtocol".into(), J::String(bstr(m, "ip-protocol").into()));
+    o.insert("log".into(), J::Bool(bbool(m, "log")));
+    o.insert("source".into(), shape_fw_endpoint(src));
+    o.insert("destination".into(), shape_fw_endpoint(dst));
+    o.insert("ruleList".into(), J::String(clean_field(m, "rule-list")));
+    J::Object(o)
+}
+
+fn shape_fw_policy(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(str_array(f, "rules")));
+    o.insert("ruleLists".into(), J::Array(clean_arr(f, "rule-lists")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_rule_list(f: &Map<String, J>) -> J {
+    let rules: Vec<J> = barr(f, "rules")
+        .iter()
+        .filter_map(J::as_object)
+        .map(shape_fw_rule)
+        .collect();
+    let rule_count = rules.len();
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(rules));
+    o.insert("ruleCount".into(), J::from(rule_count));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_address_list(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    o.insert(
+        "addressLists".into(),
+        J::Array(clean_arr(f, "address-lists")),
+    );
+    o.insert("fqdns".into(), J::Array(str_array(f, "fqdns")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_port_list(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("ports".into(), J::Array(str_array(f, "ports")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_nat_policy(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(str_array(f, "rules")));
+    o.insert("ruleLists".into(), J::Array(clean_arr(f, "rule-lists")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+/// Shared shaper for the two NAT translation kinds (same projected shape).
+fn shape_nat_translation(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("type".into(), J::String(bstr(f, "type").into()));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    o.insert("ports".into(), J::Array(str_array(f, "ports")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
     J::Object(o)
 }
 
@@ -1164,6 +1299,23 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
             "gtmServers" => rows.iter().map(|f| shape_gtm_server(f, &gtm_used)).collect(),
             "gtmDatacenters" => rows.iter().map(shape_gtm_datacenter).collect(),
             "gtmListeners" => rows.iter().map(shape_gtm_listener).collect(),
+            _ => Vec::new(),
+        };
+        device.insert((*key).into(), J::Array(shaped));
+    }
+
+    // AFM firewall + NAT inventory (the security posture view).
+    for (key, container) in SECURITY_CONTAINERS {
+        let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
+        let shaped: Vec<J> = match *key {
+            "firewallPolicies" => rows.iter().map(shape_fw_policy).collect(),
+            "firewallRuleLists" => rows.iter().map(shape_fw_rule_list).collect(),
+            "firewallAddressLists" => rows.iter().map(shape_fw_address_list).collect(),
+            "firewallPortLists" => rows.iter().map(shape_fw_port_list).collect(),
+            "natPolicies" => rows.iter().map(shape_nat_policy).collect(),
+            "natSourceTranslations" | "natDestinationTranslations" => {
+                rows.iter().map(shape_nat_translation).collect()
+            }
             _ => Vec::new(),
         };
         device.insert((*key).into(), J::Array(shaped));
