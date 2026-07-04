@@ -471,10 +471,16 @@ fn push_regsub_subtokens(
 ///   `pattern_type == Regex`, option-skipped first positional) →
 ///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
+///
+/// `arg_texts` holds the command's argument words (`seg.texts[1..]`, head
+/// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
+/// with the registry-role and OO-body override passes, so the hot path makes
+/// only a single bridging allocation per command.
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     inside_oo_body: bool,
+    arg_texts: &[&str],
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
     let head = &seg.texts[0];
@@ -502,8 +508,8 @@ fn special_arg_kinds(
 
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
     insert_switch_regexp_override(seg, &mut overrides);
-    insert_role_overrides(seg, registry, &mut overrides);
-    insert_oo_body_overrides(seg, inside_oo_body, &mut overrides);
+    insert_role_overrides(seg, registry, arg_texts, &mut overrides);
+    insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
 
     overrides
 }
@@ -522,6 +528,7 @@ fn special_arg_kinds(
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     inside_oo_body: bool,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let head = &seg.texts[0];
@@ -531,8 +538,7 @@ fn insert_oo_body_overrides(
     // `inner_oo_body_indices` indexes the argument words (excluding the
     // head); `seg.argv[idx + 1]` is the representative token (argv[0] is the
     // head).  Only braced (`Str`) bodies recurse.
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    for idx in crate::oo_body::inner_oo_body_indices(head, &arg_texts) {
+    for idx in crate::oo_body::inner_oo_body_indices(head, arg_texts) {
         if let Some(tok) = seg.argv.get(idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
@@ -710,6 +716,7 @@ fn insert_switch_regexp_override(
 fn insert_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let head = &seg.texts[0];
@@ -717,12 +724,11 @@ fn insert_role_overrides(
     // `expr {expr}`, … — keyed on each word's representative token
     // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
     // recurse; non-literal words fall through.
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for (role, ov) in [
         (tcl_registry::ArgRole::Body, ArgOverride::BodyScript),
         (tcl_registry::ArgRole::Expr, ArgOverride::ExprScript),
     ] {
-        for i in registry.arg_indices_for_role(head, &arg_texts, role) {
+        for i in registry.arg_indices_for_role(head, arg_texts, role) {
             if let Some(tok) = seg.argv.get(i + 1)
                 && matches!(tok.kind, TokenType::Str)
             {
@@ -737,7 +743,7 @@ fn insert_role_overrides(
     // registry's `Keyword` role marks them; highlight as keywords.  Unlike
     // body/expr these are bare (`Esc`) or quoted (`Str`) literal words, so
     // no `Str`-only guard.
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword) {
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Keyword) {
         if let Some(tok) = seg.argv.get(i + 1)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)
         {
@@ -1619,7 +1625,14 @@ fn collect_script(
             entries,
         );
 
-        let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body);
+        // The command's argument words (head excluded), borrowed once as
+        // `&[&str]` and shared by every registry-driven pass below — the
+        // override builder and the OO-body context check both need it, and
+        // the registry API takes `&[&str]`, so building it here keeps the
+        // hot path to a single bridging allocation per command.
+        let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+
+        let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
 
         // The `inside_oo_body` context the recursion into THIS command's
         // body arguments should carry: an outer OO definition body switches
@@ -1628,7 +1641,6 @@ fn collect_script(
         // it on for their bare script form, not their member (`method …`)
         // forms — hence the args are consulted.  Command substitutions and
         // expressions always run in ordinary (non-definition) context.
-        let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
         let next_oo = crate::oo_body::next_inside_oo_body(
             head_text,
             &arg_texts,

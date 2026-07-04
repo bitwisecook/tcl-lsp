@@ -159,7 +159,7 @@ fn if_elseif_else_are_keywords() {
     }
 }
 
-// -- TclOO definition-body highlighting (issue #747) -----------------------
+// TclOO definition-body highlighting (issue #747).
 //
 // C-Tcl proof: `oo::configurable`, `oo::abstract`, and `oo::singleton` are
 // real Tcl 9.0 metaclasses (`info commands oo::*`) that manufacture classes
