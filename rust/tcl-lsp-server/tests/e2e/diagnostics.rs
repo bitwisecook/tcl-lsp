@@ -520,11 +520,40 @@ fn while1_break_set_silent() {
 }
 
 #[test]
-fn normal_while_still_fires() {
-    // A non-constant condition may run zero times → maybe-unset read.
+fn normal_while_body_defined_silent() {
+    // FP-RBS-19 (#756): a non-constant `while` may run zero times, but its body
+    // unconditionally sets `y`, so a read after the loop is defined whenever the
+    // loop ran. Matching C Tcl (which errors only when the condition is false on
+    // entry at runtime), we assume a may-run loop runs — no W210.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc f {n} {\n    while {$n > 0} { set y 1; incr n -1 }\n    puts $y\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn foreach_accumulator_after_loop_silent() {
+    // FP-RBS-19 (#756), the reporter's exact pattern: a `lappend` accumulator
+    // built inside a dynamic multi-group `foreach`, read after the loop. The
+    // body defines the accumulators on every iteration, so the after-loop reads
+    // are not read-before-set.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set data [getDataDict]\n\
+        foreach time [dict get $data time] vout [dict get $data osc_out] {\n\
+        \x20   lappend timeVout [list $time $vout]\n\
+        }\n\
+        puts $timeVout\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn foreach_empty_literal_after_loop_still_fires() {
+    // TP control: a provably-empty literal list runs zero times, so tclsh always
+    // errors — the after-loop read must keep firing.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc f {} {\n    foreach x {} { lappend acc $x }\n    puts $acc\n}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
