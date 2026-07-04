@@ -1214,4 +1214,221 @@
       b.addEventListener("click", function () { setTimeout(run, 0); });
     });
   })();
+
+  // ---- App bundling: group virtuals into a named "app", saved in the browser,
+  //      with a combined flow diagram and every object it touches shown with a
+  //      syntax-highlighted config and cross-links. ------------------------------
+  (function initApps() {
+    var LS_PREFIX = "f5report:apps:";
+    function deviceKey(d) { return String(d.name || d.uri || "device").replace(/\s+/g, "_"); }
+    function loadApps(d) {
+      try { return JSON.parse(localStorage.getItem(LS_PREFIX + deviceKey(d)) || "[]") || []; }
+      catch (e) { return []; }
+    }
+    function storeApps(d, apps) {
+      try { localStorage.setItem(LS_PREFIX + deviceKey(d), JSON.stringify(apps)); return true; }
+      catch (e) { return false; }
+    }
+
+    // Extract one object's raw bigip.conf stanza (brace-matched) from the device
+    // config text. iRules are shown from the model's highlighted body instead.
+    function stanzaFor(cfg, fullPath) {
+      if (!cfg || !fullPath) return null;
+      var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
+      var m = re.exec(cfg);
+      if (!m) return null;
+      var i = cfg.indexOf("{", m.index);
+      if (i < 0) return null;
+      var depth = 0;
+      for (var j = i; j < cfg.length; j++) {
+        var c = cfg[j];
+        if (c === "{") depth++;
+        else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
+      }
+      return cfg.slice(m.index);
+    }
+
+    // Escape, then wrap object paths (clickable when the target is in the app)
+    // and each line's leading keyword.
+    function highlightConf(text, inApp) {
+      var out = esc(text);
+      out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
+        return inApp[m0]
+          ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
+          : '<span class="conf-path">' + m0 + "</span>";
+      });
+      out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
+      return out;
+    }
+
+    function blockId(oid) { return "appobj:" + oid; }
+    function scrollToBlock(host, oid) {
+      var el = host.querySelector('[id="' + (window.CSS && CSS.escape ? CSS.escape(blockId(oid)) : blockId(oid)) + '"]');
+      if (!el) { var all = host.querySelectorAll(".app-obj"); for (var k = 0; k < all.length; k++) { if (all[k].getAttribute("data-oid") === oid) { el = all[k]; break; } } }
+      if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("app-obj-flash"); setTimeout(function () { el.classList.remove("app-obj-flash"); }, 1200); }
+    }
+
+    function ruleByPath(ix, fp) {
+      var rules = ix.d.rules || [];
+      for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
+      return null;
+    }
+
+    // Everything an app's virtual servers forward-reach (their pools, nodes,
+    // monitors, iRules, and the pools those iRules use) — the objects that make
+    // up the application, not the whole connected component.
+    function appScope(ix, startOids) {
+      var seen = {}, queue = [];
+      startOids.forEach(function (o) { if (ix.byOid[o]) { seen[o] = true; queue.push(o); } });
+      while (queue.length) {
+        var cur = queue.shift();
+        (ix.fadj[cur] || []).forEach(function (nb) { if (!seen[nb]) { seen[nb] = true; queue.push(nb); } });
+      }
+      return seen;
+    }
+
+    // Render one app's detail: flow diagram + object blocks.
+    function renderApp(deviceEl, ix, app, host) {
+      var vsOids = (app.oids || []).filter(function (o) { return ix.byOid[o]; });
+      var scope = appScope(ix, vsOids);
+      var oids = Object.keys(scope);
+      var inApp = {};
+      oids.forEach(function (o) { var n = ix.byOid[o]; if (n) inApp[n.fullPath] = true; });
+
+      var missing = (app.oids || []).length - vsOids.length;
+      var html = '<div class="app-detail">';
+      html += '<div class="app-detail-head"><h3>' + esc(app.name) + "</h3>" +
+        '<span class="muted">' + vsOids.length + " virtual server(s), " +
+        oids.length + " objects" + (missing ? ", " + missing + " not in this device" : "") + "</span></div>";
+      // VS chips (scroll to block)
+      html += '<div class="app-vs-chips">';
+      vsOids.forEach(function (o) { html += '<button class="app-chip" data-goto-oid="' + o + '">' + esc(ix.byOid[o].name) + "</button>"; });
+      html += "</div>";
+      // flow diagram host
+      html += '<div class="app-flow"><div class="app-flow-title">Application flow</div><div class="app-flow-diagram diag-host">building…</div></div>';
+      // object blocks
+      html += '<div class="app-objs">';
+      var order = { vs: 0, pool: 1, node: 2, mon: 3, rule: 4, prof: 5, persist: 6, policy: 7, snat: 8, dg: 9 };
+      oids.sort(function (a, b) {
+        var na = ix.byOid[a], nb = ix.byOid[b];
+        return (order[na.type] || 9) - (order[nb.type] || 9) || na.name.localeCompare(nb.name);
+      });
+      oids.forEach(function (o) {
+        var n = ix.byOid[o];
+        html += '<div class="app-obj" id="' + blockId(o) + '" data-oid="' + o + '">';
+        html += '<div class="app-obj-head"><span class="app-obj-type">' + esc(TYPE_LABEL[n.type] || n.type) + '</span> ' +
+          '<span class="app-obj-name mono">' + esc(n.fullPath) + '</span>' +
+          '<button class="app-obj-drawer" data-oid="' + o + '" title="Open in inspector">⤢</button></div>';
+        if (n.type === "rule") {
+          var r = ruleByPath(ix, n.fullPath);
+          if (r) {
+            if (r.flowchart) html += '<div class="app-obj-flow diag-host" data-flow="' + esc(encodeURIComponent(r.flowchart)) + '">flow…</div>';
+            html += '<pre class="code tcl">' + (r.bodyHtml || esc(r.body || "")) + "</pre>";
+          }
+        } else {
+          var stanza = stanzaFor(ix.d.configText, n.fullPath);
+          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, inApp) : '<span class="muted">config not found</span>') + "</pre>";
+        }
+        html += "</div>";
+      });
+      html += "</div></div>";
+      host.innerHTML = html;
+
+      // render the combined flow diagram
+      var flowHost = host.querySelector(".app-flow-diagram");
+      if (flowHost) {
+        if (oids.length > 1) renderInto(flowHost, buildFlowchart(ix, oids, { dir: "LR" }), ix, function (oid) { scrollToBlock(host, oid); });
+        else flowHost.textContent = "(nothing reachable from the selected virtual servers)";
+      }
+      // render each iRule control-flow flowchart
+      host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function (fh) {
+        var def = decodeURIComponent(fh.getAttribute("data-flow") || "");
+        if (!def || !window.mermaid) { fh.textContent = ""; return; }
+        var id = "appflow" + (_rid++);
+        mermaid.render(id, def).then(function (res) { fh.innerHTML = res.svg; }).catch(function () { fh.textContent = "(flowchart unavailable)"; });
+      });
+      // cross-links: config paths + VS chips + drawer buttons
+      host.querySelectorAll(".conf-link[data-goto]").forEach(function (a) {
+        a.addEventListener("click", function (e) { e.preventDefault(); var fp = a.getAttribute("data-goto"); var oid = ix.byPath[fp]; if (oid) scrollToBlock(host, oid); });
+      });
+      host.querySelectorAll(".app-chip[data-goto-oid]").forEach(function (b) {
+        b.addEventListener("click", function () { scrollToBlock(host, b.getAttribute("data-goto-oid")); });
+      });
+      host.querySelectorAll(".app-obj-drawer[data-oid]").forEach(function (b) {
+        b.addEventListener("click", function () { openDrawer(ix, b.getAttribute("data-oid")); });
+      });
+    }
+
+    function renderAppsPanel(deviceEl, ix) {
+      var view = deviceEl.querySelector('.panel[data-panel="apps"] .apps-view');
+      if (!view) return;
+      var apps = loadApps(ix.d);
+      var badge = deviceEl.querySelector(".app-badge");
+      if (badge) badge.textContent = String(apps.length);
+      var html = '<div class="apps-list">';
+      if (!apps.length) {
+        html += '<p class="muted">No saved apps yet. On the Virtual Servers tab, tick the virtual servers that make up an application, give it a name and hit <strong>Save app</strong>. Apps are stored in this browser (localStorage) and travel with this report file.</p>';
+      } else {
+        apps.forEach(function (app, i) {
+          html += '<div class="app-card"><button class="app-open" data-i="' + i + '">' + esc(app.name) + "</button>" +
+            '<span class="muted">' + (app.oids || []).length + " VS</span>" +
+            '<button class="app-del" data-i="' + i + '" title="Delete app">✕</button></div>';
+        });
+      }
+      html += '</div><div class="apps-detail"></div>';
+      view.innerHTML = html;
+      view.querySelectorAll(".app-open").forEach(function (b) {
+        b.addEventListener("click", function () {
+          view.querySelectorAll(".app-open").forEach(function (x) { x.classList.remove("active"); });
+          b.classList.add("active");
+          renderApp(deviceEl, ix, apps[parseInt(b.dataset.i, 10)], view.querySelector(".apps-detail"));
+        });
+      });
+      view.querySelectorAll(".app-del").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var a = loadApps(ix.d); a.splice(parseInt(b.dataset.i, 10), 1); storeApps(ix.d, a);
+          renderAppsPanel(deviceEl, ix);
+        });
+      });
+    }
+
+    MODEL.devices.forEach(function (d, di) {
+      var deviceEl = document.querySelector('.device[data-dev="' + di + '"]') ||
+        document.querySelectorAll(".device")[di];
+      if (!deviceEl) return;
+      var ix = IDX[di];
+      var vpanel = deviceEl.querySelector('.panel[data-panel="virtuals"]');
+      var picks = function () { return vpanel ? vpanel.querySelectorAll(".app-pick") : []; };
+      var countEl = deviceEl.querySelector(".app-count");
+      function refreshCount() {
+        var n = 0; picks().forEach(function (c) { if (c.checked) n++; });
+        if (countEl) countEl.textContent = n + " selected";
+      }
+      picks().forEach(function (c) { c.addEventListener("change", refreshCount); });
+      var all = deviceEl.querySelector(".app-pick-all");
+      if (all) all.addEventListener("change", function () {
+        picks().forEach(function (c) { var row = c.closest("tr"); if (!row || row.classList.contains("part-hidden") || row.classList.contains("hidden")) return; c.checked = all.checked; });
+        refreshCount();
+      });
+      var saveBtn = deviceEl.querySelector(".app-save");
+      var nameInp = deviceEl.querySelector(".app-name");
+      if (saveBtn) saveBtn.addEventListener("click", function () {
+        var oids = []; picks().forEach(function (c) { if (c.checked) oids.push(c.dataset.vs); });
+        var name = (nameInp && nameInp.value.trim()) || "";
+        if (!oids.length) { if (nameInp) nameInp.placeholder = "tick some virtual servers first"; return; }
+        if (!name) { if (nameInp) { nameInp.focus(); nameInp.placeholder = "name the app first"; } return; }
+        var apps = loadApps(ix.d);
+        var existing = apps.filter(function (a) { return a.name === name; })[0];
+        if (existing) existing.oids = oids; else apps.push({ name: name, oids: oids });
+        storeApps(ix.d, apps);
+        if (nameInp) nameInp.value = "";
+        picks().forEach(function (c) { c.checked = false; }); refreshCount();
+        renderAppsPanel(deviceEl, ix);
+        // jump to the Apps tab
+        var tab = deviceEl.querySelector('.tab[data-panel="apps"]'); if (tab) tab.click();
+      });
+      renderAppsPanel(deviceEl, ix);
+    });
+  })();
 })();

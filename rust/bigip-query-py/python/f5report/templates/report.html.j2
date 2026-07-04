@@ -101,6 +101,7 @@
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
+    <button class="tab" data-panel="apps">Apps <span class="n app-badge">0</span></button>
     {% if has_console %}
     <button class="tab" data-panel="console">Query Console</button>
     {% endif %}
@@ -108,15 +109,24 @@
 
   {#: ---------------- Virtual Servers ---------------- :#}
   <div class="panel active" data-panel="virtuals">
+    <div class="app-bar">
+      <span class="app-bar-lbl">Bundle as app:</span>
+      <input class="app-name" type="text" placeholder="App name…" maxlength="60" aria-label="App name">
+      <button class="app-save" type="button" title="Save the ticked virtual servers as an app (stored in this browser)">💾 Save app</button>
+      <span class="app-count muted">0 selected</span>
+      <span class="app-hint muted">tick virtual servers, name the app, then open the Apps tab</span>
+    </div>
     <div class="tablewrap">
     <table class="grid">
       <thead><tr>
+        <th class="app-col"><input type="checkbox" class="app-pick-all" title="Select all visible" aria-label="Select all"></th>
         <th>Name</th><th>Destination</th><th>Port</th><th>Pool</th>
         <th>Profiles</th><th>iRules</th><th>SNAT</th><th>Proto</th><th></th>
       </tr></thead>
       <tbody>
       {% for v in d.virtuals %}
       <tr class="searchable{{ ' is-disabled' if v.disabled }}" data-search="{{ v.name }} {{ v.fullPath }} {{ v.destAddr }} {{ v.destPort }} {{ v.source }} {{ v.ipProtocol }} {{ v.description }}">
+        <td class="app-col"><input type="checkbox" class="app-pick" data-vs="vs:{{ v.fullPath }}" data-name="{{ v.name }}" aria-label="Select {{ v.name }}"></td>
         <td class="mono strong"><span class="objlink namelink" data-oid="vs:{{ v.fullPath }}">{{ v.name }}</span>{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
         <td class="mono">{{ v.destAddr }}</td>
         <td class="mono">{{ v.destPort }}</td>
@@ -401,6 +411,11 @@
     </div>
     <div class="lm-results"></div>
     <div class="lm-sim"></div>
+  </div>
+
+  {#: ---------------- Apps (user-bundled virtual servers) ---------------- :#}
+  <div class="panel" data-panel="apps">
+    <div class="apps-view"></div>
   </div>
 
   {% if has_console %}
