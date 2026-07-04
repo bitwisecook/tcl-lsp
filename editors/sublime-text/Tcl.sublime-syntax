@@ -28,11 +28,25 @@ contexts:
     - include: number
     - include: escape
 
-  # Comments — only valid at command position (after ^, ;, or inside [...])
+  # Comments — only valid at command position (after ^, ;, or inside [...]).
+  # Pushed as a body context (not a single-line match) so a trailing unescaped
+  # backslash continues the comment onto the next physical line, matching Tcl's
+  # line-continuation rule (issue #759).
   comment:
-    - match: '(?:^|;)\s*(#.*)$'
-      captures:
-        1: comment.line.number-sign.tcl
+    - match: '(?:^|;)\s*(?=#)'
+      push: comment-body
+
+  comment-body:
+    - meta_content_scope: comment.line.number-sign.tcl
+    # Escaped backslash pair — consumed as content so it does NOT continue the
+    # comment (an even run of trailing backslashes terminates it).
+    - match: '\\\\'
+    # Backslash-newline continuation — stay in the comment on the next line
+    # (an odd run of trailing backslashes continues it).
+    - match: '\\\n'
+    # Plain end of line — no continuation, so end the comment.
+    - match: '\n'
+      pop: true
 
   # Proc definition — capture the procedure name for Goto Symbol.
   # The name class excludes string/brace/bracket delimiters so a bareword
