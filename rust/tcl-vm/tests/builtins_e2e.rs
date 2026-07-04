@@ -1349,3 +1349,42 @@ fn dict_map_compiled_inline_executes() {
         "x {x 1} y {y 2}\n",
     );
 }
+
+#[test]
+fn dict_update_compiled_inline_executes() {
+    // Two keys mutated in the body flow back into the dict.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict update d a x b y { set x [expr {$x*10}]; set y [expr {$y*10}] }; return $d }\nputs [p]\n",
+        "a 10 b 20\n",
+    );
+    // The `dict update` value is the body's result.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; return [dict update d a x { set x 99 }] }\nputs [p]\n",
+        "99\n",
+    );
+    // A key absent from the dict leaves its target unset; setting it adds the key.
+    out_eq(
+        "proc p {} { set d {a 1}; dict update d a x c z { set z 7 }; return $d }\nputs [p]\n",
+        "a 1 c 7\n",
+    );
+}
+
+#[test]
+fn dict_with_compiled_inline_executes() {
+    // Keys become locals; the body reads them, the dict is unchanged.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; set r [dict with d { expr {$a+$b} }]; return [list $d $r] }\nputs [p]\n",
+        "{a 1 b 2} 3\n",
+    );
+    // Mutating a key-local flows back into the dict.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict with d { set a 100 }; return $d }\nputs [p]\n",
+        "a 100 b 2\n",
+    );
+    // A brand-new local set in the body is folded in only if it names a key;
+    // an unrelated local does not extend the dict.
+    out_eq(
+        "proc p {} { set d {a 1}; dict with d { set a 5; set other 9 }; return $d }\nputs [p]\n",
+        "a 5\n",
+    );
+}

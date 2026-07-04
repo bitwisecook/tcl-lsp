@@ -1409,6 +1409,118 @@ impl Vm {
                 f.stack.push(k);
                 f.stack.push(Value::bool(done));
             }
+            Op::DICT_UPDATE_START => {
+                // Prologue of compiled `dict update`: read the dict var and copy
+                // each keyed value into the matching target local (unsetting it
+                // when the key is absent). The key list stays on the stack for
+                // the paired `dictUpdateEnd`.
+                let dict_name = lvt_name(imm0(instr));
+                let vars = instr.dict_vars.clone().unwrap_or_default();
+                let keys: Vec<String> = match f.stack.last() {
+                    Some(v) => match v.as_list() {
+                        Ok(l) => l.iter().map(|e| e.to_str().to_string()).collect(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => return Tick::Return(err("dictUpdateStart: stack underflow")),
+                };
+                let dict = match self.get_var(&dict_name) {
+                    Some(d) => d,
+                    None => {
+                        return Tick::Return(err(format!(
+                            "can't read \"{dict_name}\": no such variable"
+                        )));
+                    }
+                };
+                let ps = match dict_pairs(&dict) {
+                    Ok(p) => p,
+                    Err(c) => return Tick::Return(c),
+                };
+                for (i, key) in keys.iter().enumerate() {
+                    let Some(var) = vars.get(i) else { break };
+                    match ps.iter().find(|(k, _)| k == key) {
+                        Some((_, val)) => try_op!(self.set_var(var, val.clone())),
+                        None => {
+                            let _ = self.unset_one(var, false);
+                        }
+                    }
+                }
+            }
+            Op::DICT_UPDATE_END => {
+                // Epilogue of compiled `dict update`: pop the key list and write
+                // each target local back into the dict var under its key (or
+                // remove the key when the local was unset).
+                let dict_name = lvt_name(imm0(instr));
+                let vars = instr.dict_vars.clone().unwrap_or_default();
+                let keys: Vec<String> = match pop(f).as_list() {
+                    Ok(l) => l.iter().map(|e| e.to_str().to_string()).collect(),
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
+                let mut ps = match dict_pairs(&cur) {
+                    Ok(p) => p,
+                    Err(c) => return Tick::Return(c),
+                };
+                for (i, key) in keys.iter().enumerate() {
+                    let Some(var) = vars.get(i) else { break };
+                    match self.get_var(var) {
+                        Some(val) => {
+                            if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
+                                slot.1 = val;
+                            } else {
+                                ps.push((key.clone(), val));
+                            }
+                        }
+                        None => ps.retain(|(k, _)| k != key),
+                    }
+                }
+                try_op!(self.set_var(&dict_name, dict_from_pairs(&ps)));
+            }
+            Op::DICT_EXPAND => {
+                // Prologue of compiled `dict with`: expand every key of the dict
+                // (top-of-stack path selects a sub-dict; the inline form always
+                // passes an empty path = the whole dict) into a same-named local,
+                // pushing the snapshot dict as the recombine state.
+                let _path = pop(f);
+                let dict = pop(f);
+                let ps = match dict_pairs(&dict) {
+                    Ok(p) => p,
+                    Err(c) => return Tick::Return(c),
+                };
+                for (k, v) in &ps {
+                    try_op!(self.set_var(k, v.clone()));
+                }
+                f.stack.push(dict);
+            }
+            Op::DICT_RECOMBINE_IMM => {
+                // Epilogue of compiled `dict with`: write each snapshot key's
+                // local back into the dict var (removing keys whose local was
+                // unset).
+                let dict_name = lvt_name(imm0(instr));
+                let state = pop(f);
+                let _path = pop(f);
+                let keys: Vec<String> = match dict_pairs(&state) {
+                    Ok(p) => p.into_iter().map(|(k, _)| k).collect(),
+                    Err(c) => return Tick::Return(c),
+                };
+                let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
+                let mut ps = match dict_pairs(&cur) {
+                    Ok(p) => p,
+                    Err(c) => return Tick::Return(c),
+                };
+                for key in &keys {
+                    match self.get_var(key) {
+                        Some(val) => {
+                            if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
+                                slot.1 = val;
+                            } else {
+                                ps.push((key.clone(), val));
+                            }
+                        }
+                        None => ps.retain(|(k, _)| k != key),
+                    }
+                }
+                try_op!(self.set_var(&dict_name, dict_from_pairs(&ps)));
+            }
 
             // -- dict validation: consumes the (dup'd) TOS, validates even length --
             Op::VERIFY_DICT => {

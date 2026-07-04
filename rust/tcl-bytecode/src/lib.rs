@@ -183,6 +183,28 @@ pub enum Op {
     /// `dictNext <slot>` — advance the iterator in local `<slot>`; pushes the
     /// next value, key, and done flag.
     DICT_NEXT,
+    /// `dictUpdateStart <dictSlot> <auxIdx>` — read the dict in local
+    /// `<dictSlot>` and, for each key in the list on top of stack, store its
+    /// value into the corresponding target local (from the out-of-band
+    /// `dict_vars` list), unsetting the target when the key is absent. The key
+    /// list stays on the stack for the paired `dictUpdateEnd`. C Tcl's compiled
+    /// `dict update` prologue.
+    DICT_UPDATE_START,
+    /// `dictUpdateEnd <dictSlot> <auxIdx>` — pop the key list (top of stack) and
+    /// write each target local (`dict_vars`) back into the dict in local
+    /// `<dictSlot>` under its key, removing the key when its local is unset. C
+    /// Tcl's compiled `dict update` epilogue.
+    DICT_UPDATE_END,
+    /// `dictExpand` — pop a key-path and a dict (path below, dict below that);
+    /// create a local variable for every key of the (sub-)dict named by the
+    /// path and push a "state" value (the snapshot key list) for the paired
+    /// `dictRecombineImm`. C Tcl's compiled `dict with` prologue.
+    DICT_EXPAND,
+    /// `dictRecombineImm <dictSlot>` — pop a state value (top) and a key-path
+    /// and write each state key's local back into the dict in local
+    /// `<dictSlot>`, removing keys whose local was unset. C Tcl's compiled
+    /// `dict with` epilogue.
+    DICT_RECOMBINE_IMM,
     JUMP_TABLE,
     NOP,
     UMINUS,
@@ -329,6 +351,10 @@ impl Op {
             Self::FOREACH_END => "foreach_end",
             Self::DICT_FIRST => "dictFirst",
             Self::DICT_NEXT => "dictNext",
+            Self::DICT_UPDATE_START => "dictUpdateStart",
+            Self::DICT_UPDATE_END => "dictUpdateEnd",
+            Self::DICT_EXPAND => "dictExpand",
+            Self::DICT_RECOMBINE_IMM => "dictRecombineImm",
             Self::NOP => "nop",
             Self::TAILCALL => "tailcall",
             Self::INVOKE_REPLACE => "invokeReplace",
@@ -590,6 +616,7 @@ impl Op {
                 | Self::PUSH_RETURN_CODE
                 | Self::FOREACH_STEP
                 | Self::FOREACH_END
+                | Self::DICT_EXPAND
                 | Self::NOP
                 | Self::UMINUS
                 | Self::UPLUS
@@ -700,6 +727,7 @@ impl Op {
             | Self::FOREACH_START
             | Self::DICT_FIRST
             | Self::DICT_NEXT
+            | Self::DICT_RECOMBINE_IMM
             | Self::JUMP_TABLE
             | Self::LAPPEND_LIST
             | Self::APPEND_SCALAR4
@@ -732,7 +760,9 @@ impl Op {
             | Self::SYNTAX
             | Self::DICT_SET
             | Self::DICT_UNSET
-            | Self::DICT_INCR_IMM => 9,
+            | Self::DICT_INCR_IMM
+            | Self::DICT_UPDATE_START
+            | Self::DICT_UPDATE_END => 9,
 
             // All remaining opcodes are single-byte, handled above by the
             // early return; `opcode_family_partition_total` proves this.
@@ -845,6 +875,12 @@ pub struct Instruction {
     /// stack before the opcode. Not rendered in disassembly (keeps identity
     /// stable).
     pub foreach_vars: Option<Vec<Vec<String>>>,
+    /// Target variable names for `DICT_UPDATE_START`/`DICT_UPDATE_END` only — the
+    /// analogue of C Tcl's `DictUpdateInfo.varIndices`. One name per key in the
+    /// key list on the stack; the VM stores/reads each named local. Carried
+    /// out-of-band (like `foreach_vars`) so the 9-byte on-disk operand form and
+    /// disassembly stay byte-stable. `None` for every other opcode.
+    pub dict_vars: Option<Vec<String>>,
     /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
     /// word and must be pushed exactly as-is, suppressing the runtime word
     /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
@@ -870,6 +906,7 @@ impl Instruction {
             source_cmd_text: String::new(),
             source_span: None,
             foreach_vars: None,
+            dict_vars: None,
             push_verbatim: false,
         }
     }
