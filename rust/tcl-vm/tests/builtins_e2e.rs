@@ -1388,3 +1388,17 @@ fn dict_with_compiled_inline_executes() {
         "a 5\n",
     );
 }
+
+/// A control-flow body is not straight-line, so `dict update`/`dict with` fall
+/// back to the runtime `dict` invoke — which must still execute correctly.
+#[test]
+fn dict_update_with_control_flow_body_falls_back_and_executes() {
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict update d a x b y { if {$x > 0} { set x [expr {$x+$y}] } }; return $d }\nputs [p]\n",
+        "a 3 b 2\n",
+    );
+    out_eq(
+        "proc q {} { set d {a 1 b 2}; dict with d { foreach k {a b} { }; set a 9 }; return $d }\nputs [q]\n",
+        "a 9 b 2\n",
+    );
+}
