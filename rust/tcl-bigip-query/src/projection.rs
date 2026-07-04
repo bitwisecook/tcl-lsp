@@ -26,7 +26,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 use tcl_bigip::model::BigipDataGroup;
 use tcl_bigip::model::{
-    BigipMonitor, BigipNode, BigipPersistence, BigipPolicy, BigipPolicyAction,
+    BigipGtmDatacenter, BigipGtmListener, BigipGtmPool, BigipGtmPoolMember, BigipGtmServer,
+    BigipGtmWideip, BigipMonitor, BigipNode, BigipPersistence, BigipPolicy, BigipPolicyAction,
     BigipPolicyCondition, BigipPolicyRule, BigipPool, BigipPoolMember, BigipProfile, BigipRule,
     BigipSnatPool, BigipVirtualAddress, BigipVirtualServer, DataGroupType, ModelObject,
     ProfileType,
@@ -188,16 +189,41 @@ const LTM_KINDS: &[(&str, &str)] = &[
     ("data-group", "ltm data-group"),
 ];
 
+/// `(label, tmsh_kind)` for the GTM kinds the projection covers. GTM matters to
+/// the estate report because a GTM (DNS) tier fronts one or more LTM tiers: a
+/// `gtm server`'s `virtual-servers` destinations are the downstream LTM virtual
+/// addresses, which is how the report links a GTM to the LTMs it load-balances.
+const GTM_KINDS: &[(&str, &str)] = &[
+    ("datacenter", "gtm datacenter"),
+    ("server", "gtm server"),
+    ("pool", "gtm pool"),
+    ("wideip", "gtm wideip"),
+    ("listener", "gtm listener"),
+];
+
+/// Every `(label, tmsh_kind)` the projection covers, across modules. Iterated by
+/// the per-module entry builder and the kind/label lookups.
+fn module_kinds(module: &str) -> &'static [(&'static str, &'static str)] {
+    match module {
+        "ltm" => LTM_KINDS,
+        "gtm" => GTM_KINDS,
+        _ => &[],
+    }
+}
+
 /// The set of leaf object kinds, restricted to the covered subset. Used by
 /// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
-    LTM_KINDS.iter().any(|(_, k)| *k == kind)
+    [LTM_KINDS, GTM_KINDS]
+        .iter()
+        .any(|table| table.iter().any(|(_, k)| *k == kind))
 }
 
 /// Map a kind to its label (for `PathRef` container navigation).
 fn kind_to_label(kind: &str) -> Option<&'static str> {
-    LTM_KINDS
+    [LTM_KINDS, GTM_KINDS]
         .iter()
+        .flat_map(|table| table.iter())
         .find(|(_, k)| *k == kind)
         .map(|(label, _)| *label)
 }
@@ -219,16 +245,14 @@ fn build_entries(container: &Container) -> IndexMap<String, Value> {
         return out;
     }
 
-    // Module-level container (`.ltm`): one Container per kind.
+    // Module-level container (`.ltm` / `.gtm`): one Container per covered kind.
     if MODULE_NAMES.contains(&container.kind.as_str()) {
         let mut out = IndexMap::new();
-        if container.kind == "ltm" {
-            for (label, tmsh_kind) in LTM_KINDS {
-                out.insert(
-                    (*label).to_owned(),
-                    Value::Container(Container::new(*tmsh_kind, Rc::clone(root))),
-                );
-            }
+        for (label, tmsh_kind) in module_kinds(&container.kind) {
+            out.insert(
+                (*label).to_owned(),
+                Value::Container(Container::new(*tmsh_kind, Rc::clone(root))),
+            );
         }
         return out;
     }
@@ -263,6 +287,11 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
         ModelObject::SnatPool(_) => Some("ltm snatpool"),
         ModelObject::Policy(_) => Some("ltm policy"),
         ModelObject::DataGroup(_) => Some("ltm data-group"),
+        ModelObject::GtmDatacenter(_) => Some("gtm datacenter"),
+        ModelObject::GtmServer(_) => Some("gtm server"),
+        ModelObject::GtmPool(_) => Some("gtm pool"),
+        ModelObject::GtmWideip(_) => Some("gtm wideip"),
+        ModelObject::GtmListener(_) => Some("gtm listener"),
         _ => None,
     }
 }
@@ -331,6 +360,11 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
         ModelObject::SnatPool(o) => o.range,
         ModelObject::Policy(o) => o.range,
         ModelObject::DataGroup(o) => o.range,
+        ModelObject::GtmDatacenter(o) => o.range,
+        ModelObject::GtmServer(o) => o.range,
+        ModelObject::GtmPool(o) => o.range,
+        ModelObject::GtmWideip(o) => o.range,
+        ModelObject::GtmListener(o) => o.range,
         _ => None,
     }
 }
@@ -494,6 +528,11 @@ fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<St
         ("ltm snatpool", ModelObject::SnatPool(o)) => project_snatpool(o),
         ("ltm policy", ModelObject::Policy(o)) => project_policy(o, root),
         ("ltm data-group", ModelObject::DataGroup(o)) => project_data_group(o),
+        ("gtm datacenter", ModelObject::GtmDatacenter(o)) => project_gtm_datacenter(o),
+        ("gtm server", ModelObject::GtmServer(o)) => project_gtm_server(o),
+        ("gtm pool", ModelObject::GtmPool(o)) => project_gtm_pool(o),
+        ("gtm wideip", ModelObject::GtmWideip(o)) => project_gtm_wideip(o),
+        ("gtm listener", ModelObject::GtmListener(o)) => project_gtm_listener(o),
         _ => IndexMap::new(),
     }
 }
@@ -1178,6 +1217,119 @@ fn project_data_group(o: &BigipDataGroup) -> IndexMap<String, Value> {
 /// A `Vec<String>` projected as a list of strings.
 fn str_list(values: &[String]) -> Value {
     Value::List(values.iter().map(|s| Value::Str(s.clone())).collect())
+}
+
+// GTM projections
+
+fn project_gtm_datacenter(o: &BigipGtmDatacenter) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("contact", &o.contact)
+        .s("location", &o.location)
+        .s("description", &o.description)
+        .v("prober-pool", path_ref(&o.prober_pool, "gtm prober-pool"))
+        .s("prober-preference", &o.prober_preference)
+        .s("prober-fallback", &o.prober_fallback)
+        .s("state", &o.state)
+        .done()
+}
+
+fn project_gtm_server(o: &BigipGtmServer) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("datacenter", path_ref(&o.datacenter, "gtm datacenter"))
+        .v("monitor", monitor_value(&o.monitor))
+        .s("product", &o.product)
+        // The device's own (self) IP addresses.
+        .v("addresses", str_list(&o.addresses))
+        // The destinations of the server's virtual-servers — these are the
+        // downstream LTM virtual addresses this GTM balances across, and the
+        // signal the report uses to link a GTM tier to its LTM tiers.
+        .v("virtual-servers", str_list(&o.virtual_servers))
+        .s("description", &o.description)
+        .s("state", &o.state)
+        .v("prober-pool", path_ref(&o.prober_pool, "gtm prober-pool"))
+        .s("virtual-server-discovery", &o.virtual_server_discovery)
+        .done()
+}
+
+fn project_gtm_pool(o: &BigipGtmPool) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("record-type", &o.record_type)
+        .v("monitor", monitor_value(&o.monitor))
+        .s("load-balancing-mode", &o.load_balancing_mode)
+        .s("alternate-mode", &o.alternate_mode)
+        .s("fallback-mode", &o.fallback_mode)
+        .s("fallback-ip", &o.fallback_ip)
+        .s("ttl", &o.ttl)
+        .s("max-answers-returned", &o.max_answers_returned)
+        .s("verify-member-availability", &o.verify_member_availability)
+        .v("members", project_gtm_pool_members(&o.members))
+        .s("description", &o.description)
+        .s("state", &o.state)
+        .done()
+}
+
+fn project_gtm_pool_members(members: &[BigipGtmPoolMember]) -> Value {
+    Value::List(
+        members
+            .iter()
+            .map(|m| {
+                Value::Object(
+                    Fields::new()
+                        .s("name", &m.name)
+                        .s("service-port", &m.service_port)
+                        .s("order", &m.order)
+                        .s("member-order", &m.member_order)
+                        .s("ratio", &m.ratio)
+                        .v("monitor", monitor_value(&m.monitor))
+                        .s("static-target", &m.static_target)
+                        .s("state", &m.state)
+                        .s("description", &m.description)
+                        .done(),
+                )
+            })
+            .collect(),
+    )
+}
+
+fn project_gtm_wideip(o: &BigipGtmWideip) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("record-type", &o.record_type)
+        .v("pools", path_ref_list_strs(&o.pools, "gtm pool"))
+        .v("aliases", str_list(&o.aliases))
+        .s("pool-lb-mode", &o.pool_lb_mode)
+        .v("last-resort-pool", path_ref(&o.last_resort_pool, "gtm pool"))
+        .s("persistence", &o.persistence)
+        .s("description", &o.description)
+        .s("state", &o.state)
+        .done()
+}
+
+fn project_gtm_listener(o: &BigipGtmListener) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("address", &o.address)
+        .s("port", &o.port)
+        .s("ip-protocol", &o.ip_protocol)
+        .s("mask", &o.mask)
+        .v("pool", path_ref(&o.pool, "gtm pool"))
+        .v("profiles", path_ref_list_strs(&o.profiles, "ltm profile"))
+        .v("rules", path_ref_list_strs(&o.rules, "gtm rule"))
+        .s("source-address-translation", &o.source_address_translation)
+        .v("vlans", str_list(&o.vlans))
+        .b("vlans-disabled", o.vlans_disabled)
+        .b("vlans-enabled", o.vlans_enabled)
+        .s("state", &o.state)
+        .s("description", &o.description)
+        .done()
 }
 
 // PathRef resolution

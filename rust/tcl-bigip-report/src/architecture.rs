@@ -162,32 +162,33 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
             }
         }
     }
-    // GTM pool members reference GTM servers; the shaped GTM pool carries the
-    // resolved member address so a GTM->LTM hop is detected the same way.
-    for p in barr(device, "gtmPools") {
-        let Some(pm) = p.as_object() else { continue };
-        let pool_fp = bstr(pm, "fullPath").to_string();
-        for m in barr(pm, "members") {
-            let Some(mm) = m.as_object() else { continue };
-            if let Some(ip) = bare_ip(bstr(mm, "address")) {
-                out.push(Target {
-                    address: ip,
-                    from_obj: pool_fp.clone(),
-                    port: bstr(mm, "port").to_string(),
-                });
-            }
-        }
-    }
-    // GTM servers list their virtual-server addresses directly.
+    // GTM servers list their virtual-server destinations (e.g. `10.2.0.20:443`)
+    // — the downstream LTM virtual addresses this GTM balances across. That
+    // overlap is the GTM -> LTM tier hop.
     for s in barr(device, "gtmServers") {
         let Some(sm) = s.as_object() else { continue };
         let server_fp = bstr(sm, "fullPath").to_string();
-        for a in barr(sm, "addresses") {
+        for a in barr(sm, "virtualServers") {
             if let Some(ip) = a.as_str().and_then(bare_ip) {
                 out.push(Target {
                     address: ip,
                     from_obj: server_fp.clone(),
                     port: String::new(),
+                });
+            }
+        }
+    }
+    // Static GTM pool members carry an explicit target IP (`static-target`).
+    for p in barr(device, "gtmPools") {
+        let Some(pm) = p.as_object() else { continue };
+        let pool_fp = bstr(pm, "fullPath").to_string();
+        for m in barr(pm, "members") {
+            let Some(mm) = m.as_object() else { continue };
+            if let Some(ip) = bare_ip(bstr(mm, "staticTarget")) {
+                out.push(Target {
+                    address: ip,
+                    from_obj: pool_fp.clone(),
+                    port: bstr(mm, "servicePort").to_string(),
                 });
             }
         }
