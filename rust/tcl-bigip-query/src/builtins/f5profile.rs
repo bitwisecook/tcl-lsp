@@ -11,6 +11,7 @@
 //! ([`tcl_registry::profiles`]), so this is the single source of truth for
 //! profile ordering across `f5 query`, the BIG-IP report and the LSP.
 
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use tcl_registry::profiles::ProfileRegistry;
@@ -101,6 +102,32 @@ where
     items.into_iter().map(|(_, _, r)| r).collect()
 }
 
+/// Order profile references into traffic order given a `full_path → type` map
+/// (e.g. a config's typed profile inventory).
+///
+/// Each reference is matched against `types` by exact key first, then by leaf
+/// name (last `/`-separated segment) — so a virtual's partition-relative
+/// reference like `my_http` resolves against the inventory key
+/// `/Common/my_http`. References that resolve to neither fall back to
+/// well-known default-profile-name inference inside
+/// [`order_profiles_by_traffic`]. Leaf collisions across partitions keep the
+/// first-seen type (same-partition attachment is the norm).
+#[must_use]
+pub fn order_profiles_with_types(refs: &[String], types: &HashMap<String, String>) -> Vec<String> {
+    let mut by_leaf: HashMap<&str, &str> = HashMap::new();
+    for (path, ty) in types {
+        let leaf = path.rsplit('/').next().unwrap_or(path);
+        by_leaf.entry(leaf).or_insert(ty.as_str());
+    }
+    order_profiles_by_traffic(refs, |r| {
+        types.get(r).cloned().or_else(|| {
+            by_leaf
+                .get(r.rsplit('/').next().unwrap_or(r))
+                .map(|t| (*t).to_owned())
+        })
+    })
+}
+
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![plain(
         "profile_order",
@@ -146,6 +173,19 @@ mod tests {
         let refs = vec!["/Common/http".to_owned(), "/Common/tcp".to_owned()];
         let out = order_profiles_by_traffic(&refs, |_| None);
         assert_eq!(out, vec!["/Common/tcp".to_owned(), "/Common/http".to_owned()]);
+    }
+
+    #[test]
+    fn relative_refs_resolve_by_leaf_against_full_path_inventory() {
+        // Virtual attaches partition-relative names; inventory is full-path
+        // keyed. Leaf matching still types them, so a custom HTTP profile is
+        // ordered after the transport profile.
+        let mut types = HashMap::new();
+        types.insert("/Common/my_http".to_owned(), "HTTP".to_owned());
+        types.insert("/Common/my_tcp".to_owned(), "TCP".to_owned());
+        let refs = vec!["my_http".to_owned(), "my_tcp".to_owned()];
+        let out = order_profiles_with_types(&refs, &types);
+        assert_eq!(out, vec!["my_tcp".to_owned(), "my_http".to_owned()]);
     }
 
     #[test]

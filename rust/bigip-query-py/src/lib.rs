@@ -505,9 +505,7 @@ fn order_events(events: Vec<String>) -> Vec<String> {
 #[pyo3(signature = (profiles, types=None))]
 fn order_profiles(profiles: Vec<String>, types: Option<HashMap<String, String>>) -> Vec<String> {
     let types = types.unwrap_or_default();
-    tcl_bigip_query::builtins::f5profile::order_profiles_by_traffic(&profiles, |n| {
-        types.get(n).cloned()
-    })
+    tcl_bigip_query::builtins::f5profile::order_profiles_with_types(&profiles, &types)
 }
 
 /// Build a Mermaid control-flow flowchart for an iRule.
