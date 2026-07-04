@@ -70,6 +70,17 @@
     </div>
   </div>
 
+  {% if d.partitions and d.partitions | length > 1 %}
+  <div class="partition-bar">
+    <span class="partition-lbl">Partition</span>
+    <select class="partition-filter" aria-label="Filter by partition">
+      <option value="__all__">All partitions</option>
+      {% for pt in d.partitions %}<option value="{{ pt }}">/{{ pt }}</option>{% endfor %}
+    </select>
+    <span class="partition-note">shared <code>/Common</code> objects stay visible</span>
+  </div>
+  {% endif %}
+
   {% if d.insights %}
   <div class="insights">
     {% for ins in d.insights %}

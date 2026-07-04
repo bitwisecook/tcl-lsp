@@ -47,6 +47,22 @@ const REFERABLE: &[&str] = &[
     "snatpools",
 ];
 
+/// Object-list keys that carry a displayed, partition-scoped object (used to tag
+/// each object with its partition for the partition filter).
+const DISPLAY_KEYS: &[&str] = &[
+    "virtuals",
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "dataGroups",
+    "profiles",
+    "policies",
+    "snatpools",
+    "persistence",
+    "certificates",
+];
+
 fn container_path(key: &str) -> &'static str {
     CONTAINERS
         .iter()
@@ -987,6 +1003,33 @@ fn collect_device(uri: &str, source: &str) -> J {
     device.insert(
         "secrets".into(),
         J::Array(crate::secrets::collect_secrets(source)),
+    );
+
+    // Tag every displayed object with its partition (from the full path) and
+    // collect the device's partition set, so the report can filter to a
+    // partition while always keeping shared /Common objects visible.
+    let mut partitions: BTreeSet<String> = BTreeSet::new();
+    for key in DISPLAY_KEYS {
+        if let Some(J::Array(objs)) = device.get_mut(*key) {
+            for o in objs.iter_mut() {
+                if let Some(om) = o.as_object_mut() {
+                    let existing = bstr(om, "partition").to_string();
+                    let part = if existing.is_empty() {
+                        partition_of(bstr(om, "fullPath"))
+                    } else {
+                        existing
+                    };
+                    if !part.is_empty() {
+                        partitions.insert(part.clone());
+                    }
+                    om.insert("partition".into(), J::String(part));
+                }
+            }
+        }
+    }
+    device.insert(
+        "partitions".into(),
+        J::Array(partitions.into_iter().map(J::String).collect()),
     );
 
     // Counts.
