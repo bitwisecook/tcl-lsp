@@ -44,6 +44,11 @@ const SECRETS_JS: &str = include_str!("../templates/secrets.js");
 const FORENSICS_CSS: &str = include_str!("../templates/forensics.css");
 const FORENSICS_JS: &str = include_str!("../templates/forensics.js");
 const IRULE_FLOW_JS: &str = include_str!("../templates/irule-flow.js");
+const APM_CSS: &str = include_str!("../templates/apm.css");
+const APM_JS: &str = include_str!("../templates/apm.js");
+// elkjs (EPL-2.0), the ELK layout engine, for the orthogonal APM graph.
+const ELK_JS: &str = include_str!("../templates/vendor/elk.bundled.js");
+const ELK_GRAPH_JS: &str = include_str!("../templates/elk-graph.js");
 
 /// Options controlling report rendering.
 pub struct RenderOptions {
@@ -150,6 +155,10 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("secrets_js".into(), J::String(SECRETS_JS.into()));
     ctx.insert("forensics_js".into(), J::String(FORENSICS_JS.into()));
     ctx.insert("irule_flow_js".into(), J::String(IRULE_FLOW_JS.into()));
+    ctx.insert("apm_css".into(), J::String(APM_CSS.into()));
+    ctx.insert("apm_js".into(), J::String(APM_JS.into()));
+    ctx.insert("elk_js".into(), J::String(ELK_JS.into()));
+    ctx.insert("elk_graph_js".into(), J::String(ELK_GRAPH_JS.into()));
     ctx.insert("mermaid_js".into(), J::String(MERMAID_JS.into()));
     ctx.insert("topo_types".into(), topo_types());
 

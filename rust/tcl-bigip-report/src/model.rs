@@ -1521,6 +1521,11 @@ fn collect_device(
         J::Array(crate::secrets::collect_secrets(source)),
     );
 
+    // APM access-profile walk (APM tab): follow every `apm profile access` out
+    // to its policy, items, agents and resources. Read from the config text —
+    // the query projection is LTM-only.
+    device.insert("apmProfiles".into(), crate::apm::collect_apm(source, &device));
+
     // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
     // from the UCS members the entry point extracted (empty for a bare
     // bigip.conf) plus a web-shell scan of this device's iRules.
@@ -1589,6 +1594,11 @@ fn collect_device(
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("secrets".into(), J::from(secret_total));
+    let apm_total = device
+        .get("apmProfiles")
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("apmProfiles".into(), J::from(apm_total));
     // Aggregate GTM + firewall/NAT object counts (for the tab badges).
     let len_of = |keys: &[&str]| -> usize {
         keys.iter()
