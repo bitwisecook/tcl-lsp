@@ -134,14 +134,42 @@ fn parse_passwd(content: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// Build the Forensics model for one device from its file inventory.
+/// iRule command-execution / evaluation tokens that are highly unusual in a
+/// legitimate iRule and are the signal for a web-shell / covert-C2 rule
+/// (T1505.003). Matched as whole words in an HTTP-event rule body.
+fn irule_backdoor_hits(rules: &[J]) -> Vec<String> {
+    // Whole-word `eval`, `exec`, or the `[whereis]`/`[subst]`-on-input shape.
+    let risky = regex::Regex::new(r"(?m)\b(eval|exec)\b").expect("valid regex");
+    let http_evt = regex::Regex::new(r"\bHTTP_(REQUEST|RESPONSE)\b").expect("valid regex");
+    let mut hits = Vec::new();
+    for r in rules {
+        let Some(o) = r.as_object() else { continue };
+        // Skip TMOS defaults (`_sys_*`) — never attacker-authored.
+        if o.get("isDefault").and_then(J::as_bool) == Some(true) {
+            continue;
+        }
+        let body = str_field(o, "body");
+        if body.is_empty() {
+            continue;
+        }
+        if http_evt.is_match(body) && risky.is_match(body) {
+            let name = str_field(o, "fullPath");
+            let name = if name.is_empty() { str_field(o, "name") } else { name };
+            hits.push(name.to_owned());
+        }
+    }
+    hits
+}
+
+/// Build the Forensics model for one device from its file inventory and iRules.
 ///
-/// `files` is the per-device inventory (JSON objects with `path`, `size`,
-/// `sha256`, `isText` and optionally `content`). Returns
-/// `{files: [...], checklist: [...]}`; both empty when the inventory is empty
-/// (e.g. a `bigip.conf`-only source with no archive behind it).
+/// `files` is the per-device UCS inventory (JSON objects with `path`, `size`,
+/// `sha256`, `isText` and optionally `content`); `rules` is the device's iRule
+/// list (from the model), scanned for web-shell patterns. Returns
+/// `{files: [...], checklist: [...]}`; `files` is empty when there's no archive
+/// behind the source (e.g. a bare `bigip.conf`), but the iRule check still runs.
 #[must_use]
-pub fn collect_forensics(files: &[J]) -> J {
+pub fn collect_forensics(files: &[J], rules: &[J]) -> J {
     let mut out_files: Vec<J> = Vec::with_capacity(files.len());
     // Checklist accumulators.
     let mut ak_paths: Vec<String> = Vec::new();
@@ -289,7 +317,29 @@ pub fn collect_forensics(files: &[J]) -> J {
         "evidence": J::Array(vec![]),
     }));
 
-    json!({ "files": out_files, "checklist": checklist })
+    // iRule web-shell / covert C2 — command execution in an HTTP-event rule.
+    let irule_hits = irule_backdoor_hits(rules);
+    checklist.push(json!({
+        "id": "irule-backdoor",
+        "label": "iRule command execution",
+        "attack": "T1505.003",
+        "verdict": if irule_hits.is_empty() { "clear" } else { "warn" },
+        "detail": if irule_hits.is_empty() {
+            "no HTTP-event iRule uses eval/exec".to_string()
+        } else {
+            format!("{} HTTP-event iRule(s) use eval/exec — review for a web shell", irule_hits.len())
+        },
+        "evidence": irule_hits,
+    }));
+
+    // Count the actionable findings so the report can surface the tab even for
+    // a config-only source (no files) that still tripped the iRule scan.
+    let flagged = checklist
+        .iter()
+        .filter(|c| matches!(c.get("verdict").and_then(J::as_str), Some("alert" | "warn")))
+        .count();
+
+    json!({ "files": out_files, "checklist": checklist, "flagged": flagged })
 }
 
 #[cfg(test)]
@@ -307,6 +357,11 @@ mod tests {
         })
     }
 
+    /// `collect_forensics` with no iRules (the common file-only test shape).
+    fn fx(files: &[J]) -> J {
+        collect_forensics(files, &[])
+    }
+
     fn verdict<'a>(f: &'a J, id: &str) -> &'a str {
         f["checklist"]
             .as_array()
@@ -320,37 +375,37 @@ mod tests {
 
     #[test]
     fn authorized_keys_flagged_when_non_empty() {
-        let flagged = collect_forensics(&[file(
+        let flagged = fx(&[file(
             "root/.ssh/authorized_keys",
             Some("# comment\nssh-rsa AAAAB3Nz attacker@host\n"),
         )]);
         assert_eq!(verdict(&flagged, "ssh-authorized-keys"), "alert");
 
-        let empty = collect_forensics(&[file("root/.ssh/authorized_keys", Some("# only a comment\n"))]);
+        let empty = fx(&[file("root/.ssh/authorized_keys", Some("# only a comment\n"))]);
         assert_eq!(verdict(&empty, "ssh-authorized-keys"), "clear");
 
-        let absent = collect_forensics(&[file("etc/motd", Some("hi"))]);
+        let absent = fx(&[file("etc/motd", Some("hi"))]);
         assert_eq!(verdict(&absent, "ssh-authorized-keys"), "absent");
     }
 
     #[test]
     fn passwd_added_and_uid0_accounts() {
         // A rogue non-root UID 0 account → alert.
-        let uid0 = collect_forensics(&[file(
+        let uid0 = fx(&[file(
             "etc/passwd",
             Some("root:x:0:0::/root:/bin/bash\nbackdoor:x:0:0::/root:/bin/bash\n"),
         )]);
         assert_eq!(verdict(&uid0, "local-accounts"), "alert");
 
         // An unrecognised interactive account (non-zero uid) → warn.
-        let added = collect_forensics(&[file(
+        let added = fx(&[file(
             "etc/passwd",
             Some("root:x:0:0::/root:/bin/bash\neviluser:x:1200:1200::/home/eviluser:/bin/bash\n"),
         )]);
         assert_eq!(verdict(&added, "local-accounts"), "warn");
 
         // Only stock accounts → clear.
-        let clean = collect_forensics(&[file(
+        let clean = fx(&[file(
             "etc/passwd",
             Some("root:x:0:0::/root:/bin/bash\nnobody:x:99:99::/:/sbin/nologin\n"),
         )]);
@@ -359,7 +414,7 @@ mod tests {
 
     #[test]
     fn sensitive_content_is_not_embedded() {
-        let f = collect_forensics(&[file("etc/shadow", Some("root:$6$abc$def:19000:0:99999:7:::\n"))]);
+        let f = fx(&[file("etc/shadow", Some("root:$6$abc$def:19000:0:99999:7:::\n"))]);
         let shadow = &f["files"][0];
         assert_eq!(shadow["category"], "accounts");
         assert_eq!(shadow["sensitive"], J::Bool(true));
@@ -370,7 +425,7 @@ mod tests {
 
     #[test]
     fn dotfiles_and_logging_surface_as_info() {
-        let f = collect_forensics(&[
+        let f = fx(&[
             file("home/admin/.bashrc", Some("export PATH=$PATH\n")),
             file("etc/syslog-ng/syslog-ng.conf", Some("destination d_remote {};\n")),
         ]);
@@ -384,5 +439,35 @@ mod tests {
             .find(|x| x["path"] == "home/admin/.bashrc")
             .unwrap();
         assert!(bashrc["content"].as_str().unwrap().contains("PATH"));
+    }
+
+    #[test]
+    fn irule_command_execution_flagged() {
+        let rule = |name: &str, body: &str, default: bool| {
+            json!({"name": name, "fullPath": format!("/Common/{name}"), "body": body, "isDefault": default})
+        };
+        // HTTP-event rule using eval → warn, with the rule named as evidence.
+        let bad = collect_forensics(
+            &[],
+            &[rule("shell", "when HTTP_REQUEST { eval [b64decode [HTTP::header X-Cmd]] }", false)],
+        );
+        assert_eq!(verdict(&bad, "irule-backdoor"), "warn");
+        assert_eq!(bad["checklist"].as_array().unwrap().iter()
+            .find(|c| c["id"] == "irule-backdoor").unwrap()["evidence"][0], "/Common/shell");
+
+        // A benign HTTP rule (no eval/exec) → clear.
+        let ok = collect_forensics(
+            &[],
+            &[rule("redirect", "when HTTP_REQUEST { HTTP::redirect https://x/ }", false)],
+        );
+        assert_eq!(verdict(&ok, "irule-backdoor"), "clear");
+
+        // `eval` outside an HTTP event, and a _sys_ default, don't trip it.
+        let non_http = collect_forensics(
+            &[],
+            &[rule("startup", "when RULE_INIT { eval {set x 1} }", false),
+              rule("_sys_https_redirect", "when HTTP_REQUEST { eval x }", true)],
+        );
+        assert_eq!(verdict(&non_http, "irule-backdoor"), "clear");
     }
 }

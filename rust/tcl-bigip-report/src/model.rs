@@ -1241,9 +1241,13 @@ fn collect_device(
     );
 
     // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
-    // from the UCS members the entry point extracted. Empty when the source is
-    // a bare bigip.conf with no archive behind it.
-    device.insert("forensics".into(), crate::forensics::collect_forensics(files));
+    // from the UCS members the entry point extracted (empty for a bare
+    // bigip.conf) plus a web-shell scan of this device's iRules.
+    let rule_slice = device.get("rules").and_then(J::as_array).cloned().unwrap_or_default();
+    device.insert(
+        "forensics".into(),
+        crate::forensics::collect_forensics(files, &rule_slice),
+    );
 
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a

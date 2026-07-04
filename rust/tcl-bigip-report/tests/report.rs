@@ -253,6 +253,27 @@ fn forensics_tab_present_with_file_inventory() {
 }
 
 #[test]
+fn web_shell_irule_surfaces_forensics_tab_without_files() {
+    // A config-only source (no UCS) whose iRule uses eval in an HTTP event:
+    // the forensic file inventory is empty, but the flagged finding must still
+    // surface the Forensics tab.
+    let scf = "ltm rule /Common/shell { when HTTP_REQUEST { eval [b64decode [HTTP::header X-Cmd]] } }\n\
+               ltm virtual /Common/vs { destination /Common/1.2.3.4:80 rules { /Common/shell } }\n";
+    let opts = RenderOptions {
+        title: "WebShell".into(),
+        generated_at: String::new(),
+        embed_console: false,
+        ..Default::default()
+    };
+    let html = build_report(&[("x.conf".to_string(), scf.to_string())], &opts).expect("render");
+    assert!(
+        html.contains("data-panel=\"forensics\""),
+        "forensics tab present for a flagged iRule even with no files"
+    );
+    assert!(html.contains("irule-backdoor"), "the iRule finding is embedded");
+}
+
+#[test]
 fn no_forensics_tab_without_files() {
     // A bare bigip.conf source (no archive) → no forensic files → no tab.
     let opts = RenderOptions {
