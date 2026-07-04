@@ -19,13 +19,23 @@ on:
     # long-term default. Deploy from whichever holds the merged code.
     branches: [rust, main]
     paths:
+      # BIG-IP report generator + demo sources (query engine, model, renderer).
       - "rust/bigip-query-py/**"
       - "rust/bigip-query-wasm/**"
+      - "rust/bigip-report-wasm/**"
       - "rust/tcl-bigip-query/**"
+      - "rust/tcl-bigip-report/**"
       - "rust/tcl-bigip/**"
       - "rust/tcl-bigip-io/**"
+      # Compiler-explorer sources: the WASM shell + the compiler/analysis core
+      # it embeds, so highlighting/analysis fixes redeploy the live explorer.
       - "rust/tcl-explorer-wasm/**"
       - "rust/tcl-cli/gui/**"
+      - "rust/tcl-lexer/**"
+      - "rust/tcl-syntax/**"
+      - "rust/tcl-registry/**"
+      - "rust/tcl-compiler/**"
+      - "rust/tcl-lsp-core/**"
       - ".github/workflows/github-pages.yml"
   workflow_dispatch:
 
