@@ -321,7 +321,7 @@
   {#: ---------------- Secrets ---------------- :#}
   {% if d.counts.secrets %}
   <div class="panel" data-panel="secrets">
-    <p class="lm-field-note">Every credential-bearing field in the config — SSL private-key passphrases, monitor / RADIUS / SNMP / iApp secrets. BIG-IP stores these encrypted under the unit master key (<code>f5mku -K</code>). Revealed values are <b>hidden by default</b>; nothing here was uploaded.</p>
+    <p class="lm-field-note">Every credential-bearing field in the config — SSL private-key passphrases, monitor / RADIUS / SNMP / iApp secrets. BIG-IP stores these encrypted under the unit master key (<code>f5mku -K</code>). Values are <b>masked</b>: when the report was generated <em>with</em> the master key you can reveal the decrypted secret; otherwise it stays encrypted and cannot be shown. Nothing here was uploaded, and printing only shows secrets you have revealed.</p>
     <div class="secrets-summary"></div>
     <div class="tablewrap">
     <table class="grid secret-grid">
@@ -331,9 +331,8 @@
       <tr class="searchable secret-row" data-search="{{ s.object }} {{ s.field }}">
         <td class="mono small">{{ s.object }}</td>
         <td class="mono"><span class="tag">{{ s.field }}</span></td>
-        <td class="mono small">
-          {% if s.encrypted %}<span class="tag amber" title="supply the f5mku master key when generating to reveal">encrypted</span>
-          {% else %}<span class="secret-mask">••••••••••</span><code class="secret-val" hidden>{{ s.value }}</code> <button type="button" class="secret-reveal">Reveal</button>{% endif %}
+        <td class="mono small secret-cell">
+          <span class="secret-mask">••••••••••••</span>{% if s.encrypted %} <span class="tag amber" title="Regenerate the report with the f5mku master key to reveal">encrypted</span>{% else %}<code class="secret-val" hidden>{{ s.value }}</code> <button type="button" class="secret-reveal">Reveal</button>{% endif %}
         </td>
       </tr>
       {% endfor %}
