@@ -2205,14 +2205,36 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             continue;
         }
         if line_start && c == '#' {
-            // Find the end of the comment line.
+            // Find the end of the comment, honouring backslash line
+            // continuation: a physical line ending in an *odd* run of
+            // backslashes (before the newline) continues the comment onto the
+            // next physical line, matching Tcl's parser (issue #759).  An even
+            // run (e.g. `\\`) is an escaped backslash and terminates the line.
             let mut p = idx;
-            while p < bytes.len() && bytes[p] != b'\n' {
-                p += 1;
+            loop {
+                let content_start = p;
+                while p < bytes.len() && bytes[p] != b'\n' {
+                    p += 1;
+                }
+                // Trailing backslashes on this physical line, ignoring a CRLF
+                // `\r` immediately before the newline.
+                let mut end = p;
+                if end > content_start && bytes[end - 1] == b'\r' {
+                    end -= 1;
+                }
+                let mut backslashes = 0usize;
+                while end > content_start && bytes[end - 1] == b'\\' {
+                    backslashes += 1;
+                    end -= 1;
+                }
+                if backslashes % 2 == 1 && p < bytes.len() {
+                    p += 1; // consume the `\n` and continue on the next line
+                    continue;
+                }
+                break;
             }
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
-            let len_utf16 = utf16_len(&source[idx..p]);
             // A `#` is only a Tcl comment in command position.  This naive scan
             // can't see command position, but a physical line already covered by
             // an emitted token is inside a multi-line string / braced literal
@@ -2223,16 +2245,22 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
                 *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
             });
             if !already_covered {
-                entries.push((
-                    pos.line,
-                    pos.character.get(),
-                    len_utf16,
+                // Emit one entry per covered line: a continuation comment spans
+                // several physical lines and the LSP encoding cannot represent a
+                // token crossing a newline.  `push_span_entries` also strips the
+                // line-ending `\r` from each segment.
+                push_span_entries(
+                    source,
+                    line_index,
+                    idx,
+                    &source[idx..p],
                     TokenKind::Comment,
                     0,
-                ));
+                    entries,
+                );
             }
-            // Skip the remainder of the comment line; the terminating `\n`
-            // (at `p`) is processed normally and resets `line_start`.
+            // Skip the remainder of the comment; the terminating `\n` (at `p`)
+            // is processed normally and resets `line_start`.
             skip_until = p;
             line_start = false;
             continue;

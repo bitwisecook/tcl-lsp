@@ -133,6 +133,98 @@ fn multiline_comment_header_all_comments() {
     );
 }
 
+/// Set of line numbers carrying a `comment` token, for continuation tests.
+fn comment_lines(source: &str, dialect: &str) -> std::collections::BTreeSet<u32> {
+    decode(source, dialect)
+        .into_iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect()
+}
+
+#[test]
+fn comment_line_continuation_is_comment() {
+    // A `#` comment whose line ends in an unescaped backslash continues onto
+    // the next physical line, and that continuation is a comment too (#759).
+    let source = "# a comment \\\nstill a comment\nset x 1\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    // Line 2 is real code, not swallowed by the comment.
+    assert!(!lines.contains(&2), "{lines:?}");
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter()
+            .any(|x| x.line == 2 && x.ttype == "function" && x.length == 3),
+        "expected `set` on line 2: {t:?}"
+    );
+    // The continuation line ("still a comment", 15 chars) is fully a comment.
+    assert!(
+        t.iter()
+            .any(|x| x.line == 1 && x.ttype == "comment" && x.length == 15),
+        "{t:?}"
+    );
+}
+
+#[test]
+fn comment_multiline_continuation_all_comments() {
+    let source = "# level one \\\nlevel two \\\nlevel three\nset y 2\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(
+        lines.contains(&0) && lines.contains(&1) && lines.contains(&2),
+        "{lines:?}"
+    );
+    assert!(!lines.contains(&3), "{lines:?}");
+}
+
+#[test]
+fn comment_escaped_backslash_does_not_continue() {
+    // `# ... \\` ends in an escaped backslash (even run) — the comment stops and
+    // the next line is ordinary code.
+    let source = "# escaped end \\\\\nset z 3\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0), "{lines:?}");
+    assert!(
+        !lines.contains(&1),
+        "escaped backslash must not continue: {lines:?}"
+    );
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter().any(|x| x.line == 1 && x.ttype == "function"),
+        "{t:?}"
+    );
+}
+
+#[test]
+fn comment_odd_backslash_run_continues() {
+    // Three backslashes = one escaped pair + one continuation backslash.
+    let source = "# three \\\\\\\nyes continued\nset a 4\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+}
+
+#[test]
+fn comment_continuation_crlf() {
+    // CRLF line endings: the `\r` is stripped so the token stays within the
+    // line's width, and the continuation is still recognised.
+    let source = "# a comment \\\r\nstill a comment\r\nset x 1\r\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+    let t = decode(source, "tcl8.6");
+    // No comment token may overrun its line (no trailing `\r` in the length).
+    assert!(
+        t.iter()
+            .any(|x| x.line == 0 && x.ttype == "comment" && x.length == 13),
+        "line 0 comment length excludes the `\\r`: {t:?}"
+    );
+    assert!(
+        t.iter()
+            .any(|x| x.line == 1 && x.ttype == "comment" && x.length == 15),
+        "{t:?}"
+    );
+}
+
 #[test]
 fn proc_is_a_keyword() {
     let t = decode("proc foo {x} {}", "tcl8.6");

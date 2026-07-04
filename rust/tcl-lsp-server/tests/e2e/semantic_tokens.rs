@@ -100,6 +100,17 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "comments",
             "# leading comment\nputs hi ;# trailing comment\n",
         ),
+        // Issue #759: a `#` comment ending in an unescaped backslash continues
+        // onto the next physical line; the continuation must stay a comment and
+        // its per-line tokens must satisfy the bounds/overlap invariants.
+        (
+            "comment_continuation",
+            "# a comment \\\nstill a comment\nset x 1\n",
+        ),
+        (
+            "comment_continuation_crlf",
+            "# a comment \\\r\nstill a comment\r\nset x 1\r\n",
+        ),
         ("crlf", "proc p {} {\r\n    set x 1\r\n}\r\n"),
         (
             "multibyte_string",
@@ -209,6 +220,46 @@ fn test_comment() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "# hello world\n");
     assert_eq!(typed(&mut lsp, &lg, &uri)[0].ttype, "comment");
+}
+
+#[test]
+fn test_comment_continuation() {
+    // Issue #759, end-to-end through the packaged server: a `#` comment whose
+    // line ends in an unescaped backslash continues onto the next line, and an
+    // even (escaped) backslash run does not.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+
+    let uri = open_doc(&mut lsp, "# a comment \\\nstill a comment\nset x 1\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(
+        comment_lines.contains(&0) && comment_lines.contains(&1),
+        "{comment_lines:?}"
+    );
+    assert!(!comment_lines.contains(&2), "{comment_lines:?}");
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "function"),
+        "line 2 is code: {toks:?}"
+    );
+
+    // Escaped backslash pair — no continuation.
+    let uri = open_doc(&mut lsp, "# escaped end \\\\\nset z 3\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(comment_lines.contains(&0), "{comment_lines:?}");
+    assert!(
+        !comment_lines.contains(&1),
+        "escaped backslash must not continue: {comment_lines:?}"
+    );
 }
 
 #[test]
