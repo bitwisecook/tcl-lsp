@@ -259,6 +259,72 @@
   // strip those to keep the flowchart parseable.
   function escLbl(s) { return String(s).replace(/[()|{}\[\]"]/g, "").replace(/\n/g, " "); }
 
+  // ---- shared config-source rendering ------------------------------------
+  // Escape config text for a <pre> *without* collapsing newlines (unlike esc(),
+  // which is for single-line Mermaid labels): a config stanza is multi-line, so
+  // its line breaks must survive.
+  function escConf(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; });
+  }
+
+  // Extract one object's raw bigip.conf stanza (brace-matched) from the device
+  // config text. iRules are shown from the model's highlighted body instead.
+  function stanzaFor(cfg, fullPath) {
+    if (!cfg || !fullPath) return null;
+    var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
+    var m = re.exec(cfg);
+    if (!m) return null;
+    var i = cfg.indexOf("{", m.index);
+    if (i < 0) return null;
+    var depth = 0;
+    for (var j = i; j < cfg.length; j++) {
+      var c = cfg[j];
+      if (c === "{") depth++;
+      else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
+    }
+    return cfg.slice(m.index);
+  }
+
+  // Escape a config stanza, then wrap every object path (linkable when
+  // isLinked(path) is truthy) and each line's leading keyword for syntax
+  // highlighting. isLinked: (fullPath) -> bool, may be omitted for no links.
+  function highlightConf(text, isLinked) {
+    var out = escConf(text);
+    out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
+      return isLinked && isLinked(m0)
+        ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
+        : '<span class="conf-path">' + m0 + "</span>";
+    });
+    out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
+    return out;
+  }
+
+  function ruleByPath(ix, fp) {
+    var rules = ix.d.rules || [];
+    for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
+    return null;
+  }
+
+  // The syntax-highlighted, cross-linked source for one object: the model's
+  // highlighted Tcl body for iRules, otherwise the brace-matched bigip.conf
+  // stanza. Object paths resolving to another object in this device become
+  // links (the caller wires the clicks). Empty string when no source is found.
+  function sourceHtml(ix, n) {
+    if (n.type === "rule") {
+      var r = ruleByPath(ix, n.fullPath);
+      if (r && (r.bodyHtml || r.body)) {
+        return '<pre class="code tcl">' + (r.bodyHtml || escConf(r.body || "")) + "</pre>";
+      }
+    }
+    var stanza = stanzaFor(ix.d.configText, n.fullPath);
+    if (!stanza) return "";
+    var html = highlightConf(stanza, function (fp) {
+      return fp !== n.fullPath && !!ix.byPath[fp];
+    });
+    return '<pre class="code conf">' + html + "</pre>";
+  }
+
   // BFS the undirected connected component containing `startOids`, bounded by
   // `depth` (Infinity = whole component).
   function isDefaultNode(ix, oid) { var n = ix.byOid[oid]; return !!(n && n.isDefault); }
@@ -597,6 +663,8 @@
     else if (n.type === "pool") parts.push(poolDetail(ix, oid));
     parts.push('<h4>Neighbourhood</h4><div class="diag-host drawer-diag"></div>');
     if (n.type === "vs") parts.push('<h4>Processing flow</h4><div class="diag-host flow-diag"></div>');
+    var src = sourceHtml(ix, n);
+    if (src) parts.push('<h4>Source</h4>' + src);
     body.innerHTML = parts.join("");
 
     var oids = Object.keys(neighborhood(ix, [oid], 2));
@@ -606,6 +674,14 @@
       renderInto(body.querySelector(".flow-diag"), buildFlow(ix, oid), ix,
         function (o) { openDrawer(ix, o); });
     }
+    // Cross-links inside the source stanza jump to that object's drawer.
+    body.querySelectorAll(".conf-link[data-goto]").forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        var toOid = ix.byPath[a.getAttribute("data-goto")];
+        if (toOid) openDrawer(ix, toOid);
+      });
+    });
     drawer.classList.add("open");
     document.getElementById("drawerScrim").classList.add("open");
   }
@@ -1392,49 +1468,11 @@
       catch (e) { return false; }
     }
 
-    // Extract one object's raw bigip.conf stanza (brace-matched) from the device
-    // config text. iRules are shown from the model's highlighted body instead.
-    function stanzaFor(cfg, fullPath) {
-      if (!cfg || !fullPath) return null;
-      var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
-      var m = re.exec(cfg);
-      if (!m) return null;
-      var i = cfg.indexOf("{", m.index);
-      if (i < 0) return null;
-      var depth = 0;
-      for (var j = i; j < cfg.length; j++) {
-        var c = cfg[j];
-        if (c === "{") depth++;
-        else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
-      }
-      return cfg.slice(m.index);
-    }
-
-    // Escape, then wrap object paths (clickable when the target is in the app)
-    // and each line's leading keyword.
-    function highlightConf(text, inApp) {
-      var out = esc(text);
-      out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
-        return inApp[m0]
-          ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
-          : '<span class="conf-path">' + m0 + "</span>";
-      });
-      out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
-      return out;
-    }
-
     function blockId(oid) { return "appobj:" + oid; }
     function scrollToBlock(host, oid) {
       var el = host.querySelector('[id="' + (window.CSS && CSS.escape ? CSS.escape(blockId(oid)) : blockId(oid)) + '"]');
       if (!el) { var all = host.querySelectorAll(".app-obj"); for (var k = 0; k < all.length; k++) { if (all[k].getAttribute("data-oid") === oid) { el = all[k]; break; } } }
       if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("app-obj-flash"); setTimeout(function () { el.classList.remove("app-obj-flash"); }, 1200); }
-    }
-
-    function ruleByPath(ix, fp) {
-      var rules = ix.d.rules || [];
-      for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
-      return null;
     }
 
     // Everything an app's virtual servers forward-reach (their pools, nodes,
@@ -1499,7 +1537,7 @@
           }
         } else {
           var stanza = stanzaFor(ix.d.configText, n.fullPath);
-          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, inApp) : '<span class="muted">config not found</span>') + "</pre>";
+          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, function (fp) { return !!inApp[fp]; }) : '<span class="muted">config not found</span>') + "</pre>";
         }
         html += "</div>";
       });
