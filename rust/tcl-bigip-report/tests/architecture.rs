@@ -134,6 +134,34 @@ fn manifest_adds_explicit_link() {
 }
 
 #[test]
+fn tcl_manifest_overrides_and_links() {
+    // The manifest is a small Tcl script parsed with the real Tcl tokeniser.
+    let manifest = r#"
+        # architecture of this estate
+        device tier1.scf -role gtm -tier 5 -label "DNS Front"
+        device tier2.scf -role ltm -label "App Tier"
+
+        link tier2.scf tier1.scf -label mgmt
+    "#;
+    let m = collect_model_with_architecture(&sources(), "Estate", &no_certs(), Some(manifest));
+    let a = arch(&m);
+    assert_eq!(a["defined"], J::Bool(true));
+    let devs = a["devices"].as_array().unwrap();
+    assert_eq!(devs[0]["role"], "gtm");
+    assert_eq!(devs[0]["tier"], J::from(5));
+    assert_eq!(devs[0]["label"], "DNS Front", "quoted multi-word label parsed");
+    assert_eq!(devs[1]["label"], "App Tier");
+
+    // Auto 0->1 plus the manifest-declared 1->0.
+    let links = a["links"].as_array().unwrap();
+    assert_eq!(links.len(), 2);
+    assert!(links.iter().any(|l| l["from"] == 1
+        && l["to"] == 0
+        && l["source"] == "manifest"
+        && l["label"] == "mgmt"));
+}
+
+#[test]
 fn malformed_manifest_is_reported_not_fatal() {
     let m =
         collect_model_with_architecture(&sources(), "Estate", &no_certs(), Some("{ this is not json"));

@@ -239,11 +239,132 @@ fn resolve_device(matcher: &str, devices: &[J]) -> Option<usize> {
     })
 }
 
+/// Parse a manifest, auto-detecting the format. A document whose first
+/// non-space character is `{` or `[` is treated as JSON (kept for
+/// compatibility); anything else is the Tcl manifest DSL — the natural spelling
+/// in this project, parsed with the real Tcl tokeniser:
+///
+/// ```tcl
+/// # one line per device; options are Tcl-style flags
+/// device gtm.ucs  -role gtm -tier 0 -label "DNS Edge"
+/// device edge.ucs -role ltm -tier 1
+/// device core.ucs -role ltm -tier 2
+///
+/// # explicit links (auto-detection still runs and is merged in)
+/// link gtm.ucs  edge.ucs
+/// link edge.ucs core.ucs -label internal
+/// ```
+fn parse_manifest(text: &str) -> Result<Manifest, String> {
+    if matches!(text.trim_start().chars().next(), Some('{' | '[')) {
+        parse_manifest_json(text)
+    } else {
+        Ok(parse_manifest_tcl(text))
+    }
+}
+
+/// Split a Tcl script into commands, each a list of literal words, using the
+/// real Tcl tokeniser (so braces, quotes, comments and `;` separators are
+/// handled exactly as Tcl would). Substitutions (`$var`, `[cmd]`) are taken
+/// literally — the manifest DSL never needs them.
+fn tcl_commands(src: &str) -> Vec<Vec<String>> {
+    use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+    let Ok(tokens) = Lexer::new(src).tokenise_all() else {
+        return Vec::new();
+    };
+    let sm = SourceMap::new(src);
+    let mut commands: Vec<Vec<String>> = Vec::new();
+    let mut cmd: Vec<String> = Vec::new();
+    let mut word = String::new();
+    let mut in_word = false;
+    for tok in tokens {
+        match tok.kind {
+            TokenType::Sep => {
+                if in_word {
+                    cmd.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+            }
+            TokenType::Eol => {
+                if in_word {
+                    cmd.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+                if !cmd.is_empty() {
+                    commands.push(std::mem::take(&mut cmd));
+                }
+            }
+            TokenType::Comment | TokenType::Eof | TokenType::Expand => {}
+            // Esc / Str / Cmd / Var — a (fragment of a) word.
+            _ => {
+                word.push_str(sm.token_text(tok));
+                in_word = true;
+            }
+        }
+    }
+    if in_word {
+        cmd.push(word);
+    }
+    if !cmd.is_empty() {
+        commands.push(cmd);
+    }
+    commands
+}
+
+/// Interpret the Tcl manifest DSL. Recognised commands are `device <match>
+/// [-role R] [-tier N] [-label L]` and `link <from> <to> [-label L]`; unknown
+/// commands and unknown flags are skipped leniently.
+fn parse_manifest_tcl(text: &str) -> Manifest {
+    let mut devices = Vec::new();
+    let mut links = Vec::new();
+
+    // Read `-flag value` pairs from a word slice into (role, tier, label).
+    let read_opts = |words: &[String]| -> (Option<String>, Option<i64>, Option<String>) {
+        let (mut role, mut tier, mut label) = (None, None, None);
+        let mut i = 0;
+        while i + 1 < words.len() {
+            let (flag, val) = (words[i].as_str(), words[i + 1].clone());
+            match flag {
+                "-role" => role = Some(val),
+                "-tier" => tier = val.parse::<i64>().ok(),
+                "-label" | "-name" => label = Some(val),
+                _ => {}
+            }
+            i += 2;
+        }
+        (role, tier, label)
+    };
+
+    for cmd in tcl_commands(text) {
+        match cmd.first().map(String::as_str) {
+            Some("device") if cmd.len() >= 2 => {
+                let (role, tier, label) = read_opts(&cmd[2..]);
+                devices.push(DeviceSpec {
+                    matcher: cmd[1].clone(),
+                    role,
+                    tier,
+                    label,
+                });
+            }
+            Some("link") if cmd.len() >= 3 => {
+                let (_r, _t, label) = read_opts(&cmd[3..]);
+                links.push(LinkSpec {
+                    from: cmd[1].clone(),
+                    to: cmd[2].clone(),
+                    label,
+                });
+            }
+            _ => {}
+        }
+    }
+    Manifest { devices, links }
+}
+
 /// Parse the manifest JSON. Accepts a top-level object with `devices` and
 /// `links` arrays. Every field is optional and leniently typed; a malformed
 /// document yields `Err(message)` so the caller can surface it without failing
 /// the whole report.
-fn parse_manifest(text: &str) -> Result<Manifest, String> {
+fn parse_manifest_json(text: &str) -> Result<Manifest, String> {
     let root: J = serde_json::from_str(text).map_err(|e| format!("invalid manifest JSON: {e}"))?;
     let obj = root
         .as_object()
