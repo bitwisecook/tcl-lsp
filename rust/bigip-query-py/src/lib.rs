@@ -22,7 +22,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
 use tcl_bigip_io::{
-    PassphraseOptions, is_pgp_bytes, is_ucs_bytes, resolve_passphrase, ucs_archive_to_scf,
+    PassphraseOptions, is_pgp_bytes, is_ucs_bytes, read_ucs_member, resolve_passphrase,
+    ucs_archive_to_scf,
 };
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query};
@@ -276,6 +277,104 @@ fn sys_file_ssl_certs(sources: &Bound<'_, PyAny>) -> PyResult<String> {
     collect_sys_file_objects(sources, SysFileKind::Cert)
 }
 
+/// Project every `sys file ssl-cert`, enriched with the **real certificate**
+/// parsed out of the UCS filestore.
+///
+/// Modern BIG-IP exports carry a metadata-free `sys file ssl-cert` stanza — the
+/// subject / issuer / validity / SANs live only in the PEM in the filestore, not
+/// in the config text — so a report built from the config alone shows a blank
+/// certificate row. For every source whose `uri` is a readable `.ucs` on disk,
+/// this reads the cert's `cache-path` (falling back to `source-path`) member out
+/// of the archive and runs the same `x509_parse` the engine uses, attaching:
+///   * `x509` — the leaf cert dict (`subject`, `issuer`, `not_before`,
+///     `not_after`, `serial`, `sans`, `key_alg`, `key_size`, `sig_alg`,
+///     `fingerprint_sha256`, …). `not_before` (the issue date) and the exact
+///     SAN list are only recoverable this way.
+///   * `x509_embedded` — the remaining PEM blocks when the file is a bundle
+///     (leaf + intermediate(s)/root), leaf-first, for the chain view.
+/// Sources without a locatable file (a plain `bigip.conf`, or a source with no
+/// filesystem backing) keep just the config-metadata fields.
+#[pyfunction]
+#[pyo3(signature = (sources, *, passphrase=None))]
+fn sys_file_ssl_certs_x509(
+    sources: &Bound<'_, PyAny>,
+    passphrase: Option<String>,
+) -> PyResult<String> {
+    use tcl_bigip::canonical::Canon;
+    use tcl_bigip::model::ModelObject;
+    use tcl_bigip::parser::driver::parse_bigip_conf;
+
+    let sources = coerce_sources(sources)?;
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    for (uri, text) in &sources {
+        // Read the archive bytes once per source, but only when the uri actually
+        // resolves to a UCS/OpenPGP file — a plain config has no filestore.
+        let ucs_bytes: Option<Vec<u8>> = std::fs::read(uri)
+            .ok()
+            .filter(|raw| is_pgp_bytes(raw) || is_ucs_bytes(raw));
+
+        let config = parse_bigip_conf(text, "Common");
+        for placed in &config.objects {
+            let ModelObject::SysFileSslCert(c) = &placed.object else {
+                continue;
+            };
+            let serde_json::Value::Object(mut fields) = c.canon_fields() else {
+                continue;
+            };
+            fields
+                .entry("full_path".to_owned())
+                .or_insert_with(|| serde_json::Value::String(placed.full_path.clone()));
+
+            if let Some(raw) = &ucs_bytes {
+                let member = fields
+                    .get("cache_path")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        fields
+                            .get("source_path")
+                            .and_then(serde_json::Value::as_str)
+                            .map(|s| s.strip_prefix("file://").unwrap_or(s))
+                            .filter(|s| !s.is_empty())
+                    });
+                if let Some(member) = member {
+                    let opts = PassphraseOptions {
+                        explicit: passphrase.clone(),
+                        allow_prompt: false,
+                        ..PassphraseOptions::default()
+                    };
+                    let provider = || resolve_passphrase(&opts);
+                    if let Ok(pem) = read_ucs_member(raw, member, &provider, uri) {
+                        let pem_str = String::from_utf8_lossy(&pem);
+                        let parsed = tcl_bigip_query::probes::x509_parse_all(&pem_str);
+                        let mut iter = parsed.into_iter();
+                        if let Some(leaf) = iter.next() {
+                            fields.insert("x509".to_owned(), value_to_json(&leaf));
+                            let rest: Vec<serde_json::Value> =
+                                iter.map(|v| value_to_json(&v)).collect();
+                            if !rest.is_empty() {
+                                fields.insert(
+                                    "x509_embedded".to_owned(),
+                                    serde_json::Value::Array(rest),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            out.push(serde_json::Value::Object(fields));
+        }
+    }
+    serde_json::to_string(&serde_json::Value::Array(out)).map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Convert an engine [`Value`] to a `serde_json::Value` via the canonical
+/// compact JSON encoder (order-preserving), so x509 dicts embed cleanly.
+fn value_to_json(v: &Value) -> serde_json::Value {
+    serde_json::from_str(&tcl_bigip_query::jsonfmt::to_compact(v))
+        .unwrap_or(serde_json::Value::Null)
+}
+
 /// Project every `sys file ssl-key` object from one or more configs.
 ///
 /// Companion to [`sys_file_ssl_certs`] — the pure-Python report layer pairs each
@@ -424,6 +523,7 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_paths, m)?)?;
     m.add_function(wrap_pyfunction!(ucs_to_scf, m)?)?;
     m.add_function(wrap_pyfunction!(sys_file_ssl_certs, m)?)?;
+    m.add_function(wrap_pyfunction!(sys_file_ssl_certs_x509, m)?)?;
     m.add_function(wrap_pyfunction!(sys_file_ssl_keys, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
