@@ -386,6 +386,63 @@ fn st_switch_plain_case_list_recurses_bodies_without_regex_tokens() {
     );
 }
 
+#[test]
+fn st_switch_case_list_is_list_parsed_not_script_segmented() {
+    // A `switch` case list is a Tcl *list*, not a script: `;` is an ordinary
+    // pattern element, not a command separator.  The case-list walk uses the
+    // list grammar (`find_element`), so the `;` pattern's body is still paired
+    // and recursed. tclsh-proof: tclsh8.6/9.0
+    //   `set x {;}; switch -- $x {; {set r semi} default {set r def}}; set r`
+    //   -> semi
+    let src = "switch -- $x {\n  ; {puts semi}\n  default {puts def}\n}\n";
+    let toks = decode(src, "tcl8.6");
+    // The `;` pattern element is emitted (as a literal), not dropped.
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 1 && t.character == 2 && t.length == 1),
+        "the `;` pattern element should be tokenised, not dropped; got {toks:?}",
+    );
+    // Its body is recursed → `puts` on line 1 is a function head.
+    assert!(
+        toks.iter().any(|t| t.line == 1 && t.ttype == "function"),
+        "the `;` case body should recurse to a function head; got {toks:?}",
+    );
+}
+
+#[test]
+fn st_switch_hash_pattern_is_not_a_comment_and_has_no_overlap() {
+    // `#` at the start of a case-list line is a pattern element, not a comment
+    // (Tcl's "comments don't work in switch" gotcha).  It must be tokenised as
+    // code, its body recursed, and — crucially — the naive comment scanner must
+    // not also emit an overlapping comment token over the same line.
+    // tclsh-proof: tclsh8.6/9.0
+    //   `set x {#}; switch -- $x {# {set r hash} default {set r def}}; set r`
+    //   -> hash
+    let src = "switch -- $x {\n  # {puts hash}\n  default {puts def}\n}\n";
+    let toks = decode(src, "tcl8.6");
+    // The `#` case body is recursed → `puts` is a function head on line 1.
+    assert!(
+        toks.iter().any(|t| t.line == 1 && t.ttype == "function"),
+        "the `#` case body should recurse to a function head; got {toks:?}",
+    );
+    // No `comment` token overlays the `#` pattern line.
+    assert!(
+        !toks.iter().any(|t| t.line == 1 && t.ttype == "comment"),
+        "`#` in a switch case list must not be a comment; got {toks:?}",
+    );
+    // Tokens on line 1 are strictly non-overlapping (no comment/code overlap).
+    let mut line1: Vec<&Tok> = toks.iter().filter(|t| t.line == 1).collect();
+    line1.sort_by_key(|t| t.character);
+    for pair in line1.windows(2) {
+        assert!(
+            pair[0].character + pair[0].length <= pair[1].character,
+            "overlapping tokens on the `#` line: {:?} and {:?}",
+            pair[0],
+            pair[1],
+        );
+    }
+}
+
 // ===========================================================================
 // format / scan %-spec edges — `parse_sprintf_cuts`.
 //
