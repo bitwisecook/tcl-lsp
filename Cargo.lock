@@ -4043,8 +4043,10 @@ dependencies = [
  "tcl-bigip",
  "tcl-bigip-io",
  "tcl-bigip-query",
+ "tcl-diagram",
  "tcl-f5mku",
  "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -4069,6 +4071,7 @@ dependencies = [
  "serde_json",
  "tcl-cli-support",
  "tcl-compiler",
+ "tcl-diagram",
  "tcl-explorer",
  "tcl-lexer",
  "tcl-lsp-core",
@@ -4133,6 +4136,15 @@ dependencies = [
  "tcl-compiler",
  "tcl-registry",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-diagram"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -4263,6 +4275,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-cli",
  "tcl-compiler",
+ "tcl-diagram",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",

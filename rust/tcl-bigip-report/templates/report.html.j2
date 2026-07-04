@@ -212,7 +212,7 @@
         <td class="mono">{{ r.lineCount }}</td>
         <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
       </tr>
-      <tr class="detail"><td></td><td colspan="4"><pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
+      <tr class="detail"><td></td><td colspan="4">{% if r.flowchart %}<div class="irule-flow"><div class="irule-flow-src" hidden>{{ r.flowchart }}</div><div class="irule-flow-diagram diag-host"></div></div>{% endif %}<pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -464,6 +464,9 @@
 </script>
 <script>
 {{ certs_js | safe }}
+</script>
+<script>
+{{ irule_flow_js | safe }}
 </script>
 <script>
 {{ secrets_js | safe }}

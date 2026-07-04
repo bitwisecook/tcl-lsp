@@ -191,3 +191,8 @@ pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
 :root[data-theme="dark"] pre.code.tcl .tk-ns{color:#79c0ff}
 :root[data-theme="dark"] pre.code.tcl .tk-event{color:#7ee787}
 :root[data-theme="dark"] pre.code.tcl .tk-var{color:#ffa657}
+
+/* iRule control-flow flowchart (Mermaid, rendered lazily on row expand). */
+.irule-flow{margin:4px 0 10px}
+.irule-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card);min-height:0}
+.irule-flow-diagram svg{max-width:100%;height:auto}

@@ -41,6 +41,7 @@ const CERTS_CSS: &str = include_str!("../templates/certs.css");
 const CERTS_JS: &str = include_str!("../templates/certs.js");
 const SECRETS_CSS: &str = include_str!("../templates/secrets.css");
 const SECRETS_JS: &str = include_str!("../templates/secrets.js");
+const IRULE_FLOW_JS: &str = include_str!("../templates/irule-flow.js");
 
 /// Options controlling report rendering.
 pub struct RenderOptions {
@@ -123,6 +124,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("topology_js".into(), J::String(TOPOLOGY_JS.into()));
     ctx.insert("certs_js".into(), J::String(CERTS_JS.into()));
     ctx.insert("secrets_js".into(), J::String(SECRETS_JS.into()));
+    ctx.insert("irule_flow_js".into(), J::String(IRULE_FLOW_JS.into()));
     ctx.insert("mermaid_js".into(), J::String(MERMAID_JS.into()));
     ctx.insert("topo_types".into(), topo_types());
 

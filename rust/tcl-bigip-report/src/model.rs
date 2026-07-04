@@ -337,6 +337,15 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         "bodyHtml".into(),
         J::String(tcl_lexer::highlight_tcl(&body)),
     );
+    // IR-based control-flow flowchart (Mermaid); empty when there's nothing to
+    // draw. The report renders it lazily when the iRule row is expanded.
+    o.insert(
+        "flowchart".into(),
+        J::String(tcl_diagram::irule_flowchart_mermaid(
+            &body,
+            tcl_registry::registry_for_dialect("f5-irules"),
+        )),
+    );
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));
     o.insert("refPools".into(), J::Array(clean_arr(&refs, "pools")));
     o.insert(

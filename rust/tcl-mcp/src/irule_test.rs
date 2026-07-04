@@ -4,7 +4,7 @@
 //! Combines the `_extract_test_paths` / `_annotate_path` /
 //! `_generate_path_questions` chain and the `irule_cfg_paths` MCP tool. It
 //! walks the `{events, procedures}` flow tree from
-//! [`tcl_lsp_core::diagram::diagram_data`], flattens every branch to a
+//! [`tcl_diagram::diagram_data`], flattens every branch to a
 //! terminal-action path, and annotates each path with a priority, the taint
 //! warnings relevant to its action, and the user-facing questions an agent
 //! should ask before writing assertions.
@@ -253,7 +253,7 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
 /// priority (high → normal → low).
 fn extract_test_paths(source: &str) -> Vec<PathInfo> {
     let registry = registry_for_dialect(IRULES_DIALECT);
-    let data = tcl_lsp_core::diagram::diagram_data(source, registry);
+    let data = tcl_diagram::diagram_data(source, registry);
     if data.get("error").is_some() {
         return Vec::new();
     }

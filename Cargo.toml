@@ -42,6 +42,7 @@ members = [
     "rust/tcl-registry",
     "rust/tcl-regex",
     "rust/tcl-compiler",
+    "rust/tcl-diagram",
     "rust/tcl-vm",
     "rust/tcl-vm-cli",
     "rust/bpf-tcl-ir",

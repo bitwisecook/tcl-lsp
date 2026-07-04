@@ -146,10 +146,9 @@ fn walk_switch(
         }
         let mut patterns = std::mem::take(&mut fallthrough_patterns);
         patterns.push(arm.pattern.clone());
-        let body = arm
-            .body
-            .as_ref()
-            .map_or_else(Vec::new, |b| walk_script(b, proc_names, depth + 1, registry));
+        let body = arm.body.as_ref().map_or_else(Vec::new, |b| {
+            walk_script(b, proc_names, depth + 1, registry)
+        });
         let pattern = if patterns.len() > 1 {
             patterns.join(" | ")
         } else {
@@ -328,9 +327,7 @@ fn walk_statement(
             registry,
         )),
 
-        Statement::For { body, .. } => {
-            Some(loop_node("for", body, proc_names, depth, registry))
-        }
+        Statement::For { body, .. } => Some(loop_node("for", body, proc_names, depth, registry)),
 
         Statement::While {
             condition, body, ..
@@ -378,8 +375,9 @@ fn walk_statement(
 
         Statement::Return { value, .. } => Some(return_node(value.as_ref())),
 
-        Statement::AssignConst { name, value, .. }
-        | Statement::AssignValue { name, value, .. } => assign_node(name, value),
+        Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
+            assign_node(name, value)
+        }
 
         Statement::AssignExpr { name, expr, .. } => assign_node(name, &render_expr(expr)),
 

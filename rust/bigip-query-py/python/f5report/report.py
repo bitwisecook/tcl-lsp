@@ -208,6 +208,7 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "events": events,
         "body": body,
         "bodyHtml": _engine.highlight_tcl(body),
+        "flowchart": _engine.irule_flowchart(body),
         "usedBy": used_by.get(fp, []),
         "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
         "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],

@@ -382,6 +382,16 @@ fn highlight_tcl(body: &str) -> String {
     tcl_lexer::highlight_tcl(body)
 }
 
+/// Build a Mermaid control-flow flowchart for an iRule.
+///
+/// Uses the IR-based [`tcl_diagram`] (the same control-flow extraction the CLI
+/// and MCP use), serialised to a deterministic Mermaid `flowchart` — no LLM, no
+/// network. Returns `""` when there is nothing to draw.
+#[pyfunction]
+fn irule_flowchart(body: &str) -> String {
+    tcl_diagram::irule_flowchart_mermaid(body, tcl_registry::registry_for_dialect("f5-irules"))
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -395,5 +405,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
     Ok(())
 }
