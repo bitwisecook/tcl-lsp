@@ -4025,6 +4025,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "tcl-bigip",
+ "tcl-registry",
  "temp-env",
  "ureq",
  "x509-parser",

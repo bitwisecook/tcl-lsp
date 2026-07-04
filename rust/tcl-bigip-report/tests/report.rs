@@ -120,6 +120,53 @@ fn irule_events_extracted() {
 }
 
 #[test]
+fn virtual_profiles_in_protocol_stack_order() {
+    // `app1_t80_vs` lists its profiles `http` then `tcp` in the config, but a
+    // BIG-IP processes the stack transport-first — the report must show TCP
+    // ahead of HTTP, not the raw config (alphabetical) order.
+    let m = model();
+    let vs = arr(&m, "devices")
+        .iter()
+        .flat_map(|d| arr(d, "virtuals"))
+        .find(|v| v["name"] == "app1_t80_vs")
+        .expect("app1_t80_vs present");
+    let profiles: Vec<&str> = vs["profiles"]
+        .as_array()
+        .expect("profiles array")
+        .iter()
+        .map(|p| p.as_str().unwrap())
+        .collect();
+    let tcp = profiles.iter().position(|p| p.ends_with("/tcp"));
+    let http = profiles.iter().position(|p| p.ends_with("/http"));
+    assert!(
+        tcp < http,
+        "expected tcp before http, got {profiles:?}"
+    );
+}
+
+#[test]
+fn rule_events_in_firing_order() {
+    // Events are emitted in canonical firing order, not alphabetically. For
+    // every rule that has both, CLIENT_ACCEPTED must precede
+    // CLIENTSSL_HANDSHAKE (which sorts the other way alphabetically).
+    let m = model();
+    for r in arr(&m, "devices").iter().flat_map(|d| arr(d, "rules")) {
+        let evs: Vec<&str> = r["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e.as_str().unwrap())
+            .collect();
+        if let (Some(a), Some(b)) = (
+            evs.iter().position(|e| *e == "CLIENT_ACCEPTED"),
+            evs.iter().position(|e| *e == "CLIENTSSL_HANDSHAKE"),
+        ) {
+            assert!(a < b, "firing order wrong in {evs:?}");
+        }
+    }
+}
+
+#[test]
 fn totals_sum_devices() {
     let m = model();
     let per_device: u64 = arr(&m, "devices")
@@ -194,3 +241,4 @@ fn model_json_serialisable() {
     let m = collect_model(&sources, "F5 BIG-IP Configuration Report");
     serde_json::to_string(&m).expect("model serialises");
 }
+
