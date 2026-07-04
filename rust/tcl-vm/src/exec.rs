@@ -1387,8 +1387,15 @@ impl Vm {
                     .cloned()
                     .unwrap_or_else(|| (Value::empty(), Value::empty()));
                 let done = ps.is_empty();
-                f.dict_iters
-                    .insert(slot, DictIterState { pairs: ps, pos: 0 });
+                // An empty dict skips straight to the loop exit (`jumpTrue`), so
+                // `dictNext` never runs to reclaim the slot — don't store state
+                // for it. Drop any stale iterator left in the slot.
+                if done {
+                    f.dict_iters.remove(&slot);
+                } else {
+                    f.dict_iters
+                        .insert(slot, DictIterState { pairs: ps, pos: 0 });
+                }
                 f.stack.push(v);
                 f.stack.push(k);
                 f.stack.push(Value::bool(done));
@@ -1405,6 +1412,11 @@ impl Vm {
                     }
                     None => (Value::empty(), Value::empty(), true),
                 };
+                // The loop exits once exhausted, so free the (key, value) vector
+                // now rather than retaining it until the frame returns.
+                if done {
+                    f.dict_iters.remove(&slot);
+                }
                 f.stack.push(v);
                 f.stack.push(k);
                 f.stack.push(Value::bool(done));
