@@ -1,0 +1,37 @@
+[package]
+name = "tcl-bigip-report"
+publish.workspace = true
+description = "Standalone HTML BIG-IP estate report built from the f5-query engine (the Rust port of the f5report generator)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The query engine, without the network-probe layer so this crate also builds
+# for wasm32 (the in-browser report generator). A report never probes.
+tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
+# The BIG-IP object model + parser. The query DSL only projects the `ltm`
+# module, so the certificate inventory reads `sys file ssl-cert` objects from
+# the parsed model directly (the same parser the engine uses).
+tcl-bigip = { path = "../tcl-bigip" }
+# F5 master-key (`f5mku`) secret decryption. `default-features = false` drops
+# the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm
+# build entropy-free — a report only ever *decrypts*.
+tcl-f5mku = { path = "../tcl-f5mku", default-features = false }
+regex = "1"
+ipnet = "2"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde"] }
+
+[dev-dependencies]
+# Load the shared UCS fixtures the Python f5report tests use, so the port is
+# validated against the same inputs.
+tcl-bigip-io = { path = "../tcl-bigip-io" }
+
+[lints]
+workspace = true

@@ -1,0 +1,602 @@
+//! Derive the object graph, listener-matching fields and iRule dynamic actions.
+//!
+//! A faithful port of `f5report.graph`. It consumes the already-shaped
+//! per-device model from [`crate::model`] and produces:
+//!
+//! * a **graph** of typed nodes and edges (including pools referenced *inside*
+//!   iRules and pool-member → node links) that the topology explorer renders;
+//! * per-virtual **listener** fields the listener-matching table ranks by
+//!   specificity;
+//! * per-iRule **dynamic actions** surfaced on the virtuals that attach a rule.
+
+use std::collections::HashSet;
+use std::net::Ipv4Addr;
+use std::str::FromStr;
+
+use ipnet::IpNet;
+use regex::Regex;
+use serde_json::{Map, Value as J};
+
+use crate::jutil::{barr, bbool, bstr, sarr};
+
+/// Node type -> short prefix used in stable object ids (`vs:/Common/x`),
+/// in display order.
+pub(crate) const NODE_TYPES: &[(&str, &str)] = &[
+    ("virtuals", "vs"),
+    ("pools", "pool"),
+    ("nodes", "node"),
+    ("monitors", "mon"),
+    ("rules", "rule"),
+    ("profiles", "prof"),
+    ("persistence", "persist"),
+    ("policies", "policy"),
+    ("snatpools", "snat"),
+    ("dataGroups", "dg"),
+];
+
+// --- route domain / listener parsing ----------------------------------------
+
+/// Split `10.0.0.1%2` into `('10.0.0.1', 2)`; default route-domain 0.
+fn split_rd(addr: &str) -> (String, i64) {
+    if let Some((base, rd)) = addr.split_once('%') {
+        // rd = re.split(r"[:./]", rd)[0]
+        let rd_head: &str = rd.split([':', '.', '/']).next().unwrap_or("");
+        let n = rd_head.parse::<i64>().unwrap_or(0);
+        (base.to_string(), n)
+    } else {
+        (addr.to_string(), 0)
+    }
+}
+
+/// Turn a netmask (dotted or prefix) into a prefix length for *addr*.
+fn mask_to_prefix(mask: &str) -> Option<i64> {
+    let mask = mask.trim();
+    if mask.is_empty() {
+        return None;
+    }
+    if mask.chars().all(|c| c.is_ascii_digit()) {
+        return mask.parse::<i64>().ok();
+    }
+    if mask.contains(':') {
+        // IPv6 mask is unusual; fall back to counting bits.
+        let mut bits = 0u32;
+        for b in mask.split(':') {
+            if b.is_empty() {
+                continue;
+            }
+            let v = u32::from_str_radix(b, 16).ok()?;
+            bits += v.count_ones();
+        }
+        return Some(i64::from(bits));
+    }
+    // IPv4 dotted netmask -> prefix length (bit popcount, matching a valid
+    // contiguous mask's prefixlen).
+    let v4 = Ipv4Addr::from_str(mask).ok()?;
+    Some(i64::from(u32::from(v4).count_ones()))
+}
+
+fn is_any(addr: &str) -> bool {
+    matches!(addr, "" | "any" | "0.0.0.0" | "::" | "0.0.0.0/0" | "::/0")
+}
+
+fn normalise_cidr(s: &str) -> String {
+    let s = s.split('%').next().unwrap_or("");
+    if s.contains('/') {
+        s.to_string()
+    } else if s.contains(':') {
+        format!("{s}/128")
+    } else {
+        format!("{s}/32")
+    }
+}
+
+fn port_num(p: &str) -> i64 {
+    if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) {
+        return p.parse::<i64>().unwrap_or(0);
+    }
+    // named service ports the projection may leave as text
+    crate::services::getservbyname(p).unwrap_or(0)
+}
+
+/// Extract BIG-IP listener-matching fields from a shaped virtual.
+pub(crate) fn parse_listener(v: &Map<String, J>) -> J {
+    let (dest_addr, rd) = split_rd(bstr(v, "destAddr"));
+    let is_v6 = dest_addr.contains(':');
+    let any_addr = is_any(&dest_addr);
+    let full_bits: i64 = if is_v6 { 128 } else { 32 };
+
+    let mask = bstr(v, "mask");
+    let prefix = if any_addr {
+        0
+    } else {
+        mask_to_prefix(mask).unwrap_or(full_bits)
+    };
+
+    let port_raw = bstr(v, "destPort").to_string();
+    let port = if matches!(port_raw.as_str(), "" | "0" | "any" | "*") {
+        0
+    } else {
+        port_num(&port_raw)
+    };
+
+    let src_default = if is_v6 { "::/0" } else { "0.0.0.0/0" };
+    let src_field = bstr(v, "source");
+    let src = if src_field.is_empty() {
+        src_default
+    } else {
+        src_field
+    };
+    let src_prefix = match IpNet::from_str(&normalise_cidr(src)) {
+        Ok(net) => i64::from(net.prefix_len()),
+        Err(_) => 0,
+    };
+
+    let vlans: Vec<J> = sarr(v, "vlans")
+        .iter()
+        .map(|x| J::String(leaf(x).to_string()))
+        .collect();
+
+    let ip_proto = bstr(v, "ipProtocol");
+    let protocol = if ip_proto.is_empty() { "any" } else { ip_proto };
+
+    let mut o = Map::new();
+    o.insert(
+        "family".into(),
+        J::String(if is_v6 { "IPv6" } else { "IPv4" }.into()),
+    );
+    o.insert("address".into(), J::String(dest_addr));
+    o.insert("anyAddr".into(), J::Bool(any_addr));
+    o.insert("prefix".into(), J::from(prefix));
+    o.insert("maxPrefix".into(), J::from(full_bits));
+    o.insert("port".into(), J::from(port));
+    o.insert(
+        "portRaw".into(),
+        J::String(if port == 0 {
+            "any".to_string()
+        } else {
+            port.to_string()
+        }),
+    );
+    o.insert("protocol".into(), J::String(protocol.to_string()));
+    o.insert("routeDomain".into(), J::from(rd));
+    o.insert("source".into(), J::String(src.to_string()));
+    o.insert("sourcePrefix".into(), J::from(src_prefix));
+    o.insert("vlans".into(), J::Array(vlans));
+    o.insert("vlansEnabled".into(), J::Bool(bbool(v, "vlansEnabled")));
+    o.insert("vlansDisabled".into(), J::Bool(bbool(v, "vlansDisabled")));
+    J::Object(o)
+}
+
+// --- iRule dynamic actions ---------------------------------------------------
+
+struct DynCmd {
+    re: Regex,
+    category: &'static str,
+    effect: &'static str,
+}
+
+fn dynamic_cmds() -> Vec<DynCmd> {
+    // (regex, category, human effect). Matched case-insensitively.
+    let spec: &[(&str, &str, &str)] = &[
+        (
+            r"(?i)\bSSL::disable(?:\s+(clientside|serverside))?",
+            "SSL",
+            "SSL::disable",
+        ),
+        (
+            r"(?i)\bSSL::enable(?:\s+(clientside|serverside))?",
+            "SSL",
+            "SSL::enable",
+        ),
+        (r"(?i)\bHTTP::disable\b", "HTTP", "HTTP::disable"),
+        (r"(?i)\bHTTP::enable\b", "HTTP", "HTTP::enable"),
+        (
+            r"(?i)\bCOMPRESS::disable\b",
+            "Compression",
+            "COMPRESS::disable",
+        ),
+        (
+            r"(?i)\bCOMPRESS::enable\b",
+            "Compression",
+            "COMPRESS::enable",
+        ),
+        (r"(?i)\bCACHE::disable\b", "Cache", "CACHE::disable"),
+        (r"(?i)\bCACHE::enable\b", "Cache", "CACHE::enable"),
+        (r"(?i)\bWAM::(?:enable|disable)\b", "WebAccel", "WAM"),
+        (r"(?i)\bLB::detach\b", "Pool", "LB::detach"),
+        (
+            r"(?i)\bpersist\s+(none|uie|cookie|source_addr|dest_addr|hash|ssl|sip|carp|universal)",
+            "Persistence",
+            "persist",
+        ),
+        (r"(?i)\bsnatpool\s+(\S+)", "SNAT", "snatpool"),
+        (r"(?i)\bsnat\s+(automap|none|\S+)", "SNAT", "snat"),
+        (r"(?i)\bnode\s+(\d[\d.:a-fA-F]+)", "Node", "node override"),
+        (r"(?i)\bvirtual\s+(\S+)", "Virtual", "virtual target"),
+    ];
+    spec.iter()
+        .map(|(re, category, effect)| DynCmd {
+            re: Regex::new(re).expect("valid dynamic-cmd regex"),
+            category,
+            effect,
+        })
+        .collect()
+}
+
+/// The object types an iRule can attach *dynamically* — with a computed name
+/// (`$var` / `[cmd]`) the static reference graph cannot resolve. If any rule
+/// selects one of these dynamically, objects of that type can never be *proven*
+/// orphaned (some traffic path might reach them at runtime), so they are demoted
+/// from "orphan" to "possible orphan" rather than flagged outright.
+///
+/// Only the direct-attachment commands are considered: `pool` (LB target),
+/// `node` (direct node), `snatpool` (SNAT). Literal iRule references
+/// (`pool /Common/x`) are already captured by the engine's `referenced_by`
+/// (`.refs`), so only a *non-literal* argument counts as a dynamic risk.
+pub(crate) fn dynamic_attach_risk(rules: &[J]) -> std::collections::BTreeSet<&'static str> {
+    let specs: &[(&str, &str)] = &[
+        (r"(?i)\bpool\s+(\S+)", "pools"),
+        (r"(?i)\bnode\s+(\S+)", "nodes"),
+        (r"(?i)\bsnatpool\s+(\S+)", "snatpools"),
+    ];
+    let compiled: Vec<(Regex, &str)> = specs
+        .iter()
+        .map(|(re, ty)| (Regex::new(re).expect("valid risk regex"), *ty))
+        .collect();
+
+    let mut risk = std::collections::BTreeSet::new();
+    for r in rules {
+        let body = r.as_object().map_or("", |m| bstr(m, "body"));
+        if body.is_empty() {
+            continue;
+        }
+        for (re, ty) in &compiled {
+            if risk.contains(ty) {
+                continue;
+            }
+            // Dynamic iff the command's argument is a variable / command
+            // substitution rather than a literal object name.
+            let dynamic = re.captures_iter(body).any(|c| {
+                c.get(1)
+                    .is_some_and(|m| m.as_str().contains('$') || m.as_str().contains('['))
+            });
+            if dynamic {
+                risk.insert(*ty);
+            }
+        }
+    }
+    risk
+}
+
+/// Return the profile/processing-changing commands a rule issues.
+pub(crate) fn irule_dynamic_actions(body: &str) -> Vec<J> {
+    if body.is_empty() {
+        return Vec::new();
+    }
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    let mut out: Vec<J> = Vec::new();
+    for cmd in dynamic_cmds() {
+        let has_group = cmd.re.captures_len() > 1;
+        for caps in cmd.re.captures_iter(body) {
+            let arg = if has_group {
+                caps.get(1).map_or("", |m| m.as_str())
+            } else {
+                ""
+            }
+            .to_string();
+            let key = (cmd.effect.to_string(), arg.clone());
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.insert(key);
+            let mut o = Map::new();
+            o.insert("category".into(), J::String(cmd.category.into()));
+            o.insert("effect".into(), J::String(cmd.effect.into()));
+            o.insert("arg".into(), J::String(arg));
+            out.push(J::Object(o));
+        }
+    }
+    out
+}
+
+// --- object graph ------------------------------------------------------------
+
+fn oid(kind: &str, full_path: &str) -> String {
+    format!("{kind}:{full_path}")
+}
+
+/// `/Common/x` -> `x`; the leaf after the last `/`.
+fn leaf(s: &str) -> &str {
+    s.rsplit('/').next().unwrap_or(s)
+}
+
+fn partition_of(full_path: &str) -> &str {
+    if full_path.starts_with('/') {
+        full_path.split('/').nth(1).unwrap_or("")
+    } else {
+        ""
+    }
+}
+
+fn split_monitors(monitor: &str) -> Vec<String> {
+    if monitor.is_empty() {
+        return Vec::new();
+    }
+    // `/Common/http and /Common/tcp` -> ['/Common/http', '/Common/tcp'].
+    let re = Regex::new(r"\s+and\s+|\s+or\s+|\s*,\s*|\s+min\s+\d+\s+of\s*")
+        .expect("valid monitor split");
+    re.split(monitor)
+        .map(str::trim)
+        .filter(|p| p.starts_with('/'))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Build a typed node/edge graph for one device.
+pub(crate) fn build_graph(device: &Map<String, J>) -> J {
+    // nodes indexed by oid (insertion-ordered).
+    let mut nodes: Vec<J> = Vec::new();
+    let mut node_index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut edges: Vec<J> = Vec::new();
+    let mut edge_seen: HashSet<(String, String, String)> = HashSet::new();
+
+    // index nodes by full-path and (for members) by address.
+    let mut node_by_path: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut node_by_addr: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
+    macro_rules! add_node {
+        ($kind:expr, $full_path:expr, $name:expr, $orphan:expr) => {{
+            let id = oid($kind, $full_path);
+            if !node_index.contains_key(&id) {
+                let display = if $name.is_empty() {
+                    leaf($full_path).to_string()
+                } else {
+                    $name.to_string()
+                };
+                let mut n = Map::new();
+                n.insert("oid".into(), J::String(id.clone()));
+                n.insert("type".into(), J::String($kind.to_string()));
+                n.insert("name".into(), J::String(display));
+                n.insert("fullPath".into(), J::String($full_path.to_string()));
+                n.insert(
+                    "partition".into(),
+                    J::String(partition_of($full_path).to_string()),
+                );
+                if let Some(orphan) = $orphan {
+                    n.insert("orphan".into(), J::Bool(orphan));
+                }
+                node_index.insert(id.clone(), nodes.len());
+                nodes.push(J::Object(n));
+            }
+            id
+        }};
+    }
+
+    let add_edge = |edges: &mut Vec<J>,
+                    edge_seen: &mut HashSet<(String, String, String)>,
+                    node_index: &std::collections::HashMap<String, usize>,
+                    src: &str,
+                    dst: &str,
+                    kind: &str,
+                    label: &str| {
+        if src.is_empty()
+            || dst.is_empty()
+            || !node_index.contains_key(src)
+            || !node_index.contains_key(dst)
+        {
+            return;
+        }
+        let key = (src.to_string(), dst.to_string(), kind.to_string());
+        if edge_seen.contains(&key) {
+            return;
+        }
+        edge_seen.insert(key);
+        let mut e = Map::new();
+        e.insert("from".into(), J::String(src.to_string()));
+        e.insert("to".into(), J::String(dst.to_string()));
+        e.insert("kind".into(), J::String(kind.to_string()));
+        e.insert("label".into(), J::String(label.to_string()));
+        edges.push(J::Object(e));
+    };
+
+    // register every referable object first
+    for (key, prefix) in NODE_TYPES {
+        if let Some(J::Array(objs)) = device.get(*key) {
+            for o in objs {
+                let om = match o.as_object() {
+                    Some(m) => m,
+                    None => continue,
+                };
+                let fp = bstr(om, "fullPath");
+                if fp.is_empty() {
+                    continue;
+                }
+                // Confirmed orphan only (an object an iRule might dynamically
+                // attach carries `orphanStatus == "possible"`, not "orphan").
+                let orphan = if om.contains_key("orphanStatus") {
+                    Some(bstr(om, "orphanStatus") == "orphan")
+                } else if om.contains_key("usedBy") {
+                    Some(barr(om, "usedBy").is_empty())
+                } else {
+                    None
+                };
+                let id = add_node!(prefix, fp, bstr(om, "name"), orphan);
+                node_by_path.insert(fp.to_string(), id.clone());
+                if *key == "nodes" {
+                    let addr = bstr(om, "address");
+                    if !addr.is_empty() {
+                        node_by_addr.insert(addr.to_string(), id);
+                    }
+                }
+            }
+        }
+    }
+
+    // virtual edges
+    if let Some(J::Array(virtuals)) = device.get("virtuals") {
+        for v in virtuals {
+            let vm = match v.as_object() {
+                Some(m) => m,
+                None => continue,
+            };
+            let vid = oid("vs", bstr(vm, "fullPath"));
+            let pool = bstr(vm, "pool");
+            if !pool.is_empty() {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("pool", pool),
+                    "pool",
+                    "pool",
+                );
+            }
+            for r in sarr(vm, "rules") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("rule", r),
+                    "rule",
+                    "irule",
+                );
+            }
+            for p in sarr(vm, "profiles") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("prof", p),
+                    "profile",
+                    "profile",
+                );
+            }
+            for p in sarr(vm, "persist") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("persist", p),
+                    "persist",
+                    "persist",
+                );
+            }
+            for p in sarr(vm, "policies") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("policy", p),
+                    "policy",
+                    "policy",
+                );
+            }
+            let snat = bstr(vm, "snatpool");
+            if !snat.is_empty() {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &vid,
+                    &oid("snat", snat),
+                    "snat",
+                    "snat",
+                );
+            }
+        }
+    }
+
+    // pool edges: members -> nodes, pool -> monitors
+    if let Some(J::Array(pools)) = device.get("pools") {
+        for p in pools {
+            let pm = match p.as_object() {
+                Some(m) => m,
+                None => continue,
+            };
+            let pid = oid("pool", bstr(pm, "fullPath"));
+            if let Some(J::Array(members)) = pm.get("members") {
+                for m in members {
+                    let mm = match m.as_object() {
+                        Some(x) => x,
+                        None => continue,
+                    };
+                    let name = bstr(mm, "name");
+                    let npath = name.rsplitn(2, ':').last().unwrap_or(name); // name.rsplit(":",1)[0]
+                    let target = node_by_path
+                        .get(npath)
+                        .or_else(|| node_by_addr.get(bstr(mm, "address")))
+                        .cloned();
+                    if let Some(tid) = target {
+                        add_edge(
+                            &mut edges,
+                            &mut edge_seen,
+                            &node_index,
+                            &pid,
+                            &tid,
+                            "member",
+                            bstr(mm, "port"),
+                        );
+                    }
+                }
+            }
+            for mon in split_monitors(bstr(pm, "monitor")) {
+                if node_by_path.contains_key(&mon) {
+                    add_edge(
+                        &mut edges,
+                        &mut edge_seen,
+                        &node_index,
+                        &pid,
+                        &oid("mon", &mon),
+                        "monitor",
+                        "monitor",
+                    );
+                }
+            }
+        }
+    }
+
+    // iRule edges: pools referenced *inside* the rule body (engine .refs)
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            let rm = match r.as_object() {
+                Some(m) => m,
+                None => continue,
+            };
+            let rid = oid("rule", bstr(rm, "fullPath"));
+            for pool in sarr(rm, "refPools") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &rid,
+                    &oid("pool", pool),
+                    "pool-irule",
+                    "pool (iRule)",
+                );
+            }
+            for dg in sarr(rm, "refDataGroups") {
+                add_edge(
+                    &mut edges,
+                    &mut edge_seen,
+                    &node_index,
+                    &rid,
+                    &oid("dg", dg),
+                    "datagroup",
+                    "data-group",
+                );
+            }
+        }
+    }
+
+    let mut g = Map::new();
+    g.insert("nodes".into(), J::Array(nodes));
+    g.insert("edges".into(), J::Array(edges));
+    J::Object(g)
+}

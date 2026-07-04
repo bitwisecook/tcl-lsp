@@ -149,9 +149,9 @@ pub fn request_with_accept(
         .body(owned)
         .map_err(|e| RestError::Other(format!("REST request to {}: {e}", credentials.host)))?;
 
-    let mut resp = agent
-        .run(request)
-        .map_err(|e| RestError::Connection(format!("REST connection to {}: {e}", credentials.host)))?;
+    let mut resp = agent.run(request).map_err(|e| {
+        RestError::Connection(format!("REST connection to {}: {e}", credentials.host))
+    })?;
     let status = resp.status().as_u16();
     let bytes = read_body(resp.body_mut())
         .map_err(|e| RestError::Other(format!("REST read from {}: {e}", credentials.host)))?;

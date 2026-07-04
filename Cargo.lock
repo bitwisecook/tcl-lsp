@@ -1377,13 +1377,11 @@ dependencies = [
 name = "f5-cli"
 version = "0.1.0"
 dependencies = [
- "aes 0.8.4",
  "anyhow",
  "base64",
  "chrono",
  "clap",
  "clap_complete",
- "getrandom 0.3.4",
  "indexmap",
  "regex",
  "rpassword",
@@ -1395,6 +1393,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-f5mku",
  "tcl-irule-test",
  "tcl-irules",
  "tcl-lsp-core",
@@ -2186,12 +2185,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a64a92489e2744ce060c349162be1c5f33c6969234104dbd99ddb5feb08b8c15"
 
 [[package]]
+name = "memo-map"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
+
+[[package]]
 name = "memoffset"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "minijinja"
+version = "2.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb3d648e68cea56d9858d535ee28f9538404e2dd8cb08ed0bd05dca379477f39"
+dependencies = [
+ "memo-map",
+ "serde",
 ]
 
 [[package]]
@@ -4016,6 +4031,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip-report"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "ipnet",
+ "minijinja",
+ "regex",
+ "serde",
+ "serde_json",
+ "tcl-bigip",
+ "tcl-bigip-io",
+ "tcl-bigip-query",
+ "tcl-f5mku",
+]
+
+[[package]]
 name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
@@ -4113,6 +4144,15 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-f5mku"
+version = "0.1.0"
+dependencies = [
+ "aes 0.8.4",
+ "base64",
+ "getrandom 0.3.4",
 ]
 
 [[package]]

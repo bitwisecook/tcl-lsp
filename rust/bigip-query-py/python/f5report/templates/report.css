@@ -134,3 +134,43 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 
 .foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
+
+/* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
+   footer and (print only) as a page footer; also embedded invisibly in the
+   document head/body for provenance. */
+.attrib{color:var(--muted)}
+.attrib a{color:var(--accent,#2563eb);text-decoration:none}
+.attrib a:hover{text-decoration:underline}
+.brand .by{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.brand .by a{color:inherit;text-decoration:none}
+.brand .by a:hover{text-decoration:underline}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.print-only{display:none}
+
+
+.chip.chip-link{cursor:pointer;transition:transform .08s,box-shadow .08s}
+.chip.chip-link:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.chip.chip-link:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+
+/* ---- Print stylesheet ---------------------------------------------------- */
+@media print {
+  :root{color-scheme:light}
+  body{background:#fff;color:#000}
+  /* Interactive chrome and browser-only views don't belong on paper. */
+  .topbar-actions,.device-switch,.tabs,#f5qbar,#drawerScrim,#objDrawer,
+  .topo-controls,.legend,.diag-host,.lm-form,.qc,.cert-controls,
+  .secret-reveal,.secret-reveal-all,.expander{display:none!important}
+  .panel[data-panel="topology"],.panel[data-panel="listener"],
+  .panel[data-panel="console"]{display:none!important}
+  /* Print every data view, not just the active tab, so the paper report is
+     complete; expand the detail rows too. */
+  .panel{display:block!important;break-inside:auto}
+  tr.detail,tr.detail.open{display:table-row!important}
+  pre.code{white-space:pre-wrap}
+  table.grid{font-size:10px}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  a{color:#000;text-decoration:underline}
+  .print-only{display:block}
+  .foot{border-top:1px solid #999}
+}

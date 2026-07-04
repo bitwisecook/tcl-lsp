@@ -153,8 +153,7 @@ fn no_input_errors_exit_2() {
 fn assert_deferred(args: &[&str], expect_sub: &str) {
     let (code, _out, stderr) = run(args);
     assert_eq!(code, 2, "{args:?} should exit 2; stderr: {stderr}");
-    let expected =
-        format!("error: f5 irule {expect_sub} is not yet implemented (requires the ");
+    let expected = format!("error: f5 irule {expect_sub} is not yet implemented (requires the ");
     assert!(
         stderr.starts_with(&expected) && stderr.ends_with(" engine)\n"),
         "{args:?} stderr: {stderr}"

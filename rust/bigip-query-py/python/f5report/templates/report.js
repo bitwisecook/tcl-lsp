@@ -55,6 +55,24 @@
     });
   });
 
+  // --- summary count boxes jump to their tab -------------------------------
+  document.querySelectorAll(".chip[data-target]").forEach(function (chip) {
+    function go() {
+      var panel = chip.dataset.target;
+      var device = document.querySelector(".device.active") || document.querySelector(".device");
+      if (!device) return;
+      var tab = device.querySelector('.tab[data-panel="' + panel + '"]');
+      if (tab) {
+        tab.click();
+        (device.querySelector(".tabs") || device).scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+    chip.addEventListener("click", go);
+    chip.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+    });
+  });
+
   // --- search: "/" focuses the global box; the graph-aware filtering itself
   //     lives in topology.js (it needs the reference graph). ------------------
   var search = document.getElementById("globalSearch");

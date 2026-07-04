@@ -1159,6 +1159,12 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline, no Python)
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
+.PHONY: report-wasm
+report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-wasm/dist/
+	@command -v wasm-bindgen >/dev/null 2>&1 || { \
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.126'"; exit 1; }
+	bash $(ROOT)rust/bigip-report-wasm/build-wasm.sh
+
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"
 	cargo run -p tcl-cli --release --bin tcl -- explore --serve --open
