@@ -25,6 +25,8 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
+use crate::oo_body::{inner_oo_body_indices, is_inner_oo_definition_command, next_inside_oo_body};
+
 /// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FoldKind {
@@ -153,81 +155,6 @@ fn push_unique(
             end_line,
             kind,
         });
-    }
-}
-
-/// Collect BODY indices for the inner `property` form's
-/// `-set BODY` / `-get BODY` flag pairs. Always called with
-/// `args` from an inner `property NAME ?-set BODY? ?-get BODY?`
-/// invocation.
-fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
-    let n = args.len();
-    if n == 0 {
-        return Vec::new();
-    }
-    args.iter()
-        .enumerate()
-        .take(n.saturating_sub(1))
-        .filter_map(|(i, &a)| ((a == "-set" || a == "-get") && i + 1 < n).then_some(i + 1))
-        .collect()
-}
-
-/// Outer (context-free) OO definition commands — `oo::class` /
-/// `oo::define` / `oo::objdefine`. The bodies of these commands
-/// are OO definition bodies; recursing into one switches the
-/// walker into "inside OO body" mode where the inner-OO commands
-/// (`method`, `constructor`, …) become body-bearing.
-fn is_outer_oo_definition_command(name: &str) -> bool {
-    matches!(name, "oo::class" | "oo::define" | "oo::objdefine")
-}
-
-/// Inner OO definition-script commands. These are
-/// context-sensitive: a top-level user proc named `method`
-/// outside an OO block must not be folded as if it were an OO
-/// `method` definition. The walker only consults
-/// [`inner_oo_body_indices`] when `inside_oo_body == true`.
-///
-/// Recursing into one of these inner bodies takes us out of OO
-/// definition context — methods / constructors / destructors hold
-/// regular Tcl code, so the next recursion runs with
-/// `inside_oo_body = false`.
-fn is_inner_oo_definition_command(name: &str) -> bool {
-    matches!(
-        name,
-        "method"
-            | "classmethod"
-            | "constructor"
-            | "destructor"
-            | "initialise"
-            | "initialize"
-            | "private"
-            | "self"
-            | "property"
-    )
-}
-
-/// Return BODY argument indices for inner OO definition-script
-/// commands. Only consulted by the walker when
-/// `inside_oo_body == true` — i.e. we are recursing through the
-/// body of an `oo::class create … { … }` / `oo::define … { … }`
-/// block. Outside that context these commands are treated as
-/// regular calls (a user proc named `method` shadows nothing).
-fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
-    let n = args.len();
-    match command {
-        "constructor" if n >= 2 => vec![1],
-        // `destructor`/`initialise`/`initialize`/`private` all take a
-        // single body argument at index 0.
-        "destructor" | "initialise" | "initialize" | "private" if n >= 1 => vec![0],
-        "method" | "classmethod" if n >= 3 => vec![n - 1],
-        "self" if n >= 1 => match args[0] {
-            "constructor" if n >= 3 => vec![2],
-            "destructor" if n >= 2 => vec![1],
-            "method" | "classmethod" if n >= 4 => vec![n - 1],
-            _ => Vec::new(),
-        },
-        "property" => collect_property_body_indices(args),
-        _ => Vec::new(),
     }
 }
 
@@ -437,23 +364,10 @@ fn collect_body_folds(
             };
 
         // What "inside_oo_body" should the recursion into THIS
-        // command's bodies see?
-        //
-        //  - Outer OO commands (`oo::class create Foo {...}`):
-        //    the body IS the OO definition body → set true.
-        //  - Inner OO commands inside an OO body
-        //    (`method foo {} {...}`): the body is plain Tcl code
-        //    → set false.
-        //  - Anything else (`if`, `while`, `for`, …): inherit the
-        //    current flag — control-flow nesting inside an OO
-        //    body keeps us in OO context.
-        let next_inside_oo_body = if is_outer_oo_definition_command(cmd.name()) {
-            true
-        } else if inside_oo_body && is_inner_oo_definition_command(cmd.name()) {
-            false
-        } else {
-            inside_oo_body
-        };
+        // command's bodies see?  [`next_inside_oo_body`] encodes the
+        // rule: outer OO commands switch on, inner OO commands switch
+        // off, everything else inherits.
+        let next_inside_oo_body = next_inside_oo_body(cmd.name(), inside_oo_body, ctx.registry);
 
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
@@ -945,57 +859,32 @@ mod tests {
         );
     }
 
+    // The inner-OO body-index table itself is unit-tested in
+    // [`crate::oo_body`]; here we cover the folding-level behaviour it
+    // drives.
+
     #[test]
-    fn inner_oo_body_indices_table() {
-        // Inner OO definition-script commands (only consulted when
-        // `inside_oo_body == true`).
-        assert_eq!(
-            inner_oo_body_indices("constructor", &["{}", "body"]),
-            vec![1]
+    fn tcloo_method_body_inside_configurable_emits_a_fold() {
+        // Regression for #747: `oo::configurable` is a metaclass like
+        // `oo::class`, so a method body inside its definition block must
+        // fold — the registry-driven outer-command detection now covers it.
+        let source = concat!(
+            "oo::configurable create Widget {\n",
+            "    property color\n",
+            "    method paint {} {\n",
+            "        set x 1\n",
+            "        set y 2\n",
+            "    }\n",
+            "}\n",
         );
-        assert_eq!(inner_oo_body_indices("destructor", &["body"]), vec![0]);
-        // The `destructor | initialise | initialize | private` arm shares a
-        // single body argument at index 0 — pin every member so the merged
-        // match arm keeps mapping each one (positive cases).
-        assert_eq!(inner_oo_body_indices("initialise", &["body"]), vec![0]);
-        assert_eq!(inner_oo_body_indices("initialize", &["body"]), vec![0]);
-        assert_eq!(inner_oo_body_indices("private", &["body"]), vec![0]);
-        // Negative: the `n >= 1` guard fails with no args, so the merged
-        // arm yields no body indices (falls through to the catch-all).
-        assert!(inner_oo_body_indices("initialise", &[]).is_empty());
-        assert!(inner_oo_body_indices("initialize", &[]).is_empty());
-        assert!(inner_oo_body_indices("private", &[]).is_empty());
-        assert!(inner_oo_body_indices("destructor", &[]).is_empty());
-        assert_eq!(
-            inner_oo_body_indices("method", &["name", "{}", "body"]),
-            vec![2],
+        let ranges = folding_ranges_default(source, "tcl9.0");
+        let regions = fold_lines(&ranges, FoldKind::Region);
+        // Method body (`method paint {} { … }`): starts on line 2, spans
+        // through line 4 (the closing `}` sits on line 5).
+        assert!(
+            regions.iter().any(|&(s, e)| s == 2 && e >= 4),
+            "expected method-body fold starting at line 2, got {regions:?}",
         );
-        assert_eq!(
-            inner_oo_body_indices("classmethod", &["name", "{args}", "body"]),
-            vec![2],
-        );
-        assert_eq!(
-            inner_oo_body_indices("self", &["constructor", "{}", "body"]),
-            vec![2],
-        );
-        assert_eq!(
-            inner_oo_body_indices("self", &["destructor", "body"]),
-            vec![1],
-        );
-        assert_eq!(
-            inner_oo_body_indices("self", &["method", "name", "{}", "body"]),
-            vec![3],
-        );
-        assert_eq!(
-            inner_oo_body_indices("property", &["name", "-set", "setter", "-get", "getter"]),
-            vec![2, 4],
-        );
-        // Non-OO command: empty (the walker never even consults this
-        // function for non-inner-OO commands, but the helper itself
-        // is still defensive).
-        assert!(inner_oo_body_indices("set", &["x", "1"]).is_empty());
-        // Too few args: empty.
-        assert!(inner_oo_body_indices("method", &["name"]).is_empty());
     }
 
     /// Top-level OO body shapes are now driven by registry

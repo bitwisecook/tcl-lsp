@@ -1,4 +1,5 @@
 //! `TclOO` class.
+use super::oo_class::oo_class_arg_roles;
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -18,7 +19,11 @@ pub fn spec() -> CommandSpec {
         traits: Traits::IS_OO_METACLASS | Traits::LANGUAGE_KEYWORD | Traits::DEFINES_PROCEDURE,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
+        arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),
+        // Bodies of `oo::abstract create / new / createWithNamespace`
+        // run in a TclOO definition context, exactly like `oo::class`.
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "metaclass for abstract classes",
             synopsis: &[
