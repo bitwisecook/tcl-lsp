@@ -661,6 +661,10 @@
     var parts = [];
     if (n.type === "vs") parts.push(vsDetail(ix, oid));
     else if (n.type === "pool") parts.push(poolDetail(ix, oid));
+    else if (n.type === "rule") {
+      var refs = ruleRefs(ix, oid);
+      if (refs) parts.push('<h4>References</h4>' + refs);
+    }
     parts.push('<h4>Neighbourhood</h4><div class="diag-host drawer-diag"></div>');
     if (n.type === "vs") parts.push('<h4>Processing flow</h4><div class="diag-host flow-diag"></div>');
     var src = sourceHtml(ix, n);
@@ -682,6 +686,8 @@
         if (toOid) openDrawer(ix, toOid);
       });
     });
+    // Make the referenced-object chips (iRule refs, etc.) clickable.
+    wireObjLinks(body, ix);
     drawer.classList.add("open");
     document.getElementById("drawerScrim").classList.add("open");
   }
@@ -735,6 +741,66 @@
     }).join("") || "<tr><td colspan=3 class='muted'>no members</td></tr>";
     return "<h4>Members</h4><table class='grid mini'><thead><tr><th>Member</th><th>Address</th><th>Port</th></tr></thead><tbody>" +
       rows + "</tbody></table>";
+  }
+
+  function findRule(ix, oid) {
+    var fp = oid.split(":").slice(1).join(":");
+    return (ix.d.rules || []).find(function (r) { return r.fullPath === fp; });
+  }
+
+  // The iRule's referenced-object tables — statically referenced objects, plus
+  // the objects each reconstructed dynamic filter could select, resolved per
+  // attaching-virtual partition. Mirrors the inline iRule-row detail so the
+  // drawer inspector carries the same linked / potentially-linked / resolved
+  // information. Object chips are wired clickable by wireObjLinks().
+  function ruleRefs(ix, oid) {
+    var r = findRule(ix, oid); if (!r) return "";
+    var ro = r.referencedObjects; if (!ro) return "";
+    var hasStatic = ro.static && ro.static.length;
+    var hasDyn = ro.dynamic && ro.dynamic.length;
+    var out = '<div class="irule-refs">';
+    if (hasStatic) {
+      out += '<div class="refs-static"><span class="refs-lbl">Referenced objects:</span> ';
+      ro.static.forEach(function (o) {
+        out += '<span class="ref-obj" data-oid="' + esc(o.oid) + '" title="' +
+          esc(o.type + " " + o.fullPath) + '">' + esc(o.type + " " + o.name) + "</span> ";
+      });
+      out += "</div>";
+    }
+    if (!hasStatic && !hasDyn) {
+      out += '<div class="refs-none muted">No pool / node / snatpool / data-group references (static or dynamic) in this iRule.</div>';
+    }
+    (ro.dynamic || []).forEach(function (g) {
+      out += '<div class="refs-dyn"><div class="refs-ctx">Potentially referenced objects';
+      if (g.attached) {
+        out += " — resolved for ";
+        (g.virtuals || []).forEach(function (vn) { out += '<span class="tag">' + esc(vn) + "</span>"; });
+        out += " in partition <code>/" + esc(g.partition) + "</code>";
+      } else {
+        out += " — this iRule is not attached to any virtual; filters resolved in <code>/" + esc(g.partition) + "</code>";
+      }
+      out += '</div><table class="refs-table"><thead><tr><th>Determined filter</th><th>Type</th><th>Matching objects (this partition)</th></tr></thead><tbody>';
+      (g.filters || []).forEach(function (f) {
+        out += '<tr><td><code class="attach-pat" title="' +
+          esc("reconstructed from the iRule source: " + (f.raw || "")) + '">' + esc(f.glob || "") + "</code>";
+        if (f.unconstrained) out += ' <span class="muted small">(any name)</span>';
+        else if (f.exact) out += ' <span class="muted small">(exact)</span>';
+        out += '</td><td class="mono small">' + esc(f.type || "") + "</td><td>";
+        if (f.objects && f.objects.length) {
+          f.objects.forEach(function (o) {
+            out += '<span class="ref-obj" data-oid="' + esc(o.oid) + '" title="' +
+              esc(o.fullPath) + '">' + esc(o.name) + "</span> ";
+          });
+        } else {
+          out += '<span class="muted">' +
+            (f.unconstrained ? "any " + esc(f.type || "") + " in scope" : "none defined match") + "</span>";
+        }
+        out += "</td></tr>";
+      });
+      out += "</tbody></table></div>";
+    });
+    out += "</div>";
+    return out;
   }
 
   // ---- Per-virtual processing flow --------------------------------------
