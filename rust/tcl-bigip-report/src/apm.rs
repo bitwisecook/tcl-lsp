@@ -253,6 +253,32 @@ fn partition_of(path: &str) -> String {
     }
 }
 
+/// The full paths a virtual's profile reference could resolve to. A reference is
+/// either an absolute `/Partition/name` or a partition-relative `name` — in the
+/// common same-partition config a virtual attaches its access / connectivity
+/// profiles by bare name, so resolve those against the virtual's own partition
+/// and the shared `/Common` fallback.
+fn profile_candidates(profile_ref: &str, virtual_full_path: &str) -> Vec<String> {
+    if profile_ref.starts_with('/') {
+        return vec![profile_ref.to_string()];
+    }
+    let mut out = vec![format!("/Common/{profile_ref}")];
+    let part = partition_of(virtual_full_path);
+    if !part.is_empty() && part != "Common" {
+        out.push(format!("/{part}/{profile_ref}"));
+    }
+    out
+}
+
+/// Whether `virtual`'s profile list attaches the object at `target_full_path`.
+fn attaches(profiles: &[String], virtual_full_path: &str, target_full_path: &str) -> bool {
+    profiles.iter().any(|p| {
+        profile_candidates(p, virtual_full_path)
+            .iter()
+            .any(|c| c == target_full_path)
+    })
+}
+
 fn index_apm(source: &str) -> Apm {
     let mut apm = Apm::default();
     for (words, body) in top_level_objects(source) {
@@ -388,9 +414,10 @@ fn walk_profile(
     g.object("apm profile access", full_path);
 
     // Virtual servers that attach this access profile, and their connectivity
-    // profile (a sibling profile on the same virtual).
+    // profile (a sibling profile on the same virtual). Profile references may be
+    // partition-relative, so resolve each against the virtual's partition.
     for (vfp, profiles) in virtuals {
-        if !profiles.iter().any(|p| p == full_path) {
+        if !attaches(profiles, vfp, full_path) {
             continue;
         }
         let vs = g.node(
@@ -401,14 +428,16 @@ fn walk_profile(
         g.object("ltm virtual", vfp);
         g.edge(&vs, &ap, "");
         for cp in profiles {
-            if apm.connectivity_profiles.contains(cp) {
-                let cpn = g.node(
-                    &format!("cp:{cp}"),
-                    &format!("Connectivity\n{}", leaf(cp)),
-                    "cp",
-                );
-                g.object("apm profile connectivity", cp);
-                g.edge(&vs, &cpn, "");
+            for cand in profile_candidates(cp, vfp) {
+                if apm.connectivity_profiles.contains(&cand) {
+                    let cpn = g.node(
+                        &format!("cp:{cand}"),
+                        &format!("Connectivity\n{}", leaf(&cand)),
+                        "cp",
+                    );
+                    g.object("apm profile connectivity", &cand);
+                    g.edge(&vs, &cpn, "");
+                }
             }
         }
     }
@@ -669,7 +698,7 @@ pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
         let (graph, objects) = walk_profile(&apm, full_path, body, &virtuals);
         let using: Vec<J> = virtuals
             .iter()
-            .filter(|(_, profs)| profs.iter().any(|p| p == full_path))
+            .filter(|(vfp, profs)| attaches(profs, vfp, full_path))
             .map(|(vfp, _)| J::String(leaf(vfp).to_string()))
             .collect();
         let policy = scalar(body, "access-policy").unwrap_or_default();
@@ -793,6 +822,47 @@ mod tests {
                 .iter()
                 .any(|o| o["type"] == "apm resource leasepool"),
             "lease pool object linked"
+        );
+    }
+
+    #[test]
+    fn attaches_by_partition_relative_name() {
+        // A same-partition virtual commonly attaches its profiles by bare name
+        // (`profiles { mycave { } mycave_cp { } }`); the walk must still link it
+        // and draw the connectivity-profile edge.
+        let mut vm = Map::new();
+        vm.insert("fullPath".into(), J::String("/Common/mycave_vs".into()));
+        vm.insert(
+            "profiles".into(),
+            J::Array(vec![
+                J::String("mycave".into()),
+                J::String("mycave_cp".into()),
+            ]),
+        );
+        let mut device = Map::new();
+        device.insert("virtuals".into(), J::Array(vec![J::Object(vm)]));
+
+        let result = collect_apm(SCF, &device);
+        let p = result.as_array().unwrap()[0].as_object().unwrap();
+        // The virtual is recognised as attaching the profile.
+        assert!(
+            p["virtuals"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v == "mycave_vs"),
+            "relative profile ref should still link the virtual"
+        );
+        let types: Vec<&str> = p["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|o| o["type"].as_str())
+            .collect();
+        assert!(types.contains(&"ltm virtual"), "virtual node present");
+        assert!(
+            types.contains(&"apm profile connectivity"),
+            "connectivity edge resolved from the relative sibling profile"
         );
     }
 }
