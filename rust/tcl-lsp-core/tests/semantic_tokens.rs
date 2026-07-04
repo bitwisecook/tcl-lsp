@@ -320,3 +320,29 @@ fn oo_define_body_form_recurses_method_bodies() {
         "oo::define body method should recurse: {toks:?}",
     );
 }
+
+#[test]
+fn oo_define_member_form_body_is_not_oo_context() {
+    // Issue #747 review (Codex P2): the member form
+    // `oo::define C method m {} { … }` carries an ordinary method body, not
+    // a definition script.  A nested `method a b {not code}` inside it must
+    // NOT be treated as an OO member definition — its `{not code}` stays an
+    // opaque string (no command inside is tokenised as a function).
+    let src = "oo::define C method m {} { method a b {not code} }\n";
+    let toks = decode(src, "tcl9.0");
+    assert!(
+        !toks.iter().any(|t| t.ttype == "function"),
+        "nested `method a b {{not code}}` inside a member-form method body \
+         must not be recursed as an OO body: {toks:?}",
+    );
+    // The real method body itself is still recursed (its own commands are
+    // walked as ordinary code) — a `set` there would tokenise.
+    let src2 = "oo::define C method m {} { set x 1 }\n";
+    let toks2 = decode(src2, "tcl9.0");
+    assert!(
+        toks2
+            .iter()
+            .any(|t| t.ttype == "function" && tok_text(src2, t) == "set"),
+        "member-form method body should still tokenise its own code: {toks2:?}",
+    );
+}

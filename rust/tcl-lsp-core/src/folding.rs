@@ -367,7 +367,8 @@ fn collect_body_folds(
         // command's bodies see?  [`next_inside_oo_body`] encodes the
         // rule: outer OO commands switch on, inner OO commands switch
         // off, everything else inherits.
-        let next_inside_oo_body = next_inside_oo_body(cmd.name(), inside_oo_body, ctx.registry);
+        let next_inside_oo_body =
+            next_inside_oo_body(cmd.name(), &args_borrow, inside_oo_body, ctx.registry);
 
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();

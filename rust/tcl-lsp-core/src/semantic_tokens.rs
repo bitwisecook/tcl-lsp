@@ -1622,11 +1622,19 @@ fn collect_script(
         let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body);
 
         // The `inside_oo_body` context the recursion into THIS command's
-        // body arguments should carry: outer OO commands switch it on, inner
-        // OO commands (inside an OO body) switch it off, everything else
-        // inherits.  Command substitutions and expressions always run in
-        // ordinary (non-definition) context.
-        let next_oo = crate::oo_body::next_inside_oo_body(head_text, ctx.inside_oo_body, registry);
+        // body arguments should carry: an outer OO definition body switches
+        // it on, an inner OO command (inside an OO body) switches it off,
+        // everything else inherits.  `oo::define`/`oo::objdefine` only switch
+        // it on for their bare script form, not their member (`method …`)
+        // forms — hence the args are consulted.  Command substitutions and
+        // expressions always run in ordinary (non-definition) context.
+        let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+        let next_oo = crate::oo_body::next_inside_oo_body(
+            head_text,
+            &arg_texts,
+            ctx.inside_oo_body,
+            registry,
+        );
         let body_ctx = ScriptCtx {
             inside_oo_body: next_oo,
             ..ctx
