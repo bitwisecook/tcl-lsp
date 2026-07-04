@@ -346,3 +346,110 @@ fn oo_define_member_form_body_is_not_oo_context() {
         "member-form method body should still tokenise its own code: {toks2:?}",
     );
 }
+
+#[test]
+fn multiline_braced_string_literal_is_highlighted_per_line() {
+    // Issue #757: a braced string literal spanning multiple lines lost its
+    // highlighting entirely (the enclosing `string` token was dropped because
+    // it crossed a newline).  It must now emit one `string` token per covered
+    // line, matching the quoted-string case.
+    let src = "set x {some long\nstring that spans\nmultiple lines}\n";
+    let toks = decode(src, "tcl9.0");
+    for line in 0..=2 {
+        assert!(
+            toks.iter().any(|t| t.line == line && t.ttype == "string"),
+            "line {line} of the braced literal must carry a string token: {toks:?}",
+        );
+    }
+    // A quoted literal spanning the same lines highlights identically — the
+    // two forms now behave the same (the crux of the report).
+    let quoted = "set x \"some long\nstring that spans\nmultiple lines\"\n";
+    let qtoks = decode(quoted, "tcl9.0");
+    let strings_on = |toks: &[Tok]| -> Vec<(u32, u32, u32)> {
+        toks.iter()
+            .filter(|t| t.ttype == "string")
+            .map(|t| (t.line, t.character, t.length))
+            .collect()
+    };
+    assert_eq!(
+        strings_on(&toks),
+        strings_on(&qtoks),
+        "braced and quoted multi-line string literals must highlight identically",
+    );
+}
+
+#[test]
+fn multiline_literal_tokens_never_span_a_newline() {
+    // The per-line split keeps the LSP invariant that no single emitted token
+    // crosses a line boundary — every string entry stays within one line's
+    // bounds (character + length must not exceed that line's length).
+    let src = "set x {alpha\nbeta gamma\ndelta}\n";
+    let toks = decode(src, "tcl9.0");
+    for t in &toks {
+        let line_chars = src
+            .split('\n')
+            .nth(t.line as usize)
+            .unwrap_or("")
+            .chars()
+            .count();
+        assert!(
+            (t.character + t.length) as usize <= line_chars,
+            "token {t:?} overruns line {} (len {line_chars})",
+            t.line,
+        );
+    }
+}
+
+#[test]
+fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
+    // Issue #757 review (Codex P1): a physical line inside a multi-line literal
+    // whose first non-whitespace char is `#` is literal text, not a comment.
+    // The per-line string entry must be the only token on that line — the
+    // comment scanner must not also emit an overlapping `comment` token (which
+    // an LSP client would reject).
+    for src in [
+        "set x {a\n# not a comment\nb}\n",
+        "set x \"a\n# not a comment\nb\"\n",
+        "set x {a\n   # indented\nb}\n",
+    ] {
+        let toks = decode(src, "tcl9.0");
+        // The `#` line (line 1) is a string, never a comment.
+        let line1: Vec<&Tok> = toks.iter().filter(|t| t.line == 1).collect();
+        assert!(
+            line1.iter().any(|t| t.ttype == "string"),
+            "line 1 must carry a string token for {src:?}: {toks:?}",
+        );
+        assert!(
+            !line1.iter().any(|t| t.ttype == "comment"),
+            "the `#` inside the literal must not become a comment for {src:?}: {toks:?}",
+        );
+        // No two tokens overlap anywhere in the stream.
+        for (i, a) in toks.iter().enumerate() {
+            for b in &toks[i + 1..] {
+                if a.line == b.line {
+                    let (lo, hi) = if a.character <= b.character {
+                        (a, b)
+                    } else {
+                        (b, a)
+                    };
+                    assert!(
+                        lo.character + lo.length <= hi.character,
+                        "overlapping tokens {a:?} and {b:?} for {src:?}",
+                    );
+                }
+            }
+        }
+    }
+    // A genuine full-line comment is still emitted (not covered by any literal).
+    let real = decode("# a real comment\nset x 1\n", "tcl9.0");
+    assert!(
+        real.iter().any(|t| t.line == 0 && t.ttype == "comment"),
+        "a real top-level comment must still be a comment token: {real:?}",
+    );
+    // A comment inside a recursed proc body is still a comment.
+    let body = decode("proc f {} {\n# real comment\nset x 1\n}\n", "tcl9.0");
+    assert!(
+        body.iter().any(|t| t.line == 1 && t.ttype == "comment"),
+        "a real comment inside a body must still be a comment token: {body:?}",
+    );
+}
