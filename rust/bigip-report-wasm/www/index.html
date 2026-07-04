@@ -64,6 +64,16 @@
   .files li .sz { color: var(--muted); margin-left: auto; white-space: nowrap; }
   .files li .rm { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 1.1rem; padding: 0 .2rem; }
   .files li .lock { color: var(--warn-fg); }
+  .files li .sz { margin-left: auto; }
+  .files li .arch-role { font: inherit; font-size: .8rem; padding: .2rem .3rem; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .files li .arch-tier { width: 3.4rem; font: inherit; font-size: .8rem; padding: .2rem .35rem;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .arch-adv { margin-top: .9rem; border: 1px solid var(--border); border-radius: 8px; padding: .5rem .7rem; }
+  .arch-adv summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+  .arch-adv textarea { width: 100%; box-sizing: border-box; margin-top: .5rem; padding: .55rem .65rem;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; resize: vertical; }
   .row { display: grid; gap: .9rem; grid-template-columns: 1fr 1fr; margin-top: 1rem; }
   @media (max-width: 34rem) { .row { grid-template-columns: 1fr; } }
   input[type=text], input[type=password] {
@@ -100,7 +110,7 @@
 <body>
 <div class="wrap">
   <h1>F5 BIG-IP Report Generator</h1>
-  <p class="tagline">Turn a <code>.ucs</code> backup or a <code>bigip.conf</code> / SCF into one interactive, self-contained HTML report — virtual servers, pools, iRules, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console.</p>
+  <p class="tagline">Turn one or more <code>.ucs</code> backups or <code>bigip.conf</code> / SCF files into one interactive, self-contained HTML report — virtual servers, pools, iRules, GTM/DNS, AFM firewall &amp; NAT, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console. Load several devices to see how they relate as tiers (GTM → LTM tier 1 → LTM tier 2, …).</p>
 
   <div class="privacy">
     <span class="lock" aria-hidden="true">🔒</span>
@@ -118,6 +128,21 @@
     </div>
     <input type="file" id="picker" multiple accept=".ucs,.scf,.conf,.txt,text/plain,application/octet-stream">
     <ul class="files" id="fileList"></ul>
+
+    <details class="arch-adv" id="archAdv" style="display:none">
+      <summary>Architecture — how these devices relate <span class="hint" style="font-weight:400">(optional)</span></summary>
+      <p class="sub" style="margin:.5rem 0">Give each file a <b>role</b> and <b>tier</b> above to describe the topology — e.g. a GTM at tier 0 in front of an LTM tier 1 in front of an LTM tier 2. Inter-device links are auto-detected from address overlap (a pool member or GTM server address that another device serves), and drawn in the report's Architecture view. To declare links explicitly or override the auto result, paste a manifest below — it wins over the per-file choices.</p>
+      <textarea id="manifest" rows="6" spellcheck="false" placeholder='{
+  "devices": [
+    {"match": "gtm.ucs",   "role": "gtm", "tier": 0, "label": "DNS"},
+    {"match": "edge.ucs",  "role": "ltm", "tier": 1},
+    {"match": "core.ucs",  "role": "ltm", "tier": 2}
+  ],
+  "links": [
+    {"from": "gtm.ucs", "to": "edge.ucs"}
+  ]
+}'></textarea>
+    </details>
 
     <div class="row">
       <div>
@@ -197,7 +222,32 @@
   var verEl = document.getElementById("ver");
 
   var files = [];        // selected File objects
+  var meta = {};         // per-file architecture hint, keyed by file name: {role, tier}
   var lastUrl = null;    // object URL of the last generated report
+
+  var ROLES = ["auto", "gtm", "ltm", "afm"];
+
+  // Build the architecture manifest from the per-file role/tier choices (or the
+  // raw manifest textarea, which takes precedence). Returns a JSON string, or ""
+  // for pure auto-detection.
+  function buildManifest() {
+    var raw = (document.getElementById("manifest").value || "").trim();
+    if (raw) return raw;
+    var devices = [];
+    files.forEach(function (f) {
+      var m = meta[f.name] || {};
+      var entry = { match: f.name };
+      var any = false;
+      if (m.role && m.role !== "auto") { entry.role = m.role; any = true; }
+      if (m.tier !== undefined && m.tier !== "" && m.tier !== null) {
+        entry.tier = parseInt(m.tier, 10);
+        if (!isNaN(entry.tier)) any = true; else delete entry.tier;
+      }
+      if (any) devices.push(entry);
+    });
+    if (!devices.length) return "";
+    return JSON.stringify({ devices: devices });
+  }
 
   function setStatus(msg, cls) {
     statusEl.textContent = msg;
@@ -238,9 +288,40 @@
         li.appendChild(lk);
       }
       li.appendChild(sz);
+
+      // Per-file architecture hint: role + tier. Shown once more than one file
+      // is loaded (a single device has no architecture to describe).
+      if (files.length > 1) {
+        if (!meta[f.name]) meta[f.name] = { role: "auto", tier: "" };
+        var mrec = meta[f.name];
+
+        var role = document.createElement("select");
+        role.className = "arch-role";
+        role.title = "Device role";
+        ROLES.forEach(function (r) {
+          var opt = document.createElement("option");
+          opt.value = r; opt.textContent = r;
+          if (r === mrec.role) opt.selected = true;
+          role.appendChild(opt);
+        });
+        role.addEventListener("click", function (e) { e.stopPropagation(); });
+        role.addEventListener("change", function () { mrec.role = role.value; });
+
+        var tier = document.createElement("input");
+        tier.type = "number"; tier.min = "0"; tier.className = "arch-tier";
+        tier.placeholder = "tier"; tier.title = "Tier (0 = front)";
+        tier.value = mrec.tier;
+        tier.addEventListener("click", function (e) { e.stopPropagation(); });
+        tier.addEventListener("input", function () { mrec.tier = tier.value; });
+
+        li.appendChild(role);
+        li.appendChild(tier);
+      }
+
       li.appendChild(rm);
       fileListEl.appendChild(li);
     });
+    document.getElementById("archAdv").style.display = files.length > 1 ? "" : "none";
     updateReady();
   }
 
@@ -407,8 +488,9 @@
         setTimeout(function () { resolve({ sources: sources, certFiles: certFiles, locked: locked }); }, 20);
       });
     }).then(function (st) {
+      var manifest = buildManifest();
       var html = wasm_bindgen.generate_report(
-        JSON.stringify(st.sources), JSON.stringify(st.certFiles), title, utcStamp(), embed);
+        JSON.stringify(st.sources), JSON.stringify(st.certFiles), title, utcStamp(), embed, manifest);
       deliver(html, st.sources.length, st.locked);
     });
   }
