@@ -2100,15 +2100,17 @@ fn fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set() {
         "while 1 compute/if-break: r set before the only live exit (no W210)",
     );
 
-    // TP control: a non-constant condition may run the body zero times, so
-    // the cond-exit edge IS live and y is genuinely maybe-unset.
+    // FP-RBS-19 (#756): a non-constant condition may run the body zero times,
+    // but the body unconditionally sets y, so a read after the loop is defined
+    // whenever the loop ran. Matching C Tcl, we assume a may-run loop runs.
     assert!(
-        w210_fires_for("proc f {n} { while {$n>0} { set y 1 }\n puts $y }", "y"),
-        "non-constant while condition may run zero times (W210 expected on y)",
+        !w210_fires_for("proc f {n} { while {$n>0} { set y 1 }\n puts $y }", "y"),
+        "may-run while whose body defines y is silent after the loop (no W210)",
     );
 
     // TP control: only one of two break paths sets y, so the exit merges a
-    // genuine unset version on a live edge.
+    // genuine unset version on a live break edge (not the loop-entry edge) —
+    // FP-RBS-19 does not touch this; it still fires.
     assert!(
         w210_fires_for(
             "proc f {c} { while 1 { if {$c} { set y 1; break } else break }\n puts $y }",
@@ -2146,14 +2148,16 @@ fn fp_rbs_17_guaranteed_foreach_defines_body_vars() {
         "empty foreach list runs zero times (W210 expected on y)",
     );
 
-    // TP control: a dynamic (`$i`) list may be empty — not guaranteed.
+    // FP-RBS-19 (#756): a dynamic (`$i`) list may be empty, but the body
+    // unconditionally sets y, so a read after the loop is defined whenever the
+    // loop ran. Matching C Tcl, we assume a may-run loop runs.
     assert!(
-        w210_fires_for("proc f {i} { foreach x $i { set y $x }\n puts $y }", "y"),
-        "dynamic foreach list may be empty (W210 expected on y)",
+        !w210_fires_for("proc f {i} { foreach x $i { set y $x }\n puts $y }", "y"),
+        "may-run dynamic foreach whose body defines y is silent after the loop (no W210)",
     );
 
     // TP control: a first-iteration read-before-set inside the body still
-    // fires — rotation keeps the body's internal order.
+    // fires — the suppression is confined to reads *after* the loop.
     assert!(
         w210_fires_for(
             "proc f {} { foreach x {1 2 3} { puts $acc; set acc $x } }",
@@ -2188,38 +2192,42 @@ fn fp_rbs_18_guaranteed_for_defines_body_vars() {
         "for with false entry condition runs zero times (W210 expected on y)",
     );
 
-    // TP control: a later non-constant write (`set i $n`) in the
-    // init must invalidate the stale `i = 0`, so the condition is unknown.
+    // FP-RBS-19 (#756): a stale-constant init (`set i $n` overwrites `set i 0`)
+    // leaves the loop may-run — but its body unconditionally sets y, so a read
+    // after the loop is silent (we assume a may-run loop runs). The rotation
+    // decision itself (that a stale-const init is NOT claimed guaranteed) is
+    // pinned directly on the CFG shape in
+    // `cfg::for_rotation_requires_a_non_stale_constant_init`.
     assert!(
-        w210_fires_for(
+        !w210_fires_for(
             "proc f {n} { for {set i 0; set i $n} {$i<3} {incr i} { set y $i }\n puts $y }",
             "y",
         ),
-        "stale-constant for-init must not be claimed guaranteed (W210 on y)",
+        "may-run for whose body defines y is silent after the loop (no W210)",
     );
 
-    // TP control: an `incr` in the init likewise invalidates the
-    // constant binding (we don't fold incr in the init env).
+    // TP control: an `incr` in the init resolves the loop var to `i = 5`, so
+    // SCCP folds `5 < 3` to false and the body is provably dead — a genuine
+    // zero-iteration loop that leaves y unset. Still fires.
     assert!(
         w210_fires_for(
             "proc f {} { for {set i 0; incr i 5} {$i<3} {incr i} { set y $i }\n puts $y }",
             "y",
         ),
-        "incr in for-init invalidates the constant binding (W210 on y)",
+        "provably-empty for (incr init makes 5<3 false) leaves y unset (W210 on y)",
     );
 
-    // TP control: an init call to a proc that writes the loop var
-    // through `upvar` must invalidate the stale constant — the upvar pass
-    // adds the caller-side def, so `init_written_names` (via
-    // apply_upvar_invalidation) drops `i` and the loop is not claimed
-    // guaranteed. Here `setter` sets `i = 5`, so `5 < 3` is false → zero
-    // iterations → `y` unset → W210 must fire.
+    // FP-RBS-19 (#756): an init call writing the loop var through `upvar` leaves
+    // the loop may-run (SCCP cannot see through the call), so the after-loop
+    // read of the body-defined y is silent. The invalidation itself (the loop
+    // is NOT claimed guaranteed) is pinned on the CFG shape in
+    // `cfg::for_rotation_requires_a_non_stale_constant_init`.
     assert!(
-        w210_fires_for(
+        !w210_fires_for(
             "proc setter {} { upvar 1 i i; set i 5 }\nproc f {} { for {set i 0; setter} {$i < 3} {incr i} { set y $i }\n puts $y }",
             "y",
         ),
-        "upvar-writing call in for-init invalidates the constant (W210 on y)",
+        "may-run for (upvar-writing init call) whose body defines y is silent after the loop (no W210)",
     );
 
     // FP guard: a *benign* call in the init (one that does not write the
@@ -3349,11 +3357,23 @@ fn w210_phi_undef_use_after_unset_return() {
 }
 
 #[test]
-fn w210_phi_undef_loop_body_only_init_return() {
+fn w210_loop_body_accumulator_read_after_loop_silent() {
+    // FP-RBS-19 (#756): the reporter's exact pattern — a `lappend` accumulator
+    // built inside a dynamic `foreach`, returned after the loop. The body
+    // defines `r` on every iteration, so a read after the loop is defined
+    // whenever the loop ran. Matching C Tcl (which errors only when `$items` is
+    // actually empty at runtime), we assume a may-run loop runs.
     let got = w210_codes("proc f {items} { foreach i $items { lappend r $i }\n return $r }");
     assert!(
-        got.iter().any(|m| m.contains("'r'")),
-        "loop-body-only init + return must fire W210; got {got:?}"
+        got.is_empty(),
+        "after-loop return of a loop-body accumulator must be silent; got {got:?}"
+    );
+    // TP control: a *first-iteration* read of the accumulator, before its set,
+    // is a genuine read-before-set inside the body and still fires.
+    let inbody = w210_codes("proc f {items} { foreach i $items { puts $r; lappend r $i } }");
+    assert!(
+        inbody.iter().any(|m| m.contains("'r'")),
+        "first-iteration in-body read before the set must still fire; got {inbody:?}"
     );
 }
 

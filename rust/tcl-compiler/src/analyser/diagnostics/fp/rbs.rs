@@ -1102,12 +1102,16 @@ fn fp_rbs_16_while1_conditional_break_silent() {
 }
 
 #[test]
-fn fp_rbs_16_normal_while_still_fires() {
-    // TP control: non-constant condition may run zero times; y is maybe-unset.
+fn fp_rbs_16_normal_while_body_defined_silent() {
+    // FP-RBS-19 (#756): a non-constant `while` may run zero times, but its body
+    // unconditionally sets `y`, so a read after the loop is defined whenever the
+    // loop ran. Matching C Tcl (which errors only when the condition is false on
+    // entry at runtime, not merely when it could be), we assume a may-run loop
+    // runs — the after-loop read is not read-before-set.
     let src = "proc f {n} {\n    while {$n > 0} { set y 1; incr n -1 }\n    puts $y\n}\n";
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-16 TP: zero-iteration-possible while leaves 'y' maybe-unset; W210 must fire; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "FP-RBS-19: may-run while whose body defines 'y' must NOT fire W210 after the loop; emitted: {:?}",
         codes(src, D)
     );
 }
@@ -1169,12 +1173,16 @@ fn fp_rbs_17_empty_literal_still_fires() {
 }
 
 #[test]
-fn fp_rbs_17_dynamic_list_still_fires() {
-    // TP control: foreach over $var list may be empty; read after is maybe-unset.
+fn fp_rbs_17_dynamic_list_body_defined_silent() {
+    // FP-RBS-19 (#756): a foreach over a *dynamic* list may be empty, but its
+    // body unconditionally sets `y`, so a read after the loop is defined
+    // whenever the loop ran. Matching C Tcl (which errors only when the list is
+    // actually empty at runtime), we assume a may-run loop runs — this is the
+    // exact accumulator idiom the reporter hit (`foreach … { lappend acc … }`).
     let src = "proc f {items} { foreach x $items { set y $x } ; puts $y }\n";
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-17 TP: dynamic-list foreach may be empty; W210 must fire; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "FP-RBS-19: dynamic-list foreach whose body defines 'y' must NOT fire W210 after the loop; emitted: {:?}",
         codes(src, D)
     );
 }
@@ -1224,12 +1232,14 @@ fn fp_rbs_18_false_on_entry_still_fires() {
 }
 
 #[test]
-fn fp_rbs_18_unknown_bound_still_fires() {
-    // TP control: for with unknown parameter bound may run zero times.
+fn fp_rbs_18_unknown_bound_body_defined_silent() {
+    // FP-RBS-19 (#756): a `for` with an unknown bound may run zero times, but
+    // its body unconditionally sets `y`, so a read after the loop is defined
+    // whenever the loop ran. Matching C Tcl, we assume a may-run loop runs.
     let src = "proc f {n} { for {set i 0} {$i < $n} {incr i} { set y $i } ; puts $y }\n";
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-18 TP: unknown-bound for may run zero times; W210 must fire; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "FP-RBS-19: unknown-bound for whose body defines 'y' must NOT fire W210 after the loop; emitted: {:?}",
         codes(src, D)
     );
 }
@@ -1247,25 +1257,138 @@ fn fp_rbs_18_break_before_set_still_fires() {
 }
 
 #[test]
-fn fp_rbs_18_stale_const_init_still_fires() {
-    // TP (Codex P1): stale const from for-init must be invalidated when overwritten.
+fn fp_rbs_18_stale_const_init_body_defined_silent() {
+    // A stale const from the for-init (`set i $n` overwrites `set i 0`) leaves
+    // the loop may-run (not guaranteed-nonempty; the rotation-soundness of that
+    // classification is covered by the CFG-builder tests). Under FP-RBS-19
+    // (#756) the after-loop read is still silent: the body unconditionally sets
+    // `y`, so a may-run loop is assumed to run, matching C Tcl.
     let src = "proc f {n} { for {set i 0; set i $n} {$i < 3} {incr i} { set y $i }; puts $y }\n";
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-18 TP: stale-const for-init must not be treated as guaranteed; W210 must fire; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "FP-RBS-19: may-run for whose body defines 'y' must NOT fire W210 after the loop; emitted: {:?}",
         codes(src, D)
     );
 }
 
 #[test]
-fn fp_rbs_18_incr_in_init_invalidates_const() {
-    // TP (Codex P1, variant): `for {set i 0; incr i 5} {$i < 3} ...` may run zero times.
+fn fp_rbs_18_incr_in_init_provably_empty_fires() {
+    // TP: `for {set i 0; incr i 5} {$i < 3} …` resolves the loop var to `i = 5`,
+    // so `5 < 3` is false — SCCP proves the body dead (a *provably* zero-trip
+    // loop that always errors in tclsh), and W210 still fires. The incr also
+    // invalidates the rotation constant (see the CFG-shape test
+    // `cfg::for_rotation_requires_a_non_stale_constant_init`); unlike a dynamic
+    // may-run bound (FP-RBS-19), this one is statically empty, not merely maybe.
     let src = "proc f {} { for {set i 0; incr i 5} {$i < 3} {incr i} { set y $i }; puts $y }\n";
     assert!(
         fires(src, D, "W210"),
-        "FP-RBS-18 TP: incr-in-init must invalidate the const; W210 must fire; emitted: {:?}",
+        "provably-empty incr-in-init for leaves y unset; W210 must fire; emitted: {:?}",
         codes(src, D)
     );
+}
+
+// ---------------------------------------------------------------------------
+// FP-RBS-19 (#756) — a may-run loop whose body defines a variable is assumed
+// to run: an after-loop read is not read-before-set
+// ---------------------------------------------------------------------------
+
+// The reporter's exact pattern (issue #756): a multi-group `foreach` over
+// dynamic (`dict get`) lists building `lappend` accumulators, read after the
+// loop. tclsh errors only when the iterator lists are actually empty at
+// runtime; on real data the accumulators are defined, so the after-loop reads
+// are not read-before-set.
+const FP_RBS_19_REPRO: &str = "\
+set data [getDataDict]
+foreach time [dict get $data time] vout [dict get $data osc_out] {
+    lappend timeVout [list $time $vout]
+    lappend timeImeas [list $time]
+}
+puts $timeVout
+puts $timeImeas
+";
+
+#[test]
+fn fp_rbs_19_reporter_foreach_accumulator_silent() {
+    assert!(
+        !fires(FP_RBS_19_REPRO, D, "W210"),
+        "FP-RBS-19: dynamic-foreach `lappend` accumulator read after the loop must NOT fire W210; emitted: {:?}",
+        codes(FP_RBS_19_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_rbs_19_provably_empty_literal_still_fires() {
+    // TP control: a *provably* empty literal list runs zero times, so tclsh
+    // always errors — the after-loop read must keep firing.
+    let src = "foreach x {} { lappend acc $x }\nputs $acc\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-19 TP: provably-empty foreach leaves 'acc' unset; W210 must fire; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_19_conditional_def_in_body_still_fires() {
+    // TP control: the body defines `y` only under an inner `if`, so even when
+    // the loop runs `y` may be unset — a genuine read-before-set that fires.
+    let src = "proc f {items} { foreach x $items { if {$x > 0} { set y $x } }\n puts $y }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-19 TP: conditionally-defined body var may be unset after the loop; W210 must fire; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_19_first_iteration_in_body_read_still_fires() {
+    // TP control: a read *inside* the loop body before the body's own set is a
+    // genuine first-iteration read-before-set — the suppression is confined to
+    // reads reached after the loop.
+    let src = "proc f {items} { foreach x $items { puts $y; set y $x } }\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-19 TP: in-body read before the set must still fire; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_19_nested_loop_accumulator_silent() {
+    // Nested accumulator (`foreach r $rows { foreach c $cols { lappend cells … } }`):
+    // the loop-entry-only-undef analysis converges over nesting, so the inner
+    // loop's defined-on-exit result makes the outer loop entry-only too — the
+    // after-loop read is silent.
+    let src = "proc f {rows cols} { foreach r $rows { foreach c $cols { lappend cells [list $r $c] } }\n return $cells }\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-19: nested-loop accumulator read after the loops must NOT fire W210; emitted: {:?}",
+        codes(src, D)
+    );
+    // TP control: the inner body defines `y` only conditionally, so even when
+    // both loops run `y` may be unset after them — still fires.
+    let tp = "proc f {rows cols} { foreach r $rows { foreach c $cols { if {$c} { set y 1 } } }\n puts $y }\n";
+    assert!(
+        fires(tp, D, "W210"),
+        "FP-RBS-19 TP: conditionally-defined var in a nested loop may be unset; W210 must fire; emitted: {:?}",
+        codes(tp, D)
+    );
+}
+
+#[test]
+fn fp_rbs_19_while_and_for_may_run_silent() {
+    // A dynamic `while` and an unknown-bound `for` are both may-run loops whose
+    // bodies define the variable — silent after the loop, like the foreach case.
+    for src in [
+        "proc f {n} { while {$n > 0} { set y $n; incr n -1 }\n puts $y }\n",
+        "proc f {n} { for {set i 0} {$i < $n} {incr i} { set y $i }\n puts $y }\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "FP-RBS-19: may-run loop whose body defines 'y' must be silent after the loop; emitted: {:?}",
+            codes(src, D)
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
