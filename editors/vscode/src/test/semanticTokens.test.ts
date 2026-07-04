@@ -100,6 +100,58 @@ suite("Semantic Tokens", () => {
     );
   });
 
+  // Issue #760: tcllib commands that carry a script body (`control::do`,
+  // `struct::list foreachperm`) or an expression argument (`control::do`'s
+  // `while` test, `control::assert`) must recurse into that argument — the
+  // inner commands/variables are highlighted rather than emitted as one
+  // opaque string — and the `while` sense-word is a keyword.
+  test("tcllib control-flow bodies recurse and 'while' is a keyword", async () => {
+    const uri = getDocUri("tcllibControlBody.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+
+    // `set` / `puts` inside the recursed script bodies are function tokens.
+    const functionWords = new Set(
+      decoded.filter((t) => t.type === "function").map(textOf),
+    );
+    for (const word of ["set", "puts", "expr"]) {
+      assert.ok(
+        functionWords.has(word),
+        `expected '${word}' as a function token (recursed body), got ${JSON.stringify(
+          [...functionWords],
+        )}`,
+      );
+    }
+
+    // The `while` sense-word between body and test is a keyword.
+    const keywordWords = new Set(
+      decoded.filter((t) => t.type === "keyword").map(textOf),
+    );
+    assert.ok(
+      keywordWords.has("while"),
+      `expected 'while' as a keyword token, got ${JSON.stringify([...keywordWords])}`,
+    );
+
+    // The recursed body/expr arguments surface variables ($total, $perm).
+    assert.ok(
+      decoded.some((t) => t.type === "variable"),
+      "expected recursed bodies to surface variable tokens",
+    );
+  });
+
   // Issue #757: a braced string literal spanning multiple lines lost its
   // highlighting (the enclosing multi-line `string` token was dropped).  It
   // must now carry a `string` token on every covered line, just like the
