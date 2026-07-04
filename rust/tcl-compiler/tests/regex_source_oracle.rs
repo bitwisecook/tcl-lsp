@@ -103,6 +103,70 @@ fn highlighted_literal_matches_tcl9_variable_value() {
 }
 
 #[test]
+fn highlighted_literal_inside_namespace_eval_matches_tcl9() {
+    // A regex source assigned *inside* a `namespace eval` body flows through the
+    // synthetic body unit. The highlighted literal must still equal the value
+    // the interpreter binds to the (namespace-scoped) variable — read back as
+    // `${::ns::r}` after the eval completes.
+    let Some(tclsh) = find_tclsh9() else {
+        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+        return;
+    };
+    for lit in ["{a+b}", "\".*abc\"", "{[0-9]+}"] {
+        let feature_src = format!("namespace eval ::ns {{\n  set r {lit}\n  regexp $r $s\n}}\n");
+        let got = highlighted_literals(&feature_src);
+        assert_eq!(
+            got.len(),
+            1,
+            "expected one regex source inside ns-eval for {lit}"
+        );
+        let our_inner = inner(&got[0]);
+        let (ok, val) = run_tcl(
+            &tclsh,
+            &format!("namespace eval ::ns {{ set r {lit} }}\nputs -nonewline ${{::ns::r}}"),
+        )
+        .expect("tclsh runs");
+        assert!(ok, "tclsh failed for {lit}");
+        assert_eq!(
+            our_inner, val,
+            "ns-eval highlighted literal {our_inner:?} != tclsh value {val:?} for {lit}"
+        );
+    }
+}
+
+#[test]
+fn highlighted_literal_inside_apply_lambda_matches_tcl9() {
+    // A regex source assigned inside an `apply` lambda body flows through the
+    // synthetic body unit. The lambda local does not outlive the call, so the
+    // oracle prints the value from *inside* the lambda; the highlighted literal
+    // must equal it.
+    let Some(tclsh) = find_tclsh9() else {
+        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+        return;
+    };
+    for lit in ["{a+b}", "\"foo|bar\"", "{^\\d{3}$}"] {
+        let feature_src = format!("apply {{{{s}} {{\n  set r {lit}\n  regexp $r $s\n}}}} foo\n");
+        let got = highlighted_literals(&feature_src);
+        assert_eq!(
+            got.len(),
+            1,
+            "expected one regex source inside apply for {lit}"
+        );
+        let our_inner = inner(&got[0]);
+        let (ok, val) = run_tcl(
+            &tclsh,
+            &format!("apply {{{{}} {{ set r {lit}; puts -nonewline $r }}}}"),
+        )
+        .expect("tclsh runs");
+        assert!(ok, "tclsh failed for {lit}");
+        assert_eq!(
+            our_inner, val,
+            "apply highlighted literal {our_inner:?} != tclsh value {val:?} for {lit}"
+        );
+    }
+}
+
+#[test]
 fn interpolated_source_is_conservatively_not_tracked() {
     // A value built by *string interpolation* (`set r "$p.*"`) is marked
     // `Overdefined` by the SCCP lattice (interpolation folding is a separate

@@ -1588,6 +1588,7 @@ pub fn function_optimisations<'db>(
         top_level: tcl_compiler::ir::Script::new(),
         procedures: ir_procs,
         methods: HashMap::new(),
+        body_units: HashMap::new(),
         redefined_procedures: redefined,
         redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),
@@ -1611,6 +1612,7 @@ pub fn function_optimisations<'db>(
         top_level: top_fu,
         procedures: fu_procs,
         methods: HashMap::new(),
+        body_units: HashMap::new(),
         interproc: Some(ia),
         connection_scope: None,
     };
@@ -1737,6 +1739,7 @@ fn solve_optimisations<'db>(
             top_level: cu.ir_module.top_level.clone(),
             procedures: HashMap::new(),
             methods: HashMap::new(),
+            body_units: HashMap::new(),
             redefined_procedures: redefined.clone(),
             redefined_methods: HashSet::new(),
             namespace_imports: Vec::new(),
@@ -1751,6 +1754,7 @@ fn solve_optimisations<'db>(
         top_level: cu.top_level.clone(),
         procedures: HashMap::new(),
         methods: HashMap::new(),
+        body_units: HashMap::new(),
         interproc: cu.interproc.clone(),
         connection_scope: None,
     };
