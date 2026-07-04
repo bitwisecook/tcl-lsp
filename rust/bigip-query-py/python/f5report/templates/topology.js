@@ -234,8 +234,12 @@
     // node full-path → address, for member-step generation
     var nodeAddr = {};
     (d.nodes || []).forEach(function (n) { nodeAddr[n.fullPath] = n.address; });
+    // full-path → oid, so a *reference* (by path, type unknown) can open the
+    // object it points at.
+    var byPath = {};
+    d.graph.nodes.forEach(function (n) { if (!(n.fullPath in byPath)) byPath[n.fullPath] = n.oid; });
     return { d: d, byOid: byOid, adj: adj, fadj: fadj, short: short, unshort: unshort,
-      edgesByPair: edgesByPair, edgeDir: edgeDir, nodeAddr: nodeAddr };
+      edgesByPair: edgesByPair, edgeDir: edgeDir, nodeAddr: nodeAddr, byPath: byPath };
   }
   var IDX = MODEL.devices.map(indexDevice);
 
@@ -1011,12 +1015,17 @@
 
   // ---- wire object links in tables + init per device ---------------------
   function wireObjLinks(root, ix) {
-    root.querySelectorAll("[data-oid]").forEach(function (el) {
+    root.querySelectorAll("[data-oid],[data-oref]").forEach(function (el) {
       if (el._wired) return; el._wired = true;
+      // A reference (data-oref) is resolved by full-path to the object it points
+      // at; a data-oid is already the exact object. An unresolved reference (the
+      // target object isn't in this config) is left as plain, unclickable text.
+      var oid = el.dataset.oid || (el.dataset.oref ? ix.byPath[el.dataset.oref] : "");
+      if (!oid || !ix.byOid[oid]) return;
       el.classList.add("objlink");
       el.addEventListener("click", function (ev) {
         ev.preventDefault(); ev.stopPropagation();
-        openDrawer(ix, el.dataset.oid);
+        openDrawer(ix, oid);
       });
     });
   }

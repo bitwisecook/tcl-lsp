@@ -109,9 +109,9 @@
         <td class="mono strong"><span class="objlink namelink" data-oid="vs:{{ v.fullPath }}">{{ v.name }}</span>{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
         <td class="mono">{{ v.destAddr }}</td>
         <td class="mono">{{ v.destPort }}</td>
-        <td class="mono">{% if v.pool %}<a href="#" class="ref">{{ v.pool.split('/')[-1] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td>{% for p in v.profiles %}<span class="tag">{{ p.split('/')[-1] }}</span>{% endfor %}</td>
-        <td>{% for r in v.rules %}<span class="tag blue">{{ r.split('/')[-1] }}</span>{% endfor %}</td>
+        <td class="mono">{% if v.pool %}<a href="#" class="ref" data-oid="pool:{{ v.pool }}">{{ v.pool.split('/')[-1] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% for p in v.profiles %}<span class="tag" data-oid="prof:{{ p }}">{{ p.split('/')[-1] }}</span>{% endfor %}</td>
+        <td>{% for r in v.rules %}<span class="tag blue" data-oid="rule:{{ r }}">{{ r.split('/')[-1] }}</span>{% endfor %}</td>
         <td class="mono small">{{ v.snatpool.split('/')[-1] if v.snatpool else v.sourceXlate or '—' }}</td>
         <td class="mono small">{{ v.ipProtocol }}</td>
         <td>{% if v.description %}<span class="info-i" title="{{ v.description }}">i</span>{% endif %}</td>
@@ -137,7 +137,7 @@
         <td>{{ p.memberCount }}{% if p.memberCount == 0 %} <span class="tag amber">empty</span>{% endif %}</td>
         <td class="mono small">{{ p.monitor or '—' }}</td>
         <td class="mono small">{{ p.lbMode or 'round-robin' }}</td>
-        <td class="mono small">{% for u in p.usedBy %}<span class="tag blue">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+        <td class="mono small">{% for u in p.usedBy %}<span class="tag blue" data-oref="{{ u }}">{{ u.split("/")[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
       </tr>
       {% if p.members %}
       <tr class="detail"><td></td><td colspan="5">
@@ -168,7 +168,7 @@
         <td class="mono strong"><span class="objlink namelink" data-oid="node:{{ n.fullPath }}">{{ n.name }}</span>{% if n.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif n.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but an iRule selects nodes dynamically — can't be proven unused">possible orphan</span>{% endif %}</td>
         <td class="mono">{{ n.address }}</td>
         <td class="mono small">{{ n.monitor or '—' }}</td>
-        <td class="mono small">{% for u in n.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+        <td class="mono small">{% for u in n.usedBy %}<span class="tag" data-oref="{{ u }}">{{ u.split("/")[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -212,7 +212,7 @@
         <td class="mono">{{ r.lineCount }}</td>
         <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
       </tr>
-      <tr class="detail"><td></td><td colspan="4"><pre class="code">{{ r.body }}</pre></td></tr>
+      <tr class="detail"><td></td><td colspan="4"><pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
       {% endfor %}
       </tbody>
     </table>

@@ -207,6 +207,7 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "lineCount": body.count("\n") + 1 if body else 0,
         "events": events,
         "body": body,
+        "bodyHtml": _engine.highlight_tcl(body),
         "usedBy": used_by.get(fp, []),
         "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
         "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],

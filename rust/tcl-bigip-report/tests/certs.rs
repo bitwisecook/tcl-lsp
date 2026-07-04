@@ -265,3 +265,40 @@ fn dynamic_irule_demotes_orphan_to_possible() {
         "pools flagged as dynamic-risk: {risk:?}"
     );
 }
+
+// --- iRule syntax highlighting -----------------------------------------------
+
+use tcl_bigip_report::highlight_tcl;
+
+#[test]
+fn irule_highlight_marks_commands_vars_events() {
+    let html = highlight_tcl(
+        "when HTTP_REQUEST {\n  set uri [HTTP::uri]\n  # note\n  log local0. $uri\n  pool /Common/p\n}",
+    );
+    assert!(
+        html.contains(r#"<span class="tk-cmd">when</span>"#),
+        "command: {html}"
+    );
+    assert!(
+        html.contains(r#"<span class="tk-event">HTTP_REQUEST</span>"#),
+        "event"
+    );
+    assert!(
+        html.contains(r#"<span class="tk-ns">HTTP::uri</span>"#),
+        "namespaced"
+    );
+    assert!(html.contains("tk-var"), "var: {html}");
+    assert!(html.contains(r#"<span class="tk-comment">"#), "comment");
+    // recursion into the event body highlighted the inner `pool`/`set` commands
+    assert!(
+        html.contains(r#"<span class="tk-cmd">set</span>"#),
+        "inner command highlighted"
+    );
+    // model exposes bodyHtml
+    let d = device0(SCF_ORPHAN_DYN);
+    let rule = &d["rules"][0];
+    assert!(
+        rule["bodyHtml"].as_str().unwrap().contains("tk-"),
+        "bodyHtml present"
+    );
+}
