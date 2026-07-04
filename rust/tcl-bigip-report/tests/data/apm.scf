@@ -1,0 +1,1137 @@
+#TMSH-VERSION: 11.6.0
+
+cli admin-partitions {
+    update-partition Common
+}
+apm client-packaging /Common/client-packaging { }
+apm aaa active-directory /Common/mycave_aaa_srvr {
+    admin-encrypted-password $M$rV$7B0CSE6D4cknomGae8hffw==
+    admin-name Administrator
+    domain wirelessravens.org
+    domain-controller raven.wirelessravens.org
+    use-pool disabled
+}
+apm epsec epsec-package /Common/EPSEC/Images/epsec-1.0.0-173.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:EPSEC:Images:epsec-1.0.0-173.0.iso_79912_1
+    oesis-version 3.6.4140.2
+    revision 1
+    version 1.0.0-173.0
+}
+apm epsec epsec-package /Common/epsec-1.0.0-223.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:epsec-1.0.0-223.0.iso_26593_1
+    oesis-version 3.6.6528.2
+    revision 1
+    version 1.0.0-223.0
+}
+apm epsec epsec-package /Common/epsec-1.0.0-303.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:epsec-1.0.0-303.0.iso_28986_1
+    oesis-version 3.6.8649.2
+    revision 1
+    version 1.0.0-303.0
+}
+apm epsec epsec-package /Common/epsec-1.0.0-321.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:epsec-1.0.0-321.0.iso_34346_1
+    oesis-version 3.6.8917.2
+    revision 1
+    version 1.0.0-321.0
+}
+apm epsec epsec-package /Common/epsec-1.0.0-343.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:epsec-1.0.0-343.0.iso_38968_1
+    oesis-version 3.6.9427.2
+    revision 1
+    version 1.0.0-343.0
+}
+apm policy access-policy /Common/mycave {
+    caption general
+    default-ending /Common/mycave_end_deny
+    items {
+        /Common/mycave_act_active_directory {
+            priority 2
+        }
+        /Common/mycave_act_logon_page {
+            priority 1
+        }
+        /Common/mycave_act_resource_assign {
+            priority 3
+        }
+        /Common/mycave_end_allow {
+            priority 5
+        }
+        /Common/mycave_end_deny {
+            priority 4
+        }
+        /Common/mycave_ent_in { }
+    }
+    start-item /Common/mycave_ent_in
+}
+apm policy customization-group /Common/JB-JC_resource_remote_desktop_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:JB-JC_resource_remote_desktop_customization_91775_1
+    revision 1
+    type resource-remote-desktop
+}
+apm policy customization-group /Common/JB-NC_resource_remote_desktop_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:JB-NC_resource_remote_desktop_customization_91781_2
+    revision 2
+    type resource-remote-desktop
+}
+apm policy customization-group /Common/mycave_act_logon_page_ag {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_act_logon_page_ag_79916_1
+    revision 1
+}
+apm policy customization-group /Common/mycave_cp_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_customization_79918_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_91749_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_1 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_1_40578_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_2 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_2_65793_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_3 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_3_27370_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_4 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_4_27374_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_5 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_5_27407_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_6 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_6_58629_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_7 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_7_40693_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_8 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_8_32811_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_9 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_9_34429_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_10 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_10_32817_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_11 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_11_69668_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_12 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_12_32825_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_13 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_13_51134_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_14 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_14_37440_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_15 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_15_102055_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_16 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_16_37450_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_17 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_17_104686_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_cp_secure_access_client_customization_18 {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_cp_secure_access_client_customization_18_160273_1
+    revision 1
+    type secure-access-client
+}
+apm policy customization-group /Common/mycave_end_deny_ag {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_end_deny_ag_79920_1
+    revision 1
+    type logout
+}
+apm policy customization-group /Common/mycave_eps {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_eps_79922_1
+    revision 1
+    type eps
+}
+apm policy customization-group /Common/mycave_errormap {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_errormap_79924_1
+    revision 1
+    type errormap
+}
+apm policy customization-group /Common/mycave_frameworkinstallation {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_frameworkinstallation_79926_1
+    revision 1
+    type framework-installation
+}
+apm policy customization-group /Common/mycave_general_ui {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_general_ui_79928_2
+    images {
+        /Common/login_icon_small.png {
+            locale en
+            property logo_image
+        }
+    }
+    revision 2
+    type general-ui
+}
+apm policy customization-group /Common/mycave_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_logout_79930_1
+    revision 1
+    type logout
+}
+apm policy customization-group /Common/mycave_na_res_resource_network_access_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_na_res_resource_network_access_customization_79932_1
+    revision 1
+    type resource-network-access
+}
+apm policy customization-group /Common/mycave_rdp_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_rdp_customization_91787_1
+    revision 1
+    type webtop
+}
+apm policy customization-group /Common/mycave_webtop_customization {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:mycave_webtop_customization_79934_1
+    revision 1
+    type webtop
+}
+apm policy image-file /Common/login_icon_small.png {
+    cache-path /config/filestore/files_d/Common_d/customization_image_d/:Common:login_icon_small.png_160323_1
+    revision 1
+}
+apm policy policy-item /Common/mycave_act_active_directory {
+    agents {
+        /Common/mycave_act_active_directory_ag {
+            type aaa-active-directory
+        }
+    }
+    caption "AD Auth"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr {[mcget {session.ad.last.authresult}] == 1}"
+            next-item /Common/mycave_act_resource_assign
+        }
+        {
+            caption fallback
+            next-item /Common/mycave_end_deny
+        }
+    }
+}
+apm policy policy-item /Common/mycave_act_logon_page {
+    agents {
+        /Common/mycave_act_logon_page_ag {
+            type logon-page
+        }
+    }
+    caption "Logon Page"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/mycave_act_active_directory
+        }
+    }
+}
+apm policy policy-item /Common/mycave_act_resource_assign {
+    agents {
+        /Common/mycave_act_resource_assign_ag {
+            type resource-assign
+        }
+    }
+    caption "Full Resource Assign"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/mycave_end_allow
+        }
+    }
+}
+apm policy policy-item /Common/mycave_end_allow {
+    agents {
+        /Common/mycave_end_allow_ag {
+            type ending-allow
+        }
+    }
+    caption Allow
+    color 1
+    item-type ending
+}
+apm policy policy-item /Common/mycave_end_deny {
+    agents {
+        /Common/mycave_end_deny_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item /Common/mycave_ent_in {
+    caption Start
+    color 1
+    rules {
+        {
+            caption fallback
+            next-item /Common/mycave_act_logon_page
+        }
+    }
+}
+apm policy agent aaa-active-directory /Common/mycave_act_active_directory_ag {
+    server /Common/mycave_aaa_srvr
+    type auth
+}
+apm policy agent ending-allow /Common/mycave_end_allow_ag { }
+apm policy agent ending-deny /Common/mycave_end_deny_ag {
+    customization-group /Common/mycave_end_deny_ag
+}
+apm policy agent logon-page /Common/mycave_act_logon_page_ag {
+    customization-group /Common/mycave_act_logon_page_ag
+}
+apm policy agent resource-assign /Common/mycave_act_resource_assign_ag {
+    rules {
+        {
+            network-access-resources { /Common/mycave_na_res }
+            remote-desktop-resources { /Common/JB-JC /Common/JB-NC }
+            webtop /Common/mycave_rdp
+        }
+    }
+}
+apm profile access /Common/mycave {
+    accept-languages { de en es fr ja ko zh-cn zh-tw }
+    access-policy /Common/mycave
+    app-service none
+    customization-group /Common/mycave_logout
+    default-language en
+    defaults-from /Common/access
+    eps-group /Common/mycave_eps
+    errormap-group /Common/mycave_errormap
+    exchange-profile none
+    framework-installation-group /Common/mycave_frameworkinstallation
+    general-ui-group /Common/mycave_general_ui
+    generation 8
+    generation-action noop
+    logout-uri-include none
+    logout-uri-timeout 5
+    max-failure-delay 0
+    min-failure-delay 0
+    modified-since-last-policy-sync true
+    user-identity-method http
+}
+apm profile connectivity /Common/mycave_cp {
+    app-service none
+    client-policy {
+        mycave_cp_clientPolicy { }
+    }
+    defaults-from /Common/connectivity
+    tunnel-name /Common/mycave_cp
+}
+apm report favorite-report {
+    report-name "/Common/Session Details"
+    source sessionReports/sessionDetails
+    user admin
+}
+apm resource leasepool /Common/mycave_lp {
+    members {
+        192.168.1.80-192.168.1.85 { }
+    }
+}
+apm resource network-access /Common/mycave_na_res {
+    address-space-local-subnets-excluded true
+    address-space-protect true
+    compression gzip
+    customization-group /Common/mycave_na_res_resource_network_access_customization
+    dns-primary 192.168.1.6
+    dns-secondary 192.168.1.2
+    dns-suffix "localhost wirelessravens.org"
+    leasepool-name /Common/mycave_lp
+    wins-primary 192.168.1.6
+}
+apm resource webtop /Common/mycave_rdp {
+    customization-group /Common/mycave_rdp_customization
+    webtop-type full
+}
+apm resource webtop /Common/mycave_webtop {
+    customization-group /Common/mycave_webtop_customization
+    webtop-type network-access
+}
+apm resource remote-desktop citrix-client-bundle /Common/default-citrix-client-bundle { }
+apm resource remote-desktop rdp /Common/JB-JC {
+    color-depth 16-bit
+    customization-group /Common/JB-JC_resource_remote_desktop_customization
+    description "JumpBox JavaClient"
+    ip 192.168.1.16
+    java-client enabled
+    port 3389
+    window-height 1024
+    window-width 1280
+}
+apm resource remote-desktop rdp /Common/JB-NC {
+    acl-order 1
+    color-depth 16-bit
+    customization-group /Common/JB-NC_resource_remote_desktop_customization
+    description "JumpBox NativeClient"
+    ip 192.168.1.16
+    port 3389
+    window-height 1024
+    window-size full-screen
+    window-width 1280
+}
+apm sso saml-sp-connector /Common/saml_office365 {
+    assertion-consumer-uri https://login.microsoftonline.com/login.srf
+    description "Predefined SP connector object for Office 365"
+    entity-id urn:federation:MicrosoftOnline
+}
+auth user admin {
+    description "Admin User"
+    encrypted-password $1$AQfobfQF$1TEtmU1MPAyu37dXgR.i0/
+    partition-access {
+        all-partitions {
+            role admin
+        }
+    }
+    shell none
+}
+auth user root {
+    description none
+    encrypted-password $1$o/2j5FSo$YhvFZn.0k85.tx0XQ9dDd1
+    shell bash
+}
+cm cert /Common/dtca-bundle.crt {
+    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/:Common:dtca-bundle.crt_10946_52
+    checksum SHA1:1253:1d9beb87bc90edf6e438a099c079a390a36390e6
+    revision 52
+}
+cm cert /Common/dtca.crt {
+    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/:Common:dtca.crt_10948_3
+    checksum SHA1:1253:1d9beb87bc90edf6e438a099c079a390a36390e6
+    revision 3
+}
+cm cert /Common/dtdi.crt {
+    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/:Common:dtdi.crt_10950_3
+    checksum SHA1:1233:ed826cb09e3449aa8c098b674bae6cd36f870307
+    revision 3
+}
+cm device /Common/torresian.wirelessravens.org {
+    active-modules { "APM, Max CCU, VE|QCQLALI-WVSPKXQ|Anti-Virus Checks|Base Endpoint Security Checks|Firewall Checks|Network Access|Secure Virtual Keyboard|APM, Web Application|Machine Certificate Checks|Protected Workspace|Remote Desktop|App Tunnel" "GTM, VE|WATRZPH-UEDLEXF|IPV6 Gateway|Ram Cache|STP|DNSSEC|DNS Express|Routing Bundle, VE|GTM Licensed Objects, Unlimited|DNS Rate Fallback, Unlimited|DNS Licensed Objects, Unlimited|GTM Rate Fallback, (UNLIMITED)|DNS Rate Limit, Unlimited QPS|GTM Rate, Unlimited" "LTM, 1 Gbps, VE|JVSLOSP-UBWOHTT|IPV6 Gateway|Rate Shaping|Ram Cache|50 MBPS COMPRESSION|LTM, 1 Gbps - 3 Gbps Upgrade, VE|DNS Services|External Interface and Network HSM, VE|SDN Services, VE|Routing Bundle, VE|SSL, Forward Proxy, VE|WOM, VE|ASM, VE|Application Acceleration Manager, Core|PSM, VE|WBA, VE|Best Bundle, 1Gbps|SSL, VE|Acceleration Manager, VE|Advanced Protocols, VE|AFM, VE|BIG-IP VE, Multicast Routing|Anti-Virus Checks|Base Endpoint Security Checks|Firewall Checks|Network Access|Secure Virtual Keyboard|APM, Web Application|Machine Certificate Checks|Protected Workspace|Max Compression, VE|Remote Desktop|App Tunnel|DNS-GTM, Base, 1Gbps|AAM, Upgrade from WAM, (v11.4 & later)|APM, Base, VE GBB (500 CCU)|CGN, BIG-IP VE, AFM ONLY|DNS Rate Fallback, Unlimited|DNS Licensed Objects, Unlimited|DNS Rate Limit, Unlimited QPS|DNS Rate Fallback, 100|DNS Licensed Objects, 5|GTM Rate Fallback, 100|DNS Rate Limit, 1000 QPS|GTM Rate, 1000|GTM Licensed Objects, 25" }
+    base-mac 00:50:56:b4:81:ac
+    build 3.36.412
+    cert /Common/dtdi.crt
+    chassis-id 564d0459-748b-51ed-dc7b91858eed
+    configsync-ip 192.168.1.230
+    edition "Engineering Hotfix HF3"
+    hostname torresian.wirelessravens.org
+    key /Common/dtdi.key
+    management-ip 192.168.2.125
+    marketing-name "BIG-IP Virtual Edition"
+    optional-modules { "APM, Base, VE" "App Mode (TMSH Only, No Root/Bash)" "Better Bundle, 1Gbps" "Client Authentication" "Concurrent Users" "Concurrent Users and Access Sessions, VE" "DNS and GTM (1K QPS), VE" "DNS and GTM (250 QPS), VE" DNSSEC "IPI Subscription, 3Yr, VE" "PEM URL Filtering, Subscription, 1Yr, 1G, 3G" "PEM URL Filtering, Subscription, 3Yr, 1G, 3G" "PEM, Quota Management, VE" "PEM, VE" "SWG Subscription, 3Yr, VE" "URL Filtering Subscription, 3Yr, VE" }
+    platform-id Z100
+    product BIG-IP
+    self-device true
+    time-limited-modules { "IPI Subscription, 1Yr, VE|HPVCTLM-UWICTQY|20150629|20150814|SUBSCRIPTION" "SWG Subscription, 1Yr, VE|KBOWUSD-QKWGPOD|20150629|20150814|SUBSCRIPTION" "URL Filtering Subscription, 1Yr, VE|BPRZTYW-VZBYUXO|20150629|20150814|SUBSCRIPTION" }
+    time-zone EST
+    version 11.6.0
+}
+cm device-group /Common/device_trust_group {
+    auto-sync enabled
+    devices {
+        /Common/torresian.wirelessravens.org { }
+    }
+    hidden true
+    network-failover disabled
+}
+cm device-group /Common/gtm {
+    devices {
+        /Common/torresian.wirelessravens.org { }
+    }
+    hidden true
+    network-failover disabled
+}
+cm key /Common/dtca.key {
+    cache-path /config/filestore/files_d/Common_d/trust_certificate_key_d/:Common:dtca.key_10958_3
+    checksum SHA1:1675:291e55f4bd8301b1a13f72b8b6a2d3b445c6d776
+    revision 3
+}
+cm key /Common/dtdi.key {
+    cache-path /config/filestore/files_d/Common_d/trust_certificate_key_d/:Common:dtdi.key_10960_3
+    checksum SHA1:1675:4348faa13c443129ab869274f882e2e68bd34d64
+    revision 3
+}
+cm traffic-group /Common/traffic-group-1 {
+    auto-failback-enabled true
+    unit-id 1
+}
+cm traffic-group /Common/traffic-group-local-only { }
+cm trust-domain /Common/Root {
+    ca-cert /Common/dtca.crt
+    ca-cert-bundle /Common/dtca-bundle.crt
+    ca-devices { /Common/torresian.wirelessravens.org }
+    ca-key /Common/dtca.key
+    guid 95e16430-fd2f-4425-a887000c29858eed
+    status standalone
+    trust-group /Common/device_trust_group
+}
+gtm global-settings metrics {
+    metrics-collection-protocols { icmp }
+}
+gtm global-settings metrics-exclusions {
+    addresses none
+}
+ltm default-node-monitor {
+    rule none
+}
+ltm node /Common/squidly {
+    address 192.168.1.244
+}
+ltm pool /Common/squidly {
+    description "FreeBSD Squid Proxy"
+    load-balancing-mode least-connections-member
+    members {
+        /Common/squidly:3128 {
+            address 192.168.1.244
+        }
+    }
+    monitor /Common/tcp 
+}
+ltm rule /Common/ir_HTTP-Forward-Proxy-v3-2 {
+                                                ## HTTP_Proxy_v3.2
+##
+## This iRule will act as a forward proxy for HTTP requests
+## Set the virtual server that this iRule is connected to as the proxy 
+## server for your web browser.  This can handle any HTTP request and also
+## HTTPS requests through the CONNECT method.
+##
+## CMP compatible:  Yes
+## 
+## This rule requires:
+##    Just modify the DNS server and apply it to a Virtual Server
+##
+## This rule developed on:
+##    TMOS v11.2 (though should be backward compatible to 10.1)
+##    LTM
+##
+## Sizing data:
+##    Not collected
+
+when RULE_INIT {
+	set static::DEBUG 1
+	set static::dns "192.168.1.2"
+}
+
+when HTTP_REQUEST { 
+    set DNS_ERROR 0
+    set HTTP_ERROR503_DNS "<h4>Error: Host not found. Please check the website address.</h4><address>HTTP_Proxy/v2.0</address></body></html>"
+# This is required to avoid errors with session statements later - change test_pool to whatever exists on your system
+# This pool is never really used
+    #pool gw_pool
+    set method_connect [expr  { [HTTP::method] eq "CONNECT"} ]
+    set proto [string tolower [getfield [HTTP::uri] ":" 1]]
+
+    if { $static::DEBUG } { log local0.info "HTTP::method: [HTTP::method]: HTTP::request : [HTTP::request]"}
+
+    if { $method_connect } {
+        set host [string tolower [getfield [HTTP::uri] ":" 1]]
+        set port [getfield [HTTP::uri] ":" 2]
+        if {$port eq ""}{
+            set port 443
+        }
+        set new_path [HTTP::uri]
+    } else {
+        set hostport [findstr [HTTP::uri] "//" 2 "/"]
+        set host [string tolower [getfield $hostport ":" 1]]
+        set port [getfield $hostport ":" 2]
+        set prefix "$proto://$hostport"
+        set new_path [findstr [HTTP::uri] $prefix [string length $prefix] ] 
+        if {$port eq ""}{
+            set port 80
+        }
+# I forgot the next line at one point, and guess what? A lot of pages did load just fine!!! including google.com/new
+        HTTP::uri $new_path
+    }
+# TODO: what other headers should be removed or edited?
+    HTTP::header remove "Proxy-Connection"
+# prepare access log:
+# 68.9.59.127 - - [16/May/2008:23:40:18 -0400] "GET /yourshows/8/editorLogin.swf HTTP/1.1" 200 86686
+
+    set request_log_line "[HTTP::request_num] [HTTP::host] [IP::remote_addr] \"[HTTP::method] "
+    set request_log_line "$request_log_line $new_path [HTTP::version]\""
+
+    if { ! [catch {IP::addr $host mask 255.255.255.255}] } {
+        set got_ipaddress 1
+        set _ipaddress $host 
+    } else {
+#        set _ipaddress [session lookup uie $host]
+    	set _ipaddress [table lookup -subtable dnscache $host]
+        set got_ipaddress [expr { $_ipaddress ne "" }]
+    }
+
+    if { $method_connect } {
+# TODO: We really should connect first before sending 200 code, but it works this way.
+        TCP::respond "HTTP/1.1 200 OK\r\nConnection: Keep-Alive\r\n\r\n"
+        TCP::payload replace 0 [TCP::payload length] ""
+        TCP::collect
+        HTTP::disable discard
+        if { $got_ipaddress } {
+            node $_ipaddress $port
+        } else {
+			set ips [RESOLV::lookup @$static::dns $host]
+            if { $static::DEBUG } {log local0.info "$host NAME::response: $ips"}
+			set _ipaddress [lindex $ips 0]
+            if { $_ipaddress eq "" } {
+               set DNS_ERROR 1
+               if { $static::DEBUG } { log local0.info "DNS resolution failed for hostname:  $host. Sending HTTP response error" }
+               catch {TCP::respond "HTTP/1.1 503 <h4>Error: Host not found. Please check the website address.</h4><address>HTTP_Proxy/v2.0</address></body></html>\r\n\r\n"}
+            } else {
+	# Add to cache with 60 second timeout
+#               session add uie $host $_ipaddress 60
+               table add -subtable dnscache $host $_ipaddress 60
+               node $_ipaddress $port
+            }
+        }
+    } elseif { $got_ipaddress } {
+        if { $static::DEBUG } { log local0.info "Got an IP address, using it: $host/$_ipaddress" }
+        node $_ipaddress $port
+    } else {
+        if { $static::DEBUG } { log local0.info "Got hostname: $host, calling resolver..." }
+	    set ips [RESOLV::lookup @$static::dns $host]
+        if { $static::DEBUG } {log local0.info "$host NAME::response: $ips"}
+		set _ipaddress [lindex $ips 0]
+        if { $_ipaddress eq "" } {
+            set DNS_ERROR 1
+            if { $static::DEBUG } { log local0.info "DNS resolution failed for hostname:  $host. Sending HTTP response error" }
+            catch {TCP::respond "HTTP/1.1 503 <h4>Error: Host not found. Please check the website address.</h4><address>HTTP_Proxy/v2.0</address></body></html>\r\n\r\n"}
+        } else {
+# Add to cache with 60 second timeout
+#            session add uie $host $_ipaddress 60
+            table add -subtable dnscache $host $_ipaddress 60
+            node $_ipaddress $port
+        }
+    }
+}
+
+when HTTP_RESPONSE {
+    set request_log_line "$request_log_line [HTTP::status] [HTTP::payload length]"
+# Via =  "Via" ":" 1#( received-protocol received-by [ comment ] )
+# received-protocol = [ protocol-name "/" ] protocol-version
+# protocol-name     = token
+# protocol-version  = token
+# received-by       = ( host [ ":" port ] ) | pseudonym
+# pseudonym         = token
+# Via header value hard coded - change as desired
+    HTTP::header insert "Via" "F5ProxyiRule"
+#    log 192.168.74.123 local0.info "ACCESS: $request_log_line"
+}
+when SERVER_CONNECTED {
+    if { $static::DEBUG } { log local0.info "Server connected." }
+    if { $method_connect  } {
+      TCP::payload replace 0 [TCP::payload length] ""
+        if { $static::DEBUG } { log local0.info "Sending client data: [b64encode [clientside { TCP::payload }] ]" }
+# TODO: without this disable, we get:
+# http_process_state_prepend - Invalid action EV_EGRESS_DATA during ST_HTTP_PREPEND_HEADERS (Client side: vip=http_proxy_vs profile=http addr=71.6.193.125 port=443 vlan=0)
+        clientside { HTTP::disable discard }
+        TCP::respond [clientside { TCP::payload }]
+        clientside {
+            TCP::payload replace 0 [string length [TCP::payload]] ""
+            TCP::release
+        }
+    }
+}
+when SERVER_CLOSED {
+# TODO: did it work, or did it not?
+    if { $static::DEBUG } { log local0.info "Server closed." }
+}
+
+when LB_FAILED {
+    set HTTP_ERROR503_SRV "<h4>Error: Connection to server failed.</h4><address>$::ProxyName/$::ProxyVersion</address></body></html>"
+    if { $method_connect  } {
+        if { $static::DEBUG } { log local0.info "Server connection failed. Closing client connection."}
+            clientside {TCP::close}
+    } else {
+        if { $DNS_ERROR } {
+            if { $static::DEBUG } { log local0.info "Server connection failed, DNS error."}
+        } else {
+            if { $static::DEBUG } { log local0.info "Server connection failed. Sending HTTP response error"}
+            clientside {
+                HTTP::release
+ # TODO: This raises an error when respond was already called, in NAME_RESOLVED for example, despite the if and the catch!!!!
+                catch {TCP::respond "HTTP/1.1 503 <h4>Error: Host not found. Please check the website address.</h4><address>HTTP_Proxy/v2.0</address></body></html>\r\n\r\n"}
+            }
+	    }
+    }
+}
+
+when CLIENT_CLOSED {
+    if { $static::DEBUG } { log local0.info "client closed." }
+}
+}
+ltm virtual /Common/my_proxy {
+    destination /Common/192.168.1.128:8080
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/squidly
+    profiles {
+        /Common/http { }
+        /Common/tcp-wan-optimized { }
+    }
+    rules {
+        /Common/ir_HTTP-Forward-Proxy-v3-2
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port enabled
+}
+ltm virtual /Common/mycave_proxy {
+    destination /Common/192.168.1.128:10000
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/squidly
+    profiles {
+        /Common/http { }
+        /Common/tcp-wan-optimized { }
+    }
+    rules {
+        /Common/ir_HTTP-Forward-Proxy-v3-2
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/mycave_vs {
+    destination /Common/192.168.1.128:443
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        /Common/clientssl {
+            context clientside
+        }
+        /Common/http { }
+        /Common/mycave { }
+        /Common/mycave_cp {
+            context clientside
+        }
+        /Common/ppp { }
+        /Common/rba { }
+        /Common/tcp { }
+        /Common/websso { }
+    }
+    source 0.0.0.0/0
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/mycave_vs_redirect {
+    destination /Common/192.168.1.128:80
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        /Common/http { }
+        /Common/tcp { }
+    }
+    rules {
+        /Common/_sys_https_redirect
+    }
+    source 0.0.0.0/0
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual-address /Common/192.168.1.128 {
+    address 192.168.1.128
+    arp enabled
+    icmp-echo enabled
+    mask 255.255.255.255
+    traffic-group /Common/traffic-group-1
+}
+net interface 1.1 {
+    media-fixed 10000T-FD
+}
+net interface 1.2 {
+    media-fixed 10000T-FD
+}
+net route /Common/default_gateway {
+    gw 192.168.1.1
+    network default
+}
+net route-domain /Common/0 {
+    description "Default Route Domain"
+    id 0
+    vlans {
+        /Common/extra
+        /Common/internal
+        /Common/http-tunnel
+        /Common/socks-tunnel
+        /Common/mycave_cp
+    }
+}
+net self /Common/192.168.1.230 {
+    address 192.168.1.230/24
+    allow-service {
+        default
+    }
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/internal
+}
+net self /Common/10.0.2.100 {
+    address 10.0.2.100/24
+    allow-service {
+        default
+    }
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/extra
+}
+net self-allow {
+    defaults {
+        ospf:0
+        tcp:161
+        tcp:22
+        tcp:4353
+        tcp:443
+        tcp:53
+        udp:1026
+        udp:161
+        udp:4353
+        udp:520
+        udp:53
+    }
+}
+net stp /Common/cist {
+    interfaces {
+        1.1 {
+            external-path-cost 2000
+            internal-path-cost 2000
+        }
+        1.2 {
+            external-path-cost 2000
+            internal-path-cost 2000
+        }
+    }
+    vlans {
+        /Common/extra
+        /Common/internal
+    }
+}
+net vlan /Common/extra {
+    interfaces {
+        1.2 { }
+    }
+    tag 4093
+}
+net vlan /Common/internal {
+    interfaces {
+        1.1 { }
+    }
+    tag 4094
+}
+net fdb tunnel /Common/http-tunnel { }
+net fdb tunnel /Common/mycave_cp { }
+net fdb tunnel /Common/socks-tunnel { }
+net fdb vlan /Common/extra { }
+net fdb vlan /Common/internal { }
+net ipsec ike-daemon /Common/ikedaemon { }
+net tunnels tunnel /Common/http-tunnel {
+    description "Tunnel for http-explicit profile"
+    profile /Common/tcp-forward
+}
+net tunnels tunnel /Common/mycave_cp {
+    profile /Common/ppp
+}
+net tunnels tunnel /Common/socks-tunnel {
+    description "Tunnel for socks profile"
+    profile /Common/tcp-forward
+}
+pem global-settings analytics { }
+security dos udp-portlist /Common/dos-udp-portlist {
+    entries {
+        entry1 {
+            match-direction both
+            port-number 53
+        }
+    }
+    list-type exclude-listed-ports
+}
+security firewall port-list /Common/_sys_self_allow_tcp_defaults {
+    ports {
+        22 { }
+        53 { }
+        161 { }
+        443 { }
+        1028 { }
+        1029-1043 { }
+        4353 { }
+    }
+}
+security firewall port-list /Common/_sys_self_allow_udp_defaults {
+    ports {
+        53 { }
+        161 { }
+        520 { }
+        1026 { }
+        4353 { }
+    }
+}
+security firewall rule-list /Common/_sys_self_allow_all {
+    rules {
+        _sys_allow_all {
+            action accept
+        }
+    }
+}
+security firewall rule-list /Common/_sys_self_allow_defaults {
+    rules {
+        _sys_allow_tcp_defaults {
+            action accept
+            ip-protocol tcp
+            destination {
+                port-lists {
+                    /Common/_sys_self_allow_tcp_defaults
+                }
+            }
+        }
+        _sys_allow_udp_defaults {
+            action accept
+            ip-protocol udp
+            destination {
+                port-lists {
+                    /Common/_sys_self_allow_udp_defaults
+                }
+            }
+        }
+        _sys_allow_ospf_defaults {
+            action accept
+            ip-protocol ospf
+        }
+    }
+}
+security firewall rule-list /Common/_sys_self_allow_management {
+    rules {
+        _sys_allow_ssh {
+            action accept
+            ip-protocol tcp
+            destination {
+                ports {
+                    22 { }
+                }
+            }
+        }
+        _sys_allow_web {
+            action accept
+            ip-protocol tcp
+            destination {
+                ports {
+                    443 { }
+                }
+            }
+        }
+    }
+}
+security ip-intelligence policy /Common/ip-intelligence { }
+sys db avr.stats.internal.maxentitiespertable {
+    value "20000"
+}
+sys db dhclient.mgmt {
+    value "disable"
+}
+sys db dns.cache {
+    value "enable"
+}
+sys db dos.udplimiterportmode_0 {
+    value "all"
+}
+sys db gtm.peerinfototalgtms {
+    value "0"
+}
+sys db provision.extramb {
+    value "0"
+}
+sys db provision.tomcat.extramb {
+    value "0"
+}
+sys db rule.validation {
+    value "strict"
+}
+sys db systemauth.primaryadminuser {
+    value "admin"
+}
+sys db tm.allowmulticastl2destinationtraffic {
+    value "disable"
+}
+sys db tm.tcpallowinsecurerst {
+    value "disable"
+}
+sys db tmm.classallocatemetadata {
+    value "enable"
+}
+sys db tmm.coredump {
+    value "enable"
+}
+sys db tmm.gradualfileloadadjust {
+    value "enable"
+}
+sys db tmm.lb.wlcoffset {
+    value "disable"
+}
+sys db tmm.verbose {
+    value "disable"
+}
+sys db tmm.verbosecmp {
+    value "disable"
+}
+sys dns {
+    name-servers { 192.168.1.2 192.168.1.6 8.8.8.8 }
+    search { localhost wirelessravens.org }
+}
+sys feature-module cgnat {
+    disabled
+}
+sys folder / {
+    device-group none
+    hidden false
+    inherited-devicegroup false
+    inherited-traffic-group false
+    traffic-group /Common/traffic-group-1
+}
+sys folder /Common {
+    device-group none
+    hidden false
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group /Common/traffic-group-1
+}
+sys folder /Common/EPSEC {
+    device-group none
+    hidden false
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group /Common/traffic-group-1
+}
+sys folder /Common/EPSEC/Images {
+    device-group none
+    hidden false
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group /Common/traffic-group-1
+}
+sys folder /Common/EPSEC/Status {
+    device-group none
+    hidden false
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group /Common/traffic-group-1
+}
+sys global-settings {
+    gui-setup disabled
+    hostname torresian.wirelessravens.org
+    mgmt-dhcp disabled
+}
+sys management-dhcp /Common/sys-mgmt-dhcp-config {
+    request-options { subnet-mask broadcast-address routers domain-name domain-name-servers host-name ntp-servers }
+}
+sys management-ip 192.168.2.125/24 { }
+sys ntp {
+    servers { 192.168.1.1 }
+    timezone Australia/Sydney
+}
+sys provision apm {
+    level nominal
+}
+sys provision ltm {
+    level nominal
+}
+sys snmp {
+    agent-addresses { tcp6:161 udp6:161 }
+    communities {
+        /Common/comm-public {
+            community-name public
+            source default
+        }
+    }
+    disk-monitors {
+        /Common/root {
+            minspace 2000
+            path /
+        }
+        /Common/var {
+            minspace 10000
+            path /var
+        }
+    }
+    process-monitors {
+        /Common/bigd {
+            process bigd
+        }
+        /Common/chmand {
+            process chmand
+        }
+        /Common/httpd {
+            max-processes infinity
+            process httpd
+        }
+        /Common/mcpd {
+            process mcpd
+        }
+        /Common/sod {
+            process sod
+        }
+        /Common/tmm {
+            max-processes infinity
+            process tmm
+        }
+    }
+}
+sys syslog {
+    remote-servers {
+        /Common/remotesyslog1 {
+            host 192.168.1.245
+        }
+    }
+}
+sys fpga firmware-config {
+    type standard-balanced-fpga
+}
+sys sflow global-settings http { }
+sys sflow global-settings vlan { }
+sys software update {
+    auto-check enabled
+    frequency weekly
+}
+wom endpoint-discovery { }

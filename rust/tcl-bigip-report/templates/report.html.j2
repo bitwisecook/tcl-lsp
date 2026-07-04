@@ -12,6 +12,7 @@
 {{ topology_css | safe }}
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
+{{ apm_css | safe }}
 {{ forensics_css | safe }}
 </style>
 </head>
@@ -173,6 +174,7 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
+    {% if d.counts.apmProfiles %}<button class="tab" data-panel="apm">APM <span class="n">{{ d.counts.apmProfiles }}</span></button>{% endif %}
     {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
     {% if d.counts.firewall %}<button class="tab" data-panel="firewall">Firewall / NAT <span class="n">{{ d.counts.firewall }}</span></button>{% endif %}
     {% if d.counts.files or d.forensics.flagged %}<button class="tab" data-panel="forensics">Forensics <span class="n">{{ d.counts.files }}</span></button>{% endif %}
@@ -449,6 +451,30 @@
       </tbody>
     </table>
     </div>
+  </div>
+  {% endif %}
+
+  {#: ---------------- APM access-profile walk ---------------- :#}
+  {% if d.counts.apmProfiles %}
+  <div class="panel" data-panel="apm">
+    <p class="lm-field-note">Every <code>apm profile access</code> walked out to everything it depends on — the virtual servers that attach it, its connectivity profile, the access policy and its items (with the <code>next-item</code> flow between them), the agents on each item, the AAA servers they authenticate against, and the resources a resource-assign agent hands out (network access → lease pool / client DNS, webtops, remote-desktop resources). Laid out left-to-right like the Visual Policy Editor: <b>green</b> start / allow, <b>red</b> deny, orthogonal connectors labelled with each branch.</p>
+    {% for p in d.apmProfiles %}
+    <div class="apm-profile searchable" data-search="{{ p.name }} {{ p.fullPath }} {{ p.policy }} {% for o in p.objects %}{{ o.name }} {% endfor %}">
+      <div class="apm-head">
+        <span class="apm-title">{{ p.name }}</span>
+        <span class="apm-path mono">{{ p.fullPath }}</span>
+        <span class="apm-meta">
+          {% if p.policy %}<span class="tag">policy: {{ p.policy }}</span>{% endif %}
+          {% for v in p.virtuals %}<span class="tag blue">{{ v }}</span>{% else %}<span class="tag amber">no virtual attaches this profile</span>{% endfor %}
+          <span class="tag" title="Objects linked from this profile">{{ p.objectCount }} linked</span>
+        </span>
+      </div>
+      <div class="apm-graph">
+        <script type="application/json" class="apm-graph-data">{{ p.graph | tojson }}</script>
+        <div class="apm-diagram"></div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 
@@ -940,6 +966,14 @@
 </script>
 <script>
 {{ irule_flow_js | safe }}
+</script>
+<!-- vendored elkjs (EPL-2.0) for the orthogonal APM graph, inlined for a fully self-contained page -->
+<script>{{ elk_js | safe }}</script>
+<script>
+{{ elk_graph_js | safe }}
+</script>
+<script>
+{{ apm_js | safe }}
 </script>
 <script>
 {{ secrets_js | safe }}
