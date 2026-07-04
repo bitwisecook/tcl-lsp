@@ -34,6 +34,15 @@ struct ForeachState {
     body_idx: usize,
 }
 
+/// Iterator state for a compiled `dict for` / `dict map` loop, keyed by the
+/// local slot named in the `dictFirst` / `dictNext` operand. Holds the dict's
+/// key/value pairs in insertion order plus the current position — the analogue
+/// of C Tcl's `Tcl_DictSearch` stored in the iterator temp var.
+struct DictIterState {
+    pairs: Vec<(Value, Value)>,
+    pos: usize,
+}
+
 /// One activation record: a bytecode function in mid-execution.
 struct Frame {
     asm: Rc<FunctionAsm>,
@@ -44,6 +53,8 @@ struct Frame {
     stack: Vec<Value>,
     /// Active `foreach` loops in this activation (innermost last).
     foreach_stack: Vec<ForeachState>,
+    /// Compiled `dict for`/`map` iterators, keyed by their local slot.
+    dict_iters: HashMap<i32, DictIterState>,
     /// Stack-depth markers for in-progress `{*}` argument expansions (innermost
     /// last). `EXPAND_START` records the word-list start; `INVOKE_EXPANDED`
     /// pops it to recover the (post-expansion) argument count.
@@ -66,6 +77,7 @@ impl Frame {
             pc: 0,
             stack: Vec::new(),
             foreach_stack: Vec::new(),
+            dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
             last_result: Value::empty(),
             is_proc,
@@ -1350,6 +1362,52 @@ impl Vm {
             }
             Op::FOREACH_END => {
                 f.foreach_stack.pop();
+            }
+
+            // Compiled `dict for` / `dict map` iteration primitives. `dictFirst
+            // <slot>` pops the dict (TOS), records an iterator in `<slot>`, and
+            // pushes `value, key, done` (done on top). `dictNext <slot>`
+            // advances and pushes the next `value, key, done`. `done` is the
+            // "exhausted" flag the compiled loop tests with `jumpTrue`
+            // (dictFirst: skip an empty dict) / `jumpFalse` (dictNext: loop
+            // while more). On exhaustion the pushed key/value are empty
+            // placeholders the loop epilogue pops.
+            Op::DICT_FIRST => {
+                let slot = imm0(instr);
+                let dict = pop(f);
+                let ps = match crate::cmd_dict::pairs(&dict) {
+                    Ok(p) => p
+                        .into_iter()
+                        .map(|(k, v)| (Value::string(k), v))
+                        .collect::<Vec<(Value, Value)>>(),
+                    Err(c) => return Tick::Return(c),
+                };
+                let (k, v) = ps
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| (Value::empty(), Value::empty()));
+                let done = ps.is_empty();
+                f.dict_iters
+                    .insert(slot, DictIterState { pairs: ps, pos: 0 });
+                f.stack.push(v);
+                f.stack.push(k);
+                f.stack.push(Value::bool(done));
+            }
+            Op::DICT_NEXT => {
+                let slot = imm0(instr);
+                let (k, v, done) = match f.dict_iters.get_mut(&slot) {
+                    Some(st) => {
+                        st.pos += 1;
+                        match st.pairs.get(st.pos) {
+                            Some((k, v)) => (k.clone(), v.clone(), false),
+                            None => (Value::empty(), Value::empty(), true),
+                        }
+                    }
+                    None => (Value::empty(), Value::empty(), true),
+                };
+                f.stack.push(v);
+                f.stack.push(k);
+                f.stack.push(Value::bool(done));
             }
 
             // -- dict validation: consumes the (dup'd) TOS, validates even length --

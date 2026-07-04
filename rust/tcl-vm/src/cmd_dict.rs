@@ -39,7 +39,7 @@ fn ilen(n: usize) -> i64 {
 }
 
 /// Parse a dict value into (key-string, value) pairs, preserving order.
-fn pairs(v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
+pub(crate) fn pairs(v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
     let items = v.as_list().map_err(|e| err(e.message))?;
     if items.len() % 2 != 0 {
         return Err(err("missing value to go with key"));

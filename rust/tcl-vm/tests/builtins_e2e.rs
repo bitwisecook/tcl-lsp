@@ -1309,3 +1309,22 @@ fn compiled_unset_missing_honours_complain_flag() {
         "done\n",
     );
 }
+
+#[test]
+fn dict_for_compiled_inline_executes() {
+    // dict for compiled inline (dictFirst/dictNext) iterates in order.
+    out_eq(
+        "proc p {} { set d {a 1 b 2 c 3}; set out {}; dict for {k v} $d { lappend out $k=$v }; return $out }\nputs [p]\n",
+        "a=1 b=2 c=3\n",
+    );
+    // Empty dict: body never runs.
+    out_eq(
+        "proc p {} { set d {}; set n 0; dict for {k v} $d { incr n }; return $n }\nputs [p]\n",
+        "0\n",
+    );
+    // Value + key both bound; sum the values.
+    out_eq(
+        "proc p {} { set d {x 10 y 20}; set s 0; dict for {k v} $d { incr s $v }; return $s }\nputs [p]\n",
+        "30\n",
+    );
+}

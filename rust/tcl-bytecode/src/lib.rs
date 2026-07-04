@@ -176,6 +176,13 @@ pub enum Op {
     FOREACH_START,
     FOREACH_STEP,
     FOREACH_END,
+    /// `dictFirst <slot>` — begin iterating a dict (top of stack), storing the
+    /// iterator state in local `<slot>`; pushes value, key, and a done flag
+    /// (done on top). The C-Tcl compiled `dict for` / `dict map` primitive.
+    DICT_FIRST,
+    /// `dictNext <slot>` — advance the iterator in local `<slot>`; pushes the
+    /// next value, key, and done flag.
+    DICT_NEXT,
     JUMP_TABLE,
     NOP,
     UMINUS,
@@ -320,6 +327,8 @@ impl Op {
             Self::FOREACH_START => "foreach_start",
             Self::FOREACH_STEP => "foreach_step",
             Self::FOREACH_END => "foreach_end",
+            Self::DICT_FIRST => "dictFirst",
+            Self::DICT_NEXT => "dictNext",
             Self::NOP => "nop",
             Self::TAILCALL => "tailcall",
             Self::INVOKE_REPLACE => "invokeReplace",
@@ -689,6 +698,8 @@ impl Op {
             | Self::LINDEX_MULTI
             | Self::BEGIN_CATCH4
             | Self::FOREACH_START
+            | Self::DICT_FIRST
+            | Self::DICT_NEXT
             | Self::JUMP_TABLE
             | Self::LAPPEND_LIST
             | Self::APPEND_SCALAR4
