@@ -163,6 +163,38 @@ impl ProfileRegistry {
                 .is_subset(&active_expanded)
         })
     }
+
+    /// Canonical protocol-stack rank for a profile *type* (e.g. `"HTTP"`),
+    /// lowest = closest to the wire.  Looks the type up in the registry and
+    /// ranks it by its [`ProfileSpec::layer`] via [`layer_rank`].  Unknown
+    /// types rank last so nothing is dropped when ordering.
+    ///
+    /// Use this to order a virtual server's profile stack (transport → TLS →
+    /// application → …) instead of alphabetically, which would list `HTTP`
+    /// ahead of `TCP` and invert the real processing order.
+    #[must_use]
+    pub fn layer_rank(&self, profile_type: &str) -> u8 {
+        layer_rank(self.get_profile(profile_type).map_or("", |p| p.layer))
+    }
+}
+
+/// Rank of a protocol-stack [`ProfileSpec::layer`] name — lowest is nearest
+/// the wire.  A BIG-IP virtual processes its profile stack bottom-up:
+/// transport → TLS → application, with the security / acceleration / utility
+/// facets layered on top.  Unknown layers rank last so no profile is dropped.
+#[must_use]
+pub fn layer_rank(layer: &str) -> u8 {
+    match layer {
+        "transport" => 0,
+        "tls_shared" => 1,
+        "tls" => 2,
+        "application" => 3,
+        "load_balance" => 4,
+        "security" => 5,
+        "acceleration" => 6,
+        "utility" => 7,
+        _ => 8,
+    }
 }
 
 /// Profiles attached to a file.

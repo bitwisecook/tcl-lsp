@@ -228,7 +228,9 @@ def _shape_monitor(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str
 
 def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
     body = f.get("body", "") or ""
-    events = sorted(set(re.findall(r"\bwhen\s+([A-Z][A-Z0-9_]+)", body)))
+    # Canonical firing order (via the shared registry), not alphabetical — so
+    # CLIENT_ACCEPTED precedes CLIENTSSL_HANDSHAKE, etc. Matches the Rust report.
+    events = _engine.order_events(list(set(re.findall(r"\bwhen\s+([A-Z][A-Z0-9_]+)", body))))
     fp = f.get("full-path", "")
     # `.refs` is the engine's synthesised iRule reference sub-object: pools /
     # persistences / data-groups the rule body actually uses.
@@ -424,6 +426,20 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 }
                 for f in rows
             ]
+
+    # Order each virtual's attached profiles into traffic (protocol-stack)
+    # order via the shared engine — transport → TLS → application — so a
+    # listener reads TCP → … → HTTP, not the raw config order. The config's
+    # typed profile inventory is authoritative; the engine falls back to
+    # well-known default-profile names for base profiles it doesn't define.
+    type_of = {
+        p["fullPath"]: p.get("type", "")
+        for p in device.get("profiles", [])
+        if isinstance(p, dict) and p.get("fullPath")
+    }
+    for v in device.get("virtuals", []):
+        if isinstance(v, dict) and isinstance(v.get("profiles"), list):
+            v["profiles"] = _engine.order_profiles(v["profiles"], type_of)
 
     # Tag built-in / system objects (default profiles, monitors, `_sys_*` iRules
     # from profile_base.conf / low_profile_base.conf) so they can be hidden by
