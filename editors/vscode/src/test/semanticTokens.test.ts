@@ -151,22 +151,18 @@ suite("Semantic Tokens", () => {
       doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
 
     // `set` / `puts` inside the recursed script bodies are function tokens.
-    const functionWords = new Set(
-      decoded.filter((t) => t.type === "function").map(textOf),
-    );
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
     for (const word of ["set", "puts", "expr"]) {
       assert.ok(
         functionWords.has(word),
-        `expected '${word}' as a function token (recursed body), got ${JSON.stringify(
-          [...functionWords],
-        )}`,
+        `expected '${word}' as a function token (recursed body), got ${JSON.stringify([
+          ...functionWords,
+        ])}`,
       );
     }
 
     // The `while` sense-word between body and test is a keyword.
-    const keywordWords = new Set(
-      decoded.filter((t) => t.type === "keyword").map(textOf),
-    );
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
     assert.ok(
       keywordWords.has("while"),
       `expected 'while' as a keyword token, got ${JSON.stringify([...keywordWords])}`,
