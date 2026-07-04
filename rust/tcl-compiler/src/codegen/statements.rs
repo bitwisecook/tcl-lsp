@@ -638,16 +638,20 @@ impl CodegenCtx<'_> {
             return;
         }
 
-        // Compiled `dict for {k v} DICT {body}` (the ensemble-rewrite barrier
-        // `::tcl::dict::for` cfg_builder produced): emit C Tcl's inline
-        // dict-iteration bytecode when the shape is compilable, else fall
-        // through to the runtime invoke.
-        if cmd == "::tcl::dict::for"
-            && args.len() == 3
-            && self.emit_dict_for(&args[0], &args[1], &args[2])
-        {
-            *used_generic_invoke = true;
-            return;
+        // Compiled `dict for`/`dict map {k v} DICT {body}` (the ensemble-rewrite
+        // barriers `::tcl::dict::for`/`::tcl::dict::map` cfg_builder produced):
+        // emit C Tcl's inline dict-iteration bytecode when the shape is
+        // compilable, else fall through to the runtime invoke.
+        if args.len() == 3 {
+            let inlined = match cmd {
+                "::tcl::dict::for" => self.emit_dict_for(&args[0], &args[1], &args[2]),
+                "::tcl::dict::map" => self.emit_dict_map(&args[0], &args[1], &args[2]),
+                _ => false,
+            };
+            if inlined {
+                *used_generic_invoke = true;
+                return;
+            }
         }
 
         // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is a
