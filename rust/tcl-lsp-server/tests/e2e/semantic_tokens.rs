@@ -119,6 +119,13 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "switch_braced",
             "switch $x {\n  {a b} { puts one }\n  default { puts def }\n}\n",
         ),
+        // Issue #757 review (Codex P1): a `#`-leading physical line inside a
+        // multi-line literal must not produce a `comment` token overlapping the
+        // per-line `string` token.  Exercises the non-overlap invariant.
+        (
+            "hash_in_multiline_literal",
+            "set x {a\n# not a comment\nb}\nset y \"a\n  # also literal\nb\"\n",
+        ),
     ];
     v.sort_by(|a, b| a.0.cmp(b.0));
     v

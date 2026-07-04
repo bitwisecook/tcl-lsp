@@ -399,3 +399,57 @@ fn multiline_literal_tokens_never_span_a_newline() {
         );
     }
 }
+
+#[test]
+fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
+    // Issue #757 review (Codex P1): a physical line inside a multi-line literal
+    // whose first non-whitespace char is `#` is literal text, not a comment.
+    // The per-line string entry must be the only token on that line — the
+    // comment scanner must not also emit an overlapping `comment` token (which
+    // an LSP client would reject).
+    for src in [
+        "set x {a\n# not a comment\nb}\n",
+        "set x \"a\n# not a comment\nb\"\n",
+        "set x {a\n   # indented\nb}\n",
+    ] {
+        let toks = decode(src, "tcl9.0");
+        // The `#` line (line 1) is a string, never a comment.
+        let line1: Vec<&Tok> = toks.iter().filter(|t| t.line == 1).collect();
+        assert!(
+            line1.iter().any(|t| t.ttype == "string"),
+            "line 1 must carry a string token for {src:?}: {toks:?}",
+        );
+        assert!(
+            !line1.iter().any(|t| t.ttype == "comment"),
+            "the `#` inside the literal must not become a comment for {src:?}: {toks:?}",
+        );
+        // No two tokens overlap anywhere in the stream.
+        for (i, a) in toks.iter().enumerate() {
+            for b in &toks[i + 1..] {
+                if a.line == b.line {
+                    let (lo, hi) = if a.character <= b.character {
+                        (a, b)
+                    } else {
+                        (b, a)
+                    };
+                    assert!(
+                        lo.character + lo.length <= hi.character,
+                        "overlapping tokens {a:?} and {b:?} for {src:?}",
+                    );
+                }
+            }
+        }
+    }
+    // A genuine full-line comment is still emitted (not covered by any literal).
+    let real = decode("# a real comment\nset x 1\n", "tcl9.0");
+    assert!(
+        real.iter().any(|t| t.line == 0 && t.ttype == "comment"),
+        "a real top-level comment must still be a comment token: {real:?}",
+    );
+    // A comment inside a recursed proc body is still a comment.
+    let body = decode("proc f {} {\n# real comment\nset x 1\n}\n", "tcl9.0");
+    assert!(
+        body.iter().any(|t| t.line == 1 && t.ttype == "comment"),
+        "a real comment inside a body must still be a comment token: {body:?}",
+    );
+}
