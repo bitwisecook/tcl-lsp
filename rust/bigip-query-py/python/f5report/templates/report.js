@@ -54,6 +54,33 @@
     });
   });
 
+  // --- partition filter: narrow every table to one partition, but always keep
+  //     shared /Common objects visible (they are referenceable from anywhere) --
+  document.querySelectorAll(".device").forEach(function (device) {
+    var sel = device.querySelector(".partition-filter");
+    if (!sel) return;
+    // The partition is the first `/<name>/` segment of the object's full path,
+    // which is the second token of each row's data-search (name then full-path).
+    function rowPartition(row) {
+      var ds = row.getAttribute("data-search") || "";
+      var m = ds.match(/(?:^|\s)\/([^/\s]+)\//);
+      return m ? m[1] : null;
+    }
+    function apply() {
+      var val = sel.value;
+      device.querySelectorAll(".grid tbody tr.searchable").forEach(function (row) {
+        var part = rowPartition(row);
+        var show = val === "__all__" || part === null || part === val || part === "Common";
+        row.classList.toggle("part-hidden", !show);
+        var det = row.nextElementSibling;
+        if (det && det.classList.contains("detail")) {
+          det.classList.toggle("part-hidden", !show);
+        }
+      });
+    }
+    sel.addEventListener("change", apply);
+  });
+
   // --- expandable rows (pool members, iRule bodies, data-group records) -----
   document.querySelectorAll("tr.expandable").forEach(function (row) {
     var detail = row.nextElementSibling;

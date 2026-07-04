@@ -472,6 +472,24 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # was decrypted with the f5mku master key upstream in collect_model.
     device["secrets"] = json.loads(_engine.list_secrets(source))
 
+    # Tag every displayed object with its partition (from the full path) and
+    # collect the device's partition set, so the report can filter to a
+    # partition while always keeping shared /Common objects visible.
+    _display_keys = (
+        "virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
+        "profiles", "policies", "snatpools", "persistence", "certificates",
+    )
+    partitions: set[str] = set()
+    for key in _display_keys:
+        for o in device.get(key, []):
+            if not isinstance(o, dict):
+                continue
+            part = o.get("partition") or _graph._partition_of(o.get("fullPath", ""))
+            if part:
+                partitions.add(part)
+            o["partition"] = part
+    device["partitions"] = sorted(partitions)
+
     device["counts"] = {key: len(device.get(key, [])) for key in _CONTAINERS}
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
