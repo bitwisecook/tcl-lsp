@@ -565,7 +565,9 @@ fn chain_fixture() -> (Source, std::collections::HashMap<String, String>) {
 #[test]
 fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     let (source, pems) = chain_fixture();
-    let m = collect_model_with_certs(&[source], "Chain", &pems);
+    // The PEMs are scoped to their source URI (the collision-safe keying).
+    let by_source = std::collections::HashMap::from([(source.0.clone(), pems)]);
+    let m = collect_model_with_certs(&[source], "Chain", &by_source);
     let certs = m["devices"][0]["certificates"].as_array().unwrap();
     let leaf = certs
         .iter()
@@ -586,4 +588,49 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     let roles: Vec<&str> = chain.iter().map(|l| l["role"].as_str().unwrap()).collect();
     assert_eq!(roles, ["leaf", "intermediate", "root"]);
     assert_eq!(chain.last().unwrap()["selfSigned"], J::Bool(true));
+}
+
+// Two devices whose filestores use the SAME `cache-path` for DIFFERENT certs
+// must each resolve to their own PEM. Before per-source keying, one flat
+// `{cache_path: pem}` map meant the later device clobbered the earlier one and
+// both cert tabs showed the same subject/chain.
+#[test]
+fn multi_ucs_shared_cache_path_does_not_collide() {
+    // Two distinct real certs (different CNs) out of the chain fixture.
+    let (_src, pems) = chain_fixture();
+    let mut distinct: Vec<String> = pems.into_values().collect();
+    assert!(distinct.len() >= 2, "chain fixture carries >= 2 certs");
+    let pem_a = distinct.remove(0);
+    let pem_b = distinct.remove(0);
+
+    // Both devices declare an ssl-cert at the identical filestore cache-path.
+    let shared = "/config/filestore/files_d/Common_d/certificate_d/:Common:shared.crt_1_1";
+    let stanza = format!(
+        "sys file ssl-cert /Common/shared.crt {{\n    cache-path {shared}\n    subject \"CN=stanza-placeholder\"\n}}\n"
+    );
+    let sources: Vec<Source> = vec![
+        ("dev-a".to_string(), stanza.clone()),
+        ("dev-b".to_string(), stanza.clone()),
+    ];
+    let by_source = std::collections::HashMap::from([
+        (
+            "dev-a".to_string(),
+            std::collections::HashMap::from([(shared.to_string(), pem_a)]),
+        ),
+        (
+            "dev-b".to_string(),
+            std::collections::HashMap::from([(shared.to_string(), pem_b)]),
+        ),
+    ]);
+
+    let m = collect_model_with_certs(&sources, "Multi", &by_source);
+    let ca = &m["devices"][0]["certificates"][0];
+    let cb = &m["devices"][1]["certificates"][0];
+    // Each device parsed ITS OWN PEM (real subject, not the stanza placeholder).
+    assert_eq!(ca["fromCertFile"], J::Bool(true), "dev-a parsed its PEM");
+    assert_eq!(cb["fromCertFile"], J::Bool(true), "dev-b parsed its PEM");
+    assert_ne!(
+        ca["cn"], cb["cn"],
+        "each device shows its own certificate, not a shared/collided one"
+    );
 }
