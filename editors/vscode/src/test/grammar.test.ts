@@ -104,6 +104,24 @@ suite("TextMate grammar: comment continuation (#759)", () => {
     assert.strictEqual(mask[1], false);
   });
 
+  test("a plain comment does not bleed to EOF across many code lines", async () => {
+    // A non-continuation comment must pop its context at the line end.  The
+    // `commentMask` helper threads the rule stack across `tokenizeLine` calls
+    // exactly as an editor does; vscode-textmate appends a `\n` to every line's
+    // buffer (including the last), so the `(?=\n)` end pattern always matches at
+    // the line end and the following code is never scoped as a comment.
+    const mask = await commentMask(
+      grammar,
+      "# just a comment\nset a 1\nset b 2\nputs done\nreturn\n",
+    );
+    assert.strictEqual(mask[0], true, "line 0 is the comment");
+    assert.deepStrictEqual(
+      mask.slice(1, 5),
+      [false, false, false, false],
+      "no following line is scoped as a comment",
+    );
+  });
+
   test("a trailing ';#' comment continues onto the next line", async () => {
     const mask = await commentMask(grammar, "set x 1 ;# trailing \\\nstill comment\nset y 2\n");
     assert.strictEqual(mask[0], false, "line 0 mixes code and a comment tail");
