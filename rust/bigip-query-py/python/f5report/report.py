@@ -560,6 +560,11 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
     device["counts"]["certificates"] = len(device["certificates"])
     device["counts"]["secrets"] = len(device["secrets"])
+    # The Forensics tab is driven by the UCS file inventory, which is extracted
+    # at the Rust/WASM entry point; the Python library path does not pull UCS
+    # members, so it reports zero forensic files (the tab stays hidden).
+    device["forensics"] = {"files": [], "checklist": []}
+    device["counts"]["files"] = 0
     device["insights"] = _insights(device)
     return device
 

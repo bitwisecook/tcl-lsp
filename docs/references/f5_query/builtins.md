@@ -5666,6 +5666,44 @@ Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
 .sys["file-ssl-cert"][] | ucs_cert(.) | {subject, fingerprint_sha256, not_after}
 ```
 
+### `files` / `file` / `glob` / `grep`
+
+Forensic access to the OS files **inside** a source's UCS archive — the paths an
+attacker tampers with on a compromised BIG-IP (login-persistence dotfiles and
+SSH keys, the local account databases, external-auth / PAM config, syslog-ng,
+cron). Only available when the source is a `.ucs` read through the f5 CLI (the
+in-browser console has no archive to read and these error clearly).
+
+**Signatures**
+
+- `files() -> [object]` — the forensic member inventory; each entry is
+  `{path, size, sha256, is_text}` (metadata only, no content).
+- `glob(pattern: string) -> [object]` — inventory entries whose `path` matches a
+  shell glob (`*`, `?`).
+- `file(path: string) -> object` — one member by exact path, with `content`
+  attached for text files (`null` for binary / missing / sensitive). `null` when
+  the path is absent.
+- `grep(pattern: string[, path_glob: string]) -> [object]` — regex-search text
+  members (optionally scoped by a path glob), returning `{path, line, text}` per
+  match.
+
+**Details**
+
+`content` is only ever populated for small non-sensitive text files; `etc/shadow`
+and private keys are classified sensitive and their bytes are never returned.
+The inventory is scoped to the same forensic member set the report's Forensics
+tab uses.
+
+**Examples**
+
+```
+files | length
+glob("home/*/.ssh/authorized_keys")
+file("etc/passwd") | .content
+grep("^[^:]+:[^:]*:0:", "etc/passwd")          # UID 0 accounts
+grep("nohup|curl .*\\| *sh", "home/*/.bashrc") # login-hook persistence
+```
+
 ### `url_get`
 
 HTTP GET request.  Requires --enable-probes.

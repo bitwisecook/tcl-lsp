@@ -23,7 +23,9 @@
 )]
 
 mod apm;
+mod architecture;
 mod certs;
+mod forensics;
 mod graph;
 mod jutil;
 mod model;
@@ -34,7 +36,11 @@ mod services;
 
 pub use tcl_lexer::highlight_tcl;
 
-pub use model::{ENGINE_VERSION, collect_model, collect_model_with_certs};
+pub use forensics::collect_forensics;
+pub use model::{
+    ENGINE_VERSION, collect_model, collect_model_full, collect_model_with_architecture,
+    collect_model_with_certs,
+};
 pub use query::{ReportError, Source};
 pub use render::{RenderOptions, build_report};
 pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};

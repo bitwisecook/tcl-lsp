@@ -13,6 +13,7 @@
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
 {{ apm_css | safe }}
+{{ forensics_css | safe }}
 </style>
 </head>
 <body>
@@ -41,6 +42,18 @@
 <div class="chip {{ tone }}{{ ' chip-link' if target }}"{% if target %} data-target="{{ target }}" role="button" tabindex="0" title="Go to {{ label }}"{% endif %}><span class="chip-val">{{ value }}</span><span class="chip-lbl">{{ label }}</span></div>
 {% endmacro %}
 
+{#: Render a firewall rule endpoint (source / destination) compactly. :#}
+{% macro fw_endpoint(e) %}
+{%- if not e or (not e.addresses and not e.addressLists and not e.ports and not e.portLists) -%}
+<span class="muted">any</span>
+{%- else -%}
+{% for x in e.addresses %}<span class="tag">{{ x }}</span>{% endfor %}
+{%- for x in e.addressLists %}<span class="tag blue" title="address-list">{{ x | leaf }}</span>{% endfor %}
+{%- for x in e.ports %}<span class="tag amber">:{{ x }}</span>{% endfor %}
+{%- for x in e.portLists %}<span class="tag" title="port-list">:{{ x | leaf }}</span>{% endfor %}
+{%- endif -%}
+{% endmacro %}
+
 <section class="summary">
   {{ chip('Virtual Servers', totals.virtuals, '', 'virtuals') }}
   {{ chip('Pools', totals.pools, '', 'pools') }}
@@ -52,6 +65,63 @@
   {{ chip('Orphaned Objects', totals.orphans, 'warn' if totals.orphans else 'ok') }}
   {{ chip('SSL Certificates', totals.certificates, '', 'certificates') }}
 </section>
+
+{% if architecture and architecture.deviceCount > 1 %}
+<section class="architecture" id="architecture">
+  <div class="arch-head">
+    <h2>Architecture</h2>
+    <span class="muted">how the loaded devices relate as tiers —
+      {%- if architecture.defined %} from manifest{% else %} auto-detected from address overlap{% endif -%}
+    </span>
+  </div>
+  {% if architecture.manifestError %}
+  <div class="insight warn"><span class="dot"></span>Manifest ignored: {{ architecture.manifestError }}</div>
+  {% endif %}
+  <div class="arch-diagram diag-host" id="archDiagram" aria-label="Interactive architecture diagram — click a device to jump to it"></div>
+  <div class="arch-tiers-lbl">Devices by tier</div>
+  <div class="arch-tiers">
+    {% for t in architecture.tiers %}
+    <div class="arch-tier">
+      <div class="arch-tier-lbl">Tier {{ t.tier }}</div>
+      {% for d in t.devices %}
+      <div class="arch-node arch-role-{{ d.role }}">
+        <span class="arch-node-name">{{ d.label }}</span>
+        <span class="arch-node-role">{{ d.role }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if architecture.links %}
+  <div class="tablewrap">
+  <table class="grid arch-links">
+    <thead><tr><th>Upstream</th><th></th><th>Downstream</th><th>Source</th><th>Evidence</th></tr></thead>
+    <tbody>
+      {% for l in architecture.links %}
+      <tr>
+        <td class="mono strong">{{ l.fromLabel }}</td>
+        <td class="arch-arrow">→</td>
+        <td class="mono strong">{{ l.toLabel }}</td>
+        <td>{% if l.source == 'auto' %}<span class="tag">auto</span>{% elif l.source == 'manifest' %}<span class="tag blue">manifest</span>{% else %}<span class="tag green">manifest + auto</span>{% endif %}</td>
+        <td class="mono">
+          {%- if l.vias %}
+          {% for v in l.vias[:4] %}<span class="tag" title="{{ v.fromObj }} → {{ v.toObj }}">{{ v.address }}{% if v.port %}:{{ v.port }}{% endif %}</span>{% endfor %}
+          {%- if l.viaCount > 4 %}<span class="muted">+{{ l.viaCount - 4 }} more</span>{% endif %}
+          {%- elif l.label %}<span class="muted">{{ l.label }}</span>
+          {%- else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <details class="arch-mermaid-src">
+    <summary>Mermaid diagram source</summary>
+    <pre class="mermaid-code">{{ architecture.mermaid }}</pre>
+  </details>
+</section>
+{% endif %}
 
 {% if devices|length > 1 %}
 <nav class="device-switch" role="tablist" aria-label="Devices">
@@ -105,9 +175,13 @@
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
     {% if d.counts.apmProfiles %}<button class="tab" data-panel="apm">APM <span class="n">{{ d.counts.apmProfiles }}</span></button>{% endif %}
+    {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
+    {% if d.counts.firewall %}<button class="tab" data-panel="firewall">Firewall / NAT <span class="n">{{ d.counts.firewall }}</span></button>{% endif %}
+    {% if d.counts.files or d.forensics.flagged %}<button class="tab" data-panel="forensics">Forensics <span class="n">{{ d.counts.files }}</span></button>{% endif %}
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
     <button class="tab" data-panel="apps">Apps <span class="n app-badge">0</span></button>
+    <button class="tab" data-panel="f5sites">F5 Sites</button>
     {% if has_console %}
     <button class="tab" data-panel="console">Query Console</button>
     {% endif %}
@@ -404,6 +478,232 @@
   </div>
   {% endif %}
 
+  {#: ---------------- GTM / DNS ---------------- :#}
+  {% if d.counts.gtm %}
+  <div class="panel" data-panel="gtm">
+    <p class="lm-field-note">The GTM (BIG-IP DNS) global load-balancing tier: wide-IPs resolve a name to a pool, whose members select a <code>server</code>'s virtual server. A server's virtual-server destinations are the downstream LTM virtual addresses — the link the <a href="#architecture">Architecture</a> view uses to place this GTM in front of its LTM tiers.</p>
+
+    {% if d.gtmWideips %}
+    <h3 class="subhead">Wide-IPs <span class="n">{{ d.gtmWideips | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Wide-IP</th><th>Type</th><th>Pools</th><th>Aliases</th><th>LB mode</th></tr></thead>
+      <tbody>
+      {% for w in d.gtmWideips %}
+      <tr class="searchable" data-search="{{ w.name }} {{ w.fullPath }}">
+        <td class="mono strong">{{ w.name }}</td>
+        <td>{% if w.recordType %}<span class="tag">{{ w.recordType | upper }}</span>{% endif %}</td>
+        <td class="mono">{% for p in w.pools %}<span class="tag blue">{{ p | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for a in w.aliases %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ w.poolLbMode or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmPools %}
+    <h3 class="subhead">Pools <span class="n">{{ d.gtmPools | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Pool</th><th>Type</th><th>LB mode</th><th>Members</th></tr></thead>
+      <tbody>
+      {% for p in d.gtmPools %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td>{% if p.recordType %}<span class="tag">{{ p.recordType | upper }}</span>{% endif %}</td>
+        <td>{{ p.lbMode or '—' }}</td>
+        <td class="mono small">{% for m in p.members %}<span class="tag" title="{{ m.state }}">{{ m.name }}{% if m.staticTarget %} → {{ m.staticTarget }}{% endif %}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmServers %}
+    <h3 class="subhead">Servers <span class="n">{{ d.gtmServers | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Server</th><th>Datacenter</th><th>Product</th><th>Addresses</th><th>Virtual-server targets</th></tr></thead>
+      <tbody>
+      {% for s in d.gtmServers %}
+      <tr class="searchable" data-search="{{ s.name }} {{ s.fullPath }}">
+        <td class="mono strong">{{ s.name }}</td>
+        <td class="mono">{{ s.datacenter | leaf or '—' }}</td>
+        <td>{{ s.product or '—' }}</td>
+        <td class="mono small">{% for a in s.addresses %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for v in s.virtualServers %}<span class="tag green">{{ v }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmDatacenters %}
+    <h3 class="subhead">Datacenters <span class="n">{{ d.gtmDatacenters | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Datacenter</th><th>Location</th><th>Contact</th></tr></thead>
+      <tbody>
+      {% for c in d.gtmDatacenters %}
+      <tr class="searchable" data-search="{{ c.name }} {{ c.fullPath }}">
+        <td class="mono strong">{{ c.name }}</td>
+        <td>{{ c.location or '—' }}</td>
+        <td>{{ c.contact or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {#: ---------------- Firewall / NAT ---------------- :#}
+  {% if d.counts.firewall %}
+  <div class="panel" data-panel="firewall">
+    <p class="lm-field-note">The AFM firewall and NAT posture: policies and the rule-lists they enforce, the address-/port-lists rules match on, and the NAT policies and source/destination translations.</p>
+
+    {% if d.firewallPolicies %}
+    <h3 class="subhead">Firewall policies <span class="n">{{ d.firewallPolicies | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Policy</th><th>Rule-lists</th><th>Inline rules</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallRuleLists %}
+    <h3 class="subhead">Rule-lists <span class="n">{{ d.firewallRuleLists | length }}</span></h3>
+    {% for rl in d.firewallRuleLists %}
+    <div class="rule-list-block">
+      <div class="rule-list-name mono strong">{{ rl.name }} <span class="muted">({{ rl.ruleCount }} rule{{ '' if rl.ruleCount == 1 else 's' }})</span></div>
+      <div class="tablewrap">
+      <table class="grid fw-rules">
+        <thead><tr><th>Rule</th><th>Action</th><th>Proto</th><th>Source</th><th>Destination</th><th>Log</th></tr></thead>
+        <tbody>
+        {% for r in rl.rules %}
+        <tr class="searchable" data-search="{{ r.name }} {{ rl.name }}">
+          <td class="mono strong">{{ r.name }}</td>
+          <td><span class="tag {{ 'green' if r.action == 'accept' else 'red' if r.action in ['drop','reject'] else '' }}">{{ r.action or '—' }}</span></td>
+          <td class="mono">{{ r.ipProtocol or 'any' }}</td>
+          <td class="mono small">{{ fw_endpoint(r.source) }}</td>
+          <td class="mono small">{{ fw_endpoint(r.destination) }}{% if r.ruleList %} <span class="tag blue">list {{ r.ruleList | leaf }}</span>{% endif %}</td>
+          <td>{% if r.log %}<span class="tag amber">log</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if d.firewallAddressLists %}
+    <h3 class="subhead">Address-lists <span class="n">{{ d.firewallAddressLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Address-list</th><th>Addresses</th><th>Nested lists</th><th>FQDNs</th></tr></thead>
+      <tbody>
+      {% for a in d.firewallAddressLists %}
+      <tr class="searchable" data-search="{{ a.name }} {{ a.fullPath }}">
+        <td class="mono strong">{{ a.name }}</td>
+        <td class="mono small">{% for x in a.addresses %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.addressLists %}<span class="tag blue">{{ x | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.fqdns %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallPortLists %}
+    <h3 class="subhead">Port-lists <span class="n">{{ d.firewallPortLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Port-list</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPortLists %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono small">{% for x in p.ports %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.natPolicies or d.natSourceTranslations or d.natDestinationTranslations %}
+    <h3 class="subhead">NAT</h3>
+    {% if d.natPolicies %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>NAT policy</th><th>Rule-lists</th><th>Rules</th></tr></thead>
+      <tbody>
+      {% for p in d.natPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% if d.natSourceTranslations or d.natDestinationTranslations %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Translation</th><th>Direction</th><th>Type</th><th>Addresses</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for t in d.natSourceTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">source</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      {% for t in d.natDestinationTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">destination</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {#: ---------------- Forensics (UCS file inventory + hunting checklist) ---------------- :#}
+  {% if d.counts.files or d.forensics.flagged %}
+  <div class="panel" data-panel="forensics">
+    <p class="lm-field-note">Forensic inventory of the OS files inside this device's <code>.ucs</code> — the paths an attacker tampers with on a compromised BIG-IP, each with its size and <b>SHA-256</b> (diff it against a known-good host). The checklist runs the <b>UCS forensic checks</b> (see the <b>F5 Sites</b> tab) live against the archive and flags what it finds. File contents are shown only for small non-sensitive text files, behind a per-file reveal; <code>shadow</code> and private keys are <b>never embedded</b> — nothing here left your browser.</p>
+    <div class="forensics-view"></div>
+  </div>
+  {% endif %}
+
   {#: ---------------- Topology ---------------- :#}
   <div class="panel" data-panel="topology">
     <div class="topo-controls">
@@ -457,6 +757,138 @@
   {#: ---------------- Apps (user-bundled virtual servers) ---------------- :#}
   <div class="panel" data-panel="apps">
     <div class="apps-view"></div>
+  </div>
+
+  {#: ---------------- F5 Sites — community / support / security-IR resources ---------------- :#}
+  <div class="panel" data-panel="f5sites">
+    <p class="lm-field-note">Curated F5 community, support and <b>security-incident-response</b> resources. Because this report is often generated from a <code>.ucs</code> archive of a device under investigation, the <b>UCS forensic checklist</b> below ties each archive path to the attacker behaviour to look for and its <a href="https://attack.mitre.org/" target="_blank" rel="noopener noreferrer">MITRE ATT&amp;CK</a> technique. Every link opens on F5 DevCentral, my.F5 or CISA — nothing here is loaded to render the page or phones home.</p>
+
+    <div class="f5sites-groups">
+      <section class="f5sites-group">
+        <h3>DevCentral &amp; community</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://community.f5.com/" target="_blank" rel="noopener noreferrer">DevCentral home</a></li>
+          <li><a href="https://community.f5.com/category/Forums/discussions/TechnicalForum" target="_blank" rel="noopener noreferrer">Technical Forum</a></li>
+          <li><a href="https://community.f5.com/category/articles/kb/technicalarticles" target="_blank" rel="noopener noreferrer">Technical Articles</a></li>
+          <li><a href="https://community.f5.com/category/articles/kb/security-insights" target="_blank" rel="noopener noreferrer">Security Insights (F5 SIRT)</a></li>
+          <li><a href="https://community.f5.com/category/CrowdSRC" target="_blank" rel="noopener noreferrer">CrowdSRC</a></li>
+          <li><a href="https://community.f5.com/category/GroupsCategory" target="_blank" rel="noopener noreferrer">Groups</a></li>
+          <li><a href="https://community.f5.com/category/top/events/Events" target="_blank" rel="noopener noreferrer">Events</a></li>
+          <li><a href="https://community.f5.com/category/top/ideas/Suggestions" target="_blank" rel="noopener noreferrer">Ideas &amp; suggestions</a></li>
+        </ul>
+      </section>
+
+      <section class="f5sites-group">
+        <h3>Support &amp; documentation</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://my.f5.com/manage/s/" target="_blank" rel="noopener noreferrer">MyF5 support portal</a></li>
+          <li><a href="https://techdocs.f5.com/" target="_blank" rel="noopener noreferrer">Product documentation</a></li>
+          <li><a href="https://my.f5.com/manage/s/downloads" target="_blank" rel="noopener noreferrer">Software downloads</a></li>
+          <li><a href="https://www.f5.com/support/security-incident-response-team-sirt" target="_blank" rel="noopener noreferrer">F5 SIRT</a></li>
+          <li><a href="https://www.f5.com/labs" target="_blank" rel="noopener noreferrer">F5 Labs threat intelligence</a></li>
+          <li><a href="https://community.f5.com/t5/technical-articles/how-to-get-a-f5-big-ip-ve-developer-lab-license/ta-p/279858" target="_blank" rel="noopener noreferrer">Get a developer lab license</a></li>
+        </ul>
+      </section>
+
+      <section class="f5sites-group danger">
+        <h3>Compromise &amp; UCS forensics</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://community.f5.com/kb/technicalarticles/inspecting-a-ucs-file-from-a-compromised-big-ip/330994" target="_blank" rel="noopener noreferrer">Inspecting a UCS file from a compromised BIG-IP</a></li>
+          <li><a href="https://community.f5.com/kb/security-insights/how-the-f5-sirt-looks-for-malware/335011" target="_blank" rel="noopener noreferrer">How the F5 SIRT looks for malware</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K11438344" target="_blank" rel="noopener noreferrer"><span class="k">K11438344</span>Suspected security compromise on a BIG-IP</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K4423" target="_blank" rel="noopener noreferrer"><span class="k">K4423</span>Overview of UCS archives</a></li>
+          <li><a href="https://community.f5.com/kb/technicalarticles/introduction-of-incident-response/312042" target="_blank" rel="noopener noreferrer">Introduction to incident response</a></li>
+        </ul>
+      </section>
+
+      <section class="f5sites-group">
+        <h3>Hardening &amp; advisories</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://community.f5.com/kb/technicalarticles/security-best-practices-for-f5-products/302468" target="_blank" rel="noopener noreferrer">Security best practices for F5 products</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K13092" target="_blank" rel="noopener noreferrer"><span class="k">K13092</span>Securing access to the BIG-IP system</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K13309" target="_blank" rel="noopener noreferrer"><span class="k">K13309</span>Restrict the Configuration utility by source IP</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K4602" target="_blank" rel="noopener noreferrer"><span class="k">K4602</span>F5 security vulnerability response policy</a></li>
+          <li><a href="https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices" target="_blank" rel="noopener noreferrer">CISA ED 26-01 — mitigate F5 vulnerabilities</a></li>
+          <li><a href="https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-138a" target="_blank" rel="noopener noreferrer">CISA AA22-138A — CVE-2022-1388</a></li>
+        </ul>
+      </section>
+
+      <section class="f5sites-group">
+        <h3>Gov advisories &amp; malware analysis</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://media.defense.gov/2025/Dec/04/2003834878/-1/-1/0/MALWARE-ANALYSIS-REPORT-BRICKSTORM-BACKDOOR.PDF" target="_blank" rel="noopener noreferrer">CISA/NSA/CCCS — BRICKSTORM MAR (YARA + Sigma)</a></li>
+          <li><a href="https://www.cisa.gov/news-events/news/cisa-nsa-and-cyber-centre-warn-critical-infrastructure-brickstorm-malware-used-peoples-republic" target="_blank" rel="noopener noreferrer">CISA/NSA/CCCS — BRICKSTORM advisory</a></li>
+          <li><a href="https://www.ncsc.gov.uk/news/confirmed-compromise-f5-network" target="_blank" rel="noopener noreferrer">NCSC UK — confirmed compromise of F5</a></li>
+          <li><a href="https://www.cyber.gc.ca/en/alerts-advisories/active-exploitation-f5-big-ip-vulnerability" target="_blank" rel="noopener noreferrer">Canadian CCCS — active exploitation of F5 BIG-IP</a></li>
+          <li><a href="https://www.hhs.gov/sites/default/files/f5-misconfiguration-analyst-note-tlpclear.pdf" target="_blank" rel="noopener noreferrer">HHS — F5 misconfiguration analyst note</a></li>
+        </ul>
+      </section>
+
+      <section class="f5sites-group">
+        <h3>Threat intel &amp; detection</h3>
+        <ul class="f5sites-links">
+          <li><a href="https://www.sygnia.co/blog/china-nexus-threat-group-velvet-ant/" target="_blank" rel="noopener noreferrer">Sygnia — &#34;Velvet Ant&#34; abuses F5 BIG-IP</a></li>
+          <li><a href="https://cloud.google.com/blog/topics/threat-intelligence/initial-access-brokers-exploit-f5-screenconnect" target="_blank" rel="noopener noreferrer">Mandiant / Google Cloud — F5 BIG-IP CVE-2023-46747</a></li>
+          <li><a href="https://community.f5.com/kb/security-insights/f5-threat-report---september-22nd-2025/343645" target="_blank" rel="noopener noreferrer">F5 Threat Report series (DevCentral)</a></li>
+          <li><a href="https://my.f5.com/manage/s/article/K000156572" target="_blank" rel="noopener noreferrer"><span class="k">K000156572</span>F5 BIG-IP threat hunting guide (2025)</a></li>
+          <li><a href="https://socprime.com/blog/velvet-ant-activity-detection-china-backed-cyber-espionage-group-launches-a-prolonged-attack-using-malware-deployed-on-the-f5-big-ip-devices/" target="_blank" rel="noopener noreferrer">SOC Prime — Velvet Ant Sigma detections</a></li>
+        </ul>
+      </section>
+    </div>
+
+    <h3 class="f5sites-h">UCS forensic checklist — where to hunt and what it maps to</h3>
+    <p class="hint">List the archive with <code>tar -ztf archive.ucs</code>, then extract and inspect the paths below. Compare against a known-good backup where you have one — a UCS taken from an already-compromised host can itself carry the implant.</p>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Where to look (UCS path / config)</th><th>What an attacker does there</th><th>MITRE ATT&amp;CK</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono small"><code>home/*/.bashrc</code>, <code>.bash_profile</code>, <code>.bash_login</code></td>
+          <td>Shell-init hooks that silently re-launch malware whenever a user logs in — a favourite way to survive a clean-up.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1546/004/" target="_blank" rel="noopener noreferrer">T1546.004</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>home/*/.ssh/authorized_keys</code></td>
+          <td>Attacker-controlled SSH key for durable access. On password-auth deployments this file is normally absent or empty — any key is suspect.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1098/004/" target="_blank" rel="noopener noreferrer">T1098.004</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>etc/passwd</code>, <code>etc/shadow</code></td>
+          <td>Backdoor local accounts, unexpected UID&nbsp;0 users, or altered password hashes.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1136/" target="_blank" rel="noopener noreferrer">T1136</a> · <a href="https://attack.mitre.org/techniques/T1078/" target="_blank" rel="noopener noreferrer">T1078</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>etc/nsswitch.conf</code>, <code>etc/openldap/*</code>, <code>etc/krb5.conf</code>, <code>etc/security/*</code></td>
+          <td>Redirected or weakened external authentication (LDAP/AD/RADIUS/Kerberos/PAM) to plant rogue trust or harvest credentials.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1556/" target="_blank" rel="noopener noreferrer">T1556</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>etc/syslog-ng/*</code></td>
+          <td>Logging disabled or quietly redirected so on-box activity is never recorded or forwarded.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1562/006/" target="_blank" rel="noopener noreferrer">T1562.006</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>config/*</code> iRules — cross-check the <b>iRules</b> tab</td>
+          <td>An HTTP-event iRule acting as a web shell / covert C2: running commands or exfiltrating on a magic URI, header or cookie.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1505/003/" target="_blank" rel="noopener noreferrer">T1505.003</a> · <a href="https://attack.mitre.org/techniques/T1059/" target="_blank" rel="noopener noreferrer">T1059</a></td>
+        </tr>
+        <tr>
+          <td class="mono small">System binaries (running host, not in the UCS): <code>/usr/bin/umount</code>, <code>/usr/sbin/httpd</code></td>
+          <td>Trojanised binaries — hash, size or mtime that differ from the known-good release.</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1554/" target="_blank" rel="noopener noreferrer">T1554</a></td>
+        </tr>
+        <tr>
+          <td class="mono small"><code>etc/motd</code></td>
+          <td>Tampered login banner (defacement / taunt, or to mask changes).</td>
+          <td class="mono small"><a href="https://attack.mitre.org/techniques/T1491/" target="_blank" rel="noopener noreferrer">T1491</a></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="f5sites-ioc">
+      <b>Point-in-time indicators (2025 F5 incident &amp; SIRT reporting).</b> Reported artefacts have included the files <code>/run/bigtlog.pipe</code> and <code>/run/bigstart.ltm</code>; size / hash / timestamp mismatches on <code>/usr/bin/umount</code> and <code>/usr/sbin/httpd</code>; the account <code>f5hubblelcdadmin</code> reaching iControl&nbsp;REST from <code>localhost</code>; <code>auditd</code> entries that disable SELinux; and C2 disguised as <code>HTTP&nbsp;201</code> responses carrying a <code>text/css</code> content-type. These indicators are volatile and version-specific — confirm against the current <a href="https://community.f5.com/kb/security-insights/how-the-f5-sirt-looks-for-malware/335011" target="_blank" rel="noopener noreferrer">F5 SIRT</a> and <a href="https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices" target="_blank" rel="noopener noreferrer">CISA</a> guidance rather than treating them as a fixed signature list.
+    </div>
   </div>
 
   {% if has_console %}
@@ -545,6 +977,9 @@
 </script>
 <script>
 {{ secrets_js | safe }}
+</script>
+<script>
+{{ forensics_js | safe }}
 </script>
 {% if has_console %}
 <!-- in-browser query engine: wasm-bindgen glue + base64 wasm (the f5-query DSL compiled to WebAssembly) -->

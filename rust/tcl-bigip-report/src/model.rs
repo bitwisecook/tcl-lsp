@@ -45,6 +45,33 @@ const CONTAINERS: &[(&str, &str)] = &[
     ("virtualAddresses", ".ltm.\"virtual-address\""),
 ];
 
+// GTM object containers the report walks, in display order. A GTM (DNS) tier
+// fronts the LTM tiers; surfacing these lets the report show the wide-IP ->
+// pool -> server chain and link the GTM to the downstream LTM virtuals.
+const GTM_CONTAINERS: &[(&str, &str)] = &[
+    ("gtmWideips", ".gtm.wideip"),
+    ("gtmPools", ".gtm.pool"),
+    ("gtmServers", ".gtm.server"),
+    ("gtmDatacenters", ".gtm.datacenter"),
+    ("gtmListeners", ".gtm.listener"),
+];
+
+// AFM security-firewall + NAT object containers. Surfacing these gives the
+// report a firewall / NAT posture view: the policies and rule-lists, the
+// address-/port-lists they match on, and the NAT policies and translations.
+const SECURITY_CONTAINERS: &[(&str, &str)] = &[
+    ("firewallPolicies", ".security.\"firewall-policy\""),
+    ("firewallRuleLists", ".security.\"firewall-rule-list\""),
+    ("firewallAddressLists", ".security.\"firewall-address-list\""),
+    ("firewallPortLists", ".security.\"firewall-port-list\""),
+    ("natPolicies", ".security.\"nat-policy\""),
+    ("natSourceTranslations", ".security.\"nat-source-translation\""),
+    (
+        "natDestinationTranslations",
+        ".security.\"nat-destination-translation\"",
+    ),
+];
+
 // Leaf object types that are *referenced* by something else; an empty referrer
 // set means the object is orphaned. Virtuals / virtual-addresses are entry
 // points, so they are never treated as orphans.
@@ -411,6 +438,226 @@ fn shape_data_group(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     o.insert("recordCount".into(), J::from(record_count));
     o.insert("records".into(), J::Array(shown));
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+// --- GTM shaping -------------------------------------------------------------
+
+/// `map[key]` as an array of plain strings (skips non-strings).
+fn str_array(m: &Map<String, J>, key: &str) -> Vec<J> {
+    sarr(m, key).iter().map(|s| J::String((*s).into())).collect()
+}
+
+fn shape_gtm_wideip(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
+    o.insert("pools".into(), J::Array(clean_arr(f, "pools")));
+    o.insert("aliases".into(), J::Array(str_array(f, "aliases")));
+    o.insert("poolLbMode".into(), J::String(bstr(f, "pool-lb-mode").into()));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_pool(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let members: Vec<J> = barr(f, "members")
+        .iter()
+        .filter_map(J::as_object)
+        .map(|mm| {
+            let mut mo = Map::new();
+            mo.insert("name".into(), J::String(bstr(mm, "name").into()));
+            mo.insert("servicePort".into(), J::String(bstr(mm, "service-port").into()));
+            mo.insert("ratio".into(), J::String(bstr(mm, "ratio").into()));
+            mo.insert(
+                "staticTarget".into(),
+                J::String(bstr(mm, "static-target").into()),
+            );
+            mo.insert("state".into(), J::String(bstr(mm, "state").into()));
+            J::Object(mo)
+        })
+        .collect();
+    let fp = bstr(f, "full-path");
+    let member_count = members.len();
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
+    o.insert("lbMode".into(), J::String(bstr(f, "load-balancing-mode").into()));
+    o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    o.insert("members".into(), J::Array(members));
+    o.insert("memberCount".into(), J::from(member_count));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_server(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("datacenter".into(), J::String(clean_field(f, "datacenter")));
+    o.insert("product".into(), J::String(bstr(f, "product").into()));
+    o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    // The raw virtual-server destinations (e.g. `10.2.0.20:443`) — the report's
+    // architecture layer resolves these against downstream devices' served
+    // virtual addresses to link this GTM to the LTM tiers it balances.
+    o.insert(
+        "virtualServers".into(),
+        J::Array(str_array(f, "virtual-servers")),
+    );
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_gtm_datacenter(f: &Map<String, J>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("location".into(), J::String(bstr(f, "location").into()));
+    o.insert("contact".into(), J::String(bstr(f, "contact").into()));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    J::Object(o)
+}
+
+fn shape_gtm_listener(f: &Map<String, J>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("address".into(), J::String(bstr(f, "address").into()));
+    o.insert("port".into(), J::String(bstr(f, "port").into()));
+    o.insert("pool".into(), J::String(clean_field(f, "pool")));
+    o.insert("state".into(), J::String(bstr(f, "state").into()));
+    J::Object(o)
+}
+
+// --- Security (firewall + NAT) shaping ---------------------------------------
+
+/// Shape a firewall-rule endpoint (source / destination) into flat string lists.
+fn shape_fw_endpoint(m: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("addresses".into(), J::Array(str_array(m, "addresses")));
+    o.insert(
+        "addressLists".into(),
+        J::Array(clean_arr(m, "address-lists")),
+    );
+    o.insert("ports".into(), J::Array(str_array(m, "ports")));
+    o.insert("portLists".into(), J::Array(clean_arr(m, "port-lists")));
+    J::Object(o)
+}
+
+fn shape_fw_rule(m: &Map<String, J>) -> J {
+    let empty = Map::new();
+    let src = m.get("source").and_then(J::as_object).unwrap_or(&empty);
+    let dst = m.get("destination").and_then(J::as_object).unwrap_or(&empty);
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(m, "name").into()));
+    o.insert("action".into(), J::String(bstr(m, "action").into()));
+    o.insert("ipProtocol".into(), J::String(bstr(m, "ip-protocol").into()));
+    o.insert("log".into(), J::Bool(bbool(m, "log")));
+    o.insert("source".into(), shape_fw_endpoint(src));
+    o.insert("destination".into(), shape_fw_endpoint(dst));
+    o.insert("ruleList".into(), J::String(clean_field(m, "rule-list")));
+    J::Object(o)
+}
+
+fn shape_fw_policy(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(str_array(f, "rules")));
+    o.insert("ruleLists".into(), J::Array(clean_arr(f, "rule-lists")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_rule_list(f: &Map<String, J>) -> J {
+    let rules: Vec<J> = barr(f, "rules")
+        .iter()
+        .filter_map(J::as_object)
+        .map(shape_fw_rule)
+        .collect();
+    let rule_count = rules.len();
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(rules));
+    o.insert("ruleCount".into(), J::from(rule_count));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_address_list(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    o.insert(
+        "addressLists".into(),
+        J::Array(clean_arr(f, "address-lists")),
+    );
+    o.insert("fqdns".into(), J::Array(str_array(f, "fqdns")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_fw_port_list(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("ports".into(), J::Array(str_array(f, "ports")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+fn shape_nat_policy(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("rules".into(), J::Array(str_array(f, "rules")));
+    o.insert("ruleLists".into(), J::Array(clean_arr(f, "rule-lists")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    J::Object(o)
+}
+
+/// Shared shaper for the two NAT translation kinds (same projected shape).
+fn shape_nat_translation(f: &Map<String, J>) -> J {
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(bstr(f, "full-path").into()));
+    o.insert("type".into(), J::String(bstr(f, "type").into()));
+    o.insert("addresses".into(), J::Array(str_array(f, "addresses")));
+    o.insert("ports".into(), J::Array(str_array(f, "ports")));
+    o.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
     J::Object(o)
 }
 
@@ -988,7 +1235,12 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
     }
 }
 
-fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
+fn collect_device(
+    uri: &str,
+    source: &str,
+    cert_pems: &HashMap<String, String>,
+    files: &[J],
+) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1036,6 +1288,40 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
                     J::Object(o)
                 })
                 .collect(),
+        };
+        device.insert((*key).into(), J::Array(shaped));
+    }
+
+    // GTM object inventory (the DNS tier). Shaped separately from the LTM
+    // containers — these feed the GTM section and the cross-device architecture
+    // linker (a GTM server's virtual-server destinations point at LTM virtuals).
+    let gtm_used: HashMap<String, Vec<J>> = HashMap::new();
+    for (key, container) in GTM_CONTAINERS {
+        let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
+        let shaped: Vec<J> = match *key {
+            "gtmWideips" => rows.iter().map(|f| shape_gtm_wideip(f, &gtm_used)).collect(),
+            "gtmPools" => rows.iter().map(|f| shape_gtm_pool(f, &gtm_used)).collect(),
+            "gtmServers" => rows.iter().map(|f| shape_gtm_server(f, &gtm_used)).collect(),
+            "gtmDatacenters" => rows.iter().map(shape_gtm_datacenter).collect(),
+            "gtmListeners" => rows.iter().map(shape_gtm_listener).collect(),
+            _ => Vec::new(),
+        };
+        device.insert((*key).into(), J::Array(shaped));
+    }
+
+    // AFM firewall + NAT inventory (the security posture view).
+    for (key, container) in SECURITY_CONTAINERS {
+        let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
+        let shaped: Vec<J> = match *key {
+            "firewallPolicies" => rows.iter().map(shape_fw_policy).collect(),
+            "firewallRuleLists" => rows.iter().map(shape_fw_rule_list).collect(),
+            "firewallAddressLists" => rows.iter().map(shape_fw_address_list).collect(),
+            "firewallPortLists" => rows.iter().map(shape_fw_port_list).collect(),
+            "natPolicies" => rows.iter().map(shape_nat_policy).collect(),
+            "natSourceTranslations" | "natDestinationTranslations" => {
+                rows.iter().map(shape_nat_translation).collect()
+            }
+            _ => Vec::new(),
         };
         device.insert((*key).into(), J::Array(shaped));
     }
@@ -1240,6 +1526,15 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
     // the query projection is LTM-only.
     device.insert("apmProfiles".into(), crate::apm::collect_apm(source, &device));
 
+    // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
+    // from the UCS members the entry point extracted (empty for a bare
+    // bigip.conf) plus a web-shell scan of this device's iRules.
+    let rule_slice = device.get("rules").and_then(J::as_array).cloned().unwrap_or_default();
+    device.insert(
+        "forensics".into(),
+        crate::forensics::collect_forensics(files, &rule_slice),
+    );
+
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a
     // partition while always keeping shared /Common objects visible.
@@ -1304,6 +1599,36 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("apmProfiles".into(), J::from(apm_total));
+    // Aggregate GTM + firewall/NAT object counts (for the tab badges).
+    let len_of = |keys: &[&str]| -> usize {
+        keys.iter()
+            .map(|k| device.get(*k).and_then(J::as_array).map_or(0, Vec::len))
+            .sum()
+    };
+    let gtm_total = len_of(&[
+        "gtmWideips",
+        "gtmPools",
+        "gtmServers",
+        "gtmDatacenters",
+        "gtmListeners",
+    ]);
+    counts.insert("gtm".into(), J::from(gtm_total));
+    let firewall_total = len_of(&[
+        "firewallPolicies",
+        "firewallRuleLists",
+        "firewallAddressLists",
+        "firewallPortLists",
+        "natPolicies",
+        "natSourceTranslations",
+        "natDestinationTranslations",
+    ]);
+    counts.insert("firewall".into(), J::from(firewall_total));
+    let file_total = device
+        .get("forensics")
+        .and_then(|f| f.get("files"))
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("files".into(), J::from(file_total));
     device.insert("counts".into(), J::Object(counts));
 
     let ins = insights(&device);
@@ -1314,27 +1639,82 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
 /// Build the full report model from loaded `(uri, text)` sources.
 #[must_use]
 pub fn collect_model(sources: &[Source], title: &str) -> J {
-    collect_model_with_certs(sources, title, &HashMap::new())
+    collect_model_full(sources, title, &HashMap::new(), &HashMap::new(), None)
 }
 
 /// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
 ///
-/// `cert_pems` maps a `sys file ssl-cert` `cache-path` (as it appears in the
-/// stanza) to the PEM text of that member, read out of the archive by the
-/// caller (the CLI / wasm entry points, which have the raw UCS bytes). The
-/// certs tab parses these to fill metadata-free stanzas and reconstruct the
-/// trust chain; an empty map falls back to config metadata only.
+/// `cert_pems` is keyed **by source URI** and then by a `sys file ssl-cert`
+/// `cache-path` (as it appears in the stanza) → the PEM text of that member,
+/// read out of the archive by the caller (the CLI / wasm entry points, which
+/// have the raw UCS bytes). Scoping by source URI keeps a filestore
+/// `cache-path` shared across two UCS files in one report from resolving to the
+/// wrong device's certificate. The certs tab parses these to fill
+/// metadata-free stanzas and reconstruct the trust chain; an empty map falls
+/// back to config metadata only.
 #[must_use]
 #[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
 pub fn collect_model_with_certs(
     sources: &[Source],
     title: &str,
-    cert_pems: &HashMap<String, String>,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
 ) -> J {
+    collect_model_full(sources, title, cert_pems, &HashMap::new(), None)
+}
+
+/// [`collect_model_with_certs`] plus an optional *architecture manifest* (a Tcl
+/// script; see [`crate::architecture`]).
+///
+/// The report always auto-detects how the loaded devices relate as tiers (an
+/// upstream device whose pool member / GTM server address is served by another
+/// device's virtual is one tier up). `manifest` overrides each device's
+/// role/tier and can declare links explicitly; `None` (or empty) uses pure
+/// auto-detection. A malformed manifest is reported inside the model rather than
+/// failing the build.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_with_architecture(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
+    manifest: Option<&str>,
+) -> J {
+    collect_model_full(sources, title, cert_pems, &HashMap::new(), manifest)
+}
+
+/// [`collect_model_with_certs`] plus the per-device UCS **file inventory** that
+/// powers the Forensics tab, and an optional architecture manifest.
+///
+/// `files` is keyed by source URI → the list of that device's extracted UCS
+/// members (each a JSON object `{path, size, sha256, isText, content?}`, from
+/// [`tcl_bigip_io::list_ucs_members`] / `read_ucs_member` at the wasm/CLI
+/// entry). Both `cert_pems` and `files` are source-scoped so nothing bleeds
+/// between devices in a multi-UCS report. `manifest` is the optional Tcl
+/// architecture manifest. Empty maps / `None` reproduce [`collect_model`] exactly.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_full(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
+    files: &HashMap<String, Vec<J>>,
+    manifest: Option<&str>,
+) -> J {
+    let empty_pems = HashMap::new();
+    let empty_files: Vec<J> = Vec::new();
     let devices: Vec<J> = sources
         .iter()
-        .map(|(uri, src)| collect_device(uri, src, cert_pems))
+        .map(|(uri, src)| {
+            collect_device(
+                uri,
+                src,
+                cert_pems.get(uri).unwrap_or(&empty_pems),
+                files.get(uri).map_or(&empty_files, |v| v.as_slice()),
+            )
+        })
         .collect();
+
+    let architecture = crate::architecture::build_architecture(&devices, manifest);
 
     let mut totals: Map<String, J> = Map::new();
     for d in &devices {
@@ -1358,5 +1738,6 @@ pub fn collect_model_with_certs(
     model.insert("devices".into(), J::Array(devices));
     model.insert("totals".into(), J::Object(totals));
     model.insert("container_order".into(), J::Array(container_order));
+    model.insert("architecture".into(), architecture);
     J::Object(model)
 }

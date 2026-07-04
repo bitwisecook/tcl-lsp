@@ -381,6 +381,137 @@ pub fn read_ucs_member(
     }
 }
 
+/// Which members [`list_ucs_members`] returns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberScope {
+    /// Only forensically-relevant members — the OS files an attacker tampers
+    /// with for persistence, credential theft or log evasion (see
+    /// [`is_forensic_path`]). The default for the report's forensic view.
+    Forensic,
+    /// Every regular-file member (macOS cruft already stripped). The full
+    /// archive tree, for deep inspection.
+    FullTree,
+}
+
+/// Metadata for one UCS member. Content is fetched separately (via
+/// [`read_ucs_member`]) so an inventory stays light — a UCS can hold hundreds
+/// of megabytes across thousands of members.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UcsFileEntry {
+    /// Archive path, leading `./` / `/` stripped (e.g. `etc/passwd`).
+    pub path: String,
+    /// Uncompressed size in bytes.
+    pub size: u64,
+    /// Lowercase hex SHA-256 of the member's content — lets a reviewer diff a
+    /// file against a known-good hash without shipping the bytes.
+    pub sha256: String,
+    /// Whether the content decodes as UTF-8 with no NUL bytes (i.e. safe to
+    /// show as text rather than a binary blob).
+    pub is_text: bool,
+}
+
+/// Lowercase hex SHA-256 of `bytes`.
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(bytes);
+    let mut out = String::with_capacity(digest.len() * 2);
+    for b in digest {
+        use std::fmt::Write as _;
+        let _ = write!(out, "{b:02x}");
+    }
+    out
+}
+
+/// Heuristic: is this content safe to display as text? Valid UTF-8 with no NUL
+/// byte. Cheap and good enough to separate config / dotfiles / keys from binary
+/// blobs (databases, certs' DER, images).
+fn is_text_bytes(bytes: &[u8]) -> bool {
+    !bytes.contains(&0) && std::str::from_utf8(bytes).is_ok()
+}
+
+/// Is `name` a forensically-relevant UCS path?
+///
+/// These are the OS files outside `/config` that attackers modify on a
+/// compromised BIG-IP — the same set the report's UCS forensic checklist maps
+/// to MITRE ATT&CK: login-persistence dotfiles and SSH keys, the local account
+/// databases, external-auth and PAM config, logging config, and cron. `name`
+/// is expected already stripped of a leading `./` / `/` (as [`read_members`]
+/// returns it). `bigip*.conf` is intentionally excluded — it is already
+/// surfaced as the SCF config, not a forensic artefact.
+fn is_forensic_path(name: &str) -> bool {
+    // Directory subtrees commonly tampered with (prefix match).
+    const FORENSIC_PREFIXES: &[&str] = &[
+        "etc/cron",       // crontab + cron.d / cron.daily / …
+        "etc/syslog-ng/", // T1562.006 logging evasion
+        "etc/ssh/",       // sshd_config
+        "etc/openldap/",  // T1556 external auth
+        "etc/pam.d/",
+        "etc/security/",
+    ];
+    // Individual files commonly tampered with (exact match).
+    const FORENSIC_EXACT: &[&str] = &[
+        "etc/passwd",
+        "etc/shadow",
+        "etc/group",
+        "etc/gshadow",
+        "etc/hosts",
+        "etc/hosts.deny",
+        "etc/hosts.allow",
+        "etc/nsswitch.conf",
+        "etc/krb5.conf",
+        "etc/resolv.conf",
+        "etc/ldap.conf",
+        "etc/motd",
+        "etc/issue",
+    ];
+
+    // SSH material anywhere (authorized_keys, id_*, known_hosts, config) —
+    // T1098.004 SSH-key persistence.
+    if name.contains("/.ssh/") || name.starts_with(".ssh/") {
+        return true;
+    }
+    // Shell / user dotfiles under a home directory — T1546.004 login hooks.
+    let dotfile = (name.starts_with("home/") || name.starts_with("root/"))
+        && name.rsplit('/').next().is_some_and(|base| base.starts_with('.'));
+
+    dotfile
+        || FORENSIC_EXACT.contains(&name)
+        || FORENSIC_PREFIXES.iter().any(|p| name.starts_with(p))
+}
+
+/// List the members of a UCS archive with per-file metadata (path, size,
+/// SHA-256, text/binary), decrypting first when the archive is encrypted.
+///
+/// `scope` selects the whole tree or just the forensically-relevant subset
+/// ([`is_forensic_path`]). Content is not returned — fetch a single member's
+/// bytes on demand with [`read_ucs_member`]. Everything happens in memory, so a
+/// UCS's secrets never touch disk.
+pub fn list_ucs_members(
+    raw: &[u8],
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+    scope: MemberScope,
+) -> Result<Vec<UcsFileEntry>, UcsError> {
+    let data = decrypt_if_encrypted(raw, provider, label)?;
+    if !is_ucs_bytes(&data) {
+        return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
+    }
+    let members = read_members(&data)?;
+    let mut out = Vec::new();
+    for (name, bytes) in &members {
+        if matches!(scope, MemberScope::Forensic) && !is_forensic_path(name) {
+            continue;
+        }
+        out.push(UcsFileEntry {
+            path: name.clone(),
+            size: bytes.len() as u64,
+            sha256: sha256_hex(bytes),
+            is_text: is_text_bytes(bytes),
+        });
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,5 +616,88 @@ mod tests {
         assert!(!scf.contains("garbage"), "AppleDouble body excluded:\n{scf}");
         assert!(!scf.contains("applefork"));
         assert!(!scf.contains("more binary"));
+    }
+
+    #[test]
+    fn forensic_path_classification() {
+        // Forensic artefacts.
+        for p in [
+            "etc/passwd",
+            "etc/shadow",
+            "etc/hosts.deny",
+            "etc/nsswitch.conf",
+            "etc/krb5.conf",
+            "etc/motd",
+            "etc/syslog-ng/syslog-ng.conf",
+            "etc/openldap/ldap.conf",
+            "etc/security/limits.conf",
+            "etc/pam.d/sshd",
+            "etc/crontab",
+            "etc/cron.d/job",
+            "root/.ssh/authorized_keys",
+            "home/admin/.ssh/id_rsa",
+            "home/admin/.bashrc",
+            "root/.bash_history",
+        ] {
+            assert!(is_forensic_path(p), "{p} should be forensic");
+        }
+        // Not forensic — config (already the SCF) and ordinary runtime data.
+        for p in [
+            "config/bigip.conf",
+            "config/bigip_base.conf",
+            "var/lib/hsqldb/db.data",
+            "SPEC-Manifest",
+            "etc/hostname",
+        ] {
+            assert!(!is_forensic_path(p), "{p} should not be forensic");
+        }
+    }
+
+    #[test]
+    fn list_members_forensic_vs_full_tree() {
+        use std::collections::BTreeSet;
+        let ucs = build_ucs(&[
+            ("config/bigip.conf", "ltm pool /Common/p { }"),
+            ("etc/passwd", "root:x:0:0::/root:/bin/bash\n"),
+            ("root/.ssh/authorized_keys", "ssh-rsa AAAAB3Nz attacker\n"),
+            ("home/admin/.bashrc", "echo hi\n"),
+            ("etc/motd", "welcome\n"),
+            // A binary blob (embedded NUL) that must classify as non-text and
+            // must NOT appear in the forensic subset.
+            ("var/lib/hsqldb/db.data", "rows\u{0}\u{1}\u{2}binary"),
+        ]);
+        // Plain UCS: the provider is never consulted.
+        let provider = || Ok(String::new());
+
+        let all = list_ucs_members(&ucs, &provider, "t", MemberScope::FullTree).unwrap();
+        assert_eq!(all.len(), 6, "full tree returns every member");
+
+        let forensic = list_ucs_members(&ucs, &provider, "t", MemberScope::Forensic).unwrap();
+        let paths: BTreeSet<&str> = forensic.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            BTreeSet::from([
+                "etc/passwd",
+                "root/.ssh/authorized_keys",
+                "home/admin/.bashrc",
+                "etc/motd",
+            ]),
+            "forensic subset excludes config + runtime data"
+        );
+
+        // Metadata: size, text/binary and a stable, correct SHA-256.
+        let passwd = forensic.iter().find(|e| e.path == "etc/passwd").unwrap();
+        assert_eq!(passwd.size, "root:x:0:0::/root:/bin/bash\n".len() as u64);
+        assert!(passwd.is_text);
+        // sha256("root:x:0:0::/root:/bin/bash\n") — independently reproducible.
+        assert_eq!(
+            passwd.sha256,
+            sha256_hex(b"root:x:0:0::/root:/bin/bash\n"),
+            "sha256 is lowercase hex of the content"
+        );
+        assert_eq!(passwd.sha256.len(), 64);
+
+        let blob = all.iter().find(|e| e.path == "var/lib/hsqldb/db.data").unwrap();
+        assert!(!blob.is_text, "NUL-bearing content is binary");
     }
 }
