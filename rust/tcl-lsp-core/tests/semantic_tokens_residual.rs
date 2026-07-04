@@ -287,7 +287,7 @@ fn st_regex_escaped_metachar_is_escape_not_metachar() {
 }
 
 // ===========================================================================
-// switch -regexp braced case list — `collect_switch_regexp_case_list`.
+// switch -regexp braced case list — `collect_switch_case_list` (regexp mode).
 //
 // tclsh-proof: the case list parses and dispatches by regex. tclsh8.6/9.0:
 //   `set x abc; switch -regexp $x {{^a(b)} {set r 1} default {set r 2}}; set r`
@@ -342,6 +342,47 @@ fn st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp() {
         toks.iter()
             .any(|t| t.line == 1 && t.ttype == "regexp" && t.length == 3),
         "literal `abc` pattern should be one length-3 regexp; got {toks:?}",
+    );
+}
+
+// ===========================================================================
+// switch (plain, non-regexp) braced case list — `collect_switch_case_list`
+// (exact / glob mode).  Regression for #758: the whole `{ pat body … }` list
+// used to be walked as one opaque body, so the case bodies got no tokens.
+//
+// tclsh-proof: the case list parses and dispatches. tclsh8.6/9.0:
+//   `set x b; switch $x {a {set r 1} b {set r 2} default {set r 3}}; set r`
+//   -> 2
+// ===========================================================================
+
+#[test]
+fn st_switch_plain_case_list_recurses_bodies_without_regex_tokens() {
+    let src = "switch $x {\n  a {puts 1}\n  default {puts 2}\n}\n";
+    let toks = decode(src, "tcl8.6");
+    // Bodies are recursed as scripts → `puts` is a function head on each body
+    // line (lines 1 and 2).
+    assert!(
+        toks.iter().any(|t| t.line == 1 && t.ttype == "function"),
+        "body 1 should recurse to a function head; got {toks:?}",
+    );
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "function"),
+        "body 2 (after `default`) should recurse; got {toks:?}",
+    );
+    // Plain (non-regexp) mode: patterns are literals, not regexes, so no
+    // regex sub-token types appear anywhere.
+    let kinds: HashSet<&str> = toks.iter().map(|t| t.ttype.as_str()).collect();
+    for re in ["regexpAnchor", "regexpGroup", "regexpQuantifier"] {
+        assert!(
+            !kinds.contains(re),
+            "unexpected `{re}` in plain switch; got {toks:?}"
+        );
+    }
+    // The literal pattern `a` is classified as an ordinary word, not a regexp.
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 1 && t.ttype != "regexp" && t.character == 2 && t.length == 1),
+        "pattern `a` should be a plain literal token; got {toks:?}",
     );
 }
 
