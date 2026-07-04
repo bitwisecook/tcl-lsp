@@ -1035,7 +1035,11 @@ $(CANONICAL_MANIFEST): $(ROOT)ai/prompts/manifest.json
 AI_PROMPT_SRCS  := $(ROOT)ai/shared/diagnostics.json $(ROOT)ai/prompts/manifest.json \
 	$(wildcard $(ROOT)ai/prompts/*.j2)
 
-$(ROOT)ai/prompts/irules_system.md $(ROOT)ai/prompts/tcl_system.md $(ROOT)ai/prompts/tk_system.md &: $(AI_PROMPT_SRCS)
+# tcl_system.md / irules_system.md are GENERATED from the .j2 templates by
+# xtask; tk_system.md is NOT — it is a static domain-knowledge prompt that was
+# relocated to ai/claude/skills/_prompts/ when the skills moved off Python, so
+# it is not part of this grouped generator target (see CANONICAL_TK_MD below).
+$(ROOT)ai/prompts/irules_system.md $(ROOT)ai/prompts/tcl_system.md &: $(AI_PROMPT_SRCS)
 	@echo "==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics
 
@@ -1049,7 +1053,9 @@ $(CANONICAL_TCL_MD): $(ROOT)ai/prompts/tcl_system.md
 	@echo "==> Copying canonical tcl_system.md"
 	cp $< $@
 
-$(CANONICAL_TK_MD): $(ROOT)ai/prompts/tk_system.md
+# Static prompt (no .j2), relocated to ai/claude/skills/_prompts/ by the
+# skills-off-Python migration (d3d5c4f74). Copy it from its real location.
+$(CANONICAL_TK_MD): $(ROOT)ai/claude/skills/_prompts/tk_system.md
 	@mkdir -p $(CANONICAL_DIR)
 	@echo "==> Copying canonical tk_system.md"
 	cp $< $@
