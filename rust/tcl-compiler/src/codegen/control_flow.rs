@@ -208,6 +208,12 @@ impl CodegenCtx<'_> {
         let loop_lbl = self.fresh_label("dict_map_loop");
         let end_lbl = self.fresh_label("dict_map_end");
 
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
         // Initialise the accumulator to the empty dict.
         self.push_lit("");
         let res_store_idx =
@@ -242,6 +248,8 @@ impl CodegenCtx<'_> {
             self.emit_stmt(stmt, &mut ugi);
         }
         if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
             return false;
         }
         self.instructions.pop();
@@ -351,6 +359,12 @@ impl CodegenCtx<'_> {
         }
         let end_lbl = self.fresh_label("dict_update_end");
 
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
         // Push the key list.
         for k in &keys {
             self.emit_value_interpolated(k);
@@ -380,6 +394,8 @@ impl CodegenCtx<'_> {
             self.emit_stmt(stmt, &mut ugi);
         }
         if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
             return false;
         }
         self.instructions.pop();
@@ -440,6 +456,12 @@ impl CodegenCtx<'_> {
         let state_slot = bytecode_imm(self.lvt.intern(&state_name));
         let end_lbl = self.fresh_label("dict_with_end");
 
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
         // Prologue: expand the dict into per-key locals; stash the recombine
         // state in a temp.
         self.emit_comment(
@@ -469,6 +491,8 @@ impl CodegenCtx<'_> {
             self.emit_stmt(stmt, &mut ugi);
         }
         if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
             return false;
         }
         self.instructions.pop();

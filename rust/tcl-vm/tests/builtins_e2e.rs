@@ -1402,3 +1402,26 @@ fn dict_update_with_control_flow_body_falls_back_and_executes() {
         "a 9 b 2\n",
     );
 }
+
+/// A straight-line body whose final statement is `return` leaves no trailing
+/// `pop`, so the inline emitter must bail out *cleanly* (rolling back its
+/// partial prologue and catch depth) and let the runtime `dict` invoke run —
+/// where `return` keeps its proc-exit semantics. Regression guard for the
+/// mid-emission fallback corruption.
+#[test]
+fn dict_inline_return_body_falls_back_cleanly() {
+    // dict map over an empty dict never runs the body → empty result.
+    out_eq(
+        "proc a {} { dict map {k v} {} { return 5 } }\nputs \"[a]|\"\n",
+        "|\n",
+    );
+    // dict update / dict with run the body once; `return` exits the proc.
+    out_eq(
+        "proc b {} { set d {x 1}; dict update d x q { return 9 } }\nputs \"[b]|\"\n",
+        "9|\n",
+    );
+    out_eq(
+        "proc c {} { set d {x 1}; dict with d { return 7 } }\nputs \"[c]|\"\n",
+        "7|\n",
+    );
+}
