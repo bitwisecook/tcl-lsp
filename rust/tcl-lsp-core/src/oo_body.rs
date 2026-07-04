@@ -31,10 +31,12 @@
 //!
 //! A recursive walker threads an `inside_oo_body` flag:
 //!
-//! * Recursing into the body of an *outer* OO definition command
-//!   ([`is_outer_oo_definition_command`] — the metaclasses' `create` /
-//!   `new` forms plus `oo::define` / `oo::objdefine`) enters OO-body
-//!   context (`inside_oo_body = true`).
+//! * Recursing into the body of an *outer* OO definition body
+//!   ([`is_outer_oo_definition_command`] — a metaclass `create` / `new`
+//!   body, or the bare `oo::define` / `oo::objdefine` *script* form) enters
+//!   OO-body context (`inside_oo_body = true`).  The *member* forms of
+//!   `oo::define` / `oo::objdefine` (`… method m {} { body }`, …) do not:
+//!   their body is ordinary method code, not a definition script.
 //! * While in that context, an *inner* OO definition command
 //!   ([`is_inner_oo_definition_command`]) contributes body arguments via
 //!   [`inner_oo_body_indices`]; recursing into one of those bodies leaves
@@ -46,29 +48,67 @@
 //! Outside `inside_oo_body`, none of the inner helpers fire, so a
 //! same-named user proc is never misclassified.
 
-use tcl_registry::CommandRegistry;
 use tcl_registry::prelude::Traits;
+use tcl_registry::{ArgRole, CommandRegistry};
 
-/// Outer (context-establishing) OO definition commands: any registry
-/// command carrying the `IS_OO_METACLASS` trait (`oo::class`,
+/// Whether `command` carries the `IS_OO_METACLASS` trait (`oo::class`,
 /// `oo::configurable`, `oo::abstract`, `oo::singleton`, plus any
-/// dialect-registered metaclass) and the two definition commands
-/// `oo::define` / `oo::objdefine`.
-///
-/// The body of one of these runs as a `TclOO` definition script; recursing
-/// into it switches the walker into "inside OO body" mode where the
-/// inner-OO commands (`method`, `constructor`, …) become body-bearing.
+/// dialect-registered metaclass).  Every body a metaclass takes is the
+/// definition script of a `create` / `new` / `createWithNamespace` form, so
+/// recursing into it always enters OO-body context.
 ///
 /// Driven by the registry trait rather than a hardcoded name list so a
 /// newly registered metaclass is covered automatically.
 #[must_use]
-pub fn is_outer_oo_definition_command(name: &str, registry: &CommandRegistry) -> bool {
-    if matches!(name, "oo::define" | "oo::objdefine") {
+pub fn is_oo_metaclass(command: &str, registry: &CommandRegistry) -> bool {
+    registry
+        .get(command)
+        .is_some_and(|spec| spec.traits.contains(Traits::IS_OO_METACLASS))
+}
+
+/// Whether an `oo::define` / `oo::objdefine` call is the *bare script form*
+/// (`oo::define Target { script }`) rather than a member/subcommand form
+/// (`oo::define Target method m {} { body }`, `constructor …`, `self …`,
+/// `property …`, …).
+///
+/// Only the script form's body is an OO definition script; the member forms
+/// carry ordinary method bodies that must **not** switch the walker into OO
+/// context (issue #747 review — a nested `method a b { … }` inside a real
+/// method body would otherwise be mis-highlighted / mis-folded as an OO
+/// member definition).
+///
+/// Detected via the registry's authoritative body-role resolver: the script
+/// form resolves its definition body at argument index 1, while every member
+/// form resolves a (method) body at index ≥ 2.  `args` excludes the command
+/// head (`["Target", …]`), matching the resolver's calling convention.
+#[must_use]
+fn is_oo_define_script_form(command: &str, args: &[&str], registry: &CommandRegistry) -> bool {
+    registry
+        .arg_indices_for_role(command, args, ArgRole::Body)
+        .contains(&1)
+}
+
+/// Whether recursing into `command`'s body/bodies enters OO-body context —
+/// i.e. the body is a `TclOO` definition script whose top-level words are
+/// the definition sub-keywords (`method`, `superclass`, `self …`, …).
+///
+/// True for metaclass `create` / `new` bodies and for the bare
+/// `oo::define` / `oo::objdefine` script form; false for the member forms
+/// of `oo::define` / `oo::objdefine` (their bodies are ordinary method
+/// code).  `args` excludes the command head.
+#[must_use]
+pub fn is_outer_oo_definition_command(
+    command: &str,
+    args: &[&str],
+    registry: &CommandRegistry,
+) -> bool {
+    if is_oo_metaclass(command, registry) {
         return true;
     }
-    registry
-        .get(name)
-        .is_some_and(|spec| spec.traits.contains(Traits::IS_OO_METACLASS))
+    if matches!(command, "oo::define" | "oo::objdefine") {
+        return is_oo_define_script_form(command, args, registry);
+    }
+    false
 }
 
 /// Inner OO definition-script commands.  These are context-sensitive: a
@@ -145,17 +185,26 @@ pub fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
 }
 
 /// The `inside_oo_body` flag the recursion into `command`'s body arguments
-/// should carry, given the current flag `cur`:
+/// should carry, given the current flag `cur`.  `args` excludes the command
+/// head.
 ///
-/// * An outer OO definition command's body *is* the OO definition script →
-///   `true`.
+/// * An outer OO definition body (metaclass `create`/`new`, or the bare
+///   `oo::define`/`oo::objdefine` script form) *is* the OO definition
+///   script → `true`.
 /// * An inner OO definition command's body (while already inside an OO
 ///   body) is plain Tcl code → `false`.
-/// * Everything else inherits `cur` — control-flow nesting inside a class
-///   body stays in OO context.
+/// * Everything else — including the *member* forms of `oo::define` /
+///   `oo::objdefine`, whose bodies are ordinary method code — inherits
+///   `cur`, so control-flow nesting inside a class body stays in OO
+///   context while a method body drops out of it.
 #[must_use]
-pub fn next_inside_oo_body(command: &str, cur: bool, registry: &CommandRegistry) -> bool {
-    if is_outer_oo_definition_command(command, registry) {
+pub fn next_inside_oo_body(
+    command: &str,
+    args: &[&str],
+    cur: bool,
+    registry: &CommandRegistry,
+) -> bool {
+    if is_outer_oo_definition_command(command, args, registry) {
         true
     } else if cur && is_inner_oo_definition_command(command) {
         false
@@ -173,19 +222,57 @@ mod tests {
     }
 
     #[test]
-    fn metaclasses_are_outer_commands() {
+    fn metaclass_create_bodies_are_outer() {
         let reg = registry();
+        // Every metaclass `create`/`new` body is a definition script.
         for name in [
             "oo::class",
             "oo::configurable",
             "oo::abstract",
             "oo::singleton",
-            "oo::define",
-            "oo::objdefine",
         ] {
             assert!(
-                is_outer_oo_definition_command(name, &reg),
-                "{name} must be an outer OO definition command"
+                is_outer_oo_definition_command(name, &["create", "C", "{body}"], &reg),
+                "{name} create body must be an outer OO definition body"
+            );
+        }
+    }
+
+    #[test]
+    fn oo_define_script_form_is_outer_but_member_form_is_not() {
+        let reg = registry();
+        // Bare script form: `oo::define Target { script }` → outer body.
+        for cmd in ["oo::define", "oo::objdefine"] {
+            assert!(
+                is_outer_oo_definition_command(cmd, &["Target", "{script}"], &reg),
+                "{cmd} script form must be an outer OO definition body"
+            );
+            // Member forms carry ordinary method bodies → NOT outer (issue
+            // #747 review): a nested `method a b { … }` inside them must not
+            // be treated as an OO member definition.
+            assert!(
+                !is_outer_oo_definition_command(
+                    cmd,
+                    &["Target", "method", "m", "{}", "{body}"],
+                    &reg
+                ),
+                "{cmd} member (method) form must not be an outer OO body"
+            );
+            assert!(
+                !is_outer_oo_definition_command(
+                    cmd,
+                    &["Target", "constructor", "{}", "{body}"],
+                    &reg
+                ),
+                "{cmd} constructor form must not be an outer OO body"
+            );
+            assert!(
+                !is_outer_oo_definition_command(
+                    cmd,
+                    &["Target", "self", "method", "m", "{}", "{body}"],
+                    &reg
+                ),
+                "{cmd} self-method form must not be an outer OO body"
             );
         }
     }
@@ -195,7 +282,7 @@ mod tests {
         let reg = registry();
         for name in ["proc", "set", "if", "namespace", "method"] {
             assert!(
-                !is_outer_oo_definition_command(name, &reg),
+                !is_outer_oo_definition_command(name, &["a", "b"], &reg),
                 "{name} must not be an outer OO definition command"
             );
         }
@@ -247,15 +334,48 @@ mod tests {
     #[test]
     fn context_transitions() {
         let reg = registry();
-        // Entering an outer body switches on.
-        assert!(next_inside_oo_body("oo::class", false, &reg));
-        assert!(next_inside_oo_body("oo::configurable", false, &reg));
+        // Entering an outer (metaclass create) body switches on.
+        assert!(next_inside_oo_body(
+            "oo::class",
+            &["create", "C", "{b}"],
+            false,
+            &reg
+        ));
+        assert!(next_inside_oo_body(
+            "oo::configurable",
+            &["create", "C", "{b}"],
+            false,
+            &reg
+        ));
+        // `oo::define` script form switches on; member form does not.
+        assert!(next_inside_oo_body(
+            "oo::define",
+            &["C", "{script}"],
+            false,
+            &reg
+        ));
+        assert!(!next_inside_oo_body(
+            "oo::define",
+            &["C", "method", "m", "{}", "{body}"],
+            false,
+            &reg
+        ));
         // A method body inside a class body switches off.
-        assert!(!next_inside_oo_body("method", true, &reg));
+        assert!(!next_inside_oo_body(
+            "method",
+            &["m", "{}", "{b}"],
+            true,
+            &reg
+        ));
         // Control flow inherits.
-        assert!(next_inside_oo_body("if", true, &reg));
-        assert!(!next_inside_oo_body("if", false, &reg));
+        assert!(next_inside_oo_body("if", &["{c}", "{b}"], true, &reg));
+        assert!(!next_inside_oo_body("if", &["{c}", "{b}"], false, &reg));
         // Inner commands at top level (not inside an OO body) don't fire.
-        assert!(!next_inside_oo_body("method", false, &reg));
+        assert!(!next_inside_oo_body(
+            "method",
+            &["m", "{}", "{b}"],
+            false,
+            &reg
+        ));
     }
 }
