@@ -225,6 +225,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        codegen_hook: Some(crate::hooks::CodegenHookId::Namespace),
         ..CommandSpec::DEFAULT
     }
 }
