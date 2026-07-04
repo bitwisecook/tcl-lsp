@@ -316,6 +316,68 @@ fn test_command_subst_inside_expression() {
     assert!(tokens.iter().any(|t| t.ttype == "variable"));
 }
 
+// -- TestTcllibBodyRecursion ---------------------------------------------
+//
+// tcllib commands that carry a script body (`control::do`,
+// `struct::list foreachperm`) or an expression (`control::do`'s test,
+// `control::assert`) must recurse into that argument rather than emit it
+// as one opaque string — same treatment as core `while`/`if` (issue #760).
+
+#[test]
+fn test_control_do_body_recursion() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    // The `body` script and the `while` test expression both recurse:
+    // `set` inside the body and `$x` inside the expression are tokenised.
+    let src = "package require control\ncontrol::do {\n set x 1\n} while {$x < 10}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `set` recursed from the braced body.
+    let has_set = tokens.iter().any(|t| t.ttype == "function" && t.length == 3);
+    assert!(has_set, "control::do body not recursed: {tokens:?}");
+    // `$x` recursed from the `while` expression.
+    let has_var = tokens.iter().any(|t| t.ttype == "variable");
+    assert!(has_var, "control::do test expr not recursed: {tokens:?}");
+}
+
+#[test]
+fn test_control_do_while_is_keyword() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let source = "package require control\ncontrol::do {\n incr n\n} while {$n < 3}\n";
+    let uri = open_doc(&mut lsp, source);
+    let words = keyword_words(&mut lsp, &lg, &uri, source);
+    assert!(words.contains("while"), "expected `while`: {words:?}");
+}
+
+#[test]
+fn test_control_assert_expression_tokenised() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "package require control\ncontrol::assert {$x == 10}\n";
+    let uri = open_doc(&mut lsp, src);
+    let types: std::collections::BTreeSet<String> =
+        typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    for want in ["variable", "operator"] {
+        assert!(types.contains(want), "missing {want:?} in {types:?}");
+    }
+}
+
+#[test]
+fn test_struct_list_foreachperm_body_recursion() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    // `struct::list foreachperm var sequence body` — the trailing body
+    // script recurses, so `puts` inside it is a function token.
+    let src = "package require struct::list\nstruct::list foreachperm p {a b c} {\n puts $p\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let has_puts = tokens.iter().any(|t| t.ttype == "function" && t.length == 4);
+    assert!(has_puts, "foreachperm body not recursed: {tokens:?}");
+    let has_var = tokens.iter().any(|t| t.ttype == "variable");
+    assert!(has_var, "foreachperm var not recursed: {tokens:?}");
+}
+
 // -- TestStructuralKeywords ----------------------------------------------
 
 /// The set of source words rendered as keyword tokens.
