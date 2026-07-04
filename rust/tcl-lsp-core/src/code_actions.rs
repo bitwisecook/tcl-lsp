@@ -1366,7 +1366,13 @@ fn compute_required_profiles(
     // from each profile's `layer` in the registry, not a hardcoded list.
     let profile_registry = tcl_registry::profiles::ProfileRegistry::build();
     profiles.retain(|p| !profile_registry.is_infrastructure_profile(p));
-    profiles.into_iter().collect()
+    // Emit in protocol-stack order (transport → TLS → application → …) using
+    // the registry's `layer` metadata, not the `BTreeSet`'s alphabetical
+    // order — alphabetical would list e.g. `HTTP` before `SERVERSSL` (an
+    // application profile ahead of its TLS layer), or `ASM` before `HTTP`.
+    let mut ordered: Vec<String> = profiles.into_iter().collect();
+    ordered.sort_by_key(|p| (profile_registry.layer_rank(p), p.clone()));
+    ordered
 }
 
 /// Scan leading comment lines for a `# Profiles: HTTP, CLIENTSSL` directive,

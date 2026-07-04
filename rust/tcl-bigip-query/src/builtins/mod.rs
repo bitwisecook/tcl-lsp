@@ -35,6 +35,7 @@ use crate::value::{self, Value};
 mod encoding;
 pub(crate) use encoding::json_to_value;
 mod extras;
+pub mod f5profile;
 mod graph;
 mod math;
 mod net;
@@ -322,6 +323,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(graph::registrations());
     r.extend(rename::registrations());
     r.extend(extras::registrations());
+    r.extend(f5profile::registrations());
     #[cfg(feature = "probes")]
     r.extend(crate::probes::registrations());
     r.extend(crate::special::registrations());
