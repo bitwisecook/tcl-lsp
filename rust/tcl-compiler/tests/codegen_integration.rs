@@ -783,6 +783,7 @@ fn codegen_module_with_no_procs() {
         top_level: Script::new(),
         procedures: HashMap::new(),
         methods: HashMap::new(),
+        body_units: HashMap::new(),
         redefined_procedures: HashSet::new(),
         redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),

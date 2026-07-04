@@ -100,6 +100,33 @@ suite("Semantic Tokens", () => {
     );
   });
 
+  // Regex-source tracking: a variable holding a regex literal that flows into a
+  // `regexp` pattern makes the ORIGINATING `set` literal read as a regex — the
+  // full SSA/SCCP-backed pipeline surfaced end-to-end through the extension.
+  test("regex-source variable highlights the def-site literal as regex", async () => {
+    const uri = getDocUri("regexSource.tcl");
+    await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    // The `*` in the def-site literal on line 0 is a regex quantifier.
+    assert.ok(
+      decoded.some((t) => t.line === 0 && t.type === "regexpQuantifier"),
+      `expected a regexpQuantifier on the def-site literal, got ${JSON.stringify(
+        decoded.filter((t) => t.line === 0),
+      )}`,
+    );
+  });
+
   // Issue #760: tcllib commands that carry a script body (`control::do`,
   // `struct::list foreachperm`) or an expression argument (`control::do`'s
   // `while` test, `control::assert`) must recurse into that argument — the

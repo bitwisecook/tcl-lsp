@@ -37,6 +37,11 @@ fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) ->
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("namespace", cmd_namespace);
+    // The compiled `namespace eval` ensemble rewrite (`invokeReplace … ::tcl::
+    // namespace::eval`) dispatches directly to the resolved implementation,
+    // dropping the `namespace eval` prefix — so it arrives as
+    // `::tcl::namespace::eval ns body …`, exactly `ns_eval`'s argument shape.
+    vm.register("::tcl::namespace::eval", ns_eval);
 }
 
 /// Display form of a canonical namespace (`""` → `::`, `foo` → `::foo`).

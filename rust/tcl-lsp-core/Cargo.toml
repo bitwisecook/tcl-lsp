@@ -19,5 +19,11 @@ regex = "1"
 rustc-hash = { workspace = true }
 serde_json = "1"
 
+[dev-dependencies]
+# The runtime ARE engine, used as an oracle in the semantic-token regex tests:
+# every pattern the tokenizer sub-tokenises is confirmed to be valid ARE by the
+# same engine Tcl uses at runtime, tying the two to one source of truth.
+tcl-regex = { path = "../tcl-regex" }
+
 [lints]
 workspace = true

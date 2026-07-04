@@ -1,0 +1,22 @@
+ByteCode ::top, 12 instructions, 22 bytes, 7 literals, 0 variables
+  Literals:
+    0: "array"
+    1: "set"
+    2: "a"
+    3: "x 1"
+    4: "::tcl::array::for"
+    5: "k v"
+    6: " lappend out $v "
+  Instructions:
+    (0) push1 0	# "array"
+    (2) push1 1	# "set"
+    (4) push1 2	# "a"
+    (6) push1 3	# "x 1"
+    (8) invokeStk1 4	# array
+    (10) pop
+    (11) push1 4	# "::tcl::array::for"
+    (13) push1 5	# "k v"
+    (15) push1 2	# "a"
+    (17) push1 6	# " lappend out $v "
+    (19) invokeStk1 4
+    (21) done

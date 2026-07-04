@@ -113,6 +113,7 @@ pub mod parsing;
 pub mod path_concat;
 pub mod place;
 pub mod place_bridge;
+pub mod regex_source;
 pub mod rendered_properties;
 pub mod scan_predicate;
 pub mod sccp;

@@ -58,7 +58,10 @@ pub fn optimise_jumps<S: BuildHasher>(
                     if label.starts_with("switch_") || label.starts_with("proc_exit_") {
                         continue;
                     }
-                    if matches!(instr.comment.as_str(), "break" | "continue" | "try_on") {
+                    if matches!(
+                        instr.comment.as_str(),
+                        "break" | "continue" | "try_on" | "dict_for"
+                    ) {
                         continue;
                     }
                     match label_offsets.get(label.as_str()) {

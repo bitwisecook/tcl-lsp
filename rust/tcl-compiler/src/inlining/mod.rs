@@ -957,6 +957,7 @@ fn rewrite_single_body_stmt(
             is_lmap,
             raw_args,
             is_dict_iteration,
+            is_array_iteration,
             raw_tokens,
         } => {
             let (new_body, ch) =
@@ -970,6 +971,7 @@ fn rewrite_single_body_stmt(
                     is_lmap: *is_lmap,
                     raw_args: raw_args.clone(),
                     is_dict_iteration: *is_dict_iteration,
+                    is_array_iteration: *is_array_iteration,
                     raw_tokens: raw_tokens.clone(),
                 }]
             })
