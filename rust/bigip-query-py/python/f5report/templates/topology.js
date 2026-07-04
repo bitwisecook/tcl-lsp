@@ -322,6 +322,134 @@
     return lines.join("\n");
   }
 
+  // ---- BIG-IP traffic-processing pipeline -----------------------------------
+  // A virtual server processes traffic down the client-side profile stack
+  // (L4 → SSL → L7), through the client-side iRule events (in firing order, with
+  // priority), to the LB / forwarding decision, then back up the server-side
+  // stack to the pool member. This renders that ordered pipeline (not the raw
+  // reference graph), e.g. vs → tcp → clientssl → http → HTTP_REQUEST,500 →
+  // proxy → LB_SELECTED → http → serverssl → tcp → node.
+  var PROFILE_LAYER = {
+    TCP: { layer: 1 }, UDP: { layer: 1 }, SCTP: { layer: 1 }, FASTL4: { layer: 1 },
+    CLIENT_SSL: { layer: 2, side: "client" }, SERVER_SSL: { layer: 2, side: "server" },
+    HTTP: { layer: 3 }, HTTP2: { layer: 3 }, ONE_CONNECT: { layer: 3 }, WEBSOCKET: { layer: 3 },
+    REWRITE: { layer: 3 }, HTML: { layer: 3 }, FTP: { layer: 3 }, DNS: { layer: 3 },
+    SIP: { layer: 3 }, DIAMETER: { layer: 3 }, RADIUS: { layer: 3 }, FIX: { layer: 3 },
+    MQTT: { layer: 3 }, STREAM: { layer: 3 }, FASTHTTP: { layer: 3 }
+  };
+  var EVENT_PHASE = (function () {
+    var o = {};
+    [["CLIENT_ACCEPTED", "client"], ["CLIENTSSL_CLIENTHELLO", "client"],
+      ["CLIENTSSL_CLIENTCERT", "client"], ["CLIENTSSL_HANDSHAKE", "client"],
+      ["CLIENTSSL_SERVERHELLO_SEND", "client"], ["HTTP_REQUEST", "client"],
+      ["HTTP_REQUEST_DATA", "client"], ["HTTP_PROXY_REQUEST", "client"],
+      ["STREAM_MATCHED", "client"], ["CACHE_REQUEST", "client"], ["CLIENT_DATA", "client"],
+      ["LB_SELECTED", "lb"], ["LB_FAILED", "lb"], ["PERSIST_DOWN", "lb"],
+      ["SERVER_CONNECTED", "server"], ["SERVERSSL_HANDSHAKE", "server"],
+      ["SERVERSSL_CLIENTCERT", "server"], ["SERVER_DATA", "server"],
+      ["HTTP_RESPONSE", "server"], ["HTTP_RESPONSE_CONTINUE", "server"],
+      ["HTTP_RESPONSE_DATA", "server"], ["CACHE_RESPONSE", "server"],
+      ["HTTP_RESPONSE_RELEASE", "server"]
+    ].forEach(function (e, i) { o[e[0]] = { phase: e[1], order: i }; });
+    return o;
+  })();
+  function eventPhase(ev) { return EVENT_PHASE[ev] || { phase: "client", order: 900 }; }
+
+  function findByPath(list, fp) {
+    for (var i = 0; i < (list || []).length; i++) {
+      if (list[i].fullPath === fp || list[i].fullPath.split("/").pop() === fp.split("/").pop()) return list[i];
+    }
+    return null;
+  }
+  function poolNodeNames(ix, poolFp) {
+    if (!poolFp) return [];
+    var pool = findByPath(ix.d.pools, poolFp);
+    if (pool && pool.members && pool.members.length) {
+      return pool.members.map(function (m) { return m.name || m.address || ""; }).filter(Boolean);
+    }
+    var out = [];
+    (ix.fadj["pool:" + poolFp] || []).forEach(function (nb) {
+      var n = ix.byOid[nb]; if (n && n.type === "node") out.push(n.name);
+    });
+    return out;
+  }
+
+  // Build the ordered traffic pipeline (Mermaid) for one virtual server.
+  function buildTrafficPipeline(ix, vsOid) {
+    var vs = findByPath(ix.d.virtuals, vsOid.replace(/^vs:/, ""));
+    if (!vs) return null;
+    var byLayer = { 1: [], 2: [], 3: [] };
+    (vs.profiles || []).forEach(function (fp) {
+      var prof = findByPath(ix.d.profiles, fp);
+      var type = prof ? prof.type : "";
+      var info = PROFILE_LAYER[type] || { layer: 3 };
+      byLayer[info.layer].push({ name: prof ? prof.name : fp.split("/").pop(), side: info.side, oid: "prof:" + fp });
+    });
+    var l4 = byLayer[1], l7 = byLayer[3];
+    var clientSSL = byLayer[2].filter(function (p) { return p.side !== "server"; });
+    var serverSSL = byLayer[2].filter(function (p) { return p.side === "server"; });
+
+    // events (with priority + rule) from the attached iRules
+    var eventMap = {};
+    (vs.rules || []).forEach(function (rp) {
+      var rule = findByPath(ix.d.rules, rp);
+      if (!rule || !rule.body) return;
+      var re = /when\s+([A-Z][A-Z0-9_]*)((?:\s+priority\s+\d+)?)/g, m;
+      while ((m = re.exec(rule.body))) {
+        var pm = /priority\s+(\d+)/.exec(m[2]);
+        (eventMap[m[1]] = eventMap[m[1]] || []).push({ rule: rule.name, prio: pm ? parseInt(pm[1], 10) : 500 });
+      }
+    });
+    function eventsIn(phase) {
+      return Object.keys(eventMap).filter(function (ev) { return eventPhase(ev).phase === phase; })
+        .sort(function (a, b) { return eventPhase(a).order - eventPhase(b).order; })
+        .map(function (ev) {
+          var hs = eventMap[ev].slice().sort(function (x, y) { return x.prio - y.prio; });
+          var rules = {}; hs.forEach(function (h) { rules[h.rule] = 1; });
+          if (Object.keys(rules).length > 1) {
+            return ev + " (" + hs.map(function (h) { return h.rule + ":" + h.prio; }).join(", ") + ")";
+          }
+          return ev + "," + hs.map(function (h) { return h.prio; }).join("/");
+        });
+    }
+
+    var steps = [];
+    var l7label = l7.map(function (p) { return p.name; }).join("~");
+    steps.push({ t: "vs", l: vs.name, oid: vsOid });
+    l4.forEach(function (p) { steps.push({ t: "prof", l: p.name, oid: p.oid }); });
+    clientSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
+    if (l7label) steps.push({ t: "prof", l: l7label });
+    eventsIn("client").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    steps.push({ t: "proxy", l: "proxy" });
+    eventsIn("lb").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
+    eventsIn("server").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    if (l7label) steps.push({ t: "prof", l: l7label });
+    serverSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
+    l4.forEach(function (p) { steps.push({ t: "prof", l: p.name, oid: p.oid }); });
+    var nn = poolNodeNames(ix, vs.pool);
+    if (nn.length) steps.push({ t: "node", l: nn.join("\\n") });
+    else if (vs.pool) steps.push({ t: "node", l: "(no members)" });
+    else steps.push({ t: "node", l: "(no pool / iRule-selected)" });
+
+    var lines = ["flowchart LR"];
+    steps.forEach(function (s, i) {
+      var sid = "P" + i;
+      var shape = s.t === "vs" ? ['(["', '"])'] : s.t === "node" ? ['[("', '")]']
+        : s.t === "event" ? ['{{"', '"}}'] : s.t === "proxy" ? ['[/"', '"/]'] : ['["', '"]'];
+      lines.push("  " + sid + shape[0] + escLbl(s.l) + shape[1] + ":::" + s.t);
+      if (i > 0) lines.push("  P" + (i - 1) + " --> " + sid);
+    });
+    lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
+    lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
+    lines.push("classDef ssl fill:#fef9c3,stroke:#ca8a04,color:#4a3608;");
+    lines.push("classDef event fill:#ede9fe,stroke:#7c3aed,color:#3b1e75;");
+    lines.push("classDef proxy fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
+    lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
+    lines.push("classDef node fill:#f5f5f4,stroke:#78716c,color:#292524;");
+    return { def: lines.join("\n"), steps: steps };
+  }
+
   // Render `def` into `host`, then wire node/edge interactions.
   var _rid = 0;
   function renderInto(host, def, ix, onNodeClick) {
@@ -1342,8 +1470,14 @@
       html += '<div class="app-vs-chips">';
       vsOids.forEach(function (o) { html += '<button class="app-chip" data-goto-oid="' + o + '">' + esc(ix.byOid[o].name) + "</button>"; });
       html += "</div>";
-      // flow diagram host
-      html += '<div class="app-flow"><div class="app-flow-title">Application flow</div><div class="app-flow-diagram diag-host">building…</div></div>';
+      // traffic-flow pipeline, one per virtual server (client stack → iRule
+      // events by priority → LB → server stack → node)
+      html += '<div class="app-flow"><div class="app-flow-title">Traffic flow</div>';
+      vsOids.forEach(function (o) {
+        html += '<div class="app-pipe"><div class="app-pipe-vs">' + esc(ix.byOid[o].name) +
+          '</div><div class="app-pipe-diagram diag-host" data-vs="' + o + '">building…</div></div>';
+      });
+      html += "</div>";
       // object blocks
       html += '<div class="app-objs">';
       var order = { vs: 0, pool: 1, node: 2, mon: 3, rule: 4, prof: 5, persist: 6, policy: 7, snat: 8, dg: 9 };
@@ -1372,12 +1506,16 @@
       html += "</div></div>";
       host.innerHTML = html;
 
-      // render the combined flow diagram
-      var flowHost = host.querySelector(".app-flow-diagram");
-      if (flowHost) {
-        if (oids.length > 1) renderInto(flowHost, buildFlowchart(ix, oids, { dir: "LR" }), ix, function (oid) { scrollToBlock(host, oid); });
-        else flowHost.textContent = "(nothing reachable from the selected virtual servers)";
-      }
+      // render one traffic-flow pipeline per virtual server
+      host.querySelectorAll(".app-pipe-diagram[data-vs]").forEach(function (ph) {
+        var built = buildTrafficPipeline(ix, ph.getAttribute("data-vs"));
+        if (!built || !window.mermaid) { ph.textContent = "(pipeline unavailable)"; return; }
+        var id = "apppipe" + (_rid++);
+        mermaid.render(id, built.def).then(function (res) {
+          ph.innerHTML = res.svg;
+          var svg = ph.querySelector("svg"); if (svg) { svg.style.maxWidth = "100%"; svg.style.height = "auto"; }
+        }).catch(function (e) { ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc(e.message || e) + "</div>"; });
+      });
       // render each iRule control-flow flowchart
       host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function (fh) {
         var def = decodeURIComponent(fh.getAttribute("data-flow") || "");

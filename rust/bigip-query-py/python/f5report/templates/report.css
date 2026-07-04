@@ -260,6 +260,10 @@ tr.sys-row{display:none}
 .app-chip{border:1px solid var(--blue);border-radius:20px;padding:3px 12px;font-size:12px;cursor:pointer;
   background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);font-family:var(--mono)}
 .app-flow{margin:6px 0 16px}
+.app-pipe{margin:8px 0 14px}
+.app-pipe-vs{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:3px}
+.app-pipe-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.app-pipe-diagram svg{max-width:100%;height:auto}
 .app-flow-title,.app-obj-type{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 .app-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
 .app-objs{display:flex;flex-direction:column;gap:12px}
