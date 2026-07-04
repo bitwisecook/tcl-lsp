@@ -253,6 +253,70 @@ fn for_creates_loop_cfg() {
     );
 }
 
+/// The `render_expr` of a function's first `for_header` Branch condition.
+/// A *rotated* (guaranteed-nonempty) loop carries the synthetic `"1"` guard;
+/// a *may-run* loop keeps its real condition (e.g. `"$i < 3"`).
+fn for_header_condition(func: &Function) -> String {
+    let header = func
+        .blocks
+        .values()
+        .find(|b| b.name.starts_with("for_header"))
+        .expect("a for_header block");
+    match &header.terminator {
+        Some(Terminator::Branch { condition, .. }) => render_expr(condition),
+        other => panic!("for_header must branch, got {other:?}"),
+    }
+}
+
+#[test]
+fn for_rotation_requires_a_non_stale_constant_init() {
+    // Loop rotation (bottom-testing a provably-once loop) is sound only when the
+    // init clause proves the condition true on entry. `for_runs_at_least_once`
+    // processes the init in order, so a later non-constant write, an `incr`, or
+    // an opaque call that could touch the loop var must invalidate the stale
+    // constant — otherwise a possibly-zero-iteration loop would be wrongly
+    // rotated (its optimiser static-for summary and its zero-trip edge would be
+    // unsound). W210 no longer distinguishes these (a may-run loop whose body
+    // defines the var is silent after the loop, matching C Tcl — issue #756), so
+    // this pins the rotation decision directly on the CFG shape.
+
+    // Guaranteed: `0 < 3` is true on entry → rotated (header carries `1`).
+    assert_eq!(
+        for_header_condition(top(&cfg("for {set i 0} {$i < 3} {incr i} {set y $i}"))),
+        "1",
+        "clean constant init must rotate",
+    );
+    // A benign init call that cannot write the loop var keeps it guaranteed.
+    assert_eq!(
+        for_header_condition(top(&cfg("for {set i 0; puts hi} {$i < 3} {incr i} {set y $i}"))),
+        "1",
+        "benign init call must not invalidate the constant",
+    );
+
+    // Stale constant: `set i $n` overwrites `set i 0`, so the condition is
+    // unknown → NOT rotated (the real `$i < 3` stays on the header).
+    assert_eq!(
+        for_header_condition(top(&cfg("for {set i 0; set i $n} {$i < 3} {incr i} {set y $i}"))),
+        "$i < 3",
+        "a non-constant re-write of the loop var must not be claimed guaranteed",
+    );
+    // An `incr` in the init likewise invalidates the constant binding.
+    assert_eq!(
+        for_header_condition(top(&cfg("for {set i 0; incr i 5} {$i < 3} {incr i} {set y $i}"))),
+        "$i < 3",
+        "incr in for-init must not be claimed guaranteed",
+    );
+    // An init call that writes the loop var through `upvar` must invalidate it.
+    let m = cfg(
+        "proc setter {} { upvar 1 i i; set i 5 }\nproc f {} { for {set i 0; setter} {$i < 3} {incr i} { set y $i } }\n",
+    );
+    assert_eq!(
+        for_header_condition(proc(&m, "::f")),
+        "$i < 3",
+        "an upvar-writing init call must not be claimed guaranteed",
+    );
+}
+
 #[test]
 fn return_terminates_block() {
     // In a proc whose body is `set x 1; return $x; set y 2`, some block ends in a

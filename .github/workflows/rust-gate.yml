@@ -1,0 +1,109 @@
+name: rust-gate
+
+# Cargo-checks gate for the `rust` branch during the Python→Rust rewrite.
+#
+# BLOCKING gate. The cargo workspace test run is split across TWO parallel jobs
+# so the CPU-bound VM-simulation suites don't serialise behind everything else:
+#   - `rust-tests`       — the workspace minus the heavy crates (+ all doctests)
+#   - `rust-tests-heavy` — the VM-sim heavies (`tcl-irule-test`, `f5-cli`), which
+#                          alone were ~2/3 of the run (each sources ~500 KB of
+#                          orchestrator Tcl on a fresh VM per test).
+# They run on separate runners concurrently, so the gate's wall-clock is
+# max(core, heavy) instead of their sum. BOTH are REQUIRED status checks
+# (branch protection on `rust`) — add `rust-tests-heavy` to the required set.
+#
+# The native-server lsp_e2e suite lives in its own workflow (`rust-lsp-e2e.yml`,
+# the `lsp-e2e` required check). `main`'s pipeline is ci.yml; this lives on
+# `rust` only.
+
+on:
+  pull_request:
+    branches: [rust]
+  push:
+    branches: [rust]
+
+concurrency:
+  group: rust-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # rust-toolchain.toml pins the channel (stable); rustup on the runner
+      # resolves it on the first cargo call.  Cache registry + target dir.
+      # (No Python: the workspace is pure Rust — the PyO3 binding crates were
+      # retired, so `cargo test --workspace` needs no Python env.)
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+
+      # nextest runs every workspace test binary's tests in ONE global parallel
+      # pool, so the CPU-bound VM-simulation suites (tcl-irule-test, f5 parity,
+      # lsp e2e) overlap instead of running one binary at a time — a large
+      # wall-clock win over `cargo test`, which runs test binaries serially.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
+      # Everything except the heavy VM-sim crates (they run concurrently in
+      # `rust-tests-heavy`). --no-fail-fast: report every failure, not just the
+      # first.
+      - name: cargo nextest run (workspace minus VM-sim heavies)
+        run: cargo nextest run --workspace --exclude tcl-irule-test --exclude f5-cli --all-features --no-fail-fast
+
+      # nextest does not run doctests; run them separately for the WHOLE
+      # workspace (incl. the heavy crates — doctests are cheap) so the heavy job
+      # needn't duplicate them. Deps are already built, so this is just the
+      # doctest compile + run.
+      - name: cargo test --doc
+        run: cargo test --workspace --all-features --doc --no-fail-fast
+
+  # The heavy VM-simulation suites, split out to run concurrently with
+  # `rust-tests` (see the header). `tcl-irule-test` sources the ~500 KB
+  # orchestrator Tcl on a fresh `tcl-vm` per test; `f5-cli`'s explain-flow / UCS
+  # parity tests drive the same VM. Doctests are covered by `rust-tests`.
+  rust-tests-heavy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          # Distinct cache from `rust-tests` so the two parallel jobs don't race
+          # on save (this job builds only the heavy crates + their deps).
+          shared-key: rust-tests-heavy
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
+      - name: cargo nextest run (VM-sim heavies)
+        run: cargo nextest run -p tcl-irule-test -p f5-cli --all-features --no-fail-fast
+
+  # Supply-chain audit: advisories / licenses / bans / sources, driven by the
+  # committed deny.toml.  Its own job (hence its own status check) so a denial
+  # is attributable independently of the cargo test surface above — same split
+  # rationale as rust-lsp-e2e.yml.  The action defaults match `make rust-deny`
+  # (`check --all-features`, manifest `./Cargo.toml`); deny.toml and the
+  # workspace manifest both live at the repo root.
+  cargo-deny:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20

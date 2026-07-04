@@ -99,4 +99,83 @@ suite("Semantic Tokens", () => {
       `bareword 'proc' argument must stay a string, got '${procTok.type}'`,
     );
   });
+
+  // Issue #757: a braced string literal spanning multiple lines lost its
+  // highlighting (the enclosing multi-line `string` token was dropped).  It
+  // must now carry a `string` token on every covered line, just like the
+  // quoted form.
+  test("multi-line braced string literal is highlighted on every line", async () => {
+    const uri = getDocUri("multilineString.tcl");
+    await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const stringLines = new Set(decoded.filter((t) => t.type === "string").map((t) => t.line));
+    // The braced literal spans lines 0..2; each must carry a string token.
+    for (const line of [0, 1, 2]) {
+      assert.ok(
+        stringLines.has(line),
+        `braced literal line ${line} must carry a string token, got string lines ${JSON.stringify([
+          ...stringLines,
+        ])}`,
+      );
+    }
+    // The quoted literal spans lines 3..5 — highlighted the same way.
+    for (const line of [3, 4, 5]) {
+      assert.ok(
+        stringLines.has(line),
+        `quoted literal line ${line} must carry a string token, got string lines ${JSON.stringify([
+          ...stringLines,
+        ])}`,
+      );
+    }
+  });
+
+  // Issue #758: the braced case-list form of a plain (non-`-regexp`) `switch`
+  // used to be walked as one opaque body, so the commands inside each case
+  // body received no semantic tokens and appeared unhighlighted.  They must
+  // now be recursed and highlighted like any other script body.
+  test("switch case-list bodies are highlighted", async () => {
+    const swUri = getDocUri("switchBodies.tcl");
+    const doc = await activate(swUri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      swUri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      swUri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+
+    // Commands inside the case bodies are recursed and highlighted.
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    for (const word of ["set", "puts"]) {
+      assert.ok(
+        functionWords.has(word),
+        `expected '${word}' inside a switch body as a function token, got ${JSON.stringify([...functionWords])}`,
+      );
+    }
+
+    // `return` inside a body is a control-flow keyword.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    assert.ok(
+      keywordWords.has("return"),
+      `expected 'return' inside a switch body as a keyword token, got ${JSON.stringify([...keywordWords])}`,
+    );
+  });
 });

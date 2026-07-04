@@ -988,13 +988,11 @@ mod tests {
 
     #[test]
     fn param_list_with_backslash_continuation_no_spurious_w215() {
-        // A param list split across lines by `\<newline>` (collapsed to a space
-        // even inside braces) leaves the last param on the first line ending in a
-        // raw backslash in `parse_param_list`'s naive scan. The isolated body
-        // re-binds params with a synthetic `Str` token, which would flip W215's
-        // `braced` reachability heuristic and emit a spurious warning the full
-        // `analyse` path never produces. The shell walk already emits W215 for
-        // the declaration, so the isolated rebind must stay diagnostic-free.
+        // A param list split across lines by `\<newline>` list-parses as
+        // separate parameters (`parse_param_list` treats the continuation as an
+        // element separator, issue #743), so no param name ends in a raw
+        // backslash and neither the full `analyse` walk nor the isolated
+        // per-item rebind emits a spurious W215 unreachable-name warning.
         eq("proc foo {a b staticsok\\\n    c d} {\n  set x 1\n}\n");
         // Method form (instance vars + params rebind under the same suppression).
         eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");

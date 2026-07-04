@@ -59,5 +59,7 @@ Add `# noqa: W215` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [KCS: How does Tcl split a list into elements?](../kcs-qa-how-tcl-parses-lists.md)
+  — why a `\`-wrapped parameter list names the right variables.
 - Tcl(n) man page §"Variable substitution"
 - Related codes: `W212`

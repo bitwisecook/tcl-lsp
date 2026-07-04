@@ -13,6 +13,7 @@ authors.workspace = true
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-cmd-core = { path = "../tcl-cmd-core" }
 bitflags = "2"
 sha2 = "0.10"
 rustc-hash = { workspace = true }
