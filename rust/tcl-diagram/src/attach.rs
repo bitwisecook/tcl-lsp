@@ -445,6 +445,93 @@ pub fn irule_attach_patterns(source: &str) -> Value {
     attach_reach(source).to_json()
 }
 
+/// iRule names referenced via `call <rule>::<proc>` — the F5 cross-iRule proc
+/// call (a `proc` defined in one iRule invoked from another). Returns the
+/// `<rule>` parts (the iRule that defines the proc), deduped in source order;
+/// the caller resolves each name to an actual iRule object. A same-rule /
+/// namespaced call (`call ::helper`, `call ns::helper` where `ns` is not an
+/// iRule) simply won't resolve and is ignored downstream.
+#[must_use]
+pub fn proc_call_refs(source: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    if source.is_empty() {
+        return out;
+    }
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let cu = CompilationUnit::build_for(source, registry, false);
+    let mut procs: Vec<_> = cu.ir_module.procedures.values().collect();
+    procs.sort_by_key(|p| p.span.start());
+    for proc in procs {
+        collect_proc_calls(&proc.body, &mut out);
+    }
+    out
+}
+
+fn collect_proc_calls(script: &Script, out: &mut Vec<String>) {
+    for st in &script.statements {
+        match st {
+            Statement::Call { command, args, .. } => {
+                // `call <rule>::<proc>` — the namespace (before `::`) is the
+                // iRule that defines the proc; link the caller to it.
+                if command.trim_start_matches("::") == "call"
+                    && let Some((rule, _proc)) = args.first().and_then(|a| a.rsplit_once("::"))
+                    && !rule.is_empty()
+                    && !out.iter().any(|r| r == rule)
+                {
+                    out.push(rule.to_string());
+                }
+            }
+            Statement::If { clauses, else_body, .. } => {
+                for c in clauses {
+                    collect_proc_calls(&c.body, out);
+                }
+                if let Some(b) = else_body {
+                    collect_proc_calls(b, out);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                collect_proc_calls(init, out);
+                collect_proc_calls(body, out);
+                collect_proc_calls(next, out);
+            }
+            Statement::While { body, .. }
+            | Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. } => collect_proc_calls(body, out),
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                collect_proc_calls(body, out);
+                for h in handlers {
+                    collect_proc_calls(&h.body, out);
+                }
+                if let Some(f) = finally_body {
+                    collect_proc_calls(f, out);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        collect_proc_calls(b, out);
+                    }
+                }
+                if let Some(b) = default_body {
+                    collect_proc_calls(b, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,6 +633,22 @@ mod tests {
         assert_eq!(globs(&r.nodes), vec!["10.0.*.5"]);
         assert!(r.nodes[0].matches("10.0.7.5"));
         assert!(!r.nodes[0].matches("10.1.7.5"));
+    }
+
+    #[test]
+    fn proc_call_refs_cross_rule() {
+        let refs = proc_call_refs(
+            r#"when HTTP_REQUEST { call MyLib::helper $x; if {1} { call /Common/Other::doit 1 } }"#,
+        );
+        assert_eq!(refs, vec!["MyLib", "/Common/Other"]);
+    }
+
+    #[test]
+    fn proc_call_refs_ignores_local_and_dedups() {
+        let refs = proc_call_refs(
+            r#"when HTTP_REQUEST { call ::plain; call Lib::a; call Lib::b }"#,
+        );
+        assert_eq!(refs, vec!["Lib"]);
     }
 
     #[test]

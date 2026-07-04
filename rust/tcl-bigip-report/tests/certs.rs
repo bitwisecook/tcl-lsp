@@ -381,6 +381,56 @@ fn orphan_reachability_is_partition_aware() {
     assert_eq!(ta["virtuals"][0], "vsA");
 }
 
+// A proc-library iRule (attached to no virtual, only invoked via
+// `call Lib::proc`) is linked in as used by its caller, not flagged orphaned.
+const SCF_PROC_CALL: &str = r"
+ltm rule /Common/Lib { proc helper { x } { return $x } }
+ltm rule /Common/Main { when HTTP_REQUEST { call Lib::helper 1 } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 rules { /Common/Main } }
+";
+
+#[test]
+fn cross_irule_proc_call_links_library() {
+    let d = device0(SCF_PROC_CALL);
+    let rules = d["rules"].as_array().unwrap();
+    let main = rules.iter().find(|r| r["name"] == "Main").unwrap();
+    let lib = rules.iter().find(|r| r["name"] == "Lib").unwrap();
+
+    // Main references Lib via the proc call.
+    let refs: Vec<&str> = main["refRules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(refs.contains(&"/Common/Lib"), "Main.refRules = {refs:?}");
+
+    // The reference table lists the called iRule.
+    let statics = main["referencedObjects"]["static"].as_array().unwrap();
+    assert!(
+        statics
+            .iter()
+            .any(|s| s["type"] == "irule" && s["name"] == "Lib"),
+        "static refs include the called iRule: {statics:?}"
+    );
+
+    // Lib is used by Main -> not a confirmed orphan / not 'unattached'.
+    let used: Vec<&str> = lib["usedBy"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(used.contains(&"/Common/Main"), "Lib.usedBy = {used:?}");
+    let orphan_rules: Vec<&str> = d["orphans"]["rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(!orphan_rules.contains(&"Lib"), "Lib not orphaned: {orphan_rules:?}");
+}
+
 // --- iRule syntax highlighting -----------------------------------------------
 
 use tcl_bigip_report::highlight_tcl;

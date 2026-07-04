@@ -202,3 +202,21 @@ def test_pattern_reaches_partition_visibility():
     assert graph.pattern_reaches(web, "web_a", "/TenantA/web_a", "TenantA", {"TenantA"})
     assert graph.pattern_reaches(web, "web_c", "/Common/web_c", "Common", {"TenantA"})
     assert not graph.pattern_reaches(web, "web_b", "/TenantB/web_b", "TenantB", {"TenantA"})
+
+
+SCF_PROC_CALL = """
+ltm rule /Common/Lib { proc helper { x } { return $x } }
+ltm rule /Common/Main { when HTTP_REQUEST { call Lib::helper 1 } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 rules { /Common/Main } }
+"""
+
+
+def test_cross_irule_proc_call_links_library():
+    d = collect_model([("pc.scf", SCF_PROC_CALL)])["devices"][0]
+    main = next(r for r in d["rules"] if r["name"] == "Main")
+    lib = next(r for r in d["rules"] if r["name"] == "Lib")
+    assert "/Common/Lib" in main.get("refRules", []), main.get("refRules")
+    statics = main["referencedObjects"]["static"]
+    assert any(s["type"] == "irule" and s["name"] == "Lib" for s in statics), statics
+    assert "/Common/Main" in lib["usedBy"], lib["usedBy"]
+    assert "Lib" not in d["orphans"]["rules"]

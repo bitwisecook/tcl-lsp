@@ -308,7 +308,73 @@ def attach_matches(
 
 
 _ATTACH_SINGULAR = {"pools": "pool", "nodes": "node", "snatpools": "snatpool"}
-_OID_PREFIX = {"pool": "pool", "node": "node", "snatpool": "snat", "data-group": "dg"}
+_OID_PREFIX = {
+    "pool": "pool", "node": "node", "snatpool": "snat",
+    "data-group": "dg", "irule": "rule",
+}
+
+
+def _resolve_rule(
+    name: str, caller_part: str, known: set[str], leaf_to_fp: dict[str, list[str]]
+) -> str | None:
+    """Resolve a `call <rule>::proc` target to an iRule full path, preferring the
+    caller's partition, then /Common. Mirrors ``resolve_rule`` in Rust."""
+    if name.startswith("/") and name in known:
+        return name
+    fps = leaf_to_fp.get(_leaf(name))
+    if not fps:
+        return None
+    for f in fps:
+        if _partition_of(f) == caller_part:
+            return f
+    for f in fps:
+        if _partition_of(f) == "Common":
+            return f
+    return fps[0]
+
+
+def link_proc_calls(device: dict[str, Any]) -> None:
+    """Link iRules that call each other via ``call <rule>::<proc>``: record each
+    caller's resolved callees as ``refRules`` and add the caller to each callee's
+    ``usedBy`` so a proc-library iRule is counted as used, not orphaned. Mirrors
+    the Rust ``link_proc_calls``; run before orphan classification."""
+    leaf_to_fp: dict[str, list[str]] = {}
+    known: set[str] = set()
+    bodies: list[tuple[str, str, str]] = []
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if not fp:
+            continue
+        leaf_to_fp.setdefault(_leaf(fp), []).append(fp)
+        known.add(fp)
+        bodies.append((fp, _partition_of(fp), r.get("body", "") or ""))
+
+    caller_refs: dict[str, list[str]] = {}
+    callee_callers: dict[str, list[str]] = {}
+    for fp, part, body in bodies:
+        if not body:
+            continue
+        resolved: list[str] = []
+        for name in json.loads(_engine.irule_proc_call_refs(body)):
+            callee = _resolve_rule(name, part, known, leaf_to_fp)
+            if callee and callee != fp:
+                if callee not in resolved:
+                    resolved.append(callee)
+                callee_callers.setdefault(callee, []).append(fp)
+        if resolved:
+            caller_refs[fp] = resolved
+
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if fp in caller_refs:
+            r["refRules"] = caller_refs[fp]
+        if fp in callee_callers:
+            used = list(r.get("usedBy") or [])
+            existing = set(used)
+            for c in callee_callers[fp]:
+                if c not in existing:
+                    used.append(c)
+            r["usedBy"] = used
 
 
 def _obj_ref(ty: str, full_path: str) -> dict[str, str]:
@@ -346,6 +412,7 @@ def annotate_rule_reachability(
 
         static_refs = [_obj_ref("pool", p) for p in (r.get("refPools") or [])]
         static_refs += [_obj_ref("data-group", d) for d in (r.get("refDataGroups") or [])]
+        static_refs += [_obj_ref("irule", rr) for rr in (r.get("refRules") or [])]
 
         reach = json.loads(_engine.irule_attach_patterns(body)) if body else {}
         has_dynamic = any(reach.get(ty) for ty in ATTACH_TYPES)

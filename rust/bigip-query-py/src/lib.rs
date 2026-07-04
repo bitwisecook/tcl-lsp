@@ -405,6 +405,16 @@ fn irule_attach_patterns(body: &str) -> String {
     tcl_diagram::irule_attach_patterns(body).to_string()
 }
 
+/// iRule names referenced via the F5 cross-iRule `call <rule>::<proc>` form.
+///
+/// Returns a JSON array of the `<rule>` names (the iRule that defines the proc);
+/// the caller resolves each to an actual iRule so a rule that only exists to
+/// provide procs is linked in (not orphaned) and shows on its callers.
+#[pyfunction]
+fn irule_proc_call_refs(body: &str) -> String {
+    serde_json::to_string(&tcl_diagram::proc_call_refs(body)).unwrap_or_else(|_| "[]".to_string())
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -420,5 +430,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
     m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
     m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
     Ok(())
 }

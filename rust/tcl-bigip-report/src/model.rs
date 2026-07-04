@@ -622,6 +622,7 @@ fn json_ref(ty: &str, full_path: &str) -> J {
         "node" => "node",
         "snatpool" => "snat",
         "data-group" => "dg",
+        "irule" => "rule",
         other => other,
     };
     let mut o = Map::new();
@@ -630,6 +631,104 @@ fn json_ref(ty: &str, full_path: &str) -> J {
     o.insert("fullPath".into(), J::String(full_path.into()));
     o.insert("oid".into(), J::String(format!("{prefix}:{full_path}")));
     J::Object(o)
+}
+
+/// Resolve a cross-iRule `call <rule>::proc` target name to an actual iRule full
+/// path, preferring the caller's partition, then `/Common`.
+fn resolve_rule(
+    name: &str,
+    caller_part: &str,
+    known: &std::collections::HashSet<String>,
+    leaf_to_fp: &HashMap<String, Vec<String>>,
+) -> Option<String> {
+    if name.starts_with('/') && known.contains(name) {
+        return Some(name.to_string());
+    }
+    let fps = leaf_to_fp.get(leaf(name))?;
+    if let Some(fp) = fps.iter().find(|f| partition_of(f) == caller_part) {
+        return Some(fp.clone());
+    }
+    if let Some(fp) = fps.iter().find(|f| partition_of(f) == "Common") {
+        return Some(fp.clone());
+    }
+    fps.first().cloned()
+}
+
+/// Link iRules that call each other via `call <rule>::<proc>` (F5 cross-iRule
+/// proc calls): record each caller's resolved callees as `refRules`, and add the
+/// caller to each callee's `usedBy` so a proc-library iRule (attached to no
+/// virtual, only called from other rules) is linked in rather than flagged
+/// orphaned. Run before orphan classification, which reads `usedBy`.
+fn link_proc_calls(device: &mut Map<String, J>) {
+    let mut leaf_to_fp: HashMap<String, Vec<String>> = HashMap::new();
+    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut bodies: Vec<(String, String, String)> = Vec::new();
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            if let Some(rm) = r.as_object() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if fp.is_empty() {
+                    continue;
+                }
+                leaf_to_fp
+                    .entry(leaf(&fp).to_string())
+                    .or_default()
+                    .push(fp.clone());
+                known.insert(fp.clone());
+                bodies.push((fp.clone(), partition_of(&fp), bstr(rm, "body").to_string()));
+            }
+        }
+    }
+
+    let mut caller_refs: HashMap<String, Vec<String>> = HashMap::new();
+    let mut callee_callers: HashMap<String, Vec<String>> = HashMap::new();
+    for (fp, part, body) in &bodies {
+        if body.is_empty() {
+            continue;
+        }
+        let mut resolved: Vec<String> = Vec::new();
+        for name in tcl_diagram::proc_call_refs(body) {
+            if let Some(callee) = resolve_rule(&name, part, &known, &leaf_to_fp) {
+                if &callee == fp {
+                    continue;
+                }
+                if !resolved.contains(&callee) {
+                    resolved.push(callee.clone());
+                }
+                callee_callers.entry(callee).or_default().push(fp.clone());
+            }
+        }
+        if !resolved.is_empty() {
+            caller_refs.insert(fp.clone(), resolved);
+        }
+    }
+
+    if let Some(J::Array(rules)) = device.get_mut("rules") {
+        for r in rules.iter_mut() {
+            if let Some(rm) = r.as_object_mut() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if let Some(refs) = caller_refs.get(&fp) {
+                    rm.insert(
+                        "refRules".into(),
+                        J::Array(refs.iter().map(|s| J::String(s.clone())).collect()),
+                    );
+                }
+                if let Some(callers) = callee_callers.get(&fp) {
+                    let mut used: Vec<J> = barr(rm, "usedBy").to_vec();
+                    let existing: std::collections::HashSet<String> = used
+                        .iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect();
+                    for c in callers {
+                        if !existing.contains(c) {
+                            used.push(J::String(c.clone()));
+                        }
+                    }
+                    rm.insert("usedBy".into(), J::Array(used));
+                }
+            }
+        }
+    }
 }
 
 /// Per-rule partition contexts (partitions of the virtuals attaching a rule).
@@ -720,6 +819,10 @@ fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtual
         }
         for dg in sarr(rm, "refDataGroups") {
             static_refs.push(json_ref("data-group", dg));
+        }
+        // Cross-iRule proc-call references (`call <rule>::<proc>`).
+        for rr in sarr(rm, "refRules") {
+            static_refs.push(json_ref("irule", rr));
         }
 
         // Dynamic references grouped by the partition of the attaching virtuals.
@@ -837,6 +940,10 @@ fn collect_device(uri: &str, source: &str) -> J {
         };
         device.insert((*key).into(), J::Array(shaped));
     }
+
+    // Link cross-iRule `call <rule>::<proc>` references before orphan analysis
+    // so a proc-library iRule is counted as used by its callers.
+    link_proc_calls(&mut device);
 
     // Orphans: a referable leaf object is *confirmed* orphaned only when it has
     // an empty referrer set AND no iRule could dynamically attach an object of

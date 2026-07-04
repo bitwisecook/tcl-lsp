@@ -2,6 +2,40 @@
 (function () {
   "use strict";
 
+  // --- iOS Safari tap → navigation ------------------------------------------
+  // Mobile Safari only synthesises a `click` for elements it considers natively
+  // clickable; taps on <div>/<span> controls (the count chips, object links,
+  // expandable rows) are frequently dropped even with cursor:pointer. Rather
+  // than rely on that synthesis, translate a real *tap* (a touch that doesn't
+  // move into a scroll) into the element's click ourselves, and preventDefault
+  // so the delayed ghost click can't double-fire. Desktop (mouse) never hits
+  // this path, so click handlers keep working there unchanged.
+  (function iosTapBridge() {
+    var ACTIONABLE =
+      ".tab,.dev-tab,.chip[data-target],.objlink,.ref-obj,[data-oid],[data-oref],tr.expandable";
+    var sx = 0, sy = 0, moved = false, t0 = 0;
+    document.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) { moved = true; return; }
+      moved = false; t0 = Date.now();
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener("touchmove", function (e) {
+      var t = e.touches[0]; if (!t) return;
+      if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) moved = true;
+    }, { passive: true });
+    document.addEventListener("touchend", function (e) {
+      if (moved || Date.now() - t0 > 700) return;
+      var tgt = e.target;
+      if (!tgt || typeof tgt.closest !== "function") return;
+      // Let native form controls / real links handle their own taps.
+      if (tgt.closest("input,select,textarea,option,label,a[href]")) return;
+      var el = tgt.closest(ACTIONABLE);
+      if (!el) return;
+      e.preventDefault();      // cancel the simulated mouse/click that follows
+      if (typeof el.click === "function") el.click();
+    }, { passive: false });
+  })();
+
   // --- theme toggle: auto -> light -> dark, remembered in localStorage ------
   var root = document.documentElement;
   var order = ["auto", "light", "dark"];
