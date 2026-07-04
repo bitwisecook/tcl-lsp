@@ -2213,13 +2213,24 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
             let len_utf16 = utf16_len(&source[idx..p]);
-            entries.push((
-                pos.line,
-                pos.character.get(),
-                len_utf16,
-                TokenKind::Comment,
-                0,
-            ));
+            // A `#` is only a Tcl comment in command position.  This naive scan
+            // can't see command position, but a physical line already covered by
+            // an emitted token is inside a multi-line string / braced literal
+            // (whose per-line entries are pushed before this scan), so the `#`
+            // there is literal text, not a comment.  Suppress the comment to
+            // avoid an overlapping token the LSP client would reject (#757).
+            let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
+                *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
+            });
+            if !already_covered {
+                entries.push((
+                    pos.line,
+                    pos.character.get(),
+                    len_utf16,
+                    TokenKind::Comment,
+                    0,
+                ));
+            }
             // Skip the remainder of the comment line; the terminating `\n`
             // (at `p`) is processed normally and resets `line_start`.
             skip_until = p;
