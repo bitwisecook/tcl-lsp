@@ -988,7 +988,12 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
     }
 }
 
-fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
+fn collect_device(
+    uri: &str,
+    source: &str,
+    cert_pems: &HashMap<String, String>,
+    files: &[J],
+) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1235,6 +1240,11 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         J::Array(crate::secrets::collect_secrets(source)),
     );
 
+    // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
+    // from the UCS members the entry point extracted. Empty when the source is
+    // a bare bigip.conf with no archive behind it.
+    device.insert("forensics".into(), crate::forensics::collect_forensics(files));
+
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a
     // partition while always keeping shared /Common objects visible.
@@ -1294,6 +1304,12 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("secrets".into(), J::from(secret_total));
+    let file_total = device
+        .get("forensics")
+        .and_then(|f| f.get("files"))
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("files".into(), J::from(file_total));
     device.insert("counts".into(), J::Object(counts));
 
     let ins = insights(&device);
@@ -1304,7 +1320,7 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
 /// Build the full report model from loaded `(uri, text)` sources.
 #[must_use]
 pub fn collect_model(sources: &[Source], title: &str) -> J {
-    collect_model_with_certs(sources, title, &HashMap::new())
+    collect_model_full(sources, title, &HashMap::new(), &HashMap::new())
 }
 
 /// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
@@ -1324,10 +1340,38 @@ pub fn collect_model_with_certs(
     title: &str,
     cert_pems: &HashMap<String, HashMap<String, String>>,
 ) -> J {
-    let empty = HashMap::new();
+    collect_model_full(sources, title, cert_pems, &HashMap::new())
+}
+
+/// [`collect_model_with_certs`] plus the per-device UCS **file inventory** that
+/// powers the Forensics tab.
+///
+/// `files` is keyed by source URI → the list of that device's extracted UCS
+/// members (each a JSON object `{path, size, sha256, isText, content?}`, from
+/// [`tcl_bigip_io::list_ucs_members`] / `read_ucs_member` at the wasm/CLI
+/// entry). Both `cert_pems` and `files` are source-scoped so nothing bleeds
+/// between devices in a multi-UCS report. Empty maps reproduce
+/// [`collect_model`] exactly.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_full(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, HashMap<String, String>>,
+    files: &HashMap<String, Vec<J>>,
+) -> J {
+    let empty_pems = HashMap::new();
+    let empty_files: Vec<J> = Vec::new();
     let devices: Vec<J> = sources
         .iter()
-        .map(|(uri, src)| collect_device(uri, src, cert_pems.get(uri).unwrap_or(&empty)))
+        .map(|(uri, src)| {
+            collect_device(
+                uri,
+                src,
+                cert_pems.get(uri).unwrap_or(&empty_pems),
+                files.get(uri).map_or(&empty_files, |v| v.as_slice()),
+            )
+        })
         .collect();
 
     let mut totals: Map<String, J> = Map::new();

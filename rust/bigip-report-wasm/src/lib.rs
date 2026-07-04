@@ -116,6 +116,66 @@ pub fn extract_cert_files(
     serde_json::to_string(&map).map_err(|e| JsError::new(&e.to_string()))
 }
 
+/// Recover the forensic file inventory from a UCS archive.
+///
+/// Enumerates the members an attacker tampers with on a compromised BIG-IP
+/// (login-persistence dotfiles + SSH keys, the local account databases,
+/// external-auth / PAM config, syslog-ng, cron — see
+/// [`tcl_bigip_io::MemberScope::Forensic`]) with per-file metadata (size,
+/// SHA-256, text/binary), and reads back the content of the small text files so
+/// the Forensics tab can run its heuristics and show them. Content over
+/// `MAX_FORENSIC_CONTENT` bytes, or binary, is metadata-only. A non-UCS input
+/// (a bare `bigip.conf`) returns `[]`. Returns a JSON array of
+/// `{path, size, sha256, isText, content?}`; feed the map `{name: <that array>}`
+/// into [`generate_report`]. Nothing leaves the page.
+#[wasm_bindgen]
+pub fn extract_files(name: &str, bytes: &[u8], passphrase: &str) -> Result<String, JsError> {
+    use tcl_bigip_io::{list_ucs_members, read_ucs_member, MemberScope};
+
+    /// Cap on embedded content per file (256 KiB): forensic config/auth files
+    /// are small, but a runaway log-config include shouldn't bloat the page.
+    const MAX_FORENSIC_CONTENT: u64 = 256 * 1024;
+
+    let is_ucs_ext = std::path::Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("ucs"));
+    if !(is_pgp_bytes(bytes) || (is_ucs_bytes(bytes) && is_ucs_ext)) {
+        return Ok("[]".to_string());
+    }
+
+    let opts = PassphraseOptions {
+        explicit: (!passphrase.is_empty()).then(|| passphrase.to_owned()),
+        allow_prompt: false,
+        ..PassphraseOptions::default()
+    };
+    let provider = move || resolve_passphrase(&opts);
+
+    let entries = list_ucs_members(bytes, &provider, name, MemberScope::Forensic)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    let mut out: Vec<serde_json::Value> = Vec::with_capacity(entries.len());
+    for e in entries {
+        // Read content for small text files only; the Forensics shaper drops
+        // sensitive bodies (shadow / private keys) before they reach the DOM.
+        let content = if e.is_text && e.size <= MAX_FORENSIC_CONTENT {
+            read_ucs_member(bytes, &e.path, &provider, name)
+                .ok()
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        } else {
+            None
+        };
+        out.push(serde_json::json!({
+            "path": e.path,
+            "size": e.size,
+            "sha256": e.sha256,
+            "isText": e.is_text,
+            "content": content,
+        }));
+    }
+    serde_json::to_string(&out).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Count the `f5mku` `$M$…` encrypted secrets in an SCF source.
 ///
 /// The page uses this to decide whether to ask for a master key at all — the
@@ -144,6 +204,9 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 ///   `{uri: {cache_path: pem}}` — so the certs tab can parse the real
 ///   certificates (issue date, SANs, trust chain) and a filestore `cache-path`
 ///   shared across two devices doesn't collide. `"{}"` for none.
+/// * `files_json` — a JSON object `{uri: [{path, size, sha256, isText,
+///   content?}]}` from each file's [`extract_files`], powering the Forensics
+///   tab. `"{}"` for none.
 /// * `title` — the report title.
 /// * `generated_at` — a generation timestamp string (the caller stamps it with
 ///   the browser's local clock; the engine itself is time-free).
@@ -154,6 +217,7 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 pub fn generate_report(
     sources_json: &str,
     cert_files_json: &str,
+    files_json: &str,
     title: &str,
     generated_at: &str,
     embed_console: bool,
@@ -170,11 +234,19 @@ pub fn generate_report(
             serde_json::from_str(cert_files_json)
                 .map_err(|e| JsError::new(&format!("invalid cert-files JSON: {e}")))?
         };
+    let files: std::collections::HashMap<String, Vec<serde_json::Value>> =
+        if files_json.trim().is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            serde_json::from_str(files_json)
+                .map_err(|e| JsError::new(&format!("invalid files JSON: {e}")))?
+        };
     let opts = RenderOptions {
         title: title.to_owned(),
         generated_at: generated_at.to_owned(),
         embed_console,
         cert_pems,
+        files,
     };
     build_report(&sources, &opts).map_err(|e| JsError::new(&e.to_string()))
 }

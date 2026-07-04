@@ -1,0 +1,41 @@
+/* Forensics tab — UCS file inventory + ATT&CK-mapped hunting checklist. */
+.forensics-view { margin-top: 4px; }
+
+.fx-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+.fx-check {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 9px;
+  background: var(--panel);
+  padding: 10px 12px;
+}
+.fx-check-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fx-verdict {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
+  padding: 1px 6px; border-radius: 5px; background: var(--tag-bg); color: var(--tag-ink);
+}
+.fx-check-label { font-weight: 640; font-size: 13px; }
+.fx-attack { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.fx-check-detail { margin-top: 5px; font-size: 12px; color: var(--muted); }
+
+.fx-red { border-left-color: var(--red); }
+.fx-red .fx-verdict { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+.fx-amber { border-left-color: var(--amber); }
+.fx-amber .fx-verdict { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.fx-blue { border-left-color: var(--blue); }
+.fx-blue .fx-verdict { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
+.fx-green { border-left-color: var(--green); }
+.fx-green .fx-verdict { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.fx-muted { opacity: .72; }
+
+.fx-reveal {
+  padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 12px; cursor: pointer;
+}
+.fx-reveal:hover { border-color: var(--accent); color: var(--accent); }
+.fx-content pre { margin: 0; max-height: 340px; overflow: auto; }
