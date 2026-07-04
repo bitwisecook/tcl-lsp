@@ -657,59 +657,19 @@ fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
 
 // iRules string ops
 
-/// Split a simple Tcl list string into elements.
+/// Split a Tcl list string into its decoded element values.
 ///
-/// Handles space-separated words and brace-grouped elements.
-/// Does not handle the full Tcl list-quoting grammar (backslash
-/// continuations, nested braces within quoted strings) but covers
-/// the constant inputs seen by `in` / `ni` at compile time.
+/// A thin wrapper over the shared list grammar
+/// [`tcl_syntax::list::split_list_lenient`]: membership (`in` / `ni`) compares
+/// against decoded element values, and element *counts* (`llength` folds) need
+/// the full grammar so an escaped separator like `a\ b` counts as one element.
+/// Tolerant of a malformed tail so folding a partial list still yields a
+/// best-effort element list rather than nothing.
 pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        if bytes[i] == b'{' {
-            let mut level = 1i32;
-            i += 1;
-            let start = i;
-            while i < bytes.len() && level > 0 {
-                match bytes[i] {
-                    b'{' => level += 1,
-                    b'}' => level -= 1,
-                    _ => {}
-                }
-                i += 1;
-            }
-            out.push(text[start..i - 1].to_owned());
-        } else if bytes[i] == b'"' {
-            i += 1;
-            let start = i;
-            while i < bytes.len() && bytes[i] != b'"' {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 2;
-                    continue;
-                }
-                i += 1;
-            }
-            out.push(text[start..i].to_owned());
-            if i < bytes.len() {
-                i += 1;
-            }
-        } else {
-            let start = i;
-            while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                i += 1;
-            }
-            out.push(text[start..i].to_owned());
-        }
-    }
-    out
+    tcl_syntax::list::split_list_lenient(text)
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
 }
 
 /// Apply an iRules string operator to two rendered string operands.
