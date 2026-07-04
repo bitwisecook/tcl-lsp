@@ -633,6 +633,46 @@ fn json_ref(ty: &str, full_path: &str) -> J {
     J::Object(o)
 }
 
+/// Full paths of built-in / system objects: the default profiles, monitors and
+/// `_sys_*` objects that ship with TMOS, declared in `profile_base.conf` /
+/// `low_profile_base.conf` (often as bare names the engine prefixes with
+/// `/Common/`). Recognised from the `# config/<member>` section headers the UCS
+/// extractor writes into the SCF.
+fn default_object_paths(config_text: &str) -> std::collections::HashSet<String> {
+    const DEFAULT_MEMBERS: &[&str] = &[
+        "config/profile_base.conf",
+        "config/low_profile_base.conf",
+    ];
+    let mut out = std::collections::HashSet::new();
+    let mut in_default = false;
+    for line in config_text.lines() {
+        if let Some(rest) = line.strip_prefix("# ") {
+            let name = rest.trim();
+            if name.starts_with("config/") {
+                in_default = DEFAULT_MEMBERS.contains(&name);
+            }
+            continue;
+        }
+        if !in_default {
+            continue;
+        }
+        // A top-level declaration starts at column 0 with a lowercase letter and
+        // opens a brace; the object name is the last token before the first `{`
+        // (handles both `x /Common/y {` and one-liner `x y { }`).
+        if line.starts_with(|c: char| c.is_ascii_lowercase())
+            && let Some(brace) = line.find('{')
+            && let Some(name) = line[..brace].split_whitespace().last()
+        {
+            out.insert(if name.starts_with('/') {
+                name.to_string()
+            } else {
+                format!("/Common/{name}")
+            });
+        }
+    }
+    out
+}
+
 /// Resolve a cross-iRule `call <rule>::proc` target name to an actual iRule full
 /// path, preferring the caller's partition, then `/Common`.
 fn resolve_rule(
@@ -941,6 +981,23 @@ fn collect_device(uri: &str, source: &str) -> J {
         device.insert((*key).into(), J::Array(shaped));
     }
 
+    // Tag built-in / system objects (the default profiles, monitors and
+    // `_sys_*` iRules that ship with TMOS — from `profile_base.conf` /
+    // `low_profile_base.conf`) so they can be hidden by default and kept out of
+    // orphan analysis, counts and diagrams.
+    let defaults = default_object_paths(source);
+    for key in DISPLAY_KEYS {
+        if let Some(J::Array(objs)) = device.get_mut(*key) {
+            for o in objs.iter_mut() {
+                if let Some(om) = o.as_object_mut() {
+                    let fp = bstr(om, "fullPath");
+                    let is_def = defaults.contains(fp) || leaf(fp).starts_with("_sys_");
+                    om.insert("isDefault".into(), J::Bool(is_def));
+                }
+            }
+        }
+    }
+
     // Link cross-iRule `call <rule>::<proc>` references before orphan analysis
     // so a proc-library iRule is counted as used by its callers.
     link_proc_calls(&mut device);
@@ -1002,7 +1059,10 @@ fn collect_device(uri: &str, source: &str) -> J {
                         .get("usedBy")
                         .and_then(J::as_array)
                         .is_none_or(Vec::is_empty);
-                    let status = if !empty {
+                    let status = if om.get("isDefault").and_then(J::as_bool) == Some(true) {
+                        // Built-in/system objects are never "orphans".
+                        ""
+                    } else if !empty {
                         ""
                     } else if attaches.is_empty() {
                         "orphan"
@@ -1139,10 +1199,16 @@ fn collect_device(uri: &str, source: &str) -> J {
         J::Array(partitions.into_iter().map(J::String).collect()),
     );
 
-    // Counts.
+    // Counts. Built-in / system (default) objects are excluded — the chips count
+    // the estate's own objects, not the ~260 TMOS defaults.
     let mut counts = Map::new();
     for (key, _) in CONTAINERS {
-        let n = device.get(*key).and_then(J::as_array).map_or(0, Vec::len);
+        let n = device.get(*key).and_then(J::as_array).map_or(0, |objs| {
+            objs.iter()
+                .filter_map(J::as_object)
+                .filter(|o| o.get("isDefault").and_then(J::as_bool) != Some(true))
+                .count()
+        });
         counts.insert((*key).into(), J::from(n));
     }
     let pool_members: usize = barr(&device, "pools")

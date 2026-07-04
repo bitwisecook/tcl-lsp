@@ -50,6 +50,38 @@ _CONTAINERS = {
 # points, so they are never treated as orphans.
 _REFERABLE = ["pools", "nodes", "monitors", "rules", "profiles", "dataGroups", "snatpools"]
 
+# Object-list keys that carry a displayed, partition-scoped object.
+_DISPLAY_KEYS = (
+    "virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
+    "profiles", "policies", "snatpools", "persistence", "certificates",
+)
+
+# Config members that hold TMOS's built-in defaults (default profiles / monitors
+# / `_sys_*` objects). Objects declared here are shown only where directly linked.
+_DEFAULT_MEMBERS = frozenset({"config/profile_base.conf", "config/low_profile_base.conf"})
+
+
+def _default_object_paths(config_text: str) -> set[str]:
+    """Full paths of built-in / system objects, from the ``# config/<member>``
+    sections the UCS extractor writes. Mirrors the Rust ``default_object_paths``."""
+    out: set[str] = set()
+    in_default = False
+    for line in config_text.splitlines():
+        if line.startswith("# "):
+            name = line[2:].strip()
+            if name.startswith("config/"):
+                in_default = name in _DEFAULT_MEMBERS
+            continue
+        if not in_default:
+            continue
+        if line[:1].islower() and "{" in line:
+            toks = line.split("{", 1)[0].split()
+            if toks:
+                nm = toks[-1]
+                out.add(nm if nm.startswith("/") else "/Common/" + nm)
+    return out
+
+
 _TMSH_RE = re.compile(r"#TMSH-VERSION:\s*(\S+)")
 _HOSTNAME_RE = re.compile(r"hostname\s+(\S+)")
 
@@ -393,6 +425,16 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 for f in rows
             ]
 
+    # Tag built-in / system objects (default profiles, monitors, `_sys_*` iRules
+    # from profile_base.conf / low_profile_base.conf) so they can be hidden by
+    # default and kept out of orphan analysis, counts and diagrams.
+    defaults = _default_object_paths(source)
+    for key in _DISPLAY_KEYS:
+        for o in device.get(key, []):
+            if isinstance(o, dict):
+                fp = o.get("fullPath", "")
+                o["isDefault"] = fp in defaults or fp.rsplit("/", 1)[-1].startswith("_sys_")
+
     # Link cross-iRule `call <rule>::<proc>` references before orphan analysis so
     # a proc-library iRule is counted as used by its callers.
     _graph.link_proc_calls(device)
@@ -422,7 +464,9 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
         for o in device.get(name, []):
             if not isinstance(o, dict):
                 continue
-            if o.get("usedBy"):
+            if o.get("isDefault"):
+                o["orphanStatus"] = ""  # built-in/system objects are never orphans
+            elif o.get("usedBy"):
                 o["orphanStatus"] = ""
             elif not attaches:
                 o["orphanStatus"] = "orphan"
@@ -479,12 +523,8 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # Tag every displayed object with its partition (from the full path) and
     # collect the device's partition set, so the report can filter to a
     # partition while always keeping shared /Common objects visible.
-    _display_keys = (
-        "virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
-        "profiles", "policies", "snatpools", "persistence", "certificates",
-    )
     partitions: set[str] = set()
-    for key in _display_keys:
+    for key in _DISPLAY_KEYS:
         for o in device.get(key, []):
             if not isinstance(o, dict):
                 continue
@@ -494,7 +534,12 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
             o["partition"] = part
     device["partitions"] = sorted(partitions)
 
-    device["counts"] = {key: len(device.get(key, [])) for key in _CONTAINERS}
+    # Counts exclude built-in/system defaults — the chips count the estate's own
+    # objects, not the ~260 TMOS defaults.
+    device["counts"] = {
+        key: sum(1 for o in device.get(key, []) if not (isinstance(o, dict) and o.get("isDefault")))
+        for key in _CONTAINERS
+    }
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
     device["counts"]["certificates"] = len(device["certificates"])

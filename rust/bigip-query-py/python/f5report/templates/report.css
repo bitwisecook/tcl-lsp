@@ -224,6 +224,15 @@ pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
 .refs-table th,.refs-table td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .refs-table th{color:var(--muted);font-weight:600}
 
+/* ---- Built-in / system object visibility --------------------------------- */
+.view-controls{margin:6px 0 2px;font-size:12px}
+.sys-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--muted);cursor:pointer}
+.sys-toggle input{width:15px;height:15px;cursor:pointer}
+.sys-toggle code{font-family:var(--mono);color:var(--ink)}
+tr.sys-row{display:none}
+.device.show-system-on tr.sys-row{display:table-row}
+.device.show-system-on tr.sys-row.detail{display:table-row}
+
 /* ---- App bundling -------------------------------------------------------- */
 .app-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;
   padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
@@ -321,6 +330,16 @@ html,body{max-width:100%;overflow-x:clip}
   table.grid{font-size:12px}
   .grid thead th,.grid tbody td{padding:8px 9px}
   .refs-table th,.refs-table td{padding:4px 6px}
+
+  /* Detail-row content (iRule source, reference tables, flowcharts) must not
+     force the table cell wider than the screen — otherwise a big Mermaid SVG
+     pushes the source / tables far off to the right and they look "missing".
+     Cap wide content to the viewport; each piece scrolls inside itself. */
+  .irule-flow-diagram,.app-obj-flow,.app-flow-diagram{max-width:88vw}
+  .irule-flow-diagram svg,.app-obj-flow svg,.app-flow-diagram svg{max-width:86vw}
+  pre.code{max-width:88vw;white-space:pre-wrap;word-break:break-word}
+  .irule-refs,.refs-table,.refs-dyn{max-width:88vw}
+  tr.detail>td{max-width:100vw}
 }
 
 @media (max-width:420px){
