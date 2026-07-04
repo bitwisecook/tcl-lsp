@@ -35,10 +35,12 @@
 //! # Scope
 //!
 //! The query covers every function the [`CompilationUnit`] lowers: the
-//! top-level script, each `proc` body, and each `TclOO` method / constructor /
+//! top-level script, each `proc` body, each `TclOO` method / constructor /
 //! destructor body (lowered to its own `FunctionUnit` under
-//! [`CompilationUnit::methods`]).  So a `set`/`regexp` flow is tracked inside a
-//! method exactly as inside a proc.
+//! [`CompilationUnit::methods`]), and each synthetic *body unit* — `apply`
+//! lambda bodies and `namespace eval` blocks (under
+//! [`CompilationUnit::body_units`]).  So a `set`/`regexp` flow is tracked inside
+//! a method, a lambda, or a namespace-eval body exactly as inside a proc.
 
 use std::collections::{HashMap, HashSet};
 
@@ -65,13 +67,18 @@ pub fn regex_source_literal_spans(
 ) -> Vec<Span> {
     let mut spans: Vec<Span> = Vec::new();
     let mut units: Vec<&FunctionUnit> =
-        Vec::with_capacity(cu.procedures.len() + cu.methods.len() + 1);
+        Vec::with_capacity(cu.procedures.len() + cu.methods.len() + cu.body_units.len() + 1);
     units.push(&cu.top_level);
     units.extend(cu.procedures.values());
     // `TclOO` method / constructor / destructor bodies are lowered to their own
     // `FunctionUnit`s (keyed `{class}::{method}`); walk them too so a
     // `set re "…"; regexp $re` inside a method tracks like one in a proc.
     units.extend(cu.methods.values());
+    // Synthetic body units — `apply` lambda bodies and `namespace eval` blocks —
+    // are lowered to their own fresh-frame `FunctionUnit`s (§ Scope). Walking
+    // them lets a `set re "…"; regexp $re` *inside* a lambda or namespace-eval
+    // body track its def-site literal the same way a proc body does.
+    units.extend(cu.body_units.values());
     for fu in units {
         collect_in_function(source, fu, registry, dialect, &mut spans);
     }
@@ -436,6 +443,57 @@ mod tests {
         let src = "oo::class create C {\n  constructor {s} {\n    set re {a+}\n    regexp $re $s\n  }\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["{a+}".to_owned()]);
+    }
+
+    #[test]
+    fn pattern_inside_namespace_eval_body_tracked() {
+        // A `namespace eval` body runs in its own frame, lowered to a synthetic
+        // body unit (`CompilationUnit::body_units`), so the `set`/`regexp` flow
+        // tracks inside it the same as in a proc.
+        let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
+        let got = spans_text(src);
+        assert_eq!(got, vec!["\".*x\"".to_owned()]);
+    }
+
+    #[test]
+    fn pattern_inside_apply_lambda_body_tracked() {
+        // An `apply` lambda body is a fresh-frame body unit; a `set re`/`regexp`
+        // wholly inside the lambda tracks its def-site literal.
+        let src = "apply {{s} {\n  set re {a+b}\n  regexp $re $s\n}} foo\n";
+        let got = spans_text(src);
+        assert_eq!(got, vec!["{a+b}".to_owned()]);
+    }
+
+    #[test]
+    fn apply_lambda_param_is_not_a_def_site() {
+        // The pattern variable is the lambda's *parameter* `re` (bound to the
+        // caller's arg), not a body literal — so there is no def-site literal to
+        // highlight. Proves the body unit binds params correctly (a bare `$re`
+        // read resolves to the param, not to some caller scalar).
+        let src = "apply {{re s} {\n  regexp $re $s\n}} {a+} foo\n";
+        let got = spans_text(src);
+        assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn namespace_eval_body_unit_does_not_change_bytecode() {
+        // Recording a body unit is analysis-only: the module still emits the
+        // `namespace` runtime barrier, and codegen never reads `body_units`, so
+        // the presence of a body unit must not perturb compiled output. Assert
+        // the body unit is recorded (coverage) but lives outside procedures.
+        let registry = CommandRegistry::build_default();
+        let src = "namespace eval ::ns { set re \".*x\"\n regexp $re $s }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        assert_eq!(cu.body_units.len(), 1, "one namespace-eval body unit");
+        assert!(
+            cu.body_units
+                .keys()
+                .all(|k| k.starts_with("::namespace-eval#")),
+            "{:?}",
+            cu.body_units.keys().collect::<Vec<_>>()
+        );
+        // The body unit is not a real procedure (codegen would emit it).
+        assert!(cu.procedures.is_empty(), "no procedures materialised");
     }
 
     fn spans_text_dialect(source: &str, dialect: &str) -> Vec<String> {

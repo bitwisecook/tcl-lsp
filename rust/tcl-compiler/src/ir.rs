@@ -684,6 +684,21 @@ pub struct Module {
     pub procedures: std::collections::HashMap<String, Procedure>,
     /// Named methods (keyed by `class::method`).
     pub methods: std::collections::HashMap<String, MethodDef>,
+    /// Synthetic *body units* — the bodies of commands that run their script
+    /// argument in a fresh frame but are **not** real named procedures:
+    /// `apply` lambdas and `namespace eval` bodies (keyed by a synthetic
+    /// qualified name like `::apply#0` or `::namespace-eval::NS#0`).
+    ///
+    /// These are lowered into [`Procedure`]s purely so the static-analysis
+    /// pipeline (CFG → SSA → SCCP → taint) reaches *inside* the body — the
+    /// same coverage a real `proc` gets. They are held in a **separate** map
+    /// from [`Self::procedures`] so codegen (which emits `procedures`) never
+    /// materialises them as callable procs, and from [`Self::methods`] so the
+    /// TclOO-specific consumers (interproc method purity, the O126 optimiser
+    /// gate) never mistake them for methods. The body still executes at
+    /// runtime via its command's own `Statement::Barrier`, so bytecode is
+    /// byte-identical whether or not a body unit is recorded.
+    pub body_units: std::collections::HashMap<String, Procedure>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
     /// `TclOO` method qnames defined more than once (a later

@@ -3102,6 +3102,53 @@ mod tests {
         }
     }
 
+    #[test]
+    fn regex_source_tracks_inside_namespace_eval_body() {
+        // `namespace eval` bodies are lowered as their own synthetic body units,
+        // so a `set re "…"; regexp $re` inside the eval highlights the def-site
+        // literal — end-to-end through the CU overlay, matching a proc body.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the ns-eval body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_source_tracks_inside_apply_lambda_body() {
+        // `apply` lambda bodies are synthetic body units too — a def-site regex
+        // literal inside the lambda highlights as a regex.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the apply lambda body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
     /// Decode a `SemanticTokens` value directly into
     /// `(line, col, len, kind, mods)` tuples.
     fn decode_semantic(st: &SemanticTokens) -> Vec<(u32, u32, u32, u32, u32)> {

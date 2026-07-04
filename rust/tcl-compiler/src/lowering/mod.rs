@@ -483,6 +483,11 @@ pub struct Lowerer<'r> {
     aliases: CommandAliasMap,
     /// Event handler occurrence counts (for `when` numbering).
     when_counts: HashMap<String, u32>,
+    /// Monotonic counter for synthetic *body unit* names (`apply` lambdas and
+    /// `namespace eval` bodies), so each registers under a unique qualified
+    /// name in [`Module::body_units`]. Deterministic in source order, so the
+    /// fresh and incremental lowerings produce identical names.
+    body_unit_count: u32,
     /// Whether we're inside a `namespace eval` body.
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
@@ -568,6 +573,7 @@ impl<'r> Lowerer<'r> {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
             when_counts: HashMap::new(),
+            body_unit_count: 0,
             in_namespace_eval: false,
             registry,
             const_map_stack: Vec::new(),
@@ -1616,6 +1622,40 @@ impl<'r> Lowerer<'r> {
     /// if present, else the global namespace `::` — not the caller's namespace,
     /// so a nested `proc` registers under the same qualified name Tcl's runtime
     /// `apply` would give it (per the `apply` manual).
+    /// Register an already-lowered fresh-frame body (an `apply` lambda or a
+    /// `namespace eval` block) as a synthetic *body unit* in
+    /// [`Module::body_units`], so the static-analysis pipeline reaches inside
+    /// it. `label` names the construct (`apply` / `namespace-eval`), `params`
+    /// are the frame's bound names (empty for `namespace eval`), and `span`
+    /// covers the body text (used by the complexity guard). Purely additive —
+    /// the caller still emits the runtime `Statement::Barrier` that executes
+    /// the body, so bytecode is unchanged.
+    fn register_body_unit(
+        &mut self,
+        label: &str,
+        params: Vec<String>,
+        span: tcl_lexer::Span,
+        body: Script,
+    ) {
+        let n = self.body_unit_count;
+        self.body_unit_count += 1;
+        let qualified = format!("::{label}#{n}");
+        self.module.body_units.insert(
+            qualified.clone(),
+            Procedure {
+                name: label.to_string(),
+                qualified_name: qualified,
+                params,
+                span,
+                body,
+                params_raw: String::new(),
+                body_source: None,
+                namespace_scoped: false,
+                base_priority: 500,
+            },
+        );
+    }
+
     fn lower_apply(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         use tcl_lexer::TokenType;
         let args = seg.args();
@@ -1660,9 +1700,25 @@ impl<'r> Lowerer<'r> {
             // `lower_proc`'s const-map / proc-depth push.
             self.proc_depth += 1;
             self.const_map_stack.push(HashMap::new());
-            let _body = self.lower_body(&body_text, body_offset, &body_ns);
+            let body = self.lower_body(&body_text, body_offset, &body_ns);
             self.const_map_stack.pop();
             self.proc_depth -= 1;
+
+            // The lambda's bound parameters are element 0 of the lambda list, so
+            // a `$param` read inside the body resolves to the param (not a
+            // caller scalar). A body defined inside a TclOO method body is not
+            // registered globally (`suppress_proc_register`), but a body unit is
+            // analysis-only (never codegen-emitted), so it is always safe to
+            // record for coverage.
+            let params = lambda_elems
+                .first()
+                .map(|(_, t)| parse_param_names(t))
+                .unwrap_or_default();
+            let span = tcl_lexer::Span::new(
+                body_offset,
+                body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
+            );
+            self.register_body_unit("apply", params, span, body);
         }
 
         Statement::Barrier {
@@ -1683,8 +1739,17 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let _body = self.lower_body(body_text, body_offset, &child_ns);
+        let body = self.lower_body(body_text, body_offset, &child_ns);
         self.in_namespace_eval = prev;
+
+        // A `namespace eval` body runs in the child namespace's own frame — its
+        // straight-line statements are a real analysable script, so record them
+        // as a body unit (no bound params: namespace vars, not locals).
+        let span = tcl_lexer::Span::new(
+            body_offset,
+            body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
+        );
+        self.register_body_unit("namespace-eval", vec![], span, body);
 
         Statement::Barrier {
             span: seg.span,

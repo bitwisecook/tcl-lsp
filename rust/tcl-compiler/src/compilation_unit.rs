@@ -415,6 +415,17 @@ pub struct CompilationUnit {
     /// per-proc diagnostic passes are unaffected — only the optimiser's
     /// O126 gate iterates these.
     pub methods: HashMap<String, FunctionUnit>,
+    /// Synthetic *body units* — the bodies of `apply` lambdas and
+    /// `namespace eval` blocks, lowered to [`FunctionUnit`]s so the
+    /// static-analysis pipeline reaches inside them (see
+    /// [`crate::ir::Module::body_units`]). Keyed by a synthetic qualified name
+    /// (`::apply#N`, `::namespace-eval::NS#N`). Kept **separate** from both
+    /// [`Self::procedures`] and [`Self::methods`] so no existing consumer —
+    /// codegen, the optimiser/minifier, the per-proc or OO diagnostic passes —
+    /// changes behaviour; only analyses that explicitly opt in (via
+    /// [`Self::body_function_units`]) read them. Empty for the overwhelmingly
+    /// common source with no `apply`/`namespace eval` body.
+    pub body_units: HashMap<String, FunctionUnit>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
@@ -578,8 +589,9 @@ impl CompilationUnit {
         // memoised request (and the methods below), so the offset-0 CFG the
         // memo rebuilds is identical to this whole-module build's.  Only needed
         // on the memoised path or when methods are present.
-        let cfg_context = (cache.is_some() || !ir_module.methods.is_empty())
-            .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
+        let cfg_context =
+            (cache.is_some() || !ir_module.methods.is_empty() || !ir_module.body_units.is_empty())
+                .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
             let params = ir_module
@@ -658,6 +670,8 @@ impl CompilationUnit {
         }
         let methods =
             Self::build_method_units(&ir_module, cfg_context.as_ref(), &known_class_set, registry);
+        let body_units =
+            Self::build_body_units(&ir_module, cfg_context.as_ref(), &known_class_set, registry);
         // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
         // ``when`` block is present so non-iRules consumers
@@ -682,6 +696,7 @@ impl CompilationUnit {
             top_level,
             procedures,
             methods,
+            body_units,
             interproc: None,
             connection_scope,
         }
@@ -734,6 +749,61 @@ impl CompilationUnit {
                     )
                 };
                 (mqname.clone(), fu)
+            })
+            .collect()
+    }
+
+    /// Lower the synthetic *body units* (`apply` lambdas and `namespace eval`
+    /// bodies, populated in [`crate::ir::Module::body_units`] by lowering) to
+    /// per-body [`FunctionUnit`]s, using the same CFG → SSA → analysis pipeline
+    /// as procs and methods.
+    ///
+    /// Each body runs in a *fresh* frame (its own locals), exactly like a proc
+    /// or method body — so the CFG is built with `is_proc = true` and the
+    /// module upvar/param context, matching [`Self::build_method_units`]. Kept
+    /// in a separate map so no existing consumer (codegen, optimiser, per-proc
+    /// diagnostics) is affected; only [`Self::body_function_units`] surfaces
+    /// them. Returns an empty map when the module has no body units (the common
+    /// case), skipping all work.
+    fn build_body_units(
+        ir_module: &IrModule,
+        cfg_context: Option<&CfgContext>,
+        known_class_set: &HashSet<String>,
+        registry: &CommandRegistry,
+    ) -> HashMap<String, FunctionUnit> {
+        if ir_module.body_units.is_empty() {
+            return HashMap::new();
+        }
+        let (upvar_procs, proc_params) =
+            cfg_context.expect("cfg_context computed when body units are present");
+        ir_module
+            .body_units
+            .iter()
+            .map(|(qname, proc)| {
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                    qname,
+                    &proc.body,
+                    true,
+                    upvar_procs.clone(),
+                    proc_params.clone(),
+                );
+                // Same body-byte complexity guard as procs/methods: a huge
+                // generated lambda body contributes trivial lattices instead of
+                // a deep (and slow) analysis.
+                let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
+                let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+                    FunctionUnit::trivial_guarded(qname, cfg)
+                } else {
+                    FunctionUnit::build_with_param_constants_and_classes(
+                        qname,
+                        cfg,
+                        &proc.params,
+                        registry,
+                        None,
+                        known_class_set,
+                    )
+                };
+                (qname.clone(), fu)
             })
             .collect()
     }
@@ -924,6 +994,33 @@ impl CompilationUnit {
     /// CFG walk. The relative order of the remaining functions is unchanged.
     pub fn analysable_functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         self.functions().filter(|fu| !fu.complexity_guarded)
+    }
+
+    /// Iterate every *body-bearing* function unit whose body is statically
+    /// analysable: the top-level, every procedure, every `TclOO` method, **and**
+    /// every synthetic body unit (`apply` lambda / `namespace eval` body).
+    ///
+    /// This is the coverage-complete iterator for analyses that must reach
+    /// *inside* every statically-known frame (e.g. regex-source tracking),
+    /// unlike [`Self::functions`] which — for backwards compatibility with the
+    /// per-proc diagnostic passes — yields only top-level + procedures. Order:
+    /// top-level, procedures (name-sorted), then methods and body units
+    /// (name-sorted) for reproducibility.
+    pub fn all_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
+        let mut extra: Vec<&FunctionUnit> = self
+            .methods
+            .values()
+            .chain(self.body_units.values())
+            .collect();
+        extra.sort_by(|a, b| a.name.cmp(&b.name));
+        self.functions().chain(extra)
+    }
+
+    /// The synthetic body units (`apply` / `namespace eval`) alone, name-sorted.
+    pub fn body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
+        let mut v: Vec<&FunctionUnit> = self.body_units.values().collect();
+        v.sort_by(|a, b| a.name.cmp(&b.name));
+        v.into_iter()
     }
 }
 
