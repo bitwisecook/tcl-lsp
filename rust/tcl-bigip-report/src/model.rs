@@ -1321,10 +1321,31 @@ pub fn collect_model_with_certs(
     title: &str,
     cert_pems: &HashMap<String, String>,
 ) -> J {
+    collect_model_with_architecture(sources, title, cert_pems, None)
+}
+
+/// [`collect_model_with_certs`] plus an optional *architecture manifest*.
+///
+/// The report always auto-detects how the loaded devices relate as tiers (an
+/// upstream device whose pool member / GTM server address is served by another
+/// device's virtual is one tier up). `manifest` is an optional JSON document
+/// (see [`crate::architecture`]) that overrides each device's role/tier and can
+/// declare links explicitly; `None` (or empty) uses pure auto-detection. A
+/// malformed manifest is reported inside the model rather than failing the build.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_with_architecture(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, String>,
+    manifest: Option<&str>,
+) -> J {
     let devices: Vec<J> = sources
         .iter()
         .map(|(uri, src)| collect_device(uri, src, cert_pems))
         .collect();
+
+    let architecture = crate::architecture::build_architecture(&devices, manifest);
 
     let mut totals: Map<String, J> = Map::new();
     for d in &devices {
@@ -1348,5 +1369,6 @@ pub fn collect_model_with_certs(
     model.insert("devices".into(), J::Array(devices));
     model.insert("totals".into(), J::Object(totals));
     model.insert("container_order".into(), J::Array(container_order));
+    model.insert("architecture".into(), architecture);
     J::Object(model)
 }
