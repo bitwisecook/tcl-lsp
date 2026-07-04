@@ -1,6 +1,6 @@
 //! `diagram` verb: extract structured control-flow data from the IR.
 //!
-//! The extraction itself lives in [`tcl_lsp_core::diagram`] (shared with the
+//! The extraction itself lives in [`tcl_diagram`] (shared with the
 //! `tcl_lsp_py` facade); this verb is the CLI I/O + text-rendering wrapper
 //! that combines the inputs, resolves the registry, and prints the
 //! `{events, procedures}` flow tree the VS Code `/diagram` command forwards
@@ -11,7 +11,7 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, ensure_ascii, read_input_documents, registry_for_dialect,
     write_text_output,
 };
-use tcl_lsp_core::diagram;
+use tcl_diagram as diagram;
 
 use crate::cli::InputArgs;
 

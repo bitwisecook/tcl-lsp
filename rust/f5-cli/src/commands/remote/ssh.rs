@@ -220,7 +220,10 @@ mod tests {
     #[test]
     fn scf_save_builds_tmsh_command_and_path() {
         let (command, path) = scf_save("f5_fetch_1");
-        assert_eq!(command, "tmsh save sys config file f5_fetch_1 no-passphrase");
+        assert_eq!(
+            command,
+            "tmsh save sys config file f5_fetch_1 no-passphrase"
+        );
         assert_eq!(path, "/var/local/scf/f5_fetch_1.scf");
     }
 

@@ -18,7 +18,6 @@ pub mod code_lens;
 pub mod completion;
 pub mod declaration;
 pub mod definition;
-pub mod diagram;
 pub mod document_links;
 pub mod document_symbols;
 pub mod file_ops;

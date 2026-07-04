@@ -116,9 +116,14 @@ name = "bigip-query-py"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "serde_json",
  "tcl-bigip",
  "tcl-bigip-io",
  "tcl-bigip-query",
+ "tcl-diagram",
+ "tcl-f5mku",
+ "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -1136,6 +1141,25 @@ dependencies = [
 [[package]]
 name = "tcl-core-types"
 version = "0.1.0"
+
+[[package]]
+name = "tcl-diagram"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
+name = "tcl-f5mku"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "base64",
+ "getrandom 0.3.4",
+]
 
 [[package]]
 name = "tcl-irules"

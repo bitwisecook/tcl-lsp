@@ -59,6 +59,15 @@ code{font-family:var(--mono)}
 
 .device{display:none;padding:8px 22px 40px}
 .device.active{display:block}
+/* partition filter */
+.partition-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 2px}
+.partition-lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.partition-filter{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);
+  color:var(--ink);font-size:13px;font-family:var(--mono)}
+.partition-filter:focus{outline:2px solid var(--accent);border-color:transparent}
+.partition-note{color:var(--muted);font-size:12px}
+.partition-note code{font-family:var(--mono);color:var(--ink)}
+tr.part-hidden{display:none !important}
 .device-head{display:flex;align-items:baseline;gap:14px;margin:14px 0 6px}
 .device-head h2{font-size:20px}
 .device-meta{display:flex;gap:8px}
@@ -74,7 +83,7 @@ code{font-family:var(--mono)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:14px}
 .tab{padding:9px 14px;border:none;background:none;color:var(--muted);cursor:pointer;font-weight:600;
   border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:7px}
-.tab:hover{color:var(--ink)}
+@media (hover:hover){.tab:hover{color:var(--ink)}}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab .n{font-size:11px;background:var(--tag-bg);color:var(--tag-ink);padding:1px 7px;border-radius:20px;font-weight:600}
 
@@ -85,7 +94,7 @@ table.grid{width:100%;border-collapse:collapse;font-size:13px}
 .grid thead th{position:sticky;top:0;background:var(--panel);text-align:left;padding:10px 12px;
   color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);z-index:1}
 .grid tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-.grid tbody tr.searchable:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+@media (hover:hover){.grid tbody tr.searchable:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}}
 .grid tbody tr.hidden{display:none}
 /* search results are two-toned: a row that directly matches the query is
    recoloured with the primary accent; a row shown only because it is *linked*
@@ -134,3 +143,220 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 
 .foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
+
+/* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
+   footer and (print only) as a page footer; also embedded invisibly in the
+   document head/body for provenance. */
+.attrib{color:var(--muted)}
+.attrib a{color:var(--accent,#2563eb);text-decoration:none}
+.attrib a:hover{text-decoration:underline}
+.brand .by{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.brand .by a{color:inherit;text-decoration:none}
+.brand .by a:hover{text-decoration:underline}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.print-only{display:none}
+
+
+.chip.chip-link{cursor:pointer;transition:transform .08s,box-shadow .08s}
+@media (hover:hover){.chip.chip-link:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.12)}}
+.chip.chip-link:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+
+/* ---- Print stylesheet ---------------------------------------------------- */
+@media print {
+  :root{color-scheme:light}
+  body{background:#fff;color:#000}
+  /* Print exactly what is on screen: the active device + active tab, with any
+     search / row / secret filters already applied (rows hidden in the UI stay
+     hidden, revealed secrets stay revealed). Only the interactive chrome and
+     the toggle buttons are stripped. */
+  .topbar-actions,#f5qbar,#drawerScrim,#objDrawer,
+  .topo-controls,.qc-bar,.lm-form,.cert-controls,
+  .secret-reveal,.secret-reveal-all,.expander{display:none!important}
+  pre.code{white-space:pre-wrap}
+  table.grid{font-size:10px}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  a{color:#000;text-decoration:underline}
+  .print-only{display:block}
+  .foot{border-top:1px solid #999}
+}
+
+/* Clickable references (objlink applied by topology.js to data-oid/data-oref). */
+.tag.objlink,a.ref.objlink{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+
+/* iRule (Tcl) syntax highlighting — colours the real tcl-lexer token stream. */
+pre.code.tcl .tk-cmd{color:#8250df;font-weight:600}
+pre.code.tcl .tk-ns{color:#0550ae}
+pre.code.tcl .tk-event{color:#116329;font-weight:600}
+pre.code.tcl .tk-var{color:#953800}
+pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) pre.code.tcl .tk-cmd{color:#d2a8ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-ns{color:#79c0ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-event{color:#7ee787}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-var{color:#ffa657}
+}
+:root[data-theme="dark"] pre.code.tcl .tk-cmd{color:#d2a8ff}
+:root[data-theme="dark"] pre.code.tcl .tk-ns{color:#79c0ff}
+:root[data-theme="dark"] pre.code.tcl .tk-event{color:#7ee787}
+:root[data-theme="dark"] pre.code.tcl .tk-var{color:#ffa657}
+
+/* iRule control-flow flowchart (Mermaid, rendered lazily on row expand). */
+.irule-flow{margin:4px 0 10px}
+.irule-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card);min-height:0}
+.irule-flow-diagram svg{max-width:100%;height:auto}
+/* Reconstructed dynamic object-name patterns (deep orphan analysis). */
+.attach-pat{display:inline-block;padding:1px 7px;border-radius:6px;
+  background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);
+  font-family:var(--mono,monospace);font-size:11px;cursor:help}
+/* Per-iRule referenced / potentially-referenced objects table. */
+.irule-refs{margin:2px 0 12px;font-size:12px}
+.refs-static{margin:2px 0 10px;line-height:1.9}
+.refs-lbl{color:var(--muted);margin-right:4px;font-weight:600}
+.ref-obj{display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;border-radius:6px;
+  background:var(--tag-bg);color:var(--tag-ink);cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.refs-none{margin:2px 0 8px;font-size:12px}
+.refs-dyn{margin:6px 0 10px}
+.refs-ctx{color:var(--muted);margin-bottom:4px}
+.refs-ctx code{font-family:var(--mono,monospace);color:var(--ink)}
+.refs-table{width:100%;border-collapse:collapse;font-size:12px}
+.refs-table th,.refs-table td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.refs-table th{color:var(--muted);font-weight:600}
+
+/* ---- Built-in / system object visibility --------------------------------- */
+.view-controls{margin:6px 0 2px;font-size:12px}
+.sys-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--muted);cursor:pointer}
+.sys-toggle input{width:15px;height:15px;cursor:pointer}
+.sys-toggle code{font-family:var(--mono);color:var(--ink)}
+tr.sys-row{display:none}
+.device.show-system-on tr.sys-row{display:table-row}
+.device.show-system-on tr.sys-row.detail{display:table-row}
+
+/* ---- App bundling -------------------------------------------------------- */
+.app-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.app-bar-lbl{font-weight:600;font-size:13px}
+.app-name{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);
+  color:var(--ink);font-size:13px;min-width:160px}
+.app-name:focus{outline:2px solid var(--accent);border-color:transparent}
+.app-save{padding:7px 12px;border:1px solid var(--accent);border-radius:8px;
+  background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);
+  font-weight:600;cursor:pointer;font-size:13px}
+.app-hint{font-size:12px}
+.app-col{width:32px;text-align:center}
+.app-col input{width:16px;height:16px;cursor:pointer}
+.app-badge{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.apps-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.app-card{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel)}
+.app-open{border:none;background:none;color:var(--accent);font-weight:650;font-size:15px;cursor:pointer;flex:1;text-align:left}
+.app-open.active{text-decoration:underline}
+.app-del{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:6px;
+  width:26px;height:26px;cursor:pointer}
+.app-detail-head{display:flex;align-items:baseline;gap:12px;margin:6px 0}
+.app-detail-head h3{margin:0;font-size:18px}
+.app-vs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.app-chip{border:1px solid var(--blue);border-radius:20px;padding:3px 12px;font-size:12px;cursor:pointer;
+  background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);font-family:var(--mono)}
+.app-flow{margin:6px 0 16px}
+.app-pipe{margin:8px 0 14px}
+.app-pipe-vs{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:3px}
+.app-pipe-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.app-pipe-diagram svg{max-width:100%;height:auto}
+.app-flow-title,.app-obj-type{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.app-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.app-objs{display:flex;flex-direction:column;gap:12px}
+.app-obj{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);scroll-margin-top:16px}
+.app-obj-flash{outline:2px solid var(--accent);outline-offset:2px}
+.app-obj-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.app-obj-name{font-weight:600}
+.app-obj-drawer{margin-left:auto;border:1px solid var(--line);background:var(--bg);color:var(--muted);
+  border-radius:6px;width:26px;height:26px;cursor:pointer}
+.app-obj-flow{overflow-x:auto;margin:4px 0 8px}
+.app-obj-flow svg{max-width:100%;height:auto}
+pre.code.conf{white-space:pre;overflow-x:auto}
+.conf-key{color:#8250df;font-weight:600}
+.conf-path{color:#0550ae}
+.conf-link{text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
+:root[data-theme="dark"] .conf-key{color:#d2a8ff}
+:root[data-theme="dark"] .conf-path{color:#79c0ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .conf-key{color:#d2a8ff}
+  :root:not([data-theme="light"]) .conf-path{color:#79c0ff}}
+
+/* ---- Touch / iOS Safari tap reliability ---------------------------------- */
+/* On iOS Safari a tap on a non-native control (the count chips are <div
+   role=button>, object links are <span>) or on a control inside a scrollable
+   strip can be swallowed — interpreted as a double-tap-zoom wait, a scroll pan,
+   or the start of a text selection — so navigation feels dead. `touch-action:
+   manipulation` removes the 300ms double-tap delay and fires the click
+   immediately; disabling text selection stops a tap from starting a selection;
+   an explicit pointer cursor keeps Safari's own click-synthesis happy. */
+.tab,.dev-tab,.chip.chip-link,.objlink,.ref-obj,.expander,tr.expandable{
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer;
+}
+.tab,.dev-tab,.chip.chip-link,.objlink,.ref-obj,.expander{
+  -webkit-user-select:none;user-select:none;
+}
+
+/* ---- Responsive / mobile ------------------------------------------------- */
+/* Keep wide content (tables, code, diagrams) scrolling inside its own container
+   rather than widening the page. We deliberately do NOT set overflow-x on
+   html/body — on iOS WebKit that caps vertical scrolling — so instead each wide
+   block is capped/contained on small screens (see the mobile rules below). */
+html,body{max-width:100%}
+.refs-dyn{overflow-x:auto}
+
+@media (max-width:760px){
+  body{font-size:13px}
+  /* Topbar: let the brand + search + actions wrap instead of overflowing. */
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .topbar h1{font-size:15px}
+  .topbar-actions{width:100%;order:3}
+  #globalSearch{flex:1 1 auto;width:auto;min-width:0}
+  .summary{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;padding:14px 14px 4px}
+  .chip{padding:11px 12px}
+  .chip-val{font-size:22px}
+  .device{padding:8px 14px 32px}
+  .device-switch{padding:8px 14px 0}
+  .insights{grid-template-columns:1fr;margin:10px 0 14px}
+
+  /* Tabs: a single, horizontally-scrollable row (never a tall wrapped block)
+     so every panel is one tap away and the tapped tab reads clearly. */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    gap:2px;margin-bottom:12px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:11px 13px;white-space:nowrap;min-height:44px}
+  /* Clearer active state on touch: a filled pill, not just a hairline border. */
+  .tab.active{background:color-mix(in srgb,var(--accent) 14%,transparent);
+    border-radius:8px 8px 0 0}
+
+  /* Denser tables; keep them scrollable inside .tablewrap. */
+  table.grid{font-size:12px}
+  .grid thead th,.grid tbody td{padding:8px 9px}
+  .refs-table th,.refs-table td{padding:4px 6px}
+
+  /* Detail-row content (iRule source, reference tables, flowcharts) must not
+     force the table cell wider than the screen — otherwise a big Mermaid SVG
+     pushes the source / tables far off to the right and they look "missing".
+     Cap wide content to the viewport; each piece scrolls inside itself. */
+  .irule-flow-diagram,.app-obj-flow,.app-flow-diagram{max-width:88vw}
+  .irule-flow-diagram svg,.app-obj-flow svg,.app-flow-diagram svg{max-width:86vw}
+  pre.code{max-width:88vw;white-space:pre-wrap;word-break:break-word}
+  .irule-refs,.refs-table,.refs-dyn{max-width:88vw}
+  tr.detail>td{max-width:100vw}
+}
+
+@media (max-width:420px){
+  .summary{grid-template-columns:1fr 1fr}
+  .chip-val{font-size:20px}
+  .device-head{flex-wrap:wrap;gap:6px}
+  .device-head h2{font-size:17px}
+}
+
+/* Coarse-pointer (touch) devices: bigger hit targets regardless of width. */
+@media (pointer:coarse){
+  .tab{min-height:44px}
+  .chip.chip-link,.dev-tab,.expander,.ref-obj{min-height:32px}
+  tr.expandable{cursor:pointer}
+}

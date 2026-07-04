@@ -41,7 +41,9 @@ pub mod lexer;
 pub mod manual;
 pub mod output;
 pub mod parser;
-#[cfg(feature = "probes")]
+// The module hosts both the pure `x509` surface and the network probes; the
+// network parts inside are individually gated on `probes`.
+#[cfg(any(feature = "x509", feature = "probes"))]
 pub mod probes;
 pub mod projection;
 pub mod renderers;

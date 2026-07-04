@@ -154,6 +154,109 @@ where
     }
 }
 
+/// One secret-bearing field found in a config, with the object it lives in.
+///
+/// `value` is the raw stored value — an `$M$…` ciphertext when `encrypted`, or
+/// the clear text once the config has been run through a decrypting
+/// [`rewrite_secrets`] pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoundSecret {
+    /// The enclosing top-level stanza header, e.g. `sys file ssl-key /Common/x`.
+    pub object: String,
+    /// The secret field name (one of [`ENCRYPTED_SECRET_KEYS`]).
+    pub field: &'static str,
+    /// The stored value (ciphertext or, post-decryption, clear text).
+    pub value: String,
+    /// Whether `value` is still an `f5mku` `$M$…` ciphertext.
+    pub encrypted: bool,
+}
+
+impl FoundSecret {
+    /// Serialise to the `{object, field, value, encrypted}` JSON the report's
+    /// Secrets tab consumes.
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "object": self.object,
+            "field": self.field,
+            "value": self.value,
+            "encrypted": self.encrypted,
+        })
+    }
+}
+
+/// Inventory every secret-bearing field in `source`, tagged with the object it
+/// lives in and whether it is still encrypted.
+///
+/// Powers the report's Secrets tab: it lists *what* secrets exist regardless of
+/// whether a master key was supplied. The scan tracks the enclosing top-level
+/// stanza header so each secret shows which object it belongs to. It shares the
+/// [`ENCRYPTED_SECRET_KEYS`] / [`SECRET_SENTINELS`] policy with
+/// [`rewrite_secrets`], so the two always agree on what counts as a secret.
+#[must_use]
+pub fn collect_secrets(source: &str) -> Vec<FoundSecret> {
+    let mut out = Vec::new();
+    let mut depth: usize = 0;
+    let mut object = String::new();
+
+    for raw_line in source.lines() {
+        let line = raw_line.trim();
+
+        if depth >= 1
+            && let Some((field, value)) = match_secret_line(line)
+            && !SECRET_SENTINELS.contains(&value.as_str())
+        {
+            let encrypted = value.starts_with("$M$");
+            out.push(FoundSecret {
+                object: object.clone(),
+                field,
+                value,
+                encrypted,
+            });
+        }
+
+        let opens = line.matches('{').count();
+        let closes = line.matches('}').count();
+        if depth == 0 && opens > closes {
+            object.clear();
+            object.push_str(line.split('{').next().unwrap_or("").trim());
+        }
+        depth = (depth + opens).saturating_sub(closes);
+        if depth == 0 {
+            object.clear();
+        }
+    }
+    out
+}
+
+/// If `line` is `<secret-key> <value>`, return `(key, value)` unquoted.
+fn match_secret_line(line: &str) -> Option<(&'static str, String)> {
+    for &key in &ENCRYPTED_SECRET_KEYS {
+        if let Some(rest) = line.strip_prefix(key)
+            && rest.starts_with([' ', '\t'])
+        {
+            let value = rest.trim();
+            if value.is_empty() {
+                return None;
+            }
+            return Some((key, unquote_secret(value)));
+        }
+    }
+    None
+}
+
+/// Strip surrounding double quotes (with backslash unescaping) from a token,
+/// else take the value up to the first whitespace.
+fn unquote_secret(tok: &str) -> String {
+    if tok.len() >= 2 && tok.starts_with('"') && tok.ends_with('"') {
+        tok[1..tok.len() - 1]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+    } else {
+        tok.split_whitespace().next().unwrap_or(tok).to_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

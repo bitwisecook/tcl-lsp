@@ -9,6 +9,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+# HTML syntax-highlighting helper (tcl_lexer::highlight_tcl). Off by default;
+# turn on for the BIG-IP report generator's iRule source view.
+html = []
+
 [dependencies]
 thiserror = "2.0"
 

@@ -64,8 +64,11 @@ def test_build_report_html_self_contained():
     # (A substring `{{` check is unusable here: the vendored Mermaid bundle
     # embeds KaTeX strings that legitimately contain `{{`.)
     assert "{{ " not in html and " }}" not in html and "{% " not in html
-    # no remote asset references anywhere (fully self-contained)
-    assert 'src="http' not in html and 'href="http' not in html
+    # no auto-loaded remote assets (scripts/images via src=, external
+    # stylesheets via <link>). Plain <a href> attribution links are fine —
+    # they are user-initiated navigation, not loaded to run the report.
+    assert 'src="http' not in html
+    assert "<link " not in html
     assert "cdn." not in html.split("<script id=\"f5-model\"")[0]
 
 

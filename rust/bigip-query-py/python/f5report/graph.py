@@ -17,8 +17,11 @@ on. It consumes the already-shaped per-device model from :mod:`f5report.report`
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 from typing import Any
+
+from . import _engine
 
 # Node type -> short prefix used in stable object ids ("vs:/Common/x").
 NODE_TYPES = {
@@ -158,6 +161,298 @@ _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# Attachable object types considered for dynamic (iRule) reachability: `pool`
+# (LB target), `node` (direct node), `snatpool` (SNAT). Literal references
+# (`pool /Common/x`) are already captured by the engine's `referenced_by`.
+ATTACH_TYPES = ("pools", "nodes", "snatpools")
+
+
+def _pattern_matches(pat: dict[str, Any], name: str) -> bool:
+    """Does ``name`` fall within the set of names a reconstructed attach
+    expression could build? Mirrors ``tcl_diagram::AttachPattern::matches``."""
+    if pat.get("unconstrained"):
+        return True
+    if pat.get("exact"):
+        return name == pat.get("prefix", "")
+    hay = name
+    prefix = pat.get("prefix", "")
+    if prefix:
+        if not hay.startswith(prefix):
+            return False
+        hay = hay[len(prefix):]
+    suffix = pat.get("suffix", "")
+    if suffix:
+        if not hay.endswith(suffix):
+            return False
+        hay = hay[: len(hay) - len(suffix)]
+    for frag in pat.get("contains", []):
+        i = hay.find(frag)
+        if i < 0:
+            return False
+        hay = hay[i + len(frag):]
+    return True
+
+
+def _partition_of(full_path: str) -> str:
+    """``/TenantA/foo`` -> ``TenantA``; ``""`` for a relative path."""
+    if full_path.startswith("/"):
+        parts = full_path.split("/")
+        return parts[1] if len(parts) > 1 else ""
+    return ""
+
+
+def _leaf(s: str) -> str:
+    return s.rsplit("/", 1)[-1]
+
+
+def pattern_reaches(
+    pat: dict[str, Any], obj_leaf: str, obj_full: str, obj_partition: str, ctx: set[str]
+) -> bool:
+    """Partition-aware reachability. Mirrors ``graph::pattern_reaches`` in Rust.
+
+    An unqualified pool/node/snatpool name in an iRule resolves in the partition
+    of the *virtual* carrying the traffic (with ``/Common`` always visible), not
+    the iRule's own folder. So a ``/Common`` rule doing ``pool "web_[…]"``
+    attached to a ``/TenantA`` virtual selects ``/TenantA/web_*`` (or Common),
+    never ``/TenantB/…``.
+    """
+    if pat.get("unconstrained"):
+        return True
+    if pat.get("prefix", "").startswith("/"):
+        return _pattern_matches(pat, obj_full)
+    visible = obj_partition == "Common" or obj_partition in ctx
+    return visible and _pattern_matches(pat, obj_leaf)
+
+
+def build_rule_contexts(
+    device: dict[str, Any],
+) -> tuple[dict[str, set[str]], dict[str, list[tuple[str, str]]]]:
+    """Map each iRule (by full path) to the partitions it executes in (partitions
+    of its attaching virtuals) and the attaching virtuals themselves."""
+    leaf_to_fp: dict[str, str] = {}
+    known_fp: set[str] = set()
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if not fp:
+            continue
+        leaf_to_fp[_leaf(fp)] = fp
+        known_fp.add(fp)
+    ctx: dict[str, set[str]] = {}
+    vs: dict[str, list[tuple[str, str]]] = {}
+    for v in device.get("virtuals", []):
+        vfp = v.get("fullPath", "")
+        vpart = v.get("partition", "")
+        for rr in v.get("rules", []) or []:
+            if rr in known_fp:
+                fp = rr
+            elif _leaf(rr) in leaf_to_fp:
+                fp = leaf_to_fp[_leaf(rr)]
+            else:
+                continue
+            ctx.setdefault(fp, set()).add(vpart)
+            vs.setdefault(fp, []).append((vfp, vpart))
+    return ctx, vs
+
+
+def attach_index(
+    rules: list[dict[str, Any]], rule_ctx: dict[str, set[str]]
+) -> dict[str, list[dict[str, Any]]]:
+    """Per attachable object type, the ``{rule, rule_fp, ctx, …pattern…}`` records
+    an iRule could dynamically construct, tagged with the partition contexts the
+    rule runs in. Mirrors ``graph::attach_index`` in Rust.
+    """
+    index: dict[str, list[dict[str, Any]]] = {}
+    for r in rules:
+        body = r.get("body", "") or ""
+        if not body:
+            continue
+        fp = r.get("fullPath", "")
+        rule_name = r.get("name") or fp
+        ctx = rule_ctx.get(fp, set())
+        reach = json.loads(_engine.irule_attach_patterns(body))
+        for ty in ATTACH_TYPES:
+            for pat in reach.get(ty, []):
+                index.setdefault(ty, []).append(
+                    {"rule": rule_name, "rule_fp": fp, "ctx": ctx, **pat}
+                )
+    return index
+
+
+def attach_matches(
+    attaches: list[dict[str, Any]],
+    leaf: str,
+    full: str,
+    partition: str,
+    address: str,
+) -> list[dict[str, str]]:
+    """The ``{rule, pattern}`` records whose name-pattern could attach the given
+    object, resolved per the rule's partition context. Only rules attached to a
+    virtual (non-empty context) can reach anything."""
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for a in attaches:
+        ctx = a.get("ctx") or set()
+        if not ctx:
+            continue  # unattached rule never executes
+        hit = pattern_reaches(a, leaf, full, partition, ctx) or (
+            bool(address) and pattern_reaches(a, address, address, partition, ctx)
+        )
+        if not hit:
+            continue
+        key = (a["rule"], a["glob"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"rule": a["rule"], "pattern": a["glob"]})
+    return out
+
+
+_ATTACH_SINGULAR = {"pools": "pool", "nodes": "node", "snatpools": "snatpool"}
+_OID_PREFIX = {
+    "pool": "pool", "node": "node", "snatpool": "snat",
+    "data-group": "dg", "irule": "rule",
+}
+
+
+def _resolve_rule(
+    name: str, caller_part: str, known: set[str], leaf_to_fp: dict[str, list[str]]
+) -> str | None:
+    """Resolve a `call <rule>::proc` target to an iRule full path, preferring the
+    caller's partition, then /Common. Mirrors ``resolve_rule`` in Rust."""
+    if name.startswith("/") and name in known:
+        return name
+    fps = leaf_to_fp.get(_leaf(name))
+    if not fps:
+        return None
+    for f in fps:
+        if _partition_of(f) == caller_part:
+            return f
+    for f in fps:
+        if _partition_of(f) == "Common":
+            return f
+    return fps[0]
+
+
+def link_proc_calls(device: dict[str, Any]) -> None:
+    """Link iRules that call each other via ``call <rule>::<proc>``: record each
+    caller's resolved callees as ``refRules`` and add the caller to each callee's
+    ``usedBy`` so a proc-library iRule is counted as used, not orphaned. Mirrors
+    the Rust ``link_proc_calls``; run before orphan classification."""
+    leaf_to_fp: dict[str, list[str]] = {}
+    known: set[str] = set()
+    bodies: list[tuple[str, str, str]] = []
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if not fp:
+            continue
+        leaf_to_fp.setdefault(_leaf(fp), []).append(fp)
+        known.add(fp)
+        bodies.append((fp, _partition_of(fp), r.get("body", "") or ""))
+
+    caller_refs: dict[str, list[str]] = {}
+    callee_callers: dict[str, list[str]] = {}
+    for fp, part, body in bodies:
+        if not body:
+            continue
+        resolved: list[str] = []
+        for name in json.loads(_engine.irule_proc_call_refs(body)):
+            callee = _resolve_rule(name, part, known, leaf_to_fp)
+            if callee and callee != fp:
+                if callee not in resolved:
+                    resolved.append(callee)
+                callee_callers.setdefault(callee, []).append(fp)
+        if resolved:
+            caller_refs[fp] = resolved
+
+    for r in device.get("rules", []):
+        fp = r.get("fullPath", "")
+        if fp in caller_refs:
+            r["refRules"] = caller_refs[fp]
+        if fp in callee_callers:
+            used = list(r.get("usedBy") or [])
+            existing = set(used)
+            for c in callee_callers[fp]:
+                if c not in existing:
+                    used.append(c)
+            r["usedBy"] = used
+
+
+def _obj_ref(ty: str, full_path: str) -> dict[str, str]:
+    prefix = _OID_PREFIX.get(ty, ty)
+    return {
+        "type": ty,
+        "name": _leaf(full_path),
+        "fullPath": full_path,
+        "oid": f"{prefix}:{full_path}",
+    }
+
+
+def annotate_rule_reachability(
+    device: dict[str, Any], rule_vs: dict[str, list[tuple[str, str]]]
+) -> None:
+    """Attach a per-iRule reachability table: statically referenced objects plus
+    the objects each reconstructed dynamic filter could select, resolved per
+    attaching-virtual partition (VS-specific). Mirrors the Rust
+    ``annotate_rule_reachability``."""
+    snap: dict[str, list[tuple[str, str, str, str]]] = {}
+    for ty in ATTACH_TYPES:
+        rows = []
+        for o in device.get(ty, []):
+            if isinstance(o, dict):
+                fp = o.get("fullPath", "")
+                rows.append(
+                    (o.get("name", ""), fp, _partition_of(fp), o.get("address", ""))
+                )
+        snap[ty] = rows
+
+    for r in device.get("rules", []):
+        body = r.get("body", "") or ""
+        fp = r.get("fullPath", "")
+        own_part = _partition_of(fp)
+
+        static_refs = [_obj_ref("pool", p) for p in (r.get("refPools") or [])]
+        static_refs += [_obj_ref("data-group", d) for d in (r.get("refDataGroups") or [])]
+        static_refs += [_obj_ref("irule", rr) for rr in (r.get("refRules") or [])]
+
+        reach = json.loads(_engine.irule_attach_patterns(body)) if body else {}
+        has_dynamic = any(reach.get(ty) for ty in ATTACH_TYPES)
+        by_part: dict[str, list[str]] = {}
+        if has_dynamic:
+            for vfp, vpart in rule_vs.get(fp, []):
+                by_part.setdefault(vpart, []).append(vfp)
+            if not by_part:
+                by_part[own_part] = []
+        attached = bool(rule_vs.get(fp))
+
+        groups = []
+        for part in sorted(by_part):
+            vlist = by_part[part]
+            ctx = {part}
+            filters = []
+            for ty in ATTACH_TYPES:
+                for pat in reach.get(ty, []):
+                    matched = []
+                    for nm, ofp, opart, addr in snap.get(ty, []):
+                        hit = pattern_reaches(pat, nm, ofp, opart, ctx) or (
+                            bool(addr) and pattern_reaches(pat, addr, addr, opart, ctx)
+                        )
+                        if hit:
+                            matched.append(_obj_ref(_ATTACH_SINGULAR[ty], ofp))
+                    f = dict(pat)
+                    f["type"] = _ATTACH_SINGULAR[ty]
+                    f["objects"] = matched
+                    filters.append(f)
+            groups.append(
+                {
+                    "partition": part,
+                    "virtuals": [_leaf(v) for v in vlist],
+                    "attached": attached,
+                    "filters": filters,
+                }
+            )
+        r["referencedObjects"] = {"static": static_refs, "dynamic": groups}
+
+
 def irule_dynamic_actions(body: str) -> list[dict[str, str]]:
     """Return the profile/processing-changing commands a rule issues."""
     if not body:
@@ -221,8 +516,16 @@ def build_graph(device: dict[str, Any]) -> dict[str, Any]:
             fp = o.get("fullPath", "")
             if not fp:
                 continue
-            n = add_node(prefix, fp, o.get("name", ""),
-                         {"orphan": bool(not o.get("usedBy")) if "usedBy" in o else False})
+            # Confirmed orphan only; a "possible" orphan (dynamic iRule
+            # attachment) is not coloured as an orphan.
+            if "orphanStatus" in o:
+                is_orphan = o["orphanStatus"] == "orphan"
+            else:
+                is_orphan = bool(not o.get("usedBy")) if "usedBy" in o else False
+            extra = {"orphan": is_orphan}
+            if o.get("isDefault"):
+                extra["isDefault"] = True
+            n = add_node(prefix, fp, o.get("name", ""), extra)
             node_by_path[fp] = nodes[n]
             if key == "nodes" and o.get("address"):
                 node_by_addr[o["address"]] = nodes[n]

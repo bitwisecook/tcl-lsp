@@ -1,0 +1,26 @@
+# cargo-nextest configuration.
+#
+# The LSP e2e suite runs in one parallel pool (see .github/workflows/rust-lsp-e2e.yml).
+# Two kinds of tests there are resource-hungry in a way that makes them starve
+# their neighbours:
+#
+#   * semantic_tokens_reference_client::large_file_latency_and_correctness — a
+#     ~5200-line semantic-token latency benchmark that pins the CPU for tens of
+#     seconds, and
+#   * edit_tracking_stress::* — latency-sensitive stress tests that drive a burst
+#     of incremental edits and then wait for the server's (guaranteed) final
+#     diagnostics publish.
+#
+# When the benchmark is scheduled alongside a stress test the stress server is
+# starved of CPU and its diagnostics barrier can be delayed past the harness's
+# give-up, producing a spurious timeout even though the server is behaving
+# correctly. Rather than paper over that with a bigger wall-clock timeout, put
+# these few heavy tests in a single-slot group so they never run concurrently
+# with each other; the hundreds of light tests still parallelise fully, so the
+# suite stays fast.
+[test-groups]
+heavy-lsp-e2e = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'package(tcl-lsp-server) & (test(/edit_tracking_stress::/) | test(/large_file_latency/))'
+test-group = 'heavy-lsp-e2e'

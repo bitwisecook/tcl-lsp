@@ -66,9 +66,17 @@ fn commands_section_produces_snapshot() {
     // wired and emits the canonical shape —
     // a full golden would duplicate that ~140k-line snapshot.
     let out = run_f5(&["registry-dump", "--section", "commands"]);
-    assert_eq!(out.status.code(), Some(0), "commands exit: {:?}", out.status);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "commands exit: {:?}",
+        out.status
+    );
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.starts_with("{\n  \"commandCount\": "), "canonical header");
+    assert!(
+        text.starts_with("{\n  \"commandCount\": "),
+        "canonical header"
+    );
     assert!(text.contains("\"f5-irules\""), "f5-irules dialect");
     assert!(text.contains("\"summary\":"), "hover prose catalogue");
 }
@@ -78,7 +86,12 @@ fn all_section_bundles_every_subsection() {
     let out = run_f5(&["registry-dump", "--section", "all"]);
     assert_eq!(out.status.code(), Some(0), "all exit: {:?}", out.status);
     let text = String::from_utf8_lossy(&out.stdout);
-    for key in ["\"commands\":", "\"events\":", "\"objects\":", "\"profiles\":"] {
+    for key in [
+        "\"commands\":",
+        "\"events\":",
+        "\"objects\":",
+        "\"profiles\":",
+    ] {
         assert!(text.contains(key), "all is missing {key}");
     }
 }
