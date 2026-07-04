@@ -22,6 +22,7 @@
     clippy::manual_let_else
 )]
 
+mod apm;
 mod certs;
 mod graph;
 mod jutil;

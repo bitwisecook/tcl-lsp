@@ -1,0 +1,14 @@
+/* APM access-profile walk tab. */
+.apm-profile { border: 1px solid var(--border, #d7dde5); border-radius: 8px; margin: 0 0 1.25rem; overflow: hidden; }
+.apm-profile > .apm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem .75rem; padding: .6rem .8rem; background: var(--panel-alt, #f6f8fb); border-bottom: 1px solid var(--border, #d7dde5); }
+.apm-profile > .apm-head .apm-title { font-weight: 600; }
+.apm-profile > .apm-head .apm-path { font-size: .8rem; opacity: .7; }
+.apm-meta { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.apm-graph { padding: .6rem; overflow-x: auto; }
+.apm-graph .apm-diagram { min-height: 2rem; }
+.apm-src { display: none; }
+.apm-empty { padding: 1rem; opacity: .7; }
+@media (prefers-color-scheme: dark) {
+  .apm-profile { border-color: #2b3546; }
+  .apm-profile > .apm-head { background: #1b2333; border-bottom-color: #2b3546; }
+}
