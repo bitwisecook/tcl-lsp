@@ -209,6 +209,117 @@ fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
     eprintln!("subcommand dialect audit: {audited} subcommands checked, all match");
 }
 
+/// Enumerate a command's option/switch set by triggering its "bad option …
+/// must be …" listing with a bogus flag. `triggers` maps command → a full
+/// invocation whose first argument is an unknown flag. Returns command → set
+/// of option names (each with its leading `-`).
+fn enumerate_options(tclsh: &str, triggers: &[(&str, &str)]) -> HashMap<String, Vec<String>> {
+    let body: String = triggers
+        .iter()
+        .map(|(cmd, trig)| format!("{cmd} {{{trig}}}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    // For each (cmd, trigger) run the trigger, capture the error, and parse the
+    // "must be …" alternatives (comma / "or" separated) into a word list.
+    let script = format!(
+        "foreach {{cmd trig}} {{{body}}} {{\n\
+         \x20 catch {{uplevel #0 $trig}} e\n\
+         \x20 if {{[regexp {{(?:bad|unknown) (?:option|switch)[^:]*: must be (.*?)$}} $e -> tail]}} {{\n\
+         \x20   regsub -all {{,? or }} $tail {{ }} tail\n\
+         \x20   regsub -all {{,}} $tail {{ }} tail\n\
+         \x20   puts \"$cmd [lsort -unique $tail]\"\n\
+         \x20 }}\n\
+         }}\n"
+    );
+    let out = run_tcl(tclsh, &script).unwrap_or_default();
+    out.lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let cmd = it.next()?.to_string();
+            // Keep only real `-flag` tokens (drop the `--` end-of-options marker
+            // and any stray non-flag word).
+            Some((
+                cmd,
+                it.filter(|w| w.starts_with('-') && *w != "--")
+                    .map(str::to_string)
+                    .collect(),
+            ))
+        })
+        .collect()
+}
+
+/// Commands with version-sensitive option sets, each paired with an invocation
+/// whose first argument is a bogus flag so the interpreter lists its real
+/// options. Spans the 8.6/9.0 boundary (`lsearch -stride` and `regsub
+/// -command` are 9.0-only; `lsort -stride` is in both).
+const OPT_TRIGGERS: &[(&str, &str)] = &[
+    ("lsearch", "lsearch -__nope__ x y"),
+    ("regsub", "regsub -__nope__ a b c"),
+    ("regexp", "regexp -__nope__ a b"),
+    ("lsort", "lsort -__nope__ x"),
+];
+
+#[test]
+fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
+    let (Some(t86), Some(t90)) = (find_tclsh("8.6", "tclsh8.6"), find_tclsh("9.0", "tclsh9.0"))
+    else {
+        eprintln!("skipping option dialect oracle: need both tclsh8.6 and tclsh9.0 on PATH");
+        return;
+    };
+    let opt86 = enumerate_options(&t86, OPT_TRIGGERS);
+    let opt90 = enumerate_options(&t90, OPT_TRIGGERS);
+    let reg = CommandRegistry::build_default();
+
+    let mut mismatches: Vec<String> = Vec::new();
+    let mut audited = 0usize;
+    for &(cmd, _) in OPT_TRIGGERS {
+        let (Some(o86), Some(o90)) = (opt86.get(cmd), opt90.get(cmd)) else {
+            eprintln!("note: could not enumerate `{cmd}` options from tclsh (skipped)");
+            continue;
+        };
+        let Some(spec) = reg.get(cmd) else { continue };
+        // The registry's declared options (no dialect filter). Only these are
+        // audited; an option tclsh has that the registry does not declare is a
+        // completeness gap, out of scope for a gating differential.
+        let declared: Vec<&'static str> = spec.switch_names(None);
+        let in86 = spec.switch_names(Some(DialectSet::TCL86));
+        let in90 = spec.switch_names(Some(DialectSet::TCL90));
+        for opt in &declared {
+            // `--` is the end-of-options marker: version-invariant and listed
+            // inconsistently by tclsh across commands, so it is not a gating
+            // fact worth auditing.
+            if *opt == "--" {
+                continue;
+            }
+            audited += 1;
+            let got86 = in86.contains(opt);
+            let got90 = in90.contains(opt);
+            let want86 = o86.iter().any(|o| o == opt);
+            let want90 = o90.iter().any(|o| o == opt);
+            if got86 != want86 {
+                mismatches.push(format!(
+                    "`{cmd} {opt}`: registry available-in-8.6={got86}, tclsh8.6 says {want86}"
+                ));
+            }
+            if got90 != want90 {
+                mismatches.push(format!(
+                    "`{cmd} {opt}`: registry available-in-9.0={got90}, tclsh9.0 says {want90}"
+                ));
+            }
+        }
+    }
+    assert!(
+        audited > 20,
+        "option audit coverage suspiciously low ({audited}) — enumeration likely failed"
+    );
+    assert!(
+        mismatches.is_empty(),
+        "registry option dialect gating diverges from tclsh ({audited} audited):\n{}",
+        mismatches.join("\n")
+    );
+    eprintln!("option dialect audit: {audited} options checked, all match");
+}
+
 #[test]
 fn registry_dialect_gating_matches_tclsh_8_6_and_9_0() {
     let (Some(t86), Some(t90)) = (find_tclsh("8.6", "tclsh8.6"), find_tclsh("9.0", "tclsh9.0"))
