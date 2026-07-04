@@ -60,6 +60,25 @@ fn is_straight_line_body(script: &crate::ir::Script) -> bool {
     })
 }
 
+/// Parse a `dict for`/`dict map` variable-list word by the Tcl list grammar
+/// and return the two loop-variable names when it is exactly a two-element
+/// list of *plain* names — not qualified (`::`), not an array element (`(`),
+/// and not needing list quoting (whitespace/empty). Returns `None` (inline
+/// emitter bails to the runtime invoke) otherwise, so a 1-element list like
+/// `{{a b}}` errors at runtime instead of being miscompiled as two vars, and a
+/// spaced name like `{{a b} v}` keeps its runtime semantics.
+fn is_two_plain_names(vars_text: &str) -> Option<[String; 2]> {
+    let elems = super::helpers::split_list_simple(vars_text);
+    let [a, b] = <[String; 2]>::try_from(elems).ok()?;
+    for v in [&a, &b] {
+        if v.is_empty() || is_qualified(v) || v.contains('(') || v.chars().any(char::is_whitespace)
+        {
+            return None;
+        }
+    }
+    Some([a, b])
+}
+
 // CodegenCtx methods
 
 impl CodegenCtx<'_> {
@@ -76,14 +95,16 @@ impl CodegenCtx<'_> {
     /// on error; our VM frees the iterator with the frame, so the epilogue is
     /// present for byte-fidelity but only reached via C Tcl's exception ranges.
     pub fn emit_dict_for(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
-        // Two loop variables, both plain (compilable-local) names. The `{k v}`
-        // word is a two-element list; split on whitespace (loop var names never
-        // contain spaces or need list-unquoting in practice).
-        let vnames: Vec<String> = vars_text.split_whitespace().map(str::to_owned).collect();
-        if vnames.len() != 2 || !self.is_proc {
+        // Exactly two loop variables, both plain (compilable-local) names. The
+        // `{k v}` word is a Tcl list, so split by the list grammar (not
+        // whitespace) — a 1-element list like `{{a b}}` must error at runtime,
+        // not be miscompiled as two vars — and bail to the runtime invoke for
+        // any name that is qualified, an array element, or needs list quoting.
+        let vnames = is_two_plain_names(vars_text);
+        let Some(vnames) = vnames else {
             return false;
-        }
-        if vnames.iter().any(|v| is_qualified(v) || v.contains('(')) {
+        };
+        if !self.is_proc {
             return false;
         }
         // The body must be a straight-line sequence of simple commands.
@@ -182,11 +203,13 @@ impl CodegenCtx<'_> {
     /// Returns `false` (runtime-invoke fallback) unless proc context, two loop
     /// vars, and a straight-line body whose final statement yields a value.
     pub fn emit_dict_map(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
-        let vnames: Vec<String> = vars_text.split_whitespace().map(str::to_owned).collect();
-        if vnames.len() != 2 || !self.is_proc {
+        // Parse the `{k v}` word by the Tcl list grammar and require exactly two
+        // plain names (see `emit_dict_for`); anything else bails to the runtime
+        // invoke so malformed / non-simple var lists keep C Tcl's semantics.
+        let Some(vnames) = is_two_plain_names(vars_text) else {
             return false;
-        }
-        if vnames.iter().any(|v| is_qualified(v) || v.contains('(')) {
+        };
+        if !self.is_proc {
             return false;
         }
         let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);

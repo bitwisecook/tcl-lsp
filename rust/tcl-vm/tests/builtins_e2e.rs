@@ -1403,6 +1403,27 @@ fn dict_update_with_control_flow_body_falls_back_and_executes() {
     );
 }
 
+/// A `{k v}` variable word is a Tcl list, not whitespace-delimited: a
+/// 1-element list like `{{a b}}` must reach the runtime `dict for` and error,
+/// never be miscompiled into two inline loop vars. Regression for the
+/// `split_whitespace` var-list parsing bug.
+#[test]
+fn dict_for_map_malformed_var_list_errors_via_fallback() {
+    // `{{a b}}` is one element → "must have exactly two variable names".
+    let (ok, result, _out) = run("proc p {} { set d {x 1}; dict for {{a b}} $d { puts hi } }\np\n");
+    assert!(!ok, "malformed dict for var list must error");
+    assert!(
+        result.contains("exactly two variable names"),
+        "got: {result}"
+    );
+    let (ok, result, _out) = run("proc p {} { set d {x 1}; dict map {{a b}} $d { set x 1 } }\np\n");
+    assert!(!ok, "malformed dict map var list must error");
+    assert!(
+        result.contains("exactly two variable names"),
+        "got: {result}"
+    );
+}
+
 /// A straight-line body whose final statement is `return` leaves no trailing
 /// `pop`, so the inline emitter must bail out *cleanly* (rolling back its
 /// partial prologue and catch depth) and let the runtime `dict` invoke run —
