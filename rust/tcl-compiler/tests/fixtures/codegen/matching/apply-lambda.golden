@@ -1,0 +1,11 @@
+ByteCode ::top, 5 instructions, 9 bytes, 3 literals, 0 variables
+  Literals:
+    0: "apply"
+    1: "{s} { lappend out $s }"
+    2: "foo"
+  Instructions:
+    (0) push1 0	# "apply"
+    (2) push1 1	# "{s} { lappend out $s }"
+    (4) push1 2	# "foo"
+    (6) invokeStk1 3	# apply
+    (8) done
