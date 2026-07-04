@@ -64,6 +64,20 @@
   .files li .sz { color: var(--muted); margin-left: auto; white-space: nowrap; }
   .files li .rm { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 1.1rem; padding: 0 .2rem; }
   .files li .lock { color: var(--warn-fg); }
+  .files li .sz { margin-left: auto; }
+  .files li .arch-role { font: inherit; font-size: .8rem; padding: .2rem .3rem; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .files li .arch-tier { width: 3.4rem; font: inherit; font-size: .8rem; padding: .2rem .35rem;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .arch-adv { margin-top: .9rem; border: 1px solid var(--border); border-radius: 8px; padding: .5rem .7rem; }
+  .arch-adv summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+  .arch-adv textarea { width: 100%; box-sizing: border-box; margin-top: .5rem; padding: .55rem .65rem;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; resize: vertical; }
+  .arch-adv-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+  button.ghost { font: inherit; font-size: .82rem; padding: .3rem .6rem; border: 1px solid var(--border);
+    border-radius: 7px; background: var(--bg); color: var(--fg); cursor: pointer; }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
   .row { display: grid; gap: .9rem; grid-template-columns: 1fr 1fr; margin-top: 1rem; }
   @media (max-width: 34rem) { .row { grid-template-columns: 1fr; } }
   input[type=text], input[type=password] {
@@ -100,7 +114,7 @@
 <body>
 <div class="wrap">
   <h1>F5 BIG-IP Report Generator</h1>
-  <p class="tagline">Turn a <code>.ucs</code> backup or a <code>bigip.conf</code> / SCF into one interactive, self-contained HTML report — virtual servers, pools, iRules, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console.</p>
+  <p class="tagline">Turn one or more <code>.ucs</code> backups or <code>bigip.conf</code> / SCF files into one interactive, self-contained HTML report — virtual servers, pools, iRules, GTM/DNS, AFM firewall &amp; NAT, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console. Load several devices to see how they relate as tiers (GTM → LTM tier 1 → LTM tier 2, …).</p>
 
   <div class="privacy">
     <span class="lock" aria-hidden="true">🔒</span>
@@ -118,6 +132,26 @@
     </div>
     <input type="file" id="picker" multiple accept=".ucs,.scf,.conf,.txt,text/plain,application/octet-stream">
     <ul class="files" id="fileList"></ul>
+
+    <details class="arch-adv" id="archAdv" style="display:none">
+      <summary>Architecture — how these devices relate <span class="hint" style="font-weight:400">(optional)</span></summary>
+      <p class="sub" style="margin:.5rem 0">Give each file a <b>role</b> and <b>tier</b> above to describe the topology — e.g. a GTM at tier 0 in front of an LTM tier 1 in front of an LTM tier 2. Inter-device links are auto-detected from address overlap (a pool member or GTM server address that another device serves), and drawn in the report's Architecture view. To declare links explicitly or override the auto result, write a small <b>Tcl manifest</b> below — it wins over the per-file choices, and is remembered in this browser.</p>
+      <textarea id="manifest" rows="7" spellcheck="false" placeholder='# a small Tcl script — one command per device / link
+device gtm.ucs  -role gtm -tier 0 -label "DNS Edge"
+device edge.ucs -role ltm -tier 1
+device core.ucs -role ltm -tier 2
+
+# links are auto-detected; declare extras here
+link gtm.ucs  edge.ucs
+link edge.ucs core.ucs -label internal'></textarea>
+      <div class="arch-adv-actions">
+        <button type="button" id="manifestFromFiles" class="ghost">Fill from files above</button>
+        <button type="button" id="manifestSave" class="ghost">Save .tcl ↓</button>
+        <button type="button" id="manifestLoad" class="ghost">Load .tcl ↑</button>
+        <button type="button" id="manifestClear" class="ghost">Clear</button>
+        <input type="file" id="manifestFile" accept=".tcl,.txt,text/plain" hidden>
+      </div>
+    </details>
 
     <div class="row">
       <div>
@@ -197,7 +231,54 @@
   var verEl = document.getElementById("ver");
 
   var files = [];        // selected File objects
+  var meta = {};         // per-file architecture hint, keyed by file name: {role, tier}
   var lastUrl = null;    // object URL of the last generated report
+
+  var ROLES = ["auto", "gtm", "ltm", "afm"];
+  var LS_MANIFEST = "f5report-arch-manifest";
+  var LS_META = "f5report-arch-meta";
+
+  // Quote a word for the Tcl manifest: brace it when it carries whitespace or
+  // Tcl-special characters, so a filename with spaces stays one word.
+  function tclWord(s) {
+    return /[\s{}\[\]$";\\]/.test(s) ? "{" + s + "}" : s;
+  }
+
+  // Build the architecture manifest — a small Tcl script — from the per-file
+  // role/tier choices. The raw manifest textarea (if the user typed one) takes
+  // precedence. Returns "" for pure auto-detection.
+  function buildManifest() {
+    var raw = (document.getElementById("manifest").value || "").trim();
+    if (raw) return raw;
+    var lines = [];
+    files.forEach(function (f) {
+      var m = meta[f.name] || {};
+      var parts = [];
+      if (m.role && m.role !== "auto") parts.push("-role " + m.role);
+      if (m.tier !== undefined && m.tier !== "" && m.tier !== null) {
+        var t = parseInt(m.tier, 10);
+        if (!isNaN(t)) parts.push("-tier " + t);
+      }
+      if (parts.length) lines.push("device " + tclWord(f.name) + " " + parts.join(" "));
+    });
+    return lines.join("\n");
+  }
+
+  // --- persistence: remember the manifest + per-file choices in this browser --
+  function saveManifestState() {
+    try {
+      localStorage.setItem(LS_MANIFEST, document.getElementById("manifest").value || "");
+      localStorage.setItem(LS_META, JSON.stringify(meta));
+    } catch (e) {}
+  }
+  function restoreManifestState() {
+    try {
+      var m = localStorage.getItem(LS_MANIFEST);
+      if (m) document.getElementById("manifest").value = m;
+      var mt = localStorage.getItem(LS_META);
+      if (mt) meta = JSON.parse(mt) || {};
+    } catch (e) {}
+  }
 
   function setStatus(msg, cls) {
     statusEl.textContent = msg;
@@ -238,9 +319,40 @@
         li.appendChild(lk);
       }
       li.appendChild(sz);
+
+      // Per-file architecture hint: role + tier. Shown once more than one file
+      // is loaded (a single device has no architecture to describe).
+      if (files.length > 1) {
+        if (!meta[f.name]) meta[f.name] = { role: "auto", tier: "" };
+        var mrec = meta[f.name];
+
+        var role = document.createElement("select");
+        role.className = "arch-role";
+        role.title = "Device role";
+        ROLES.forEach(function (r) {
+          var opt = document.createElement("option");
+          opt.value = r; opt.textContent = r;
+          if (r === mrec.role) opt.selected = true;
+          role.appendChild(opt);
+        });
+        role.addEventListener("click", function (e) { e.stopPropagation(); });
+        role.addEventListener("change", function () { mrec.role = role.value; saveManifestState(); });
+
+        var tier = document.createElement("input");
+        tier.type = "number"; tier.min = "0"; tier.className = "arch-tier";
+        tier.placeholder = "tier"; tier.title = "Tier (0 = front)";
+        tier.value = mrec.tier;
+        tier.addEventListener("click", function (e) { e.stopPropagation(); });
+        tier.addEventListener("input", function () { mrec.tier = tier.value; saveManifestState(); });
+
+        li.appendChild(role);
+        li.appendChild(tier);
+      }
+
       li.appendChild(rm);
       fileListEl.appendChild(li);
     });
+    document.getElementById("archAdv").style.display = files.length > 1 ? "" : "none";
     updateReady();
   }
 
@@ -268,6 +380,48 @@
     drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("drag"); });
   });
   drop.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+
+  // --- architecture manifest: persistence + file load/save ------------------
+  (function initManifestControls() {
+    var ta = document.getElementById("manifest");
+    restoreManifestState();
+    ta.addEventListener("input", saveManifestState);
+
+    document.getElementById("manifestFromFiles").addEventListener("click", function () {
+      // Clear the textarea first so buildManifest() derives from the per-file
+      // choices, then drop the generated Tcl in for the user to edit.
+      var keep = ta.value; ta.value = "";
+      var gen = buildManifest();
+      ta.value = gen || keep;
+      saveManifestState();
+    });
+
+    document.getElementById("manifestSave").addEventListener("click", function () {
+      var text = ta.value.trim() || buildManifest();
+      if (!text) { setStatus("nothing to save — set roles/tiers or write a manifest", "err"); return; }
+      var blob = new Blob([text + "\n"], { type: "text/plain" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "architecture.tcl";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
+
+    var fileInput = document.getElementById("manifestFile");
+    document.getElementById("manifestLoad").addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function () {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () { ta.value = String(r.result || ""); saveManifestState(); };
+      r.readAsText(f);
+      fileInput.value = "";
+    });
+
+    document.getElementById("manifestClear").addEventListener("click", function () {
+      ta.value = ""; saveManifestState();
+    });
+  })();
 
   // --- decode the inlined wasm and initialise ------------------------------
   function b64ToBytes(b64) {
@@ -424,9 +578,10 @@
         setTimeout(function () { resolve({ sources: sources, certFiles: certFiles, forensicFiles: forensicFiles, locked: locked }); }, 20);
       });
     }).then(function (st) {
+      var manifest = buildManifest();
       var html = wasm_bindgen.generate_report(
         JSON.stringify(st.sources), JSON.stringify(st.certFiles), JSON.stringify(st.forensicFiles),
-        title, utcStamp(), embed);
+        title, utcStamp(), embed, manifest);
       deliver(html, st.sources.length, st.locked);
     });
   }

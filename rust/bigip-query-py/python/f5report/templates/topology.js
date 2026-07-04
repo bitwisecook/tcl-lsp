@@ -607,6 +607,47 @@
     host.querySelectorAll(".edgeLabel").forEach(function (el) { /* labels stay */ });
   }
 
+  // ---- Cross-device architecture diagram ---------------------------------
+  // The top-level Architecture section renders the tier graph (one node per
+  // loaded device) interactively: click a device node to jump to its section.
+  function activateDevice(di) {
+    var tab = document.querySelector('.dev-tab[data-dev="' + di + '"]');
+    if (tab) tab.click();
+    var dev = document.querySelector('.device[data-dev="' + di + '"]');
+    if (dev) dev.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function initArchitecture() {
+    var arch = MODEL.architecture;
+    if (!arch || !arch.mermaid || (arch.deviceCount || 0) < 2) return;
+    var host = document.getElementById("archDiagram");
+    if (!host) return;
+    if (!window.mermaid) { host.style.display = "none"; return; }
+    var id = "archmmd" + (_rid++);
+    mermaid.render(id, arch.mermaid).then(function (res) {
+      host.innerHTML = res.svg;
+      var svg = host.querySelector("svg");
+      if (svg) { svg.style.maxWidth = "100%"; svg.style.maxHeight = "60vh"; svg.style.height = "auto"; }
+      // Each device node's element id is `flowchart-d<index>-<seq>`.
+      host.querySelectorAll(".node").forEach(function (el) {
+        var m = /flowchart-d(\d+)-/.exec(el.id || "");
+        if (!m) return;
+        var di = parseInt(m[1], 10);
+        el.classList.add("mm-node");
+        el.style.cursor = "pointer";
+        el.setAttribute("title", "Jump to this device");
+        el.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          activateDevice(di);
+        });
+      });
+    }).catch(function (err) {
+      // Fall back to the static tier columns already in the section.
+      host.style.display = "none";
+      if (window.console) console.warn("architecture diagram error:", err);
+    });
+  }
+
   // ---- Topology tab ------------------------------------------------------
   function initTopology(deviceEl, ix) {
     var panel = deviceEl.querySelector('.panel[data-panel="topology"]');
@@ -1347,6 +1388,9 @@
       });
     });
   });
+
+  // The cross-device architecture diagram (top-level, always visible).
+  initArchitecture();
 
   // drawer close handlers
   var closeBtn = document.querySelector("#objDrawer .drawer-close");
