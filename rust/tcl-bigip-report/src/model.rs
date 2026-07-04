@@ -975,13 +975,13 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
             if names.len() != profs.len() {
                 continue; // non-string entries: leave the list untouched
             }
-            // Delegate to the shared f5-query traffic-order core: the config's
-            // typed profile inventory is authoritative, and the core falls back
-            // to well-known default-profile names (e.g. `/Common/tcp`) that a
-            // config never re-declares.
-            let ordered = tcl_bigip_query::builtins::f5profile::order_profiles_by_traffic(
-                &names,
-                |n| type_of.get(n).cloned(),
+            // Delegate to the shared f5-query traffic-order core. The config's
+            // typed profile inventory is authoritative (matched by full path or
+            // by leaf, so partition-relative refs like `my_http` still resolve),
+            // and the core falls back to well-known default-profile names (e.g.
+            // `/Common/tcp`) that a config never re-declares.
+            let ordered = tcl_bigip_query::builtins::f5profile::order_profiles_with_types(
+                &names, &type_of,
             );
             *profs = ordered.into_iter().map(J::String).collect();
         }

@@ -74,6 +74,21 @@ def test_rule_events_in_firing_order():
                 assert evs.index("CLIENT_ACCEPTED") < evs.index("CLIENTSSL_HANDSHAKE"), evs
 
 
+def test_relative_custom_profile_names_ordered_by_traffic():
+    # Partition-relative custom profile names still resolve (by leaf) against
+    # the full-path profile inventory, so transport leads application.
+    scf = (
+        "ltm virtual /Common/relvs {\n"
+        "    destination /Common/1.2.3.4:80\n"
+        "    profiles {\n        my_http { }\n        my_tcp { }\n    }\n}\n"
+        "ltm profile http /Common/my_http { }\n"
+        "ltm profile tcp /Common/my_tcp { }\n"
+    )
+    m = collect_model([("mem://x", scf)], title="T")
+    vs = next(v for d in m["devices"] for v in d["virtuals"] if v["name"] == "relvs")
+    assert vs["profiles"] == ["my_tcp", "my_http"], vs["profiles"]
+
+
 def test_totals_sum_devices():
     m = _model()
     assert m["totals"]["virtuals"] == sum(dv["counts"]["virtuals"] for dv in m["devices"])

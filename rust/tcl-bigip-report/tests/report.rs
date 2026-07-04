@@ -242,3 +242,26 @@ fn model_json_serialisable() {
     serde_json::to_string(&m).expect("model serialises");
 }
 
+
+#[test]
+fn relative_custom_profile_names_ordered_by_traffic() {
+    // A virtual attaches custom profiles by partition-relative name; the
+    // profile inventory is keyed by full path. Traffic ordering must still
+    // resolve them (by leaf) so the transport profile leads the application
+    // one, not the raw config order.
+    let scf = "ltm virtual /Common/relvs {\n    destination /Common/1.2.3.4:80\n    profiles {\n        my_http { }\n        my_tcp { }\n    }\n}\nltm profile http /Common/my_http { }\nltm profile tcp /Common/my_tcp { }\n";
+    let sources = vec![("mem://x".to_string(), scf.to_string())];
+    let m = collect_model(&sources, "T");
+    let vs = arr(&m, "devices")
+        .iter()
+        .flat_map(|d| arr(d, "virtuals"))
+        .find(|v| v["name"] == "relvs")
+        .expect("relvs present");
+    let profs: Vec<&str> = vs["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p.as_str().unwrap())
+        .collect();
+    assert_eq!(profs, vec!["my_tcp", "my_http"], "got {profs:?}");
+}
