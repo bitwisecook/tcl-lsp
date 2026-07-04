@@ -95,10 +95,20 @@ impl CodegenCtx<'_> {
             return false;
         }
 
+        // Slot allocation mirrors C Tcl's `TclCompileDictForCmd`: the two loop
+        // variables, then a spare temp, then the body's locals, and finally the
+        // iterator temp — so the iterator gets the *highest* slot. Because the
+        // body (which interns its own locals) is emitted between `dictFirst` and
+        // the iterator's allocation, the `dictFirst`/`dictNext`/`unsetScalar`
+        // operands are emitted with a placeholder and back-patched once the
+        // iterator slot is known.
         let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
         let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        // C Tcl allocates an unused companion temp right after the loop vars.
+        let _spare = self
+            .lvt
+            .intern(&format!("#dictfor_spare{}", self.catch_depth));
         let iter_name = format!("#dictfor{}", self.catch_depth);
-        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
         let loop_lbl = self.fresh_label("dict_for_loop");
         let end_lbl = self.fresh_label("dict_for_end");
 
@@ -111,8 +121,16 @@ impl CodegenCtx<'_> {
             )],
         );
         self.catch_depth += 1;
-        self.emit(Op::DICT_FIRST, vec![Operand::Imm(iter_slot)]);
-        self.emit_comment(Op::JUMP_TRUE4, vec![Operand::Label(end_lbl.clone())], "");
+        let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
+        // Tag the loop-control jumps `dict_for` so the layout pass keeps them
+        // 4-byte (matching C Tcl, which never narrows a dict-for's `jumpTrue4`/
+        // `jumpFalse4`); the normal-exit `jump` below is left untagged so it
+        // narrows to `jump1` as C Tcl's does.
+        self.emit_comment(
+            Op::JUMP_TRUE4,
+            vec![Operand::Label(end_lbl.clone())],
+            "dict_for",
+        );
 
         // Loop body: bind key/value, run the body, advance.
         self.place_label(&loop_lbl);
@@ -124,8 +142,8 @@ impl CodegenCtx<'_> {
         for stmt in &body_ir.top_level.statements {
             self.emit_stmt(stmt, &mut ugi);
         }
-        self.emit(Op::DICT_NEXT, vec![Operand::Imm(iter_slot)]);
-        self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "");
+        let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
+        self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
         // Catch epilogue (C Tcl reaches this via its iterator-cleanup exception
@@ -133,13 +151,20 @@ impl CodegenCtx<'_> {
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::END_CATCH, vec![]);
-        self.emit_comment(
+        let unset_idx = self.emit_comment(
             Op::UNSET_SCALAR,
-            vec![Operand::Imm(0), Operand::Imm(iter_slot)],
+            vec![Operand::Imm(0), Operand::Imm(0)],
             &iter_name,
         );
         self.emit(Op::RETURN_STK, vec![]);
         self.catch_depth -= 1;
+
+        // Now the body's locals are interned; the iterator gets the next
+        // (highest) slot. Back-patch the placeholders.
+        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[unset_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
 
         // Normal exit: drop the leftover key/value from the final dictNext.
         self.place_label(&end_lbl);
