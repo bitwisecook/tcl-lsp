@@ -34,6 +34,11 @@ pyo3 = { version = "0.29", features = ["extension-module"] }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-bigip-io = { path = "../tcl-bigip-io" }
 tcl-bigip-query = { path = "../tcl-bigip-query" }
+# F5 master-key (`f5mku`) secret decryption, shared with the wasm report.
+tcl-f5mku = { path = "../tcl-f5mku" }
+# The certificate projection serialises the parsed `sys file ssl-cert` field
+# maps to JSON for the pure-Python report layer to consume.
+serde_json = { version = "1", features = ["preserve_order"] }
 
 # NOTE: no `[lints] workspace = true` — this crate must not inherit the
 # workspace `unsafe_code = "forbid"` lint (PyO3's generated glue needs it).

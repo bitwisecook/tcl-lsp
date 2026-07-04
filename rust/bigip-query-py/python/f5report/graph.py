@@ -158,6 +158,38 @@ _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# Direct object-attachment commands whose *non-literal* argument (a `$var` or
+# `[cmd]`) an iRule can use to attach an object the static reference graph can't
+# resolve. Literal references (`pool /Common/x`) are already in `referenced_by`.
+_DYN_ATTACH: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bpool\s+(\S+)", re.I), "pools"),
+    (re.compile(r"\bnode\s+(\S+)", re.I), "nodes"),
+    (re.compile(r"\bsnatpool\s+(\S+)", re.I), "snatpools"),
+]
+
+
+def dynamic_attach_risk(rules: list[dict[str, Any]]) -> set[str]:
+    """Object types an iRule could dynamically attach.
+
+    If any rule selects a type dynamically, objects of that type can never be
+    *proven* orphaned, so they are demoted from "orphan" to "possible orphan".
+    """
+    risk: set[str] = set()
+    for r in rules:
+        body = r.get("body", "") or ""
+        if not body:
+            continue
+        for pat, ty in _DYN_ATTACH:
+            if ty in risk:
+                continue
+            for m in pat.finditer(body):
+                arg = m.group(1)
+                if "$" in arg or "[" in arg:
+                    risk.add(ty)
+                    break
+    return risk
+
+
 def irule_dynamic_actions(body: str) -> list[dict[str, str]]:
     """Return the profile/processing-changing commands a rule issues."""
     if not body:
@@ -221,8 +253,13 @@ def build_graph(device: dict[str, Any]) -> dict[str, Any]:
             fp = o.get("fullPath", "")
             if not fp:
                 continue
-            n = add_node(prefix, fp, o.get("name", ""),
-                         {"orphan": bool(not o.get("usedBy")) if "usedBy" in o else False})
+            # Confirmed orphan only; a "possible" orphan (dynamic iRule
+            # attachment) is not coloured as an orphan.
+            if "orphanStatus" in o:
+                is_orphan = o["orphanStatus"] == "orphan"
+            else:
+                is_orphan = bool(not o.get("usedBy")) if "usedBy" in o else False
+            n = add_node(prefix, fp, o.get("name", ""), {"orphan": is_orphan})
             node_by_path[fp] = nodes[n]
             if key == "nodes" and o.get("address"):
                 node_by_addr[o["address"]] = nodes[n]

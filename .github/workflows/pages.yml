@@ -1,0 +1,63 @@
+name: Deploy Compiler Explorer to GitHub Pages
+
+# Disabled until the repository is made public (GitHub Pages requires a public
+# repo on free plans).
+# on:
+#   push:
+#     tags: ["v*"]
+on: workflow_dispatch
+
+# Least-privilege default; the build job inherits read-only, the deploy job
+# escalates to what GitHub Pages needs.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Explorer build invokes `git describe --tags` via the Makefile;
+          # tags are required but full history isn't.
+          fetch-depth: 1
+          fetch-tags: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build compiler explorer (CDN variant)
+        run: make explorer-build-cdn
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/explorer-cdn
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

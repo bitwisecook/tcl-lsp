@@ -44,11 +44,18 @@ parser in Python.
 
 | Path | What |
 |------|------|
-| `src/lib.rs` | The PyO3 extension module `f5report._engine`: `query()`, `load_paths()`, `ucs_to_scf()`. Converts engine `Value`s to native Python objects (no JSON round-trip). |
+| `src/lib.rs` | The PyO3 extension module `f5report._engine`: `query()`, `load_paths()`, `ucs_to_scf()`, `sys_file_ssl_certs()` / `sys_file_ssl_keys()` (cert inventory), `decrypt_secrets()` (`f5mku` master-key secret decryption). Converts engine `Value`s to native Python objects (no JSON round-trip). |
 | `python/f5report/report.py` | Runs the engine queries and shapes the report model, incl. the `referenced_by` graph → orphan detection. |
+| `python/f5report/certs.py` | The SSL-certificate + private-key expiry inventory (answers "which certs are expiring, and what do they front?"). |
 | `python/f5report/render.py` + `templates/` | Jinja rendering to one standalone HTML file (embedded CSS/JS, no external assets). |
-| `python/f5report/__main__.py` | The `f5-report` CLI. |
+| `python/f5report/__main__.py` | The `f5-report` CLI (`--f5mku` / `--f5mku-file` reveal `$M$` secrets). |
 | `tests/` | pytest suite + real-world config fixtures (see `tests/data/PROVENANCE.md`). |
+
+> This Python package is deliberately kept as the demonstration of using the
+> BIG-IP query engine as a **library** (via PyO3). The same generator, ported to
+> Rust and compiled to WebAssembly so it runs entirely in the browser, lives in
+> [`../tcl-bigip-report`](../tcl-bigip-report) + [`../bigip-report-wasm`](../bigip-report-wasm);
+> the two are kept at feature parity.
 
 This crate is **excluded** from the Cargo workspace (like `editors/zed`): PyO3's
 generated glue trips the workspace `unsafe_code = "forbid"` lint, and the cdylib
