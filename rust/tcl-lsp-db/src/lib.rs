@@ -721,7 +721,6 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     ))
 }
 
-
 /// Build a `CompilationUnit` (with interprocedural summary applied) whose
 /// per-procedure baseline lattices are memoised by the salsa-native
 /// [`function_lattice`] query.
@@ -1996,11 +1995,38 @@ pub fn document_symbols(
     tcl_lsp_core::document_symbols::document_symbols_from_analysis(file.text(db), &analysis)
 }
 
-/// Semantic tokens — wraps `semantic_tokens::full`; reads the durable registry.
+/// The document's [`CompilationUnit`] under the default lexer config — a thin
+/// wrapper over [`compilation_unit`] that interns the `LexerCfgKey` from the
+/// file's dialect, so callers that only have `(db, file)` (semantic tokens,
+/// server-side accessors) share the same memoised build as the diagnostics
+/// path.
+#[salsa::tracked]
+pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
+    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
+    compilation_unit(db, file, cfg_key)
+}
+
+/// Semantic tokens — wraps `semantic_tokens::full_with_cu`; reads the durable
+/// registry.
+///
+/// This query demands the document's [`CompilationUnit`] so a `regexp` /
+/// `regsub` pattern supplied through a provably-constant string variable
+/// highlights its originating `set` literal as a regex (see
+/// [`tcl_compiler::regex_source`]).  That reworks the earlier "tokens never
+/// touch the analysis pipeline" latency shortcut (issue #333) in favour of
+/// correctness — salsa keeps the unit memoised (shared with diagnostics) and,
+/// keyed on the same `SourceFile`, guarantees the analysis and the tokens are
+/// for the identical revision (no version skew in the emitted stream).
 #[salsa::tracked]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
-    tcl_lsp_core::semantic_tokens::full(file.text(db), file.dialect(db), &registry)
+    let cu = document_compilation_unit(db, file);
+    tcl_lsp_core::semantic_tokens::full_with_cu(
+        file.text(db),
+        file.dialect(db),
+        &registry,
+        Some(&cu),
+    )
 }
 
 /// Folding ranges — wraps `folding::folding_ranges`; reads the durable registry.

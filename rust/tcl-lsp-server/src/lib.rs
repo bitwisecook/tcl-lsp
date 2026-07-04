@@ -1679,6 +1679,25 @@ impl Backend {
         .flatten()
     }
 
+    /// Read the memoised [`tcl_compiler::compilation_unit::CompilationUnit`]
+    /// (SSA + SCCP) for `uri` from the query database, if the document has a
+    /// `SourceFile` input.  Shares the per-document build with the diagnostics
+    /// path.  `None` when there is no input (caller builds fresh) or a
+    /// concurrent edit cancelled the read.
+    async fn db_compilation_unit(
+        &self,
+        uri: &Uri,
+    ) -> Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&snapshot, file)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
     /// Run the salsa `semantic_tokens` query for `uri` on a worker thread.
     /// `None` when the input is absent or a concurrent edit cancels the read.
     async fn db_semantic_tokens(
@@ -1964,8 +1983,13 @@ impl Backend {
         }
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        // No salsa input for this document (unindexed buffer): build the unit
+        // fresh so regex-source highlighting still applies, matching the salsa
+        // path above.
         tokio::task::spawn_blocking(move || {
-            core_semantic_tokens::full(&text, &dialect, &registry).data
+            let cu =
+                tcl_compiler::compilation_unit::CompilationUnit::build_for(&text, &registry, false);
+            core_semantic_tokens::full_with_cu(&text, &dialect, &registry, Some(&cu)).data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -5857,11 +5881,20 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        // Reuse the memoised unit when the document is indexed; else build fresh
+        // — so regex-source highlighting is consistent with the full stream.
+        let cached_cu = self.db_compilation_unit(&params.text_document.uri).await;
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         let core_data = tokio::task::spawn_blocking(move || {
-            core_semantic_tokens::range(&text, &dialect, core_range, &registry).data
+            let cu = cached_cu.unwrap_or_else(|| {
+                Arc::new(tcl_compiler::compilation_unit::CompilationUnit::build_for(
+                    &text, &registry, false,
+                ))
+            });
+            core_semantic_tokens::range_with_cu(&text, &dialect, core_range, &registry, Some(&cu))
+                .data
         })
         .await
         .map_err(|err| jsonrpc::Error {
