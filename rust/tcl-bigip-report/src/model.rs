@@ -1235,6 +1235,11 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         J::Array(crate::secrets::collect_secrets(source)),
     );
 
+    // APM access-profile walk (APM tab): follow every `apm profile access` out
+    // to its policy, items, agents and resources. Read from the config text —
+    // the query projection is LTM-only.
+    device.insert("apmProfiles".into(), crate::apm::collect_apm(source, &device));
+
     // Tag every displayed object with its partition (from the full path) and
     // collect the device's partition set, so the report can filter to a
     // partition while always keeping shared /Common objects visible.
@@ -1294,6 +1299,11 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("secrets".into(), J::from(secret_total));
+    let apm_total = device
+        .get("apmProfiles")
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("apmProfiles".into(), J::from(apm_total));
     device.insert("counts".into(), J::Object(counts));
 
     let ins = insights(&device);

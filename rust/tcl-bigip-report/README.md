@@ -3,9 +3,10 @@
 The Rust port of the [`f5report`](../bigip-query-py) generator: given one or more
 loaded `(uri, scf_text)` configs it produces a single, self-contained,
 interactive HTML report — object tables, a reference/orphan analysis, an
-**SSL-certificate expiry inventory**, a Mermaid topology explorer, a
-listener/flow simulator and an embedded in-browser `f5-query` console — with no
-server and no external assets.
+**SSL-certificate expiry inventory**, an **APM access-profile walk** (a
+Visual-Policy-Editor-style dependency graph per `apm profile access`), a Mermaid
+topology explorer, a listener/flow simulator and an embedded in-browser
+`f5-query` console — with no server and no external assets.
 
 The heavy lifting (config parsing, object projection, the `referenced_by`
 reference-graph walk) is done by [`tcl-bigip-query`](../tcl-bigip-query); this
@@ -26,6 +27,7 @@ via [`bigip-report-wasm`](../bigip-report-wasm).
 | `src/model.rs` | port of `f5report.report` — the per-object shaping + orphan/insight passes. |
 | `src/graph.rs` | port of `f5report.graph` — the object graph, listener fields, iRule dynamic actions. |
 | `src/certs.rs` | the SSL-certificate + private-key inventory (read from the parsed model, since the DSL only projects `ltm`). |
+| `src/apm.rs` | the APM access-profile walk — parses the `apm …` stanzas from the config text and emits a per-profile dependency graph (Mermaid) plus its linked-object list. |
 | `src/secrets.rs` | `f5mku` master-key secret decryption. |
 | `src/render.rs` + `templates/` | minijinja rendering to one HTML file (CSS/JS/Mermaid/wasm-console embedded). |
 
