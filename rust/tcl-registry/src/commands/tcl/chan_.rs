@@ -383,6 +383,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "isbinary",
         arity: Arity::exact(1),
+        // `chan isbinary` was added in Tcl 9.0 — absent in the 8.6.x series.
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Test whether channel is binary.",
         synopsis: "chan isbinary channelId",
         pure: true,
