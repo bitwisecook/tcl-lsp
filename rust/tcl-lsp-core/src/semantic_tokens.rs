@@ -382,12 +382,30 @@ enum ArgOverride {
 /// braced/quoted literal token, plus its absolute byte start, or `None`
 /// for a non-literal token / out-of-bounds span.  Shared by the
 /// sub-language scanners.
+///
+/// Applies the same clamp-trim as [`push_token`]: the lexer extends a quoted
+/// `Esc` fragment's span by one byte over the `$` / `[` that introduces the
+/// *following* substitution (keeping `token_text` empty), so a fragment like
+/// the `"$` of `"$x"` reports content `$`.  That introducer byte belongs to
+/// the next `Var` / `Cmd` token; leaving it in would make a sub-language
+/// scanner (regex, …) mis-read it (a `$` as an anchor) and overlap the
+/// substitution token.  Trim it back to the leading delimiter here so every
+/// consumer sees substitution-free literal content.
 fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
     if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
         return None;
     }
     let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
+    let mut cend = (tok.span.end() as usize).min(source.len());
+    if tok.kind == TokenType::Esc
+        && (tok.span.end() - tok.span.start()) == u32::from(tok.content_offset) + 1
+        && source
+            .as_bytes()
+            .get(tok.span.end() as usize - 1)
+            .is_some_and(|&b| b == b'$' || b == b'[')
+    {
+        cend = cstart.min(cend);
+    }
     source.get(cstart..cend).map(|inner| (cstart, inner))
 }
 
@@ -595,17 +613,46 @@ fn insert_regex_overrides(
     if idx < args.len() && args[idx] == "--" {
         idx += 1;
     }
-    // `args[idx]` is the pattern; its representative token is
-    // `seg.argv[idx + 1]` (argv[0] is the command head).
+    // `args[idx]` is the pattern; its whole-word span is `seg.argv[idx + 1]`
+    // (argv[0] is the command head).  Sub-tokenise only the *literal*
+    // fragments of the word as regex: in `"abc$var.*"` the `abc` / `.*`
+    // fragments are regex, but `$var` is variable interpolation Tcl resolves
+    // before `regexp` sees it (and `"[cmd]"` is command substitution, not a
+    // char class).  Marking the literal fragments — not the whole word —
+    // leaves the `Var` / `Cmd` fragments to the default classifier, so they
+    // render as Tcl and never overlap the regex sub-tokens.
     if let Some(tok) = seg.argv.get(idx + 1) {
-        overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
+        mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
     }
     // `regsub … exp string subSpec …` — the replacement spec sits two
-    // words after the pattern.
+    // words after the pattern.  Same literal-fragment treatment (its
+    // backrefs are handled by the regsub-replacement scanner).
     if head == "regsub"
         && let Some(tok) = seg.argv.get(idx + 3)
     {
-        overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
+        mark_literal_fragments(seg, tok.span, ArgOverride::RegsubReplace, overrides);
+    }
+}
+
+/// Tag each literal (`Str`/`Esc`) fragment of the word spanning `word_span`
+/// with `ov`, leaving `Var`/`Cmd` substitution fragments untouched (they fall
+/// through to the default classifier).  A single-fragment literal word (a
+/// braced `{a+b}` pattern, a plain `"abc"`) is tagged as one piece — the
+/// common case — while a word interleaving literals and substitutions gets
+/// each literal run tagged independently.
+fn mark_literal_fragments(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    word_span: tcl_lexer::Span,
+    ov: ArgOverride,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    for t in &seg.all_tokens {
+        if t.span.start() >= word_span.start()
+            && t.span.end() <= word_span.end()
+            && matches!(t.kind, TokenType::Str | TokenType::Esc)
+        {
+            overrides.entry(t.span.start()).or_insert(ov);
+        }
     }
 }
 
@@ -2440,6 +2487,14 @@ fn is_number_literal(text: &str) -> bool {
 /// a Comment-kind entry.
 fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
     let bytes = source.as_bytes();
+    // Lines already carrying a token from the command walk.  A genuine
+    // full-line `#` comment is its own command, so the segmenter strips it and
+    // its line has no other tokens.  A `#` that only *begins* a line inside a
+    // multi-line `"…"` string (or a braced body) is not a comment in Tcl —
+    // that line already carries string / variable tokens.  Emitting a comment
+    // there would both mis-classify the text and overlap those tokens, so skip
+    // any candidate line the walk has already populated.
+    let occupied: rustc_hash::FxHashSet<u32> = entries.iter().map(|&(line, ..)| line).collect();
     let mut line_start = true;
     // Byte offset up to which the rest of an already-emitted comment line is
     // skipped.  Derived from `char_indices` so the cursor never desyncs from
@@ -2465,6 +2520,15 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             }
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
+            // Skip the remainder of the line regardless; a `#` inside a
+            // multi-line string still consumes its line for this scan.
+            skip_until = p;
+            line_start = false;
+            // Only emit when the line is not already tokenised by the walk
+            // (i.e. it is a real command-position comment, not string text).
+            if occupied.contains(&pos.line) {
+                continue;
+            }
             let len_utf16 = utf16_len(&source[idx..p]);
             entries.push((
                 pos.line,
@@ -2473,10 +2537,6 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
                 TokenKind::Comment,
                 0,
             ));
-            // Skip the remainder of the comment line; the terminating `\n`
-            // (at `p`) is processed normally and resets `line_start`.
-            skip_until = p;
-            line_start = false;
             continue;
         }
         line_start = false;
@@ -2906,6 +2966,64 @@ mod tests {
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
             "expected `q` declared inside the constructor body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn regex_pattern_with_substitution_splits_regex_and_tcl() {
+        // `regexp "abc$var.*" $s` — literal `abc` / `.*` sub-tokenise as
+        // regex, but `$var` stays a Tcl variable (Tcl resolves it before
+        // regexp runs), with no overlap.
+        let toks = decode_full("regexp \"abc$var.*\" $s\n", "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected $var as a variable; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpQuantifier as u32),
+            "expected the `*` quantifier from the literal part; got {toks:?}"
+        );
+        // No overlaps.
+        let simple = decode("regexp \"abc$var.*\" $s\n", "tcl", &reg());
+        for w in simple.windows(2) {
+            let (l0, c0, len0) = w[0];
+            let (l1, c1, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={simple:?}");
+            }
+        }
+        // `regexp "$only" $s` — a bare-substitution pattern is just a
+        // variable, not a regex anchor.
+        let toks = decode_full("regexp \"$only\" $s\n", "tcl", &reg());
+        assert!(
+            !toks
+                .iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpAnchor as u32),
+            "the `$` must not be a regex anchor; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn comment_inside_multiline_string_is_not_a_comment() {
+        // A `#`-first line inside a multi-line `"…"` string is string text,
+        // not a command comment — it must not emit a Comment token (which
+        // would overlap the `$x` variable substitution).
+        let src = "append s \"line1\n# not a comment $x\nline3\"\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            !toks
+                .iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Comment as u32),
+            "a `#` inside a string must not be a comment; got {toks:?}"
+        );
+        // A real comment still is one.
+        let toks = decode_full("# real\nset x 1\n", "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Comment as u32),
+            "expected a real comment token; got {toks:?}"
         );
     }
 
