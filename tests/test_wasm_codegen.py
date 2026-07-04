@@ -605,7 +605,7 @@ def test_s52_counter_increments():
     # Intentional monkey-patch: spy wraps the original method to count
     # per-proc alias elisions.  The signature mismatch is by design — the
     # spy forwards via ``*a, **kw`` and returns whatever ``orig`` returned.
-    _WasmEmitter.generate = spy  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]
+    _WasmEmitter.generate = spy  # type: ignore[method-assign]
     try:
         ir = lower_to_ir("proc f {x} { set x $x; return $x }\n")
         cfg = build_cfg(ir)

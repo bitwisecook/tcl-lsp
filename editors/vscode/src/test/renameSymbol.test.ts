@@ -12,9 +12,7 @@ suite("Rename Symbol", () => {
     const pos = new vscode.Position(1, 5);
 
     const result = (await vscode.commands.executeCommand("vscode.prepareRename", docUri, pos)) as
-      | vscode.Range
-      | { range: vscode.Range; placeholder: string }
-      | undefined;
+      vscode.Range | { range: vscode.Range; placeholder: string } | undefined;
 
     assert.ok(result, "prepareRename should return a result for a proc name");
   });
