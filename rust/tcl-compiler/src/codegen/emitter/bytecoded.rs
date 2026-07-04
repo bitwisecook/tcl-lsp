@@ -273,6 +273,12 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         "incr" if matches!(rest.len(), 2 | 3) => dict_incr(ctx, var_name, rest),
         "append" if rest.len() == 3 => dict_append(ctx, var_name, rest),
         "lappend" if rest.len() == 3 => dict_lappend(ctx, var_name, rest),
+        // `dict update var k1 v1 ?k2 v2 …? body` and `dict with var body`
+        // compile inline (C Tcl's `dictUpdateStart`/`dictExpand` machinery) when
+        // the body is straight-line; otherwise fall through to the runtime
+        // invoke. The path form of `dict with` (`rest.len() > 2`) is not inlined.
+        "update" if rest.len() >= 4 && rest.len() % 2 == 0 => ctx.emit_dict_update(rest),
+        "with" if rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
         _ => false,
     }
 }
