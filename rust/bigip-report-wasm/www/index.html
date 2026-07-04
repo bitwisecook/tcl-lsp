@@ -365,6 +365,19 @@
     return bySource;
   }
 
+  // Each file's forensic UCS inventory, nested by source name:
+  // {name: [{path, size, sha256, isText, content?}]}. Powers the Forensics tab.
+  function collectForensicFiles(items, pass) {
+    var bySource = {};
+    items.forEach(function (it) {
+      try {
+        bySource[it.name] = JSON.parse(
+          wasm_bindgen.extract_files(it.name, it.bytes, pass));
+      } catch (e) { /* best effort — no forensic view for this source */ }
+    });
+    return bySource;
+  }
+
   // Best-effort probe (on file / passphrase change): reveal the master-key
   // field only if the config actually carries $M$ secrets. Silent on failure
   // (e.g. an encrypted UCS whose passphrase isn't entered yet).
@@ -390,6 +403,8 @@
       // Certificates come straight from the archive filestore (not affected by
       // the f5mku secret decryption below).
       var certFiles = collectCertFiles(items, pass);
+      // Forensic file inventory, also straight from the archive.
+      var forensicFiles = collectForensicFiles(items, pass);
 
       // Decrypt with the master key when one was supplied.
       if (mku && secretTotal > 0) {
@@ -406,11 +421,12 @@
       var locked = secretTotal > 0 && !mku;
       var sources = items.map(function (s) { return [s.name, s.scf]; });
       return new Promise(function (resolve) {
-        setTimeout(function () { resolve({ sources: sources, certFiles: certFiles, locked: locked }); }, 20);
+        setTimeout(function () { resolve({ sources: sources, certFiles: certFiles, forensicFiles: forensicFiles, locked: locked }); }, 20);
       });
     }).then(function (st) {
       var html = wasm_bindgen.generate_report(
-        JSON.stringify(st.sources), JSON.stringify(st.certFiles), title, utcStamp(), embed);
+        JSON.stringify(st.sources), JSON.stringify(st.certFiles), JSON.stringify(st.forensicFiles),
+        title, utcStamp(), embed);
       deliver(html, st.sources.length, st.locked);
     });
   }

@@ -12,6 +12,7 @@
 {{ topology_css | safe }}
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
+{{ forensics_css | safe }}
 </style>
 </head>
 <body>
@@ -103,6 +104,7 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
+    {% if d.counts.files %}<button class="tab" data-panel="forensics">Forensics <span class="n">{{ d.counts.files }}</span></button>{% endif %}
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
     <button class="tab" data-panel="apps">Apps <span class="n app-badge">0</span></button>
@@ -379,6 +381,14 @@
   </div>
   {% endif %}
 
+  {#: ---------------- Forensics (UCS file inventory + hunting checklist) ---------------- :#}
+  {% if d.counts.files %}
+  <div class="panel" data-panel="forensics">
+    <p class="lm-field-note">Forensic inventory of the OS files inside this device's <code>.ucs</code> — the paths an attacker tampers with on a compromised BIG-IP, each with its size and <b>SHA-256</b> (diff it against a known-good host). The checklist runs the <b>UCS forensic checks</b> (see the <b>F5 Sites</b> tab) live against the archive and flags what it finds. File contents are shown only for small non-sensitive text files, behind a per-file reveal; <code>shadow</code> and private keys are <b>never embedded</b> — nothing here left your browser.</p>
+    <div class="forensics-view"></div>
+  </div>
+  {% endif %}
+
   {#: ---------------- Topology ---------------- :#}
   <div class="panel" data-panel="topology">
     <div class="topo-controls">
@@ -644,6 +654,9 @@
 </script>
 <script>
 {{ secrets_js | safe }}
+</script>
+<script>
+{{ forensics_js | safe }}
 </script>
 {% if has_console %}
 <!-- in-browser query engine: wasm-bindgen glue + base64 wasm (the f5-query DSL compiled to WebAssembly) -->

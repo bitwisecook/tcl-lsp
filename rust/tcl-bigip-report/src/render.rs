@@ -15,7 +15,7 @@ use base64::Engine as _;
 use minijinja::{AutoEscape, Environment};
 use serde_json::{Map, Value as J, json};
 
-use crate::model::collect_model_with_certs;
+use crate::model::collect_model_full;
 use crate::query::{ReportError, Source};
 
 // The template we own (adapted from `f5report`'s `report.html.j2` for minijinja
@@ -41,6 +41,8 @@ const CERTS_CSS: &str = include_str!("../templates/certs.css");
 const CERTS_JS: &str = include_str!("../templates/certs.js");
 const SECRETS_CSS: &str = include_str!("../templates/secrets.css");
 const SECRETS_JS: &str = include_str!("../templates/secrets.js");
+const FORENSICS_CSS: &str = include_str!("../templates/forensics.css");
+const FORENSICS_JS: &str = include_str!("../templates/forensics.js");
 const IRULE_FLOW_JS: &str = include_str!("../templates/irule-flow.js");
 
 /// Options controlling report rendering.
@@ -61,6 +63,12 @@ pub struct RenderOptions {
     /// `cache-path` across two UCS files in one report doesn't collide. Empty =
     /// config metadata only.
     pub cert_pems: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+    /// UCS file inventory for the Forensics tab, keyed **by source URI** → the
+    /// list of that device's extracted members (each a JSON object
+    /// `{path, size, sha256, isText, content?}`, from
+    /// [`tcl_bigip_io::list_ucs_members`] / `read_ucs_member`). Empty = no
+    /// archive behind the source (e.g. a bare `bigip.conf`).
+    pub files: std::collections::HashMap<String, Vec<serde_json::Value>>,
 }
 
 impl Default for RenderOptions {
@@ -70,6 +78,7 @@ impl Default for RenderOptions {
             generated_at: String::new(),
             embed_console: true,
             cert_pems: std::collections::HashMap::new(),
+            files: std::collections::HashMap::new(),
         }
     }
 }
@@ -128,10 +137,12 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("topology_css".into(), J::String(TOPOLOGY_CSS.into()));
     ctx.insert("certs_css".into(), J::String(CERTS_CSS.into()));
     ctx.insert("secrets_css".into(), J::String(SECRETS_CSS.into()));
+    ctx.insert("forensics_css".into(), J::String(FORENSICS_CSS.into()));
     ctx.insert("report_js".into(), J::String(REPORT_JS.into()));
     ctx.insert("topology_js".into(), J::String(TOPOLOGY_JS.into()));
     ctx.insert("certs_js".into(), J::String(CERTS_JS.into()));
     ctx.insert("secrets_js".into(), J::String(SECRETS_JS.into()));
+    ctx.insert("forensics_js".into(), J::String(FORENSICS_JS.into()));
     ctx.insert("irule_flow_js".into(), J::String(IRULE_FLOW_JS.into()));
     ctx.insert("mermaid_js".into(), J::String(MERMAID_JS.into()));
     ctx.insert("topo_types".into(), topo_types());
@@ -167,6 +178,6 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
 
 /// Collect the model from `sources` and render it to a standalone HTML document.
 pub fn build_report(sources: &[Source], opts: &RenderOptions) -> Result<String, ReportError> {
-    let model = collect_model_with_certs(sources, &opts.title, &opts.cert_pems);
+    let model = collect_model_full(sources, &opts.title, &opts.cert_pems, &opts.files);
     render_report(model, opts)
 }
