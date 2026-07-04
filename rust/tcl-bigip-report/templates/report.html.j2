@@ -325,11 +325,22 @@
       </tr>
       <tr class="detail"><td></td><td colspan="7">
         <div class="cert-detail">
-          <div><span class="cd-k">Full path</span><span class="mono">{{ c.fullPath }}</span></div>
-          {% if c.hasKey %}<div><span class="cd-k">Private key</span><span class="mono small">{{ c.keyPath | leaf }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span></div>{% endif %}
+          <div><span class="cd-k">Full path</span><span class="mono">{{ c.fullPath }}</span>{% if c.fromCertFile %} <span class="tag" title="Subject, validity, SANs and chain were parsed from the certificate in the UCS filestore, not from the config stanza">parsed from cert file</span>{% endif %}</div>
+          {% if c.notBefore %}<div><span class="cd-k">Issued</span><span class="mono small">{{ c.notBefore }}</span></div>{% endif %}
+          {% if c.expirationString %}<div><span class="cd-k">Expires</span><span class="mono small">{{ c.expirationString }}</span></div>{% endif %}
           {% if c.subjectAlternativeName %}<div><span class="cd-k">SAN</span><span class="mono small">{{ c.subjectAlternativeName }}</span></div>{% endif %}
+          {% if c.sigAlg %}<div><span class="cd-k">Signature</span><span class="mono small">{{ c.sigAlg }}</span></div>{% endif %}
           {% if c.fingerprint %}<div><span class="cd-k">Fingerprint</span><span class="mono small">{{ c.fingerprint }}</span></div>{% endif %}
           {% if c.serialNumber %}<div><span class="cd-k">Serial</span><span class="mono small">{{ c.serialNumber }}</span></div>{% endif %}
+          {% if c.chain %}<div class="cert-chain"><span class="cd-k">Chain</span>
+            <ol class="chain-list">
+            {% for link in c.chain %}
+              {% if link.role == 'gap' %}<li class="chain-gap"><span class="tag amber">chain incomplete — issuer <span class="mono">{{ link.cn }}</span> not in config</span></li>
+              {% else %}<li class="chain-{{ link.role }}"><span class="tag">{{ link.role }}</span> <span class="mono small">{{ link.cn }}</span>{% if link.selfSigned %} <span class="muted small">(self-signed)</span>{% endif %}{% if link.notAfter %} <span class="muted small">· exp {{ link.notAfter }}</span>{% endif %}</li>{% endif %}
+            {% endfor %}
+            </ol>
+          </div>{% endif %}
+          {% if c.hasKey %}<div><span class="cd-k">Private key</span><span class="mono small">{{ c.keyPath | leaf }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span></div>{% endif %}
           {% if c.usedByProfiles %}<div><span class="cd-k">Profiles</span><span class="mono small">{{ c.usedByProfiles | join(', ') }}</span></div>{% endif %}
           {% if c.sourcePath %}<div><span class="cd-k">Source</span><span class="mono small">{{ c.sourcePath }}</span></div>{% endif %}
         </div>

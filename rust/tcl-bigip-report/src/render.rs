@@ -15,7 +15,7 @@ use base64::Engine as _;
 use minijinja::{AutoEscape, Environment};
 use serde_json::{Map, Value as J, json};
 
-use crate::model::collect_model;
+use crate::model::collect_model_with_certs;
 use crate::query::{ReportError, Source};
 
 // The template we own (adapted from `f5report`'s `report.html.j2` for minijinja
@@ -54,6 +54,10 @@ pub struct RenderOptions {
     /// Embed the in-browser WASM `f5-query` console. Off yields a smaller page
     /// (e.g. for hosting behind a strict CSP that blocks WebAssembly).
     pub embed_console: bool,
+    /// Certificate PEMs recovered from the UCS filestore, keyed by the
+    /// `sys file ssl-cert` `cache-path`. Lets the certs tab parse metadata-free
+    /// stanzas and reconstruct the trust chain. Empty = config metadata only.
+    pub cert_pems: std::collections::HashMap<String, String>,
 }
 
 impl Default for RenderOptions {
@@ -62,6 +66,7 @@ impl Default for RenderOptions {
             title: "F5 BIG-IP Configuration Report".to_string(),
             generated_at: String::new(),
             embed_console: true,
+            cert_pems: std::collections::HashMap::new(),
         }
     }
 }
@@ -159,6 +164,6 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
 
 /// Collect the model from `sources` and render it to a standalone HTML document.
 pub fn build_report(sources: &[Source], opts: &RenderOptions) -> Result<String, ReportError> {
-    let model = collect_model(sources, &opts.title);
+    let model = collect_model_with_certs(sources, &opts.title, &opts.cert_pems);
     render_report(model, opts)
 }

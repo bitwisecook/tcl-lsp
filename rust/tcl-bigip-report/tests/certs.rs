@@ -2,7 +2,7 @@
 //! inline config (the lab UCS fixtures terminate no TLS, so carry no certs).
 
 use serde_json::Value as J;
-use tcl_bigip_report::{Source, collect_model};
+use tcl_bigip_report::{Source, collect_model, collect_model_with_certs};
 
 const SCF: &str = r#"
 sys global-settings {
@@ -525,4 +525,65 @@ fn irule_flowchart_is_mermaid() {
     let fc = d["rules"][0]["flowchart"].as_str().unwrap();
     assert!(fc.starts_with("flowchart TD"), "mermaid flowchart: {fc}");
     assert!(fc.contains("HTTP_REQUEST"), "event node present");
+}
+
+// --- real certificate parsed out of a UCS filestore (parity with Python) -----
+
+const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../bigip-query-py/tests/data");
+
+/// Load the chain fixture as a `(source, cert_pems)` pair the way the wasm /
+/// CLI entry points do: flatten the UCS to SCF, then read each `sys file
+/// ssl-cert` cache-path member back out of the archive.
+fn chain_fixture() -> (Source, std::collections::HashMap<String, String>) {
+    use tcl_bigip::model::ModelObject;
+    use tcl_bigip::parser::driver::parse_bigip_conf;
+    use tcl_bigip_io::{read_ucs_member, ucs_to_scf};
+
+    let path = format!("{DATA}/certs-chain.ucs");
+    let raw = std::fs::read(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    let scf = ucs_to_scf(&raw, false).expect("extract");
+    let mut pems = std::collections::HashMap::new();
+    let config = parse_bigip_conf(&scf, "Common");
+    for placed in &config.objects {
+        if let ModelObject::SysFileSslCert(c) = &placed.object
+            && !c.cache_path.is_empty()
+            // The fixture is a plain (unencrypted) UCS, so the provider is never
+            // invoked.
+            && let Ok(pem) = read_ucs_member(
+                &raw,
+                &c.cache_path,
+                &|| unreachable!("plain UCS needs no passphrase"),
+                &path,
+            )
+        {
+            pems.insert(c.cache_path.clone(), String::from_utf8_lossy(&pem).into_owned());
+        }
+    }
+    ((path, scf), pems)
+}
+
+#[test]
+fn cert_fields_and_chain_parsed_from_ucs_filestore() {
+    let (source, pems) = chain_fixture();
+    let m = collect_model_with_certs(&[source], "Chain", &pems);
+    let certs = m["devices"][0]["certificates"].as_array().unwrap();
+    let leaf = certs
+        .iter()
+        .find(|c| c["name"] == "www.acme.example.crt")
+        .expect("leaf cert present");
+
+    // None of this is in the metadata-free stanza — it came from the PEM.
+    assert_eq!(leaf["fromCertFile"], J::Bool(true));
+    assert_eq!(leaf["cn"], "www.acme.example");
+    assert!(leaf["issuer"].as_str().unwrap().contains("Acme Intermediate CA"));
+    assert!(!leaf["notBefore"].as_str().unwrap().is_empty(), "issue date");
+    assert!(leaf["expirationDate"].as_str().unwrap().parse::<i64>().is_ok());
+    let san = leaf["subjectAlternativeName"].as_str().unwrap();
+    assert!(san.contains("api.acme.example") && san.contains("10.0.0.5"));
+    assert!(!leaf["sigAlg"].as_str().unwrap().is_empty());
+
+    let chain = leaf["chain"].as_array().unwrap();
+    let roles: Vec<&str> = chain.iter().map(|l| l["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["leaf", "intermediate", "root"]);
+    assert_eq!(chain.last().unwrap()["selfSigned"], J::Bool(true));
 }
