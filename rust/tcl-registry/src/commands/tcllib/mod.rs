@@ -225,7 +225,7 @@ use crate::spec::CommandSpec;
 #[must_use]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     let mut specs = Vec::new();
-    specs.extend(base64_cmdline_csv_dns_specs());
+    specs.extend(base64_cmdline_control_csv_dns_specs());
     specs.extend(fileutil_html_ip_json_specs());
     specs.extend(logger_math_specs());
     specs.extend(md5_mime_snit_struct_specs());
@@ -244,7 +244,7 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
 }
 
 /// `base64::*`, `cmdline::*`, `control::*`, `csv::*`, and `dns::*`.
-fn base64_cmdline_csv_dns_specs() -> Vec<CommandSpec> {
+fn base64_cmdline_control_csv_dns_specs() -> Vec<CommandSpec> {
     vec![
         base64__decode::spec(),
         base64__encode::spec(),
@@ -616,6 +616,36 @@ mod tests {
         assert_eq!(bodies, vec![0], "body role");
         assert_eq!(keywords, vec![1], "keyword role");
         assert_eq!(exprs, vec![2], "expr role");
+    }
+
+    #[test]
+    fn control_do_option_roles_only_apply_to_full_form() {
+        // `?option test?` is only meaningful as a complete pair — a lone
+        // `option` (the malformed two-word form) must NOT be highlighted as
+        // a keyword just because it sits at that position (PR #763 review).
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        // body-only form: just the body recurses, no keyword/expr.
+        let one = ["{body}"];
+        assert_eq!(
+            reg.arg_indices_for_role("control::do", &one, ArgRole::Body),
+            vec![0],
+        );
+        assert!(
+            reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
+                .is_empty(),
+        );
+        // malformed two-word form (`body` + lone option): no keyword role.
+        let two = ["{body}", "while"];
+        assert!(
+            reg.arg_indices_for_role("control::do", &two, ArgRole::Keyword)
+                .is_empty(),
+            "lone option word must not be a keyword",
+        );
+        assert!(
+            reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
+                .is_empty(),
+        );
     }
 
     #[test]

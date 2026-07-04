@@ -25,6 +25,23 @@ const OPTION_VALUES: &[ArgValue] = &[
     },
 ];
 
+/// Argument roles for `control::do body ?option test?`.
+///
+/// The `?option test?` tail is only meaningful as a complete pair, so
+/// the `option` (`while`/`until`) keyword and the `test` expression
+/// roles are assigned only for the full three-word form. A malformed
+/// two-word call (`body` + a lone `option`) leaves the second word
+/// unroled — it must not be highlighted as a keyword just because it
+/// sits at that position.
+fn control_do_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut roles = vec![(0, ArgRole::Body)];
+    if args.len() >= 3 {
+        roles.push((1, ArgRole::Keyword));
+        roles.push((2, ArgRole::Expr));
+    }
+    roles
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "control::do",
@@ -32,12 +49,10 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 3),
         // `body` is a script evaluated in the caller's frame (Plain),
         // `option` is the `while`/`until` keyword, and `test` is an
-        // expression evaluated like `expr`.
-        arg_roles: &[
-            (0, ArgRole::Body),
-            (1, ArgRole::Keyword),
-            (2, ArgRole::Expr),
-        ],
+        // expression evaluated like `expr`. Roles are resolved
+        // dynamically so the option/test roles only apply to the
+        // complete `body option test` form.
+        arg_role_resolver: Some(control_do_arg_roles),
         arg_values: &[(1, OPTION_VALUES)],
         arg_types: &[(
             2,
