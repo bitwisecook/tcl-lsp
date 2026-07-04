@@ -43,6 +43,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Filter using an expression over each element.",
         synopsis: "struct::list filterfor var sequence expr",
+        arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Expr)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -64,6 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Iterate over all permutations of a list.",
         synopsis: "struct::list foreachperm var sequence body",
+        arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -97,8 +99,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "mapfor",
         arity: Arity::exact(3),
-        detail: "Map using an expression over each element.",
-        synopsis: "struct::list mapfor var sequence expr",
+        detail: "Map each element through a script and collect the results.",
+        synopsis: "struct::list mapfor var sequence script",
+        // Unlike `filterfor`, mapfor's third argument is a Tcl script
+        // evaluated once per element (in the caller's frame), not an
+        // expression — so it recurses as a body.
+        arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {

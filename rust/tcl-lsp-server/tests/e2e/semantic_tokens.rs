@@ -100,6 +100,17 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "comments",
             "# leading comment\nputs hi ;# trailing comment\n",
         ),
+        // Issue #759: a `#` comment ending in an unescaped backslash continues
+        // onto the next physical line; the continuation must stay a comment and
+        // its per-line tokens must satisfy the bounds/overlap invariants.
+        (
+            "comment_continuation",
+            "# a comment \\\nstill a comment\nset x 1\n",
+        ),
+        (
+            "comment_continuation_crlf",
+            "# a comment \\\r\nstill a comment\r\nset x 1\r\n",
+        ),
         ("crlf", "proc p {} {\r\n    set x 1\r\n}\r\n"),
         (
             "multibyte_string",
@@ -118,6 +129,13 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
         (
             "switch_braced",
             "switch $x {\n  {a b} { puts one }\n  default { puts def }\n}\n",
+        ),
+        // Issue #757 review (Codex P1): a `#`-leading physical line inside a
+        // multi-line literal must not produce a `comment` token overlapping the
+        // per-line `string` token.  Exercises the non-overlap invariant.
+        (
+            "hash_in_multiline_literal",
+            "set x {a\n# not a comment\nb}\nset y \"a\n  # also literal\nb\"\n",
         ),
     ];
     v.sort_by(|a, b| a.0.cmp(b.0));
@@ -205,6 +223,61 @@ fn test_comment() {
 }
 
 #[test]
+fn test_comment_continuation() {
+    // Issue #759, end-to-end through the packaged server: a `#` comment whose
+    // line ends in an unescaped backslash continues onto the next line, and an
+    // even (escaped) backslash run does not.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+
+    let uri = open_doc(&mut lsp, "# a comment \\\nstill a comment\nset x 1\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(
+        comment_lines.contains(&0) && comment_lines.contains(&1),
+        "{comment_lines:?}"
+    );
+    assert!(!comment_lines.contains(&2), "{comment_lines:?}");
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "function"),
+        "line 2 is code: {toks:?}"
+    );
+
+    // Escaped backslash pair — no continuation.
+    let uri = open_doc(&mut lsp, "# escaped end \\\\\nset z 3\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(comment_lines.contains(&0), "{comment_lines:?}");
+    assert!(
+        !comment_lines.contains(&1),
+        "escaped backslash must not continue: {comment_lines:?}"
+    );
+
+    // A `;#` tail comment (command position after a separator) is a comment and
+    // continues across a trailing backslash.
+    let uri = open_doc(&mut lsp, "puts hi ;# tail \\\nmore\nset y 2\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(
+        comment_lines.contains(&0) && comment_lines.contains(&1),
+        "expected `;#` tail comment + continuation: {comment_lines:?}"
+    );
+    assert!(!comment_lines.contains(&2), "{comment_lines:?}");
+}
+
+#[test]
 fn test_proc_as_keyword() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
@@ -280,6 +353,49 @@ fn test_braced_string() {
 }
 
 #[test]
+fn test_multiline_braced_string_highlighted_per_line() {
+    // Issue #757: a braced string literal spanning multiple lines used to lose
+    // its highlighting (the enclosing multi-line `string` token was dropped).
+    // End-to-end it must now carry a `string` token on every covered line,
+    // exactly like the quoted form.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let braced = open_doc(&mut lsp, "set x {some long\nstring that spans\nmultiple lines}\n");
+    let btoks = typed(&mut lsp, &lg, &braced);
+    for line in 0..=2 {
+        assert!(
+            btoks.iter().any(|t| t.line == line && t.ttype == "string"),
+            "braced literal line {line} must carry a string token: {btoks:?}",
+        );
+    }
+    // The quoted counterpart highlights the same span the same way.
+    let quoted = open_doc(&mut lsp, "set x \"some long\nstring that spans\nmultiple lines\"\n");
+    let qtoks = typed(&mut lsp, &lg, &quoted);
+    let strings = |toks: &[TypedToken]| -> Vec<(i64, i64, i64)> {
+        toks.iter()
+            .filter(|t| t.ttype == "string")
+            .map(|t| (t.line, t.char, t.length))
+            .collect()
+    };
+    assert_eq!(
+        strings(&btoks),
+        strings(&qtoks),
+        "braced and quoted multi-line string literals must highlight identically",
+    );
+    // No emitted token may span a newline (LSP encoding invariant).
+    for t in &btoks {
+        let line = "set x {some long\nstring that spans\nmultiple lines}\n"
+            .split('\n')
+            .nth(t.line as usize)
+            .unwrap_or("");
+        assert!(
+            (t.char + t.length) as usize <= line.chars().count(),
+            "token {t:?} overruns its line",
+        );
+    }
+}
+
+#[test]
 fn test_if_elseif_else_body_recursion() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
@@ -314,6 +430,68 @@ fn test_command_subst_inside_expression() {
     let tokens = typed(&mut lsp, &lg, &uri);
     assert!(tokens.iter().any(|t| t.ttype == "function" && t.length == 7));
     assert!(tokens.iter().any(|t| t.ttype == "variable"));
+}
+
+// -- TestTcllibBodyRecursion ---------------------------------------------
+//
+// tcllib commands that carry a script body (`control::do`,
+// `struct::list foreachperm`) or an expression (`control::do`'s test,
+// `control::assert`) must recurse into that argument rather than emit it
+// as one opaque string — same treatment as core `while`/`if` (issue #760).
+
+#[test]
+fn test_control_do_body_recursion() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    // The `body` script and the `while` test expression both recurse:
+    // `set` inside the body and `$x` inside the expression are tokenised.
+    let src = "package require control\ncontrol::do {\n set x 1\n} while {$x < 10}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `set` recursed from the braced body.
+    let has_set = tokens.iter().any(|t| t.ttype == "function" && t.length == 3);
+    assert!(has_set, "control::do body not recursed: {tokens:?}");
+    // `$x` recursed from the `while` expression.
+    let has_var = tokens.iter().any(|t| t.ttype == "variable");
+    assert!(has_var, "control::do test expr not recursed: {tokens:?}");
+}
+
+#[test]
+fn test_control_do_while_is_keyword() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let source = "package require control\ncontrol::do {\n incr n\n} while {$n < 3}\n";
+    let uri = open_doc(&mut lsp, source);
+    let words = keyword_words(&mut lsp, &lg, &uri, source);
+    assert!(words.contains("while"), "expected `while`: {words:?}");
+}
+
+#[test]
+fn test_control_assert_expression_tokenised() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "package require control\ncontrol::assert {$x == 10}\n";
+    let uri = open_doc(&mut lsp, src);
+    let types: std::collections::BTreeSet<String> =
+        typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    for want in ["variable", "operator"] {
+        assert!(types.contains(want), "missing {want:?} in {types:?}");
+    }
+}
+
+#[test]
+fn test_struct_list_foreachperm_body_recursion() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    // `struct::list foreachperm var sequence body` — the trailing body
+    // script recurses, so `puts` inside it is a function token.
+    let src = "package require struct::list\nstruct::list foreachperm p {a b c} {\n puts $p\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let has_puts = tokens.iter().any(|t| t.ttype == "function" && t.length == 4);
+    assert!(has_puts, "foreachperm body not recursed: {tokens:?}");
+    let has_var = tokens.iter().any(|t| t.ttype == "variable");
+    assert!(has_var, "foreachperm var not recursed: {tokens:?}");
 }
 
 // -- TestStructuralKeywords ----------------------------------------------
@@ -462,6 +640,36 @@ fn test_switch_glob_no_regexp_tokens() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "switch -glob $x {a*} {puts a} {b*} {puts b}\n");
     let tokens = typed(&mut lsp, &lg, &uri);
+    assert_eq!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count(), 0);
+}
+
+/// Regression for #758: the braced case-list form of a plain (non-`-regexp`)
+/// `switch` must recurse each body as a script so the commands inside are
+/// highlighted, rather than treating the whole `{ pat body … }` list as one
+/// opaque body.  Before the fix the bodies received no tokens at all.
+#[test]
+fn test_switch_plain_braced_case_list_recurses_bodies() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let source = "switch -exact -- $var {\n    \"a\" {\n        set x 1\n        puts hi\n    }\n    default {\n        return 2\n    }\n}\n";
+    let uri = open_doc(&mut lsp, source);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // Body commands are recursed and highlighted as functions.
+    let fns: Vec<&str> = tokens
+        .iter()
+        .filter(|t| t.ttype == "function")
+        .map(|t| covered(source, t))
+        .collect();
+    assert!(fns.contains(&"set"), "set not highlighted: {fns:?}");
+    assert!(fns.contains(&"puts"), "puts not highlighted: {fns:?}");
+    // `return` is a control-flow keyword inside the second body.
+    assert!(
+        tokens
+            .iter()
+            .any(|t| t.ttype == "keyword" && covered(source, t) == "return"),
+        "expected `return` in the default body to be a keyword",
+    );
+    // Plain (non-regexp) mode emits no regex sub-tokens.
     assert_eq!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count(), 0);
 }
 

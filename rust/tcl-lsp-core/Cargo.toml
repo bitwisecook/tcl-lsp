@@ -11,6 +11,7 @@ authors.workspace = true
 
 [dependencies]
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }

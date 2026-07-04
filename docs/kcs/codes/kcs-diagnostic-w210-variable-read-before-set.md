@@ -60,6 +60,32 @@ idioms for a single exact name: `[info vars X] ne ""`,
 (`info globals` is not used — it proves the *global* exists, not the bare-`$X`
 local — and glob patterns are not statically decidable.)
 
+## Variables set inside a loop
+
+A variable assigned inside a loop body and read *after* the loop is **not**
+flagged, as long as the body sets it on every iteration:
+
+```tcl
+foreach item $items {
+    lappend result $item
+}
+puts $result        ;# not flagged — assumed the loop ran at least once
+```
+
+The analyser assumes a loop that *might* run does run, matching how the code
+behaves on real (non-empty) data. Two cases still fire, because they are
+genuine errors:
+
+- A **provably empty** loop never runs its body, so the variable is definitely
+  unset: `foreach x {} { set y $x }; puts $y`, or a `while 0` / a `for` whose
+  condition is false on entry.
+- A read **inside** the loop body, *before* the body's own assignment, is a
+  first-iteration read-before-set: `foreach x $items { puts $y; set y $x }`.
+
+A body that assigns the variable only under an inner condition
+(`foreach x $items { if {$x} { set y 1 } }; puts $y`) is also still flagged —
+the variable can be unset even when the loop runs.
+
 ## How to suppress
 
 Add `# noqa: W210` at the end of the offending line.

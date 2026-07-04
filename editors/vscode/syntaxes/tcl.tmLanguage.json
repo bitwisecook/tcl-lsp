@@ -20,11 +20,14 @@
     "comment": {
       "patterns": [
         {
-          "name": "comment.line.number-sign.tcl",
-          "match": "(?:^|;)\\s*(#.*)$",
-          "captures": {
-            "1": { "name": "comment.line.number-sign.tcl" }
-          }
+          "comment": "Line comment at command position. Uses begin/end (not a single-line match) so a trailing unescaped backslash continues the comment onto the next physical line, matching Tcl's line-continuation rule (issue #759). The two inner patterns consume escaped backslash pairs and backslash-newline continuations so that only an ODD run of trailing backslashes continues the comment (an even run, e.g. '\\\\', terminates it). contentName scopes only the '#...' body, leaving the leading ^/; and whitespace unscoped as the original match capture did.",
+          "begin": "(?:^|;)\\s*(?=#)",
+          "end": "(?=\\n)",
+          "contentName": "comment.line.number-sign.tcl",
+          "patterns": [
+            { "match": "\\\\\\\\" },
+            { "match": "\\\\\\n" }
+          ]
         }
       ]
     },

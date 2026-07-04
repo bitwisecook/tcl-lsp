@@ -133,6 +133,132 @@ fn multiline_comment_header_all_comments() {
     );
 }
 
+/// Set of line numbers carrying a `comment` token, for continuation tests.
+fn comment_lines(source: &str, dialect: &str) -> std::collections::BTreeSet<u32> {
+    decode(source, dialect)
+        .into_iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect()
+}
+
+#[test]
+fn comment_line_continuation_is_comment() {
+    // A `#` comment whose line ends in an unescaped backslash continues onto
+    // the next physical line, and that continuation is a comment too (#759).
+    let source = "# a comment \\\nstill a comment\nset x 1\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    // Line 2 is real code, not swallowed by the comment.
+    assert!(!lines.contains(&2), "{lines:?}");
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter()
+            .any(|x| x.line == 2 && x.ttype == "function" && x.length == 3),
+        "expected `set` on line 2: {t:?}"
+    );
+    // The continuation line ("still a comment", 15 chars) is fully a comment.
+    assert!(
+        t.iter()
+            .any(|x| x.line == 1 && x.ttype == "comment" && x.length == 15),
+        "{t:?}"
+    );
+}
+
+#[test]
+fn comment_multiline_continuation_all_comments() {
+    let source = "# level one \\\nlevel two \\\nlevel three\nset y 2\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(
+        lines.contains(&0) && lines.contains(&1) && lines.contains(&2),
+        "{lines:?}"
+    );
+    assert!(!lines.contains(&3), "{lines:?}");
+}
+
+#[test]
+fn comment_escaped_backslash_does_not_continue() {
+    // `# ... \\` ends in an escaped backslash (even run) — the comment stops and
+    // the next line is ordinary code.
+    let source = "# escaped end \\\\\nset z 3\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0), "{lines:?}");
+    assert!(
+        !lines.contains(&1),
+        "escaped backslash must not continue: {lines:?}"
+    );
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter().any(|x| x.line == 1 && x.ttype == "function"),
+        "{t:?}"
+    );
+}
+
+#[test]
+fn comment_odd_backslash_run_continues() {
+    // Three backslashes = one escaped pair + one continuation backslash.
+    let source = "# three \\\\\\\nyes continued\nset a 4\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+}
+
+#[test]
+fn comment_continuation_crlf() {
+    // CRLF line endings: the `\r` is stripped so the token stays within the
+    // line's width, and the continuation is still recognised.
+    let source = "# a comment \\\r\nstill a comment\r\nset x 1\r\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+    let t = decode(source, "tcl8.6");
+    // No comment token may overrun its line (no trailing `\r` in the length).
+    assert!(
+        t.iter()
+            .any(|x| x.line == 0 && x.ttype == "comment" && x.length == 13),
+        "line 0 comment length excludes the `\\r`: {t:?}"
+    );
+    assert!(
+        t.iter()
+            .any(|x| x.line == 1 && x.ttype == "comment" && x.length == 15),
+        "{t:?}"
+    );
+}
+
+#[test]
+fn comment_after_semicolon_is_a_comment() {
+    // `#` is a comment at command position, which includes right after a `;`
+    // command separator — `puts hi ;# tail` (issue #759 review).
+    let source = "puts hi ;# tail comment\n";
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter().any(|x| x.line == 0 && x.ttype == "comment"),
+        "expected a `;#` tail comment; got {t:?}"
+    );
+    // The `puts` command is still highlighted (the comment doesn't swallow it).
+    assert!(t.iter().any(|x| x.ttype == "function"), "{t:?}");
+}
+
+#[test]
+fn comment_after_semicolon_continues() {
+    // A `;#` tail comment continues across a trailing backslash too.
+    let source = "puts hi ;# tail \\\nmore\nset y 2\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+}
+
+#[test]
+fn semicolon_hash_inside_string_is_not_a_comment() {
+    // A `;#` that falls inside a string literal is not a command-position
+    // comment — the string's tokens cover it and it must be suppressed.
+    let source = "set x \"a;#b\"\nputs $x\n";
+    assert!(
+        comment_lines(source, "tcl8.6").is_empty(),
+        "a `;#` inside a string must not be a comment"
+    );
+}
+
 #[test]
 fn proc_is_a_keyword() {
     let t = decode("proc foo {x} {}", "tcl8.6");
@@ -344,5 +470,112 @@ fn oo_define_member_form_body_is_not_oo_context() {
             .iter()
             .any(|t| t.ttype == "function" && tok_text(src2, t) == "set"),
         "member-form method body should still tokenise its own code: {toks2:?}",
+    );
+}
+
+#[test]
+fn multiline_braced_string_literal_is_highlighted_per_line() {
+    // Issue #757: a braced string literal spanning multiple lines lost its
+    // highlighting entirely (the enclosing `string` token was dropped because
+    // it crossed a newline).  It must now emit one `string` token per covered
+    // line, matching the quoted-string case.
+    let src = "set x {some long\nstring that spans\nmultiple lines}\n";
+    let toks = decode(src, "tcl9.0");
+    for line in 0..=2 {
+        assert!(
+            toks.iter().any(|t| t.line == line && t.ttype == "string"),
+            "line {line} of the braced literal must carry a string token: {toks:?}",
+        );
+    }
+    // A quoted literal spanning the same lines highlights identically — the
+    // two forms now behave the same (the crux of the report).
+    let quoted = "set x \"some long\nstring that spans\nmultiple lines\"\n";
+    let qtoks = decode(quoted, "tcl9.0");
+    let strings_on = |toks: &[Tok]| -> Vec<(u32, u32, u32)> {
+        toks.iter()
+            .filter(|t| t.ttype == "string")
+            .map(|t| (t.line, t.character, t.length))
+            .collect()
+    };
+    assert_eq!(
+        strings_on(&toks),
+        strings_on(&qtoks),
+        "braced and quoted multi-line string literals must highlight identically",
+    );
+}
+
+#[test]
+fn multiline_literal_tokens_never_span_a_newline() {
+    // The per-line split keeps the LSP invariant that no single emitted token
+    // crosses a line boundary — every string entry stays within one line's
+    // bounds (character + length must not exceed that line's length).
+    let src = "set x {alpha\nbeta gamma\ndelta}\n";
+    let toks = decode(src, "tcl9.0");
+    for t in &toks {
+        let line_chars = src
+            .split('\n')
+            .nth(t.line as usize)
+            .unwrap_or("")
+            .chars()
+            .count();
+        assert!(
+            (t.character + t.length) as usize <= line_chars,
+            "token {t:?} overruns line {} (len {line_chars})",
+            t.line,
+        );
+    }
+}
+
+#[test]
+fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
+    // Issue #757 review (Codex P1): a physical line inside a multi-line literal
+    // whose first non-whitespace char is `#` is literal text, not a comment.
+    // The per-line string entry must be the only token on that line — the
+    // comment scanner must not also emit an overlapping `comment` token (which
+    // an LSP client would reject).
+    for src in [
+        "set x {a\n# not a comment\nb}\n",
+        "set x \"a\n# not a comment\nb\"\n",
+        "set x {a\n   # indented\nb}\n",
+    ] {
+        let toks = decode(src, "tcl9.0");
+        // The `#` line (line 1) is a string, never a comment.
+        let line1: Vec<&Tok> = toks.iter().filter(|t| t.line == 1).collect();
+        assert!(
+            line1.iter().any(|t| t.ttype == "string"),
+            "line 1 must carry a string token for {src:?}: {toks:?}",
+        );
+        assert!(
+            !line1.iter().any(|t| t.ttype == "comment"),
+            "the `#` inside the literal must not become a comment for {src:?}: {toks:?}",
+        );
+        // No two tokens overlap anywhere in the stream.
+        for (i, a) in toks.iter().enumerate() {
+            for b in &toks[i + 1..] {
+                if a.line == b.line {
+                    let (lo, hi) = if a.character <= b.character {
+                        (a, b)
+                    } else {
+                        (b, a)
+                    };
+                    assert!(
+                        lo.character + lo.length <= hi.character,
+                        "overlapping tokens {a:?} and {b:?} for {src:?}",
+                    );
+                }
+            }
+        }
+    }
+    // A genuine full-line comment is still emitted (not covered by any literal).
+    let real = decode("# a real comment\nset x 1\n", "tcl9.0");
+    assert!(
+        real.iter().any(|t| t.line == 0 && t.ttype == "comment"),
+        "a real top-level comment must still be a comment token: {real:?}",
+    );
+    // A comment inside a recursed proc body is still a comment.
+    let body = decode("proc f {} {\n# real comment\nset x 1\n}\n", "tcl9.0");
+    assert!(
+        body.iter().any(|t| t.line == 1 && t.ttype == "comment"),
+        "a real comment inside a body must still be a comment token: {body:?}",
     );
 }

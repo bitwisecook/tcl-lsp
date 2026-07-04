@@ -404,6 +404,12 @@ enum ArgOverride {
     /// the pattern elements are sub-tokenised as regexes and the body
     /// elements recursed as scripts.
     SwitchRegexpCaseList,
+    /// The braced case-list argument of a plain `switch … { pat body … }`
+    /// (exact / glob mode): the pattern elements are classified as ordinary
+    /// literals and the body elements recursed as scripts.  Without this the
+    /// whole `{ pat body … }` list would be walked as one script, leaving the
+    /// bodies opaque and unhighlighted.
+    SwitchCaseList,
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -575,7 +581,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, &mut overrides);
     insert_oo_define_keyword_overrides(seg, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
-    insert_switch_regexp_override(seg, &mut overrides);
+    insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
     insert_var_decl_overrides(seg, registry, &mut overrides);
@@ -950,15 +956,20 @@ fn is_plain_var_name(text: &str) -> bool {
     !text.is_empty() && !text.contains(['(', '$', '[', '{', '"', ' '])
 }
 
-/// `switch -regexp … { pat body … }` — the braced case list (the final
-/// word, when option-skipped past `-regexp`/`--`) carries regex patterns.
-/// Tag it so `collect_script` sub-tokenises the patterns as regexes and
-/// recurses the bodies, rather than treating the whole list as one opaque
-/// body.
-fn insert_switch_regexp_override(
+/// `switch … { pat body … }` — the braced case list (the final word, when
+/// option-skipped past the mode flags / `--`) holds all the pattern/body
+/// pairs.  Tag it so `collect_script` pairs the elements and recurses each
+/// body as a script, rather than walking the whole list as one opaque body
+/// (which would leave the bodies unhighlighted).  `-regexp` mode additionally
+/// sub-tokenises the patterns as regexes.
+fn insert_switch_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    // Options that consume a following value argument (`-matchvar var`,
+    // `-indexvar var`) — mirror the registry's `switch` arg-role resolver so
+    // the value word is not mistaken for the subject string.
+    const VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
     if seg.texts[0] != "switch" {
         return;
     }
@@ -972,21 +983,28 @@ fn insert_switch_regexp_override(
             i += 1;
             break;
         }
+        if VALUE_OPTIONS.contains(&seg.texts[i].as_str()) {
+            i += 1;
+        }
         i += 1;
     }
     // Skip the switch value/string argument; the case list is the last
     // word (braced-list form only — the inline `pat body …` form has
     // more than one trailing word).
     let case_idx = i + 1;
-    if is_regexp
-        && case_idx == seg.texts.len() - 1
+    if case_idx == seg.texts.len() - 1
         && seg
             .argv
             .get(case_idx)
             .is_some_and(|t| matches!(t.kind, TokenType::Str))
         && let Some(tok) = seg.argv.get(case_idx)
     {
-        overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
+        let ov = if is_regexp {
+            ArgOverride::SwitchRegexpCaseList
+        } else {
+            ArgOverride::SwitchCaseList
+        };
+        overrides.insert(tok.span.start(), ov);
     }
 }
 
@@ -1714,7 +1732,8 @@ fn classify_regex_component(matched: &str) -> TokenKind {
 }
 
 /// Push one regex sub-token at absolute byte offset `abs_off` covering
-/// `text`.  Skips empty / multi-line runs.
+/// `text`.  Skips empty runs; a multi-line run is split into one entry per
+/// covered line (see [`push_span_entries`]).
 fn push_subtoken(
     source: &str,
     line_index: &LineIndex,
@@ -1723,12 +1742,59 @@ fn push_subtoken(
     kind: TokenKind,
     entries: &mut Vec<Entry>,
 ) {
-    if text.is_empty() || text.contains('\n') {
+    push_span_entries(source, line_index, abs_off, text, kind, 0, entries);
+}
+
+/// Emit token [`Entry`] values for `text` at absolute byte offset `abs_off`.
+///
+/// The LSP semantic-tokens encoding cannot represent a single token spanning
+/// a newline (each token carries only a length, not an end position), so a
+/// multi-line token is split into one entry per covered line, each covering
+/// that line's slice of the token.  This keeps multi-line literals — braced
+/// (`{…}`) or quoted (`"…"`) strings that span lines (issue #757) — highlighted
+/// rather than dropped.  Empty per-line slices (blank lines, the trailing
+/// slice after a final newline) are skipped, and the newline / `\r` bytes
+/// themselves are never covered.
+fn push_span_entries(
+    source: &str,
+    line_index: &LineIndex,
+    abs_off: usize,
+    text: &str,
+    kind: TokenKind,
+    modifiers: u32,
+    entries: &mut Vec<Entry>,
+) {
+    if text.is_empty() {
         return;
     }
-    let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, 0));
+    if !text.contains('\n') {
+        let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
+        entries.push((
+            pos.line,
+            pos.character.get(),
+            utf16_len(text),
+            kind,
+            modifiers,
+        ));
+        return;
+    }
+    let mut off = 0usize;
+    for line in text.split_inclusive('\n') {
+        let seg = line.strip_suffix('\n').unwrap_or(line);
+        let seg = seg.strip_suffix('\r').unwrap_or(seg);
+        if !seg.is_empty() {
+            let pos =
+                line_index.position_at_utf16(u32::try_from(abs_off + off).unwrap_or(0), source);
+            entries.push((
+                pos.line,
+                pos.character.get(),
+                utf16_len(seg),
+                kind,
+                modifiers,
+            ));
+        }
+        off += line.len();
+    }
 }
 
 /// Maximum body / expr / command-substitution recursion depth — guards
@@ -1740,14 +1806,15 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// `…::` prefix plus a command token for the final segment.  A bare head
 /// is emitted whole, carrying `defaultLibrary` when it resolves to a
 /// registry built-in.
-/// Sub-tokenise the braced case list of `switch -regexp … { pat body … }`.
+/// Sub-tokenise the braced case list of `switch … { pat body … }`.
 ///
 /// The inner script is re-segmented into commands; the words are flattened
 /// across all command lines and paired (even index → pattern, odd index →
 /// body), since a Tcl `switch` case list is one flat list whose line breaks
-/// are insignificant whitespace.  Pattern words (except the literal
-/// `default`) are sub-tokenised as regexes; body words are recursed as
-/// scripts.
+/// are insignificant whitespace.  Body words are recursed as scripts.
+/// Pattern words (except the literal `default`) are sub-tokenised as regexes
+/// when `regexp` is set (`-regexp` mode), otherwise classified as ordinary
+/// literals.
 /// Immutable context threaded through the recursive script-tokenisation
 /// walk.  Bundling these read-only borrows keeps each recursive helper to a
 /// small, focused signature (the mutable `entries` sink and the `depth`
@@ -1770,11 +1837,12 @@ struct ScriptCtx<'a> {
     regex_sources: &'a FxHashMap<u32, Span>,
 }
 
-fn collect_switch_regexp_case_list(
+fn collect_switch_case_list(
     ctx: ScriptCtx<'_>,
     tok: Token,
     entries: &mut Vec<Entry>,
     depth: u32,
+    regexp: bool,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
@@ -1784,26 +1852,51 @@ fn collect_switch_regexp_case_list(
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
-    // Flatten every word across the (possibly multi-line) case list.
+    // Flatten every element of the case list.  A Tcl `switch` case list is a
+    // *list*, not a script: `;` and `#` are ordinary pattern elements, not a
+    // command separator / comment.  Split it with the list grammar
+    // (`find_element`) rather than the command segmenter, then rebuild each
+    // element into a `Token` following the lexer's inner-end + `content_offset`
+    // convention (`span.end()` sits at the closing `}`/`"`; `content_offset`
+    // strips the opener) so the downstream pattern/body helpers work unchanged.
     let mut words: Vec<(Token, String)> = Vec::new();
-    for seg in segment_commands_with_offset_and_config(
-        inner,
-        u32::try_from(cstart).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-    ) {
-        for (i, t) in seg.argv.iter().enumerate() {
-            let text = seg.texts.get(i).cloned().unwrap_or_default();
-            words.push((*t, text));
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let bytes = inner.as_bytes();
+        let (kind, content_offset, span_start) =
+            if el.value.start > 0 && bytes[el.value.start - 1] == b'{' {
+                (TokenType::Str, 1u8, el.value.start - 1)
+            } else if el.value.start > 0 && bytes[el.value.start - 1] == b'"' {
+                (TokenType::Esc, 1u8, el.value.start - 1)
+            } else {
+                (TokenType::Esc, 0u8, el.value.start)
+            };
+        let word_tok = Token::with_content_offset(
+            kind,
+            tcl_lexer::Span::new(
+                u32::try_from(cstart + span_start).unwrap_or(0),
+                u32::try_from(cstart + el.value.end).unwrap_or(0),
+            ),
+            content_offset,
+        );
+        let text = inner.get(el.value.clone()).unwrap_or_default().to_owned();
+        words.push((word_tok, text));
+        if el.next <= scan {
+            break;
         }
+        scan = el.next;
     }
     for (idx, (word_tok, text)) in words.iter().enumerate() {
         if idx % 2 == 0 {
-            // Pattern element — regex unless it is the `default` keyword.
-            if text == "default" {
-                if let Some(kind) = classify_arg_token(*word_tok, full_source) {
-                    push_token(line_index, full_source, *word_tok, kind, 0, entries);
-                }
-            } else if !push_regex_subtokens(line_index, full_source, *word_tok, entries) {
+            // Pattern element.  In `-regexp` mode a non-`default` pattern is
+            // sub-tokenised as a regex; otherwise (exact / glob, or the
+            // `default` keyword) it is classified as an ordinary literal.
+            if regexp
+                && text != "default"
+                && push_regex_subtokens(line_index, full_source, *word_tok, entries)
+            {
+                // emitted as regex sub-tokens
+            } else if regexp && text != "default" {
                 push_token(
                     line_index,
                     full_source,
@@ -1812,6 +1905,8 @@ fn collect_switch_regexp_case_list(
                     0,
                     entries,
                 );
+            } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+                push_token(line_index, full_source, *word_tok, kind, 0, entries);
             }
         } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
             // Body element — recurse as a script.
@@ -2173,7 +2268,10 @@ fn emit_arg_token(
             collect_expr(plain_ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::SwitchRegexpCaseList) => {
-            collect_switch_regexp_case_list(body_ctx, *tok, entries, depth + 1);
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, true);
+        }
+        Some(ArgOverride::SwitchCaseList) => {
+            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, false);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
@@ -2551,14 +2649,6 @@ fn is_number_literal(text: &str) -> bool {
 /// a Comment-kind entry.
 fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
     let bytes = source.as_bytes();
-    // Lines already carrying a token from the command walk.  A genuine
-    // full-line `#` comment is its own command, so the segmenter strips it and
-    // its line has no other tokens.  A `#` that only *begins* a line inside a
-    // multi-line `"…"` string (or a braced body) is not a comment in Tcl —
-    // that line already carries string / variable tokens.  Emitting a comment
-    // there would both mis-classify the text and overlap those tokens, so skip
-    // any candidate line the walk has already populated.
-    let occupied: rustc_hash::FxHashSet<u32> = entries.iter().map(|&(line, ..)| line).collect();
     let mut line_start = true;
     // Byte offset up to which the rest of an already-emitted comment line is
     // skipped.  Derived from `char_indices` so the cursor never desyncs from
@@ -2577,30 +2667,77 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             continue;
         }
         if line_start && c == '#' {
-            // Find the end of the comment line.
+            // Find the end of the comment, honouring backslash line
+            // continuation: a physical line ending in an *odd* run of
+            // backslashes (before the newline) continues the comment onto the
+            // next physical line, matching Tcl's parser (issue #759).  An even
+            // run (e.g. `\\`) is an escaped backslash and terminates the line.
             let mut p = idx;
-            while p < bytes.len() && bytes[p] != b'\n' {
-                p += 1;
+            loop {
+                let content_start = p;
+                while p < bytes.len() && bytes[p] != b'\n' {
+                    p += 1;
+                }
+                // Trailing backslashes on this physical line, ignoring a CRLF
+                // `\r` immediately before the newline.
+                let mut end = p;
+                if end > content_start && bytes[end - 1] == b'\r' {
+                    end -= 1;
+                }
+                let mut backslashes = 0usize;
+                while end > content_start && bytes[end - 1] == b'\\' {
+                    backslashes += 1;
+                    end -= 1;
+                }
+                if backslashes % 2 == 1 && p < bytes.len() {
+                    p += 1; // consume the `\n` and continue on the next line
+                    continue;
+                }
+                break;
             }
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
-            // Skip the remainder of the line regardless; a `#` inside a
-            // multi-line string still consumes its line for this scan.
+            // A `#` is only a Tcl comment in command position.  This naive scan
+            // can't see command position, but a physical line already covered by
+            // an emitted token is inside a multi-line string / braced literal
+            // (whose per-line entries are pushed before this scan), or is a
+            // `switch` case-list `#` pattern element (not a comment — Tcl's
+            // "comments don't work in switch" gotcha), so the `#` there is not a
+            // comment.  The overlap test is per-*position* (not per-line) so a
+            // genuine `;#` tail comment — whose line also carries code tokens —
+            // still survives.  Suppress it to avoid an overlapping token the LSP
+            // client would reject (#757, #758).
+            let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
+                *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
+            });
+            if !already_covered {
+                // Emit one entry per covered line: a continuation comment spans
+                // several physical lines and the LSP encoding cannot represent a
+                // token crossing a newline.  `push_span_entries` also strips the
+                // line-ending `\r` from each segment.
+                push_span_entries(
+                    source,
+                    line_index,
+                    idx,
+                    &source[idx..p],
+                    TokenKind::Comment,
+                    0,
+                    entries,
+                );
+            }
+            // Skip the remainder of the comment; the terminating `\n` (at `p`)
+            // is processed normally and resets `line_start`.
             skip_until = p;
             line_start = false;
-            // Only emit when the line is not already tokenised by the walk
-            // (i.e. it is a real command-position comment, not string text).
-            if occupied.contains(&pos.line) {
-                continue;
-            }
-            let len_utf16 = utf16_len(&source[idx..p]);
-            entries.push((
-                pos.line,
-                pos.character.get(),
-                len_utf16,
-                TokenKind::Comment,
-                0,
-            ));
+            continue;
+        }
+        // A command separator `;` returns us to command position, so a `#`
+        // right after it is a trailing comment (`puts hi ;# tail`) — matching
+        // Tcl and the TextMate grammar (issue #759 review).  A `;` inside a
+        // string / braced literal is harmless here: the `#` it exposes is
+        // already covered by that literal's tokens and suppressed above.
+        if c == ';' {
+            line_start = true;
             continue;
         }
         line_start = false;
@@ -2640,16 +2777,19 @@ fn push_token(
     if end <= start {
         return;
     }
-    let pos = line_index.position_at_utf16(start, source);
     let text = source.get(start as usize..end as usize).unwrap_or("");
-    // Skip multi-line tokens — LSP encoding wants per-line
-    // entries; multi-line tokens would need splitting.
-    // Drop them.
-    if text.contains('\n') {
-        return;
-    }
-    let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character.get(), len_utf16, kind, modifiers));
+    // The LSP encoding wants per-line entries, so a multi-line token (a braced
+    // or quoted string literal spanning lines) is split into one entry per
+    // line rather than dropped — see [`push_span_entries`] and issue #757.
+    push_span_entries(
+        source,
+        line_index,
+        start as usize,
+        text,
+        kind,
+        modifiers,
+        entries,
+    );
 }
 
 /// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s
