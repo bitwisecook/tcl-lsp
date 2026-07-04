@@ -57,9 +57,10 @@ pub struct RenderOptions {
     /// `sys file ssl-cert` `cache-path`. Lets the certs tab parse metadata-free
     /// stanzas and reconstruct the trust chain. Empty = config metadata only.
     pub cert_pems: std::collections::HashMap<String, String>,
-    /// Optional *architecture manifest* JSON (see [`crate::architecture`]).
-    /// Declares each device's role/tier and can add explicit inter-device links,
-    /// overriding and augmenting auto-detection. Empty = pure auto-detection.
+    /// Optional *architecture manifest* — a small Tcl script (see
+    /// [`crate::architecture`]). Declares each device's role/tier and can add
+    /// explicit inter-device links, overriding and augmenting auto-detection.
+    /// Empty = pure auto-detection.
     pub architecture: Option<String>,
 }
 

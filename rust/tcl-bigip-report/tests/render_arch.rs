@@ -93,9 +93,7 @@ fn manifest_note_when_defined() {
     ];
     let opts = RenderOptions {
         embed_console: false,
-        architecture: Some(
-            r#"{"devices":[{"match":"gtm.scf","role":"gtm","label":"DNS Edge"}]}"#.to_string(),
-        ),
+        architecture: Some("device gtm.scf -role gtm -label \"DNS Edge\"".to_string()),
         ..RenderOptions::default()
     };
     let html = build_report(&sources, &opts).expect("renders");

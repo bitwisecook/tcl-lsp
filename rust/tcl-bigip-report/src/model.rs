@@ -1633,7 +1633,7 @@ pub fn collect_model_with_certs(
 ///
 /// The report always auto-detects how the loaded devices relate as tiers (an
 /// upstream device whose pool member / GTM server address is served by another
-/// device's virtual is one tier up). `manifest` is an optional JSON document
+/// device's virtual is one tier up). `manifest` is an optional Tcl script
 /// (see [`crate::architecture`]) that overrides each device's role/tier and can
 /// declare links explicitly; `None` (or empty) uses pure auto-detection. A
 /// malformed manifest is reported inside the model rather than failing the build.

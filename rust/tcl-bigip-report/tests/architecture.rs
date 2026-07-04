@@ -99,41 +99,6 @@ fn tiers_are_assigned_by_depth() {
 }
 
 #[test]
-fn manifest_overrides_role_tier_and_label() {
-    let manifest = r#"{
-        "devices": [
-            {"match": "tier1.scf", "role": "gtm", "tier": 5, "label": "DNS Front"},
-            {"match": "tier2.scf", "role": "ltm", "label": "App Tier"}
-        ]
-    }"#;
-    let m = collect_model_with_architecture(&sources(), "Estate", &no_certs(), Some(manifest));
-    let a = arch(&m);
-    assert_eq!(a["defined"], J::Bool(true));
-    let devs = a["devices"].as_array().unwrap();
-    assert_eq!(devs[0]["role"], "gtm");
-    assert_eq!(devs[0]["tier"], J::from(5));
-    assert_eq!(devs[0]["label"], "DNS Front");
-    assert_eq!(devs[1]["label"], "App Tier");
-}
-
-#[test]
-fn manifest_adds_explicit_link() {
-    // Declare a tier2 -> tier1 link auto-detection would never find (no IP
-    // overlap in that direction).
-    let manifest = r#"{
-        "links": [ {"from": "tier2.scf", "to": "tier1.scf", "label": "mgmt"} ]
-    }"#;
-    let m = collect_model_with_architecture(&sources(), "Estate", &no_certs(), Some(manifest));
-    let links = arch(&m)["links"].as_array().unwrap();
-    // The auto 0->1 plus the manifest 1->0.
-    assert_eq!(links.len(), 2);
-    assert!(links.iter().any(|l| l["from"] == 1
-        && l["to"] == 0
-        && l["source"] == "manifest"
-        && l["label"] == "mgmt"));
-}
-
-#[test]
 fn tcl_manifest_overrides_and_links() {
     // The manifest is a small Tcl script parsed with the real Tcl tokeniser.
     let manifest = r#"
@@ -163,10 +128,15 @@ fn tcl_manifest_overrides_and_links() {
 
 #[test]
 fn malformed_manifest_is_reported_not_fatal() {
-    let m =
-        collect_model_with_architecture(&sources(), "Estate", &no_certs(), Some("{ this is not json"));
+    // An unbalanced brace makes the Tcl tokeniser fail.
+    let m = collect_model_with_architecture(
+        &sources(),
+        "Estate",
+        &no_certs(),
+        Some("device tier1.scf -label {unclosed"),
+    );
     let a = arch(&m);
-    assert!(a.get("manifestError").is_some(), "parse error surfaced");
+    assert!(a.get("manifestError").is_some(), "tokeniser error surfaced");
     // Auto-detection still ran.
     assert_eq!(a["links"].as_array().unwrap().len(), 1);
 }
