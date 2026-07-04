@@ -34,7 +34,7 @@ parser in Python.
 ```
 ┌───────────────┐   PyO3    ┌────────────────────┐   Jinja   ┌─────────────┐
 │  f5report     │ ───────►  │  _engine (Rust)    │           │ report.html │
-│  (Python 3.14)│           │  tcl-bigip-query   │           │ (1 file)    │
+│ (Python 3.9+) │           │  tcl-bigip-query   │           │ (1 file)    │
 │  report.py    │ ◄───────  │  tcl-bigip-io (UCS)│  ───────► │ dark/light  │
 └───────────────┘  native   └────────────────────┘           └─────────────┘
      objects
@@ -63,7 +63,9 @@ links libpython. It is built with **maturin**, not `cargo` directly.
 
 ## Building
 
-Requires Python **3.14** and Rust ≥ 1.96.
+Requires Python **3.9+** and Rust ≥ 1.96. The extension is built against the
+CPython **stable ABI** (`abi3`, 3.9 floor), so one wheel loads on every CPython
+from 3.9 up — the interpreter you build with need not match the one that runs it.
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
