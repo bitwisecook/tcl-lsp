@@ -17,8 +17,11 @@ on. It consumes the already-shaped per-device model from :mod:`f5report.report`
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 from typing import Any
+
+from . import _engine
 
 # Node type -> short prefix used in stable object ids ("vs:/Common/x").
 NODE_TYPES = {
@@ -158,36 +161,76 @@ _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
-# Direct object-attachment commands whose *non-literal* argument (a `$var` or
-# `[cmd]`) an iRule can use to attach an object the static reference graph can't
-# resolve. Literal references (`pool /Common/x`) are already in `referenced_by`.
-_DYN_ATTACH: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bpool\s+(\S+)", re.I), "pools"),
-    (re.compile(r"\bnode\s+(\S+)", re.I), "nodes"),
-    (re.compile(r"\bsnatpool\s+(\S+)", re.I), "snatpools"),
-]
+# Attachable object types considered for dynamic (iRule) reachability: `pool`
+# (LB target), `node` (direct node), `snatpool` (SNAT). Literal references
+# (`pool /Common/x`) are already captured by the engine's `referenced_by`.
+ATTACH_TYPES = ("pools", "nodes", "snatpools")
 
 
-def dynamic_attach_risk(rules: list[dict[str, Any]]) -> set[str]:
-    """Object types an iRule could dynamically attach.
+def _pattern_matches(pat: dict[str, Any], name: str) -> bool:
+    """Does ``name`` fall within the set of names a reconstructed attach
+    expression could build? Mirrors ``tcl_diagram::AttachPattern::matches``."""
+    if pat.get("unconstrained"):
+        return True
+    if pat.get("exact"):
+        return name == pat.get("prefix", "")
+    hay = name
+    prefix = pat.get("prefix", "")
+    if prefix:
+        if not hay.startswith(prefix):
+            return False
+        hay = hay[len(prefix):]
+    suffix = pat.get("suffix", "")
+    if suffix:
+        if not hay.endswith(suffix):
+            return False
+        hay = hay[: len(hay) - len(suffix)]
+    for frag in pat.get("contains", []):
+        i = hay.find(frag)
+        if i < 0:
+            return False
+        hay = hay[i + len(frag):]
+    return True
 
-    If any rule selects a type dynamically, objects of that type can never be
-    *proven* orphaned, so they are demoted from "orphan" to "possible orphan".
+
+def attach_index(rules: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Per attachable object type, the ``{rule, …pattern…}`` records an iRule
+    could dynamically construct.
+
+    Supersedes the all-or-nothing risk heuristic: each attach expression is
+    reconstructed (by the real IR walk + ``set`` constant propagation in
+    ``_engine.irule_attach_patterns``) into a prefix / contained / suffix name
+    pattern, so orphan classification can filter candidate objects by name.
     """
-    risk: set[str] = set()
+    index: dict[str, list[dict[str, Any]]] = {}
     for r in rules:
         body = r.get("body", "") or ""
         if not body:
             continue
-        for pat, ty in _DYN_ATTACH:
-            if ty in risk:
-                continue
-            for m in pat.finditer(body):
-                arg = m.group(1)
-                if "$" in arg or "[" in arg:
-                    risk.add(ty)
-                    break
-    return risk
+        rule_name = r.get("name") or r.get("fullPath", "")
+        reach = json.loads(_engine.irule_attach_patterns(body))
+        for ty in ATTACH_TYPES:
+            for pat in reach.get(ty, []):
+                index.setdefault(ty, []).append({"rule": rule_name, **pat})
+    return index
+
+
+def attach_matches(
+    patterns: list[dict[str, Any]], names: list[str]
+) -> list[dict[str, str]]:
+    """The ``{rule, pattern}`` records whose name-pattern could attach an object
+    with any of ``names`` (leaf name, full path, and — for nodes — address)."""
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for rp in patterns:
+        if not any(_pattern_matches(rp, n) for n in names):
+            continue
+        key = (rp["rule"], rp["glob"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"rule": rp["rule"], "pattern": rp["glob"]})
+    return out
 
 
 def irule_dynamic_actions(body: str) -> list[dict[str, str]]:

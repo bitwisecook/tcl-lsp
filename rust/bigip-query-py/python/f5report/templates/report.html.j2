@@ -133,7 +133,7 @@
       {% for p in d.pools %}
       <tr class="searchable expandable{{ ' orphan' if p.orphanStatus == 'orphan' }}{{ ' possible-orphan' if p.orphanStatus == 'possible' }}" data-search="{{ p.name }} {{ p.fullPath }} {{ p.lbMode }} {% for m in p.members %}{{ m.address }} {{ m.port }} {% endfor %}">
         <td class="expander">{% if p.members %}▸{% endif %}</td>
-        <td class="mono strong"><span class="objlink namelink" data-oid="pool:{{ p.fullPath }}">{{ p.name }}</span>{% if p.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif p.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but an iRule selects pools dynamically — can't be proven unused">possible orphan</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="pool:{{ p.fullPath }}">{{ p.name }}</span>{% if p.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif p.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but {% for m in p.orphanMatches %}iRule {{ m.rule }} could build a matching name ({{ m.pattern }}){% if not loop.last %}; {% endif %}{% else %}an iRule selects pools dynamically{% endfor %} — can't be proven unused">possible orphan</span>{% endif %}</td>
         <td>{{ p.memberCount }}{% if p.memberCount == 0 %} <span class="tag amber">empty</span>{% endif %}</td>
         <td class="mono small">{{ p.monitor or '—' }}</td>
         <td class="mono small">{{ p.lbMode or 'round-robin' }}</td>
@@ -165,7 +165,7 @@
       <tbody>
       {% for n in d.nodes %}
       <tr class="searchable{{ ' orphan' if n.orphanStatus == 'orphan' }}{{ ' possible-orphan' if n.orphanStatus == 'possible' }}" data-search="{{ n.name }} {{ n.fullPath }} {{ n.address }}">
-        <td class="mono strong"><span class="objlink namelink" data-oid="node:{{ n.fullPath }}">{{ n.name }}</span>{% if n.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif n.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but an iRule selects nodes dynamically — can't be proven unused">possible orphan</span>{% endif %}</td>
+        <td class="mono strong"><span class="objlink namelink" data-oid="node:{{ n.fullPath }}">{{ n.name }}</span>{% if n.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif n.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but {% for m in n.orphanMatches %}iRule {{ m.rule }} could build a matching name ({{ m.pattern }}){% if not loop.last %}; {% endif %}{% else %}an iRule selects nodes dynamically{% endfor %} — can't be proven unused">possible orphan</span>{% endif %}</td>
         <td class="mono">{{ n.address }}</td>
         <td class="mono small">{{ n.monitor or '—' }}</td>
         <td class="mono small">{% for u in n.usedBy %}<span class="tag" data-oref="{{ u }}">{{ u.split("/")[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
@@ -212,7 +212,7 @@
         <td class="mono">{{ r.lineCount }}</td>
         <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
       </tr>
-      <tr class="detail"><td></td><td colspan="4">{% if r.flowchart %}<div class="irule-flow"><div class="irule-flow-src" hidden>{{ r.flowchart }}</div><div class="irule-flow-diagram diag-host"></div></div>{% endif %}<pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
+      <tr class="detail"><td></td><td colspan="4">{% if r.dynamicAttachments and (r.dynamicAttachments.pools or r.dynamicAttachments.nodes or r.dynamicAttachments.snatpools) %}<div class="irule-attach"><span class="irule-attach-lbl">Dynamically attaches:</span> {% for ty, pats in r.dynamicAttachments.items() %}{% for p in pats %}<code class="attach-pat" title="{{ ty }} name pattern reconstructed from the iRule source: {{ p.raw }}">{{ ty }}: {{ p.glob }}</code> {% endfor %}{% endfor %}<span class="irule-attach-note">objects whose names match these patterns can’t be proven orphaned</span></div>{% endif %}{% if r.flowchart %}<div class="irule-flow"><div class="irule-flow-src" hidden>{{ r.flowchart }}</div><div class="irule-flow-diagram diag-host"></div></div>{% endif %}<pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
       {% endfor %}
       </tbody>
     </table>

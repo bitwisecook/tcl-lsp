@@ -209,6 +209,13 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "body": body,
         "bodyHtml": _engine.highlight_tcl(body),
         "flowchart": _engine.irule_flowchart(body),
+        # Reconstructed object-name patterns this rule could dynamically attach
+        # (``pool "web_[HTTP::host]"`` → ``web_*``); only the non-empty types.
+        "dynamicAttachments": {
+            ty: pats
+            for ty, pats in json.loads(_engine.irule_attach_patterns(body)).items()
+            if pats
+        },
         "usedBy": used_by.get(fp, []),
         "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
         "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],
@@ -331,8 +338,8 @@ def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
         n = len(poss.get(kind, []))
         if n:
             out.append(
-                {"level": "info", "text": f"{n} {kind} have no static reference but an iRule selects "
-                 f"{kind} dynamically — can't be proven unused"}
+                {"level": "info", "text": f"{n} {kind} have no static reference but an iRule could "
+                 "build a matching name dynamically — can't be proven unused"}
             )
     empty_pools = [p["name"] for p in device["pools"] if p["memberCount"] == 0]
     if empty_pools:
@@ -390,17 +397,22 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
             ]
 
     # Orphans: a referable leaf object is *confirmed* orphaned only when it has
-    # an empty referrer set AND no iRule could dynamically attach its type. When
-    # an iRule selects that type dynamically (``pool $x`` / ``pool [class …]``)
-    # it can't be proven unreachable, so it is a *possible* orphan instead.
-    risk = _graph.dynamic_attach_risk(device.get("rules", []))
-    device["orphanRisk"] = sorted(risk)
+    # an empty referrer set AND no iRule could dynamically attach an object of
+    # its *name*. Each attach expression is reconstructed into a
+    # prefix/contained/suffix name pattern (``pool "web_[HTTP::host]"`` →
+    # ``web_*``); an object is a *possible* orphan only when some rule's pattern
+    # could build its name, and stays a *confirmed* orphan otherwise.
+    attach_idx = _graph.attach_index(device.get("rules", []))
+    device["orphanRisk"] = sorted(attach_idx.keys())
+    device["attachPatterns"] = {
+        ty: [dict(p) for p in pats] for ty, pats in attach_idx.items()
+    }
     device["orphans"] = {}
     device["possibleOrphans"] = {}
     for name in _REFERABLE:
         if name not in device:
             continue
-        at_risk = name in risk
+        patterns = attach_idx.get(name, [])
         confirmed: list[str] = []
         possible: list[str] = []
         for o in device.get(name, []):
@@ -408,12 +420,22 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 continue
             if o.get("usedBy"):
                 o["orphanStatus"] = ""
-            elif at_risk:
-                o["orphanStatus"] = "possible"
-                possible.append(o["name"])
-            else:
+            elif not patterns:
                 o["orphanStatus"] = "orphan"
                 confirmed.append(o["name"])
+            else:
+                names = [o.get("name", ""), o.get("fullPath", "")]
+                addr = o.get("address", "")
+                if addr:
+                    names.append(addr)
+                matches = _graph.attach_matches(patterns, names)
+                if matches:
+                    o["orphanStatus"] = "possible"
+                    o["orphanMatches"] = matches
+                    possible.append(o["name"])
+                else:
+                    o["orphanStatus"] = "orphan"
+                    confirmed.append(o["name"])
         device["orphans"][name] = confirmed
         device["possibleOrphans"][name] = possible
 

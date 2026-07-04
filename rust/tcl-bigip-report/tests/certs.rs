@@ -266,6 +266,63 @@ fn dynamic_irule_demotes_orphan_to_possible() {
     );
 }
 
+// A rule that dynamically attaches a *constrained* name (`web_[HTTP::host]`)
+// only puts `web_`-prefixed pools in play — a `db_`-prefixed pool stays a
+// confirmed orphan. This is the name-pattern filtering the deep analysis adds.
+const SCF_ORPHAN_PREFIX: &str = r"
+ltm pool /Common/web_backend { members { /Common/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /Common/db_backend { members { /Common/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm pool /Common/used_pool { members { /Common/10.0.0.8:80 { address 10.0.0.8 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 pool /Common/used_pool rules { /Common/dyn } }
+";
+
+#[test]
+fn constrained_pattern_filters_orphans_by_name() {
+    let d = device0(SCF_ORPHAN_PREFIX);
+    let confirmed: Vec<&str> = d["orphans"]["pools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    let possible: Vec<&str> = d["possibleOrphans"]["pools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    // `db_backend` cannot be built by `web_[HTTP::host]` — provably orphaned.
+    assert!(
+        confirmed.contains(&"db_backend"),
+        "db_backend stays a confirmed orphan: confirmed={confirmed:?} possible={possible:?}"
+    );
+    // `web_backend` could be `web_<host>` — only a possible orphan.
+    assert!(
+        possible.contains(&"web_backend"),
+        "web_backend is only a possible orphan: possible={possible:?}"
+    );
+    assert!(
+        !confirmed.contains(&"web_backend"),
+        "web_backend must not be a confirmed orphan"
+    );
+    // The reconstructed pattern is surfaced for the report UI.
+    let pats = d["attachPatterns"]["pools"].as_array().unwrap();
+    assert!(
+        pats.iter().any(|p| p["glob"] == "web_*"),
+        "web_* pattern surfaced: {pats:?}"
+    );
+    // And the possible orphan records which rule/pattern could reach it.
+    let web = d["pools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "web_backend")
+        .unwrap();
+    assert_eq!(web["orphanStatus"], "possible");
+    assert_eq!(web["orphanMatches"][0]["pattern"], "web_*");
+}
+
 // --- iRule syntax highlighting -----------------------------------------------
 
 use tcl_bigip_report::highlight_tcl;
