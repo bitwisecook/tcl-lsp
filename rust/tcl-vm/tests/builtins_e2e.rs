@@ -1328,3 +1328,24 @@ fn dict_for_compiled_inline_executes() {
         "30\n",
     );
 }
+
+#[test]
+fn dict_map_compiled_inline_executes() {
+    // dict map doubles each value, keyed by k.
+    out_eq(
+        "proc p {} { set d {a 1 b 2 c 3}; return [dict map {k v} $d { expr {$v * 2} }] }\nputs [p]\n",
+        "a 2 b 4 c 6\n",
+    );
+    // Empty dict → empty result.
+    out_eq(
+        "proc p {} { set d {}; return [dict map {k v} $d { expr {$v + 1} }] }\nputs [len [p]]\n"
+            .replace("len ", "llength ")
+            .as_str(),
+        "0\n",
+    );
+    // Body using both key and value.
+    out_eq(
+        "proc p {} { set d {x 1 y 2}; return [dict map {k v} $d { list $k $v }] }\nputs [p]\n",
+        "x {x 1} y {y 2}\n",
+    );
+}

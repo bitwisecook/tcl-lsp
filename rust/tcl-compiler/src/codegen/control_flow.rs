@@ -176,6 +176,142 @@ impl CodegenCtx<'_> {
         true
     }
 
+    /// Emit a compiled `dict map {k v} DICT { body }` inline, matching C Tcl:
+    /// like `dict for` but accumulating each iteration's body result into a new
+    /// dictionary (`dictSet result[k] = body-result`) which becomes the value.
+    /// Returns `false` (runtime-invoke fallback) unless proc context, two loop
+    /// vars, and a straight-line body whose final statement yields a value.
+    pub fn emit_dict_map(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
+        let vnames: Vec<String> = vars_text.split_whitespace().map(str::to_owned).collect();
+        if vnames.len() != 2 || !self.is_proc {
+            return false;
+        }
+        if vnames.iter().any(|v| is_qualified(v) || v.contains('(')) {
+            return false;
+        }
+        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        if !body_ir.procedures.is_empty()
+            || !body_ir.methods.is_empty()
+            || body_ir.top_level.statements.is_empty()
+            || !is_straight_line_body(&body_ir.top_level)
+        {
+            return false;
+        }
+
+        // Slots: the result accumulator and iterator temps are allocated after
+        // the loop vars and the body's locals (interned during body emission),
+        // so both are back-patched once known.
+        let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
+        let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        let result_name = format!("#dictmap_res{}", self.catch_depth);
+        let iter_name = format!("#dictmap_it{}", self.catch_depth);
+        let loop_lbl = self.fresh_label("dict_map_loop");
+        let end_lbl = self.fresh_label("dict_map_end");
+
+        // Initialise the accumulator to the empty dict.
+        self.push_lit("");
+        let res_store_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(0)], &result_name);
+        self.emit(Op::POP, vec![]);
+
+        self.emit_value(dict_text, true);
+        self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+        let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
+        self.emit_comment(
+            Op::JUMP_TRUE4,
+            vec![Operand::Label(end_lbl.clone())],
+            "dict_for",
+        );
+
+        self.place_label(&loop_lbl);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.emit(Op::POP, vec![]);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
+        self.emit(Op::POP, vec![]);
+        // Emit the body; strip the final statement's trailing `pop` so its
+        // result (the mapped value) stays on the stack. If the last statement
+        // left no `pop`, bail out — an unusual body shape we don't model.
+        let mut ugi = false;
+        for stmt in &body_ir.top_level.statements {
+            self.emit_stmt(stmt, &mut ugi);
+        }
+        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            return false;
+        }
+        self.instructions.pop();
+        // Accumulate: result[key] = mapped value.
+        self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.emit(Op::OVER, vec![Operand::Imm(1)]);
+        let dict_set_idx = self.emit_comment(
+            Op::DICT_SET,
+            vec![Operand::Imm(1), Operand::Imm(0)],
+            &result_name,
+        );
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+
+        let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
+        self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
+        self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
+
+        // Error epilogue (dead in our VM; present for C-Tcl fidelity).
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &iter_name,
+        );
+        let unset_res_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &result_name,
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+        self.catch_depth -= 1;
+
+        // Normal exit: drop the leftover key/value, close the catch, unset the
+        // iterator, load the accumulated dict as the result, unset the temp.
+        self.place_label(&end_lbl);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it2_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &iter_name,
+        );
+        let res_load_idx = self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(0)], &result_name);
+        let unset_res2_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &result_name,
+        );
+
+        // Now intern the result + iterator temps (highest slots) and back-patch.
+        let res_slot = bytecode_imm(self.lvt.intern(&result_name));
+        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        self.instructions[res_store_idx].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[dict_set_idx].operands = vec![Operand::Imm(1), Operand::Imm(res_slot)];
+        self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[unset_it_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[unset_res_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
+        self.instructions[unset_it2_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[res_load_idx].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[unset_res2_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
+
+        self.seen_generic_invoke = true;
+        true
+    }
+
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
     ///
     /// Compiles the body as a single command inline, then emits the
