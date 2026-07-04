@@ -591,6 +591,10 @@ fn list_llength_lindex() {
     assert_eq!(run("lindex {a b c} 1").1, "b");
     assert_eq!(run("lindex {a b c} end").1, "c");
     assert_eq!(run("lindex {a b c} end-1").1, "b");
+    // tclsh: arithmetic and radix index operands (shared `index` grammar).
+    assert_eq!(run("lindex {a b c d e} 1+1").1, "c");
+    assert_eq!(run("lindex {a b c d e} 0x2").1, "c");
+    assert_eq!(run("lindex {a b c d e} end--1").1, ""); // end+1 → out of range
     // tclsh: nested lindex.
     assert_eq!(run("lindex {{a b} {c d}} 1 0").1, "c");
     // arity.
