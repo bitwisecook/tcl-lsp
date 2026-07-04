@@ -56,6 +56,30 @@ fn out_eq(src: &str, expected: &str) {
     assert_eq!(out, expected, "for script:\n{src}");
 }
 
+/// Ensemble-resolved body commands execute correctly through the compiled
+/// bytecode. `namespace eval` compiles to `invokeReplace … ::tcl::namespace::
+/// eval` and `array for` to `invokeStk ::tcl::array::for`; both resolved
+/// implementations must be registered in the VM (regression guard for the
+/// ensemble-resolution codegen).
+#[test]
+fn ensemble_resolved_body_commands_execute() {
+    // namespace eval — the invokeReplace form.
+    out_eq(
+        "namespace eval ::ns { variable c 5 }\nputs [set ::ns::c]\n",
+        "5\n",
+    );
+    // namespace eval with a nested proc + call.
+    out_eq(
+        "namespace eval ::m { proc greet {} { return hi } }\nputs [::m::greet]\n",
+        "hi\n",
+    );
+    // array for — the resolved ::tcl::array::for invoke; body iterates entries.
+    out_eq(
+        "array set a {x 1 y 2}\nset out {}\narray for {k v} a { lappend out $v }\nputs [lsort $out]\n",
+        "1 2\n",
+    );
+}
+
 /// The `exec` command, end-to-end through the bytecode pipeline, on both host
 /// postures — the capability model proven at the command level (the helper-level
 /// proof lives in `capability.rs`).
