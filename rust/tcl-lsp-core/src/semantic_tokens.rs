@@ -134,6 +134,9 @@ enum TokenKind {
     Decorator = 28,
     /// A backslash escape sequence inside a string/bareword (`\n`, `\t`, …).
     Escape = 29,
+    /// A registry-known closed-set argument value (`string is alnum`,
+    /// `HTTP::respond 200 content`, `when … timing enable`).
+    EnumMember = 30,
 }
 
 /// `binary format`/`scan` specifier letters.
@@ -178,6 +181,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "object",
         "decorator",
         "escape",
+        "enumMember",
     ]
 }
 
@@ -195,6 +199,10 @@ const MOD_DEFAULT_LIBRARY: u32 = 1 << 3;
 /// `definition` modifier bit (legend index 1) — set on the name token of a
 /// `proc` definition.
 const MOD_DEFINITION: u32 = 1 << 1;
+
+/// `declaration` modifier bit (legend index 0) — set on a variable name a
+/// command declares / writes (`set x`, `incr n`, `global v`, `lassign … a`).
+const MOD_DECLARATION: u32 = 1 << 0;
 
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
@@ -349,6 +357,9 @@ enum ArgOverride {
     ExprScript,
     /// A recognised `-option` switch → `Decorator`.
     Decorator,
+    /// A variable name a command declares / writes (`ArgRole::VarWrite`) →
+    /// `Variable` + `declaration` modifier.
+    VarDecl,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
@@ -507,9 +518,12 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
+    insert_enum_value_overrides(seg, registry, &mut overrides);
+    insert_oo_define_keyword_overrides(seg, &mut overrides);
     insert_switch_regexp_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
+    insert_var_decl_overrides(seg, registry, &mut overrides);
 
     overrides
 }
@@ -699,6 +713,136 @@ fn insert_option_and_subcommand_overrides(
                 .or_insert(ArgOverride::Decorator);
         }
     }
+}
+
+/// Registry-known closed-set argument values → `EnumMember`.  The registry
+/// records the legal value set for a positional argument as
+/// [`CommandSpec::arg_values`] (keyed by 0-based index after the command
+/// name) and, for ensemble subcommands, [`SubCommand::arg_values`] (keyed by
+/// index after the subcommand word).  A literal word that matches one of the
+/// declared values is highlighted as an enum member — so `string is alnum`,
+/// `HTTP::respond 200 content`, or `when … timing enable` read as a fixed
+/// keyword-like token rather than an arbitrary string.  Matching is against
+/// the literal word text, so a `$var` / `[cmd]` at the same position is left
+/// to the default classifier.
+fn insert_enum_value_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let Some(spec) = registry.get(head) else {
+        return;
+    };
+    let mut mark = |pos: usize, values: &[tcl_registry::hover::ArgValue]| {
+        if let (Some(text), Some(tok)) = (seg.texts.get(pos), seg.argv.get(pos))
+            && values.iter().any(|v| v.value == text.as_str())
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::EnumMember));
+        }
+    };
+
+    // Command-level values: index is 0-based after the command name, so the
+    // word sits at `seg.texts[idx + 1]`.
+    for (idx, values) in spec.arg_values {
+        mark(*idx as usize + 1, values);
+    }
+
+    // Subcommand-level values: index is 0-based after the subcommand word,
+    // so add one more for the command name (`seg.texts[idx + 2]`).
+    if let Some(sub_text) = seg.texts.get(1)
+        && let Some(sub) = spec.subcommand(sub_text)
+    {
+        for (idx, values) in sub.arg_values {
+            mark(*idx as usize + 2, values);
+        }
+    }
+}
+
+/// `oo::define` / `oo::objdefine` inline definition keywords → `Keyword`.
+///
+/// In the *script* form (`oo::define Cls { method … }`) the definition words
+/// are command heads inside the recursed body and are already highlighted.
+/// The *inline* form (`oo::define Cls method name args body`) puts the
+/// definition word at an argument position, where it would otherwise render
+/// as a plain string.  The target (class / object) sits at `seg.texts[1]`,
+/// so the definition keyword is `seg.texts[2]`; `self` introduces a second,
+/// inner keyword at `seg.texts[3]`.  The recognised words are the TclOO
+/// definition sub-keywords already enumerated in
+/// [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+fn insert_oo_define_keyword_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !matches!(seg.texts[0].as_str(), "oo::define" | "oo::objdefine") {
+        return;
+    }
+    // A definition word is `self` (the object-instance directive, not in the
+    // sub-keyword list) or one of the TclOO definition sub-keywords.
+    let is_def_word = |w: &str| w == "self" || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w);
+    let mut mark_keyword = |pos: usize| {
+        if let Some(tok) = seg.argv.get(pos) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::Keyword));
+        }
+    };
+    // The first definition word follows the class/object target
+    // (`seg.texts[1]`), so it is `seg.texts[2]`.
+    let Some(first) = seg.texts.get(2) else {
+        return;
+    };
+    if !is_def_word(first) {
+        return;
+    }
+    mark_keyword(2);
+    // `self` introduces the real definition keyword (`method`, `constructor`,
+    // …) at `seg.texts[3]`.
+    if first == "self"
+        && seg
+            .texts
+            .get(3)
+            .is_some_and(|w| LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w.as_str()))
+    {
+        mark_keyword(3);
+    }
+}
+
+/// Variable names a command declares / writes (`ArgRole::VarWrite`) →
+/// `Variable` + `declaration`.  The registry marks the write target of `set`
+/// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
+/// which the query [`CommandRegistry::arg_indices_for_role`] resolves
+/// (including subcommand and dynamic-resolver commands such as `dict set`).
+/// Only a plain bareword name is retagged — an array element (`arr(x)`), a
+/// `$`-computed name, or a quoted word is left to the default classifier so
+/// its inner `$var` sub-tokens survive.
+fn insert_var_decl_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
+        // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
+        if let (Some(text), Some(tok)) = (seg.texts.get(i + 1), seg.argv.get(i + 1))
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(text)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
+        }
+    }
+}
+
+/// `true` when `text` is a plain (non-array, non-substituted) variable name
+/// — the safe case to retag as a whole-word `Variable` declaration token.
+fn is_plain_var_name(text: &str) -> bool {
+    !text.is_empty() && !text.contains(['(', '$', '[', '{', '"', ' '])
 }
 
 /// `switch -regexp … { pat body … }` — the braced case list (the final
@@ -1767,6 +1911,16 @@ fn emit_arg_token(
                 entries,
             );
         }
+        Some(ArgOverride::VarDecl) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Variable,
+                MOD_DECLARATION,
+                entries,
+            );
+        }
         Some(ArgOverride::SubcommandKeyword) => {
             push_token(
                 line_index,
@@ -2420,6 +2574,30 @@ mod tests {
         out
     }
 
+    /// Decode the packed stream into absolute
+    /// `(line, col, len, kind, modifiers)` tuples.
+    fn decode_full(
+        src: &str,
+        dialect: &str,
+        registry: &CommandRegistry,
+    ) -> Vec<(u32, u32, u32, u32, u32)> {
+        let st = full(src, dialect, registry);
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len, kind, mods) = (c[0], c[1], c[2], c[3], c[4]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            out.push((line, col, len, kind, mods));
+        }
+        out
+    }
+
     /// Assert no two tokens on the same line overlap (next starts at or
     /// after the previous token's end) — the client "Overlapping semantic
     /// tokens detected" invariant.
@@ -2507,6 +2685,88 @@ mod tests {
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-$flag is a substitution, not an option; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn subcommand_enum_value_classified_as_enum_member() {
+        // `string is alnum $s` — `alnum` is a closed-set value declared on
+        // the `is` subcommand → enumMember, not a plain string.
+        let ks = kinds("string is alnum $s\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::EnumMember as u32)),
+            "expected an enumMember token; got {ks:?}"
+        );
+        // A value not in the set stays a string.
+        let ks = kinds("string is bogusclass $s\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::EnumMember as u32)),
+            "bogusclass is not a class; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn oo_define_inline_keyword_classified_as_keyword() {
+        // `oo::define Cls method foo {} {}` — the inline `method` keyword sits
+        // at an argument position and must read as a keyword, not a string.
+        let ks = kinds("oo::define Cls method foo {} {}\n", "tcl", &reg());
+        let n_kw = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::Keyword as u32)
+            .count();
+        // Two keyword tokens: the `oo::define` head and the inline `method`.
+        assert!(n_kw >= 2, "expected >=2 keyword tokens; got {ks:?}");
+        // `oo::define Cls self method foo {} {}` — the inner keyword after
+        // `self` is highlighted too.
+        let ks = kinds("oo::define Cls self method foo {} {}\n", "tcl", &reg());
+        let n_kw = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::Keyword as u32)
+            .count();
+        assert!(
+            n_kw >= 3,
+            "expected >=3 keyword tokens (head+self+method); got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn var_write_target_carries_declaration_modifier() {
+        // `set x 1` — `x` is a write target → variable + declaration.
+        let toks = decode_full("set x 1\n", "tcl", &reg());
+        let x = toks.iter().find(|(_, col, len, kind, _)| {
+            *col == 4 && *len == 1 && *kind == TokenKind::Variable as u32
+        });
+        assert!(x.is_some(), "expected variable token for `x`; got {toks:?}");
+        assert_eq!(
+            x.unwrap().4,
+            MOD_DECLARATION,
+            "expected declaration modifier"
+        );
+    }
+
+    #[test]
+    fn bare_set_read_is_not_a_declaration() {
+        // `set x` (no value) reads the variable — not a declaration.
+        let ks = kinds("set x\n", "tcl", &reg());
+        // No token should carry the declaration modifier here; `x` stays a
+        // plain string.  (Modifier is checked in the full decode.)
+        let toks = decode_full("set x\n", "tcl", &reg());
+        assert!(
+            !toks.iter().any(|(_, _, _, _, m)| *m == MOD_DECLARATION),
+            "bare `set x` must not declare; got {toks:?} kinds {ks:?}"
+        );
+    }
+
+    #[test]
+    fn array_element_write_not_retagged() {
+        // `set arr($i) 1` — the target has a `$` substitution; leave it to the
+        // default classifier so the inner `$i` variable still tokenises.
+        let toks = decode_full("set arr($i) 1\n", "tcl", &reg());
+        // The `$i` inside must still surface as a variable token.
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected inner $i variable token; got {toks:?}"
         );
     }
 
