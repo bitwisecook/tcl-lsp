@@ -393,6 +393,10 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 for f in rows
             ]
 
+    # Link cross-iRule `call <rule>::<proc>` references before orphan analysis so
+    # a proc-library iRule is counted as used by its callers.
+    _graph.link_proc_calls(device)
+
     # Orphans: a referable leaf object is *confirmed* orphaned only when it has
     # an empty referrer set AND no iRule could dynamically attach an object of
     # its *name*, resolved per partition. Each attach expression is reconstructed
