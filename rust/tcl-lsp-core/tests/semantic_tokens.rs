@@ -226,6 +226,40 @@ fn comment_continuation_crlf() {
 }
 
 #[test]
+fn comment_after_semicolon_is_a_comment() {
+    // `#` is a comment at command position, which includes right after a `;`
+    // command separator — `puts hi ;# tail` (issue #759 review).
+    let source = "puts hi ;# tail comment\n";
+    let t = decode(source, "tcl8.6");
+    assert!(
+        t.iter().any(|x| x.line == 0 && x.ttype == "comment"),
+        "expected a `;#` tail comment; got {t:?}"
+    );
+    // The `puts` command is still highlighted (the comment doesn't swallow it).
+    assert!(t.iter().any(|x| x.ttype == "function"), "{t:?}");
+}
+
+#[test]
+fn comment_after_semicolon_continues() {
+    // A `;#` tail comment continues across a trailing backslash too.
+    let source = "puts hi ;# tail \\\nmore\nset y 2\n";
+    let lines = comment_lines(source, "tcl8.6");
+    assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
+    assert!(!lines.contains(&2), "{lines:?}");
+}
+
+#[test]
+fn semicolon_hash_inside_string_is_not_a_comment() {
+    // A `;#` that falls inside a string literal is not a command-position
+    // comment — the string's tokens cover it and it must be suppressed.
+    let source = "set x \"a;#b\"\nputs $x\n";
+    assert!(
+        comment_lines(source, "tcl8.6").is_empty(),
+        "a `;#` inside a string must not be a comment"
+    );
+}
+
+#[test]
 fn proc_is_a_keyword() {
     let t = decode("proc foo {x} {}", "tcl8.6");
     assert_eq!(t[0].ttype, "keyword");

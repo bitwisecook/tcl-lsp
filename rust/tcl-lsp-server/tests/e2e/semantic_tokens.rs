@@ -260,6 +260,21 @@ fn test_comment_continuation() {
         !comment_lines.contains(&1),
         "escaped backslash must not continue: {comment_lines:?}"
     );
+
+    // A `;#` tail comment (command position after a separator) is a comment and
+    // continues across a trailing backslash.
+    let uri = open_doc(&mut lsp, "puts hi ;# tail \\\nmore\nset y 2\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    let comment_lines: std::collections::BTreeSet<i64> = toks
+        .iter()
+        .filter(|t| t.ttype == "comment")
+        .map(|t| t.line)
+        .collect();
+    assert!(
+        comment_lines.contains(&0) && comment_lines.contains(&1),
+        "expected `;#` tail comment + continuation: {comment_lines:?}"
+    );
+    assert!(!comment_lines.contains(&2), "{comment_lines:?}");
 }
 
 #[test]

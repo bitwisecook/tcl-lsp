@@ -2265,6 +2265,15 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             line_start = false;
             continue;
         }
+        // A command separator `;` returns us to command position, so a `#`
+        // right after it is a trailing comment (`puts hi ;# tail`) — matching
+        // Tcl and the TextMate grammar (issue #759 review).  A `;` inside a
+        // string / braced literal is harmless here: the `#` it exposes is
+        // already covered by that literal's tokens and suppressed above.
+        if c == ';' {
+            line_start = true;
+            continue;
+        }
         line_start = false;
     }
 }
