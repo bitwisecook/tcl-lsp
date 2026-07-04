@@ -824,6 +824,17 @@ fn insert_enum_value_overrides(
     let Some(spec) = registry.get(head) else {
         return;
     };
+    // A closed-set value that is *also* a `Keyword`-role argument — e.g.
+    // `control::do body while test`, whose `while`/`until` option is both a
+    // declared value and the loop sense-word — is highlighted as a keyword by
+    // `insert_role_overrides`, which is the more specific classification.  Skip
+    // those command-level positions so the enum override does not claim the
+    // token first (issue #760).
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let keyword_positions: rustc_hash::FxHashSet<usize> = registry
+        .arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword)
+        .into_iter()
+        .collect();
     let mut mark = |pos: usize, values: &[tcl_registry::hover::ArgValue]| {
         if let (Some(text), Some(tok)) = (seg.texts.get(pos), seg.argv.get(pos))
             && values.iter().any(|v| v.value == text.as_str())
@@ -837,6 +848,9 @@ fn insert_enum_value_overrides(
     // Command-level values: index is 0-based after the command name, so the
     // word sits at `seg.texts[idx + 1]`.
     for (idx, values) in spec.arg_values {
+        if keyword_positions.contains(&(*idx as usize)) {
+            continue;
+        }
         mark(*idx as usize + 1, values);
     }
 
