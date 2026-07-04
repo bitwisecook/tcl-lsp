@@ -34,13 +34,23 @@
   // --- section tabs (scoped per device) -------------------------------------
   document.querySelectorAll(".device").forEach(function (device) {
     device.querySelectorAll(".tab").forEach(function (tab) {
-      tab.addEventListener("click", function () {
+      function activate() {
         var name = tab.dataset.panel;
         device.querySelectorAll(".tab").forEach(function (t) { t.classList.toggle("active", t === tab); });
         device.querySelectorAll(".panel").forEach(function (p) {
           p.classList.toggle("active", p.dataset.panel === name);
         });
-      });
+        // Reveal the tapped tab within the (mobile) horizontally-scrollable
+        // strip, and — if the tab strip has scrolled above the viewport — bring
+        // it back so the freshly-shown panel is visible. Without this a tab
+        // change on a small screen can feel like nothing happened.
+        tab.scrollIntoView({ inline: "center", block: "nearest" });
+        var strip = device.querySelector(".tabs");
+        if (strip && strip.getBoundingClientRect().top < 0) {
+          strip.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+      }
+      tab.addEventListener("click", activate);
     });
   });
 

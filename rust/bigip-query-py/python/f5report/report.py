@@ -209,13 +209,10 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "body": body,
         "bodyHtml": _engine.highlight_tcl(body),
         "flowchart": _engine.irule_flowchart(body),
-        # Reconstructed object-name patterns this rule could dynamically attach
-        # (``pool "web_[HTTP::host]"`` → ``web_*``); only the non-empty types.
-        "dynamicAttachments": {
-            ty: pats
-            for ty, pats in json.loads(_engine.irule_attach_patterns(body)).items()
-            if pats
-        },
+        # The reconstructed dynamic-attach name patterns and resolved objects are
+        # attached later as ``referencedObjects`` (once the device's object lists
+        # and per-virtual partition contexts are known — see
+        # ``graph.annotate_rule_reachability``).
         "usedBy": used_by.get(fp, []),
         "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
         "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],
@@ -398,21 +395,24 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
 
     # Orphans: a referable leaf object is *confirmed* orphaned only when it has
     # an empty referrer set AND no iRule could dynamically attach an object of
-    # its *name*. Each attach expression is reconstructed into a
-    # prefix/contained/suffix name pattern (``pool "web_[HTTP::host]"`` →
-    # ``web_*``); an object is a *possible* orphan only when some rule's pattern
-    # could build its name, and stays a *confirmed* orphan otherwise.
-    attach_idx = _graph.attach_index(device.get("rules", []))
+    # its *name*, resolved per partition. Each attach expression is reconstructed
+    # into a prefix/contained/suffix name pattern (``pool "web_[HTTP::host]"`` →
+    # ``web_*``) and matched in the partition context of the attaching virtuals;
+    # an object is a *possible* orphan only when some rule's pattern could build
+    # its name in a partition where the rule actually runs.
+    rule_ctx, rule_vs = _graph.build_rule_contexts(device)
+    attach_idx = _graph.attach_index(device.get("rules", []), rule_ctx)
     device["orphanRisk"] = sorted(attach_idx.keys())
     device["attachPatterns"] = {
-        ty: [dict(p) for p in pats] for ty, pats in attach_idx.items()
+        ty: [{k: v for k, v in p.items() if k != "ctx"} for p in pats]
+        for ty, pats in attach_idx.items()
     }
     device["orphans"] = {}
     device["possibleOrphans"] = {}
     for name in _REFERABLE:
         if name not in device:
             continue
-        patterns = attach_idx.get(name, [])
+        attaches = attach_idx.get(name, [])
         confirmed: list[str] = []
         possible: list[str] = []
         for o in device.get(name, []):
@@ -420,15 +420,18 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 continue
             if o.get("usedBy"):
                 o["orphanStatus"] = ""
-            elif not patterns:
+            elif not attaches:
                 o["orphanStatus"] = "orphan"
                 confirmed.append(o["name"])
             else:
-                names = [o.get("name", ""), o.get("fullPath", "")]
-                addr = o.get("address", "")
-                if addr:
-                    names.append(addr)
-                matches = _graph.attach_matches(patterns, names)
+                fp = o.get("fullPath", "")
+                matches = _graph.attach_matches(
+                    attaches,
+                    o.get("name", ""),
+                    fp,
+                    _graph._partition_of(fp),
+                    o.get("address", ""),
+                )
                 if matches:
                     o["orphanStatus"] = "possible"
                     o["orphanMatches"] = matches
@@ -438,6 +441,10 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                     confirmed.append(o["name"])
         device["orphans"][name] = confirmed
         device["possibleOrphans"][name] = possible
+
+    # Per-iRule reachability table: static references + the objects each dynamic
+    # filter could select, resolved per attaching-virtual partition (VS-specific).
+    _graph.annotate_rule_reachability(device, rule_vs)
 
     # Propagate each iRule's dynamic (runtime) actions onto the virtuals that
     # attach it, so a VS shows profiles/pools it changes at runtime, not just

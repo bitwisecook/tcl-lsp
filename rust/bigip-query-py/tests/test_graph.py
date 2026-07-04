@@ -172,3 +172,33 @@ def test_constrained_pattern_filters_orphans_by_name():
     web = next(p for p in d["pools"] if p["name"] == "web_backend")
     assert web["orphanStatus"] == "possible"
     assert web["orphanMatches"][0]["pattern"] == "web_*"
+
+
+SCF_PARTITION = """
+ltm pool /TenantA/web_a { members { /TenantA/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /TenantB/web_b { members { /TenantB/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /TenantA/vsA { destination /TenantA/10.0.0.1:80 rules { /Common/dyn } }
+"""
+
+
+def test_orphan_reachability_is_partition_aware():
+    d = collect_model([("p.scf", SCF_PARTITION)])["devices"][0]
+    confirmed = d["orphans"]["pools"]
+    possible = d["possibleOrphans"]["pools"]
+    assert "web_a" in possible, (confirmed, possible)
+    assert "web_b" in confirmed, (confirmed, possible)
+    rule = next(r for r in d["rules"] if r["name"] == "dyn")
+    groups = rule["referencedObjects"]["dynamic"]
+    ta = next(g for g in groups if g["partition"] == "TenantA")
+    objs = [o["name"] for o in ta["filters"][0]["objects"]]
+    assert "web_a" in objs and "web_b" not in objs, objs
+    assert ta["virtuals"] == ["vsA"]
+
+
+def test_pattern_reaches_partition_visibility():
+    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    # unqualified: reachable in its own partition or /Common, not a foreign one
+    assert graph.pattern_reaches(web, "web_a", "/TenantA/web_a", "TenantA", {"TenantA"})
+    assert graph.pattern_reaches(web, "web_c", "/Common/web_c", "Common", {"TenantA"})
+    assert not graph.pattern_reaches(web, "web_b", "/TenantB/web_b", "TenantB", {"TenantA"})
