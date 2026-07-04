@@ -91,6 +91,13 @@ pub enum LoweringHookId {
     /// effects register — like `NamespaceEval`, not the fully opaque
     /// default barrier.
     Apply,
+    /// `array for {keyVar valueVar} arrayName body` (Tcl 9.0) — iterates
+    /// the array's entries. Like `Apply`, the call stays a runtime barrier
+    /// (C Tcl compiles it to an `invokeStk` of `::tcl::array::for` with the
+    /// body pushed as an unparsed literal — it does **not** compile the body),
+    /// but a braced literal body is walked in a fresh frame bound to the two
+    /// loop variables so nested definitions register and the body is analysable.
+    ArrayFor,
 }
 
 /// Typed identifier for a `TclVM` bytecode codegen specialisation.
@@ -123,6 +130,9 @@ pub enum CodegenHookId {
     Dict,
     /// `array <subcommand> ...`.
     Array,
+    /// `namespace <subcommand> ...` — the `eval` form compiles to the
+    /// ensemble-rewrite `invokeReplace` of `::tcl::namespace::eval`.
+    Namespace,
     /// `append varName ?value ...?`.
     Append,
     /// `lappend varName ?value ...?`.

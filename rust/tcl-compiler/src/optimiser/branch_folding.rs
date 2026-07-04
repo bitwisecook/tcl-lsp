@@ -478,6 +478,7 @@ mod tests {
                 top_level: crate::ir::Script::new(),
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
+                body_units: HashMap::new(),
                 redefined_procedures: std::collections::HashSet::new(),
                 redefined_methods: std::collections::HashSet::new(),
                 namespace_imports: Vec::new(),
@@ -492,6 +493,7 @@ mod tests {
             top_level: fu,
             procedures: HashMap::new(),
             methods: HashMap::new(),
+            body_units: HashMap::new(),
             interproc: None,
             connection_scope: None,
         }

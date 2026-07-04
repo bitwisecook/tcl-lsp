@@ -59,8 +59,9 @@
 //! of the BIG-IP taxonomy) is handled.
 
 use rustc_hash::FxHashMap;
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
@@ -134,6 +135,9 @@ enum TokenKind {
     Decorator = 28,
     /// A backslash escape sequence inside a string/bareword (`\n`, `\t`, …).
     Escape = 29,
+    /// A registry-known closed-set argument value (`string is alnum`,
+    /// `HTTP::respond 200 content`, `when … timing enable`).
+    EnumMember = 30,
 }
 
 /// `binary format`/`scan` specifier letters.
@@ -178,6 +182,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "object",
         "decorator",
         "escape",
+        "enumMember",
     ]
 }
 
@@ -195,6 +200,10 @@ const MOD_DEFAULT_LIBRARY: u32 = 1 << 3;
 /// `definition` modifier bit (legend index 1) — set on the name token of a
 /// `proc` definition.
 const MOD_DEFINITION: u32 = 1 << 1;
+
+/// `declaration` modifier bit (legend index 0) — set on a variable name a
+/// command declares / writes (`set x`, `incr n`, `global v`, `lassign … a`).
+const MOD_DECLARATION: u32 = 1 << 0;
 
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
@@ -270,7 +279,26 @@ fn is_operator_command(name: &str) -> bool {
 /// Compute semantic tokens for the entire document.
 #[must_use]
 pub fn full(source: &str, dialect: &str, registry: &CommandRegistry) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry);
+    full_with_cu(source, dialect, registry, None)
+}
+
+/// Compute semantic tokens with an optional [`CompilationUnit`] for the same
+/// document.
+///
+/// When `cu` is `Some`, a `regexp`/`regsub` pattern supplied through a
+/// provably-constant string variable (`set my_re ".*abc"; regexp $my_re $s`)
+/// causes the *originating* `set` literal to be highlighted as a regex — see
+/// [`tcl_compiler::regex_source`].  With `cu == None` the result is identical
+/// to the pure-segmentation tokenisation (the feature is simply absent), so
+/// callers without an analysis pay nothing.
+#[must_use]
+pub fn full_with_cu(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry, cu);
     encode_entries(&entries)
 }
 
@@ -286,7 +314,20 @@ pub fn range(
     range: crate::definition::LspRange,
     registry: &CommandRegistry,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry);
+    range_with_cu(source, dialect, range, registry, None)
+}
+
+/// [`range`] with an optional [`CompilationUnit`] enabling regex-source
+/// highlighting (see [`full_with_cu`]).
+#[must_use]
+pub fn range_with_cu(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, dialect, registry, cu);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -349,6 +390,12 @@ enum ArgOverride {
     ExprScript,
     /// A recognised `-option` switch → `Decorator`.
     Decorator,
+    /// A variable name a command declares / writes (`ArgRole::VarWrite`) →
+    /// `Variable` + `declaration` modifier.
+    VarDecl,
+    /// The `{params body ?ns?}` lambda literal argument of `apply` — its
+    /// second list element (the body) is re-segmented as a script.
+    ApplyLambda,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
@@ -374,12 +421,30 @@ enum ArgOverride {
 /// braced/quoted literal token, plus its absolute byte start, or `None`
 /// for a non-literal token / out-of-bounds span.  Shared by the
 /// sub-language scanners.
+///
+/// Applies the same clamp-trim as [`push_token`]: the lexer extends a quoted
+/// `Esc` fragment's span by one byte over the `$` / `[` that introduces the
+/// *following* substitution (keeping `token_text` empty), so a fragment like
+/// the `"$` of `"$x"` reports content `$`.  That introducer byte belongs to
+/// the next `Var` / `Cmd` token; leaving it in would make a sub-language
+/// scanner (regex, …) mis-read it (a `$` as an anchor) and overlap the
+/// substitution token.  Trim it back to the leading delimiter here so every
+/// consumer sees substitution-free literal content.
 fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
     if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
         return None;
     }
     let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
+    let mut cend = (tok.span.end() as usize).min(source.len());
+    if tok.kind == TokenType::Esc
+        && (tok.span.end() - tok.span.start()) == u32::from(tok.content_offset) + 1
+        && source
+            .as_bytes()
+            .get(tok.span.end() as usize - 1)
+            .is_some_and(|&b| b == b'$' || b == b'[')
+    {
+        cend = cstart.min(cend);
+    }
     source.get(cstart..cend).map(|inner| (cstart, inner))
 }
 
@@ -513,9 +578,13 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
+    insert_enum_value_overrides(seg, registry, &mut overrides);
+    insert_oo_define_keyword_overrides(seg, &mut overrides);
+    insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
+    insert_var_decl_overrides(seg, registry, &mut overrides);
 
     overrides
 }
@@ -583,17 +652,46 @@ fn insert_regex_overrides(
     if idx < args.len() && args[idx] == "--" {
         idx += 1;
     }
-    // `args[idx]` is the pattern; its representative token is
-    // `seg.argv[idx + 1]` (argv[0] is the command head).
+    // `args[idx]` is the pattern; its whole-word span is `seg.argv[idx + 1]`
+    // (argv[0] is the command head).  Sub-tokenise only the *literal*
+    // fragments of the word as regex: in `"abc$var.*"` the `abc` / `.*`
+    // fragments are regex, but `$var` is variable interpolation Tcl resolves
+    // before `regexp` sees it (and `"[cmd]"` is command substitution, not a
+    // char class).  Marking the literal fragments — not the whole word —
+    // leaves the `Var` / `Cmd` fragments to the default classifier, so they
+    // render as Tcl and never overlap the regex sub-tokens.
     if let Some(tok) = seg.argv.get(idx + 1) {
-        overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
+        mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
     }
     // `regsub … exp string subSpec …` — the replacement spec sits two
-    // words after the pattern.
+    // words after the pattern.  Same literal-fragment treatment (its
+    // backrefs are handled by the regsub-replacement scanner).
     if head == "regsub"
         && let Some(tok) = seg.argv.get(idx + 3)
     {
-        overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
+        mark_literal_fragments(seg, tok.span, ArgOverride::RegsubReplace, overrides);
+    }
+}
+
+/// Tag each literal (`Str`/`Esc`) fragment of the word spanning `word_span`
+/// with `ov`, leaving `Var`/`Cmd` substitution fragments untouched (they fall
+/// through to the default classifier).  A single-fragment literal word (a
+/// braced `{a+b}` pattern, a plain `"abc"`) is tagged as one piece — the
+/// common case — while a word interleaving literals and substitutions gets
+/// each literal run tagged independently.
+fn mark_literal_fragments(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    word_span: tcl_lexer::Span,
+    ov: ArgOverride,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    for t in &seg.all_tokens {
+        if t.span.start() >= word_span.start()
+            && t.span.end() <= word_span.end()
+            && matches!(t.kind, TokenType::Str | TokenType::Esc)
+        {
+            overrides.entry(t.span.start()).or_insert(ov);
+        }
     }
 }
 
@@ -644,9 +742,28 @@ fn insert_format_overrides(
     }
 }
 
-/// Known `-option` switches → `Decorator` (only real options, so `puts
-/// -foo` stays a string); subcommand word at arg index 1 → keyword carrying
-/// `defaultLibrary`.  Both consult the command's registry spec.
+/// Known `-option` switches → `Decorator` (only real options declared in
+/// the registry, so `puts -foo` stays a string); subcommand word at arg
+/// index 1 → keyword carrying `defaultLibrary`.  Both consult the command's
+/// registry spec.
+///
+/// The recognised-option set is the [`OptionSpec`]-driven answer to
+/// issue #748 ("highlight words starting with `-` as options"): rather than
+/// treat every `-`-prefixed word as an option — which would mishighlight a
+/// bare minus, a negative number, or a `-$var` substitution — we highlight
+/// exactly the switches the command declares.  The set spans the command's
+/// flat [`CommandSpec::options`] *and* every [`CommandForm`]'s options (via
+/// [`CommandSpec::switch_names`]), plus — when arg 1 selects a known
+/// subcommand — that subcommand's own options (via
+/// [`SubCommand::switch_names`]).  That is what makes the issue's own
+/// example, `file delete -force filename`, light up: `-force` is declared on
+/// the `delete` subcommand, not on `file` itself.
+///
+/// Matching is against the literal word text, so `-$variable` /
+/// `-{$variable}` / `-[command]` — whose word text is not a declared option
+/// name — never match; only a literal `-force`-style word does.
+///
+/// [`OptionSpec`]: tcl_registry::OptionSpec
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -656,9 +773,29 @@ fn insert_option_and_subcommand_overrides(
     let Some(spec) = registry.get(head) else {
         return;
     };
+
+    // Command-level options — the flat `options` list plus every
+    // command-form's options.  Dialect-agnostic (`None`): a switch is still
+    // visually an option even when it was introduced in a later Tcl release.
+    let mut option_names = spec.switch_names(None);
+
+    // A known subcommand at arg index 1 is highlighted as a keyword, and its
+    // per-subcommand options (`file delete -force`, `file link -symbolic`)
+    // join the recognised set.
+    if let Some(sub_text) = seg.texts.get(1)
+        && let Some(sub) = spec.subcommand(sub_text)
+    {
+        option_names.extend(sub.switch_names(None, spec.dialects));
+        if let Some(tok) = seg.argv.get(1) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::SubcommandKeyword);
+        }
+    }
+
     for (i, text) in seg.texts.iter().enumerate().skip(1) {
         if text.starts_with('-')
-            && spec.options.iter().any(|o| o.name == text.as_str())
+            && option_names.contains(&text.as_str())
             && let Some(tok) = seg.argv.get(i)
         {
             overrides
@@ -666,14 +803,171 @@ fn insert_option_and_subcommand_overrides(
                 .or_insert(ArgOverride::Decorator);
         }
     }
+}
+
+/// Registry-known closed-set argument values → `EnumMember`.  The registry
+/// records the legal value set for a positional argument as
+/// [`CommandSpec::arg_values`] (keyed by 0-based index after the command
+/// name) and, for ensemble subcommands, [`SubCommand::arg_values`] (keyed by
+/// index after the subcommand word).  A literal word that matches one of the
+/// declared values is highlighted as an enum member — so `string is alnum`,
+/// `HTTP::respond 200 content`, or `when … timing enable` read as a fixed
+/// keyword-like token rather than an arbitrary string.  Matching is against
+/// the literal word text, so a `$var` / `[cmd]` at the same position is left
+/// to the default classifier.
+fn insert_enum_value_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let Some(spec) = registry.get(head) else {
+        return;
+    };
+    // A closed-set value that is *also* a `Keyword`-role argument — e.g.
+    // `control::do body while test`, whose `while`/`until` option is both a
+    // declared value and the loop sense-word — is highlighted as a keyword by
+    // `insert_role_overrides`, which is the more specific classification.  Skip
+    // those command-level positions so the enum override does not claim the
+    // token first (issue #760).
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let keyword_positions: rustc_hash::FxHashSet<usize> = registry
+        .arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword)
+        .into_iter()
+        .collect();
+    let mut mark = |pos: usize, values: &[tcl_registry::hover::ArgValue]| {
+        if let (Some(text), Some(tok)) = (seg.texts.get(pos), seg.argv.get(pos))
+            && values.iter().any(|v| v.value == text.as_str())
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::EnumMember));
+        }
+    };
+
+    // Command-level values: index is 0-based after the command name, so the
+    // word sits at `seg.texts[idx + 1]`.
+    for (idx, values) in spec.arg_values {
+        if keyword_positions.contains(&(*idx as usize)) {
+            continue;
+        }
+        mark(*idx as usize + 1, values);
+    }
+
+    // Subcommand-level values: index is 0-based after the subcommand word,
+    // so add one more for the command name (`seg.texts[idx + 2]`).
     if let Some(sub_text) = seg.texts.get(1)
-        && spec.subcommand(sub_text).is_some()
-        && let Some(tok) = seg.argv.get(1)
+        && let Some(sub) = spec.subcommand(sub_text)
+    {
+        for (idx, values) in sub.arg_values {
+            mark(*idx as usize + 2, values);
+        }
+    }
+}
+
+/// `oo::define` / `oo::objdefine` inline definition keywords → `Keyword`.
+///
+/// In the *script* form (`oo::define Cls { method … }`) the definition words
+/// are command heads inside the recursed body and are already highlighted.
+/// The *inline* form (`oo::define Cls method name args body`) puts the
+/// definition word at an argument position, where it would otherwise render
+/// as a plain string.  The target (class / object) sits at `seg.texts[1]`,
+/// so the definition keyword is `seg.texts[2]`; `self` introduces a second,
+/// inner keyword at `seg.texts[3]`.  The recognised words are the `TclOO`
+/// definition sub-keywords already enumerated in
+/// [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+fn insert_oo_define_keyword_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !matches!(seg.texts[0].as_str(), "oo::define" | "oo::objdefine") {
+        return;
+    }
+    // A definition word is `self` (the object-instance directive, not in the
+    // sub-keyword list) or one of the TclOO definition sub-keywords.
+    let is_def_word = |w: &str| w == "self" || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w);
+    let mut mark_keyword = |pos: usize| {
+        if let Some(tok) = seg.argv.get(pos) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::Keyword));
+        }
+    };
+    // The first definition word follows the class/object target
+    // (`seg.texts[1]`), so it is `seg.texts[2]`.
+    let Some(first) = seg.texts.get(2) else {
+        return;
+    };
+    if !is_def_word(first) {
+        return;
+    }
+    mark_keyword(2);
+    // `self` introduces the real definition keyword (`method`, `constructor`,
+    // …) at `seg.texts[3]`.
+    if first == "self"
+        && seg
+            .texts
+            .get(3)
+            .is_some_and(|w| LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w.as_str()))
+    {
+        mark_keyword(3);
+    }
+}
+
+/// `apply {params body ?ns?} …` — mark the braced lambda literal so its body
+/// (the second list element) is re-segmented as a script.  Only a braced
+/// literal first argument qualifies; `apply $lambda …` (a variable) is left
+/// alone.  Matches C Tcl, where `apply`'s first argument is a 2- or 3-element
+/// list `{argList body ?namespace?}`.
+fn insert_apply_lambda_override(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if seg.texts[0] != "apply" {
+        return;
+    }
+    if let Some(tok) = seg.argv.get(1)
+        && matches!(tok.kind, TokenType::Str)
     {
         overrides
             .entry(tok.span.start())
-            .or_insert(ArgOverride::SubcommandKeyword);
+            .or_insert(ArgOverride::ApplyLambda);
     }
+}
+
+/// Variable names a command declares / writes (`ArgRole::VarWrite`) →
+/// `Variable` + `declaration`.  The registry marks the write target of `set`
+/// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
+/// which the query [`CommandRegistry::arg_indices_for_role`] resolves
+/// (including subcommand and dynamic-resolver commands such as `dict set`).
+/// Only a plain bareword name is retagged — an array element (`arr(x)`), a
+/// `$`-computed name, or a quoted word is left to the default classifier so
+/// its inner `$var` sub-tokens survive.
+fn insert_var_decl_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
+        // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
+        if let (Some(text), Some(tok)) = (seg.texts.get(i + 1), seg.argv.get(i + 1))
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(text)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
+        }
+    }
+}
+
+/// `true` when `text` is a plain (non-array, non-substituted) variable name
+/// — the safe case to retag as a whole-word `Variable` declaration token.
+fn is_plain_var_name(text: &str) -> bool {
+    !text.is_empty() && !text.contains(['(', '$', '[', '{', '"', ' '])
 }
 
 /// `switch … { pat body … }` — the braced case list (the final word, when
@@ -770,6 +1064,11 @@ fn insert_role_overrides(
                 .or_insert(ArgOverride::KeywordArg);
         }
     }
+    // Note: recursing the body of a `method` / `constructor` / … keyword used
+    // as a command head inside a class-definition script is handled
+    // context-sensitively by `insert_oo_body_overrides` (issue #747), which
+    // only fires inside an actual OO definition body — so a same-named user
+    // proc is never misclassified.
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -1292,18 +1591,41 @@ fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
 }
 
 /// Scan a bracket expression `[…]` starting at `b[i] == '['`.
-/// `[` optional `^` optional leading `]` then `([^]\\]|\\.)* ]`.
+///
+/// `[` optional `^` optional leading `]`, then members up to the closing `]`.
+/// A member is a `\`-escape (ARE recognises backslash escapes inside brackets,
+/// e.g. `[\d]`), or a POSIX / collating / equivalence **sub-bracket**
+/// (`[:alpha:]`, `[.ch.]`, `[=a=]`) whose internal `]` does **not** close the
+/// outer bracket — so `[[:alpha:]]` scans as one char class, matching the ARE
+/// engine (and C Tcl), not `[[:alpha:]` + a dangling `]`.
 fn scan_are_class(b: &[u8], i: usize) -> Option<usize> {
     let len = b.len();
     let mut j = i + 1;
     if b.get(j) == Some(&b'^') {
         j += 1;
     }
+    // A `]` immediately after `[` / `[^` is a literal member, not the close.
     if b.get(j) == Some(&b']') {
         j += 1;
     }
     while j < len && b[j] != b']' {
-        j += if b[j] == b'\\' && j + 1 < len { 2 } else { 1 };
+        if b[j] == b'[' && matches!(b.get(j + 1), Some(b':' | b'.' | b'=')) {
+            // Sub-bracket `[X … X]` (X ∈ `:.=`): skip to the matching `X]`.
+            let delim = b[j + 1];
+            let mut k = j + 2;
+            while k + 1 < len && !(b[k] == delim && b[k + 1] == b']') {
+                k += 1;
+            }
+            if k + 1 < len {
+                j = k + 2; // past the closing `X]`
+            } else {
+                return None; // unterminated sub-bracket → not a token
+            }
+        } else if b[j] == b'\\' && j + 1 < len {
+            j += 2;
+        } else {
+            j += 1;
+        }
     }
     (j < len).then_some(j + 1) // unterminated class → not a token
 }
@@ -1524,6 +1846,9 @@ struct ScriptCtx<'a> {
     /// into — see [`crate::oo_body`].  Outside one, a same-named user proc
     /// must not be treated as an OO definition.
     inside_oo_body: bool,
+    /// Def-site literal value words to highlight as regex (regex-source
+    /// tracking), keyed by word start.  Empty when disabled.
+    regex_sources: &'a FxHashMap<u32, Span>,
 }
 
 fn collect_switch_case_list(
@@ -1599,6 +1924,54 @@ fn collect_switch_case_list(
             }
         } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
             // Body element — recurse as a script.
+            collect_script(
+                ctx,
+                body,
+                u32::try_from(bstart).unwrap_or(0),
+                entries,
+                depth + 1,
+            );
+        } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+            push_token(line_index, full_source, *word_tok, kind, 0, entries);
+        }
+    }
+}
+
+/// Recurse the body of an `apply {params body ?ns?}` lambda literal.
+///
+/// The braced lambda is a Tcl list; its second element is the body script
+/// and is re-segmented so its commands / vars / strings tokenise like any
+/// other body.  The first element (the argument list) and an optional third
+/// (the namespace) are emitted with their default classification, so no part
+/// of the lambda is dropped.  Mirrors C Tcl's `apply` lambda shape.
+fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        // Not a braced literal (should not happen — the override only fires
+        // for `Str` tokens); fall back to a plain classification.
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    // Flatten the lambda's list elements (params, body, ?ns?).
+    let mut words: Vec<Token> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        inner,
+        u32::try_from(cstart).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+    ) {
+        words.extend(seg.argv.iter().copied());
+    }
+    for (idx, word_tok) in words.iter().enumerate() {
+        // Element 1 is the body — recurse it as a script when braced.
+        if idx == 1
+            && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
+        {
             collect_script(
                 ctx,
                 body,
@@ -1727,7 +2100,23 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        let mut overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        // Regex-source tracking: retag a `set` value word that feeds a regexp
+        // pattern as a (substitution-aware) regex.  Keyed on the def-site word
+        // start; the compiler-supplied span is authoritative for the fragment
+        // scan (the segmenter's token span can clamp a closing delimiter).
+        if !ctx.regex_sources.is_empty() {
+            for word in &seg.argv {
+                if let Some(&full_span) = ctx.regex_sources.get(&word.span.start()) {
+                    mark_literal_fragments(
+                        &seg,
+                        full_span,
+                        ArgOverride::RegexPattern,
+                        &mut overrides,
+                    );
+                }
+            }
+        }
 
         // The `inside_oo_body` context the recursion into THIS command's
         // body arguments should carry: an outer OO definition body switches
@@ -1748,7 +2137,14 @@ fn collect_script(
         };
 
         for tok in &seg.all_tokens {
-            if tok.span == head_tok.span {
+            // Skip every token that falls inside the head *word* — not just
+            // the exact head token.  A computed head (`chartV$node`,
+            // `${prefix}cmd`) is one word whose representative token
+            // `emit_command_head` already emitted as a single token, but
+            // whose sub-fragments (`chartV`, `$node`) also appear in
+            // `all_tokens`; emitting those would overlap the head token
+            // (invalid — LSP clients reject overlapping semantic tokens).
+            if tok.span.start() >= head_tok.span.start() && tok.span.end() <= head_tok.span.end() {
                 continue;
             }
             emit_arg_token(
@@ -1830,6 +2226,19 @@ fn emit_arg_token(
                 0,
                 entries,
             );
+        }
+        Some(ArgOverride::VarDecl) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Variable,
+                MOD_DECLARATION,
+                entries,
+            );
+        }
+        Some(ArgOverride::ApplyLambda) => {
+            collect_apply_lambda(ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::SubcommandKeyword) => {
             push_token(
@@ -2023,9 +2432,25 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
 
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
-fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Entry> {
+fn collect_entries(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
+
+    // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
+    // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
+    // the walk can retag the matching argument.  Empty (no map lookups) when
+    // there is no analysis or no such flow.
+    let regex_sources: FxHashMap<u32, Span> = cu.map_or_else(FxHashMap::default, |cu| {
+        tcl_compiler::regex_source::regex_source_literal_spans(source, cu, registry, dialect)
+            .into_iter()
+            .map(|span| (span.start(), span))
+            .collect()
+    });
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -2035,6 +2460,7 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
         registry,
         line_index: &line_index,
         inside_oo_body: false,
+        regex_sources: &regex_sources,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -2291,8 +2717,10 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             // (whose per-line entries are pushed before this scan), or is a
             // `switch` case-list `#` pattern element (not a comment — Tcl's
             // "comments don't work in switch" gotcha), so the `#` there is not a
-            // comment.  Suppress it to avoid an overlapping token the LSP client
-            // would reject (#757, #758).
+            // comment.  The overlap test is per-*position* (not per-line) so a
+            // genuine `;#` tail comment — whose line also carries code tokens —
+            // still survives.  Suppress it to avoid an overlapping token the LSP
+            // client would reject (#757, #758).
             let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
                 *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
             });
@@ -2540,6 +2968,30 @@ mod tests {
         out
     }
 
+    /// Decode the packed stream into absolute
+    /// `(line, col, len, kind, modifiers)` tuples.
+    fn decode_full(
+        src: &str,
+        dialect: &str,
+        registry: &CommandRegistry,
+    ) -> Vec<(u32, u32, u32, u32, u32)> {
+        let st = full(src, dialect, registry);
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len, kind, mods) = (c[0], c[1], c[2], c[3], c[4]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            out.push((line, col, len, kind, mods));
+        }
+        out
+    }
+
     /// Assert no two tokens on the same line overlap (next starts at or
     /// after the previous token's end) — the client "Overlapping semantic
     /// tokens detected" invariant.
@@ -2597,6 +3049,372 @@ mod tests {
         // `puts -foo` — `-foo` is not an option of `puts` → not a decorator.
         let ks = kinds("puts -foo\n", "tcl", &reg());
         assert!(!ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn subcommand_option_classified_as_decorator() {
+        // Issue #748's own example: `file delete -force filename`.  `-force`
+        // is declared on the `delete` *subcommand* (not on `file` itself), so
+        // it is only recognised once subcommand options are consulted.
+        let ks = kinds("file delete -force filename\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -force decorator; got {ks:?}"
+        );
+        // A subcommand option on a different subcommand: `file link -symbolic`.
+        let ks = kinds("file link -symbolic a b\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -symbolic decorator; got {ks:?}"
+        );
+        // A `-`-word that is not a declared option stays a plain string, even
+        // on a command that has subcommand options elsewhere.
+        let ks = kinds("file delete -bogus filename\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-bogus is not a real option; got {ks:?}"
+        );
+        // A `-$var` substitution word must never be treated as an option.
+        let ks = kinds("file delete -$flag filename\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-$flag is a substitution, not an option; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn subcommand_enum_value_classified_as_enum_member() {
+        // `string is alnum $s` — `alnum` is a closed-set value declared on
+        // the `is` subcommand → enumMember, not a plain string.
+        let ks = kinds("string is alnum $s\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::EnumMember as u32)),
+            "expected an enumMember token; got {ks:?}"
+        );
+        // A value not in the set stays a string.
+        let ks = kinds("string is bogusclass $s\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::EnumMember as u32)),
+            "bogusclass is not a class; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn oo_define_inline_keyword_classified_as_keyword() {
+        // `oo::define Cls method foo {} {}` — the inline `method` keyword sits
+        // at an argument position and must read as a keyword, not a string.
+        let ks = kinds("oo::define Cls method foo {} {}\n", "tcl", &reg());
+        let n_kw = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::Keyword as u32)
+            .count();
+        // Two keyword tokens: the `oo::define` head and the inline `method`.
+        assert!(n_kw >= 2, "expected >=2 keyword tokens; got {ks:?}");
+        // `oo::define Cls self method foo {} {}` — the inner keyword after
+        // `self` is highlighted too.
+        let ks = kinds("oo::define Cls self method foo {} {}\n", "tcl", &reg());
+        let n_kw = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::Keyword as u32)
+            .count();
+        assert!(
+            n_kw >= 3,
+            "expected >=3 keyword tokens (head+self+method); got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn var_write_target_carries_declaration_modifier() {
+        // `set x 1` — `x` is a write target → variable + declaration.
+        let toks = decode_full("set x 1\n", "tcl", &reg());
+        let x = toks.iter().find(|(_, col, len, kind, _)| {
+            *col == 4 && *len == 1 && *kind == TokenKind::Variable as u32
+        });
+        assert!(x.is_some(), "expected variable token for `x`; got {toks:?}");
+        assert_eq!(
+            x.unwrap().4,
+            MOD_DECLARATION,
+            "expected declaration modifier"
+        );
+    }
+
+    #[test]
+    fn bare_set_read_is_not_a_declaration() {
+        // `set x` (no value) reads the variable — not a declaration.
+        let ks = kinds("set x\n", "tcl", &reg());
+        // No token should carry the declaration modifier here; `x` stays a
+        // plain string.  (Modifier is checked in the full decode.)
+        let toks = decode_full("set x\n", "tcl", &reg());
+        assert!(
+            !toks.iter().any(|(_, _, _, _, m)| *m == MOD_DECLARATION),
+            "bare `set x` must not declare; got {toks:?} kinds {ks:?}"
+        );
+    }
+
+    #[test]
+    fn array_element_write_not_retagged() {
+        // `set arr($i) 1` — the target has a `$` substitution; leave it to the
+        // default classifier so the inner `$i` variable still tokenises.
+        let toks = decode_full("set arr($i) 1\n", "tcl", &reg());
+        // The `$i` inside must still surface as a variable token.
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected inner $i variable token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn method_body_recurses_in_class_definition_script() {
+        // `oo::class create C { method m {} { set z 3 } }` — the method body
+        // must be tokenised (C Tcl evaluates it as a script), so `set` reads
+        // as a function and `z` as a variable declaration, not one opaque
+        // string.
+        let src = "oo::class create C {\n  method m {} {\n    set z 3\n  }\n}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `z` as a variable declaration inside the method body; got {toks:?}"
+        );
+        // constructor body too.
+        let src = "oo::class create C {\n  constructor {} {\n    set q 9\n  }\n}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `q` declared inside the constructor body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn regex_pattern_with_substitution_splits_regex_and_tcl() {
+        // `regexp "abc$var.*" $s` — literal `abc` / `.*` sub-tokenise as
+        // regex, but `$var` stays a Tcl variable (Tcl resolves it before
+        // regexp runs), with no overlap.
+        let toks = decode_full("regexp \"abc$var.*\" $s\n", "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected $var as a variable; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpQuantifier as u32),
+            "expected the `*` quantifier from the literal part; got {toks:?}"
+        );
+        // No overlaps.
+        let simple = decode("regexp \"abc$var.*\" $s\n", "tcl", &reg());
+        for w in simple.windows(2) {
+            let (l0, c0, len0) = w[0];
+            let (l1, c1, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={simple:?}");
+            }
+        }
+        // `regexp "$only" $s` — a bare-substitution pattern is just a
+        // variable, not a regex anchor.
+        let toks = decode_full("regexp \"$only\" $s\n", "tcl", &reg());
+        assert!(
+            !toks
+                .iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpAnchor as u32),
+            "the `$` must not be a regex anchor; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn regex_source_variable_highlights_def_site_literal() {
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
+        // Without a CompilationUnit the `set` value is a plain string.
+        let plain = decode_full(src, "tcl9.0", &registry);
+        assert!(
+            !plain
+                .iter()
+                .any(|&(l, _, _, k, _)| l == 0 && k == TokenKind::RegexpQuantifier as u32),
+            "no regex tokens without a CU; got {plain:?}"
+        );
+        // With a CU, the `.*abc` literal at the `set` reads as a regex.
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let st = full_with_cu(src, "tcl9.0", &registry, Some(&cu));
+        let toks = decode_semantic(&st);
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, _)| l == 0 && k == TokenKind::RegexpQuantifier as u32),
+            "expected the `*` from the def-site literal as a regex quantifier; got {toks:?}"
+        );
+        // No overlaps introduced.
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_source_tracks_inside_oo_method_body() {
+        // TclOO method bodies are lowered as their own `FunctionUnit`s, so a
+        // `set re "…"; regexp $re` inside a method highlights the def-site
+        // literal just like one in a proc — end-to-end through the CU overlay.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C {\n  method m {s} {\n    set re \".*x\"\n    regexp $re $s\n  }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the method-body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_source_tracks_inside_namespace_eval_body() {
+        // `namespace eval` bodies are lowered as their own synthetic body units,
+        // so a `set re "…"; regexp $re` inside the eval highlights the def-site
+        // literal — end-to-end through the CU overlay, matching a proc body.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the ns-eval body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_source_tracks_inside_apply_lambda_body() {
+        // `apply` lambda bodies are synthetic body units too — a def-site regex
+        // literal inside the lambda highlights as a regex.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            toks.iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+            "expected a regex quantifier from the apply lambda body def-site literal; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+            }
+        }
+    }
+
+    /// Decode a `SemanticTokens` value directly into
+    /// `(line, col, len, kind, mods)` tuples.
+    fn decode_semantic(st: &SemanticTokens) -> Vec<(u32, u32, u32, u32, u32)> {
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len, kind, mods) = (c[0], c[1], c[2], c[3], c[4]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            out.push((line, col, len, kind, mods));
+        }
+        out
+    }
+
+    #[test]
+    fn comment_inside_multiline_string_is_not_a_comment() {
+        // A `#`-first line inside a multi-line `"…"` string is string text,
+        // not a command comment — it must not emit a Comment token (which
+        // would overlap the `$x` variable substitution).
+        let src = "append s \"line1\n# not a comment $x\nline3\"\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            !toks
+                .iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Comment as u32),
+            "a `#` inside a string must not be a comment; got {toks:?}"
+        );
+        // A real comment still is one.
+        let toks = decode_full("# real\nset x 1\n", "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Comment as u32),
+            "expected a real comment token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn computed_command_head_does_not_overlap() {
+        // `chartV$node SetOptions …` — a command head containing a `$node`
+        // substitution must emit as a single head token, not the whole head
+        // plus overlapping `chartV` / `$node` fragment tokens (LSP clients
+        // reject overlapping semantic tokens).
+        let toks = decode("chartV$node SetOptions -x {}\n", "tcl", &reg());
+        for w in toks.windows(2) {
+            let (l0, c0, len0) = w[0];
+            let (l1, c1, _) = w[1];
+            if l0 == l1 {
+                assert!(
+                    c1 >= c0 + len0,
+                    "overlap: token at col {c1} starts before prev end {}; toks={toks:?}",
+                    c0 + len0
+                );
+            }
+        }
+        // The head is still present as one token starting at col 0.
+        assert!(
+            toks.iter()
+                .any(|&(l, c, len)| l == 0 && c == 0 && len == 11),
+            "expected single 11-wide head token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn apply_lambda_body_recurses() {
+        // `apply {{} { set z 3 }}` — the lambda body (list element 1) is a
+        // script; `set`/`z` must tokenise rather than sit inside one string.
+        let src = "apply {{} { set z 3 }}\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Function as u32),
+            "expected `set` function token inside the lambda body; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected `z` declared inside the lambda body; got {toks:?}"
+        );
+        // `apply $lambda` (a variable, not a literal) must not be recursed.
+        let ks = kinds("apply $lambda a b\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Variable as u32)),
+            "expected the $lambda variable token; got {ks:?}"
+        );
     }
 
     #[test]
@@ -2706,6 +3524,52 @@ mod tests {
         );
         // `\d` is an ARE class shortcut → char class.
         assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn scan_are_class_spans_posix_collating_equivalence_subbrackets() {
+        // `[[:alpha:]]` is one bracket expression (the inner `[:alpha:]` is a
+        // POSIX class whose `]` does not close the outer bracket) — the scanner
+        // must span the whole thing, not stop at the first `]`.
+        assert_eq!(scan_are_class(b"[[:alpha:]]", 0), Some(11));
+        assert_eq!(scan_are_class(b"[[:digit:]xyz]", 0), Some(14));
+        assert_eq!(scan_are_class(b"[[.ch.]]", 0), Some(8));
+        assert_eq!(scan_are_class(b"[[=a=]]", 0), Some(7));
+        // A plain class is unaffected; a leading literal `]` still works.
+        assert_eq!(scan_are_class(b"[a-z]", 0), Some(5));
+        assert_eq!(scan_are_class(b"[]a]", 0), Some(4));
+        // An unterminated sub-bracket is not a token.
+        assert_eq!(scan_are_class(b"[[:alpha", 0), None);
+    }
+
+    #[test]
+    fn regex_posix_class_has_no_dangling_bracket_token() {
+        // Before the sub-bracket fix, `[[:alpha:]]+` mis-scanned as `[[:alpha:]`
+        // (char class) + a stray literal `]` + `+`. Now the whole
+        // `[[:alpha:]]` is one char class and `+` its quantifier — and, per the
+        // token-overlap invariant, no token may start inside another.
+        let src = "regexp {[[:alpha:]]+} $s\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpCharClass as u32),
+            "expected a char-class token; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::RegexpQuantifier as u32),
+            "expected the trailing `+` as a quantifier; got {toks:?}"
+        );
+        for w in toks.windows(2) {
+            let (l0, c0, len0, _, _) = w[0];
+            let (l1, c1, _, _, _) = w[1];
+            if l0 == l1 {
+                assert!(
+                    c1 >= c0 + len0,
+                    "token overlap in POSIX class; toks={toks:?}"
+                );
+            }
+        }
     }
 
     #[test]

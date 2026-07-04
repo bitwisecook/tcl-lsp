@@ -12,7 +12,9 @@ use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::alias::{CommandAliasMap, detect_interp_alias, resolve_alias};
-use crate::ir::{CommandTokens, MethodDef, MethodKind, Module, Procedure, Script, Statement};
+use crate::ir::{
+    CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
+};
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::segmenter::{
@@ -483,6 +485,11 @@ pub struct Lowerer<'r> {
     aliases: CommandAliasMap,
     /// Event handler occurrence counts (for `when` numbering).
     when_counts: HashMap<String, u32>,
+    /// Monotonic counter for synthetic *body unit* names (`apply` lambdas and
+    /// `namespace eval` bodies), so each registers under a unique qualified
+    /// name in [`Module::body_units`]. Deterministic in source order, so the
+    /// fresh and incremental lowerings produce identical names.
+    body_unit_count: u32,
     /// Whether we're inside a `namespace eval` body.
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
@@ -568,6 +575,7 @@ impl<'r> Lowerer<'r> {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
             when_counts: HashMap::new(),
+            body_unit_count: 0,
             in_namespace_eval: false,
             registry,
             const_map_stack: Vec::new(),
@@ -901,6 +909,13 @@ impl<'r> Lowerer<'r> {
             // definitions register (like `namespace eval`), keeping the call a
             // runtime barrier because the body runs in a separate frame.
             LoweringHookId::Apply => Some(self.lower_apply(seg, namespace)),
+
+            // `array for {k v} arr body` (Tcl 9.0) — iterate array entries.
+            // Like `apply`, the call stays a runtime barrier (C Tcl invokes
+            // `::tcl::array::for` with the body as an unparsed literal), but a
+            // braced literal body is walked in a fresh frame bound to the two
+            // loop variables so it is analysable.
+            LoweringHookId::ArrayFor => Some(self.lower_array_for(seg, namespace)),
 
             // Straightforward control-flow forms.  Each is a
             // single-method dispatch with no arity / shared-method /
@@ -1616,6 +1631,40 @@ impl<'r> Lowerer<'r> {
     /// if present, else the global namespace `::` — not the caller's namespace,
     /// so a nested `proc` registers under the same qualified name Tcl's runtime
     /// `apply` would give it (per the `apply` manual).
+    /// Register an already-lowered fresh-frame body (an `apply` lambda or a
+    /// `namespace eval` block) as a synthetic *body unit* in
+    /// [`Module::body_units`], so the static-analysis pipeline reaches inside
+    /// it. `label` names the construct (`apply` / `namespace-eval`), `params`
+    /// are the frame's bound names (empty for `namespace eval`), and `span`
+    /// covers the body text (used by the complexity guard). Purely additive —
+    /// the caller still emits the runtime `Statement::Barrier` that executes
+    /// the body, so bytecode is unchanged.
+    fn register_body_unit(
+        &mut self,
+        label: &str,
+        params: Vec<String>,
+        span: tcl_lexer::Span,
+        body: Script,
+    ) {
+        let n = self.body_unit_count;
+        self.body_unit_count += 1;
+        let qualified = format!("::{label}#{n}");
+        self.module.body_units.insert(
+            qualified.clone(),
+            Procedure {
+                name: label.to_string(),
+                qualified_name: qualified,
+                params,
+                span,
+                body,
+                params_raw: String::new(),
+                body_source: None,
+                namespace_scoped: false,
+                base_priority: 500,
+            },
+        );
+    }
+
     fn lower_apply(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         use tcl_lexer::TokenType;
         let args = seg.args();
@@ -1640,7 +1689,12 @@ impl<'r> Lowerer<'r> {
         let body_info: Option<(String, u32)> = lambda_elems
             .get(1)
             .filter(|(tok, _)| tok.kind == TokenType::Str)
-            .map(|(tok, text)| (text.clone(), tok.span.start() + u32::from(tok.content_offset)));
+            .map(|(tok, text)| {
+                (
+                    text.clone(),
+                    tok.span.start() + u32::from(tok.content_offset),
+                )
+            });
 
         if let Some((body_text, body_offset)) = body_info {
             // `apply` evaluates the body in the namespace named by lambda element
@@ -1660,9 +1714,25 @@ impl<'r> Lowerer<'r> {
             // `lower_proc`'s const-map / proc-depth push.
             self.proc_depth += 1;
             self.const_map_stack.push(HashMap::new());
-            let _body = self.lower_body(&body_text, body_offset, &body_ns);
+            let body = self.lower_body(&body_text, body_offset, &body_ns);
             self.const_map_stack.pop();
             self.proc_depth -= 1;
+
+            // The lambda's bound parameters are element 0 of the lambda list, so
+            // a `$param` read inside the body resolves to the param (not a
+            // caller scalar). A body defined inside a TclOO method body is not
+            // registered globally (`suppress_proc_register`), but a body unit is
+            // analysis-only (never codegen-emitted), so it is always safe to
+            // record for coverage.
+            let params = lambda_elems
+                .first()
+                .map(|(_, t)| parse_param_names(t))
+                .unwrap_or_default();
+            let span = tcl_lexer::Span::new(
+                body_offset,
+                body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
+            );
+            self.register_body_unit("apply", params, span, body);
         }
 
         Statement::Barrier {
@@ -1675,6 +1745,58 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    /// `array for {keyVar valueVar} arrayName body` (Tcl 9.0).
+    ///
+    /// The body runs in the caller's frame with the two loop variables bound
+    /// per entry. C Tcl compiles this to an `invokeStk` of `::tcl::array::for`
+    /// with the body pushed as an unparsed literal — it does not compile the
+    /// body — so, exactly like [`Self::lower_apply`], the call itself stays a
+    /// runtime [`Statement::Barrier`] (codegen unchanged, byte-identical to C
+    /// Tcl). But a braced literal body is walked in a fresh frame bound to the
+    /// loop variables and recorded as a body unit so static analysis reaches
+    /// inside it. A `$var` / `[cmd]` body stays fully opaque.
+    fn lower_array_for(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        use tcl_lexer::TokenType;
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let arg_single = seg.arg_single_token();
+
+        // `array for {k v} arr body` → args = [for, {k v}, arr, body].
+        // The body (index 3) must be a single braced-literal token to walk.
+        let body_is_braced = arg_tokens.get(3).is_some_and(|t| t.kind == TokenType::Str)
+            && arg_single.get(3).copied() == Some(true);
+        if args.len() == 4 && body_is_braced {
+            let body_tok = &arg_tokens[3];
+            // The body runs in the *caller's* frame (`vm.eval_source` in place),
+            // so lower it inline — inheriting the caller's const-map — into a
+            // loop-variable-bound `Foreach` rather than isolating it in a
+            // fresh-frame body unit. The analysis CFG inlines this into the
+            // caller unit (so a body `$re` resolves to a caller literal for
+            // regex-source / taint), while codegen barriers it to the byte-
+            // identical `::tcl::array::for` invoke — see `lower_foreach_dispatch`.
+            let body = self.lower_body_from_tok(&args[3], Some(body_tok), namespace);
+            let vars = parse_param_names(&args[1]);
+            return Statement::Foreach {
+                span: seg.span,
+                iterators: vec![ForeachIterator {
+                    vars,
+                    list_arg: args[2].clone(),
+                }],
+                body,
+                body_span: body_tok.span,
+                is_lmap: false,
+                raw_args: args.to_vec(),
+                is_dict_iteration: false,
+                is_array_iteration: true,
+                raw_tokens: Some(Self::cmd_tokens(seg)),
+            };
+        }
+
+        // A dynamic (`$body` / `[cmd]`) body stays fully opaque: the runtime
+        // barrier re-emits `array for …`.
+        self.lower_default(seg, namespace)
+    }
+
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let child_ns = join_namespace(namespace, &args[1]);
@@ -1683,8 +1805,17 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let _body = self.lower_body(body_text, body_offset, &child_ns);
+        let body = self.lower_body(body_text, body_offset, &child_ns);
         self.in_namespace_eval = prev;
+
+        // A `namespace eval` body runs in the child namespace's own frame — its
+        // straight-line statements are a real analysable script, so record them
+        // as a body unit (no bound params: namespace vars, not locals).
+        let span = tcl_lexer::Span::new(
+            body_offset,
+            body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
+        );
+        self.register_body_unit("namespace-eval", vec![], span, body);
 
         Statement::Barrier {
             span: seg.span,
@@ -2142,7 +2273,14 @@ pub fn body_cache_eligible(body: &str) -> bool {
     // newline, or a `\`-continuation), so a tab-separated `interp\talias` trips
     // it too.
     const WORD_DISQUALIFIERS: &[&str] = &[
-        "namespace", "interp", "rename", "method", "when", "apply", "alias", "proc",
+        "namespace",
+        "interp",
+        "rename",
+        "method",
+        "when",
+        "apply",
+        "alias",
+        "proc",
     ];
     // Substring markers (the token itself is the marker — no trailing arg).
     const SUBSTR_DISQUALIFIERS: &[&str] = &["oo::", "::oo", "itcl"];
@@ -2247,7 +2385,9 @@ mod body_cache_eligible_tests {
     fn alias_in_scope_makes_body_cache_diverge() {
         use tcl_registry::CommandRegistry;
 
-        use super::{lower_proc_body_isolated, lower_to_ir_with_body_cache, lower_to_ir_with_config};
+        use super::{
+            lower_proc_body_isolated, lower_to_ir_with_body_cache, lower_to_ir_with_config,
+        };
 
         let reg = CommandRegistry::build_default();
         let cfg = tcl_lexer::LexerConfig::default();

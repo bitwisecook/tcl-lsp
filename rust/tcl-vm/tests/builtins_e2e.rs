@@ -56,6 +56,30 @@ fn out_eq(src: &str, expected: &str) {
     assert_eq!(out, expected, "for script:\n{src}");
 }
 
+/// Ensemble-resolved body commands execute correctly through the compiled
+/// bytecode. `namespace eval` compiles to `invokeReplace … ::tcl::namespace::
+/// eval` and `array for` to `invokeStk ::tcl::array::for`; both resolved
+/// implementations must be registered in the VM (regression guard for the
+/// ensemble-resolution codegen).
+#[test]
+fn ensemble_resolved_body_commands_execute() {
+    // namespace eval — the invokeReplace form.
+    out_eq(
+        "namespace eval ::ns { variable c 5 }\nputs [set ::ns::c]\n",
+        "5\n",
+    );
+    // namespace eval with a nested proc + call.
+    out_eq(
+        "namespace eval ::m { proc greet {} { return hi } }\nputs [::m::greet]\n",
+        "hi\n",
+    );
+    // array for — the resolved ::tcl::array::for invoke; body iterates entries.
+    out_eq(
+        "array set a {x 1 y 2}\nset out {}\narray for {k v} a { lappend out $v }\nputs [lsort $out]\n",
+        "1 2\n",
+    );
+}
+
 /// The `exec` command, end-to-end through the bytecode pipeline, on both host
 /// postures — the capability model proven at the command level (the helper-level
 /// proof lives in `capability.rs`).
@@ -1283,5 +1307,142 @@ fn compiled_unset_missing_honours_complain_flag() {
     out_eq(
         "proc f {} { unset -nocomplain nope; return done }\nputs [f]\n",
         "done\n",
+    );
+}
+
+#[test]
+fn dict_for_compiled_inline_executes() {
+    // dict for compiled inline (dictFirst/dictNext) iterates in order.
+    out_eq(
+        "proc p {} { set d {a 1 b 2 c 3}; set out {}; dict for {k v} $d { lappend out $k=$v }; return $out }\nputs [p]\n",
+        "a=1 b=2 c=3\n",
+    );
+    // Empty dict: body never runs.
+    out_eq(
+        "proc p {} { set d {}; set n 0; dict for {k v} $d { incr n }; return $n }\nputs [p]\n",
+        "0\n",
+    );
+    // Value + key both bound; sum the values.
+    out_eq(
+        "proc p {} { set d {x 10 y 20}; set s 0; dict for {k v} $d { incr s $v }; return $s }\nputs [p]\n",
+        "30\n",
+    );
+}
+
+#[test]
+fn dict_map_compiled_inline_executes() {
+    // dict map doubles each value, keyed by k.
+    out_eq(
+        "proc p {} { set d {a 1 b 2 c 3}; return [dict map {k v} $d { expr {$v * 2} }] }\nputs [p]\n",
+        "a 2 b 4 c 6\n",
+    );
+    // Empty dict → empty result.
+    out_eq(
+        "proc p {} { set d {}; return [dict map {k v} $d { expr {$v + 1} }] }\nputs [len [p]]\n"
+            .replace("len ", "llength ")
+            .as_str(),
+        "0\n",
+    );
+    // Body using both key and value.
+    out_eq(
+        "proc p {} { set d {x 1 y 2}; return [dict map {k v} $d { list $k $v }] }\nputs [p]\n",
+        "x {x 1} y {y 2}\n",
+    );
+}
+
+#[test]
+fn dict_update_compiled_inline_executes() {
+    // Two keys mutated in the body flow back into the dict.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict update d a x b y { set x [expr {$x*10}]; set y [expr {$y*10}] }; return $d }\nputs [p]\n",
+        "a 10 b 20\n",
+    );
+    // The `dict update` value is the body's result.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; return [dict update d a x { set x 99 }] }\nputs [p]\n",
+        "99\n",
+    );
+    // A key absent from the dict leaves its target unset; setting it adds the key.
+    out_eq(
+        "proc p {} { set d {a 1}; dict update d a x c z { set z 7 }; return $d }\nputs [p]\n",
+        "a 1 c 7\n",
+    );
+}
+
+#[test]
+fn dict_with_compiled_inline_executes() {
+    // Keys become locals; the body reads them, the dict is unchanged.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; set r [dict with d { expr {$a+$b} }]; return [list $d $r] }\nputs [p]\n",
+        "{a 1 b 2} 3\n",
+    );
+    // Mutating a key-local flows back into the dict.
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict with d { set a 100 }; return $d }\nputs [p]\n",
+        "a 100 b 2\n",
+    );
+    // A brand-new local set in the body is folded in only if it names a key;
+    // an unrelated local does not extend the dict.
+    out_eq(
+        "proc p {} { set d {a 1}; dict with d { set a 5; set other 9 }; return $d }\nputs [p]\n",
+        "a 5\n",
+    );
+}
+
+/// A control-flow body is not straight-line, so `dict update`/`dict with` fall
+/// back to the runtime `dict` invoke — which must still execute correctly.
+#[test]
+fn dict_update_with_control_flow_body_falls_back_and_executes() {
+    out_eq(
+        "proc p {} { set d {a 1 b 2}; dict update d a x b y { if {$x > 0} { set x [expr {$x+$y}] } }; return $d }\nputs [p]\n",
+        "a 3 b 2\n",
+    );
+    out_eq(
+        "proc q {} { set d {a 1 b 2}; dict with d { foreach k {a b} { }; set a 9 }; return $d }\nputs [q]\n",
+        "a 9 b 2\n",
+    );
+}
+
+/// A `{k v}` variable word is a Tcl list, not whitespace-delimited: a
+/// 1-element list like `{{a b}}` must reach the runtime `dict for` and error,
+/// never be miscompiled into two inline loop vars. Regression for the
+/// `split_whitespace` var-list parsing bug.
+#[test]
+fn dict_for_map_malformed_var_list_errors_via_fallback() {
+    // `{{a b}}` is one element → "must have exactly two variable names".
+    let (ok, result, _out) = run("proc p {} { set d {x 1}; dict for {{a b}} $d { puts hi } }\np\n");
+    assert!(!ok, "malformed dict for var list must error");
+    assert!(
+        result.contains("exactly two variable names"),
+        "got: {result}"
+    );
+    let (ok, result, _out) = run("proc p {} { set d {x 1}; dict map {{a b}} $d { set x 1 } }\np\n");
+    assert!(!ok, "malformed dict map var list must error");
+    assert!(
+        result.contains("exactly two variable names"),
+        "got: {result}"
+    );
+}
+
+/// A straight-line body whose final statement is `return` leaves no trailing
+/// `pop`, so the inline emitter must bail out *cleanly* (rolling back its
+/// partial prologue and catch depth) and let the runtime `dict` invoke run —
+/// where `return` keeps its proc-exit semantics. Regression guard for the
+/// mid-emission fallback corruption.
+#[test]
+fn dict_inline_return_body_falls_back_cleanly() {
+    // dict map over an empty dict never runs the body → empty result.
+    out_eq(
+        "proc a {} { dict map {k v} {} { return 5 } }\nputs \"[a]|\"\n",
+        "|\n",
+    );
+    // dict update / dict with run the body once; `return` exits the proc.
+    out_eq(
+        "proc b {} { set d {x 1}; dict update d x q { return 9 } }\nputs \"[b]|\"\n",
+        "9|\n",
+    );
+    out_eq(
+        "proc c {} { set d {x 1}; dict with d { return 7 } }\nputs \"[c]|\"\n",
+        "7|\n",
     );
 }

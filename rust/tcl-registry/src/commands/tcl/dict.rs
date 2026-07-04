@@ -377,6 +377,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "getd",
         arity: Arity::at_least(3),
+        // `dict getdef`/`getwithdefault` (and their unambiguous prefix `getd`)
+        // were added by TIP 342 in Tcl 9.0 — absent in the 8.6.x series.
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
@@ -393,6 +396,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "getdef",
         arity: Arity::at_least(3),
+        // Added by TIP 342 in Tcl 9.0.
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
@@ -409,6 +414,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "getwithdefault",
         arity: Arity::at_least(3),
+        // Added by TIP 342 in Tcl 9.0 (the long-form spelling of `getdef`).
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,

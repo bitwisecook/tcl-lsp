@@ -802,6 +802,7 @@ impl CfgBuilder {
     fn lower_foreach_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
         let Statement::Foreach {
             is_dict_iteration,
+            is_array_iteration,
             raw_args,
             raw_tokens,
             iterators,
@@ -812,6 +813,26 @@ impl CfgBuilder {
         else {
             unreachable!();
         };
+
+        // `array for {k v} arr body` (Tcl 9.0): the body runs in the caller's
+        // frame, so the analysis CFG inlines it (shared reaching-defs / const
+        // lattice, loop vars bound) while codegen barriers it to the
+        // `::tcl::array::for` ensemble invoke the array hook resolves — keeping
+        // the emitted bytecode byte-identical to C Tcl.
+        if *is_array_iteration {
+            if self.faithful_exceptions {
+                return self.lower_foreach(stmt, current);
+            }
+            self.block_mut(current).statements.push(Statement::Barrier {
+                span: *span,
+                reason: "array for".into(),
+                command: "array".into(),
+                canonical_command: None,
+                args: raw_args.clone(),
+                tokens: raw_tokens.clone(),
+            });
+            return current.to_owned();
+        }
 
         if *is_dict_iteration && !raw_args.is_empty() {
             let sub = &raw_args[0];
@@ -1800,6 +1821,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            is_array_iteration: false,
             raw_tokens: None,
         }]);
         let func = build_cfg_function("::test", &script, true);

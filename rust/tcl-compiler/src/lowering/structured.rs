@@ -402,6 +402,7 @@ impl Lowerer<'_> {
             is_lmap,
             raw_args: args.to_vec(),
             is_dict_iteration: false,
+            is_array_iteration: false,
             raw_tokens: Some(Self::cmd_tokens(seg)),
         }
     }
@@ -475,6 +476,7 @@ impl Lowerer<'_> {
             is_lmap: false,
             raw_args: args.to_vec(),
             is_dict_iteration: false,
+            is_array_iteration: false,
             raw_tokens: Some(Self::cmd_tokens(seg)),
         }
     }
@@ -847,6 +849,7 @@ impl Lowerer<'_> {
                     is_lmap: sub == "map",
                     raw_args: args.to_vec(),
                     is_dict_iteration: true,
+                    is_array_iteration: false,
                     raw_tokens: Some(Self::cmd_tokens(seg)),
                 }
             }

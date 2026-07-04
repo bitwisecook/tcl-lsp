@@ -33,9 +33,531 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
     None
 }
 
+/// Whether a body script is a straight-line sequence of simple commands the
+/// inline `dict for` emitter can compile — no nested control flow (which needs
+/// its own blocks), no `break`/`continue` (which need loop-exception routing we
+/// don't emit yet), and no nested definitions.
+fn is_straight_line_body(script: &crate::ir::Script) -> bool {
+    script.statements.iter().all(|s| {
+        // Reject nested control flow (needs its own blocks), opaque body
+        // commands, frame shifts, and `break`/`continue` (need loop-exception
+        // routing we don't emit). Everything else — assignments, plain calls,
+        // `return` — is straight-line and emits inline.
+        match s {
+            Statement::If { .. }
+            | Statement::For { .. }
+            | Statement::While { .. }
+            | Statement::Foreach { .. }
+            | Statement::Catch { .. }
+            | Statement::Try { .. }
+            | Statement::Switch { .. }
+            | Statement::Block { .. }
+            | Statement::UpFrame { .. }
+            | Statement::Barrier { .. } => false,
+            Statement::Call { command, .. } => command != "break" && command != "continue",
+            _ => true,
+        }
+    })
+}
+
+/// Parse a `dict for`/`dict map` variable-list word by the Tcl list grammar
+/// and return the two loop-variable names when it is exactly a two-element
+/// list of *plain* names — not qualified (`::`), not an array element (`(`),
+/// and not needing list quoting (whitespace/empty). Returns `None` (inline
+/// emitter bails to the runtime invoke) otherwise, so a 1-element list like
+/// `{{a b}}` errors at runtime instead of being miscompiled as two vars, and a
+/// spaced name like `{{a b} v}` keeps its runtime semantics.
+fn is_two_plain_names(vars_text: &str) -> Option<[String; 2]> {
+    let elems = super::helpers::split_list_simple(vars_text);
+    let [a, b] = <[String; 2]>::try_from(elems).ok()?;
+    for v in [&a, &b] {
+        if v.is_empty() || is_qualified(v) || v.contains('(') || v.chars().any(char::is_whitespace)
+        {
+            return None;
+        }
+    }
+    Some([a, b])
+}
+
 // CodegenCtx methods
 
 impl CodegenCtx<'_> {
+    /// Emit a compiled `dict for {k v} DICT { body }` inline, matching C Tcl's
+    /// low-level bytecode: `beginCatch4` → `dictFirst <iter>` → `jumpTrue`
+    /// (skip empty) → store k/v → inline body → `dictNext` → `jumpFalse` (loop)
+    /// → `jump` (normal exit) → catch epilogue → `pop pop`. Returns `false`
+    /// (caller falls back to the runtime invoke) unless this is a proc context
+    /// with exactly two loop vars and a straight-line body.
+    ///
+    /// `vars_text` is the `{k v}` word, `dict_text` the dict expression, and
+    /// `body_text` the braced body. The body is re-lowered and each statement
+    /// emitted inline. The `beginCatch`/epilogue give C Tcl's iterator cleanup
+    /// on error; our VM frees the iterator with the frame, so the epilogue is
+    /// present for byte-fidelity but only reached via C Tcl's exception ranges.
+    pub fn emit_dict_for(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
+        // Exactly two loop variables, both plain (compilable-local) names. The
+        // `{k v}` word is a Tcl list, so split by the list grammar (not
+        // whitespace) — a 1-element list like `{{a b}}` must error at runtime,
+        // not be miscompiled as two vars — and bail to the runtime invoke for
+        // any name that is qualified, an array element, or needs list quoting.
+        let vnames = is_two_plain_names(vars_text);
+        let Some(vnames) = vnames else {
+            return false;
+        };
+        if !self.is_proc {
+            return false;
+        }
+        // The body must be a straight-line sequence of simple commands.
+        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        if !body_ir.procedures.is_empty()
+            || !body_ir.methods.is_empty()
+            || !is_straight_line_body(&body_ir.top_level)
+        {
+            return false;
+        }
+
+        // Slot allocation mirrors C Tcl's `TclCompileDictForCmd`: the two loop
+        // variables, then a spare temp, then the body's locals, and finally the
+        // iterator temp — so the iterator gets the *highest* slot. Because the
+        // body (which interns its own locals) is emitted between `dictFirst` and
+        // the iterator's allocation, the `dictFirst`/`dictNext`/`unsetScalar`
+        // operands are emitted with a placeholder and back-patched once the
+        // iterator slot is known.
+        let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
+        let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        // C Tcl allocates an unused companion temp right after the loop vars.
+        let _spare = self
+            .lvt
+            .intern(&format!("#dictfor_spare{}", self.catch_depth));
+        let iter_name = format!("#dictfor{}", self.catch_depth);
+        let loop_lbl = self.fresh_label("dict_for_loop");
+        let end_lbl = self.fresh_label("dict_for_end");
+
+        // Load the dict value, then begin the iterator under a catch range.
+        self.emit_value(dict_text, true);
+        self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+        let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
+        // Tag the loop-control jumps `dict_for` so the layout pass keeps them
+        // 4-byte (matching C Tcl, which never narrows a dict-for's `jumpTrue4`/
+        // `jumpFalse4`); the normal-exit `jump` below is left untagged so it
+        // narrows to `jump1` as C Tcl's does.
+        self.emit_comment(
+            Op::JUMP_TRUE4,
+            vec![Operand::Label(end_lbl.clone())],
+            "dict_for",
+        );
+
+        // Loop body: bind key/value, run the body, advance.
+        self.place_label(&loop_lbl);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.emit(Op::POP, vec![]);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
+        self.emit(Op::POP, vec![]);
+        let mut ugi = false;
+        for stmt in &body_ir.top_level.statements {
+            self.emit_stmt(stmt, &mut ugi);
+        }
+        let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
+        self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
+        self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
+
+        // Catch epilogue (C Tcl reaches this via its iterator-cleanup exception
+        // range; our VM frees the iterator with the frame, so it is dead here).
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &iter_name,
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+        self.catch_depth -= 1;
+
+        // Now the body's locals are interned; the iterator gets the next
+        // (highest) slot. Back-patch the placeholders.
+        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[unset_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+
+        // Normal exit: drop the leftover key/value from the final dictNext.
+        self.place_label(&end_lbl);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+        // `dict for` yields the empty string.
+        self.push_lit("");
+        self.seen_generic_invoke = true;
+        true
+    }
+
+    /// Emit a compiled `dict map {k v} DICT { body }` inline, matching C Tcl:
+    /// like `dict for` but accumulating each iteration's body result into a new
+    /// dictionary (`dictSet result[k] = body-result`) which becomes the value.
+    /// Returns `false` (runtime-invoke fallback) unless proc context, two loop
+    /// vars, and a straight-line body whose final statement yields a value.
+    pub fn emit_dict_map(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
+        // Parse the `{k v}` word by the Tcl list grammar and require exactly two
+        // plain names (see `emit_dict_for`); anything else bails to the runtime
+        // invoke so malformed / non-simple var lists keep C Tcl's semantics.
+        let Some(vnames) = is_two_plain_names(vars_text) else {
+            return false;
+        };
+        if !self.is_proc {
+            return false;
+        }
+        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        if !body_ir.procedures.is_empty()
+            || !body_ir.methods.is_empty()
+            || body_ir.top_level.statements.is_empty()
+            || !is_straight_line_body(&body_ir.top_level)
+        {
+            return false;
+        }
+
+        // Slots: the result accumulator and iterator temps are allocated after
+        // the loop vars and the body's locals (interned during body emission),
+        // so both are back-patched once known.
+        let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
+        let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        let result_name = format!("#dictmap_res{}", self.catch_depth);
+        let iter_name = format!("#dictmap_it{}", self.catch_depth);
+        let loop_lbl = self.fresh_label("dict_map_loop");
+        let end_lbl = self.fresh_label("dict_map_end");
+
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
+        // Initialise the accumulator to the empty dict.
+        self.push_lit("");
+        let res_store_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(0)], &result_name);
+        self.emit(Op::POP, vec![]);
+
+        self.emit_value(dict_text, true);
+        self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+        let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
+        self.emit_comment(
+            Op::JUMP_TRUE4,
+            vec![Operand::Label(end_lbl.clone())],
+            "dict_for",
+        );
+
+        self.place_label(&loop_lbl);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.emit(Op::POP, vec![]);
+        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
+        self.emit(Op::POP, vec![]);
+        // Emit the body; strip the final statement's trailing `pop` so its
+        // result (the mapped value) stays on the stack. If the last statement
+        // left no `pop`, bail out — an unusual body shape we don't model.
+        let mut ugi = false;
+        for stmt in &body_ir.top_level.statements {
+            self.emit_stmt(stmt, &mut ugi);
+        }
+        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
+            return false;
+        }
+        self.instructions.pop();
+        // Accumulate: result[key] = mapped value.
+        self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.emit(Op::OVER, vec![Operand::Imm(1)]);
+        let dict_set_idx = self.emit_comment(
+            Op::DICT_SET,
+            vec![Operand::Imm(1), Operand::Imm(0)],
+            &result_name,
+        );
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+
+        let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
+        self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
+        self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
+
+        // Error epilogue (dead in our VM; present for C-Tcl fidelity).
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &iter_name,
+        );
+        let unset_res_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &result_name,
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+        self.catch_depth -= 1;
+
+        // Normal exit: drop the leftover key/value, close the catch, unset the
+        // iterator, load the accumulated dict as the result, unset the temp.
+        self.place_label(&end_lbl);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it2_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &iter_name,
+        );
+        let res_load_idx = self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(0)], &result_name);
+        let unset_res2_idx = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            &result_name,
+        );
+
+        // Now intern the result + iterator temps (highest slots) and back-patch.
+        let res_slot = bytecode_imm(self.lvt.intern(&result_name));
+        let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
+        self.instructions[res_store_idx].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[dict_set_idx].operands = vec![Operand::Imm(1), Operand::Imm(res_slot)];
+        self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[unset_it_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[unset_res_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
+        self.instructions[unset_it2_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[res_load_idx].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[unset_res2_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
+
+        self.seen_generic_invoke = true;
+        true
+    }
+
+    /// Emit a compiled `dict update DICTVAR key1 var1 ?key2 var2 …? { body }`
+    /// inline, matching C Tcl: bind each keyed value into its target local under
+    /// a (VM-dead) catch range, run the straight-line body, then write the
+    /// locals back into the dict (`dictUpdateStart`/`dictUpdateEnd`). `rest` is
+    /// `[dictvar, k1, v1, …, body]`. Returns `false` (runtime-invoke fallback)
+    /// unless proc context, a plain-local dict var and targets, and a
+    /// straight-line body whose final statement yields a value.
+    pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
+        if !self.is_proc || rest.len() < 4 || rest.len() % 2 != 0 {
+            return false;
+        }
+        let dict_var = &rest[0];
+        if is_qualified(dict_var) || dict_var.contains('(') {
+            return false;
+        }
+        let body_text = rest.last().expect("rest is non-empty");
+        let mid = &rest[1..rest.len() - 1]; // (key, targetvar) pairs, even length
+        let keys: Vec<String> = mid.iter().step_by(2).cloned().collect();
+        let vars: Vec<String> = mid.iter().skip(1).step_by(2).cloned().collect();
+        if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
+            return false;
+        }
+        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        if !body_ir.procedures.is_empty()
+            || !body_ir.methods.is_empty()
+            || body_ir.top_level.statements.is_empty()
+            || !is_straight_line_body(&body_ir.top_level)
+        {
+            return false;
+        }
+
+        let dict_slot = bytecode_imm(self.lvt.intern(dict_var));
+        // Pre-intern the target locals so their slots exist; the names travel
+        // out-of-band in `dict_vars` (the VM stores/reads them by name).
+        for v in &vars {
+            self.lvt.intern(v);
+        }
+        let end_lbl = self.fresh_label("dict_update_end");
+
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
+        // Push the key list.
+        for k in &keys {
+            self.emit_value_interpolated(k);
+        }
+        self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(keys.len()))]);
+
+        // Prologue: read the dict, bind each keyed value to its target local.
+        let start_idx = self.emit_comment(
+            Op::DICT_UPDATE_START,
+            vec![Operand::Imm(dict_slot), Operand::Imm(0)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.instructions[start_idx].dict_vars = Some(vars.clone());
+
+        self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+
+        // Body; strip the trailing pop so its result stays on the stack (the
+        // `dict update` result). Straight-line statements always end in a pop.
+        let mut ugi = false;
+        for stmt in &body_ir.top_level.statements {
+            self.emit_stmt(stmt, &mut ugi);
+        }
+        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
+            return false;
+        }
+        self.instructions.pop();
+
+        // Normal epilogue: swap the key list above the body result and write the
+        // locals back into the dict.
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        let end_idx = self.emit_comment(
+            Op::DICT_UPDATE_END,
+            vec![Operand::Imm(dict_slot), Operand::Imm(0)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.instructions[end_idx].dict_vars = Some(vars.clone());
+        self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
+
+        // Error epilogue (dead in our VM; present for C-Tcl byte fidelity).
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit(Op::REVERSE, vec![Operand::Imm(3)]);
+        let err_end_idx = self.emit_comment(
+            Op::DICT_UPDATE_END,
+            vec![Operand::Imm(dict_slot), Operand::Imm(0)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.instructions[err_end_idx].dict_vars = Some(vars);
+        self.emit(Op::RETURN_STK, vec![]);
+        self.catch_depth -= 1;
+
+        self.place_label(&end_lbl);
+        self.seen_generic_invoke = true;
+        true
+    }
+
+    /// Emit a compiled `dict with DICTVAR { body }` inline, matching C Tcl:
+    /// expand every key of the dict into a same-named local (`dictExpand`), run
+    /// the straight-line body, then fold the locals back into the dict
+    /// (`dictRecombineImm`). Returns `false` (runtime-invoke fallback) unless
+    /// proc context, a plain-local dict var, and a straight-line body whose
+    /// final statement yields a value. The path form (`dict with d k … {body}`)
+    /// is left to the runtime invoke.
+    pub fn emit_dict_with(&mut self, dict_var: &str, body_text: &str) -> bool {
+        if !self.is_proc || is_qualified(dict_var) || dict_var.contains('(') {
+            return false;
+        }
+        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        if !body_ir.procedures.is_empty()
+            || !body_ir.methods.is_empty()
+            || body_ir.top_level.statements.is_empty()
+            || !is_straight_line_body(&body_ir.top_level)
+        {
+            return false;
+        }
+
+        let dict_slot = bytecode_imm(self.lvt.intern(dict_var));
+        let state_name = format!("#dictwith_state{}", self.catch_depth);
+        let state_slot = bytecode_imm(self.lvt.intern(&state_name));
+        let end_lbl = self.fresh_label("dict_with_end");
+
+        // Snapshot the emit state so a mid-emission bail-out (a body that does
+        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
+        // a pristine context for the caller's runtime-invoke fallback.
+        let insns_mark = self.instructions.len();
+        let catch_mark = self.catch_depth;
+
+        // Prologue: expand the dict into per-key locals; stash the recombine
+        // state in a temp.
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(dict_slot)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.push_lit("");
+        self.emit(Op::DICT_EXPAND, vec![]);
+        self.emit_comment(
+            Op::STORE_SCALAR1,
+            vec![Operand::Imm(state_slot)],
+            &state_name,
+        );
+        self.emit(Op::POP, vec![]);
+
+        self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+
+        let mut ugi = false;
+        for stmt in &body_ir.top_level.statements {
+            self.emit_stmt(stmt, &mut ugi);
+        }
+        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
+            self.instructions.truncate(insns_mark);
+            self.catch_depth = catch_mark;
+            return false;
+        }
+        self.instructions.pop();
+
+        // Normal epilogue: recombine the per-key locals into the dict.
+        self.emit(Op::END_CATCH, vec![]);
+        self.push_lit("");
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(state_slot)],
+            &state_name,
+        );
+        self.emit_comment(
+            Op::DICT_RECOMBINE_IMM,
+            vec![Operand::Imm(dict_slot)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
+
+        // Error epilogue (dead in our VM; present for C-Tcl byte fidelity).
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        self.push_lit("");
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(state_slot)],
+            &state_name,
+        );
+        self.emit_comment(
+            Op::DICT_RECOMBINE_IMM,
+            vec![Operand::Imm(dict_slot)],
+            &format!("var \"{dict_var}\""),
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+        self.catch_depth -= 1;
+
+        self.place_label(&end_lbl);
+        self.seen_generic_invoke = true;
+        true
+    }
+
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
     ///
     /// Compiles the body as a single command inline, then emits the

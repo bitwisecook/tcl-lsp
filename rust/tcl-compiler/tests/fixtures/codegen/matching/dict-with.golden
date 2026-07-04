@@ -1,0 +1,56 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "p"
+    2: ""
+    3: "\n    set d {a 1 b 2}\n    dict with ..."
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "p"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set d {a 1 b 2}\n    dict with ..."
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::p, 31 instructions, 81 bytes, 2 literals, 5 variables
+  Literals:
+    0: "a 1 b 2"
+    1: ""
+  Local variables:
+    %v0: "d"
+    %v1: "#dictwith_state0"
+    %v2: "a"
+    %v3: "b"
+    %v4: "z"
+  Instructions:
+    (0) push1 0	# "a 1 b 2"
+    (2) storeScalar1 %v0	# var "d"
+    (4) pop
+    (5) startCommand +63 1	# next cmd at pc 68, 1 cmds start here
+    (14) loadScalar1 %v0	# var "d"
+    (16) push1 1	# ""
+    (18) dictExpand
+    (19) storeScalar1 %v1	# #dictwith_state0
+    (21) pop
+    (22) beginCatch4 0
+    (27) startCommand +14 1	# next cmd at pc 41, 1 cmds start here
+    (36) loadScalar1 %v2	# var "a"
+    (38) loadScalar1 %v3	# var "b"
+    (40) add
+    (41) storeScalar1 %v4	# var "z"
+    (43) endCatch
+    (44) push1 1	# ""
+    (46) loadScalar1 %v1	# #dictwith_state0
+    (48) dictRecombineImm 0	# var "d"
+    (53) jump1 +15	# pc 68
+    (55) pushReturnOpts
+    (56) pushResult
+    (57) endCatch
+    (58) push1 1	# ""
+    (60) loadScalar1 %v1	# #dictwith_state0
+    (62) dictRecombineImm 0	# var "d"
+    (67) returnStk
+    (68) startCommand +12 1	# next cmd at pc 80, 1 cmds start here
+    (77) loadScalar1 %v0	# var "d"
+    (79) done
+    (80) done

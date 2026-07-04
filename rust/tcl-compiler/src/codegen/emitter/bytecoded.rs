@@ -63,6 +63,7 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Lset => lset(ctx, args),
         CodegenHookId::Dict => dict(ctx, args),
         CodegenHookId::Array => array(ctx, args, used_generic_invoke),
+        CodegenHookId::Namespace => namespace_cmd(ctx, args, used_generic_invoke),
         CodegenHookId::Append => append_cmd(ctx, args),
         CodegenHookId::Lappend => lappend_cmd(ctx, args),
         CodegenHookId::Unset => unset_cmd(ctx, args),
@@ -272,6 +273,12 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         "incr" if matches!(rest.len(), 2 | 3) => dict_incr(ctx, var_name, rest),
         "append" if rest.len() == 3 => dict_append(ctx, var_name, rest),
         "lappend" if rest.len() == 3 => dict_lappend(ctx, var_name, rest),
+        // `dict update var k1 v1 ?k2 v2 …? body` and `dict with var body`
+        // compile inline (C Tcl's `dictUpdateStart`/`dictExpand` machinery) when
+        // the body is straight-line; otherwise fall through to the runtime
+        // invoke. The path form of `dict with` (`rest.len() > 2`) is not inlined.
+        "update" if rest.len() >= 4 && rest.len() % 2 == 0 => ctx.emit_dict_update(rest),
+        "with" if rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
         _ => false,
     }
 }
@@ -391,17 +398,90 @@ fn dict_ensemble(ctx: &mut CodegenCtx, sub: &str, sub_args: &[String]) {
     ctx.seen_generic_invoke = true;
 }
 
+// namespace
+
+/// `namespace eval ns body` — C Tcl compiles the ensemble to the
+/// `invokeReplace` rewrite of `::tcl::namespace::eval`: it pushes the original
+/// words (`namespace eval ns body`) followed by the resolved implementation
+/// name, then `invokeReplace objc 2` replaces the two-word `namespace eval`
+/// prefix with `::tcl::namespace::eval` at runtime. The body is pushed as an
+/// unparsed literal (it is not compiled). Mirrors [`dict_ensemble`]. Other
+/// `namespace` subcommands fall through to the generic invoke.
+fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) -> bool {
+    // `namespace eval ns body ...` → args = [eval, ns, body, ...]. C Tcl uses
+    // the ensemble-rewrite form for the `eval` subcommand with a namespace and
+    // at least one body word, whether the body is a braced literal, a dynamic
+    // `$body`, or several words concatenated into the script.
+    if args.first().map(String::as_str) != Some("eval") || args.len() < 3 {
+        return false;
+    }
+    ctx.push_lit("namespace");
+    ctx.push_lit("eval");
+    // Push the namespace and every body word exactly as the generic path would:
+    // `emit_word_arg` reads `cmd_arg_braced[idx]` (arg 0 is `eval`), so args[i]
+    // is original index `i` — a braced body word is pushed verbatim, a dynamic
+    // `$body` is interpolated.
+    for (i, a) in args.iter().enumerate().skip(1) {
+        ctx.emit_word_arg(i, a);
+    }
+    ctx.push_lit("::tcl::namespace::eval");
+    // objc = all original words (`namespace eval ns body ...`); replace the
+    // two-word `namespace eval` prefix with the resolved implementation.
+    let objc = bytecode_imm(1 + args.len());
+    ctx.emit(
+        Op::INVOKE_REPLACE,
+        vec![Operand::Imm(objc), Operand::Imm(2)],
+    );
+    ctx.emit(Op::POP, vec![]);
+    ctx.seen_generic_invoke = true;
+    *used_generic_invoke = true;
+    true
+}
+
 // array
 
 /// `array names $arr ...` / `array size $arr` in non-proc context:
 /// invoke the fully-qualified `::tcl::array::<sub>` form rather than
 /// the generic `array` dispatcher.
 fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) -> bool {
-    if ctx.is_proc || args.len() < 2 {
+    if args.len() < 2 {
         return false;
     }
     let sub = args[0].as_str();
     let rest = &args[1..];
+
+    // `array for {k v} arr body` (Tcl 9.0): C Tcl compiles the ensemble to a
+    // direct `invokeStk` of the resolved `::tcl::array::for` with the body
+    // pushed as an unparsed literal — in *any* context (proc or top-level).
+    // Match it: push the qualified command, then the three args exactly as the
+    // generic per-word path would (so the braced `{k v}` var-list and the
+    // braced body are pushed verbatim), then `invokeStk1 4`. Analysis still
+    // sees the `array` barrier (registry-aware), so this is codegen-only.
+    if sub == "for" && rest.len() == 3 {
+        ctx.push_lit("::tcl::array::for");
+        for (i, a) in rest.iter().enumerate() {
+            // `emit_word_arg` reads `cmd_arg_braced[idx]`, indexed by the
+            // original arg list (arg 0 is the `for` subcommand word), so
+            // `rest[i]` is original index `i + 1` — pushing the braced `{k v}`
+            // and braced body verbatim, exactly as the generic path would.
+            ctx.emit_word_arg(i + 1, a);
+        }
+        let n_args = bytecode_imm(1 + rest.len());
+        let op = if n_args < 256 {
+            Op::INVOKE_STK1
+        } else {
+            Op::INVOKE_STK4
+        };
+        ctx.emit(op, vec![Operand::Imm(n_args)]);
+        ctx.emit(Op::POP, vec![]);
+        ctx.seen_generic_invoke = true;
+        *used_generic_invoke = true;
+        return true;
+    }
+
+    if ctx.is_proc {
+        return false;
+    }
     match sub {
         "names" | "size" if !rest.is_empty() => {
             ctx.push_lit(&format!("::tcl::array::{sub}"));

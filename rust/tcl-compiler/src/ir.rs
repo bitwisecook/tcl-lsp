@@ -412,6 +412,12 @@ pub enum Statement {
         raw_args: Vec<String>,
         /// Whether this is `dict for`/`dict map`.
         is_dict_iteration: bool,
+        /// Whether this is `array for {k v} arr body` (Tcl 9.0). Unlike a plain
+        /// `foreach`, the body runs in the caller's frame over an *array* (not a
+        /// list value), so analysis inlines it into the caller unit (binding the
+        /// loop vars) while codegen barriers it to the `::tcl::array::for`
+        /// ensemble invoke — see `lower_foreach_dispatch`.
+        is_array_iteration: bool,
         /// Per-word source token metadata for the generic runtime fallback
         /// (the `dict for`/`map` barrier and the runtime `foreach`/`lmap`
         /// call), so braced var-lists / bodies are pushed verbatim and
@@ -684,6 +690,21 @@ pub struct Module {
     pub procedures: std::collections::HashMap<String, Procedure>,
     /// Named methods (keyed by `class::method`).
     pub methods: std::collections::HashMap<String, MethodDef>,
+    /// Synthetic *body units* — the bodies of commands that run their script
+    /// argument in a fresh frame but are **not** real named procedures:
+    /// `apply` lambdas and `namespace eval` bodies (keyed by a synthetic
+    /// qualified name like `::apply#0` or `::namespace-eval::NS#0`).
+    ///
+    /// These are lowered into [`Procedure`]s purely so the static-analysis
+    /// pipeline (CFG → SSA → SCCP → taint) reaches *inside* the body — the
+    /// same coverage a real `proc` gets. They are held in a **separate** map
+    /// from [`Self::procedures`] so codegen (which emits `procedures`) never
+    /// materialises them as callable procs, and from [`Self::methods`] so the
+    /// TclOO-specific consumers (interproc method purity, the O126 optimiser
+    /// gate) never mistake them for methods. The body still executes at
+    /// runtime via its command's own `Statement::Barrier`, so bytecode is
+    /// byte-identical whether or not a body unit is recorded.
+    pub body_units: std::collections::HashMap<String, Procedure>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
     /// `TclOO` method qnames defined more than once (a later
@@ -988,6 +1009,7 @@ mod tests {
             is_lmap: false,
             raw_args: Vec::new(),
             is_dict_iteration: true,
+            is_array_iteration: false,
             raw_tokens: None,
         };
         if let Statement::Foreach {

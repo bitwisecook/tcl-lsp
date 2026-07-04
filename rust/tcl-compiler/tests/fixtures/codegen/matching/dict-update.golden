@@ -1,0 +1,53 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "p"
+    2: ""
+    3: "\n    set d {a 1 b 2}\n    dict updat..."
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "p"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set d {a 1 b 2}\n    dict updat..."
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::p, 28 instructions, 101 bytes, 3 literals, 4 variables
+  Literals:
+    0: "a 1 b 2"
+    1: "a"
+    2: "b"
+  Local variables:
+    %v0: "d"
+    %v1: "x"
+    %v2: "y"
+    %v3: "z"
+  Instructions:
+    (0) push1 0	# "a 1 b 2"
+    (2) storeScalar1 %v0	# var "d"
+    (4) pop
+    (5) startCommand +83 1	# next cmd at pc 88, 1 cmds start here
+    (14) push1 1	# "a"
+    (16) push1 2	# "b"
+    (18) list 2
+    (23) dictUpdateStart 0 0	# var "d"
+    (32) beginCatch4 0
+    (37) startCommand +14 1	# next cmd at pc 51, 1 cmds start here
+    (46) loadScalar1 %v1	# var "x"
+    (48) loadScalar1 %v2	# var "y"
+    (50) add
+    (51) storeScalar1 %v3	# var "z"
+    (53) endCatch
+    (54) reverse 2
+    (59) dictUpdateEnd 0 0	# var "d"
+    (68) jump1 +20	# pc 88
+    (70) pushResult
+    (71) pushReturnOpts
+    (72) endCatch
+    (73) reverse 3
+    (78) dictUpdateEnd 0 0	# var "d"
+    (87) returnStk
+    (88) startCommand +12 1	# next cmd at pc 100, 1 cmds start here
+    (97) loadScalar1 %v0	# var "d"
+    (99) done
+    (100) done

@@ -104,6 +104,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "profiles",
         arity: Arity::exact(0),
+        // `encoding profiles` was added in Tcl 9.0 — absent in 8.6.x.
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Return list of available profiles.",
         synopsis: "encoding profiles",
         pure: true,
@@ -113,6 +115,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "user",
         arity: Arity::exact(0),
+        // `encoding user` was added in Tcl 9.0 — absent in 8.6.x.
+        dialects: Some(DialectSet::TCL90_PLUS),
         detail: "Return user encoding.",
         synopsis: "encoding user",
         ..SubCommand::DEFAULT

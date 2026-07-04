@@ -737,6 +737,33 @@ fn test_regexp_option_highlighted_as_decorator() {
 }
 
 #[test]
+fn test_regex_source_variable_highlights_def_site_literal() {
+    // End-to-end proof: a variable holding a regex literal that flows into a
+    // `regexp` pattern makes the ORIGINATING `set` literal read as a regex.
+    // This exercises the full salsa pipeline (semantic_tokens query demanding
+    // the CompilationUnit), not just the token pass.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let uri = open_doc(&mut lsp, "set my_re \".*abc\"\nregexp $my_re $s\n");
+    let toks = typed(&mut lsp, &lg, &uri);
+    // The `*` in the def-site literal (line 0) is a regex quantifier.
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.ttype == "regexpQuantifier"),
+        "expected a regexpQuantifier on the `set` literal; got {toks:?}"
+    );
+    // Sanity: a version with no such flow keeps the literal a plain string.
+    let uri2 = open_doc(&mut lsp, "set my_re \".*abc\"\nputs $my_re\n");
+    let toks2 = typed(&mut lsp, &lg, &uri2);
+    assert!(
+        !toks2
+            .iter()
+            .any(|t| t.line == 0 && t.ttype == "regexpQuantifier"),
+        "a literal not used as a pattern must stay a string; got {toks2:?}"
+    );
+}
+
+#[test]
 fn test_non_option_dash_word_not_decorator() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);

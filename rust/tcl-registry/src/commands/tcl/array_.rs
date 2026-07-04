@@ -74,6 +74,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array for {keyVariable valueVariable} arrayName body",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarRead), (2, ArgRole::Body)],
+        lowering_hook: Some(crate::hooks::LoweringHookId::ArrayFor),
         loop_list_header: true,
         dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
