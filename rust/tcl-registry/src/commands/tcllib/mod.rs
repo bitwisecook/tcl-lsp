@@ -639,4 +639,29 @@ mod tests {
         assert_eq!(bodies, vec![3], "foreachperm body index");
         assert_eq!(writes, vec![1], "foreachperm var index");
     }
+
+    #[test]
+    fn struct_list_mapfor_is_body_filterfor_is_expr() {
+        // `mapfor`'s third argument is a Tcl script (body); `filterfor`'s
+        // is an expression — they must not be conflated (PR #763 review).
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let mapfor = ["mapfor", "x", "{1 2 3}", "{body}"];
+        let filterfor = ["filterfor", "x", "{1 2 3}", "{$x > 1}"];
+        assert_eq!(
+            reg.arg_indices_for_role("struct::list", &mapfor, ArgRole::Body),
+            vec![3],
+            "mapfor script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("struct::list", &mapfor, ArgRole::Expr)
+                .is_empty(),
+            "mapfor script is not an expr",
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("struct::list", &filterfor, ArgRole::Expr),
+            vec![3],
+            "filterfor cond is an expr",
+        );
+    }
 }

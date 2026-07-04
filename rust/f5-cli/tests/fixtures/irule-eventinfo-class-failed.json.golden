@@ -9,7 +9,7 @@
   "impliedProfiles": [
     "HTTP"
   ],
-  "validCommandCount": 1205,
+  "validCommandCount": 1209,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -664,6 +664,10 @@
     "connect",
     "const",
     "continue",
+    "control::assert",
+    "control::control",
+    "control::do",
+    "control::no-op",
     "cpu",
     "crc32",
     "csv::iscomplete",
