@@ -140,8 +140,10 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 /// * `sources_json` — an ordered JSON array of `[uri, scf_text]` pairs (each
 ///   `uri` a display name, each `scf_text` the output of [`extract_source`]).
 /// * `cert_files_json` — a JSON object `{cache_path: pem}` merged from every
-///   file's [`extract_cert_files`], so the certs tab can parse the real
-///   certificates (issue date, SANs, trust chain). `"{}"` for none.
+///   file's [`extract_cert_files`], nested **by source URI** —
+///   `{uri: {cache_path: pem}}` — so the certs tab can parse the real
+///   certificates (issue date, SANs, trust chain) and a filestore `cache-path`
+///   shared across two devices doesn't collide. `"{}"` for none.
 /// * `title` — the report title.
 /// * `generated_at` — a generation timestamp string (the caller stamps it with
 ///   the browser's local clock; the engine itself is time-free).
@@ -161,7 +163,7 @@ pub fn generate_report(
     if sources.is_empty() {
         return Err(JsError::new("no config sources provided"));
     }
-    let cert_pems: std::collections::HashMap<String, String> =
+    let cert_pems: std::collections::HashMap<String, std::collections::HashMap<String, String>> =
         if cert_files_json.trim().is_empty() {
             std::collections::HashMap::new()
         } else {

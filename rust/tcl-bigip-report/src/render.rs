@@ -54,10 +54,13 @@ pub struct RenderOptions {
     /// Embed the in-browser WASM `f5-query` console. Off yields a smaller page
     /// (e.g. for hosting behind a strict CSP that blocks WebAssembly).
     pub embed_console: bool,
-    /// Certificate PEMs recovered from the UCS filestore, keyed by the
-    /// `sys file ssl-cert` `cache-path`. Lets the certs tab parse metadata-free
-    /// stanzas and reconstruct the trust chain. Empty = config metadata only.
-    pub cert_pems: std::collections::HashMap<String, String>,
+    /// Certificate PEMs recovered from the UCS filestore, keyed **by source
+    /// URI** and then by the `sys file ssl-cert` `cache-path`. Lets the certs
+    /// tab parse metadata-free stanzas and reconstruct the trust chain. The
+    /// outer key scopes PEMs to their device so a shared filestore
+    /// `cache-path` across two UCS files in one report doesn't collide. Empty =
+    /// config metadata only.
+    pub cert_pems: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
 }
 
 impl Default for RenderOptions {
