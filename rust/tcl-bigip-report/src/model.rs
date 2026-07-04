@@ -8,15 +8,26 @@
 //! report for the client-side topology / listener / console views).
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::OnceLock;
 
 use regex::Regex;
 use serde_json::{Map, Value as J};
+use tcl_registry::events::EventRegistry;
 
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
 /// The engine version string embedded in the report header.
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The iRule event registry — the source of truth for canonical event firing
+/// order. Built once (the data is compiled into the binary) and reused across
+/// every shaped rule. (Profile *traffic* order lives in the shared
+/// `tcl_bigip_query::builtins::f5profile` engine core.)
+fn event_registry() -> &'static EventRegistry {
+    static R: OnceLock<EventRegistry> = OnceLock::new();
+    R.get_or_init(EventRegistry::build)
+}
 
 // Object containers the report walks, in display order. Each is an `f5-query`
 // container path under a config root.
@@ -324,7 +335,12 @@ fn shape_monitor(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
 fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let body = bstr(f, "body").to_string();
     let re = Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]+)").expect("valid when regex");
-    let events: BTreeSet<String> = re.captures_iter(&body).map(|c| c[1].to_string()).collect();
+    // De-dup the `when` events (BTreeSet), then order them into canonical
+    // firing order via the registry — NOT the set's alphabetical order,
+    // which scrambles the lifecycle (e.g. CLIENTSSL_HANDSHAKE ahead of
+    // CLIENT_ACCEPTED). This array renders verbatim in the report.
+    let uniq: BTreeSet<String> = re.captures_iter(&body).map(|c| c[1].to_string()).collect();
+    let events: Vec<String> = event_registry().order_events(&uniq.into_iter().collect::<Vec<_>>());
     let fp = bstr(f, "full-path");
     // `.refs` is the engine's synthesised iRule reference sub-object.
     let refs: Map<String, J> = match f.get("refs") {
@@ -929,6 +945,49 @@ fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtual
     }
 }
 
+/// Order every virtual server's attached-profile list into BIG-IP protocol
+/// stack order (transport → TLS → application → …), resolved from the profile
+/// registry's `layer` metadata. A config lists profiles in an arbitrary order
+/// (often alphabetical, so `/Common/http` precedes `/Common/tcp`), but the
+/// device processes them by layer — the report should show that order, so a
+/// listener reads TCP → … → HTTP, not HTTP → TCP.
+fn order_virtual_profiles(device: &mut Map<String, J>) {
+    // Full path → projected profile type (e.g. "/Common/http" → "HTTP").
+    let mut type_of: HashMap<String, String> = HashMap::new();
+    if let Some(J::Array(profiles)) = device.get("profiles") {
+        for p in profiles {
+            if let Some(pm) = p.as_object() {
+                let fp = bstr(pm, "fullPath").to_string();
+                if !fp.is_empty() {
+                    type_of.insert(fp, bstr(pm, "type").to_string());
+                }
+            }
+        }
+    }
+    if let Some(J::Array(virtuals)) = device.get_mut("virtuals") {
+        for v in virtuals.iter_mut() {
+            let Some(vm) = v.as_object_mut() else { continue };
+            let Some(J::Array(profs)) = vm.get_mut("profiles") else {
+                continue;
+            };
+            let names: Vec<String> =
+                profs.iter().filter_map(|p| p.as_str().map(str::to_owned)).collect();
+            if names.len() != profs.len() {
+                continue; // non-string entries: leave the list untouched
+            }
+            // Delegate to the shared f5-query traffic-order core: the config's
+            // typed profile inventory is authoritative, and the core falls back
+            // to well-known default-profile names (e.g. `/Common/tcp`) that a
+            // config never re-declares.
+            let ordered = tcl_bigip_query::builtins::f5profile::order_profiles_by_traffic(
+                &names,
+                |n| type_of.get(n).cloned(),
+            );
+            *profs = ordered.into_iter().map(J::String).collect();
+        }
+    }
+}
+
 fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
@@ -980,6 +1039,10 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) 
         };
         device.insert((*key).into(), J::Array(shaped));
     }
+
+    // Order each virtual's attached-profile list into protocol-stack order
+    // now that both the virtuals and the typed profile inventory exist.
+    order_virtual_profiles(&mut device);
 
     // Tag built-in / system objects (the default profiles, monitors and
     // `_sys_*` iRules that ship with TMOS — from `profile_base.conf` /

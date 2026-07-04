@@ -11,6 +11,10 @@ authors.workspace = true
 
 [dependencies]
 tcl-bigip = { path = "../tcl-bigip" }
+# Profile / event registry — the source of truth for a profile's protocol
+# stack `layer`, used to sort profiles into traffic order. Pure data + logic,
+# so it stays wasm-safe for the report/console build.
+tcl-registry = { path = "../tcl-registry" }
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 indexmap = "2"
