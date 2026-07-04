@@ -18,7 +18,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// * `oo::class create Name body` → body at index 2.
 /// * `oo::class new body` → body at index 1.
 /// * `oo::class createWithNamespace Name ::ns body` → body at index 3.
-fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+///
+/// Shared by every `IS_OO_METACLASS` command (`oo::class`,
+/// `oo::configurable`, `oo::abstract`, `oo::singleton`) — they all
+/// manufacture classes with the same `create` / `new` /
+/// `createWithNamespace` shapes, so their definition-body argument
+/// lives at the same index.
+pub(crate) fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let n = args.len();
     if n < 2 {
         return Vec::new();
