@@ -142,6 +142,16 @@ fn ends_with_conf(name: &str) -> bool {
     name.ends_with(".conf")
 }
 
+/// macOS archive metadata that must never reach the parser: `AppleDouble`
+/// resource forks (`._name`), the `__MACOSX/` shadow tree, and `.DS_Store`.
+fn is_macos_cruft(name: &str) -> bool {
+    let n = lstrip_dot_slash(name);
+    n.starts_with("__MACOSX/")
+        || n.split('/')
+            .next_back()
+            .is_some_and(|base| base.starts_with("._") || base == ".DS_Store")
+}
+
 /// Read every regular-file member of a gzip-tar into `(name, bytes)`, with the
 /// leading `./` / `/` stripped from each name. Members keep archive order.
 fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
@@ -161,6 +171,13 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?
             .to_string_lossy()
             .into_owned();
+        // Skip macOS archive cruft (AppleDouble `._foo` resource forks, the
+        // `__MACOSX/` shadow tree, `.DS_Store`) that a UCS zipped/untarred on a
+        // Mac carries — their binary bodies would otherwise be spliced into the
+        // SCF and corrupt parsing.
+        if is_macos_cruft(&name) {
+            continue;
+        }
         let mut data = Vec::new();
         entry
             .read_to_end(&mut data)
@@ -447,5 +464,26 @@ mod tests {
             pos("brace_trap") > pos("/TenantB/web_b"),
             "script emitted last"
         );
+    }
+
+    #[test]
+    fn ucs_to_scf_skips_macos_cruft() {
+        // A UCS zipped on a Mac carries AppleDouble `._` forks and __MACOSX
+        // shadows whose binary bodies must never reach the config parser.
+        let ucs = build_ucs(&[
+            ("config/bigip.conf", "ltm virtual /Common/vs { }"),
+            ("config/._bigip.conf", "\u{0}\u{5}\u{16}\u{7}garbage"),
+            ("__MACOSX/config/._bigip.conf", "\u{0}more binary"),
+            (
+                "config/partitions/T/._bigip.conf",
+                "\u{0}\u{1}applefork",
+            ),
+            ("config/partitions/T/bigip.conf", "ltm pool /T/p { }"),
+        ]);
+        let scf = ucs_to_scf(&ucs, true).unwrap();
+        assert!(scf.contains("/Common/vs") && scf.contains("/T/p"));
+        assert!(!scf.contains("garbage"), "AppleDouble body excluded:\n{scf}");
+        assert!(!scf.contains("applefork"));
+        assert!(!scf.contains("more binary"));
     }
 }
