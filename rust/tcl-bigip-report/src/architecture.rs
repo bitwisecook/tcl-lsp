@@ -103,6 +103,17 @@ fn bare_ip(addr: &str) -> Option<String> {
             return Some(ip.to_string());
         }
     }
+    // BIG-IP spells an IPv6 destination's port with a `.` (the `:` is taken by
+    // the address), e.g. `2001:db8::10.443`. Strip a trailing `.<digits>` from a
+    // colon-bearing address and re-parse the host.
+    if addr.contains(':')
+        && let Some((host, port)) = addr.rsplit_once('.')
+        && !port.is_empty()
+        && port.bytes().all(|b| b.is_ascii_digit())
+        && let Ok(ip) = IpAddr::from_str(host)
+    {
+        return Some(ip.to_string());
+    }
     None
 }
 
@@ -154,7 +165,14 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
         let pool_fp = bstr(pm, "fullPath").to_string();
         for m in barr(pm, "members") {
             let Some(mm) = m.as_object() else { continue };
-            if let Some(ip) = bare_ip(bstr(mm, "address")) {
+            // Prefer the explicit `address`; fall back to the member name, which
+            // carries the IP for members declared only by keyed name
+            // (`/Common/10.2.0.20:443 { ... }` with no `address` property).
+            let ip = bare_ip(bstr(mm, "address")).or_else(|| {
+                let name = bstr(mm, "name");
+                bare_ip(name.rsplit('/').next().unwrap_or(name))
+            });
+            if let Some(ip) = ip {
                 out.push(Target {
                     address: ip,
                     from_obj: pool_fp.clone(),
@@ -666,6 +684,9 @@ mod tests {
         assert_eq!(bare_ip("10.0.0.5").as_deref(), Some("10.0.0.5"));
         assert_eq!(bare_ip("[::1]:443").as_deref(), Some("::1"));
         assert_eq!(bare_ip("2001:db8::1%3").as_deref(), Some("2001:db8::1"));
+        // BIG-IP's unbracketed IPv6 destination-port form (`.port`).
+        assert_eq!(bare_ip("2001:db8::10.443").as_deref(), Some("2001:db8::10"));
+        assert_eq!(bare_ip("2001:db8::1").as_deref(), Some("2001:db8::1"));
         assert_eq!(bare_ip("api.example.com"), None);
         assert_eq!(bare_ip("any"), None);
         assert_eq!(bare_ip(""), None);

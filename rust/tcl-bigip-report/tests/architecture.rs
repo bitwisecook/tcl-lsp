@@ -90,6 +90,37 @@ fn auto_detects_tier_hop() {
 }
 
 #[test]
+fn pool_member_without_address_uses_name() {
+    // A tier-1 pool member declared by keyed name only (no `address` property);
+    // the IP lives in the name. The hop must still be detected.
+    let tier1 = "#TMSH-VERSION: 15.1.0
+ltm pool /Common/edge_pool {
+    members {
+        /Common/10.2.0.20:443 { }
+    }
+}
+";
+    let tier2 = "#TMSH-VERSION: 15.1.0
+ltm virtual /Common/app_vs {
+    destination /Common/10.2.0.20:443
+}
+ltm virtual-address /Common/10.2.0.20 {
+    address 10.2.0.20
+}
+";
+    let sources: Vec<Source> = vec![
+        ("t1.scf".to_string(), tier1.to_string()),
+        ("t2.scf".to_string(), tier2.to_string()),
+    ];
+    let m = collect_model(&sources, "Estate");
+    let links = arch(&m)["links"].as_array().unwrap();
+    assert_eq!(links.len(), 1, "tier hop detected from the member name");
+    assert_eq!(links[0]["from"], 0);
+    assert_eq!(links[0]["to"], 1);
+    assert_eq!(links[0]["vias"].as_array().unwrap()[0]["address"], "10.2.0.20");
+}
+
+#[test]
 fn tiers_are_assigned_by_depth() {
     let m = collect_model(&sources(), "Estate");
     let devs = arch(&m)["devices"].as_array().unwrap();
