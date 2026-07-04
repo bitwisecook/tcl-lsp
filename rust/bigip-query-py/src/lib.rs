@@ -481,6 +481,35 @@ fn highlight_tcl(body: &str) -> String {
     tcl_lexer::highlight_tcl(body)
 }
 
+/// Sort iRule `when` event names into canonical firing order.
+///
+/// Wraps the shared [`tcl_registry`] event registry — the same firing-order
+/// table the Rust report and LSP use — so the Python and Rust report models
+/// list a rule's events identically (not alphabetically). Events absent from
+/// the master order are appended in sorted order, so none are dropped.
+#[pyfunction]
+fn order_events(events: Vec<String>) -> Vec<String> {
+    tcl_registry::events::EventRegistry::build().order_events(&events)
+}
+
+/// Sort a virtual server's attached profiles into traffic (protocol-stack)
+/// order — transport → TLS → application → … — the order the device processes
+/// them, not the arbitrary config order.
+///
+/// Wraps the shared [`tcl_bigip_query`] traffic-order core so the Python and
+/// Rust report models order profiles identically. `types` optionally maps a
+/// profile full-path to its authoritative profile type (e.g. from the report's
+/// typed profile inventory); profiles it doesn't cover fall back to well-known
+/// default-profile-name inference. Layering always comes from the registry.
+#[pyfunction]
+#[pyo3(signature = (profiles, types=None))]
+fn order_profiles(profiles: Vec<String>, types: Option<HashMap<String, String>>) -> Vec<String> {
+    let types = types.unwrap_or_default();
+    tcl_bigip_query::builtins::f5profile::order_profiles_by_traffic(&profiles, |n| {
+        types.get(n).cloned()
+    })
+}
+
 /// Build a Mermaid control-flow flowchart for an iRule.
 ///
 /// Uses the IR-based [`tcl_diagram`] (the same control-flow extraction the CLI
@@ -528,6 +557,8 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
+    m.add_function(wrap_pyfunction!(order_events, m)?)?;
+    m.add_function(wrap_pyfunction!(order_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
     m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
     m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
