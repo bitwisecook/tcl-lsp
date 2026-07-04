@@ -29,9 +29,12 @@ use tcl_bigip::model::{
     BigipGtmDatacenter, BigipGtmListener, BigipGtmPool, BigipGtmPoolMember, BigipGtmServer,
     BigipGtmWideip, BigipMonitor, BigipNode, BigipPersistence, BigipPolicy, BigipPolicyAction,
     BigipPolicyCondition, BigipPolicyRule, BigipPool, BigipPoolMember, BigipProfile, BigipRule,
-    BigipSnatPool, BigipVirtualAddress, BigipVirtualServer, DataGroupType, ModelObject,
-    ProfileType,
+    BigipSecurityFirewallAddressList, BigipSecurityFirewallPolicy, BigipSecurityFirewallPortList,
+    BigipSecurityFirewallRuleList, BigipSecurityNatDestinationTranslation, BigipSecurityNatPolicy,
+    BigipSecurityNatSourceTranslation, BigipSnatPool, BigipVirtualAddress, BigipVirtualServer,
+    DataGroupType, ModelObject, ProfileType,
 };
+use tcl_bigip::value::{FirewallEndpoint, FirewallRule};
 use tcl_bigip::parser::Placed;
 use tcl_bigip::value::{BigipList, ListItemValue, MonitorExpression};
 
@@ -201,12 +204,30 @@ const GTM_KINDS: &[(&str, &str)] = &[
     ("listener", "gtm listener"),
 ];
 
-/// Every `(label, tmsh_kind)` the projection covers, across modules. Iterated by
-/// the per-module entry builder and the kind/label lookups.
+/// `(label, tmsh_kind)` for the AFM `security` kinds the projection covers:
+/// firewall policies / rule-lists and the address-/port-lists they reference,
+/// plus the NAT policies and source/destination translations. These let the
+/// report surface the firewall + NAT posture alongside the LTM/GTM estate.
+const SECURITY_KINDS: &[(&str, &str)] = &[
+    ("firewall-policy", "security firewall policy"),
+    ("firewall-rule-list", "security firewall rule-list"),
+    ("firewall-address-list", "security firewall address-list"),
+    ("firewall-port-list", "security firewall port-list"),
+    ("nat-policy", "security nat policy"),
+    ("nat-source-translation", "security nat source-translation"),
+    ("nat-destination-translation", "security nat destination-translation"),
+];
+
+/// Every covered kind table, in module order. Iterated by the per-module entry
+/// builder and the kind/label lookups.
+const KIND_TABLES: &[&[(&str, &str)]] = &[LTM_KINDS, GTM_KINDS, SECURITY_KINDS];
+
+/// The `(label, tmsh_kind)` table for a module, or empty for an uncovered one.
 fn module_kinds(module: &str) -> &'static [(&'static str, &'static str)] {
     match module {
         "ltm" => LTM_KINDS,
         "gtm" => GTM_KINDS,
+        "security" => SECURITY_KINDS,
         _ => &[],
     }
 }
@@ -214,14 +235,14 @@ fn module_kinds(module: &str) -> &'static [(&'static str, &'static str)] {
 /// The set of leaf object kinds, restricted to the covered subset. Used by
 /// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
-    [LTM_KINDS, GTM_KINDS]
+    KIND_TABLES
         .iter()
         .any(|table| table.iter().any(|(_, k)| *k == kind))
 }
 
 /// Map a kind to its label (for `PathRef` container navigation).
 fn kind_to_label(kind: &str) -> Option<&'static str> {
-    [LTM_KINDS, GTM_KINDS]
+    KIND_TABLES
         .iter()
         .flat_map(|table| table.iter())
         .find(|(_, k)| *k == kind)
@@ -292,6 +313,15 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
         ModelObject::GtmPool(_) => Some("gtm pool"),
         ModelObject::GtmWideip(_) => Some("gtm wideip"),
         ModelObject::GtmListener(_) => Some("gtm listener"),
+        ModelObject::SecurityFirewallPolicy(_) => Some("security firewall policy"),
+        ModelObject::SecurityFirewallRuleList(_) => Some("security firewall rule-list"),
+        ModelObject::SecurityFirewallAddressList(_) => Some("security firewall address-list"),
+        ModelObject::SecurityFirewallPortList(_) => Some("security firewall port-list"),
+        ModelObject::SecurityNatPolicy(_) => Some("security nat policy"),
+        ModelObject::SecurityNatSourceTranslation(_) => Some("security nat source-translation"),
+        ModelObject::SecurityNatDestinationTranslation(_) => {
+            Some("security nat destination-translation")
+        }
         _ => None,
     }
 }
@@ -365,6 +395,13 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
         ModelObject::GtmPool(o) => o.range,
         ModelObject::GtmWideip(o) => o.range,
         ModelObject::GtmListener(o) => o.range,
+        ModelObject::SecurityFirewallPolicy(o) => o.range,
+        ModelObject::SecurityFirewallRuleList(o) => o.range,
+        ModelObject::SecurityFirewallAddressList(o) => o.range,
+        ModelObject::SecurityFirewallPortList(o) => o.range,
+        ModelObject::SecurityNatPolicy(o) => o.range,
+        ModelObject::SecurityNatSourceTranslation(o) => o.range,
+        ModelObject::SecurityNatDestinationTranslation(o) => o.range,
         _ => None,
     }
 }
@@ -533,6 +570,26 @@ fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<St
         ("gtm pool", ModelObject::GtmPool(o)) => project_gtm_pool(o),
         ("gtm wideip", ModelObject::GtmWideip(o)) => project_gtm_wideip(o),
         ("gtm listener", ModelObject::GtmListener(o)) => project_gtm_listener(o),
+        ("security firewall policy", ModelObject::SecurityFirewallPolicy(o)) => {
+            project_fw_policy(o)
+        }
+        ("security firewall rule-list", ModelObject::SecurityFirewallRuleList(o)) => {
+            project_fw_rule_list(o)
+        }
+        ("security firewall address-list", ModelObject::SecurityFirewallAddressList(o)) => {
+            project_fw_address_list(o)
+        }
+        ("security firewall port-list", ModelObject::SecurityFirewallPortList(o)) => {
+            project_fw_port_list(o)
+        }
+        ("security nat policy", ModelObject::SecurityNatPolicy(o)) => project_nat_policy(o),
+        ("security nat source-translation", ModelObject::SecurityNatSourceTranslation(o)) => {
+            project_nat_source_translation(o)
+        }
+        (
+            "security nat destination-translation",
+            ModelObject::SecurityNatDestinationTranslation(o),
+        ) => project_nat_destination_translation(o),
         _ => IndexMap::new(),
     }
 }
@@ -1329,6 +1386,127 @@ fn project_gtm_listener(o: &BigipGtmListener) -> IndexMap<String, Value> {
         .b("vlans-enabled", o.vlans_enabled)
         .s("state", &o.state)
         .s("description", &o.description)
+        .done()
+}
+
+// Security (AFM firewall + NAT) projections
+
+/// Project a firewall endpoint (source / destination 5-tuple side).
+fn fw_endpoint(e: &FirewallEndpoint) -> Value {
+    Value::Object(
+        Fields::new()
+            .v("addresses", str_list(&e.addresses))
+            .v(
+                "address-lists",
+                path_ref_list_strs(&e.address_lists, "security firewall address-list"),
+            )
+            .v("ports", str_list(&e.ports))
+            .v(
+                "port-lists",
+                path_ref_list_strs(&e.port_lists, "security firewall port-list"),
+            )
+            .done(),
+    )
+}
+
+/// Project one firewall / NAT rule to a structured object.
+fn fw_rule(r: &FirewallRule) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &r.name)
+            .s("action", &r.action)
+            .s("ip-protocol", &r.ip_protocol)
+            .b("log", r.log)
+            .v("source", fw_endpoint(&r.source))
+            .v("destination", fw_endpoint(&r.destination))
+            .s("rule-list", &r.rule_list)
+            .done(),
+    )
+}
+
+fn fw_rule_list_value(rules: &[FirewallRule]) -> Value {
+    Value::List(rules.iter().map(fw_rule).collect())
+}
+
+fn project_fw_policy(o: &BigipSecurityFirewallPolicy) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .v("rules", str_list(&o.rules))
+        .v(
+            "rule-lists",
+            path_ref_list_strs(&o.rule_lists, "security firewall rule-list"),
+        )
+        .done()
+}
+
+fn project_fw_rule_list(o: &BigipSecurityFirewallRuleList) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .v("rules", fw_rule_list_value(&o.rule_objects))
+        .done()
+}
+
+fn project_fw_address_list(o: &BigipSecurityFirewallAddressList) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .v("addresses", str_list(&o.addresses))
+        .v(
+            "address-lists",
+            path_ref_list_strs(&o.address_lists, "security firewall address-list"),
+        )
+        .v("fqdns", str_list(&o.fqdns))
+        .done()
+}
+
+fn project_fw_port_list(o: &BigipSecurityFirewallPortList) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .v("ports", str_list(&o.ports))
+        .done()
+}
+
+fn project_nat_policy(o: &BigipSecurityNatPolicy) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .v("rules", str_list(&o.rules))
+        .v(
+            "rule-lists",
+            path_ref_list_strs(&o.rule_lists, "security nat rule-list"),
+        )
+        .done()
+}
+
+fn project_nat_source_translation(o: &BigipSecurityNatSourceTranslation) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .s("type", &o.type_)
+        .v("addresses", str_list(&o.addresses))
+        .v("ports", str_list(&o.ports))
+        .done()
+}
+
+fn project_nat_destination_translation(
+    o: &BigipSecurityNatDestinationTranslation,
+) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .s("type", &o.type_)
+        .v("addresses", str_list(&o.addresses))
+        .v("ports", str_list(&o.ports))
         .done()
 }
 
