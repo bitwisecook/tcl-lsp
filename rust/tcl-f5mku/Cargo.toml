@@ -1,0 +1,28 @@
+[package]
+name = "tcl-f5mku"
+publish.workspace = true
+description = "F5 master-key (f5mku) secret encryption / decryption — the $M$<salt>$<base64> SecureVault envelope."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The block transform comes from the audited pure-Rust `aes` crate (already in
+# the workspace lockfile for the encrypted-UCS path).
+aes = "0.8"
+base64 = "0.22"
+# Only the `encrypt` random-salt path needs entropy; kept optional so the crate
+# builds for wasm32 (where the report generator only ever *decrypts*).
+getrandom = { version = "0.3", optional = true }
+
+[features]
+default = ["rand"]
+# Random-salt generation for `encrypt(_, _, None)`. Off → that call errors, but
+# `decrypt` / `encrypt(_, _, Some(salt))` still work with no entropy source.
+rand = ["dep:getrandom"]
+
+[lints]
+workspace = true

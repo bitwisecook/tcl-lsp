@@ -33,16 +33,22 @@ path.flowchart-link.mm-hl{stroke:var(--accent) !important;stroke-width:3px !impo
 /* object drawer */
 #drawerScrim{position:fixed;inset:0;background:rgba(8,12,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
 #drawerScrim.open{opacity:1;pointer-events:auto}
-#objDrawer{position:fixed;top:0;right:0;height:100vh;width:min(760px,94vw);background:var(--bg);
+/* height uses dynamic-viewport units so the drawer tracks the *visible* area on
+   iOS Safari — plain 100vh is the address-bar-hidden height, which pushes the
+   scrollable bottom of the drawer under the browser chrome where it can't be
+   reached ("can't scroll the object panes to see more"). vh stays as the
+   fallback for engines without dvh. */
+#objDrawer{position:fixed;top:0;right:0;height:100vh;height:100dvh;width:min(760px,94vw);background:var(--bg);
   border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(8,12,20,.22);transform:translateX(100%);
-  transition:transform .2s ease;z-index:41;display:flex;flex-direction:column}
+  transition:transform .2s ease;z-index:41;display:flex;flex-direction:column;overflow:hidden}
 #objDrawer.open{transform:translateX(0)}
 .drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
 .drawer-title{font-size:17px;font-weight:650}
 .drawer-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px}
 .drawer-close{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;flex:0 0 auto}
 .drawer-close:hover{border-color:var(--accent)}
-.drawer-body{padding:16px 20px 40px;overflow-y:auto}
+.drawer-body{padding:16px 20px 40px;overflow-y:auto;flex:1 1 auto;min-height:0;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .drawer-body h4{margin:18px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .drawer-body h4:first-child{margin-top:0}
 table.kv{border-collapse:collapse;font-size:13px}

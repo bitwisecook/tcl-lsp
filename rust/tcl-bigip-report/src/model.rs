@@ -1,0 +1,1289 @@
+//! Build a structured report model from BIG-IP configs using the query engine.
+//!
+//! A faithful port of `f5report.report`. Every fact is pulled from the native
+//! `f5-query` engine ([`crate::query`]) — the parsing, object projection and the
+//! `referenced_by` reference-graph walk that powers the orphan / dependency
+//! analysis. This module only shapes the engine's output into a
+//! template-friendly model (a `serde_json` object, so it embeds verbatim in the
+//! report for the client-side topology / listener / console views).
+
+use std::collections::{BTreeSet, HashMap};
+
+use regex::Regex;
+use serde_json::{Map, Value as J};
+
+use crate::jutil::{barr, bbool, bstr, sarr, truthy};
+use crate::query::{Source, query};
+
+/// The engine version string embedded in the report header.
+pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// Object containers the report walks, in display order. Each is an `f5-query`
+// container path under a config root.
+const CONTAINERS: &[(&str, &str)] = &[
+    ("virtuals", ".ltm.virtual"),
+    ("pools", ".ltm.pool"),
+    ("nodes", ".ltm.node"),
+    ("monitors", ".ltm.monitor"),
+    ("rules", ".ltm.rule"),
+    ("dataGroups", ".ltm.\"data-group\""),
+    ("profiles", ".ltm.profile"),
+    ("snatpools", ".ltm.snatpool"),
+    ("persistence", ".ltm.persistence"),
+    ("policies", ".ltm.policy"),
+    ("virtualAddresses", ".ltm.\"virtual-address\""),
+];
+
+// Leaf object types that are *referenced* by something else; an empty referrer
+// set means the object is orphaned. Virtuals / virtual-addresses are entry
+// points, so they are never treated as orphans.
+const REFERABLE: &[&str] = &[
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "profiles",
+    "dataGroups",
+    "snatpools",
+];
+
+/// Object-list keys that carry a displayed, partition-scoped object (used to tag
+/// each object with its partition for the partition filter).
+const DISPLAY_KEYS: &[&str] = &[
+    "virtuals",
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "dataGroups",
+    "profiles",
+    "policies",
+    "snatpools",
+    "persistence",
+    "certificates",
+];
+
+fn container_path(key: &str) -> &'static str {
+    CONTAINERS
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map_or("", |(_, p)| *p)
+}
+
+// --- small helpers -----------------------------------------------------------
+
+/// Python `str(x)` for the scalar shapes that appear in projected values.
+fn py_str(v: &J) -> String {
+    match v {
+        J::Null => "None".to_string(),
+        J::Bool(true) => "True".to_string(),
+        J::Bool(false) => "False".to_string(),
+        J::String(s) => s.clone(),
+        J::Number(n) => n.to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Unwrap engine `ObjectRef` dicts (`{kind, full-path, fields}`) to `fields`.
+fn fields_of(rows: Vec<J>) -> Vec<Map<String, J>> {
+    rows.into_iter()
+        .filter_map(|r| match r {
+            J::Object(mut m) if m.contains_key("fields") => match m.remove("fields") {
+                Some(J::Object(f)) => Some(f),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// Strip trailing ` { ... }` context the projection appends to some refs.
+fn clean_path(value: &str) -> String {
+    value.split(" {").next().unwrap_or(value).trim().to_string()
+}
+
+/// `map[key]` as a cleaned path string.
+fn clean_field(m: &Map<String, J>, key: &str) -> String {
+    clean_path(bstr(m, key))
+}
+
+/// `/Common/x` -> `x`.
+fn leaf(s: &str) -> &str {
+    s.rsplit('/').next().unwrap_or(s)
+}
+
+fn partition_of(full_path: &str) -> String {
+    if full_path.starts_with('/') {
+        full_path.split('/').nth(1).unwrap_or("").to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// Split a BIG-IP destination into `(address, port)`.
+fn split_dest(dest: &str) -> (String, String) {
+    if dest.is_empty() {
+        return (String::new(), String::new());
+    }
+    let leaf = dest.rsplit('/').next().unwrap_or(dest);
+    let colons = leaf.matches(':').count();
+    if colons >= 2 {
+        // IPv6: address holds the colons, port after a dot.
+        if let Some(idx) = leaf.rfind('.') {
+            return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
+        }
+        return (leaf.to_string(), String::new());
+    }
+    if let Some(idx) = leaf.rfind(':') {
+        return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
+    }
+    (leaf.to_string(), String::new())
+}
+
+/// A string array field, cleaned per element.
+fn clean_arr(m: &Map<String, J>, key: &str) -> Vec<J> {
+    sarr(m, key)
+        .iter()
+        .map(|p| J::String(clean_path(p)))
+        .collect()
+}
+
+/// Map every object's full-path to the full-paths that reference it (the
+/// engine's `referenced_by` graph builtin, surfaced verbatim).
+fn refmap(sources: &[Source], container: &str) -> HashMap<String, Vec<J>> {
+    let expr = format!("{container}[] | {{p: .\"full-path\", by: referenced_by(.)}}");
+    let mut out: HashMap<String, Vec<J>> = HashMap::new();
+    let rows = match query(&expr, sources) {
+        Ok(r) => r,
+        Err(_) => return out,
+    };
+    for r in rows {
+        if let J::Object(m) = r {
+            let p = m.get("p").and_then(J::as_str).unwrap_or("").to_string();
+            let by = match m.get("by") {
+                Some(J::Array(a)) => a.clone(),
+                _ => Vec::new(),
+            };
+            out.insert(p, by);
+        }
+    }
+    out
+}
+
+fn used_by(used: &HashMap<String, Vec<J>>, fp: &str) -> Vec<J> {
+    used.get(fp).cloned().unwrap_or_default()
+}
+
+// --- per-type shaping --------------------------------------------------------
+
+fn shape_virtual(f: &Map<String, J>) -> J {
+    let (addr, port) = split_dest(bstr(f, "destination"));
+    let fp = bstr(f, "full-path");
+    let disabled = bbool(f, "disabled") || bstr(f, "state") == "disabled";
+
+    let mut v = Map::new();
+    v.insert("name".into(), J::String(bstr(f, "name").into()));
+    v.insert("fullPath".into(), J::String(fp.into()));
+    v.insert("partition".into(), J::String(partition_of(fp)));
+    v.insert(
+        "destination".into(),
+        J::String(bstr(f, "destination").into()),
+    );
+    v.insert("destAddr".into(), J::String(addr));
+    v.insert("destPort".into(), J::String(port));
+    v.insert("mask".into(), J::String(bstr(f, "mask").into()));
+    v.insert("pool".into(), J::String(clean_field(f, "pool")));
+    v.insert("profiles".into(), J::Array(clean_arr(f, "profiles")));
+    v.insert("rules".into(), J::Array(clean_arr(f, "rules")));
+    v.insert("persist".into(), J::Array(clean_arr(f, "persist")));
+    v.insert("policies".into(), J::Array(clean_arr(f, "policies")));
+    v.insert("snatpool".into(), J::String(clean_field(f, "snatpool")));
+    v.insert(
+        "sourceXlate".into(),
+        J::String(bstr(f, "source-address-translation").into()),
+    );
+    v.insert(
+        "ipProtocol".into(),
+        J::String(bstr(f, "ip-protocol").into()),
+    );
+    v.insert("source".into(), J::String(bstr(f, "source").into()));
+    v.insert("vlans".into(), J::Array(clean_arr(f, "vlans")));
+    v.insert("vlansEnabled".into(), J::Bool(bbool(f, "vlans-enabled")));
+    v.insert("vlansDisabled".into(), J::Bool(bbool(f, "vlans-disabled")));
+    v.insert(
+        "description".into(),
+        J::String(bstr(f, "description").into()),
+    );
+    v.insert("disabled".into(), J::Bool(disabled));
+    let listener = crate::graph::parse_listener(&v);
+    v.insert("listener".into(), listener);
+    J::Object(v)
+}
+
+fn shape_pool(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let mut members = Vec::new();
+    for m in barr(f, "members") {
+        let mf: Map<String, J> = match m {
+            J::Object(mm) => mm
+                .get("fields")
+                .and_then(J::as_object)
+                .cloned()
+                .unwrap_or_default(),
+            _ => Map::new(),
+        };
+        let name = bstr(&mf, "name").to_string();
+        let port = match mf.get("port") {
+            Some(v) if truthy(v) => py_str(v),
+            _ => {
+                if name.contains(':') {
+                    name.rsplit(':').next().unwrap_or("").to_string()
+                } else {
+                    String::new()
+                }
+            }
+        };
+        let mut mo = Map::new();
+        mo.insert("name".into(), J::String(name));
+        mo.insert("address".into(), J::String(bstr(&mf, "address").into()));
+        mo.insert("port".into(), J::String(port));
+        mo.insert("monitor".into(), J::String(clean_field(&mf, "monitor")));
+        mo.insert(
+            "ratio".into(),
+            mf.get("ratio").cloned().unwrap_or(J::String(String::new())),
+        );
+        mo.insert(
+            "priorityGroup".into(),
+            mf.get("priority-group")
+                .cloned()
+                .unwrap_or(J::String(String::new())),
+        );
+        mo.insert(
+            "connectionLimit".into(),
+            mf.get("connection-limit")
+                .cloned()
+                .unwrap_or(J::String(String::new())),
+        );
+        mo.insert("state".into(), J::String(bstr(&mf, "state").into()));
+        mo.insert(
+            "description".into(),
+            J::String(bstr(&mf, "description").into()),
+        );
+        members.push(J::Object(mo));
+    }
+    let fp = bstr(f, "full-path");
+    let member_count = members.len();
+    let mut p = Map::new();
+    p.insert("name".into(), J::String(bstr(f, "name").into()));
+    p.insert("fullPath".into(), J::String(fp.into()));
+    p.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    p.insert(
+        "lbMode".into(),
+        J::String(bstr(f, "load-balancing-mode").into()),
+    );
+    p.insert("members".into(), J::Array(members));
+    p.insert("memberCount".into(), J::from(member_count));
+    p.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(p)
+}
+
+fn shape_node(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("address".into(), J::String(bstr(f, "address").into()));
+    o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_monitor(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("type".into(), J::String(bstr(f, "type").into()));
+    o.insert(
+        "interval".into(),
+        f.get("interval")
+            .cloned()
+            .unwrap_or(J::String(String::new())),
+    );
+    o.insert(
+        "timeout".into(),
+        f.get("timeout")
+            .cloned()
+            .unwrap_or(J::String(String::new())),
+    );
+    o.insert("send".into(), J::String(bstr(f, "send").into()));
+    o.insert("recv".into(), J::String(bstr(f, "recv").into()));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let body = bstr(f, "body").to_string();
+    let re = Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]+)").expect("valid when regex");
+    let events: BTreeSet<String> = re.captures_iter(&body).map(|c| c[1].to_string()).collect();
+    let fp = bstr(f, "full-path");
+    // `.refs` is the engine's synthesised iRule reference sub-object.
+    let refs: Map<String, J> = match f.get("refs") {
+        Some(J::Object(m)) => m
+            .get("fields")
+            .and_then(J::as_object)
+            .cloned()
+            .unwrap_or_default(),
+        _ => Map::new(),
+    };
+    let line_count = if body.is_empty() {
+        0
+    } else {
+        body.matches('\n').count() + 1
+    };
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("lineCount".into(), J::from(line_count));
+    o.insert(
+        "events".into(),
+        J::Array(events.into_iter().map(J::String).collect()),
+    );
+    o.insert("body".into(), J::String(body.clone()));
+    o.insert(
+        "bodyHtml".into(),
+        J::String(tcl_lexer::highlight_tcl(&body)),
+    );
+    // IR-based control-flow flowchart (Mermaid); empty when there's nothing to
+    // draw. The report renders it lazily when the iRule row is expanded.
+    o.insert(
+        "flowchart".into(),
+        J::String(tcl_diagram::irule_flowchart_mermaid(
+            &body,
+            tcl_registry::registry_for_dialect("f5-irules"),
+        )),
+    );
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    o.insert("refPools".into(), J::Array(clean_arr(&refs, "pools")));
+    o.insert(
+        "refDataGroups".into(),
+        J::Array(clean_arr(&refs, "data-groups")),
+    );
+    o.insert(
+        "dynamicActions".into(),
+        J::Array(crate::graph::irule_dynamic_actions(&body)),
+    );
+    // The reconstructed dynamic-attach name patterns and their resolved objects
+    // are attached later as `referencedObjects` (once the device's object lists
+    // and per-virtual partition contexts are known — see
+    // `annotate_rule_reachability`).
+    J::Object(o)
+}
+
+fn shape_data_group(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let records = barr(f, "records");
+    let fp = bstr(f, "full-path");
+    let record_count = records.len();
+    let shown: Vec<J> = records
+        .iter()
+        .take(200)
+        .map(|r| J::String(py_str(r)))
+        .collect();
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("type".into(), J::String(bstr(f, "type").into()));
+    o.insert("recordCount".into(), J::from(record_count));
+    o.insert("records".into(), J::Array(shown));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn shape_profile(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
+    let ptype = bstr(f, "type").replace("ProfileType.", "");
+    let fp = bstr(f, "full-path");
+    let ciphers = {
+        let c = bstr(f, "ciphers");
+        if c.is_empty() {
+            bstr(f, "cipher-group").to_string()
+        } else {
+            c.to_string()
+        }
+    };
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("type".into(), J::String(ptype));
+    o.insert("parent".into(), J::String(clean_field(f, "defaults-from")));
+    o.insert("ciphers".into(), J::String(ciphers));
+    o.insert("cert".into(), J::String(clean_field(f, "cert")));
+    o.insert("key".into(), J::String(clean_field(f, "key")));
+    o.insert("chain".into(), J::String(clean_field(f, "chain")));
+    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+    J::Object(o)
+}
+
+fn policy_sub(x: &J) -> Map<String, J> {
+    match x {
+        J::Object(m) => m
+            .get("fields")
+            .and_then(J::as_object)
+            .cloned()
+            .unwrap_or_else(|| m.clone()),
+        _ => Map::new(),
+    }
+}
+
+fn shape_policy(f: &Map<String, J>) -> J {
+    let mut rules = Vec::new();
+    for r in barr(f, "rules") {
+        let rf = policy_sub(r);
+        let mut conds = Vec::new();
+        for c in barr(&rf, "conditions") {
+            let cf = policy_sub(c);
+            let mut cm = Map::new();
+            cm.insert("operand".into(), J::String(bstr(&cf, "operand").into()));
+            cm.insert("selector".into(), J::String(bstr(&cf, "selector").into()));
+            cm.insert("operator".into(), J::String(bstr(&cf, "operator").into()));
+            cm.insert("values".into(), J::Array(barr(&cf, "values").to_vec()));
+            cm.insert("negate".into(), J::Bool(bbool(&cf, "negate")));
+            cm.insert(
+                "caseInsensitive".into(),
+                J::Bool(bbool(&cf, "case-insensitive")),
+            );
+            conds.push(J::Object(cm));
+        }
+        let mut acts = Vec::new();
+        for a in barr(&rf, "actions") {
+            let af = policy_sub(a);
+            let mut am = Map::new();
+            am.insert("target".into(), J::String(bstr(&af, "target").into()));
+            am.insert("verb".into(), J::String(bstr(&af, "verb").into()));
+            am.insert("pool".into(), J::String(clean_field(&af, "pool")));
+            am.insert("location".into(), J::String(bstr(&af, "location").into()));
+            am.insert("host".into(), J::String(bstr(&af, "host").into()));
+            am.insert("path".into(), J::String(bstr(&af, "path").into()));
+            am.insert("value".into(), J::String(bstr(&af, "value").into()));
+            am.insert("name".into(), J::String(bstr(&af, "name").into()));
+            acts.push(J::Object(am));
+        }
+        let mut rm = Map::new();
+        rm.insert("name".into(), J::String(bstr(&rf, "name").into()));
+        rm.insert(
+            "ordinal".into(),
+            rf.get("ordinal").cloned().unwrap_or(J::from(0)),
+        );
+        rm.insert("conditions".into(), J::Array(conds));
+        rm.insert("actions".into(), J::Array(acts));
+        rules.push(J::Object(rm));
+    }
+    let fp = bstr(f, "full-path");
+    let mut o = Map::new();
+    o.insert("name".into(), J::String(bstr(f, "name").into()));
+    o.insert("fullPath".into(), J::String(fp.into()));
+    o.insert("strategy".into(), J::String(bstr(f, "strategy").into()));
+    o.insert("rules".into(), J::Array(rules));
+    J::Object(o)
+}
+
+// --- model assembly ----------------------------------------------------------
+
+fn device_name(uri: &str, source: &str) -> String {
+    let re = Regex::new(r"hostname\s+(\S+)").expect("valid hostname regex");
+    if let Some(c) = re.captures(source) {
+        return c[1].to_string();
+    }
+    let base = uri.rsplit('/').next().unwrap_or(uri);
+    if base.contains('.') {
+        base.rsplitn(2, '.').last().unwrap_or(base).to_string()
+    } else {
+        base.to_string()
+    }
+}
+
+fn insight(level: &str, text: String) -> J {
+    let mut o = Map::new();
+    o.insert("level".into(), J::String(level.into()));
+    o.insert("text".into(), J::String(text));
+    J::Object(o)
+}
+
+fn insights(device: &Map<String, J>) -> Vec<J> {
+    let mut out = Vec::new();
+    let orphans = device
+        .get("orphans")
+        .and_then(J::as_object)
+        .cloned()
+        .unwrap_or_default();
+    for kind in ["pools", "nodes", "rules", "monitors", "profiles"] {
+        let n = orphans.get(kind).and_then(J::as_array).map_or(0, Vec::len);
+        if n > 0 {
+            out.push(insight(
+                "warn",
+                format!("{n} orphaned {kind} (defined, referenced by nothing — no iRule can attach them either)"),
+            ));
+        }
+    }
+    // Possible orphans: no static reference, but an iRule selects that type
+    // dynamically, so they cannot be *proven* unused.
+    let possible = device
+        .get("possibleOrphans")
+        .and_then(J::as_object)
+        .cloned()
+        .unwrap_or_default();
+    for kind in ["pools", "nodes", "snatpools"] {
+        let n = possible.get(kind).and_then(J::as_array).map_or(0, Vec::len);
+        if n > 0 {
+            out.push(insight(
+                "info",
+                format!(
+                    "{n} {kind} have no static reference but an iRule could build a matching name dynamically — can't be proven unused"
+                ),
+            ));
+        }
+    }
+    let empty_pools: Vec<&str> = barr(device, "pools")
+        .iter()
+        .filter_map(J::as_object)
+        .filter(|p| p.get("memberCount").and_then(J::as_u64) == Some(0))
+        .map(|p| bstr(p, "name"))
+        .collect();
+    if !empty_pools.is_empty() {
+        let mut preview = empty_pools
+            .iter()
+            .take(6)
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        if empty_pools.len() > 6 {
+            preview.push('…');
+        }
+        out.push(insight(
+            "warn",
+            format!("{} pool(s) with no members: {preview}", empty_pools.len()),
+        ));
+    }
+    let no_pool_vs: Vec<&str> = barr(device, "virtuals")
+        .iter()
+        .filter_map(J::as_object)
+        .filter(|v| bstr(v, "pool").is_empty() && barr(v, "policies").is_empty())
+        .map(|v| bstr(v, "name"))
+        .collect();
+    if !no_pool_vs.is_empty() {
+        out.push(insight(
+            "info",
+            format!(
+                "{} virtual server(s) with no default pool (forwarding / policy-driven)",
+                no_pool_vs.len()
+            ),
+        ));
+    }
+    let disabled_vs = barr(device, "virtuals")
+        .iter()
+        .filter_map(J::as_object)
+        .filter(|v| bbool(v, "disabled"))
+        .count();
+    if disabled_vs > 0 {
+        out.push(insight(
+            "info",
+            format!("{disabled_vs} disabled virtual server(s)"),
+        ));
+    }
+    let ssl = barr(device, "profiles")
+        .iter()
+        .filter_map(J::as_object)
+        .filter(|p| bstr(p, "type").contains("SSL"))
+        .count();
+    if ssl > 0 {
+        out.push(insight("info", format!("{ssl} SSL profile(s) in use")));
+    }
+    if out.is_empty() {
+        out.push(insight(
+            "ok",
+            "No orphaned objects or empty pools detected".to_string(),
+        ));
+    }
+    out
+}
+
+/// Singular label for an attachable object-type key.
+fn attach_singular(ty: &str) -> &'static str {
+    match ty {
+        "pools" => "pool",
+        "nodes" => "node",
+        "snatpools" => "snatpool",
+        _ => "object",
+    }
+}
+
+fn json_ref(ty: &str, full_path: &str) -> J {
+    // Stable object id prefix matching the topology graph / navigation index.
+    let prefix = match ty {
+        "pool" => "pool",
+        "node" => "node",
+        "snatpool" => "snat",
+        "data-group" => "dg",
+        "irule" => "rule",
+        other => other,
+    };
+    let mut o = Map::new();
+    o.insert("type".into(), J::String(ty.into()));
+    o.insert("name".into(), J::String(leaf(full_path).into()));
+    o.insert("fullPath".into(), J::String(full_path.into()));
+    o.insert("oid".into(), J::String(format!("{prefix}:{full_path}")));
+    J::Object(o)
+}
+
+/// Full paths of built-in / system objects: the default profiles, monitors and
+/// `_sys_*` objects that ship with TMOS, declared in `profile_base.conf` /
+/// `low_profile_base.conf` (often as bare names the engine prefixes with
+/// `/Common/`). Recognised from the `# config/<member>` section headers the UCS
+/// extractor writes into the SCF.
+fn default_object_paths(config_text: &str) -> std::collections::HashSet<String> {
+    const DEFAULT_MEMBERS: &[&str] = &[
+        "config/profile_base.conf",
+        "config/low_profile_base.conf",
+    ];
+    let mut out = std::collections::HashSet::new();
+    let mut in_default = false;
+    for line in config_text.lines() {
+        if let Some(rest) = line.strip_prefix("# ") {
+            let name = rest.trim();
+            if name.starts_with("config/") {
+                in_default = DEFAULT_MEMBERS.contains(&name);
+            }
+            continue;
+        }
+        if !in_default {
+            continue;
+        }
+        // A top-level declaration starts at column 0 with a lowercase letter and
+        // opens a brace; the object name is the last token before the first `{`
+        // (handles both `x /Common/y {` and one-liner `x y { }`).
+        if line.starts_with(|c: char| c.is_ascii_lowercase())
+            && let Some(brace) = line.find('{')
+            && let Some(name) = line[..brace].split_whitespace().last()
+        {
+            out.insert(if name.starts_with('/') {
+                name.to_string()
+            } else {
+                format!("/Common/{name}")
+            });
+        }
+    }
+    out
+}
+
+/// Resolve a cross-iRule `call <rule>::proc` target name to an actual iRule full
+/// path, preferring the caller's partition, then `/Common`.
+fn resolve_rule(
+    name: &str,
+    caller_part: &str,
+    known: &std::collections::HashSet<String>,
+    leaf_to_fp: &HashMap<String, Vec<String>>,
+) -> Option<String> {
+    if name.starts_with('/') && known.contains(name) {
+        return Some(name.to_string());
+    }
+    let fps = leaf_to_fp.get(leaf(name))?;
+    if let Some(fp) = fps.iter().find(|f| partition_of(f) == caller_part) {
+        return Some(fp.clone());
+    }
+    if let Some(fp) = fps.iter().find(|f| partition_of(f) == "Common") {
+        return Some(fp.clone());
+    }
+    fps.first().cloned()
+}
+
+/// Link iRules that call each other via `call <rule>::<proc>` (F5 cross-iRule
+/// proc calls): record each caller's resolved callees as `refRules`, and add the
+/// caller to each callee's `usedBy` so a proc-library iRule (attached to no
+/// virtual, only called from other rules) is linked in rather than flagged
+/// orphaned. Run before orphan classification, which reads `usedBy`.
+fn link_proc_calls(device: &mut Map<String, J>) {
+    let mut leaf_to_fp: HashMap<String, Vec<String>> = HashMap::new();
+    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut bodies: Vec<(String, String, String)> = Vec::new();
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            if let Some(rm) = r.as_object() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if fp.is_empty() {
+                    continue;
+                }
+                leaf_to_fp
+                    .entry(leaf(&fp).to_string())
+                    .or_default()
+                    .push(fp.clone());
+                known.insert(fp.clone());
+                bodies.push((fp.clone(), partition_of(&fp), bstr(rm, "body").to_string()));
+            }
+        }
+    }
+
+    let mut caller_refs: HashMap<String, Vec<String>> = HashMap::new();
+    let mut callee_callers: HashMap<String, Vec<String>> = HashMap::new();
+    for (fp, part, body) in &bodies {
+        if body.is_empty() {
+            continue;
+        }
+        let mut resolved: Vec<String> = Vec::new();
+        for name in tcl_diagram::proc_call_refs(body) {
+            if let Some(callee) = resolve_rule(&name, part, &known, &leaf_to_fp) {
+                if &callee == fp {
+                    continue;
+                }
+                if !resolved.contains(&callee) {
+                    resolved.push(callee.clone());
+                }
+                callee_callers.entry(callee).or_default().push(fp.clone());
+            }
+        }
+        if !resolved.is_empty() {
+            caller_refs.insert(fp.clone(), resolved);
+        }
+    }
+
+    if let Some(J::Array(rules)) = device.get_mut("rules") {
+        for r in rules.iter_mut() {
+            if let Some(rm) = r.as_object_mut() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if let Some(refs) = caller_refs.get(&fp) {
+                    rm.insert(
+                        "refRules".into(),
+                        J::Array(refs.iter().map(|s| J::String(s.clone())).collect()),
+                    );
+                }
+                if let Some(callers) = callee_callers.get(&fp) {
+                    let mut used: Vec<J> = barr(rm, "usedBy").to_vec();
+                    let existing: std::collections::HashSet<String> = used
+                        .iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect();
+                    for c in callers {
+                        if !existing.contains(c) {
+                            used.push(J::String(c.clone()));
+                        }
+                    }
+                    rm.insert("usedBy".into(), J::Array(used));
+                }
+            }
+        }
+    }
+}
+
+/// Per-rule partition contexts (partitions of the virtuals attaching a rule).
+type RuleCtx = HashMap<String, BTreeSet<String>>;
+/// Per-rule attaching virtuals, as `(virtual full path, virtual partition)`.
+type RuleVirtuals = HashMap<String, Vec<(String, String)>>;
+
+/// Map each iRule to the partitions it executes in (partitions of its attaching
+/// virtuals) and the attaching virtuals themselves. Virtuals may reference a
+/// rule by leaf name or full path.
+fn build_rule_contexts(device: &Map<String, J>) -> (RuleCtx, RuleVirtuals) {
+    let mut leaf_to_fp: HashMap<String, String> = HashMap::new();
+    let mut known_fp: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            if let Some(rm) = r.as_object() {
+                let fp = bstr(rm, "fullPath").to_string();
+                if fp.is_empty() {
+                    continue;
+                }
+                leaf_to_fp.insert(leaf(&fp).to_string(), fp.clone());
+                known_fp.insert(fp);
+            }
+        }
+    }
+    let mut ctx: HashMap<String, BTreeSet<String>> = HashMap::new();
+    let mut vs: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    if let Some(J::Array(virtuals)) = device.get("virtuals") {
+        for v in virtuals {
+            let Some(vm) = v.as_object() else { continue };
+            let vfp = bstr(vm, "fullPath").to_string();
+            let vpart = bstr(vm, "partition").to_string();
+            for rr in sarr(vm, "rules") {
+                let fp = if known_fp.contains(rr) {
+                    rr.to_string()
+                } else if let Some(f) = leaf_to_fp.get(leaf(rr)) {
+                    f.clone()
+                } else {
+                    continue;
+                };
+                ctx.entry(fp.clone()).or_default().insert(vpart.clone());
+                vs.entry(fp).or_default().push((vfp.clone(), vpart.clone()));
+            }
+        }
+    }
+    (ctx, vs)
+}
+
+/// Attach a per-iRule reachability table: the objects it statically references,
+/// plus the objects each reconstructed dynamic filter could select — resolved
+/// per attaching-virtual partition, so a `/Common` rule attached across
+/// partitions shows a VS-specific candidate set for each.
+fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtuals) {
+    // Snapshot attachable objects (name, fullPath, partition, address) per type.
+    let mut snap: HashMap<&'static str, Vec<(String, String, String, String)>> = HashMap::new();
+    for ty in crate::graph::ATTACH_TYPES {
+        let mut v = Vec::new();
+        if let Some(J::Array(objs)) = device.get(*ty) {
+            for o in objs {
+                if let Some(om) = o.as_object() {
+                    let fp = bstr(om, "fullPath").to_string();
+                    let part = partition_of(&fp);
+                    v.push((
+                        bstr(om, "name").to_string(),
+                        fp,
+                        part,
+                        bstr(om, "address").to_string(),
+                    ));
+                }
+            }
+        }
+        snap.insert(*ty, v);
+    }
+
+    let Some(J::Array(rules)) = device.get_mut("rules") else {
+        return;
+    };
+    for r in rules.iter_mut() {
+        let Some(rm) = r.as_object_mut() else { continue };
+        let body = bstr(rm, "body").to_string();
+        let fp = bstr(rm, "fullPath").to_string();
+        let own_part = partition_of(&fp);
+
+        // Static references (absolute paths from the engine's `.refs`).
+        let mut static_refs: Vec<J> = Vec::new();
+        for p in sarr(rm, "refPools") {
+            static_refs.push(json_ref("pool", p));
+        }
+        for dg in sarr(rm, "refDataGroups") {
+            static_refs.push(json_ref("data-group", dg));
+        }
+        // Cross-iRule proc-call references (`call <rule>::<proc>`).
+        for rr in sarr(rm, "refRules") {
+            static_refs.push(json_ref("irule", rr));
+        }
+
+        // Dynamic references grouped by the partition of the attaching virtuals.
+        let reach = tcl_diagram::attach_reach(&body);
+        let has_dynamic = crate::graph::ATTACH_TYPES
+            .iter()
+            .any(|ty| !reach.patterns_for(ty).is_empty());
+        let mut by_part: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        if has_dynamic {
+            if let Some(vlist) = rule_vs.get(&fp) {
+                for (vfp, vpart) in vlist {
+                    by_part.entry(vpart.clone()).or_default().push(vfp.clone());
+                }
+            }
+            if by_part.is_empty() {
+                // Unattached: still surface the determined filters, resolved
+                // informationally in the rule's own partition.
+                by_part.insert(own_part.clone(), Vec::new());
+            }
+        }
+        let attached = rule_vs.get(&fp).is_some_and(|v| !v.is_empty());
+
+        let mut groups: Vec<J> = Vec::new();
+        for (part, vlist) in &by_part {
+            let mut ctx = BTreeSet::new();
+            ctx.insert(part.clone());
+            let mut filters: Vec<J> = Vec::new();
+            for ty in crate::graph::ATTACH_TYPES {
+                for pat in reach.patterns_for(ty) {
+                    let objs = snap.get(*ty).map_or(&[][..], Vec::as_slice);
+                    let mut matched: Vec<J> = Vec::new();
+                    for (nm, ofp, opart, addr) in objs {
+                        let hit = crate::graph::pattern_reaches(pat, nm, ofp, opart, &ctx)
+                            || (!addr.is_empty()
+                                && crate::graph::pattern_reaches(pat, addr, addr, opart, &ctx));
+                        if hit {
+                            matched.push(json_ref(attach_singular(ty), ofp));
+                        }
+                    }
+                    let mut f = pat.to_json();
+                    if let Some(fo) = f.as_object_mut() {
+                        fo.insert("type".into(), J::String(attach_singular(ty).into()));
+                        fo.insert("objects".into(), J::Array(matched));
+                    }
+                    filters.push(f);
+                }
+            }
+            let mut g = Map::new();
+            g.insert("partition".into(), J::String(part.clone()));
+            g.insert(
+                "virtuals".into(),
+                J::Array(vlist.iter().map(|s| J::String(leaf(s).into())).collect()),
+            );
+            g.insert("attached".into(), J::Bool(attached));
+            g.insert("filters".into(), J::Array(filters));
+            groups.push(J::Object(g));
+        }
+
+        let mut refs = Map::new();
+        refs.insert("static".into(), J::Array(static_refs));
+        refs.insert("dynamic".into(), J::Array(groups));
+        rm.insert("referencedObjects".into(), J::Object(refs));
+    }
+}
+
+fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>) -> J {
+    let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
+
+    // One reference-graph walk per referable container, up front.
+    let refmaps: HashMap<&str, HashMap<String, Vec<J>>> = REFERABLE
+        .iter()
+        .map(|name| (*name, refmap(&sources, container_path(name))))
+        .collect();
+
+    let empty_refmap: HashMap<String, Vec<J>> = HashMap::new();
+
+    let re_tmsh = Regex::new(r"#TMSH-VERSION:\s*(\S+)").expect("valid tmsh regex");
+    let tmsh = re_tmsh
+        .captures(source)
+        .map(|c| c[1].to_string())
+        .unwrap_or_default();
+
+    let mut device = Map::new();
+    device.insert("uri".into(), J::String(uri.into()));
+    device.insert("name".into(), J::String(device_name(uri, source)));
+    device.insert("tmshVersion".into(), J::String(tmsh));
+
+    for (key, container) in CONTAINERS {
+        let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
+        let used = refmaps.get(key).unwrap_or(&empty_refmap);
+        let shaped: Vec<J> = match *key {
+            "virtuals" => rows.iter().map(shape_virtual).collect(),
+            "pools" => rows.iter().map(|f| shape_pool(f, used)).collect(),
+            "nodes" => rows.iter().map(|f| shape_node(f, used)).collect(),
+            "monitors" => rows.iter().map(|f| shape_monitor(f, used)).collect(),
+            "rules" => rows.iter().map(|f| shape_rule(f, used)).collect(),
+            "dataGroups" => rows.iter().map(|f| shape_data_group(f, used)).collect(),
+            "profiles" => rows.iter().map(|f| shape_profile(f, used)).collect(),
+            "policies" => rows.iter().map(shape_policy).collect(),
+            // snatpools / persistence / virtual-addresses: keep the projected
+            // fields, tidy up the name/full-path for display; carry `usedBy`.
+            _ => rows
+                .iter()
+                .map(|f| {
+                    let fp = bstr(f, "full-path");
+                    let mut o = Map::new();
+                    o.insert("name".into(), J::String(bstr(f, "name").into()));
+                    o.insert("fullPath".into(), J::String(fp.into()));
+                    o.insert("usedBy".into(), J::Array(used_by(used, fp)));
+                    o.insert("fields".into(), J::Object(f.clone()));
+                    J::Object(o)
+                })
+                .collect(),
+        };
+        device.insert((*key).into(), J::Array(shaped));
+    }
+
+    // Tag built-in / system objects (the default profiles, monitors and
+    // `_sys_*` iRules that ship with TMOS — from `profile_base.conf` /
+    // `low_profile_base.conf`) so they can be hidden by default and kept out of
+    // orphan analysis, counts and diagrams.
+    let defaults = default_object_paths(source);
+    for key in DISPLAY_KEYS {
+        if let Some(J::Array(objs)) = device.get_mut(*key) {
+            for o in objs.iter_mut() {
+                if let Some(om) = o.as_object_mut() {
+                    let fp = bstr(om, "fullPath");
+                    let is_def = defaults.contains(fp) || leaf(fp).starts_with("_sys_");
+                    om.insert("isDefault".into(), J::Bool(is_def));
+                }
+            }
+        }
+    }
+
+    // Link cross-iRule `call <rule>::<proc>` references before orphan analysis
+    // so a proc-library iRule is counted as used by its callers.
+    link_proc_calls(&mut device);
+
+    // Orphans: a referable leaf object is *confirmed* orphaned only when it has
+    // an empty referrer set AND no iRule could dynamically attach an object of
+    // its *name*. Rather than demote a whole type the moment any rule attaches
+    // it dynamically, each attach expression is reconstructed into a
+    // prefix/contained/suffix name pattern (`pool "web_[HTTP::host]"` → `web_*`);
+    // an object is a *possible* orphan only when some rule's pattern could build
+    // its name, and stays a *confirmed* orphan otherwise.
+    let rules_arr = device
+        .get("rules")
+        .and_then(J::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // Rule execution contexts: the partitions of the virtuals each rule is
+    // attached to. A `/Common` iRule attached to virtuals in several partitions
+    // resolves its unqualified names *per partition*, so orphan reachability is
+    // partition-aware.
+    let (rule_ctx, rule_vs) = build_rule_contexts(&device);
+    let attach_idx = crate::graph::attach_index(&rules_arr, &rule_ctx);
+    // orphanRisk: the types some rule attaches dynamically at all (summary /
+    // topology use); the per-object filtering below is what actually classifies.
+    device.insert(
+        "orphanRisk".into(),
+        J::Array(attach_idx.keys().map(|t| J::String((*t).into())).collect()),
+    );
+    // Surface the reconstructed patterns themselves so the report can explain
+    // *why* an object is only a possible orphan.
+    let mut attach_patterns = Map::new();
+    for (ty, pats) in &attach_idx {
+        let arr: Vec<J> = pats
+            .iter()
+            .map(|a| {
+                let mut o = a.pattern.to_json();
+                if let Some(om) = o.as_object_mut() {
+                    om.insert("rule".into(), J::String(a.rule.clone()));
+                }
+                o
+            })
+            .collect();
+        attach_patterns.insert((*ty).into(), J::Array(arr));
+    }
+    device.insert("attachPatterns".into(), J::Object(attach_patterns));
+
+    let no_patterns: Vec<crate::graph::Attach> = Vec::new();
+    let mut orphans = Map::new();
+    let mut possible = Map::new();
+    for name in REFERABLE {
+        let attaches = attach_idx
+            .get(name)
+            .map_or(no_patterns.as_slice(), Vec::as_slice);
+        // Annotate each object with its orphan status, then collect the sets.
+        if let Some(J::Array(objs)) = device.get_mut(*name) {
+            for o in objs.iter_mut() {
+                if let Some(om) = o.as_object_mut() {
+                    let empty = om
+                        .get("usedBy")
+                        .and_then(J::as_array)
+                        .is_none_or(Vec::is_empty);
+                    let status = if om.get("isDefault").and_then(J::as_bool) == Some(true) {
+                        // Built-in/system objects are never "orphans".
+                        ""
+                    } else if !empty {
+                        ""
+                    } else if attaches.is_empty() {
+                        "orphan"
+                    } else {
+                        // Partition-aware match of the object against each rule's
+                        // reconstructed pattern in its execution context.
+                        let leaf_name = bstr(om, "name").to_string();
+                        let fp = bstr(om, "fullPath").to_string();
+                        let part = partition_of(&fp);
+                        let addr = bstr(om, "address").to_string();
+                        let matches =
+                            crate::graph::attach_matches(attaches, &leaf_name, &fp, &part, &addr);
+                        if matches.is_empty() {
+                            "orphan"
+                        } else {
+                            om.insert("orphanMatches".into(), J::Array(matches));
+                            "possible"
+                        }
+                    };
+                    om.insert("orphanStatus".into(), J::String(status.into()));
+                }
+            }
+        }
+        if let Some(J::Array(objs)) = device.get(*name) {
+            let confirmed: Vec<J> = objs
+                .iter()
+                .filter_map(J::as_object)
+                .filter(|o| bstr(o, "orphanStatus") == "orphan")
+                .map(|o| J::String(bstr(o, "name").into()))
+                .collect();
+            let maybe: Vec<J> = objs
+                .iter()
+                .filter_map(J::as_object)
+                .filter(|o| bstr(o, "orphanStatus") == "possible")
+                .map(|o| J::String(bstr(o, "name").into()))
+                .collect();
+            orphans.insert((*name).into(), J::Array(confirmed));
+            possible.insert((*name).into(), J::Array(maybe));
+        }
+    }
+    device.insert("orphans".into(), J::Object(orphans));
+    device.insert("possibleOrphans".into(), J::Object(possible));
+
+    // Per-iRule reachability tables: statically referenced objects plus the
+    // objects each dynamic filter could select, resolved per attaching-virtual
+    // partition (VS-specific).
+    annotate_rule_reachability(&mut device, &rule_vs);
+
+    // Propagate each iRule's dynamic (runtime) actions onto the virtuals that
+    // attach it.
+    let mut rule_actions: HashMap<String, Vec<J>> = HashMap::new();
+    let mut rule_by_name: HashMap<String, String> = HashMap::new();
+    if let Some(J::Array(rules)) = device.get("rules") {
+        for r in rules {
+            if let Some(rm) = r.as_object() {
+                let fp = bstr(rm, "fullPath").to_string();
+                rule_actions.insert(fp.clone(), barr(rm, "dynamicActions").to_vec());
+                rule_by_name.insert(leaf(&fp).to_string(), fp);
+            }
+        }
+    }
+    if let Some(J::Array(virtuals)) = device.get_mut("virtuals") {
+        for v in virtuals.iter_mut() {
+            let rule_refs: Vec<String> = v
+                .as_object()
+                .map(|vm| sarr(vm, "rules").iter().map(|s| (*s).to_string()).collect())
+                .unwrap_or_default();
+            let mut acts: Vec<J> = Vec::new();
+            for rule_ref in &rule_refs {
+                let fp = if rule_actions.contains_key(rule_ref) {
+                    rule_ref.clone()
+                } else {
+                    rule_by_name
+                        .get(leaf(rule_ref))
+                        .cloned()
+                        .unwrap_or_default()
+                };
+                if let Some(actions) = rule_actions.get(&fp) {
+                    for a in actions {
+                        if let Some(am) = a.as_object() {
+                            let mut na = am.clone();
+                            na.insert("rule".into(), J::String(leaf(rule_ref).into()));
+                            acts.push(J::Object(na));
+                        }
+                    }
+                }
+            }
+            if let Some(vm) = v.as_object_mut() {
+                vm.insert("dynamicProfiles".into(), J::Array(acts));
+            }
+        }
+    }
+
+    device.insert("graph".into(), crate::graph::build_graph(&device));
+    // The raw SCF/config text, embedded so the in-browser wasm query console can
+    // run live queries against this exact device.
+    device.insert("configText".into(), J::String(source.into()));
+
+    // Certificate inventory (SSL cert expiry & inventory tab).
+    let certs = crate::certs::collect_certs(&sources, &device, cert_pems);
+    device.insert("certificates".into(), certs);
+
+    // Secret inventory (Secrets tab). Values are clear text only when the
+    // config was decrypted with the f5mku master key upstream.
+    device.insert(
+        "secrets".into(),
+        J::Array(crate::secrets::collect_secrets(source)),
+    );
+
+    // Tag every displayed object with its partition (from the full path) and
+    // collect the device's partition set, so the report can filter to a
+    // partition while always keeping shared /Common objects visible.
+    let mut partitions: BTreeSet<String> = BTreeSet::new();
+    for key in DISPLAY_KEYS {
+        if let Some(J::Array(objs)) = device.get_mut(*key) {
+            for o in objs.iter_mut() {
+                if let Some(om) = o.as_object_mut() {
+                    let existing = bstr(om, "partition").to_string();
+                    let part = if existing.is_empty() {
+                        partition_of(bstr(om, "fullPath"))
+                    } else {
+                        existing
+                    };
+                    if !part.is_empty() {
+                        partitions.insert(part.clone());
+                    }
+                    om.insert("partition".into(), J::String(part));
+                }
+            }
+        }
+    }
+    device.insert(
+        "partitions".into(),
+        J::Array(partitions.into_iter().map(J::String).collect()),
+    );
+
+    // Counts. Built-in / system (default) objects are excluded — the chips count
+    // the estate's own objects, not the ~260 TMOS defaults.
+    let mut counts = Map::new();
+    for (key, _) in CONTAINERS {
+        let n = device.get(*key).and_then(J::as_array).map_or(0, |objs| {
+            objs.iter()
+                .filter_map(J::as_object)
+                .filter(|o| o.get("isDefault").and_then(J::as_bool) != Some(true))
+                .count()
+        });
+        counts.insert((*key).into(), J::from(n));
+    }
+    let pool_members: usize = barr(&device, "pools")
+        .iter()
+        .filter_map(J::as_object)
+        .map(|p| p.get("memberCount").and_then(J::as_u64).unwrap_or(0) as usize)
+        .sum();
+    counts.insert("poolMembers".into(), J::from(pool_members));
+    let orphan_total: usize = device.get("orphans").and_then(J::as_object).map_or(0, |o| {
+        o.values().filter_map(J::as_array).map(Vec::len).sum()
+    });
+    counts.insert("orphans".into(), J::from(orphan_total));
+    let cert_total = device
+        .get("certificates")
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("certificates".into(), J::from(cert_total));
+    let secret_total = device
+        .get("secrets")
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("secrets".into(), J::from(secret_total));
+    device.insert("counts".into(), J::Object(counts));
+
+    let ins = insights(&device);
+    device.insert("insights".into(), J::Array(ins));
+    J::Object(device)
+}
+
+/// Build the full report model from loaded `(uri, text)` sources.
+#[must_use]
+pub fn collect_model(sources: &[Source], title: &str) -> J {
+    collect_model_with_certs(sources, title, &HashMap::new())
+}
+
+/// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
+///
+/// `cert_pems` maps a `sys file ssl-cert` `cache-path` (as it appears in the
+/// stanza) to the PEM text of that member, read out of the archive by the
+/// caller (the CLI / wasm entry points, which have the raw UCS bytes). The
+/// certs tab parses these to fill metadata-free stanzas and reconstruct the
+/// trust chain; an empty map falls back to config metadata only.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // the caller (wasm/CLI) always uses std HashMap
+pub fn collect_model_with_certs(
+    sources: &[Source],
+    title: &str,
+    cert_pems: &HashMap<String, String>,
+) -> J {
+    let devices: Vec<J> = sources
+        .iter()
+        .map(|(uri, src)| collect_device(uri, src, cert_pems))
+        .collect();
+
+    let mut totals: Map<String, J> = Map::new();
+    for d in &devices {
+        if let Some(counts) = d.get("counts").and_then(J::as_object) {
+            for (k, v) in counts {
+                let add = v.as_u64().unwrap_or(0);
+                let cur = totals.get(k).and_then(J::as_u64).unwrap_or(0);
+                totals.insert(k.clone(), J::from(cur + add));
+            }
+        }
+    }
+
+    let container_order: Vec<J> = CONTAINERS
+        .iter()
+        .map(|(k, _)| J::String((*k).into()))
+        .collect();
+
+    let mut model = Map::new();
+    model.insert("title".into(), J::String(title.into()));
+    model.insert("engine_version".into(), J::String(ENGINE_VERSION.into()));
+    model.insert("devices".into(), J::Array(devices));
+    model.insert("totals".into(), J::Object(totals));
+    model.insert("container_order".into(), J::Array(container_order));
+    J::Object(model)
+}

@@ -17,12 +17,13 @@
 use std::collections::HashMap;
 
 use pyo3::create_exception;
-use pyo3::exceptions::{PyIOError, PyException};
+use pyo3::exceptions::{PyException, PyIOError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
 use tcl_bigip_io::{
-    PassphraseOptions, is_pgp_bytes, is_ucs_bytes, resolve_passphrase, ucs_archive_to_scf,
+    PassphraseOptions, is_pgp_bytes, is_ucs_bytes, read_ucs_member, resolve_passphrase,
+    ucs_archive_to_scf,
 };
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query};
@@ -50,7 +51,10 @@ create_exception!(
 fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
     let obj = match value {
         Value::Null | Value::Drop => py.None(),
-        Value::Bool(b) => pyo3::types::PyBool::new(py, *b).to_owned().into_any().unbind(),
+        Value::Bool(b) => pyo3::types::PyBool::new(py, *b)
+            .to_owned()
+            .into_any()
+            .unbind(),
         Value::Int(i) => i.into_pyobject(py)?.into_any().unbind(),
         Value::Float(f) => f.into_pyobject(py)?.into_any().unbind(),
         Value::Str(s) => PyString::new(py, s).into_any().unbind(),
@@ -69,11 +73,9 @@ fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
             }
             dict.into_any().unbind()
         }
-        Value::Container(c) => {
-            PyString::new(py, &format!("container({})", c.kind))
-                .into_any()
-                .unbind()
-        }
+        Value::Container(c) => PyString::new(py, &format!("container({})", c.kind))
+            .into_any()
+            .unbind(),
         Value::ObjectRef(o) => {
             let dict = PyDict::new(py);
             dict.set_item("kind", &o.kind)?;
@@ -105,11 +107,13 @@ fn coerce_sources(sources: &Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>>
     let mut out = Vec::new();
     for item in sources.try_iter()? {
         let item = item?;
-        let pair = item.cast::<PyTuple>().map_err(|_| {
-            QueryError::new_err("each source must be a (uri, text) tuple")
-        })?;
+        let pair = item
+            .cast::<PyTuple>()
+            .map_err(|_| QueryError::new_err("each source must be a (uri, text) tuple"))?;
         if pair.len() != 2 {
-            return Err(QueryError::new_err("each source must be a (uri, text) 2-tuple"));
+            return Err(QueryError::new_err(
+                "each source must be a (uri, text) 2-tuple",
+            ));
         }
         out.push((
             pair.get_item(0)?.extract::<String>()?,
@@ -151,8 +155,8 @@ fn query(
         ..QueryOptions::default()
     };
 
-    let result = run_query(expr, &sources, &opts)
-        .map_err(|e| QueryError::new_err(e.to_string()))?;
+    let result =
+        run_query(expr, &sources, &opts).map_err(|e| QueryError::new_err(e.to_string()))?;
     if result.has_mutation {
         return Err(QueryError::new_err(
             "mutating queries are not supported by the report engine (read-only)",
@@ -166,7 +170,10 @@ fn query(
             for v in values {
                 vals.append(value_to_py(py, v)?)?;
             }
-            out.append(PyTuple::new(py, [PyString::new(py, uri).into_any(), vals.into_any()])?)?;
+            out.append(PyTuple::new(
+                py,
+                [PyString::new(py, uri).into_any(), vals.into_any()],
+            )?)?;
         }
         return Ok(out.into_any().unbind());
     }
@@ -182,7 +189,11 @@ fn query(
 }
 
 /// Resolve a single path to `(uri, text)`, extracting a UCS when needed.
-fn read_one(path: &str, passphrase: &Option<String>, include_extras: bool) -> PyResult<(String, String)> {
+fn read_one(
+    path: &str,
+    passphrase: &Option<String>,
+    include_extras: bool,
+) -> PyResult<(String, String)> {
     let raw = std::fs::read(path).map_err(|e| PyIOError::new_err(format!("{path}: {e}")))?;
     let is_ucs_ext = std::path::Path::new(path)
         .extension()
@@ -251,6 +262,258 @@ fn ucs_to_scf(
         .map_err(|e| QueryError::new_err(e.to_string()))
 }
 
+/// Project every `sys file ssl-cert` object from one or more configs.
+///
+/// The `f5-query` DSL only projects the `ltm` module, so the certificate
+/// inventory is read from the parsed [`tcl_bigip`] model directly (the same
+/// `parse_bigip_conf` the query engine is built on). Returns a JSON string — an
+/// ordered array of `{name, full_path, subject, issuer, expiration_string,
+/// expiration_date, fingerprint, key_type, key_size, serial_number,
+/// subject_alternative_name, is_bundle, source_path, …}` field maps (snake-cased
+/// canonical fields) — which the pure-Python report layer shapes and
+/// cross-references against the SSL profiles that use each cert.
+#[pyfunction]
+fn sys_file_ssl_certs(sources: &Bound<'_, PyAny>) -> PyResult<String> {
+    collect_sys_file_objects(sources, SysFileKind::Cert)
+}
+
+/// Project every `sys file ssl-cert`, enriched with the **real certificate**
+/// parsed out of the UCS filestore.
+///
+/// Modern BIG-IP exports carry a metadata-free `sys file ssl-cert` stanza — the
+/// subject / issuer / validity / SANs live only in the PEM in the filestore, not
+/// in the config text — so a report built from the config alone shows a blank
+/// certificate row. For every source whose `uri` is a readable `.ucs` on disk,
+/// this reads the cert's `cache-path` (falling back to `source-path`) member out
+/// of the archive and runs the same `x509_parse` the engine uses, attaching:
+///   * `x509` — the leaf cert dict (`subject`, `issuer`, `not_before`,
+///     `not_after`, `serial`, `sans`, `key_alg`, `key_size`, `sig_alg`,
+///     `fingerprint_sha256`, …). `not_before` (the issue date) and the exact
+///     SAN list are only recoverable this way.
+///   * `x509_embedded` — the remaining PEM blocks when the file is a bundle
+///     (leaf + intermediate(s)/root), leaf-first, for the chain view.
+/// Sources without a locatable file (a plain `bigip.conf`, or a source with no
+/// filesystem backing) keep just the config-metadata fields.
+#[pyfunction]
+#[pyo3(signature = (sources, *, passphrase=None))]
+fn sys_file_ssl_certs_x509(
+    sources: &Bound<'_, PyAny>,
+    passphrase: Option<String>,
+) -> PyResult<String> {
+    use tcl_bigip::canonical::Canon;
+    use tcl_bigip::model::ModelObject;
+    use tcl_bigip::parser::driver::parse_bigip_conf;
+
+    let sources = coerce_sources(sources)?;
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    for (uri, text) in &sources {
+        // Read the archive bytes once per source, but only when the uri actually
+        // resolves to a UCS/OpenPGP file — a plain config has no filestore.
+        let ucs_bytes: Option<Vec<u8>> = std::fs::read(uri)
+            .ok()
+            .filter(|raw| is_pgp_bytes(raw) || is_ucs_bytes(raw));
+
+        let config = parse_bigip_conf(text, "Common");
+        for placed in &config.objects {
+            let ModelObject::SysFileSslCert(c) = &placed.object else {
+                continue;
+            };
+            let serde_json::Value::Object(mut fields) = c.canon_fields() else {
+                continue;
+            };
+            fields
+                .entry("full_path".to_owned())
+                .or_insert_with(|| serde_json::Value::String(placed.full_path.clone()));
+
+            if let Some(raw) = &ucs_bytes {
+                let member = fields
+                    .get("cache_path")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        fields
+                            .get("source_path")
+                            .and_then(serde_json::Value::as_str)
+                            .map(|s| s.strip_prefix("file://").unwrap_or(s))
+                            .filter(|s| !s.is_empty())
+                    });
+                if let Some(member) = member {
+                    let opts = PassphraseOptions {
+                        explicit: passphrase.clone(),
+                        allow_prompt: false,
+                        ..PassphraseOptions::default()
+                    };
+                    let provider = || resolve_passphrase(&opts);
+                    if let Ok(pem) = read_ucs_member(raw, member, &provider, uri) {
+                        let pem_str = String::from_utf8_lossy(&pem);
+                        let parsed = tcl_bigip_query::probes::x509_parse_all(&pem_str);
+                        let mut iter = parsed.into_iter();
+                        if let Some(leaf) = iter.next() {
+                            fields.insert("x509".to_owned(), value_to_json(&leaf));
+                            let rest: Vec<serde_json::Value> =
+                                iter.map(|v| value_to_json(&v)).collect();
+                            if !rest.is_empty() {
+                                fields.insert(
+                                    "x509_embedded".to_owned(),
+                                    serde_json::Value::Array(rest),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            out.push(serde_json::Value::Object(fields));
+        }
+    }
+    serde_json::to_string(&serde_json::Value::Array(out)).map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Convert an engine [`Value`] to a `serde_json::Value` via the canonical
+/// compact JSON encoder (order-preserving), so x509 dicts embed cleanly.
+fn value_to_json(v: &Value) -> serde_json::Value {
+    serde_json::from_str(&tcl_bigip_query::jsonfmt::to_compact(v))
+        .unwrap_or(serde_json::Value::Null)
+}
+
+/// Project every `sys file ssl-key` object from one or more configs.
+///
+/// Companion to [`sys_file_ssl_certs`] — the pure-Python report layer pairs each
+/// key with its certificate to surface the private-key `security_type` and
+/// (`f5mku`-encrypted) `passphrase`. Returns the same snake-cased JSON array.
+#[pyfunction]
+fn sys_file_ssl_keys(sources: &Bound<'_, PyAny>) -> PyResult<String> {
+    collect_sys_file_objects(sources, SysFileKind::Key)
+}
+
+enum SysFileKind {
+    Cert,
+    Key,
+}
+
+fn collect_sys_file_objects(sources: &Bound<'_, PyAny>, kind: SysFileKind) -> PyResult<String> {
+    use tcl_bigip::canonical::Canon;
+    use tcl_bigip::model::ModelObject;
+    use tcl_bigip::parser::driver::parse_bigip_conf;
+
+    let sources = coerce_sources(sources)?;
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    for (_uri, text) in &sources {
+        let config = parse_bigip_conf(text, "Common");
+        for placed in &config.objects {
+            let fields = match (&kind, &placed.object) {
+                (SysFileKind::Cert, ModelObject::SysFileSslCert(c)) => c.canon_fields(),
+                (SysFileKind::Key, ModelObject::SysFileSslKey(k)) => k.canon_fields(),
+                _ => continue,
+            };
+            let serde_json::Value::Object(mut fields) = fields else {
+                continue;
+            };
+            fields
+                .entry("full_path".to_owned())
+                .or_insert_with(|| serde_json::Value::String(placed.full_path.clone()));
+            out.push(serde_json::Value::Object(fields));
+        }
+    }
+    serde_json::to_string(&serde_json::Value::Array(out))
+        .map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Decrypt every `f5mku` `$M$…` secret in `text` with the base64 master key.
+///
+/// `master_key` is the value `f5mku -K` prints on the device. Every encrypted
+/// secret-bearing field (SSL key passphrases, monitor / RADIUS / SNMP secrets,
+/// …) is rewritten in place to its clear text; non-secret and already-clear
+/// values are left untouched. Raises [`QueryError`] if the config has encrypted
+/// secrets but none could be decrypted (a wrong / malformed master key).
+#[pyfunction]
+fn decrypt_secrets(text: &str, master_key: &str) -> PyResult<String> {
+    let master_key = master_key.trim();
+    if master_key.is_empty() {
+        return Ok(text.to_owned());
+    }
+    let mut first_err: Option<String> = None;
+    let report = tcl_bigip::secrets::rewrite_secrets(text, |val| {
+        if !tcl_f5mku::is_ciphertext(val) {
+            return None;
+        }
+        match tcl_f5mku::decrypt(val, master_key) {
+            Ok(plain) => Some(plain),
+            Err(e) => {
+                if first_err.is_none() {
+                    first_err = Some(e.to_string());
+                }
+                None
+            }
+        }
+    });
+    if report.transformed == 0
+        && let Some(e) = first_err
+    {
+        return Err(QueryError::new_err(format!("f5mku decryption failed: {e}")));
+    }
+    Ok(report.new_source)
+}
+
+/// Inventory the secret-bearing fields in a config as JSON.
+///
+/// Returns an ordered array of `{object, field, value, encrypted}` maps — every
+/// credential-bearing field (SSL key passphrases, monitor / RADIUS / SNMP
+/// secrets), tagged with the object it lives in and whether it is still an
+/// `f5mku` `$M$…` ciphertext. Powers the report's Secrets tab; run the text
+/// through [`decrypt_secrets`] first to get clear values.
+#[pyfunction]
+fn list_secrets(text: &str) -> PyResult<String> {
+    let out: Vec<serde_json::Value> = tcl_bigip::secrets::collect_secrets(text)
+        .iter()
+        .map(tcl_bigip::secrets::FoundSecret::to_json)
+        .collect();
+    serde_json::to_string(&serde_json::Value::Array(out))
+        .map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Syntax-highlight an iRule/Tcl source string to HTML.
+///
+/// Uses the real [`tcl_lexer`] tokeniser (the same one the LSP/compiler use), so
+/// the report's iRule source view matches the engine's understanding of the
+/// code. Returns self-contained, pre-escaped HTML (`<span class="tk-…">`).
+#[pyfunction]
+fn highlight_tcl(body: &str) -> String {
+    tcl_lexer::highlight_tcl(body)
+}
+
+/// Build a Mermaid control-flow flowchart for an iRule.
+///
+/// Uses the IR-based [`tcl_diagram`] (the same control-flow extraction the CLI
+/// and MCP use), serialised to a deterministic Mermaid `flowchart` — no LLM, no
+/// network. Returns `""` when there is nothing to draw.
+#[pyfunction]
+fn irule_flowchart(body: &str) -> String {
+    tcl_diagram::irule_flowchart_mermaid(body, tcl_registry::registry_for_dialect("f5-irules"))
+}
+
+/// Reconstruct the object-name patterns an iRule could dynamically attach.
+///
+/// Returns a JSON string `{"pools": [...], "nodes": [...], "snatpools": [...]}`
+/// where each entry is `{raw, prefix, contains, suffix, glob, exact,
+/// unconstrained}`. The report's orphan analysis uses these prefix / contained /
+/// suffix fragments to filter candidate objects by name instead of demoting a
+/// whole object type — powered by the same [`tcl_diagram::attach_reach`] the
+/// Rust/WASM report uses (real IR walk + `set` constant propagation).
+#[pyfunction]
+fn irule_attach_patterns(body: &str) -> String {
+    tcl_diagram::irule_attach_patterns(body).to_string()
+}
+
+/// iRule names referenced via the F5 cross-iRule `call <rule>::<proc>` form.
+///
+/// Returns a JSON array of the `<rule>` names (the iRule that defines the proc);
+/// the caller resolves each to an actual iRule so a rule that only exists to
+/// provide procs is linked in (not orphaned) and shows on its callers.
+#[pyfunction]
+fn irule_proc_call_refs(body: &str) -> String {
+    serde_json::to_string(&tcl_diagram::proc_call_refs(body)).unwrap_or_else(|_| "[]".to_string())
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -259,5 +522,14 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(query, m)?)?;
     m.add_function(wrap_pyfunction!(load_paths, m)?)?;
     m.add_function(wrap_pyfunction!(ucs_to_scf, m)?)?;
+    m.add_function(wrap_pyfunction!(sys_file_ssl_certs, m)?)?;
+    m.add_function(wrap_pyfunction!(sys_file_ssl_certs_x509, m)?)?;
+    m.add_function(wrap_pyfunction!(sys_file_ssl_keys, m)?)?;
+    m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
+    m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
+    m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
+    m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
     Ok(())
 }

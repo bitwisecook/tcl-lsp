@@ -129,3 +129,94 @@ def test_dynamic_profiles_propagate_to_virtuals():
     v = next((x for x in d["virtuals"] if x.get("dynamicProfiles")), None)
     assert v is not None
     assert all("rule" in a for a in v["dynamicProfiles"])
+
+
+# --- Deep orphan analysis: dynamic-attach name-pattern reconstruction --------
+
+SCF_ORPHAN_PREFIX = """
+ltm pool /Common/web_backend { members { /Common/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /Common/db_backend { members { /Common/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm pool /Common/used_pool { members { /Common/10.0.0.8:80 { address 10.0.0.8 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 pool /Common/used_pool rules { /Common/dyn } }
+"""
+
+
+def test_attach_reach_patterns():
+    from f5report import _engine
+    import json
+    reach = json.loads(_engine.irule_attach_patterns(
+        'when HTTP_REQUEST { set p "web_[HTTP::host]"; pool $p }'))
+    assert reach["pools"][0]["glob"] == "web_*"
+    assert reach["pools"][0]["prefix"] == "web_"
+    assert reach["pools"][0]["unconstrained"] is False
+
+
+def test_pattern_matches_helper():
+    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    assert graph._pattern_matches(web, "web_backend")
+    assert not graph._pattern_matches(web, "db_backend")
+
+
+def test_constrained_pattern_filters_orphans_by_name():
+    d = collect_model([("o.scf", SCF_ORPHAN_PREFIX)])["devices"][0]
+    confirmed = d["orphans"]["pools"]
+    possible = d["possibleOrphans"]["pools"]
+    # db_backend can't be built by web_[HTTP::host] -> provably orphaned.
+    assert "db_backend" in confirmed, (confirmed, possible)
+    # web_backend could be web_<host> -> only a possible orphan.
+    assert "web_backend" in possible
+    assert "web_backend" not in confirmed
+    # Reconstructed pattern surfaced for the report UI.
+    assert any(p["glob"] == "web_*" for p in d["attachPatterns"]["pools"])
+    web = next(p for p in d["pools"] if p["name"] == "web_backend")
+    assert web["orphanStatus"] == "possible"
+    assert web["orphanMatches"][0]["pattern"] == "web_*"
+
+
+SCF_PARTITION = """
+ltm pool /TenantA/web_a { members { /TenantA/10.0.0.9:80 { address 10.0.0.9 } } }
+ltm pool /TenantB/web_b { members { /TenantB/10.0.0.7:80 { address 10.0.0.7 } } }
+ltm rule /Common/dyn { when HTTP_REQUEST { pool web_[HTTP::host] } }
+ltm virtual /TenantA/vsA { destination /TenantA/10.0.0.1:80 rules { /Common/dyn } }
+"""
+
+
+def test_orphan_reachability_is_partition_aware():
+    d = collect_model([("p.scf", SCF_PARTITION)])["devices"][0]
+    confirmed = d["orphans"]["pools"]
+    possible = d["possibleOrphans"]["pools"]
+    assert "web_a" in possible, (confirmed, possible)
+    assert "web_b" in confirmed, (confirmed, possible)
+    rule = next(r for r in d["rules"] if r["name"] == "dyn")
+    groups = rule["referencedObjects"]["dynamic"]
+    ta = next(g for g in groups if g["partition"] == "TenantA")
+    objs = [o["name"] for o in ta["filters"][0]["objects"]]
+    assert "web_a" in objs and "web_b" not in objs, objs
+    assert ta["virtuals"] == ["vsA"]
+
+
+def test_pattern_reaches_partition_visibility():
+    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    # unqualified: reachable in its own partition or /Common, not a foreign one
+    assert graph.pattern_reaches(web, "web_a", "/TenantA/web_a", "TenantA", {"TenantA"})
+    assert graph.pattern_reaches(web, "web_c", "/Common/web_c", "Common", {"TenantA"})
+    assert not graph.pattern_reaches(web, "web_b", "/TenantB/web_b", "TenantB", {"TenantA"})
+
+
+SCF_PROC_CALL = """
+ltm rule /Common/Lib { proc helper { x } { return $x } }
+ltm rule /Common/Main { when HTTP_REQUEST { call Lib::helper 1 } }
+ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 rules { /Common/Main } }
+"""
+
+
+def test_cross_irule_proc_call_links_library():
+    d = collect_model([("pc.scf", SCF_PROC_CALL)])["devices"][0]
+    main = next(r for r in d["rules"] if r["name"] == "Main")
+    lib = next(r for r in d["rules"] if r["name"] == "Lib")
+    assert "/Common/Lib" in main.get("refRules", []), main.get("refRules")
+    statics = main["referencedObjects"]["static"]
+    assert any(s["type"] == "irule" and s["name"] == "Lib" for s in statics), statics
+    assert "/Common/Main" in lib["usedBy"], lib["usedBy"]
+    assert "Lib" not in d["orphans"]["rules"]

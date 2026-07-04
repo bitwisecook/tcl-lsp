@@ -234,8 +234,12 @@
     // node full-path → address, for member-step generation
     var nodeAddr = {};
     (d.nodes || []).forEach(function (n) { nodeAddr[n.fullPath] = n.address; });
+    // full-path → oid, so a *reference* (by path, type unknown) can open the
+    // object it points at.
+    var byPath = {};
+    d.graph.nodes.forEach(function (n) { if (!(n.fullPath in byPath)) byPath[n.fullPath] = n.oid; });
     return { d: d, byOid: byOid, adj: adj, fadj: fadj, short: short, unshort: unshort,
-      edgesByPair: edgesByPair, edgeDir: edgeDir, nodeAddr: nodeAddr };
+      edgesByPair: edgesByPair, edgeDir: edgeDir, nodeAddr: nodeAddr, byPath: byPath };
   }
   var IDX = MODEL.devices.map(indexDevice);
 
@@ -257,12 +261,18 @@
 
   // BFS the undirected connected component containing `startOids`, bounded by
   // `depth` (Infinity = whole component).
+  function isDefaultNode(ix, oid) { var n = ix.byOid[oid]; return !!(n && n.isDefault); }
+
   function neighborhood(ix, startOids, depth) {
     var seen = {}, frontier = [], d = 0;
     startOids.forEach(function (o) { if (ix.byOid[o]) { seen[o] = true; frontier.push(o); } });
     while (frontier.length && d < depth) {
       var next = [];
       frontier.forEach(function (o) {
+        // Built-in/system objects (a shared default profile, `_sys_*` rule, …)
+        // are terminal: shown where directly linked, never traversed *through*
+        // — otherwise a default profile bridges one app's graph into another's.
+        if (isDefaultNode(ix, o)) return;
         Object.keys(ix.adj[o] || {}).forEach(function (nb) {
           if (!seen[nb]) { seen[nb] = true; next.push(nb); }
         });
@@ -310,6 +320,134 @@
     lines.push("classDef snat fill:#f5f5f4,stroke:#78716c,color:#292524;");
     lines.push("classDef dg fill:#ecfeff,stroke:#0891b2,color:#083344;");
     return lines.join("\n");
+  }
+
+  // ---- BIG-IP traffic-processing pipeline -----------------------------------
+  // A virtual server processes traffic down the client-side profile stack
+  // (L4 → SSL → L7), through the client-side iRule events (in firing order, with
+  // priority), to the LB / forwarding decision, then back up the server-side
+  // stack to the pool member. This renders that ordered pipeline (not the raw
+  // reference graph), e.g. vs → tcp → clientssl → http → HTTP_REQUEST,500 →
+  // proxy → LB_SELECTED → http → serverssl → tcp → node.
+  var PROFILE_LAYER = {
+    TCP: { layer: 1 }, UDP: { layer: 1 }, SCTP: { layer: 1 }, FASTL4: { layer: 1 },
+    CLIENT_SSL: { layer: 2, side: "client" }, SERVER_SSL: { layer: 2, side: "server" },
+    HTTP: { layer: 3 }, HTTP2: { layer: 3 }, ONE_CONNECT: { layer: 3 }, WEBSOCKET: { layer: 3 },
+    REWRITE: { layer: 3 }, HTML: { layer: 3 }, FTP: { layer: 3 }, DNS: { layer: 3 },
+    SIP: { layer: 3 }, DIAMETER: { layer: 3 }, RADIUS: { layer: 3 }, FIX: { layer: 3 },
+    MQTT: { layer: 3 }, STREAM: { layer: 3 }, FASTHTTP: { layer: 3 }
+  };
+  var EVENT_PHASE = (function () {
+    var o = {};
+    [["CLIENT_ACCEPTED", "client"], ["CLIENTSSL_CLIENTHELLO", "client"],
+      ["CLIENTSSL_CLIENTCERT", "client"], ["CLIENTSSL_HANDSHAKE", "client"],
+      ["CLIENTSSL_SERVERHELLO_SEND", "client"], ["HTTP_REQUEST", "client"],
+      ["HTTP_REQUEST_DATA", "client"], ["HTTP_PROXY_REQUEST", "client"],
+      ["STREAM_MATCHED", "client"], ["CACHE_REQUEST", "client"], ["CLIENT_DATA", "client"],
+      ["LB_SELECTED", "lb"], ["LB_FAILED", "lb"], ["PERSIST_DOWN", "lb"],
+      ["SERVER_CONNECTED", "server"], ["SERVERSSL_HANDSHAKE", "server"],
+      ["SERVERSSL_CLIENTCERT", "server"], ["SERVER_DATA", "server"],
+      ["HTTP_RESPONSE", "server"], ["HTTP_RESPONSE_CONTINUE", "server"],
+      ["HTTP_RESPONSE_DATA", "server"], ["CACHE_RESPONSE", "server"],
+      ["HTTP_RESPONSE_RELEASE", "server"]
+    ].forEach(function (e, i) { o[e[0]] = { phase: e[1], order: i }; });
+    return o;
+  })();
+  function eventPhase(ev) { return EVENT_PHASE[ev] || { phase: "client", order: 900 }; }
+
+  function findByPath(list, fp) {
+    for (var i = 0; i < (list || []).length; i++) {
+      if (list[i].fullPath === fp || list[i].fullPath.split("/").pop() === fp.split("/").pop()) return list[i];
+    }
+    return null;
+  }
+  function poolNodeNames(ix, poolFp) {
+    if (!poolFp) return [];
+    var pool = findByPath(ix.d.pools, poolFp);
+    if (pool && pool.members && pool.members.length) {
+      return pool.members.map(function (m) { return m.name || m.address || ""; }).filter(Boolean);
+    }
+    var out = [];
+    (ix.fadj["pool:" + poolFp] || []).forEach(function (nb) {
+      var n = ix.byOid[nb]; if (n && n.type === "node") out.push(n.name);
+    });
+    return out;
+  }
+
+  // Build the ordered traffic pipeline (Mermaid) for one virtual server.
+  function buildTrafficPipeline(ix, vsOid) {
+    var vs = findByPath(ix.d.virtuals, vsOid.replace(/^vs:/, ""));
+    if (!vs) return null;
+    var byLayer = { 1: [], 2: [], 3: [] };
+    (vs.profiles || []).forEach(function (fp) {
+      var prof = findByPath(ix.d.profiles, fp);
+      var type = prof ? prof.type : "";
+      var info = PROFILE_LAYER[type] || { layer: 3 };
+      byLayer[info.layer].push({ name: prof ? prof.name : fp.split("/").pop(), side: info.side, oid: "prof:" + fp });
+    });
+    var l4 = byLayer[1], l7 = byLayer[3];
+    var clientSSL = byLayer[2].filter(function (p) { return p.side !== "server"; });
+    var serverSSL = byLayer[2].filter(function (p) { return p.side === "server"; });
+
+    // events (with priority + rule) from the attached iRules
+    var eventMap = {};
+    (vs.rules || []).forEach(function (rp) {
+      var rule = findByPath(ix.d.rules, rp);
+      if (!rule || !rule.body) return;
+      var re = /when\s+([A-Z][A-Z0-9_]*)((?:\s+priority\s+\d+)?)/g, m;
+      while ((m = re.exec(rule.body))) {
+        var pm = /priority\s+(\d+)/.exec(m[2]);
+        (eventMap[m[1]] = eventMap[m[1]] || []).push({ rule: rule.name, prio: pm ? parseInt(pm[1], 10) : 500 });
+      }
+    });
+    function eventsIn(phase) {
+      return Object.keys(eventMap).filter(function (ev) { return eventPhase(ev).phase === phase; })
+        .sort(function (a, b) { return eventPhase(a).order - eventPhase(b).order; })
+        .map(function (ev) {
+          var hs = eventMap[ev].slice().sort(function (x, y) { return x.prio - y.prio; });
+          var rules = {}; hs.forEach(function (h) { rules[h.rule] = 1; });
+          if (Object.keys(rules).length > 1) {
+            return ev + " (" + hs.map(function (h) { return h.rule + ":" + h.prio; }).join(", ") + ")";
+          }
+          return ev + "," + hs.map(function (h) { return h.prio; }).join("/");
+        });
+    }
+
+    var steps = [];
+    var l7label = l7.map(function (p) { return p.name; }).join("~");
+    steps.push({ t: "vs", l: vs.name, oid: vsOid });
+    l4.forEach(function (p) { steps.push({ t: "prof", l: p.name, oid: p.oid }); });
+    clientSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
+    if (l7label) steps.push({ t: "prof", l: l7label });
+    eventsIn("client").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    steps.push({ t: "proxy", l: "proxy" });
+    eventsIn("lb").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
+    eventsIn("server").forEach(function (e) { steps.push({ t: "event", l: e }); });
+    if (l7label) steps.push({ t: "prof", l: l7label });
+    serverSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
+    l4.forEach(function (p) { steps.push({ t: "prof", l: p.name, oid: p.oid }); });
+    var nn = poolNodeNames(ix, vs.pool);
+    if (nn.length) steps.push({ t: "node", l: nn.join("\\n") });
+    else if (vs.pool) steps.push({ t: "node", l: "(no members)" });
+    else steps.push({ t: "node", l: "(no pool / iRule-selected)" });
+
+    var lines = ["flowchart LR"];
+    steps.forEach(function (s, i) {
+      var sid = "P" + i;
+      var shape = s.t === "vs" ? ['(["', '"])'] : s.t === "node" ? ['[("', '")]']
+        : s.t === "event" ? ['{{"', '"}}'] : s.t === "proxy" ? ['[/"', '"/]'] : ['["', '"]'];
+      lines.push("  " + sid + shape[0] + escLbl(s.l) + shape[1] + ":::" + s.t);
+      if (i > 0) lines.push("  P" + (i - 1) + " --> " + sid);
+    });
+    lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
+    lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
+    lines.push("classDef ssl fill:#fef9c3,stroke:#ca8a04,color:#4a3608;");
+    lines.push("classDef event fill:#ede9fe,stroke:#7c3aed,color:#3b1e75;");
+    lines.push("classDef proxy fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
+    lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
+    lines.push("classDef node fill:#f5f5f4,stroke:#78716c,color:#292524;");
+    return { def: lines.join("\n"), steps: steps };
   }
 
   // Render `def` into `host`, then wire node/edge interactions.
@@ -1011,12 +1149,17 @@
 
   // ---- wire object links in tables + init per device ---------------------
   function wireObjLinks(root, ix) {
-    root.querySelectorAll("[data-oid]").forEach(function (el) {
+    root.querySelectorAll("[data-oid],[data-oref]").forEach(function (el) {
       if (el._wired) return; el._wired = true;
+      // A reference (data-oref) is resolved by full-path to the object it points
+      // at; a data-oid is already the exact object. An unresolved reference (the
+      // target object isn't in this config) is left as plain, unclickable text.
+      var oid = el.dataset.oid || (el.dataset.oref ? ix.byPath[el.dataset.oref] : "");
+      if (!oid || !ix.byOid[oid]) return;
       el.classList.add("objlink");
       el.addEventListener("click", function (ev) {
         ev.preventDefault(); ev.stopPropagation();
-        openDrawer(ix, el.dataset.oid);
+        openDrawer(ix, oid);
       });
     });
   }
@@ -1203,6 +1346,264 @@
     // re-apply when switching devices so the filter follows the visible device
     document.querySelectorAll(".dev-tab").forEach(function (b) {
       b.addEventListener("click", function () { setTimeout(run, 0); });
+    });
+  })();
+
+  // ---- Built-in / system objects: hidden from the flat catalog tables by
+  //      default (they're shown wherever they're directly linked — on a virtual,
+  //      in a reference table, in a diagram). A per-device toggle reveals them. --
+  (function initSystemToggle() {
+    MODEL.devices.forEach(function (d, di) {
+      var deviceEl = document.querySelector('.device[data-dev="' + di + '"]') ||
+        document.querySelectorAll(".device")[di];
+      if (!deviceEl) return;
+      var defaults = {};
+      ["virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
+        "profiles", "policies", "snatpools", "persistence", "certificates"].forEach(function (k) {
+        (d[k] || []).forEach(function (o) { if (o && o.isDefault && o.fullPath) defaults[o.fullPath] = true; });
+      });
+      deviceEl.querySelectorAll(".grid tbody tr.searchable").forEach(function (row) {
+        var m = (row.getAttribute("data-search") || "").match(/(\/[^\s]+)/);
+        if (m && defaults[m[1]]) {
+          row.classList.add("sys-row");
+          var det = row.nextElementSibling;
+          if (det && det.classList.contains("detail")) det.classList.add("sys-row");
+        }
+      });
+      var chk = deviceEl.querySelector(".show-system");
+      if (chk) chk.addEventListener("change", function () {
+        deviceEl.classList.toggle("show-system-on", chk.checked);
+      });
+    });
+  })();
+
+  // ---- App bundling: group virtuals into a named "app", saved in the browser,
+  //      with a combined flow diagram and every object it touches shown with a
+  //      syntax-highlighted config and cross-links. ------------------------------
+  (function initApps() {
+    var LS_PREFIX = "f5report:apps:";
+    function deviceKey(d) { return String(d.name || d.uri || "device").replace(/\s+/g, "_"); }
+    function loadApps(d) {
+      try { return JSON.parse(localStorage.getItem(LS_PREFIX + deviceKey(d)) || "[]") || []; }
+      catch (e) { return []; }
+    }
+    function storeApps(d, apps) {
+      try { localStorage.setItem(LS_PREFIX + deviceKey(d), JSON.stringify(apps)); return true; }
+      catch (e) { return false; }
+    }
+
+    // Extract one object's raw bigip.conf stanza (brace-matched) from the device
+    // config text. iRules are shown from the model's highlighted body instead.
+    function stanzaFor(cfg, fullPath) {
+      if (!cfg || !fullPath) return null;
+      var q = fullPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      var re = new RegExp("^[^\\n]*?\\s" + q + "\\s*\\{", "m");
+      var m = re.exec(cfg);
+      if (!m) return null;
+      var i = cfg.indexOf("{", m.index);
+      if (i < 0) return null;
+      var depth = 0;
+      for (var j = i; j < cfg.length; j++) {
+        var c = cfg[j];
+        if (c === "{") depth++;
+        else if (c === "}") { depth--; if (depth === 0) { j++; return cfg.slice(m.index, j); } }
+      }
+      return cfg.slice(m.index);
+    }
+
+    // Escape, then wrap object paths (clickable when the target is in the app)
+    // and each line's leading keyword.
+    function highlightConf(text, inApp) {
+      var out = esc(text);
+      out = out.replace(/(\/[A-Za-z][\w.\-]*(?:\/[\w.\-]+)+)/g, function (m0) {
+        return inApp[m0]
+          ? '<a class="conf-path conf-link" data-goto="' + m0 + '">' + m0 + "</a>"
+          : '<span class="conf-path">' + m0 + "</span>";
+      });
+      out = out.replace(/^(\s*)([a-z][\w-]+)/gm, '$1<span class="conf-key">$2</span>');
+      return out;
+    }
+
+    function blockId(oid) { return "appobj:" + oid; }
+    function scrollToBlock(host, oid) {
+      var el = host.querySelector('[id="' + (window.CSS && CSS.escape ? CSS.escape(blockId(oid)) : blockId(oid)) + '"]');
+      if (!el) { var all = host.querySelectorAll(".app-obj"); for (var k = 0; k < all.length; k++) { if (all[k].getAttribute("data-oid") === oid) { el = all[k]; break; } } }
+      if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("app-obj-flash"); setTimeout(function () { el.classList.remove("app-obj-flash"); }, 1200); }
+    }
+
+    function ruleByPath(ix, fp) {
+      var rules = ix.d.rules || [];
+      for (var i = 0; i < rules.length; i++) { if (rules[i].fullPath === fp) return rules[i]; }
+      return null;
+    }
+
+    // Everything an app's virtual servers forward-reach (their pools, nodes,
+    // monitors, iRules, and the pools those iRules use) — the objects that make
+    // up the application, not the whole connected component.
+    function appScope(ix, startOids) {
+      var seen = {}, queue = [];
+      startOids.forEach(function (o) { if (ix.byOid[o]) { seen[o] = true; queue.push(o); } });
+      while (queue.length) {
+        var cur = queue.shift();
+        // Default objects are terminal (see neighborhood): include them as leaves
+        // but don't expand, so a shared default profile can't pull in other apps.
+        if (isDefaultNode(ix, cur)) continue;
+        (ix.fadj[cur] || []).forEach(function (nb) { if (!seen[nb]) { seen[nb] = true; queue.push(nb); } });
+      }
+      return seen;
+    }
+
+    // Render one app's detail: flow diagram + object blocks.
+    function renderApp(deviceEl, ix, app, host) {
+      var vsOids = (app.oids || []).filter(function (o) { return ix.byOid[o]; });
+      var scope = appScope(ix, vsOids);
+      var oids = Object.keys(scope);
+      var inApp = {};
+      oids.forEach(function (o) { var n = ix.byOid[o]; if (n) inApp[n.fullPath] = true; });
+
+      var missing = (app.oids || []).length - vsOids.length;
+      var html = '<div class="app-detail">';
+      html += '<div class="app-detail-head"><h3>' + esc(app.name) + "</h3>" +
+        '<span class="muted">' + vsOids.length + " virtual server(s), " +
+        oids.length + " objects" + (missing ? ", " + missing + " not in this device" : "") + "</span></div>";
+      // VS chips (scroll to block)
+      html += '<div class="app-vs-chips">';
+      vsOids.forEach(function (o) { html += '<button class="app-chip" data-goto-oid="' + o + '">' + esc(ix.byOid[o].name) + "</button>"; });
+      html += "</div>";
+      // traffic-flow pipeline, one per virtual server (client stack → iRule
+      // events by priority → LB → server stack → node)
+      html += '<div class="app-flow"><div class="app-flow-title">Traffic flow</div>';
+      vsOids.forEach(function (o) {
+        html += '<div class="app-pipe"><div class="app-pipe-vs">' + esc(ix.byOid[o].name) +
+          '</div><div class="app-pipe-diagram diag-host" data-vs="' + o + '">building…</div></div>';
+      });
+      html += "</div>";
+      // object blocks
+      html += '<div class="app-objs">';
+      var order = { vs: 0, pool: 1, node: 2, mon: 3, rule: 4, prof: 5, persist: 6, policy: 7, snat: 8, dg: 9 };
+      oids.sort(function (a, b) {
+        var na = ix.byOid[a], nb = ix.byOid[b];
+        return (order[na.type] || 9) - (order[nb.type] || 9) || na.name.localeCompare(nb.name);
+      });
+      oids.forEach(function (o) {
+        var n = ix.byOid[o];
+        html += '<div class="app-obj" id="' + blockId(o) + '" data-oid="' + o + '">';
+        html += '<div class="app-obj-head"><span class="app-obj-type">' + esc(TYPE_LABEL[n.type] || n.type) + '</span> ' +
+          '<span class="app-obj-name mono">' + esc(n.fullPath) + '</span>' +
+          '<button class="app-obj-drawer" data-oid="' + o + '" title="Open in inspector">⤢</button></div>';
+        if (n.type === "rule") {
+          var r = ruleByPath(ix, n.fullPath);
+          if (r) {
+            if (r.flowchart) html += '<div class="app-obj-flow diag-host" data-flow="' + esc(encodeURIComponent(r.flowchart)) + '">flow…</div>';
+            html += '<pre class="code tcl">' + (r.bodyHtml || esc(r.body || "")) + "</pre>";
+          }
+        } else {
+          var stanza = stanzaFor(ix.d.configText, n.fullPath);
+          html += '<pre class="code conf">' + (stanza ? highlightConf(stanza, inApp) : '<span class="muted">config not found</span>') + "</pre>";
+        }
+        html += "</div>";
+      });
+      html += "</div></div>";
+      host.innerHTML = html;
+
+      // render one traffic-flow pipeline per virtual server
+      host.querySelectorAll(".app-pipe-diagram[data-vs]").forEach(function (ph) {
+        var built = buildTrafficPipeline(ix, ph.getAttribute("data-vs"));
+        if (!built || !window.mermaid) { ph.textContent = "(pipeline unavailable)"; return; }
+        var id = "apppipe" + (_rid++);
+        mermaid.render(id, built.def).then(function (res) {
+          ph.innerHTML = res.svg;
+          var svg = ph.querySelector("svg"); if (svg) { svg.style.maxWidth = "100%"; svg.style.height = "auto"; }
+        }).catch(function (e) { ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc(e.message || e) + "</div>"; });
+      });
+      // render each iRule control-flow flowchart
+      host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function (fh) {
+        var def = decodeURIComponent(fh.getAttribute("data-flow") || "");
+        if (!def || !window.mermaid) { fh.textContent = ""; return; }
+        var id = "appflow" + (_rid++);
+        mermaid.render(id, def).then(function (res) { fh.innerHTML = res.svg; }).catch(function () { fh.textContent = "(flowchart unavailable)"; });
+      });
+      // cross-links: config paths + VS chips + drawer buttons
+      host.querySelectorAll(".conf-link[data-goto]").forEach(function (a) {
+        a.addEventListener("click", function (e) { e.preventDefault(); var fp = a.getAttribute("data-goto"); var oid = ix.byPath[fp]; if (oid) scrollToBlock(host, oid); });
+      });
+      host.querySelectorAll(".app-chip[data-goto-oid]").forEach(function (b) {
+        b.addEventListener("click", function () { scrollToBlock(host, b.getAttribute("data-goto-oid")); });
+      });
+      host.querySelectorAll(".app-obj-drawer[data-oid]").forEach(function (b) {
+        b.addEventListener("click", function () { openDrawer(ix, b.getAttribute("data-oid")); });
+      });
+    }
+
+    function renderAppsPanel(deviceEl, ix) {
+      var view = deviceEl.querySelector('.panel[data-panel="apps"] .apps-view');
+      if (!view) return;
+      var apps = loadApps(ix.d);
+      var badge = deviceEl.querySelector(".app-badge");
+      if (badge) badge.textContent = String(apps.length);
+      var html = '<div class="apps-list">';
+      if (!apps.length) {
+        html += '<p class="muted">No saved apps yet. On the Virtual Servers tab, tick the virtual servers that make up an application, give it a name and hit <strong>Save app</strong>. Apps are stored in this browser (localStorage) and travel with this report file.</p>';
+      } else {
+        apps.forEach(function (app, i) {
+          html += '<div class="app-card"><button class="app-open" data-i="' + i + '">' + esc(app.name) + "</button>" +
+            '<span class="muted">' + (app.oids || []).length + " VS</span>" +
+            '<button class="app-del" data-i="' + i + '" title="Delete app">✕</button></div>';
+        });
+      }
+      html += '</div><div class="apps-detail"></div>';
+      view.innerHTML = html;
+      view.querySelectorAll(".app-open").forEach(function (b) {
+        b.addEventListener("click", function () {
+          view.querySelectorAll(".app-open").forEach(function (x) { x.classList.remove("active"); });
+          b.classList.add("active");
+          renderApp(deviceEl, ix, apps[parseInt(b.dataset.i, 10)], view.querySelector(".apps-detail"));
+        });
+      });
+      view.querySelectorAll(".app-del").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var a = loadApps(ix.d); a.splice(parseInt(b.dataset.i, 10), 1); storeApps(ix.d, a);
+          renderAppsPanel(deviceEl, ix);
+        });
+      });
+    }
+
+    MODEL.devices.forEach(function (d, di) {
+      var deviceEl = document.querySelector('.device[data-dev="' + di + '"]') ||
+        document.querySelectorAll(".device")[di];
+      if (!deviceEl) return;
+      var ix = IDX[di];
+      var vpanel = deviceEl.querySelector('.panel[data-panel="virtuals"]');
+      var picks = function () { return vpanel ? vpanel.querySelectorAll(".app-pick") : []; };
+      var countEl = deviceEl.querySelector(".app-count");
+      function refreshCount() {
+        var n = 0; picks().forEach(function (c) { if (c.checked) n++; });
+        if (countEl) countEl.textContent = n + " selected";
+      }
+      picks().forEach(function (c) { c.addEventListener("change", refreshCount); });
+      var all = deviceEl.querySelector(".app-pick-all");
+      if (all) all.addEventListener("change", function () {
+        picks().forEach(function (c) { var row = c.closest("tr"); if (!row || row.classList.contains("part-hidden") || row.classList.contains("hidden")) return; c.checked = all.checked; });
+        refreshCount();
+      });
+      var saveBtn = deviceEl.querySelector(".app-save");
+      var nameInp = deviceEl.querySelector(".app-name");
+      if (saveBtn) saveBtn.addEventListener("click", function () {
+        var oids = []; picks().forEach(function (c) { if (c.checked) oids.push(c.dataset.vs); });
+        var name = (nameInp && nameInp.value.trim()) || "";
+        if (!oids.length) { if (nameInp) nameInp.placeholder = "tick some virtual servers first"; return; }
+        if (!name) { if (nameInp) { nameInp.focus(); nameInp.placeholder = "name the app first"; } return; }
+        var apps = loadApps(ix.d);
+        var existing = apps.filter(function (a) { return a.name === name; })[0];
+        if (existing) existing.oids = oids; else apps.push({ name: name, oids: oids });
+        storeApps(ix.d, apps);
+        if (nameInp) nameInp.value = "";
+        picks().forEach(function (c) { c.checked = false; }); refreshCount();
+        renderAppsPanel(deviceEl, ix);
+        // jump to the Apps tab
+        var tab = deviceEl.querySelector('.tab[data-panel="apps"]'); if (tab) tab.click();
+      });
+      renderAppsPanel(deviceEl, ix);
     });
   })();
 })();

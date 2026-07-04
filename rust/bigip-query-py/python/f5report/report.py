@@ -15,11 +15,13 @@ Public API:
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
 
 from . import _engine
+from . import certs as _certs
 from . import graph as _graph
 from .render import render_report
 
@@ -47,6 +49,38 @@ _CONTAINERS = {
 # set means the object is orphaned. Virtuals and virtual-addresses are entry
 # points, so they are never treated as orphans.
 _REFERABLE = ["pools", "nodes", "monitors", "rules", "profiles", "dataGroups", "snatpools"]
+
+# Object-list keys that carry a displayed, partition-scoped object.
+_DISPLAY_KEYS = (
+    "virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
+    "profiles", "policies", "snatpools", "persistence", "certificates",
+)
+
+# Config members that hold TMOS's built-in defaults (default profiles / monitors
+# / `_sys_*` objects). Objects declared here are shown only where directly linked.
+_DEFAULT_MEMBERS = frozenset({"config/profile_base.conf", "config/low_profile_base.conf"})
+
+
+def _default_object_paths(config_text: str) -> set[str]:
+    """Full paths of built-in / system objects, from the ``# config/<member>``
+    sections the UCS extractor writes. Mirrors the Rust ``default_object_paths``."""
+    out: set[str] = set()
+    in_default = False
+    for line in config_text.splitlines():
+        if line.startswith("# "):
+            name = line[2:].strip()
+            if name.startswith("config/"):
+                in_default = name in _DEFAULT_MEMBERS
+            continue
+        if not in_default:
+            continue
+        if line[:1].islower() and "{" in line:
+            toks = line.split("{", 1)[0].split()
+            if toks:
+                nm = toks[-1]
+                out.add(nm if nm.startswith("/") else "/Common/" + nm)
+    return out
+
 
 _TMSH_RE = re.compile(r"#TMSH-VERSION:\s*(\S+)")
 _HOSTNAME_RE = re.compile(r"hostname\s+(\S+)")
@@ -205,6 +239,12 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
         "lineCount": body.count("\n") + 1 if body else 0,
         "events": events,
         "body": body,
+        "bodyHtml": _engine.highlight_tcl(body),
+        "flowchart": _engine.irule_flowchart(body),
+        # The reconstructed dynamic-attach name patterns and resolved objects are
+        # attached later as ``referencedObjects`` (once the device's object lists
+        # and per-virtual partition contexts are known — see
+        # ``graph.annotate_rule_reachability``).
         "usedBy": used_by.get(fp, []),
         "refPools": [_clean_path(p) for p in refs.get("pools", []) or []],
         "refDataGroups": [_clean_path(p) for p in refs.get("data-groups", []) or []],
@@ -317,7 +357,18 @@ def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
         n = len(orph.get(kind, []))
         if n:
             out.append(
-                {"level": "warn", "text": f"{n} orphaned {kind} (defined, referenced by nothing)"}
+                {"level": "warn", "text": f"{n} orphaned {kind} (defined, referenced by nothing "
+                 "— no iRule can attach them either)"}
+            )
+    # Possible orphans: no static reference, but an iRule selects that type
+    # dynamically, so they cannot be *proven* unused.
+    poss = device.get("possibleOrphans", {})
+    for kind in ("pools", "nodes", "snatpools"):
+        n = len(poss.get(kind, []))
+        if n:
+            out.append(
+                {"level": "info", "text": f"{n} {kind} have no static reference but an iRule could "
+                 "build a matching name dynamically — can't be proven unused"}
             )
     empty_pools = [p["name"] for p in device["pools"] if p["memberCount"] == 0]
     if empty_pools:
@@ -374,16 +425,74 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
                 for f in rows
             ]
 
-    # Orphans: referable leaf objects with an empty referrer set.
-    device["orphans"] = {
-        name: [
-            o["name"]
-            for o in device.get(name, [])
-            if isinstance(o, dict) and not o.get("usedBy")
-        ]
-        for name in _REFERABLE
-        if name in device
+    # Tag built-in / system objects (default profiles, monitors, `_sys_*` iRules
+    # from profile_base.conf / low_profile_base.conf) so they can be hidden by
+    # default and kept out of orphan analysis, counts and diagrams.
+    defaults = _default_object_paths(source)
+    for key in _DISPLAY_KEYS:
+        for o in device.get(key, []):
+            if isinstance(o, dict):
+                fp = o.get("fullPath", "")
+                o["isDefault"] = fp in defaults or fp.rsplit("/", 1)[-1].startswith("_sys_")
+
+    # Link cross-iRule `call <rule>::<proc>` references before orphan analysis so
+    # a proc-library iRule is counted as used by its callers.
+    _graph.link_proc_calls(device)
+
+    # Orphans: a referable leaf object is *confirmed* orphaned only when it has
+    # an empty referrer set AND no iRule could dynamically attach an object of
+    # its *name*, resolved per partition. Each attach expression is reconstructed
+    # into a prefix/contained/suffix name pattern (``pool "web_[HTTP::host]"`` →
+    # ``web_*``) and matched in the partition context of the attaching virtuals;
+    # an object is a *possible* orphan only when some rule's pattern could build
+    # its name in a partition where the rule actually runs.
+    rule_ctx, rule_vs = _graph.build_rule_contexts(device)
+    attach_idx = _graph.attach_index(device.get("rules", []), rule_ctx)
+    device["orphanRisk"] = sorted(attach_idx.keys())
+    device["attachPatterns"] = {
+        ty: [{k: v for k, v in p.items() if k != "ctx"} for p in pats]
+        for ty, pats in attach_idx.items()
     }
+    device["orphans"] = {}
+    device["possibleOrphans"] = {}
+    for name in _REFERABLE:
+        if name not in device:
+            continue
+        attaches = attach_idx.get(name, [])
+        confirmed: list[str] = []
+        possible: list[str] = []
+        for o in device.get(name, []):
+            if not isinstance(o, dict):
+                continue
+            if o.get("isDefault"):
+                o["orphanStatus"] = ""  # built-in/system objects are never orphans
+            elif o.get("usedBy"):
+                o["orphanStatus"] = ""
+            elif not attaches:
+                o["orphanStatus"] = "orphan"
+                confirmed.append(o["name"])
+            else:
+                fp = o.get("fullPath", "")
+                matches = _graph.attach_matches(
+                    attaches,
+                    o.get("name", ""),
+                    fp,
+                    _graph._partition_of(fp),
+                    o.get("address", ""),
+                )
+                if matches:
+                    o["orphanStatus"] = "possible"
+                    o["orphanMatches"] = matches
+                    possible.append(o["name"])
+                else:
+                    o["orphanStatus"] = "orphan"
+                    confirmed.append(o["name"])
+        device["orphans"][name] = confirmed
+        device["possibleOrphans"][name] = possible
+
+    # Per-iRule reachability table: static references + the objects each dynamic
+    # filter could select, resolved per attaching-virtual partition (VS-specific).
+    _graph.annotate_rule_reachability(device, rule_vs)
 
     # Propagate each iRule's dynamic (runtime) actions onto the virtuals that
     # attach it, so a VS shows profiles/pools it changes at runtime, not just
@@ -402,9 +511,39 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # The raw SCF/config text, embedded so the in-browser wasm query console can
     # run live queries against this exact device.
     device["configText"] = source
-    device["counts"] = {key: len(device.get(key, [])) for key in _CONTAINERS}
+
+    # SSL certificate inventory & expiry (read from the parsed `sys file
+    # ssl-cert` stanzas, cross-referenced against the SSL profiles / virtuals).
+    device["certificates"] = _certs.collect_certs(sources, device)
+
+    # Secret inventory (Secrets tab). Values are clear text only when the config
+    # was decrypted with the f5mku master key upstream in collect_model.
+    device["secrets"] = json.loads(_engine.list_secrets(source))
+
+    # Tag every displayed object with its partition (from the full path) and
+    # collect the device's partition set, so the report can filter to a
+    # partition while always keeping shared /Common objects visible.
+    partitions: set[str] = set()
+    for key in _DISPLAY_KEYS:
+        for o in device.get(key, []):
+            if not isinstance(o, dict):
+                continue
+            part = o.get("partition") or _graph._partition_of(o.get("fullPath", ""))
+            if part:
+                partitions.add(part)
+            o["partition"] = part
+    device["partitions"] = sorted(partitions)
+
+    # Counts exclude built-in/system defaults — the chips count the estate's own
+    # objects, not the ~260 TMOS defaults.
+    device["counts"] = {
+        key: sum(1 for o in device.get(key, []) if not (isinstance(o, dict) and o.get("isDefault")))
+        for key in _CONTAINERS
+    }
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
+    device["counts"]["certificates"] = len(device["certificates"])
+    device["counts"]["secrets"] = len(device["secrets"])
     device["insights"] = _insights(device)
     return device
 
@@ -413,13 +552,20 @@ def collect_model(
     sources: Sources,
     *,
     title: str = "F5 BIG-IP Configuration Report",
+    master_key: str | None = None,
 ) -> dict[str, Any]:
     """Build the full report model from loaded ``(uri, text)`` sources.
 
     ``sources`` is what :func:`f5report.load_paths` returns. The result is a
     plain ``dict`` — render it with :func:`f5report.render.render_report`, dump
     it to JSON, or assert against it in tests.
+
+    ``master_key`` is the base64 unit master key (``f5mku -K``); when given,
+    every ``$M$…`` secret in each config (SSL key passphrases, monitor / RADIUS /
+    SNMP secrets, …) is decrypted before the model is built.
     """
+    if master_key:
+        sources = [(uri, _engine.decrypt_secrets(src, master_key)) for uri, src in sources]
     devices = [_collect_device(uri, src) for uri, src in sources]
 
     totals: dict[str, int] = {}
@@ -441,10 +587,15 @@ def build_report(
     *,
     title: str = "F5 BIG-IP Configuration Report",
     embed_console: bool | None = None,
+    master_key: str | None = None,
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
     ``embed_console=False`` omits the in-browser WASM query console (smaller
-    page; suitable for hosting behind a strict CSP).
+    page; suitable for hosting behind a strict CSP). ``master_key`` (the base64
+    ``f5mku -K`` value) decrypts the config's ``$M$…`` secrets first.
     """
-    return render_report(collect_model(sources, title=title), embed_console=embed_console)
+    return render_report(
+        collect_model(sources, title=title, master_key=master_key),
+        embed_console=embed_console,
+    )

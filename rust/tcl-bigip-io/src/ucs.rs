@@ -19,15 +19,55 @@ use tar::Archive;
 
 use crate::openpgp::decrypt_symmetric;
 
+/// The built-in default profile / monitor definitions (the `/Common` defaults
+/// that user objects reference, e.g. `/Common/tcp`, `/Common/http`). Emitted
+/// first so those references resolve; present only in full device archives
+/// (qkview / a UCS taken with defaults), silently skipped otherwise.
+const DEFAULT_MEMBERS: &[&str] = &[
+    "config/low_profile_base.conf",
+    "config/profile_base.conf",
+];
+
 /// Order matters: base must come first so partition declarations exist before
-/// objects that reference them.
+/// objects that reference them. These are the `/Common` (root) members.
+///
+/// `bigip_script.conf` is deliberately excluded here and emitted *last* (see
+/// [`is_script_member`]): it holds `cli script` / iApp templates whose embedded
+/// Tcl bodies can carry brace shapes the config parser trips on, and any object
+/// *after* such a body in the stream is lost. It contributes no LTM/GTM objects
+/// the report projects, so deferring it to the end keeps real objects intact.
 const SCF_MEMBER_ORDER: &[&str] = &[
     "config/bigip_base.conf",
     "config/bigip.conf",
     "config/bigip_gtm.conf",
     "config/bigip_user.conf",
-    "config/bigip_script.conf",
 ];
+
+/// Per-partition member order within `config/partitions/<name>/` — base first,
+/// mirroring [`SCF_MEMBER_ORDER`]. Scripts are deferred (see [`is_script_member`]).
+const PARTITION_MEMBER_ORDER: &[&str] = &[
+    "bigip_base.conf",
+    "bigip.conf",
+    "bigip_gtm.conf",
+    "bigip_user.conf",
+];
+
+/// A `cli script` / iApp-template member (`bigip_script.conf`), emitted last so a
+/// brace shape its embedded Tcl carries can't swallow real objects downstream.
+fn is_script_member(name: &str) -> bool {
+    name.ends_with("bigip_script.conf")
+}
+
+/// If `name` is `config/partitions/<partition>/<file>`, return `(partition,
+/// file)`; otherwise `None`.
+fn split_partition_member(name: &str) -> Option<(&str, &str)> {
+    let rest = name.strip_prefix("config/partitions/")?;
+    let (partition, file) = rest.split_once('/')?;
+    if partition.is_empty() || file.is_empty() || file.contains('/') {
+        return None;
+    }
+    Some((partition, file))
+}
 
 /// Default environment variable consulted for a UCS decryption passphrase.
 pub const DEFAULT_PASSPHRASE_ENV: &str = "F5_UCS_PASSPHRASE";
@@ -96,6 +136,22 @@ fn lstrip_dot_slash(name: &str) -> &str {
     name.trim_start_matches(['.', '/'])
 }
 
+/// Case-sensitive `.conf` suffix test, mirroring `endswith(".conf")`.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+fn ends_with_conf(name: &str) -> bool {
+    name.ends_with(".conf")
+}
+
+/// macOS archive metadata that must never reach the parser: `AppleDouble`
+/// resource forks (`._name`), the `__MACOSX/` shadow tree, and `.DS_Store`.
+fn is_macos_cruft(name: &str) -> bool {
+    let n = lstrip_dot_slash(name);
+    n.starts_with("__MACOSX/")
+        || n.split('/')
+            .next_back()
+            .is_some_and(|base| base.starts_with("._") || base == ".DS_Store")
+}
+
 /// Read every regular-file member of a gzip-tar into `(name, bytes)`, with the
 /// leading `./` / `/` stripped from each name. Members keep archive order.
 fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
@@ -115,6 +171,13 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?
             .to_string_lossy()
             .into_owned();
+        // Skip macOS archive cruft (AppleDouble `._foo` resource forks, the
+        // `__MACOSX/` shadow tree, `.DS_Store`) that a UCS zipped/untarred on a
+        // Mac carries — their binary bodies would otherwise be spliced into the
+        // SCF and corrupt parsing.
+        if is_macos_cruft(&name) {
+            continue;
+        }
         let mut data = Vec::new();
         entry
             .read_to_end(&mut data)
@@ -141,13 +204,53 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
     let decode = |bytes: &[u8]| -> String { String::from_utf8_lossy(bytes).trim_end().to_owned() };
 
     let mut chunks: Vec<String> = Vec::new();
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-
-    for &canonical in SCF_MEMBER_ORDER {
-        if let Some(&idx) = by_name.get(canonical) {
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let emit = |name: &str, chunks: &mut Vec<String>, seen: &mut std::collections::HashSet<String>| {
+        if seen.contains(name) {
+            return;
+        }
+        if let Some(&idx) = by_name.get(name) {
             let text = decode(&members[idx].1);
-            chunks.push(format!("#\n# {canonical}\n#\n{text}\n"));
-            seen.insert(canonical);
+            chunks.push(format!("#\n# {name}\n#\n{text}\n"));
+            seen.insert(name.to_owned());
+        }
+    };
+
+    // 1. Built-in defaults (profile/monitor bases) so `/Common/tcp` etc. resolve.
+    for &canonical in DEFAULT_MEMBERS {
+        emit(canonical, &mut chunks, &mut seen);
+    }
+    // 2. Root (`/Common`) members, base first.
+    for &canonical in SCF_MEMBER_ORDER {
+        emit(canonical, &mut chunks, &mut seen);
+    }
+    // 3. Per-partition members. Each partition's base first, then its bigip.conf,
+    //    then any remaining `.conf` under it (sorted) — so objects in
+    //    non-Common partitions (`/TenantA/...`) are part of the model.
+    let mut partitions: Vec<&str> = by_name
+        .keys()
+        .filter_map(|n| split_partition_member(n).map(|(p, _)| p))
+        .collect();
+    partitions.sort_unstable();
+    partitions.dedup();
+    for partition in partitions {
+        for &suffix in PARTITION_MEMBER_ORDER {
+            let name = format!("config/partitions/{partition}/{suffix}");
+            emit(&name, &mut chunks, &mut seen);
+        }
+        // Any other `.conf` under this partition, deterministically.
+        let mut rest: Vec<&str> = by_name
+            .keys()
+            .copied()
+            .filter(|n| {
+                split_partition_member(n).is_some_and(|(p, _)| p == partition)
+                    && ends_with_conf(n)
+                    && !seen.contains(*n)
+            })
+            .collect();
+        rest.sort_unstable();
+        for name in rest {
+            emit(name, &mut chunks, &mut seen);
         }
     }
 
@@ -155,18 +258,27 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
         let mut names: Vec<&str> = by_name.keys().copied().collect();
         names.sort_unstable();
         for name in names {
-            if seen.contains(name) {
+            if seen.contains(name)
+                || !name.starts_with("config/")
+                || !ends_with_conf(name)
+                || is_script_member(name)
+            {
                 continue;
             }
-            // Case-sensitive `.conf` match, mirroring `endswith(".conf")`.
-            #[allow(clippy::case_sensitive_file_extension_comparisons)]
-            if !name.starts_with("config/") || !name.ends_with(".conf") {
-                continue;
-            }
-            let idx = by_name[name];
-            let text = decode(&members[idx].1);
-            chunks.push(format!("#\n# {name}\n#\n{text}\n"));
+            emit(name, &mut chunks, &mut seen);
         }
+    }
+
+    // 4. Scripts (root + per-partition `bigip_script.conf`) last, so their
+    //    embedded Tcl can't truncate the parse of any real object.
+    let mut scripts: Vec<&str> = by_name
+        .keys()
+        .copied()
+        .filter(|n| is_script_member(n) && !seen.contains(*n))
+        .collect();
+    scripts.sort_unstable();
+    for name in scripts {
+        emit(name, &mut chunks, &mut seen);
     }
 
     Ok(chunks.join("\n"))
@@ -289,5 +401,89 @@ mod tests {
         assert!(!is_pgp_bytes(b"ltm pool /Common/p { }"));
         assert!(!is_pgp_bytes(b""));
         assert!(!is_ucs_bytes(b""));
+    }
+
+    /// Build a plain (gzip-tar) UCS archive from `(name, content)` members.
+    fn build_ucs(members: &[(&str, &str)]) -> Vec<u8> {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        let mut tar = tar::Builder::new(Vec::new());
+        for (name, content) in members {
+            let bytes = content.as_bytes();
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar.append_data(&mut header, name, bytes).unwrap();
+        }
+        let tar_bytes = tar.into_inner().unwrap();
+        let mut gz = GzEncoder::new(Vec::new(), Compression::fast());
+        std::io::Write::write_all(&mut gz, &tar_bytes).unwrap();
+        gz.finish().unwrap()
+    }
+
+    #[test]
+    fn ucs_to_scf_includes_defaults_and_partitions_in_order() {
+        let ucs = build_ucs(&[
+            ("config/bigip.conf", "ltm virtual /Common/vs_common { }"),
+            ("config/profile_base.conf", "ltm profile tcp /Common/tcp { }"),
+            (
+                "config/bigip_script.conf",
+                "cli script /Common/brace_trap { proc script::run {} { } }",
+            ),
+            (
+                "config/partitions/TenantB/bigip.conf",
+                "ltm pool /TenantB/web_b { }",
+            ),
+            (
+                "config/partitions/TenantA/bigip.conf",
+                "ltm pool /TenantA/web_a { }",
+            ),
+            (
+                "config/partitions/TenantA/bigip_base.conf",
+                "auth partition TenantA { }",
+            ),
+        ]);
+        let scf = ucs_to_scf(&ucs, false).unwrap();
+
+        // Every real member is present.
+        assert!(scf.contains("/Common/tcp"), "defaults included:\n{scf}");
+        assert!(scf.contains("/Common/vs_common"));
+        assert!(scf.contains("/TenantA/web_a"));
+        assert!(scf.contains("/TenantB/web_b"));
+        assert!(scf.contains("brace_trap"));
+
+        // Order: defaults -> Common -> partitions (alpha), base before bigip.conf,
+        // and the script member LAST so it can't truncate any real object.
+        let pos = |needle: &str| scf.find(needle).expect(needle);
+        assert!(pos("/Common/tcp") < pos("/Common/vs_common"));
+        assert!(pos("/Common/vs_common") < pos("auth partition TenantA"));
+        assert!(pos("auth partition TenantA") < pos("/TenantA/web_a"));
+        assert!(pos("/TenantA/web_a") < pos("/TenantB/web_b"));
+        assert!(
+            pos("brace_trap") > pos("/TenantB/web_b"),
+            "script emitted last"
+        );
+    }
+
+    #[test]
+    fn ucs_to_scf_skips_macos_cruft() {
+        // A UCS zipped on a Mac carries AppleDouble `._` forks and __MACOSX
+        // shadows whose binary bodies must never reach the config parser.
+        let ucs = build_ucs(&[
+            ("config/bigip.conf", "ltm virtual /Common/vs { }"),
+            ("config/._bigip.conf", "\u{0}\u{5}\u{16}\u{7}garbage"),
+            ("__MACOSX/config/._bigip.conf", "\u{0}more binary"),
+            (
+                "config/partitions/T/._bigip.conf",
+                "\u{0}\u{1}applefork",
+            ),
+            ("config/partitions/T/bigip.conf", "ltm pool /T/p { }"),
+        ]);
+        let scf = ucs_to_scf(&ucs, true).unwrap();
+        assert!(scf.contains("/Common/vs") && scf.contains("/T/p"));
+        assert!(!scf.contains("garbage"), "AppleDouble body excluded:\n{scf}");
+        assert!(!scf.contains("applefork"));
+        assert!(!scf.contains("more binary"));
     }
 }

@@ -22,6 +22,8 @@
 #![deny(missing_docs)]
 
 mod expr_lexer;
+#[cfg(feature = "html")]
+mod highlight;
 mod lexer;
 mod line_index;
 mod ranges;
@@ -35,6 +37,8 @@ pub use expr_lexer::{
     ExprToken, ExprTokenType, math_functions as expr_math_functions, tokenise_expr,
     tokenise_expr_checked,
 };
+#[cfg(feature = "html")]
+pub use highlight::highlight_tcl;
 pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};

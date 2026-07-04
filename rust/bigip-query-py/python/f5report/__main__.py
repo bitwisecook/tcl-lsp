@@ -28,6 +28,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="report title")
     parser.add_argument("--passphrase", default=None,
                         help="passphrase for an encrypted UCS (or set $F5_UCS_PASSPHRASE)")
+    parser.add_argument("--f5mku", metavar="KEY", default=None,
+                        help="base64 unit master key (f5mku -K) — decrypts the config's "
+                        "$M$ secrets (SSL key passphrases, monitor/RADIUS/SNMP secrets)")
+    parser.add_argument("--f5mku-file", metavar="FILE", default=None,
+                        help="read the base64 master key from FILE (e.g. f5mku -K > key.txt)")
     parser.add_argument("--include-extras", action="store_true",
                         help="fold every config/*.conf UCS member (partitions, GTM) into the report")
     parser.add_argument("--no-console", action="store_true",
@@ -39,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
                         version=f"f5-report {__version__} (engine {engine_version()})")
     args = parser.parse_args(argv)
 
+    master_key = args.f5mku
+    if args.f5mku_file:
+        try:
+            master_key = open(args.f5mku_file, encoding="utf-8").read().strip()
+        except OSError as exc:
+            print(f"f5-report: could not read --f5mku-file: {exc}", file=sys.stderr)
+            return 2
+
     try:
         sources = load_paths(
             args.inputs, passphrase=args.passphrase, include_extras=args.include_extras
@@ -47,11 +60,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"f5-report: failed to load inputs: {exc}", file=sys.stderr)
         return 2
 
-    if args.json:
-        out = json.dumps(collect_model(sources, title=args.title), indent=2, default=str)
-    else:
-        out = build_report(sources, title=args.title,
-                           embed_console=False if args.no_console else None)
+    try:
+        if args.json:
+            out = json.dumps(
+                collect_model(sources, title=args.title, master_key=master_key),
+                indent=2, default=str,
+            )
+        else:
+            out = build_report(sources, title=args.title,
+                               embed_console=False if args.no_console else None,
+                               master_key=master_key)
+    except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
+        print(f"f5-report: {exc}", file=sys.stderr)
+        return 2
 
     if args.output == "-":
         sys.stdout.write(out)

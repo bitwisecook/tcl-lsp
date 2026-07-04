@@ -1682,13 +1682,18 @@ pub fn explain_flow_value(pcap: &Path, options: &ExplainFlowOptions<'_>) -> Resu
         return Err(format!("not a file: {}", pcap.display()));
     }
     let use_tshark = options.tshark || options.keylog.is_some() || options.tshark_filter.is_some();
-    let keylog_path =
-        options.keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let keylog_path = options
+        .keylog
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let tshark_filter = options.tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let path_strs: Vec<String> =
-        options.paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let path_strs: Vec<String> = options
+        .paths
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
     let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&path_strs, &opts)
         .map_err(|e| e.to_string())?
         .into_iter()
