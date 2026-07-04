@@ -306,6 +306,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             is_lmap,
             raw_args,
             is_dict_iteration,
+            is_array_iteration,
             raw_tokens,
         } => Statement::Foreach {
             span: *span,
@@ -321,6 +322,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             is_lmap: *is_lmap,
             raw_args: raw_args.clone(),
             is_dict_iteration: *is_dict_iteration,
+            is_array_iteration: *is_array_iteration,
             raw_tokens: raw_tokens.clone(),
         },
         Statement::Catch {

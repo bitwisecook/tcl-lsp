@@ -412,6 +412,12 @@ pub enum Statement {
         raw_args: Vec<String>,
         /// Whether this is `dict for`/`dict map`.
         is_dict_iteration: bool,
+        /// Whether this is `array for {k v} arr body` (Tcl 9.0). Unlike a plain
+        /// `foreach`, the body runs in the caller's frame over an *array* (not a
+        /// list value), so analysis inlines it into the caller unit (binding the
+        /// loop vars) while codegen barriers it to the `::tcl::array::for`
+        /// ensemble invoke — see `lower_foreach_dispatch`.
+        is_array_iteration: bool,
         /// Per-word source token metadata for the generic runtime fallback
         /// (the `dict for`/`map` barrier and the runtime `foreach`/`lmap`
         /// call), so braced var-lists / bodies are pushed verbatim and
@@ -1003,6 +1009,7 @@ mod tests {
             is_lmap: false,
             raw_args: Vec::new(),
             is_dict_iteration: true,
+            is_array_iteration: false,
             raw_tokens: None,
         };
         if let Statement::Foreach {
