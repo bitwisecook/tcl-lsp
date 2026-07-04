@@ -52,8 +52,24 @@
     var edges = (data && data.edges) || [];
     if (!nodes.length) { host.textContent = "(no linked objects)"; return; }
 
+    var dir = opts.dir || "RIGHT";
+    var vertical = dir === "DOWN" || dir === "UP";
+    var OUT_SIDE = vertical ? "SOUTH" : "EAST";
+    var IN_SIDE = vertical ? "NORTH" : "WEST";
+
+    // Edges attach through explicit ports so their attachment points ("magnets")
+    // sit at evenly-spaced positions on each box side (portAlignment DISTRIBUTED)
+    // rather than wherever the router happens to meet the border.
+    var outCount = {}, inCount = {};
+    nodes.forEach(function (n) { outCount[n.id] = 0; inCount[n.id] = 0; });
+    edges.forEach(function (e) {
+      if (outCount[e.from] != null) outCount[e.from]++;
+      if (inCount[e.to] != null) inCount[e.to]++;
+    });
+
     var m = measurer();
-    // Size each node to its (possibly multi-line) label.
+    // Size each node to its (possibly multi-line) label, and give it one port
+    // per incident edge on the appropriate side.
     var meta = {};
     var children = nodes.map(function (n) {
       var lines = String(n.label == null ? n.id : n.label).split("\n");
@@ -62,10 +78,27 @@
       var width = Math.max(Math.ceil(w) + PAD_X * 2, 46);
       var height = lines.length * LINE_H + PAD_Y * 2;
       meta[n.id] = { lines: lines, cls: n.cls || "", width: width, height: height };
-      return { id: n.id, width: width, height: height };
+      var ports = [];
+      for (var oi = 0; oi < outCount[n.id]; oi++) {
+        ports.push({ id: n.id + "__o" + oi, layoutOptions: { "elk.port.side": OUT_SIDE } });
+      }
+      for (var ii = 0; ii < inCount[n.id]; ii++) {
+        ports.push({ id: n.id + "__i" + ii, layoutOptions: { "elk.port.side": IN_SIDE } });
+      }
+      return {
+        id: n.id, width: width, height: height, ports: ports,
+        layoutOptions: {
+          "elk.portConstraints": "FIXED_SIDE",
+          "elk.portAlignment.default": "DISTRIBUTED",
+        },
+      };
     });
+    var outUsed = {}, inUsed = {};
+    nodes.forEach(function (n) { outUsed[n.id] = 0; inUsed[n.id] = 0; });
     var elkEdges = edges.map(function (e, i) {
-      var eo = { id: "e" + i, sources: [e.from], targets: [e.to] };
+      var op = e.from + "__o" + (outUsed[e.from] != null ? outUsed[e.from]++ : 0);
+      var ip = e.to + "__i" + (inUsed[e.to] != null ? inUsed[e.to]++ : 0);
+      var eo = { id: "e" + i, sources: [op], targets: [ip] };
       if (e.label) {
         eo.labels = [{ text: e.label, width: Math.ceil(m.width(e.label)) + 6, height: 13 }];
       }
@@ -73,19 +106,24 @@
     });
     m.done();
 
+    // Even spacing everywhere: one base value drives the node/edge/port gaps so
+    // the columns, the parallel edge lanes, and the port pitch all read evenly;
+    // BRANDES_KOEPF placement keeps nodes aligned across layers.
     var graph = {
       id: "root",
       layoutOptions: {
         "elk.algorithm": "layered",
-        "elk.direction": opts.dir || "RIGHT",
+        "elk.direction": dir,
         "elk.edgeRouting": "ORTHOGONAL",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "58",
-        "elk.spacing.nodeNode": "22",
-        "elk.spacing.edgeNode": "16",
-        "elk.spacing.edgeEdge": "12",
-        "elk.layered.spacing.edgeEdgeBetweenLayers": "12",
-        "elk.layered.spacing.edgeNodeBetweenLayers": "16",
-        "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+        "elk.layered.spacing.baseValue": "22",
+        "elk.layered.spacing.nodeNodeBetweenLayers": "70",
+        "elk.spacing.nodeNode": "26",
+        "elk.spacing.edgeEdge": "14",
+        "elk.spacing.edgeNode": "18",
+        "elk.spacing.portPort": "14",
+        "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
+        "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
+        "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
         "elk.edgeLabels.placement": "CENTER",
         "elk.spacing.edgeLabel": "3",
       },
