@@ -550,11 +550,11 @@ fn push_regsub_subtokens(
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     inside_oo_body: bool,
     arg_texts: &[&str],
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
-    let head = &seg.texts[0];
 
     // `when EVENT` — the literal event-name argument.
     if head == "when"
@@ -565,7 +565,7 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    insert_regex_overrides(seg, registry, &mut overrides);
+    insert_regex_overrides(seg, registry, head, &mut overrides);
     insert_format_overrides(seg, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.
@@ -577,16 +577,49 @@ fn special_arg_kinds(
             .or_insert(ArgOverride::ProcNameDef);
     }
 
-    insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
-    insert_enum_value_overrides(seg, registry, &mut overrides);
+    insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
+    insert_enum_value_overrides(seg, registry, head, &mut overrides);
     insert_oo_define_keyword_overrides(seg, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
-    insert_role_overrides(seg, registry, arg_texts, &mut overrides);
+    insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
-    insert_var_decl_overrides(seg, registry, &mut overrides);
+    insert_oo_variable_overrides(seg, inside_oo_body, &mut overrides);
+    insert_var_decl_overrides(seg, registry, head, &mut overrides);
 
     overrides
+}
+
+/// Inside a `TclOO` definition body, `variable name ?name ...?` declares every
+/// bareword as an instance variable (issue #774).  This differs from the
+/// namespace-level `variable name ?value name value ...?` form the registry
+/// models — where only the leading name is a write target — so the
+/// registry-driven [`insert_var_decl_overrides`] (which marks just index 0)
+/// leaves the trailing names as plain strings.  Only meaningful when
+/// `inside_oo_body`; a method body drops out of that context, so a regular
+/// `variable` call there keeps its namespace-level classification.
+fn insert_oo_variable_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    inside_oo_body: bool,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !inside_oo_body || seg.texts[0] != "variable" {
+        return;
+    }
+    // Every plain bareword name argument is an instance-variable declaration.
+    // An array element (`arr(x)`), a `$`-computed name, or a quoted word is
+    // left to the default classifier so its inner `$var` sub-tokens survive.
+    for (i, text) in seg.texts.iter().enumerate().skip(1) {
+        if let Some(tok) = seg.argv.get(i)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(text)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
+        }
+    }
 }
 
 /// Mark the script-body arguments of a context-sensitive `TclOO` inner
@@ -630,9 +663,9 @@ fn insert_oo_body_overrides(
 fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     if !registry
         .get(head)
         .and_then(|s| s.pattern_type)
@@ -767,9 +800,9 @@ fn insert_format_overrides(
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let Some(spec) = registry.get(head) else {
         return;
     };
@@ -818,9 +851,9 @@ fn insert_option_and_subcommand_overrides(
 fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let Some(spec) = registry.get(head) else {
         return;
     };
@@ -946,9 +979,9 @@ fn insert_apply_lambda_override(
 fn insert_var_decl_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
         // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
@@ -1028,10 +1061,10 @@ fn insert_switch_case_list_override(
 fn insert_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     // `if {expr} {body}`, `proc n a {body}`, `while {expr} {body}`,
     // `expr {expr}`, … — keyed on each word's representative token
     // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
@@ -1849,6 +1882,12 @@ struct ScriptCtx<'a> {
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
+    /// Bare command names imported into the global namespace via
+    /// `namespace import EXPORTING::*`, mapped to their qualified registry
+    /// spec name (`test` → `tcltest::test`).  Lets the registry-driven
+    /// overrides resolve an unqualified imported command to its spec (issue
+    /// #776).  Empty when the document has no `namespace import`.
+    head_aliases: &'a FxHashMap<String, String>,
 }
 
 fn collect_switch_case_list(
@@ -1990,6 +2029,7 @@ fn emit_command_head(
     full_source: &str,
     head_tok: Token,
     head_text: &str,
+    resolved_head: &str,
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
@@ -2045,7 +2085,10 @@ fn emit_command_head(
         );
         return;
     }
-    let mods = if full_kind == TokenKind::Function && registry.get(head_text).is_some() {
+    // Use the resolved head for the built-in lookup: a bare name imported from
+    // an exported namespace (`namespace import tcltest::*` → `test`) resolves
+    // to its qualified registry spec, so it carries `defaultLibrary` too.
+    let mods = if full_kind == TokenKind::Function && registry.get(resolved_head).is_some() {
         MOD_DEFAULT_LIBRARY
     } else {
         0
@@ -2084,11 +2127,21 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
+        // Resolve an unqualified command imported from an exported namespace
+        // (`namespace import tcltest::*` → `test` = `tcltest::test`) to its
+        // qualified registry name, so the registry-driven overrides and the
+        // built-in modifier see the real spec (issue #776).  Falls back to the
+        // literal head when there is no import for it.
+        let resolved_head: &str = ctx
+            .head_aliases
+            .get(head_text)
+            .map_or(head_text.as_str(), String::as_str);
         emit_command_head(
             line_index,
             full_source,
             head_tok,
             head_text,
+            resolved_head,
             registry,
             entries,
         );
@@ -2100,7 +2153,8 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let mut overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        let mut overrides =
+            special_arg_kinds(&seg, registry, resolved_head, ctx.inside_oo_body, &arg_texts);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -2432,6 +2486,87 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
 
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
+/// Scan `source` for `namespace import` declarations and map each bare command
+/// name they bring into the global scope to its qualified registry spec name
+/// (`test` → `tcltest::test`, issue #776).
+///
+/// Recognises the two literal forms — `namespace import EXPORTING::*`
+/// (import-all) and `namespace import EXPORTING::name` (single) — matched
+/// against the registry's `is_namespace_exported` commands in the exporting
+/// namespace.  A bare name that already resolves to a global command is left
+/// alone (Tcl's own `namespace import` refuses to shadow an existing command
+/// without `-force`, and we must not mis-resolve a genuine builtin).  This is a
+/// highlighting-only convenience: it never changes which commands exist, only
+/// lets the registry-driven argument overrides see the real spec for an
+/// unqualified imported command.  Returns an empty map when nothing is imported.
+fn imported_command_aliases(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> FxHashMap<String, String> {
+    let mut aliases = FxHashMap::default();
+    // Cheap gate: `namespace import` is the only source of aliases.
+    if !source.contains("namespace") {
+        return aliases;
+    }
+    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`).
+    let mut import_all: Vec<String> = Vec::new();
+    let mut import_one: Vec<(String, String)> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
+            continue;
+        }
+        for pat in &seg.texts[2..] {
+            // Skip option flags (`-force`); computed patterns are left alone.
+            if pat.starts_with('-') {
+                continue;
+            }
+            if let Some(ns) = pat.strip_suffix("::*") {
+                import_all.push(ns.trim_start_matches(':').to_string());
+            } else if let Some((ns, name)) = pat.rsplit_once("::") {
+                import_one.push((ns.trim_start_matches(':').to_string(), name.to_string()));
+            }
+        }
+    }
+    if import_all.is_empty() && import_one.is_empty() {
+        return aliases;
+    }
+    // Import-all: every exported command in an imported namespace whose bare
+    // tail does not already name a global command.
+    if !import_all.is_empty() {
+        for name in registry.command_names() {
+            let Some((ns, tail)) = name.rsplit_once("::") else {
+                continue;
+            };
+            if tail.is_empty() || registry.get(tail).is_some() {
+                continue;
+            }
+            if import_all.iter().any(|n| n == ns.trim_start_matches(':'))
+                && registry.get(name).is_some_and(|s| s.is_namespace_exported)
+            {
+                aliases
+                    .entry(tail.to_string())
+                    .or_insert_with(|| name.to_string());
+            }
+        }
+    }
+    // Single-name imports.
+    for (ns, name) in &import_one {
+        if registry.get(name).is_some() {
+            continue;
+        }
+        let qualified = format!("{ns}::{name}");
+        if registry.get(&qualified).is_some_and(|s| s.is_namespace_exported) {
+            aliases.entry(name.clone()).or_insert(qualified);
+        }
+    }
+    aliases
+}
+
 fn collect_entries(
     source: &str,
     dialect: &str,
@@ -2452,6 +2587,11 @@ fn collect_entries(
             .collect()
     });
 
+    // Bare-name aliases for commands imported from an exported namespace
+    // (`namespace import tcltest::*` → `test` = `tcltest::test`).  Empty (no
+    // lookups) unless the document actually imports something.
+    let head_aliases = imported_command_aliases(source, dialect, registry);
+
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
     let ctx = ScriptCtx {
@@ -2461,6 +2601,7 @@ fn collect_entries(
         line_index: &line_index,
         inside_oo_body: false,
         regex_sources: &regex_sources,
+        head_aliases: &head_aliases,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 

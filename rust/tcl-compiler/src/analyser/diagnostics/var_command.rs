@@ -323,6 +323,8 @@ impl Analyser {
             || known.procs.contains(&format!("::{v}"))
             || known.class_tails.contains(v)
             || self.result.all_classes.contains_key(&format!("::{v}"))
+            // A command bound by `CLASS create NAME` (issue #777).
+            || self.result.created_instance_commands.contains(v)
     }
 
     /// Decide whether a `$var <method>` dispatch site is suppressed (no W307).

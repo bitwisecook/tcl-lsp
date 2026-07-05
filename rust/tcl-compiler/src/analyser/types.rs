@@ -481,6 +481,14 @@ pub struct AnalysisResult {
     /// last assignment wins, matching the global-by-var-name
     /// shape the W308 emitter already uses.
     pub instance_classes: HashMap<String, String>,
+    /// Simple names of instance commands created by a `CLASS create NAME …`
+    /// construct — both when `CLASS` is a known user class *and* when it is an
+    /// unresolved (external-package) command whose `create NAME` idiom clearly
+    /// binds a new object command.  A `create NAME` call names a command, so
+    /// later `NAME method` dispatch — and `$var method` where `var` provably
+    /// holds one of these names — must not be flagged as an unknown command
+    /// (W123) or a stray non-literal command word (W307).  Issue #777.
+    pub created_instance_commands: std::collections::HashSet<String>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).

@@ -382,6 +382,9 @@ impl Analyser {
         }
         self.result.command_aliases.extend(r.command_aliases);
         self.result.instance_classes.extend(r.instance_classes);
+        self.result
+            .created_instance_commands
+            .extend(r.created_instance_commands);
         self.result.diagnostics.extend(r.diagnostics);
         self.result
             .command_invocations

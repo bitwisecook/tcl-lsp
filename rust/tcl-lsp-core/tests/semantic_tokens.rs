@@ -579,3 +579,115 @@ fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
         "a real comment inside a body must still be a comment token: {body:?}",
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #774 — `variable a b c` inside a TclOO definition body declares every
+// name as an instance variable (the namespace-level `variable name ?value?`
+// pairs only mark the leading name). All names must highlight as variables.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn oo_body_variable_highlights_every_name() {
+    let src =
+        "oo::class create Foo {\n    variable width height depth\n    method m {} { return 1 }\n}\n";
+    // Each of `width`, `height`, `depth` in the class-body `variable`
+    // declaration is a variable, not a bareword string.
+    for name in ["width", "height", "depth"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in an oo::class body `variable` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn plain_variable_command_keeps_pair_classification() {
+    // Outside an OO definition body (a normal namespace-level `variable`), the
+    // leading name is a write target — highlighted as a variable declaration.
+    let src = "namespace eval ns {\n    variable myvar 1\n}\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "myvar").as_deref(),
+        Some("variable"),
+        "the leading `variable` name is a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #776 — a tcltest command imported into the global scope
+// (`namespace import tcltest::*`) resolves to its `tcltest::` spec, so bare
+// `test`'s options/body are recognised: `-body`/`-result` become options and
+// the `-body` script is recursed.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn imported_tcltest_test_options_are_recognised() {
+    let src = "namespace import tcltest::*\n\
+               test mytest-1.1 {desc} -body {\n    set x 1\n} -result 1\n";
+    // The `-body` / `-result` switches are recognised options (decorator), not
+    // opaque strings, and the body's `set` is recursed as a command.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "-body").as_deref(),
+        Some("decorator"),
+        "imported `test`'s -body must be an option: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "-result").as_deref(),
+        Some("decorator"),
+        "imported `test`'s -result must be an option: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "the -body script must be recursed (set is a command): {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn bare_test_without_import_stays_unresolved() {
+    // Without a `namespace import`, a bare `test` is an ordinary (user) command
+    // — its `-body` word is not treated as a tcltest option.
+    let src = "test mytest-1.1 {desc} -body {\n    set x 1\n} -result 1\n";
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "-body").as_deref(),
+        Some("decorator"),
+        "an unimported bare `test` must not resolve tcltest options: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #775 — the argument to `source` is still tokenised: a command
+// substitution `[...]` in the file-name argument is highlighted as a command
+// sequence (its head + args), not left as one opaque string.  (No behaviour
+// change on the rust branch — this locks the already-correct classification.)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn source_command_substitution_argument_is_tokenised() {
+    let src = "source [file join $dir lib.tcl]\n";
+    let toks = decode(src, "tcl8.6");
+    // `source` head.
+    assert!(
+        toks.iter()
+            .any(|t| t.character == 0 && (t.ttype == "keyword" || t.ttype == "function")),
+        "source head must be highlighted: {toks:?}",
+    );
+    // The `[file join …]` substitution is recursed: `file` is a command and
+    // `$dir` a variable — not swallowed into one opaque string.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "file").as_deref(),
+        Some("function"),
+        "the command substitution in source's argument must be tokenised: {toks:?}",
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "$dir").as_deref(),
+        Some("variable"),
+        "a variable inside source's argument substitution must be a variable: {toks:?}",
+    );
+}
