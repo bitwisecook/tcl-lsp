@@ -99,3 +99,19 @@ pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, 
 pub fn manual(_topic: &str) -> String {
     tcl_bigip_query::manual::format_manual()
 }
+
+/// Format an iRule / Tcl body and return **syntax-highlighted HTML** of the
+/// result, ready to drop straight into the report's `<pre class="code tcl">`.
+///
+/// Uses the same Tcl formatter the LSP and `tcl` CLI use (the F5 iRules Style
+/// Guide defaults) with the `f5-irules` command registry, then the shared
+/// highlighter — so the report's Format button runs entirely client-side, no
+/// server, keeping the report self-contained. The formatter is a pure,
+/// idempotent function, so re-formatting already-formatted source is a no-op.
+#[wasm_bindgen]
+pub fn format_irule(source: &str) -> String {
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let config = tcl_lsp_core::formatting::FormatterConfig::default();
+    let formatted = tcl_lsp_core::formatting::format_tcl(source, &config, registry);
+    tcl_lexer::highlight_tcl(&formatted)
+}

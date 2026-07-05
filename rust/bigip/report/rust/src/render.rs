@@ -64,6 +64,7 @@ const SECRETS_JS: &str = include_str!("../../shared/dist/secrets.js");
 const FORENSICS_CSS: &str = include_str!("../../shared/src/styles/forensics.css");
 const FORENSICS_JS: &str = include_str!("../../shared/dist/forensics.js");
 const IRULE_FLOW_JS: &str = include_str!("../../shared/dist/irule-flow.js");
+const IRULE_FORMAT_JS: &str = include_str!("../../shared/dist/irule-format.js");
 const APM_CSS: &str = include_str!("../../shared/src/styles/apm.css");
 const APM_JS: &str = include_str!("../../shared/dist/apm.js");
 // elkjs (EPL-2.0), the ELK layout engine, for the orthogonal APM graph.
@@ -196,6 +197,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
         ctx.insert("has_console".into(), J::Bool(true));
         ctx.insert("wasm_glue".into(), J::String(WASM_GLUE.into()));
         ctx.insert("console_js".into(), J::String(CONSOLE_JS.into()));
+        ctx.insert("irule_format_js".into(), J::String(IRULE_FORMAT_JS.into()));
         ctx.insert(
             "wasm_b64".into(),
             J::String(base64::engine::general_purpose::STANDARD.encode(WASM_BIN)),

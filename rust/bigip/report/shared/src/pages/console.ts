@@ -34,14 +34,15 @@
     return u;
   }
 
-  var ready = null; // Promise resolving once the wasm module is initialised
+  // Share one wasm instantiation across the console and the iRule Format button
+  // (whichever loads first wins), so the module initialises only once.
   function initWasm() {
-    if (!ready) {
-      ready = wasm_bindgen(b64ToBytes(B64)).then(function () {
-        return wasm_bindgen.engine_version();
-      });
+    if (!window.__f5qReady) {
+      window.__f5qReady = wasm_bindgen(b64ToBytes(B64));
     }
-    return ready;
+    return window.__f5qReady.then(function () {
+      return wasm_bindgen.engine_version();
+    });
   }
 
   var EXAMPLES = [

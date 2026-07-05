@@ -130,6 +130,8 @@ def render_report(
         model["wasm_glue"] = _vendor_text("f5query_wasm.js")
         model["wasm_b64"] = base64.b64encode(_vendor_bytes("f5query_wasm_bg.wasm")).decode("ascii")
         model["console_js"] = _asset_text("console.js")
+        # The iRule Format button reuses the same wasm engine (format_irule).
+        model["irule_format_js"] = _asset_text("irule-format.js")
         model["has_console"] = True
     else:
         model["has_console"] = False

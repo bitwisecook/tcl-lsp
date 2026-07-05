@@ -14,14 +14,13 @@
       for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       return u;
     }
-    var ready = null;
     function initWasm() {
-      if (!ready) {
-        ready = wasm_bindgen(b64ToBytes(B64)).then(function() {
-          return wasm_bindgen.engine_version();
-        });
+      if (!window.__f5qReady) {
+        window.__f5qReady = wasm_bindgen(b64ToBytes(B64));
       }
-      return ready;
+      return window.__f5qReady.then(function() {
+        return wasm_bindgen.engine_version();
+      });
     }
     var EXAMPLES = [
       [".ltm.virtual[] | {name, destination, pool}", "virtual servers \u2192 destination + pool"],

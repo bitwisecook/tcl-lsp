@@ -40,6 +40,9 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-query",
+ "tcl-lexer",
+ "tcl-lsp-core",
+ "tcl-registry",
  "wasm-bindgen",
 ]
 
@@ -503,6 +506,20 @@ name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+]
+
+[[package]]
+name = "tcl-lsp-core"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "rustc-hash",
+ "serde_json",
+ "tcl-compiler",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]

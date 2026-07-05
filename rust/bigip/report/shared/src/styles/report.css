@@ -161,6 +161,15 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 .records{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0}
 .records code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px}
 
+/* iRule code toolbar + Format button (injected by irule-format.js). */
+.code-toolbar{display:flex;justify-content:flex-end;gap:6px;margin:6px 0 -2px}
+.code-format-btn{font:600 11px/1 var(--mono);cursor:pointer;padding:4px 10px;
+  background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
+.code-format-btn:hover{border-color:var(--accent);color:var(--accent)}
+.code-format-btn:disabled{opacity:.6;cursor:progress}
+.code-format-btn.is-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+@media print{.code-toolbar{display:none}}
+
 .foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
 

@@ -5,6 +5,38 @@ let wasm_bindgen = (function(exports) {
     }
 
     /**
+     * Re-run cross-device architecture / topology detection for the in-report
+     * architecture editor. `devices_json` is the model's `devices` array;
+     * `manifest` is the topology DSL. Returns the `architecture` object as JSON.
+     * @param {string} devices_json
+     * @param {string} manifest
+     * @returns {string}
+     */
+    function build_architecture(devices_json, manifest) {
+        let deferred4_0;
+        let deferred4_1;
+        try {
+            const ptr0 = passStringToWasm0(devices_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(manifest, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.build_architecture(ptr0, len0, ptr1, len1);
+            var ptr3 = ret[0];
+            var len3 = ret[1];
+            if (ret[3]) {
+                ptr3 = 0; len3 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred4_0 = ptr3;
+            deferred4_1 = len3;
+            return getStringFromWasm0(ptr3, len3);
+        } finally {
+            wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+        }
+    }
+    exports.build_architecture = build_architecture;
+
+    /**
      * The engine version string (for the console's status line).
      * @returns {string}
      */
@@ -21,6 +53,56 @@ let wasm_bindgen = (function(exports) {
         }
     }
     exports.engine_version = engine_version;
+
+    /**
+     * Format an iRule / Tcl body and return **syntax-highlighted HTML** of the
+     * result, ready to drop straight into the report's `<pre class="code tcl">`.
+     *
+     * Uses the same Tcl formatter the LSP and `tcl` CLI use (the F5 iRules Style
+     * Guide defaults) with the `f5-irules` command registry, then the shared
+     * highlighter — so the report's Format button runs entirely client-side, no
+     * server, keeping the report self-contained. The formatter is a pure,
+     * idempotent function, so re-formatting already-formatted source is a no-op.
+     * @param {string} source
+     * @returns {string}
+     */
+    function format_irule(source) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.format_irule(ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    exports.format_irule = format_irule;
+
+    /**
+     * The full f5-query manual (grammar + builtins + cookbook) for the console's
+     * reference panel.
+     * @param {string} _topic
+     * @returns {string}
+     */
+    function manual(_topic) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(_topic, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.manual(ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    exports.manual = manual;
 
     /**
      * Run a `f5-query` expression against the embedded configs.

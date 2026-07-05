@@ -670,6 +670,10 @@
 <script>
 {{ console_js | safe }}
 </script>
+<!-- iRule Format button: reuses the wasm engine's format_irule (client-side) -->
+<script>
+{{ irule_format_js | safe }}
+</script>
 {% endif %}
 </body>
 </html>
