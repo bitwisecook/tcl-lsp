@@ -367,51 +367,159 @@ enum AssignKind {
     VarCopy,
 }
 
-/// Simple-name (tail) → qualified class names sharing that tail.
-type TailIndex = HashMap<String, Vec<String>>;
-
-/// Build the tail → qualified-name index once per resolution run.
-fn build_tail_index(index: &HashMap<String, ClassDef>) -> TailIndex {
-    let mut out: TailIndex = HashMap::new();
-    for qname in index.keys() {
-        let tail = qname.rsplit("::").next().unwrap_or(qname);
-        out.entry(tail.to_string()).or_default().push(qname.clone());
-    }
-    out
+/// Namespace resolution context for a file: the `namespace eval` body
+/// ranges (for the enclosing namespace of a call site) and the imported
+/// namespace prefixes (from `namespace import`).  This is what makes bare
+/// class-name resolution **sound** — a bare `Foo new` resolves in the
+/// current namespace, an imported namespace, or the global namespace, and
+/// *not* to an arbitrary same-tailed class in an unrelated namespace.
+#[derive(Debug, Clone, Default)]
+pub struct NsContext {
+    /// `(body_start, body_end, namespace_name)` for each `namespace eval`
+    /// body.  Innermost (smallest span) wins for a given offset.
+    pub namespaces: Vec<(u32, u32, String)>,
+    /// Imported namespace prefixes, fully qualified with leading `::`
+    /// (e.g. `::SpiceGenTcl` from `namespace import ::SpiceGenTcl::*`).
+    pub imports: Vec<String>,
 }
 
-/// Resolve a possibly-bare / namespace-relative class name to the
-/// qualified name keyed in `index`.  Returns `(qualified_name, in_index)`.
+impl NsContext {
+    /// The innermost `namespace eval` name containing `offset`, or `::`.
+    fn enclosing(&self, offset: u32) -> &str {
+        self.namespaces
+            .iter()
+            .filter(|(s, e, _)| *s <= offset && offset <= *e)
+            .min_by_key(|(s, e, _)| e.saturating_sub(*s))
+            .map_or("::", |(_, _, name)| name.as_str())
+    }
+
+    /// Build the context for a file from its [`AnalysisResult`]: the
+    /// `namespace eval` body ranges (from the scope tree) and the imported
+    /// namespace prefixes (from `namespace import`).
+    ///
+    /// Imports are collected file-wide — a lexically-scoped approximation;
+    /// in practice `namespace import` sits at the top of a namespace body
+    /// and applies throughout it.
+    #[must_use]
+    pub fn from_result(result: &crate::analyser::types::AnalysisResult) -> Self {
+        let mut namespaces = Vec::new();
+        collect_namespace_ranges(&result.global_scope, &mut namespaces);
+        let mut imports: Vec<String> = result
+            .namespace_imports
+            .iter()
+            .map(|imp| import_prefix(&imp.pattern))
+            .filter(|p| !p.is_empty())
+            .collect();
+        imports.sort();
+        imports.dedup();
+        Self { namespaces, imports }
+    }
+}
+
+/// Recursively collect `(start, end, namespace_name)` for every
+/// `namespace eval` body in the scope tree.
+fn collect_namespace_ranges(
+    scope: &crate::analyser::types::Scope,
+    out: &mut Vec<(u32, u32, String)>,
+) {
+    use crate::analyser::types::ScopeKind;
+    if scope.kind == ScopeKind::Namespace
+        && let Some(span) = scope.body_span
+    {
+        out.push((span.start(), span.end(), scope.name.clone()));
+    }
+    for child in &scope.children {
+        collect_namespace_ranges(child, out);
+    }
+}
+
+/// The namespace a `namespace import` pattern draws from: everything before
+/// the final `::` component (`::Ns::*` → `::Ns`, `::Ns::Foo` → `::Ns`).
+fn import_prefix(pattern: &str) -> String {
+    match pattern.rsplit_once("::") {
+        Some((head, _)) if !head.is_empty() => head.to_string(),
+        _ => String::new(),
+    }
+}
+
+/// Join a namespace prefix and a (possibly-relative) name into a fully
+/// qualified `::`-name, collapsing duplicate separators.
+fn qualify(prefix: &str, name: &str) -> String {
+    let p = prefix.trim_end_matches("::");
+    let n = name.trim_start_matches("::");
+    if p.is_empty() || p == "::" {
+        format!("::{n}")
+    } else {
+        format!("{p}::{n}")
+    }
+}
+
+/// Resolve a possibly-bare / namespace-relative class name to a qualified
+/// name keyed in `index`.  Returns `(qualified_name, in_index)`.
 ///
-/// TclOO classes are routinely defined inside `namespace eval ::Ns { …
-/// oo::class create Foo }`, so a `Foo new` call carries a *bare* name that
-/// must be matched against the qualified key `::Ns::Foo`.  Resolution
-/// order: exact qualified hit → `::name` hit → unique tail match.  A tail
-/// shared by several classes stays unresolved (honest: we can't pick one).
+/// **Sound-by-abstention** (fixing the earlier unique-tail heuristic that
+/// could mis-resolve across namespaces): a bare `Foo new` at `offset` is
+/// tried against, in Tcl's own resolution order,
+/// 1. the exact name / `::name` (already qualified or global);
+/// 2. `<enclosing namespace>::Foo` — the `namespace eval` the call sits in;
+/// 3. `<imported namespace>::Foo` for each `namespace import`ed prefix;
+/// 4. the global `::Foo`.
+///
+/// If none is in the index the name is an honest miss (→ `cross-file-miss`).
+/// It is **not** matched to a same-tailed class in an unrelated namespace,
+/// so the A3 cross-file run cannot manufacture a confident false resolution
+/// from a namespace collision.  `offset = None` skips tier 2 (used when the
+/// call site has no known offset, e.g. canonicalising a superclass name).
 fn resolve_class_name(
     name: &str,
+    offset: Option<u32>,
     index: &HashMap<String, ClassDef>,
-    tail_index: &TailIndex,
+    ns: &NsContext,
 ) -> (String, bool) {
+    // 1. Exact / global.
     if index.contains_key(name) {
         return (name.to_string(), true);
     }
-    let q = format!("::{name}");
-    if index.contains_key(&q) {
-        return (q, true);
+    let global = qualify("", name);
+    if !name.starts_with("::") && index.contains_key(&global) {
+        // fall through to try enclosing/imports first only if this is a
+        // bare name; a `::`-qualified miss is final below.
     }
-    // Namespace-relative: match on the simple tail when it is unique.
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    if let Some(qnames) = tail_index.get(tail)
-        && qnames.len() == 1
-    {
-        return (qnames[0].clone(), true);
+    // 2. Enclosing namespace (walking outward to global).
+    if let Some(off) = offset {
+        let mut nsname = ns.enclosing(off).to_string();
+        loop {
+            let cand = qualify(&nsname, name);
+            if index.contains_key(&cand) {
+                return (cand, true);
+            }
+            if nsname == "::" || nsname.is_empty() {
+                break;
+            }
+            // Strip one namespace component and retry (Tcl resolves in the
+            // current namespace then falls back toward global).
+            nsname = match nsname.rsplit_once("::") {
+                Some((head, _)) if !head.is_empty() => head.to_string(),
+                _ => "::".to_string(),
+            };
+        }
     }
-    // Best-effort qualified form, not found.
+    // 3. Imported namespaces.
+    for prefix in &ns.imports {
+        let cand = qualify(prefix, name);
+        if index.contains_key(&cand) {
+            return (cand, true);
+        }
+    }
+    // 4. Global.
+    if index.contains_key(&global) {
+        return (global, true);
+    }
+    // Honest miss — best-effort qualified form.
     let canon = if name.starts_with("::") {
         name.to_string()
     } else {
-        q
+        global
     };
     (canon, false)
 }
@@ -423,7 +531,7 @@ fn resolve_class_name(
 fn collect_assign_kinds(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef>,
-    tail_index: &TailIndex,
+    ns: &NsContext,
 ) -> HashMap<String, Vec<AssignKind>> {
     use crate::ir::Statement;
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
@@ -445,10 +553,13 @@ fn collect_assign_kinds(
                         out.entry(v).or_default().push(AssignKind::PerObject);
                     }
                 }
-                let Statement::AssignValue { name, value, .. } = stmt else {
+                let Statement::AssignValue {
+                    name, value, span, ..
+                } = stmt
+                else {
                     continue;
                 };
-                let kind = classify_rhs(value.trim(), index, tail_index);
+                let kind = classify_rhs(value.trim(), span.start(), index, ns);
                 out.entry(name.clone()).or_default().push(kind);
             }
         }
@@ -475,11 +586,13 @@ fn strip_dollar(text: &str) -> Option<String> {
     }
 }
 
-/// Classify a single RHS value string.
+/// Classify a single RHS value string.  `offset` is the source offset of
+/// the assignment, used to resolve a bare class name in its namespace.
 fn classify_rhs(
     value: &str,
+    offset: u32,
     index: &HashMap<String, ClassDef>,
-    tail_index: &TailIndex,
+    ns: &NsContext,
 ) -> AssignKind {
     if let Some((head, args)) = crate::value_shapes::parse_command_substitution(value) {
         // Constructor: `[Class new]` / `[Class create name]`.
@@ -490,7 +603,7 @@ fn classify_rhs(
             if head.contains('$') || head.contains('[') {
                 return AssignKind::Introspection;
             }
-            let (class, in_index) = resolve_class_name(&head, index, tail_index);
+            let (class, in_index) = resolve_class_name(&head, Some(offset), index, ns);
             return AssignKind::Constructor { class, in_index };
         }
         // Introspection heads whose result is a runtime class handle.
@@ -519,7 +632,7 @@ fn classify_rhs(
 fn seed_from_type_lattice(
     fu: &FunctionUnit,
     index: &HashMap<String, ClassDef>,
-    tail_index: &TailIndex,
+    ns: &NsContext,
     cfg: &AblationConfig,
     out: &mut HashMap<String, ClassValue>,
 ) {
@@ -534,7 +647,9 @@ fn seed_from_type_lattice(
         let Some(class_name) = &tl.class_name else {
             continue;
         };
-        let (class, _in_index) = resolve_class_name(class_name, index, tail_index);
+        // The type lattice's class name is already namespace-resolved by the
+        // analyser, so no call-site offset is needed here.
+        let (class, _in_index) = resolve_class_name(class_name, None, index, ns);
         let var = fu.ssa.var_name(*sym).to_owned();
         let entry = out.entry(var).or_insert(ClassValue::Bottom);
         if cfg.join {
@@ -553,22 +668,22 @@ fn seed_from_type_lattice(
 fn build_class_values(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef>,
+    ns: &NsContext,
     cfg: &AblationConfig,
 ) -> (HashMap<String, ClassValue>, std::collections::HashSet<String>) {
     let mut values: HashMap<String, ClassValue> = HashMap::new();
-    let tail_index = build_tail_index(index);
 
     // 1. SSA type-lattice object bindings (the reused dataflow signal).
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
     for fu in units {
-        seed_from_type_lattice(fu, index, &tail_index, cfg, &mut values);
+        seed_from_type_lattice(fu, index, ns, cfg, &mut values);
     }
 
     // 2. IR assignment kinds — fold in constructor bindings the type
     //    lattice missed, and attribute ⊤ reasons to everything else.
-    let kinds = collect_assign_kinds(cu, index, &tail_index);
+    let kinds = collect_assign_kinds(cu, index, ns);
     for (var, ks) in &kinds {
         let has_constructor_in_index = ks
             .iter()
@@ -651,7 +766,7 @@ fn resolve(
     method: Option<&str>,
     hierarchy: &ClassHierarchy,
     index: &HashMap<String, ClassDef>,
-    tail_index: &TailIndex,
+    ns: &NsContext,
 ) -> DispatchVerdict {
     let classes = match value {
         ClassValue::Top(r) => return DispatchVerdict::Abstain(*r),
@@ -686,7 +801,7 @@ fn resolve(
                     // and only a *genuinely* unresolvable super counts as
                     // external.
                     || cd.superclasses.iter().any(|s| {
-                        let (_q, in_index) = resolve_class_name(s, index, tail_index);
+                        let (_q, in_index) = resolve_class_name(s, None, index, ns);
                         !in_index && s != "oo::object" && s != "oo::class"
                     })
             })
@@ -723,17 +838,20 @@ fn hierarchy_for(index: &HashMap<String, ClassDef>, cfg: &AblationConfig) -> Cla
 /// `index` is the class definition index to resolve against — pass the
 /// file's own `all_classes` for the per-file measurement, or a
 /// corpus-merged index for the cross-file ablation.  `sites` are the
-/// `var_command_sites` the analyser already collected for this file.
+/// `var_command_sites` the analyser already collected for this file.  `ns`
+/// carries the file's `namespace eval` ranges + `namespace import`s so bare
+/// class names resolve soundly (pass `&NsContext::default()` to disable —
+/// only exact / global names then resolve).
 #[must_use]
 pub fn analyse_dispatch(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef>,
     sites: &[VarCommandSite],
+    ns: &NsContext,
     cfg: &AblationConfig,
 ) -> (Vec<SiteReport>, DispatchStats) {
     let hierarchy = hierarchy_for(index, cfg);
-    let tail_index = build_tail_index(index);
-    let (values, assigned) = build_class_values(cu, index, cfg);
+    let (values, assigned) = build_class_values(cu, index, ns, cfg);
 
     let mut reports = Vec::with_capacity(sites.len());
     let mut stats = DispatchStats::default();
@@ -742,13 +860,7 @@ pub fn analyse_dispatch(
             .get(&site.var_name)
             .cloned()
             .unwrap_or(ClassValue::Bottom);
-        let verdict = resolve(
-            &value,
-            site.method_name.as_deref(),
-            &hierarchy,
-            index,
-            &tail_index,
-        );
+        let verdict = resolve(&value, site.method_name.as_deref(), &hierarchy, index, ns);
         stats.record(&verdict);
         // Sub-count: an `unknown` abstention on a receiver never assigned
         // in this file arrives from outside the scope (param / global /
@@ -850,66 +962,101 @@ mod tests {
         assert_eq!(v, ClassValue::Top(TopReason::Introspection));
     }
 
+    /// A context that imports `::SpiceGenTcl` file-wide (as the OSS
+    /// examples do via `namespace import ::SpiceGenTcl::*`).
+    fn ns_importing(prefix: &str) -> NsContext {
+        NsContext { namespaces: Vec::new(), imports: vec![prefix.to_string()] }
+    }
+    /// A context whose whole file is one `namespace eval <name> { … }`.
+    fn ns_enclosing(name: &str) -> NsContext {
+        NsContext { namespaces: vec![(0, u32::MAX, name.to_string())], imports: Vec::new() }
+    }
+
     #[test]
     fn classify_constructor_in_index() {
         let mut index = HashMap::new();
         index.insert("::Foo".to_string(), ClassDef { qualified_name: "::Foo".into(), name: "Foo".into(), ..Default::default() });
-        let ti = build_tail_index(&index);
-        let k = classify_rhs("[Foo new]", &index, &ti);
+        let k = classify_rhs("[Foo new]", 0, &index, &NsContext::default());
         assert_eq!(k, AssignKind::Constructor { class: "::Foo".into(), in_index: true });
     }
 
     #[test]
-    fn classify_constructor_resolves_namespaced_tail() {
-        // Class defined as `::SpiceGenTcl::Circuit`, constructed with the
-        // bare name `Circuit` inside its namespace — the tail match must
-        // resolve it (this is the dominant SpiceGenTcl shape).
+    fn classify_constructor_resolves_via_enclosing_namespace() {
+        // Class `::SpiceGenTcl::Circuit`, constructed with the bare name
+        // `Circuit` *inside its own namespace* — resolves via the enclosing
+        // `namespace eval` (the dominant same-namespace shape).
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
         );
-        let ti = build_tail_index(&index);
-        let k = classify_rhs("[Circuit new $name]", &index, &ti);
+        let ns = ns_enclosing("::SpiceGenTcl");
+        let k = classify_rhs("[Circuit new $name]", 10, &index, &ns);
         assert_eq!(k, AssignKind::Constructor { class: "::SpiceGenTcl::Circuit".into(), in_index: true });
     }
 
     #[test]
-    fn classify_constructor_ambiguous_tail_stays_unresolved() {
-        // Two classes share the tail `Circuit` — we cannot pick one, so
-        // the bare constructor is an honest miss (not a wrong guess).
+    fn classify_constructor_resolves_via_namespace_import() {
+        // Bare `Circuit` at global scope, but the file did
+        // `namespace import ::SpiceGenTcl::*` — resolves via the import.
+        let mut index = HashMap::new();
+        index.insert(
+            "::SpiceGenTcl::Circuit".to_string(),
+            ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
+        );
+        let ns = ns_importing("::SpiceGenTcl");
+        let k = classify_rhs("[Circuit new $name]", 0, &index, &ns);
+        assert_eq!(k, AssignKind::Constructor { class: "::SpiceGenTcl::Circuit".into(), in_index: true });
+    }
+
+    #[test]
+    fn classify_constructor_no_import_stays_unresolved() {
+        // The soundness fix (Codex P2): a bare `Circuit` with NO enclosing
+        // namespace and NO import must NOT be matched to `::SpiceGenTcl::Circuit`
+        // just because the tail is unique — that would be a confident false
+        // resolution across namespaces. Honest miss instead.
+        let mut index = HashMap::new();
+        index.insert(
+            "::SpiceGenTcl::Circuit".to_string(),
+            ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
+        );
+        let k = classify_rhs("[Circuit new]", 0, &index, &NsContext::default());
+        assert_eq!(k, AssignKind::Constructor { class: "::Circuit".into(), in_index: false });
+    }
+
+    #[test]
+    fn classify_constructor_wrong_namespace_import_stays_unresolved() {
+        // Importing an unrelated namespace must not resolve the class.
         let mut index = HashMap::new();
         index.insert("::A::Circuit".to_string(), ClassDef { qualified_name: "::A::Circuit".into(), name: "Circuit".into(), ..Default::default() });
-        index.insert("::B::Circuit".to_string(), ClassDef { qualified_name: "::B::Circuit".into(), name: "Circuit".into(), ..Default::default() });
-        let ti = build_tail_index(&index);
-        let k = classify_rhs("[Circuit new]", &index, &ti);
+        let ns = ns_importing("::B");
+        let k = classify_rhs("[Circuit new]", 0, &index, &ns);
         assert_eq!(k, AssignKind::Constructor { class: "::Circuit".into(), in_index: false });
     }
 
     #[test]
     fn classify_constructor_cross_file_miss() {
         let index: HashMap<String, ClassDef> = HashMap::new();
-        let ti = build_tail_index(&index);
-        let k = classify_rhs("[Bar create b]", &index, &ti);
+        let k = classify_rhs("[Bar create b]", 0, &index, &NsContext::default());
         assert_eq!(k, AssignKind::Constructor { class: "::Bar".into(), in_index: false });
     }
 
     #[test]
     fn classify_introspection() {
         let index: HashMap<String, ClassDef> = HashMap::new();
-        let ti = build_tail_index(&index);
-        assert_eq!(classify_rhs("[info object class $x]", &index, &ti), AssignKind::Introspection);
-        assert_eq!(classify_rhs("[oo::copy $x]", &index, &ti), AssignKind::Introspection);
-        assert_eq!(classify_rhs("[self]", &index, &ti), AssignKind::Introspection);
+        let ns = NsContext::default();
+        assert_eq!(classify_rhs("[info object class $x]", 0, &index, &ns), AssignKind::Introspection);
+        assert_eq!(classify_rhs("[oo::copy $x]", 0, &index, &ns), AssignKind::Introspection);
+        assert_eq!(classify_rhs("[self]", 0, &index, &ns), AssignKind::Introspection);
     }
 
     #[test]
     fn classify_factory_and_literal() {
         let index: HashMap<String, ClassDef> = HashMap::new();
-        let ti = build_tail_index(&index);
-        assert_eq!(classify_rhs("[make_widget red]", &index, &ti), AssignKind::Factory);
-        assert_eq!(classify_rhs("hello", &index, &ti), AssignKind::Literal);
-        assert_eq!(classify_rhs("$other", &index, &ti), AssignKind::VarCopy);
+        let ns = NsContext::default();
+        assert_eq!(classify_rhs("[make_widget red]", 0, &index, &ns), AssignKind::Factory);
+        assert_eq!(classify_rhs("hello", 0, &index, &ns), AssignKind::Literal);
+        assert_eq!(classify_rhs("$other", 0, &index, &ns), AssignKind::VarCopy);
     }
 
     fn cls(qname: &str, supers: &[&str], methods: &[&str]) -> ClassDef {
@@ -942,7 +1089,7 @@ mod tests {
         index.insert("::A".to_string(), a);
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Concrete("::A".into());
-        match resolve(&v, Some("bark"), &h, &index, &build_tail_index(&index)) {
+        match resolve(&v, Some("bark"), &h, &index, &NsContext::default()) {
             DispatchVerdict::Resolved { method_known, providers, .. } => {
                 assert!(method_known);
                 assert!(providers.contains("::A"));
@@ -957,7 +1104,7 @@ mod tests {
         index.insert("::A".to_string(), cls("::A", &[], &["bark"]));
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Concrete("::A".into());
-        match resolve(&v, Some("fly"), &h, &index, &build_tail_index(&index)) {
+        match resolve(&v, Some("fly"), &h, &index, &NsContext::default()) {
             DispatchVerdict::Resolved { method_known, .. } => assert!(!method_known),
             other => panic!("{other:?}"),
         }
@@ -968,7 +1115,7 @@ mod tests {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Top(TopReason::FactoryReturn);
-        assert_eq!(resolve(&v, Some("m"), &h, &index, &build_tail_index(&index)), DispatchVerdict::Abstain(TopReason::FactoryReturn));
+        assert_eq!(resolve(&v, Some("m"), &h, &index, &NsContext::default()), DispatchVerdict::Abstain(TopReason::FactoryReturn));
     }
 
     #[test]
@@ -978,7 +1125,7 @@ mod tests {
         index.insert("::B".to_string(), cls("::B", &[], &[])); // no m, no unknown, no external super
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Set(["::A".to_string(), "::B".to_string()].into_iter().collect());
-        match resolve(&v, Some("m"), &h, &index, &build_tail_index(&index)) {
+        match resolve(&v, Some("m"), &h, &index, &NsContext::default()) {
             DispatchVerdict::Resolved { method_known, classes, .. } => {
                 assert_eq!(classes.len(), 2);
                 assert!(!method_known, "B lacks m, so the set is not fully known");

@@ -55,7 +55,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use tcl_compiler::analyser::class_lattice::{
-    AblationConfig, DispatchStats, DispatchVerdict, TopReason, analyse_dispatch,
+    AblationConfig, DispatchStats, DispatchVerdict, NsContext, TopReason, analyse_dispatch,
 };
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::ClassDef;
@@ -125,6 +125,7 @@ struct Analysed {
     cu: CompilationUnit,
     sites: Vec<tcl_compiler::analyser::state::VarCommandSite>,
     classes: HashMap<String, ClassDef>,
+    ns: NsContext,
     lines: usize,
 }
 
@@ -145,10 +146,12 @@ fn analyse_file(path: &Path, reg: &CommandRegistry) -> Option<Analysed> {
         let result = a.analyse(&src, "tcl8.6");
         let cu = CompilationUnit::build_for(&src, reg, false)
             .with_interprocedural(reg, Some("tcl8.6"));
+        let ns = NsContext::from_result(&result);
         Analysed {
             cu,
             sites: a.var_command_sites.clone(),
             classes: result.all_classes,
+            ns,
             lines,
         }
     }))
@@ -270,7 +273,7 @@ fn main() {
         for (_path, a) in &analysed {
             let index = if ab.cross_file { &merged_index } else { &a.classes };
             let t0 = Instant::now();
-            let (reports, stats) = analyse_dispatch(&a.cu, index, &a.sites, &ab.cfg);
+            let (reports, stats) = analyse_dispatch(&a.cu, index, &a.sites, &a.ns, &ab.cfg);
             resolve_time += t0.elapsed();
             agg.merge(&stats);
             // Sample from the FULL ablation only.

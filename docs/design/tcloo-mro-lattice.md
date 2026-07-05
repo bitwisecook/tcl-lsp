@@ -90,9 +90,12 @@ rather than building a second engine. The module only adds:
 
 - the explicit ⊤ **taxonomy** the scalar type lattice can't express;
 - the **JOIN** at merges and the single-class ablation;
-- **namespace-tail resolution** of bare class names (`Circuit new` inside
-  `namespace eval ::Ns` → `::Ns::Circuit`) — a unique simple-name match
-  against the class index; ambiguous tails stay an honest miss;
+- **sound namespace resolution** of bare class names (`NsContext`): a bare
+  `Circuit new` resolves via (1) the enclosing `namespace eval`, (2)
+  `namespace import`ed prefixes, (3) the global namespace — else it
+  abstains (`cross-file-miss`). It is **never** matched to a same-tailed
+  class in an unrelated namespace, so cross-file resolution cannot
+  manufacture a confident false resolution from a namespace collision;
 - the **⊤-reason attribution** by scanning IR assignment RHS shapes.
 
 The design bias is **sound-by-abstention**: anything we can't prove

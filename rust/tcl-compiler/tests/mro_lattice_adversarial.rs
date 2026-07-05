@@ -16,8 +16,9 @@
 #![allow(clippy::match_wildcard_for_single_variants)]
 
 use tcl_compiler::analyser::class_lattice::{
-    AblationConfig, DispatchVerdict, SiteReport, TopReason, analyse_dispatch,
+    AblationConfig, DispatchVerdict, NsContext, SiteReport, analyse_dispatch,
 };
+use tcl_compiler::analyser::class_lattice::TopReason;
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
@@ -29,8 +30,14 @@ fn resolve(src: &str) -> Vec<SiteReport> {
     let mut a = Analyser::new();
     let result = a.analyse(src, "tcl8.6");
     let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, Some("tcl8.6"));
-    let (reports, _stats) =
-        analyse_dispatch(&cu, &result.all_classes, &a.var_command_sites, &AblationConfig::full());
+    let ns = NsContext::from_result(&result);
+    let (reports, _stats) = analyse_dispatch(
+        &cu,
+        &result.all_classes,
+        &a.var_command_sites,
+        &ns,
+        &AblationConfig::full(),
+    );
     reports
 }
 

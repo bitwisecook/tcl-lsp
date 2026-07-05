@@ -8,14 +8,18 @@ diagnostics). Harness: `rust/tcl-compiler/examples/mro_eval.rs`.
 Reproduce:
 
 ```sh
-# fetch the external corpus (git-ignored)
+# fetch the external corpus (git-ignored, pinned to the MANIFEST SHAs)
 experiments/corpus/fetch_corpus.sh
-# run
-cargo run --release -p tcl-compiler --example mro_eval -- \
-    experiments/corpus/georgtree \
-    experiments/corpus/adversarial \
-    experiments/corpus/vendor \
-    experiments/corpus/repo-fixtures
+CORPUS="experiments/corpus/georgtree experiments/corpus/adversarial \
+        experiments/corpus/vendor experiments/corpus/repo-fixtures"
+# ⊤-rate + ablations + cost
+cargo run --release -p tcl-compiler --example mro_eval  -- $CORPUS
+# W307/W308 delta (stderr) + labeling worksheet (stdout)
+cargo run --release -p tcl-compiler --example mro_delta -- $CORPUS \
+    > experiments/mro_eval/label_worksheet.csv
+# precision / recall from the hand-labeled ground truth
+python3 experiments/mro_eval/gen_labels.py   # → labeled_sample.csv
+python3 experiments/mro_eval/score_labels.py experiments/mro_eval/labeled_sample.csv
 ```
 
 ## Hypothesis (restated)
@@ -124,19 +128,91 @@ dispatch sites**. Provenance in `experiments/corpus/MANIFEST.md`.
   `[oo::class create …] new` and `[$c new]` — dynamic class handles the
   lattice must abstain on. Two independent corpora, same verdict.
 
-## Precision on the resolved set (hand-verified sample)
+## Precision / recall (hand-labeled sample)
 
-Spot-checked resolved verdicts against source; **no false resolutions
-found** (consistent with sound-by-abstention). Examples:
+**Methodology.** `examples/mro_delta.rs` emits a labeling worksheet
+(`label_worksheet.csv`) with, per site, the resolver verdict, the shipping
+diagnostic, the dispatch line, and the nearest preceding binding of the
+receiver. Ground truth was established by **auditing the corpus source**:
+a receiver bound by a nearby `[Class new|create …]` holds that class
+(spot-audited for confounding reassignments); the 10 resolved sites whose
+binding the worksheet did not capture on the same line were hand-audited
+(e.g. `vSrc→Dc` via a later global `set` used inside a proc; `circuit→
+Circuit`); every method the resolver flagged unknown was checked against
+its class's real superclass chain. The audited labels are encoded by
+`gen_labels.py` → `labeled_sample.csv` and scored by `score_labels.py`.
+**150 labeled sites** (109 resolved with a concrete truth + 41
+abstentions).
 
-| site | resolved to | verified |
-|---|---|---|
-| `$circuit add` | `::SpiceGenTcl::Circuit` | ✓ `circuit` = `[Circuit new …]` (examples/), `Circuit` defines `method add` (src/generalClasses.tcl) — a genuine cross-file resolve |
-| `$optimizer run` | `::tclopt::Mpfit` | ✓ `Mpfit` defines `run` |
-| `$par0 configure` | `::tclopt::ParameterMpfit` | ✓ configurable class, `configure` is a builtin |
+| metric | value | meaning |
+|---|--:|---|
+| **class-resolution precision** | **109/109 = 100 %** | of resolved sites, the named class set contains the true receiver class — **0 false resolutions** |
+| **recall (locally-knowable)** | **109/109 = 100 %** | of sites whose class is determinable from the file, the resolver resolved (didn't abstain) — 0 knowable sites missed |
+| **`method_known` flag accuracy** | **103/109 = 94.5 %** | of resolved sites, the method flag agrees with whether the method really exists |
+| **abstention audit** | **41/41 correct** | every abstention had an `EXTERN` (param/global) or `DYNAMIC` truth — 0 abstentions on a knowable class |
 
-`method-unknown` (class named, method not) was **6 sites** cross-file —
-the W308 candidate set, i.e. potential *true* "unknown method" findings.
+Two things to read carefully:
+
+- **100 % recall is over the *locally-knowable* subset, not all sites.**
+  81.3 % of sites are `EXTERN`/`DYNAMIC` (param receivers, dynamic
+  dispatch) and are *correctly* excluded from the knowable denominator.
+  "Recall = 100 %" means the resolver never abstains on a site whose class
+  a human could pin down locally — **not** that it resolves most sites.
+- **The 6 wrong `method_known` flags are all false W308s**, not missed
+  findings. Each is a receiver whose class defines the method **by
+  inheritance** (`superclass Device`/`Model` → `::SpiceGenTcl::Device`),
+  but the class was declared with a *bare* superclass name that the
+  cross-file MRO builder (`class_hierarchy`, which normalises only via
+  `::name`) did not link to its namespaced definition. So the resolver's
+  "new W308 candidates" would fire on valid code. This is a concrete
+  correctness limitation of cross-file resolution, and it argues *against*
+  wiring the resolver into W308.
+
+## W307/W308 delta vs. the shipping heuristic
+
+`examples/mro_delta.rs` cross-tabulates the resolver's verdict against the
+diagnostic the **real** analyser emits at each dispatch span (not a
+reimplementation). Over the 1,803 sites:
+
+| resolver \ shipping | W307 | W308 | none |
+|---|--:|--:|--:|
+| resolved-known | 2 | 0 | 330 |
+| resolved-unknown | 3 | 0 | 3 |
+| abstain | 46 | 0 | 1,414 |
+
+The shipping heuristic fires **51 W307 and 0 W308** at these sites — it is
+already very conservative here. As a hypothetical replacement the resolver
+would:
+
+- **Remove 2 W307 false positives** (`resolved-known × W307`): it proves
+  the head is a valid object dispatch with a known class + method.
+- **Add 6 W308** (`resolved-unknown`, the 3 `× none` + 3 `× W307`) — but
+  per the precision audit **all 6 are false positives** (unlinked
+  inherited methods). **0 true new findings.**
+- **Regress nothing** (`abstain × W308 = 0`; it never contradicts a
+  shipping W308).
+- Leave 46 W307 untouched (`abstain × W307`) — no claim either way.
+
+Net: **+2 real FP removed, 6 FP introduced, 0 TP gained** — a *worse*
+diagnostic than today's heuristic, driven by the cross-file inheritance
+gap. Another data point against shipping.
+
+## Namespace-soundness (addressing the review)
+
+The first cut resolved a bare `Foo new` by matching the unique class tail
+`Foo` *anywhere* in the merged index — which can name `::Other::Foo` for a
+call that Tcl would not resolve there (flagged in review). Replaced with a
+**sound** model (`NsContext`): a bare name resolves via (1) the enclosing
+`namespace eval`, (2) `namespace import`ed prefixes, (3) the global
+namespace — else it abstains (`cross-file-miss`). It is **never** matched
+to a same-tailed class in an unrelated namespace.
+
+Re-running with the sound model, the resolved count **held at 338** — the
+SpiceGenTcl cross-file resolutions were all backed by a real
+`namespace import ::SpiceGenTcl::*`, so modeling imports recovers them
+*soundly* while the removed heuristic can no longer manufacture a
+false resolution from a namespace collision. (This is also why
+class-precision is a clean 100 %.)
 
 ## Adversarial check (correctness)
 
@@ -185,10 +261,17 @@ classes — resolves correctly *in isolation*. See the granularity caveat.
   therefore already gets this resolving power today, via the type lattice
   + workspace class index. This experiment did not find a case where the
   lattice adds to it.
-- **Precision sample is a spot-check**, not the full ≥100 hand-labelled
-  set the protocol asked for; it is sufficient to establish "no false
-  resolutions on the resolved set", which is the correctness-critical
-  direction. Recall is dominated by the ⊤-rate and reported as such.
+- **Cross-file inheritance is under-linked.** A class declared with a bare
+  `superclass Device` inside an importing file does not link to
+  `::SpiceGenTcl::Device` in the merged MRO (the hierarchy builder
+  normalises only via `::name`), producing the 6 false W308s. Fixing it
+  would need namespace-aware superclass normalisation in the shipping
+  `class_hierarchy` builder — out of scope for this measurement-only
+  experiment, and noted as a prerequisite for *any* cross-file W308.
+- **Labeled sample bias.** Precision/recall are measured on the sites the
+  resolver could reach at all; 81 % of sites are `EXTERN`/`DYNAMIC` and are
+  excluded from the "knowable" denominators by construction. The headline
+  number remains the 81.3 % ⊤-rate, not the 100 % conditional recall.
 
 ## Recommendation
 
@@ -205,7 +288,13 @@ Concretely, staged by evidence:
    already ships.** `mro.rs`/`class_hierarchy.rs` + the LSP's cross-file
    `all_classes` already deliver the 18.7 % that *is* resolvable. Keep
    using them; the experiment validates that design.
-3. **If you want to move the ⊤-rate, the only lever that matters is
+3. **Do not source W308 from this resolver.** Against the real emitter it
+   is a net *loss*: +2 W307 false positives removed, but **6 new W308 false
+   positives** introduced and **0 true findings**, because cross-file
+   inheritance through bare `superclass` names is under-linked. Cross-file
+   W308 needs namespace-aware superclass normalisation *first*, and even
+   then this corpus offers no true positives to gain.
+4. **If you want to move the ⊤-rate, the only lever that matters is
    interprocedural object-type flow through parameters/returns** — that is
    60 % of all sites (the extern/param receivers) and 100 % of the
    `unknown` bucket. This is a *type-flow* problem, not a *lattice* one:
@@ -214,7 +303,7 @@ Concretely, staged by evidence:
    committing, measure: instrument how many param-receiver sites have a
    *single* concrete caller-supplied class — if most callers are
    themselves params (turtles all the way down), even this won't help.
-4. **Retain the ⊤ taxonomy + harness** as the yardstick for (3). The
+5. **Retain the ⊤ taxonomy + harness** as the yardstick for (4). The
    `next_provider` (`next`/`nextto`) modelling and the ⊤ instrumentation
    are cheap, correct, and useful for go-to-definition on `next` chains
    independent of the lattice question.

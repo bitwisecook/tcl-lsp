@@ -22,12 +22,24 @@ gt_repos=(
   "extexpr    1d53317"
 )
 for entry in "${gt_repos[@]}"; do
-  repo="${entry%% *}"
-  if [ -d "georgtree/$repo/.git" ]; then
-    echo "  $repo present — skipping"
+  read -r repo sha <<<"$entry"
+  dir="georgtree/$repo"
+  if [ ! -d "$dir/.git" ]; then
+    git clone -q "https://github.com/georgtree/$repo" "$dir" || { echo "  clone $repo FAILED"; continue; }
+    echo "  cloned $repo"
+  fi
+  # Pin to the exact revision recorded in MANIFEST.md so the reproduction
+  # analyses the same corpus even after upstream advances. Fetch the SHA
+  # first in case a shallow clone doesn't already contain it.
+  if [ "$(git -C "$dir" rev-parse --short=7 HEAD 2>/dev/null)" != "$sha" ]; then
+    git -C "$dir" fetch -q --depth 1 origin "$sha" 2>/dev/null || git -C "$dir" fetch -q origin
+    if git -C "$dir" checkout -q "$sha" 2>/dev/null; then
+      echo "  $repo pinned at $sha"
+    else
+      echo "  WARNING: could not checkout $repo@$sha; using $(git -C "$dir" rev-parse --short=7 HEAD)"
+    fi
   else
-    git clone --depth 1 -q "https://github.com/georgtree/$repo" "georgtree/$repo" \
-      && echo "  cloned $repo"
+    echo "  $repo already at $sha"
   fi
 done
 

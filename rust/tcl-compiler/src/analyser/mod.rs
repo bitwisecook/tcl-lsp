@@ -68,7 +68,7 @@ pub mod utils;
 
 pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
 pub use class_lattice::{
-    AblationConfig, ClassValue, DispatchStats, DispatchVerdict, SiteReport, TopReason,
+    AblationConfig, ClassValue, DispatchStats, DispatchVerdict, NsContext, SiteReport, TopReason,
     analyse_dispatch, next_provider,
 };
 pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
