@@ -624,6 +624,13 @@ is incomplete and must not be merged.
   something the code itself does not convey. Do not use banner-style comments
   (`// -----------`, `// --- Text ---`, `// -- [section] ------`). Use a plain
   `// Text` comment instead. Never add standalone dash-separator lines.
+- **Copyright headers** go on *our own original source only*: the full
+  AGPL-3.0 notice with `Copyright (C) <year> James Deucker (bitwisecook)`,
+  placed after any shebang / `-*-` / coding magic first line. **Never** add our
+  header to vendored or third-party code — it keeps its own notices and licence
+  (e.g. `runtime/rust/vendor/`, `rust/tcl-regex/tests/data/reg.test`). Also skip
+  generated files, test fixtures / golden corpora, and `.github/workflows/*`
+  (the CI token cannot push header edits to workflows). See `DUAL-LICENSING.md`.
 - See `CONTRIBUTING.md` for the full style guide.
 
 ## Editor settings codegen
