@@ -25,7 +25,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "actual",
         arity: Arity::at_least(1),
         detail: "Return the actual attributes of a font on the display.",
-        synopsis: "font actual font ?-displayof window? ?option?",
+        synopsis: "font actual font ?-displayof window? ?option? ?--? ?char?",
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -158,7 +158,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create and inspect fonts.",
             synopsis: &[
-                "font actual font ?-displayof window? ?option?",
+                "font actual font ?-displayof window? ?option? ?--? ?char?",
                 "font configure fontname ?option? ?value option value ...?",
                 "font create ?fontname? ?option value ...?",
                 "font delete fontname ?fontname ...?",

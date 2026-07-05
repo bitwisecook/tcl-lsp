@@ -154,6 +154,22 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-placeholder",
+        value: OptionValue::value("text"),
+        detail: "Help text shown when the entry is empty (Tk 8.7+).",
+        dialects: None,
+        aliases: &[],
+        min_version: Some("8.7"),
+    },
+    OptionSpec {
+        name: "-placeholderforeground",
+        value: OptionValue::value("color"),
+        detail: "Foreground colour of the placeholder text (Tk 8.7+).",
+        dialects: None,
+        aliases: &[],
+        min_version: Some("8.7"),
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
