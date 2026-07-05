@@ -186,8 +186,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-namespace",
-                value: OptionValue::value("ns"),
-                detail: "",
+                value: OptionValue::name("ns"),
+                detail: "Namespace in which to invoke the hidden command.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,

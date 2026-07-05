@@ -1448,6 +1448,28 @@ mod tests {
     }
 
     #[test]
+    fn namespace_name_option_carries_name_role() {
+        // `interp invokehidden -namespace ns cmd` — the `-namespace` value is a
+        // symbolic (namespace) name (Phase 7): captured declaratively for a
+        // Name query, never for Body/VarWrite (not recursed, not a var def).
+        let reg = CommandRegistry::build_default();
+        let args = ["invokehidden", "-namespace", "ns", "cmd"];
+        assert_eq!(
+            reg.arg_indices_for_role("interp", &args, ArgRole::Name),
+            vec![2],
+            "the -namespace value should carry the Name role",
+        );
+        assert!(
+            reg.arg_indices_for_role("interp", &args, ArgRole::Body)
+                .is_empty()
+                && reg
+                    .arg_indices_for_role("interp", &args, ArgRole::VarWrite)
+                    .is_empty(),
+            "a name value must not be recursed or treated as a variable",
+        );
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);
