@@ -2234,10 +2234,19 @@ fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mu
     }
 }
 
-// One match arm per `ArgOverride` variant (including the `Kind`-dispatched
-// option-value token); the flat dispatch reads clearer as one function than
-// split across helpers.
-#[allow(clippy::too_many_lines)]
+/// The fixed `(kind, modifier)` for overrides that emit their token verbatim,
+/// or `None` for overrides that need custom handling (recursion / sub-tokens).
+fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
+    match ov {
+        ArgOverride::Kind(kind) => Some((kind, 0)),
+        ArgOverride::Decorator => Some((TokenKind::Decorator, 0)),
+        ArgOverride::VarDecl => Some((TokenKind::Variable, MOD_DECLARATION)),
+        ArgOverride::SubcommandKeyword => Some((TokenKind::Keyword, MOD_DEFAULT_LIBRARY)),
+        ArgOverride::ProcNameDef => Some((TokenKind::Function, MOD_DEFINITION)),
+        _ => None,
+    }
+}
+
 fn emit_arg_token(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
@@ -2255,6 +2264,11 @@ fn emit_arg_token(
         inside_oo_body: false,
         ..ctx
     };
+    // Overrides that emit their token verbatim collapse to one path.
+    if let Some((kind, modifier)) = override_kind.copied().and_then(verbatim_token_kind) {
+        push_token(line_index, full_source, *tok, kind, modifier, entries);
+        return;
+    }
     match override_kind {
         Some(ArgOverride::RegexPattern) => {
             if !push_regex_subtokens(line_index, full_source, *tok, entries) {
@@ -2278,51 +2292,8 @@ fn emit_arg_token(
             let emitted = push_regsub_subtokens(line_index, full_source, *tok, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::Kind(kind)) => {
-            push_token(line_index, full_source, *tok, *kind, 0, entries);
-        }
-        Some(ArgOverride::Decorator) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Decorator,
-                0,
-                entries,
-            );
-        }
-        Some(ArgOverride::VarDecl) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Variable,
-                MOD_DECLARATION,
-                entries,
-            );
-        }
         Some(ArgOverride::ApplyLambda) => {
             collect_apply_lambda(ctx, *tok, entries, depth + 1);
-        }
-        Some(ArgOverride::SubcommandKeyword) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Keyword,
-                MOD_DEFAULT_LIBRARY,
-                entries,
-            );
-        }
-        Some(ArgOverride::ProcNameDef) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Function,
-                MOD_DEFINITION,
-                entries,
-            );
         }
         Some(ArgOverride::BodyScript) => {
             if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
@@ -2354,6 +2325,14 @@ fn emit_arg_token(
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
         }
+        // Verbatim-token overrides are handled by the early return above.
+        Some(
+            ArgOverride::Kind(_)
+            | ArgOverride::Decorator
+            | ArgOverride::VarDecl
+            | ArgOverride::SubcommandKeyword
+            | ArgOverride::ProcNameDef,
+        ) => {}
         None => emit_default_arg_token(plain_ctx, *tok, entries, depth),
     }
 }

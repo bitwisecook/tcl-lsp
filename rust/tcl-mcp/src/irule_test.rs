@@ -478,122 +478,124 @@ fn generate_questions(
     action: &Action,
     relevant_taints: &[Value],
 ) -> Vec<Value> {
-    let mut questions: Vec<Value> = Vec::new();
     let cmd = action.command.as_str();
-    let args = &action.args;
     let cond_summary = build_condition_summary(conditions);
+    let mut questions: Vec<Value> = Vec::new();
+    // The primary action question, the fallback-branch question, and the taint
+    // sanitisation question are independent; each contributes at most one entry.
+    questions.extend(command_question(event, cmd, &action.args, &cond_summary));
+    questions.extend(fallback_question(conditions));
+    questions.extend(taint_question(relevant_taints, cmd));
+    questions
+}
 
-    let q = |question: String, field: &str, suggested: Value| json!({ "question": question, "field": field, "suggested": suggested });
+/// A `{question, field, suggested}` object.
+fn question(text: &str, field: &str, suggested: &Value) -> Value {
+    json!({ "question": text, "field": field, "suggested": suggested })
+}
+
+/// The primary question for a path's terminal action, keyed by its command.
+fn command_question(event: &str, cmd: &str, args: &[String], cond_summary: &str) -> Option<Value> {
     // "When <summary>, …" phrasing, falling back to "unconditionally".
     let when = |fallback: &str| -> String {
         if cond_summary.is_empty() {
             fallback.to_owned()
         } else {
-            cond_summary.clone()
+            cond_summary.to_owned()
         }
     };
-
     match cmd {
         "pool" if !args.is_empty() => {
             let pool = &args[0];
-            let question = if cond_summary.is_empty() {
+            let text = if cond_summary.is_empty() {
                 format!("Should all requests in {event} go to pool '{pool}'?")
             } else {
                 format!("When {cond_summary}, should the request go to pool '{pool}'?")
             };
-            questions.push(q(question, "expected_pool", json!(pool)));
+            Some(question(&text, "expected_pool", &json!(pool)))
         }
         "reject" => {
-            let question = if cond_summary.is_empty() {
+            let text = if cond_summary.is_empty() {
                 format!("Should all connections in {event} be rejected?")
             } else {
                 format!("When {cond_summary}, should the connection be rejected?")
             };
-            questions.push(q(question, "expected_reject", json!("yes")));
+            Some(question(&text, "expected_reject", &json!("yes")))
         }
         "HTTP::redirect" => {
             let target = args.first().map_or("?", String::as_str);
-            questions.push(q(
-                format!(
+            Some(question(
+                &format!(
                     "When {}, what URL should the redirect go to?",
                     when("unconditionally")
                 ),
                 "expected_redirect",
-                json!(target),
-            ));
+                &json!(target),
+            ))
         }
         "HTTP::respond" => {
             let status = args.first().map_or("200", String::as_str);
-            questions.push(q(
-                format!(
+            Some(question(
+                &format!(
                     "When {}, what HTTP status should be returned?",
                     when("unconditionally")
                 ),
                 "expected_status",
-                json!(status),
-            ));
+                &json!(status),
+            ))
         }
         "node" if !args.is_empty() => {
             let node = &args[0];
-            questions.push(q(
-                format!(
+            Some(question(
+                &format!(
                     "When {}, should traffic go to node '{node}'?",
                     when("unconditionally")
                 ),
                 "expected_node",
-                json!(node),
-            ));
+                &json!(node),
+            ))
         }
-        _ => {}
+        _ => None,
     }
+}
 
-    // For the first `else` / `default` branch, ask about the fallback input.
-    for c in conditions {
-        match c {
-            Condition::If {
-                branch: Branch::Else,
-                ..
-            } => {
-                questions.push(q(
-                    "What input value should trigger the 'else' / fallback path?".to_owned(),
-                    "fallback_input",
-                    Value::Null,
-                ));
-                break;
-            }
-            Condition::Switch { subject, pattern } if pattern == "default" => {
-                questions.push(q(
-                    format!(
-                        "What input value should trigger the 'default' case of switch on {subject}?"
-                    ),
-                    "default_input",
-                    Value::Null,
-                ));
-                break;
-            }
-            _ => {}
-        }
-    }
+/// For the first `else` / `default` branch, ask about the fallback input.
+fn fallback_question(conditions: &[Condition]) -> Option<Value> {
+    conditions.iter().find_map(|c| match c {
+        Condition::If {
+            branch: Branch::Else,
+            ..
+        } => Some(question(
+            "What input value should trigger the 'else' / fallback path?",
+            "fallback_input",
+            &Value::Null,
+        )),
+        Condition::Switch { subject, pattern } if pattern == "default" => Some(question(
+            &format!("What input value should trigger the 'default' case of switch on {subject}?"),
+            "default_input",
+            &Value::Null,
+        )),
+        _ => None,
+    })
+}
 
-    // For tainted paths, ask about sanitisation of the first relevant warning.
-    if let Some(first) = relevant_taints.first() {
-        let variable = first.get("variable").and_then(Value::as_str).unwrap_or("?");
-        let sink = first
-            .get("sink_command")
-            .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
-            .unwrap_or(cmd);
-        questions.push(q(
-            format!(
-                "The variable '{variable}' carries user input into '{sink}'. \
-                 Is sanitization needed here?"
-            ),
-            "needs_sanitization",
-            json!("yes"),
-        ));
-    }
-
-    questions
+/// For tainted paths, ask about sanitisation of the first relevant warning.
+fn taint_question(relevant_taints: &[Value], cmd: &str) -> Option<Value> {
+    let first = relevant_taints.first()?;
+    let variable = first.get("variable").and_then(Value::as_str).unwrap_or("?");
+    let sink = first
+        .get("sink_command")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(cmd);
+    Some(question(
+        &format!(
+            "The variable '{variable}' carries user input into '{sink}'. \
+             Is sanitization needed here?"
+        ),
+        "needs_sanitization",
+        &json!("yes"),
+    ))
 }
 
 /// A human-readable summary of a path's conditions
