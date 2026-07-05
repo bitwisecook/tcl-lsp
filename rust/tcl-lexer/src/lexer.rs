@@ -129,7 +129,7 @@ use crate::tokens::{Token, TokenType};
 /// Holds dialect-specific flags and sub-lexing offsets as explicit
 /// fields passed at construction time; the `Default` values are the
 /// non-strict, Tcl-8.5+ defaults with no sub-lexing offsets.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LexerConfig {
     /// When true, `{*}` at a word boundary followed by a
     /// non-separator emits an [`EXPAND`](TokenType::Expand) token.

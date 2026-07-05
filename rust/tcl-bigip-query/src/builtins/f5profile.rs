@@ -32,6 +32,8 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use indexmap::IndexMap;
+use tcl_registry::profile_defaults::{BigipVersion, profile_field_default, profile_field_defaults};
 use tcl_registry::profiles::ProfileRegistry;
 
 use crate::builtins::{BuiltinSpec, as_str, plain};
@@ -150,14 +152,76 @@ pub fn order_profiles_with_types<S: std::hash::BuildHasher>(
 }
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
-    vec![plain(
-        "profile_order",
-        "value",
-        1,
-        Some(1),
-        true,
-        bi_profile_order,
-    )]
+    vec![
+        plain("profile_order", "value", 1, Some(1), true, bi_profile_order),
+        plain(
+            "profile_defaults",
+            "bigip",
+            1,
+            Some(2),
+            false,
+            bi_profile_defaults,
+        ),
+        plain(
+            "profile_default",
+            "bigip",
+            2,
+            Some(3),
+            false,
+            bi_profile_default,
+        ),
+    ]
+}
+
+/// Parse an optional trailing version argument into a [`BigipVersion`].
+///
+/// `null` / empty string / absent → `None` (resolve the current default);
+/// a malformed version string is an error rather than a silent "current".
+fn version_arg(
+    args: &[Value],
+    idx: usize,
+    name: &'static str,
+) -> Result<Option<BigipVersion>, QueryError> {
+    match args.get(idx) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => {
+            let s = as_str(v, name, idx + 1)?;
+            if s.trim().is_empty() {
+                return Ok(None);
+            }
+            BigipVersion::parse(&s)
+                .map(Some)
+                .ok_or_else(|| QueryError::builtin(format!("{name}: invalid BIG-IP version '{s}'")))
+        }
+    }
+}
+
+/// `profile_defaults(type ?version?)` — the TMOS default field values of an
+/// unmodified `ltm profile <type>`, as an object of `field → default`.
+///
+/// SCF/`one-line` exports omit fields left at their default (they live in
+/// `/config/profile_base.conf`); this recovers them. The optional second
+/// argument is a BIG-IP version (`"15.1"`, `"16.1.3.2"`); omitted resolves the
+/// current default. Unknown types yield an empty object.
+fn bi_profile_defaults(args: &[Value]) -> Result<Value, QueryError> {
+    let ty = as_str(&args[0], "profile_defaults", 1)?;
+    let version = version_arg(args, 1, "profile_defaults")?;
+    let mut m: IndexMap<String, Value> = IndexMap::new();
+    for (field, value) in profile_field_defaults(&ty, version) {
+        m.insert(field.to_owned(), Value::Str(value.to_owned()));
+    }
+    Ok(Value::Object(m))
+}
+
+/// `profile_default(type field ?version?)` — the TMOS default value of one
+/// field of `ltm profile <type>`, or `null` when the type/field is unknown.
+/// The optional version selects the release (see [`bi_profile_defaults`]).
+fn bi_profile_default(args: &[Value]) -> Result<Value, QueryError> {
+    let ty = as_str(&args[0], "profile_default", 1)?;
+    let field = as_str(&args[1], "profile_default", 2)?;
+    let version = version_arg(args, 2, "profile_default")?;
+    Ok(profile_field_default(&ty, &field, version)
+        .map_or(Value::Null, |v| Value::Str(v.to_owned())))
 }
 
 /// `profile_order` — sort a list of profile references into traffic order.
@@ -223,5 +287,70 @@ mod tests {
             out,
             vec!["/Common/tcp".to_owned(), "/Common/weird_name".to_owned()]
         );
+    }
+
+    fn as_string(v: &Value) -> Option<&str> {
+        match v {
+            Value::Str(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn profile_defaults_builtin_returns_field_object() {
+        let out = bi_profile_defaults(&[Value::Str("tcp".to_owned())]).unwrap();
+        let Value::Object(m) = out else {
+            panic!("expected object");
+        };
+        assert_eq!(m.get("idle-timeout").and_then(as_string), Some("300"));
+        assert_eq!(m.get("nagle").and_then(as_string), Some("disabled"));
+    }
+
+    #[test]
+    fn profile_default_builtin_resolves_version_range() {
+        let call = |args: &[Value]| -> Value { bi_profile_default(args).unwrap() };
+        let clientssl_options = |ver: Option<&str>| {
+            let mut args = vec![
+                Value::Str("clientssl".to_owned()),
+                Value::Str("options".to_owned()),
+            ];
+            if let Some(v) = ver {
+                args.push(Value::Str(v.to_owned()));
+            }
+            call(&args)
+        };
+
+        // Older TMOS: base clientssl options omit the TLS 1.3 flag.
+        assert_eq!(
+            as_string(&clientssl_options(Some("13.1"))),
+            Some("dont-insert-empty-fragments")
+        );
+        // 14.0+: TLS 1.3 disabled by default.
+        assert_eq!(
+            as_string(&clientssl_options(Some("16.1"))),
+            Some("dont-insert-empty-fragments no-tlsv1.3")
+        );
+        // No version → current value.
+        assert_eq!(
+            as_string(&clientssl_options(None)),
+            Some("dont-insert-empty-fragments no-tlsv1.3")
+        );
+    }
+
+    #[test]
+    fn profile_default_builtin_unknown_is_null_and_bad_version_errors() {
+        let unknown = bi_profile_default(&[
+            Value::Str("tcp".to_owned()),
+            Value::Str("no-such-field".to_owned()),
+        ])
+        .unwrap();
+        assert!(matches!(unknown, Value::Null));
+
+        let bad = bi_profile_default(&[
+            Value::Str("tcp".to_owned()),
+            Value::Str("idle-timeout".to_owned()),
+            Value::Str("not-a-version".to_owned()),
+        ]);
+        assert!(bad.is_err());
     }
 }

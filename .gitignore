@@ -14,6 +14,12 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+# The shared BIG-IP report front-end is committed as a generated artifact: the
+# Rust generator embeds shared/dist/*.js via include_str! at compile time, so it
+# must exist in a fresh checkout without running Node (same precedent as the
+# vendored wasm). Re-include it despite the blanket dist/ rule above.
+!rust/bigip-report/shared/dist/
+!rust/bigip-report/shared/dist/**
 
 # Sphinx HTML output for the f5q Python API reference
 # (built by ``make docs``; Read the Docs builds from source).

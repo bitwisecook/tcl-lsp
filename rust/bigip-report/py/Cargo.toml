@@ -1,0 +1,74 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# PyO3 bindings for the BIG-IP query engine.
+#
+# This crate exposes `tcl-bigip-query` (the jq-flavoured `f5 query` DSL) and the
+# `tcl-bigip-io` UCS reader to Python as a native extension module
+# (`f5report._engine`). It is the interface the pure-Python report generator in
+# `python/f5report/` imports — no subprocess, no shelling out to `f5-query`.
+#
+# It is intentionally EXCLUDED from the workspace (see the root Cargo.toml
+# `exclude` list) for the same reason `editors/zed` and `tcl-explorer-wasm` are:
+# the PyO3 procedural macros expand to code the workspace `unsafe_code =
+# "forbid"` lint would reject, and the extension links libpython, which the
+# other workspace crates must not require. Built with maturin, not `cargo`
+# directly (see pyproject.toml).
+
+[package]
+name = "bigip-query-py"
+description = "PyO3 bindings for the F5 BIG-IP query engine (f5-query DSL + UCS reader)"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+publish = false
+
+[lib]
+name = "_engine"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3 (the CPython stable ABI / limited API) is enabled with a 3.9 floor so a
+# single wheel loads on every CPython from 3.9 up — the interpreter used to
+# build it no longer has to match the one that runs it. The binding only uses
+# the subset of the C-API covered by the limited API, so nothing here needs the
+# full, version-specific C-API.
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+tcl-bigip = { path = "../../tcl-bigip" }
+tcl-bigip-io = { path = "../../tcl-bigip-io" }
+tcl-bigip-query = { path = "../../tcl-bigip-query" }
+# The Rust report generator — reused here only for its architecture/tier
+# detection (`build_architecture`), so the Python report exposes the same
+# cross-device tier model (and diagram) without reimplementing it.
+tcl-bigip-report = { path = "../rust" }
+# F5 master-key (`f5mku`) secret decryption, shared with the wasm report.
+tcl-f5mku = { path = "../../tcl-f5mku" }
+# The real Tcl tokeniser + HTML highlighter, for the iRule source view.
+tcl-lexer = { path = "../../tcl-lexer", features = ["html"] }
+# IR-based control-flow diagram & Mermaid serialiser for the iRule flowchart.
+tcl-diagram = { path = "../../tcl-diagram" }
+tcl-registry = { path = "../../tcl-registry" }
+# The certificate projection serialises the parsed `sys file ssl-cert` field
+# maps to JSON for the pure-Python report layer to consume.
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# NOTE: no `[lints] workspace = true` — this crate must not inherit the
+# workspace `unsafe_code = "forbid"` lint (PyO3's generated glue needs it).

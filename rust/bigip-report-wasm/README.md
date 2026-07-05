@@ -9,10 +9,10 @@ then downloads it. **Nothing is uploaded**; no network request touches your data
 once the WASM has loaded (you can verify that in DevTools → Network, or just go
 offline).
 
-It is the WebAssembly sibling of the Python [`f5report`](../bigip-query-py)
+It is the WebAssembly sibling of the Python [`f5report`](../bigip-report/py)
 package: the Python version stays as the demonstration of driving the query
 engine as a **library** (PyO3), while this crate is the same generator
-([`tcl-bigip-report`](../tcl-bigip-report)) compiled for the browser.
+([`tcl-bigip-report`](../bigip-report/rust)) compiled for the browser.
 
 ## Features
 
@@ -32,9 +32,18 @@ engine as a **library** (PyO3), while this crate is the same generator
 
 | Function | What |
 |----------|------|
-| `extract_source(name, bytes, passphrase, master_key)` | one uploaded file → SCF text (UCS decrypt/extract + optional `$M$` secret decryption). |
-| `generate_report(sources_json, title, generated_at, embed_console)` | ordered `[[uri, scf], …]` → standalone HTML report. |
+| `extract_source(name, bytes, passphrase)` | one uploaded file → SCF text (UCS decrypt/extract; `$M$` decryption is the separate `decrypt_secrets`). |
+| `extract_cert_files(name, bytes, passphrase, scf)` | filestore SSL-cert PEMs → JSON `{cache_path: pem}`. |
+| `extract_files(name, bytes, passphrase)` | UCS member inventory → JSON `[{path, size, sha256, isText, content?}]` (Forensics tab). |
+| `secret_count(scf)` | number of `$M$…` encrypted secrets. |
+| `decrypt_secrets(scf, master_key)` | decrypt `$M$…` secrets with the base64 `f5mku -K` key. |
+| `generate_report(sources_json, cert_files_json, files_json, title, generated_at, embed_console, architecture_manifest, report_id)` | ordered `[[uri, scf], …]` + extras → standalone HTML report. |
+| `build_architecture(devices_json, manifest)` | re-run architecture/topology detection for the builder's GUI editor → `architecture` JSON. |
 | `engine_version()` | the report engine version string. |
+
+The page (styles + upload controller) is the shared builder front-end
+(`rust/bigip-report/shared/src/pages/input.ts`); `build-wasm.sh` inlines the
+generator wasm behind it.
 
 ## Building
 

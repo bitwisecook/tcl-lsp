@@ -56,7 +56,10 @@ pub use expr_lexer::{
     tokenise_expr_checked,
 };
 #[cfg(feature = "html")]
-pub use highlight::highlight_tcl;
+pub use highlight::{
+    HlRange, highlight_ranges, highlight_ranges_with_config, highlight_tcl,
+    highlight_tcl_with_config,
+};
 pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};

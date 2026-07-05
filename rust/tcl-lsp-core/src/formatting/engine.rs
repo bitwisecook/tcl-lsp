@@ -425,7 +425,9 @@ fn format_switch_body(
     indent_level: usize,
 ) -> String {
     let sm = SourceMap::new(body_text);
-    let Ok(tokens) = Lexer::new(body_text).tokenise_all() else {
+    let Ok(tokens) =
+        Lexer::with_source_map(SourceMap::new(body_text), config.lexer_config).tokenise_all()
+    else {
         return body_text.to_owned();
     };
 
@@ -1046,7 +1048,9 @@ pub(crate) fn format_body(
     indent_level: usize,
 ) -> String {
     let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+    let Ok(tokens) =
+        Lexer::with_source_map(SourceMap::new(source), config.lexer_config).tokenise_all()
+    else {
         return source.to_owned();
     };
     let (mut commands, trailing_comments) = parse_commands(source, &sm, &tokens);
@@ -1133,6 +1137,26 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    #[test]
+    fn irule_brace_chain_gets_a_space() {
+        // TMM accepts `}{` (e.g. `if {expr}{body}`); with the f5-irules lexer
+        // preset the formatter parses it as two words and re-emits `} {`.
+        let registry = CommandRegistry::build_default();
+        let config = FormatterConfig {
+            lexer_config: tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+            ..FormatterConfig::default()
+        };
+        let out = format_tcl("if { 1 }{\n    pool p\n}\n", &config, &registry);
+        assert!(!out.contains("}{"), "left `}}{{` unfixed:\n{out}");
+        assert!(out.contains("} {"), "no `}} {{`:\n{out}");
+
+        // Plain-Tcl default preset does not synthesise the separator, so it
+        // leaves the (invalid-in-stock-Tcl) input alone rather than inventing a
+        // parse — no accidental change to non-iRule formatting.
+        let plain = format_tcl("if { 1 }{\n    pool p\n}\n", &FormatterConfig::default(), &registry);
+        assert!(plain.contains("}{"), "default preset should not rewrite `}}{{`");
     }
 
     /// Each `(input, expected)` pair is the expected formatted output

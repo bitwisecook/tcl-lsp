@@ -25,7 +25,7 @@
 use serde_json::Value;
 use tcl_registry::CommandRegistry;
 
-use crate::data::diagram_data;
+use crate::data::diagram_data_with_config;
 
 const MAX_NODES: usize = 600;
 
@@ -269,7 +269,14 @@ fn esc(s: &str) -> String {
 /// nothing worth drawing (no events / procedures, or a parse failure).
 #[must_use]
 pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> String {
-    let data = diagram_data(source, registry);
+    // Always the iRules dialect: lex with the f5-irules preset so `if {expr}{body}`
+    // (`}{` valid in TMM) forms correct control-flow branches instead of the
+    // stock-Tcl mis-segmentation.
+    let data = diagram_data_with_config(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+    );
     let events = data
         .get("events")
         .and_then(Value::as_array)
@@ -321,4 +328,22 @@ pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> Stri
     b.out
         .push_str("  classDef evNode fill:#dbeafe,stroke:#2563eb,color:#0b3a86;\n");
     b.out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flowchart_handles_irule_brace_chain() {
+        // `if {expr}{body}` — `}{` valid in TMM. `irule_flowchart_mermaid` must
+        // lex with the f5-irules preset, so both branches (and their `pool`
+        // actions) appear. Under stock-Tcl lexing the `}{` derails the parse and
+        // the flowchart comes out empty.
+        let src = "when HTTP_REQUEST {\n  if { [HTTP::uri] eq \"/a\" }{\n    pool a_pool\n  } else {\n    pool b_pool\n  }\n}";
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let out = irule_flowchart_mermaid(src, registry);
+        assert!(out.contains("a_pool"), "missing then-branch pool:\n{out}");
+        assert!(out.contains("b_pool"), "missing else-branch pool:\n{out}");
+    }
 }

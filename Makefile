@@ -25,6 +25,9 @@ ROOT     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_DIR         := $(ROOT)editors/vscode
 OUT_DIR         := $(EXT_DIR)/out
+# Shared TypeScript front-end for the BIG-IP report generators (built to
+# rust/bigip-report/shared/dist and synced into the Python f5report package).
+REPORT_SHARED_DIR := $(ROOT)rust/bigip-report/shared
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
@@ -83,6 +86,7 @@ VSCODE   ?= code
 # Stamps (used to avoid re-running expensive steps when deps haven't changed)
 STAMP_DIR  := $(BUILD_DIR)/stamps
 NPM_STAMP  := $(STAMP_DIR)/npm-install
+REPORT_NPM_STAMP := $(STAMP_DIR)/report-npm-install
 STAGE_DIR  := $(BUILD_DIR)/vsix-stage
 
 # Version — derived from git describe (fallback: dev when unavailable)
@@ -172,6 +176,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-zig check-rust rust-deny
+.PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
 # Coverage
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
@@ -350,6 +355,29 @@ typecheck-ts: $(NPM_STAMP) copy-canonical ## Type-check TypeScript extension cod
 	@echo "==> Type-checking TypeScript code with tsc"
 	cd $(EXT_DIR) && $(NPM) run compile
 
+build-report-assets: $(REPORT_NPM_STAMP) ## Build the shared BIG-IP report front-end (TS -> dist/, synced into f5report)
+	@echo "==> Building shared BIG-IP report front-end (esbuild)"
+	cd $(REPORT_SHARED_DIR) && $(NPM) run build
+
+lint-report-ts: $(REPORT_NPM_STAMP) ## Lint/format-check the shared report search modules
+	@echo "==> Linting shared report front-end (ESLint + Prettier check)"
+	cd $(REPORT_SHARED_DIR) && $(NPM) run lint
+
+typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-end with tsc
+	@echo "==> Type-checking shared report front-end with tsc"
+	cd $(REPORT_SHARED_DIR) && $(NPM) run typecheck
+
+# Drift gate: rebuild the shared front-end and fail if the committed dist/ or the
+# assets synced into the Python f5report package are stale (mirrors the vendored
+# generated-artifact checks). Regenerate with `make build-report-assets`.
+check-report-assets: build-report-assets ## Verify committed report dist/ + f5report-synced assets are up to date
+	@echo "==> Checking shared report assets are in sync"
+	@cd $(ROOT) && git diff --exit-code -- \
+		rust/bigip-report/shared/dist \
+		rust/bigip-report/py/python/f5report/templates \
+		rust/bigip-report/py/python/f5report/vendor \
+		|| { echo "ERROR: report assets are stale — run 'make build-report-assets' and commit the result"; exit 1; }
+
 test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 	@# Single-shell recipe so SKIP_TEST_EXT=1 truly bypasses everything
 	@# (compile + xvfb install + test host).  Without ``set -eu`` the
@@ -457,7 +485,7 @@ xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from bu
 	cd $(ROOT) && cargo xtask audit-option-dialects
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-ts typecheck-ts check-editor-settings
+_prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets
 _prep-pr-tests: test-rust
 _prep-pr-smoke: smoke-vsix
 
@@ -1003,6 +1031,12 @@ npm-env: $(NPM_STAMP) ## Install/update npm dependencies
 $(NPM_STAMP): $(EXT_DIR)/package.json
 	@echo "==> Installing npm dependencies"
 	cd $(EXT_DIR) && $(NPM) install
+	@mkdir -p $(STAMP_DIR)
+	@touch $@
+
+$(REPORT_NPM_STAMP): $(REPORT_SHARED_DIR)/package.json
+	@echo "==> Installing shared report front-end npm dependencies"
+	cd $(REPORT_SHARED_DIR) && $(NPM) install
 	@mkdir -p $(STAMP_DIR)
 	@touch $@
 
