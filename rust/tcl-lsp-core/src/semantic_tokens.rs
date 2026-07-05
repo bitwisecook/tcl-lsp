@@ -83,6 +83,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -233,11 +234,19 @@ const MOD_DECLARATION: u32 = 1 << 0;
 
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
-/// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
-/// and `TclOO` definition-/method-context words.  The standalone
-/// commands (`if`, `while`, `proc`, `when`, `oo::*`, …) are sourced
-/// from the registry's `LANGUAGE_KEYWORD` trait instead of a
-/// hardcoded list.
+/// `LANGUAGE_KEYWORD` trait, **and** are not definition-body members.
+///
+/// Definition-body member sub-keywords (`method`, `constructor`, `typemethod`,
+/// `variable`, …) are deliberately **absent**: they are recognised
+/// context-sensitively from the enclosing definer's `definition_body` grammar
+/// (via [`crate::oo_body::is_member`] in [`emit_command_head`] for the script
+/// form and [`insert_oo_define_keyword_overrides`] for the inline form), so a
+/// same-named user proc outside a definition body is never mis-coloured and
+/// `TclOO` and snit members behave identically. This list is only the residue
+/// the grammar does not model: clause keywords of `if`/`try`/`switch` and the
+/// `TclOO` method-*body* helper commands. The standalone commands (`if`,
+/// `while`, `proc`, `when`, `oo::*`, …) come from the registry's
+/// `LANGUAGE_KEYWORD` trait.
 const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     // Clause keywords of if / try / switch — not standalone commands.
     "else",
@@ -245,26 +254,8 @@ const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     "on",
     "trap",
     "finally",
-    // TclOO definition-context keywords without a standalone CommandSpec.
-    "method",
-    "constructor",
-    "destructor",
-    "forward",
-    "mixin",
-    "filter",
-    "superclass",
-    "renamemethod",
-    "deletemethod",
-    "export",
-    "unexport",
-    // TclOO definition-context keywords (9.0+).
-    "classmethod",
-    "definitionnamespace",
-    "initialise",
-    "initialize",
-    "private",
-    "property",
-    // TclOO method-body keywords without a standalone CommandSpec.
+    // TclOO method-body helper commands (used inside a method body, not
+    // definition-context members) without a standalone CommandSpec.
     "callback",
     "mymethod",
     "link",
@@ -441,6 +432,15 @@ enum ArgOverride {
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
     /// string.
     KeywordArg,
+    /// The variable-spec word of a `foreach` / `lmap` / `dict for` loop — a
+    /// single bareword (`foreach item …`) or a braced list of names
+    /// (`foreach {k v} …`).  Each name is a variable the loop assigns on every
+    /// iteration, so it is emitted as `Variable` + `declaration`.
+    LoopVarList,
+    /// A procedure parameter list (`proc p {a b {c 5} args} …`).  Each
+    /// parameter name is emitted as `Variable` + `declaration`; a `{name
+    /// default}` pair emits the name as a variable and classifies its default.
+    ParamList,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -576,11 +576,11 @@ fn push_regsub_subtokens(
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-    inside_oo_body: bool,
+    head: &str,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
-    let head = &seg.texts[0];
 
     // `when EVENT` — the literal event-name argument.
     if head == "when"
@@ -591,7 +591,7 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    insert_regex_overrides(seg, registry, &mut overrides);
+    insert_regex_overrides(seg, registry, head, &mut overrides);
     insert_format_overrides(seg, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.
@@ -603,49 +603,252 @@ fn special_arg_kinds(
             .or_insert(ArgOverride::ProcNameDef);
     }
 
-    insert_option_and_subcommand_overrides(seg, registry, &mut overrides);
-    insert_enum_value_overrides(seg, registry, &mut overrides);
-    insert_oo_define_keyword_overrides(seg, &mut overrides);
+    insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
+    insert_enum_value_overrides(seg, registry, head, &mut overrides);
+    insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
-    insert_role_overrides(seg, registry, arg_texts, &mut overrides);
-    insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
-    insert_var_decl_overrides(seg, registry, &mut overrides);
+    insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
+    insert_multiname_var_overrides(seg, oo_grammar, &mut overrides);
+    insert_ref_var_overrides(seg, &mut overrides);
+    insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_var_decl_overrides(seg, registry, head, &mut overrides);
 
     overrides
 }
 
-/// Mark the script-body arguments of a context-sensitive `TclOO` inner
-/// definition command (`method` / `constructor` / `destructor` / `self …`
-/// / `property -get/-set` / …) as [`ArgOverride::BodyScript`] so they are
-/// recursed into rather than emitted as one opaque `string`.
+/// Loop-variable specs → variable declarations.  Two sources feed
+/// [`ArgOverride::LoopVarList`] (whose [`collect_loop_var_list`] emits each
+/// name — a bareword or the elements of a braced list — as a variable):
 ///
-/// Only consulted when `inside_oo_body` — i.e. this segment is a top-level
-/// word of an `oo::class create … { … }` / `oo::define … { … }` block —
-/// so a same-named user proc at top level is never misclassified.  The
-/// outer OO commands themselves carry their body roles in the registry
-/// (`arg_indices_for_role`, applied by [`insert_role_overrides`]); this
-/// covers only the bare inner sub-keywords, which have no `CommandSpec`.
+/// * The registry's [`ArgRole::LoopVarList`] (`dict for {k v} …`,
+///   `dict map {k v} …`).
+/// * `foreach` / `lmap`, whose resolvers surface only the `Body` role, so their
+///   (possibly repeated) `v1 l1 ?v2 l2 …?` variable-spec positions — every
+///   other argument before the trailing body — are added here.
+///
+/// Highlighting only: the loop bodies already resolve these reads via the
+/// analyser's scope tracking.
+fn insert_loop_var_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let mark = |pos: usize, overrides: &mut FxHashMap<u32, ArgOverride>| {
+        if let Some(tok) = seg.argv.get(pos)
+            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::LoopVarList);
+        }
+    };
+    // Registry-declared specs (`i` indexes the argument words → `argv[i + 1]`).
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::LoopVarList) {
+        mark(i + 1, overrides);
+    }
+    // `foreach v1 l1 ?v2 l2 …? body` — specs at odd `seg.texts` indices
+    // (`v1` = texts[1], `v2` = texts[3], …) up to but excluding the trailing
+    // body.  Needs at least head + varlist + list + body.
+    if matches!(head, "foreach" | "lmap") && seg.texts.len() >= 4 {
+        for pos in (1..seg.texts.len() - 1).step_by(2) {
+            mark(pos, overrides);
+        }
+    }
+}
+
+/// Procedure parameter lists → parameter declarations.  The registry's
+/// [`ArgRole::ParamList`] marks the braced `{a b {c default}}` word of `proc`,
+/// the iRules `proc`, and snit `method` / `typemethod`; it is tagged
+/// [`ArgOverride::ParamList`] so [`collect_param_list`] emits each parameter
+/// name as a `Variable` declaration (and classifies any default value).
+fn insert_param_list_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::ParamList) {
+        // Only a braced literal list carries statically-visible names.
+        if let Some(tok) = seg.argv.get(i + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::ParamList);
+        }
+    }
+}
+
+/// Highlight the local-variable names bound by a by-reference command whose
+/// registry role marks only the leading (or no) target:
+///
+/// * `upvar ?level? otherVar localVar ?otherVar localVar ...?` — the *local*
+///   name of each pair.  A leading level word is present when the argument
+///   count is odd, so the first local sits at `seg.texts[3]` (level) or
+///   `seg.texts[2]` (no level), then every other word.
+/// * `namespace upvar ns otherVar localVar ?...?` — the local of each pair,
+///   starting at `seg.texts[4]`.
+/// * `dict update dictVar key varName ?key varName ...? body` — each `varName`
+///   (`seg.texts[4]`, `[6]`, …), excluding the trailing body.
+///
+/// Highlighting only: the analyser already scopes these locals.  A `$`-computed
+/// / array / quoted name is skipped.
+fn insert_ref_var_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let sub = seg.texts.get(1).map(String::as_str);
+    let positions: Vec<usize> = match (seg.texts[0].as_str(), sub) {
+        ("upvar", _) => {
+            let n = seg.texts.len() - 1; // argument count
+            if n < 2 {
+                return;
+            }
+            // A level word (present iff the argument count is odd) shifts the
+            // first local from texts[2] to texts[3].
+            let start = if n % 2 == 1 { 3 } else { 2 };
+            (start..seg.texts.len()).step_by(2).collect()
+        }
+        ("namespace", Some("upvar")) if seg.texts.len() >= 5 => {
+            (4..seg.texts.len()).step_by(2).collect()
+        }
+        ("dict", Some("update")) if seg.texts.len() >= 6 => {
+            // varNames are the even words after `dict update dictVar key`, up to
+            // but excluding the trailing body.
+            (4..seg.texts.len() - 1).step_by(2).collect()
+        }
+        _ => return,
+    };
+    for pos in positions {
+        if let Some(tok) = seg.argv.get(pos)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(&seg.texts[pos])
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
+        }
+    }
+}
+
+/// Highlight the *trailing* name arguments of a multi-name variable-declaring
+/// command that the registry's single leading `VarWrite` role
+/// ([`insert_var_decl_overrides`], index 0) leaves as plain strings:
+///
+/// * `global name ?name ...?` — every argument is a declared variable.
+/// * `variable name ?value name value ...?` at namespace level — the name sits
+///   at every *even* argument position (0, 2, …); the interleaved values are
+///   left alone.  (A `variable` *inside a definition body* is a grammar member
+///   handled by [`insert_oo_body_overrides`], where `TclOO` declares every name
+///   and snit declares only the leading one.)
+///
+/// Highlighting only: the analyser already tracks every one of these names via
+/// the commands' lowering hooks (`global` / `variable`), so no diagnostic
+/// depends on this.  An array element (`arr(x)`), a `$`-computed name, or a
+/// quoted word is skipped so its inner `$var` sub-tokens survive.
+fn insert_multiname_var_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    // Stride over the argument words (`seg.texts[1..]`): 1 = every word is a
+    // name, 2 = names at every other word (name/value pairs).
+    let stride = match seg.texts[0].as_str() {
+        "global" => 1,
+        // `variable` inside a definition body is a grammar member (handled
+        // elsewhere); at namespace level it is name/value pairs.
+        "variable" if oo_grammar.is_none() => 2,
+        _ => return,
+    };
+    let mut i = 1;
+    while i < seg.texts.len() {
+        if let Some(tok) = seg.argv.get(i)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(&seg.texts[i])
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
+        }
+        i += stride;
+    }
+}
+
+/// Apply the enclosing definition-body grammar to a member call: recurse its
+/// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
+/// ([`ArgOverride::ParamList`]), and declare its variable names
+/// ([`ArgOverride::VarDecl`]).  The member keywords (`method`, `typemethod`,
+/// `constructor`, `variable`, …) have no standalone `CommandSpec`; their layout
+/// comes entirely from the registry grammar ([`crate::oo_body`]).
+///
+/// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
+/// word of a definition body — so a same-named user proc is never
+/// misclassified.
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    inside_oo_body: bool,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let head = &seg.texts[0];
-    if !inside_oo_body || !crate::oo_body::is_inner_oo_definition_command(head) {
+    let Some(grammar) = oo_grammar else {
+        return;
+    };
+    if !crate::oo_body::is_member(grammar, head) {
         return;
     }
-    // `inner_oo_body_indices` indexes the argument words (excluding the
-    // head); `seg.argv[idx + 1]` is the representative token (argv[0] is the
-    // head).  Only braced (`Str`) bodies recurse.
-    for idx in crate::oo_body::inner_oo_body_indices(head, arg_texts) {
+    // A wrapper member (`self` / itcl `public` / `protected` / `private`) nests
+    // an inner member keyword at arg 0 (`public method …`); it reads as a
+    // keyword too, context-sensitively from the grammar.
+    if grammar
+        .member(head)
+        .is_some_and(|m| m.kind == MemberKind::Wrapper)
+        && arg_texts.first().is_some_and(|inner| grammar.is_member(inner))
+        && let Some(tok) = seg.argv.get(1)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::Kind(TokenKind::Keyword));
+    }
+    // Script bodies — recurse (only a braced `Str` word carries a script).
+    for idx in crate::oo_body::member_body_indices(grammar, head, arg_texts) {
         if let Some(tok) = seg.argv.get(idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::BodyScript);
+        }
+    }
+    // Parameter lists — their names are declarations, like a `proc`'s.
+    for idx in crate::oo_body::member_param_indices(grammar, head, arg_texts) {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::ParamList);
+        }
+    }
+    // Declared variable / component names (`variable a b c`, `typevariable v`,
+    // `component c`, `onconfigure -opt valueVar …`).
+    for idx in crate::oo_body::member_var_indices(grammar, head, arg_texts) {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(&seg.texts[idx + 1])
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
         }
     }
 }
@@ -656,9 +859,9 @@ fn insert_oo_body_overrides(
 fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     if !registry
         .get(head)
         .and_then(|s| s.pattern_type)
@@ -802,9 +1005,9 @@ fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let Some(spec) = registry.get(head) else {
         return;
     };
@@ -904,9 +1107,9 @@ fn insert_option_and_subcommand_overrides(
 fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let Some(spec) = registry.get(head) else {
         return;
     };
@@ -983,24 +1186,33 @@ fn insert_enum_value_overrides(
 /// `oo::define` / `oo::objdefine` inline definition keywords → `Keyword`.
 ///
 /// In the *script* form (`oo::define Cls { method … }`) the definition words
-/// are command heads inside the recursed body and are already highlighted.
-/// The *inline* form (`oo::define Cls method name args body`) puts the
-/// definition word at an argument position, where it would otherwise render
-/// as a plain string.  The target (class / object) sits at `seg.texts[1]`,
-/// so the definition keyword is `seg.texts[2]`; `self` introduces a second,
-/// inner keyword at `seg.texts[3]`.  The recognised words are the `TclOO`
-/// definition sub-keywords already enumerated in
-/// [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+/// are command heads inside the recursed body and are already highlighted by
+/// [`emit_command_head`]'s grammar-member check.  The *inline* form
+/// (`oo::define Cls method name args body`) puts the definition word at an
+/// argument position, where it would otherwise render as a plain string.  The
+/// target (class / object) sits at `seg.texts[1]`, so the definition keyword is
+/// `seg.texts[2]`; `self` introduces a second, inner keyword at `seg.texts[3]`.
+///
+/// Which words are members comes from the definer command's own
+/// `definition_body` grammar (`is_member`), not a hardcoded list — the same
+/// source of truth the script form uses.  The *set of commands* that accept
+/// inline member args (`oo::define` / `oo::objdefine`) is the outer-call shape,
+/// which the member grammar does not model, so it stays an explicit guard
+/// (`oo::class create Name …` puts a class name, not a member, at `texts[2]`).
 fn insert_oo_define_keyword_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !matches!(seg.texts[0].as_str(), "oo::define" | "oo::objdefine") {
         return;
     }
-    // A definition word is `self` (the object-instance directive, not in the
-    // sub-keyword list) or one of the TclOO definition sub-keywords.
-    let is_def_word = |w: &str| w == "self" || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w);
+    let Some(grammar) = registry
+        .get(seg.texts[0].as_str())
+        .and_then(|s| s.definition_body)
+    else {
+        return;
+    };
     let mut mark_keyword = |pos: usize| {
         if let Some(tok) = seg.argv.get(pos) {
             overrides
@@ -1013,7 +1225,7 @@ fn insert_oo_define_keyword_overrides(
     let Some(first) = seg.texts.get(2) else {
         return;
     };
-    if !is_def_word(first) {
+    if !grammar.is_member(first) {
         return;
     }
     mark_keyword(2);
@@ -1023,7 +1235,7 @@ fn insert_oo_define_keyword_overrides(
         && seg
             .texts
             .get(3)
-            .is_some_and(|w| LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w.as_str()))
+            .is_some_and(|w| grammar.is_member(w))
     {
         mark_keyword(3);
     }
@@ -1061,9 +1273,9 @@ fn insert_apply_lambda_override(
 fn insert_var_decl_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
         // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
@@ -1082,7 +1294,10 @@ fn insert_var_decl_overrides(
 /// `true` when `text` is a plain (non-array, non-substituted) variable name
 /// — the safe case to retag as a whole-word `Variable` declaration token.
 fn is_plain_var_name(text: &str) -> bool {
-    !text.is_empty() && !text.contains(['(', '$', '[', '{', '"', ' '])
+    // Excludes array elements (`arr(x)`), substitutions (`$`/`[`), quoted /
+    // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
+    // span clamp can leave in sub-tokenised list content.
+    !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
 }
 
 /// `switch … { pat body … }` — the braced case list (the final word, when
@@ -1143,10 +1358,10 @@ fn insert_switch_case_list_override(
 fn insert_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    head: &str,
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     // `if {expr} {body}`, `proc n a {body}`, `while {expr} {body}`,
     // `expr {expr}`, … — keyed on each word's representative token
     // (`argv[i + 1]`; `argv[0]` is the head).  Only braced (`Str`) words
@@ -1954,16 +2169,27 @@ struct ScriptCtx<'a> {
     dialect: &'a str,
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
-    /// Whether this script is a `TclOO` definition body (an
-    /// `oo::class create … { … }` / `oo::define … { … }` block).  Inside
-    /// one, the context-sensitive OO sub-keywords (`method`, `constructor`,
-    /// `property`, `self …`, …) carry script bodies that must be recursed
-    /// into — see [`crate::oo_body`].  Outside one, a same-named user proc
-    /// must not be treated as an OO definition.
-    inside_oo_body: bool,
+    /// The enclosing definition-body grammar, or `None` outside any
+    /// definition body.  When `Some`, this script is a class/type definition
+    /// body (an `oo::class create … { … }`, `snit::type … { … }`, or bare
+    /// `oo::define … { … }` block) and the grammar's member sub-keywords
+    /// (`method`, `typemethod`, `constructor`, `variable`, …) carry the script
+    /// bodies / parameter lists / variable declarations to recurse and
+    /// highlight — see [`crate::oo_body`].  Outside one, a same-named user proc
+    /// is never treated as a member.
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
+    /// Bare command names imported into the global namespace via
+    /// `namespace import EXPORTING::*`, mapped to their qualified registry
+    /// spec name (`test` → `tcltest::test`) plus the byte offset of the
+    /// enabling `namespace import` statement.  Lets the registry-driven
+    /// overrides resolve an unqualified imported command to its spec (issue
+    /// #776) — but only for a head at or after the import, so an import cannot
+    /// retroactively re-tag an earlier same-named command.  Empty when the
+    /// document has no `namespace import`.
+    head_aliases: &'a FxHashMap<String, (String, u32)>,
 }
 
 fn collect_switch_case_list(
@@ -2083,10 +2309,13 @@ fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>
         words.extend(seg.argv.iter().copied());
     }
     for (idx, word_tok) in words.iter().enumerate() {
-        // Element 1 is the body — recurse it as a script when braced.
-        if idx == 1
+        if idx == 0 && matches!(word_tok.kind, TokenType::Str) {
+            // Element 0 is the parameter list — its names are declarations.
+            collect_param_list(ctx, *word_tok, entries);
+        } else if idx == 1
             && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
         {
+            // Element 1 is the body — recurse it as a script when braced.
             collect_script(
                 ctx,
                 body,
@@ -2100,14 +2329,151 @@ fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>
     }
 }
 
+/// Emit the name(s) of a `foreach` / `lmap` / `dict for` variable spec as
+/// variable declarations.  A single bareword is one name; a braced/quoted list
+/// is flattened via the list grammar and each element name emitted separately.
+/// A non-name element (a `$`-computed word, an array element) keeps a plain
+/// `string` classification so nothing is dropped and it does not masquerade as
+/// a variable.
+fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        if let Some(name) = inner.get(el.value.clone()) {
+            let (kind, mods) = if is_plain_var_name(name) {
+                (TokenKind::Variable, MOD_DECLARATION)
+            } else {
+                (TokenKind::String, 0)
+            };
+            push_span_entries(
+                full_source,
+                line_index,
+                cstart + el.value.start,
+                name,
+                kind,
+                mods,
+                entries,
+            );
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
+/// Emit a procedure parameter list's names as variable declarations.  Each
+/// top-level list element is either a bareword parameter name or a `{name
+/// ?default...?}` pair; the name is a `Variable` declaration and any default
+/// words are classified (number / string).  A non-name element is left to the
+/// default classifier.
+fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let braced = el.value.start > 0 && inner.as_bytes().get(el.value.start - 1) == Some(&b'{');
+        if let Some(elem) = inner.get(el.value.clone()) {
+            let elem_abs = cstart + el.value.start;
+            if braced {
+                // `{name ?default...?}` — the first word is the parameter name.
+                emit_param_default_pair(full_source, line_index, elem_abs, elem, entries);
+            } else if is_plain_var_name(elem) {
+                push_span_entries(
+                    full_source,
+                    line_index,
+                    elem_abs,
+                    elem,
+                    TokenKind::Variable,
+                    MOD_DECLARATION,
+                    entries,
+                );
+            }
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
+/// Emit the name + default words of a `{name ?default...?}` parameter pair:
+/// the leading word as a `Variable` declaration, each following word by its
+/// literal classification (number / string).
+fn emit_param_default_pair(
+    source: &str,
+    line_index: &LineIndex,
+    abs: usize,
+    text: &str,
+    entries: &mut Vec<Entry>,
+) {
+    let mut scan = 0usize;
+    let mut first = true;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(text, scan) {
+        if let Some(word) = text.get(el.value.clone()) {
+            let word_abs = abs + el.value.start;
+            let (kind, mods) = if first {
+                (TokenKind::Variable, MOD_DECLARATION)
+            } else if is_number_literal(word) {
+                (TokenKind::Number, 0)
+            } else {
+                (TokenKind::String, 0)
+            };
+            if first && !is_plain_var_name(word) {
+                // Not a plain name — leave it (and the rest) to the default.
+            } else {
+                push_span_entries(source, line_index, word_abs, word, kind, mods, entries);
+            }
+            first = false;
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
     head_tok: Token,
     head_text: &str,
+    resolved_head: &str,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
+    // A member sub-keyword of the enclosing definition body (`method`,
+    // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
+    // same-named user proc outside a definition body is unaffected.  This
+    // covers the snit-specific members (`typemethod`, `typeconstructor`,
+    // `onconfigure`, …) that are not in [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+    if !head_text.contains("::")
+        && oo_grammar.is_some_and(|g| crate::oo_body::is_member(g, head_text))
+    {
+        push_token(
+            line_index,
+            full_source,
+            head_tok,
+            TokenKind::Keyword,
+            0,
+            entries,
+        );
+        return;
+    }
     let full_kind = classify_command_head(head_text, registry);
     // Split any `…::name` head (namespace-qualified command or keyword) into a
     // namespace prefix + final-segment command token.
@@ -2160,7 +2526,10 @@ fn emit_command_head(
         );
         return;
     }
-    let mods = if full_kind == TokenKind::Function && registry.get(head_text).is_some() {
+    // Use the resolved head for the built-in lookup: a bare name imported from
+    // an exported namespace (`namespace import tcltest::*` → `test`) resolves
+    // to its qualified registry spec, so it carries `defaultLibrary` too.
+    let mods = if full_kind == TokenKind::Function && registry.get(resolved_head).is_some() {
         MOD_DEFAULT_LIBRARY
     } else {
         0
@@ -2199,11 +2568,25 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
+        // Resolve an unqualified command imported from an exported namespace
+        // (`namespace import tcltest::*` → `test` = `tcltest::test`) to its
+        // qualified registry name, so the registry-driven overrides and the
+        // built-in modifier see the real spec (issue #776).  Only applies when
+        // the enabling import precedes this head in source order (an import
+        // cannot retroactively re-tag an earlier command); falls back to the
+        // literal head otherwise.
+        let resolved_head: &str = ctx
+            .head_aliases
+            .get(head_text)
+            .filter(|(_, import_off)| head_tok.span.start() >= *import_off)
+            .map_or(head_text.as_str(), |(qualified, _)| qualified.as_str());
         emit_command_head(
             line_index,
             full_source,
             head_tok,
             head_text,
+            resolved_head,
+            ctx.oo_grammar,
             registry,
             entries,
         );
@@ -2215,7 +2598,8 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let mut overrides = special_arg_kinds(&seg, registry, ctx.inside_oo_body, &arg_texts);
+        let mut overrides =
+            special_arg_kinds(&seg, registry, resolved_head, ctx.oo_grammar, &arg_texts);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -2233,21 +2617,21 @@ fn collect_script(
             }
         }
 
-        // The `inside_oo_body` context the recursion into THIS command's
-        // body arguments should carry: an outer OO definition body switches
-        // it on, an inner OO command (inside an OO body) switches it off,
+        // The definition-body grammar the recursion into THIS command's body
+        // arguments should carry: an outer definer body switches to its
+        // grammar, a member body (inside a definition body) switches off,
         // everything else inherits.  `oo::define`/`oo::objdefine` only switch
-        // it on for their bare script form, not their member (`method …`)
-        // forms — hence the args are consulted.  Command substitutions and
-        // expressions always run in ordinary (non-definition) context.
-        let next_oo = crate::oo_body::next_inside_oo_body(
+        // on for their bare script form, not their member (`method …`) forms —
+        // hence the args are consulted.  Command substitutions and expressions
+        // always run in ordinary (non-definition) context (see `plain_ctx`).
+        let next_oo = crate::oo_body::next_definition_grammar(
             head_text,
             &arg_texts,
-            ctx.inside_oo_body,
+            ctx.oo_grammar,
             registry,
         );
         let body_ctx = ScriptCtx {
-            inside_oo_body: next_oo,
+            oo_grammar: next_oo,
             ..ctx
         };
 
@@ -2313,10 +2697,10 @@ fn emit_arg_token(
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let tok = &tok;
-    // Command substitutions / expressions never run in OO definition
+    // Command substitutions / expressions never run in a definition-body
     // context, whatever the enclosing command is.
     let plain_ctx = ScriptCtx {
-        inside_oo_body: false,
+        oo_grammar: None,
         ..ctx
     };
     // Overrides that emit their token verbatim collapse to one path.
@@ -2349,6 +2733,12 @@ fn emit_arg_token(
         }
         Some(ArgOverride::ApplyLambda) => {
             collect_apply_lambda(ctx, *tok, entries, depth + 1);
+        }
+        Some(ArgOverride::LoopVarList) => {
+            collect_loop_var_list(ctx, *tok, entries);
+        }
+        Some(ArgOverride::ParamList) => {
+            collect_param_list(ctx, *tok, entries);
         }
         Some(ArgOverride::BodyScript) => {
             if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
@@ -2530,6 +2920,110 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
 
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
+/// Scan `source` for `namespace import` declarations and map each bare command
+/// name they bring into the global scope to its qualified registry spec name
+/// (`test` → `tcltest::test`, issue #776).
+///
+/// Recognises the two literal forms — `namespace import EXPORTING::*`
+/// (import-all) and `namespace import EXPORTING::name` (single) — matched
+/// against the registry's `is_namespace_exported` commands in the exporting
+/// namespace.  A bare name that already resolves to a global command is left
+/// alone (Tcl's own `namespace import` refuses to shadow an existing command
+/// without `-force`, and we must not mis-resolve a genuine builtin).  This is a
+/// highlighting-only convenience: it never changes which commands exist, only
+/// lets the registry-driven argument overrides see the real spec for an
+/// unqualified imported command.  Returns an empty map when nothing is imported.
+fn imported_command_aliases(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> FxHashMap<String, (String, u32)> {
+    let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
+    // Cheap gate: `namespace import` is the only source of aliases.
+    if !source.contains("namespace") {
+        return aliases;
+    }
+    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
+    // tagged with the byte offset of its `namespace import` statement so an
+    // alias only applies to heads at or after it (source order).  Only
+    // top-level imports are seen — a `namespace import` nested inside a
+    // `namespace eval` body is not a top-level segment, so it never leaks a
+    // global bare alias.
+    let mut import_all: Vec<(String, u32)> = Vec::new();
+    let mut import_one: Vec<(String, String, u32)> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
+            continue;
+        }
+        let import_off = seg.argv[0].span.start();
+        for pat in &seg.texts[2..] {
+            // Skip option flags (`-force`); computed patterns are left alone.
+            if pat.starts_with('-') {
+                continue;
+            }
+            if let Some(ns) = pat.strip_suffix("::*") {
+                import_all.push((ns.trim_start_matches(':').to_string(), import_off));
+            } else if let Some((ns, name)) = pat.rsplit_once("::") {
+                import_one.push((
+                    ns.trim_start_matches(':').to_string(),
+                    name.to_string(),
+                    import_off,
+                ));
+            }
+        }
+    }
+    if import_all.is_empty() && import_one.is_empty() {
+        return aliases;
+    }
+    // Record `name → (qualified, offset)`, keeping the *earliest* enabling
+    // import when several would produce the same alias.
+    let mut record = |name: String, qualified: String, off: u32| {
+        aliases
+            .entry(name)
+            .and_modify(|(_, o)| *o = (*o).min(off))
+            .or_insert((qualified, off));
+    };
+    // Import-all: every exported command in an imported namespace whose bare
+    // tail does not already name a global command.
+    if !import_all.is_empty() {
+        for name in registry.command_names() {
+            let Some((ns, tail)) = name.rsplit_once("::") else {
+                continue;
+            };
+            if tail.is_empty() || registry.get(tail).is_some() {
+                continue;
+            }
+            let ns = ns.trim_start_matches(':');
+            let Some(off) = import_all
+                .iter()
+                .filter(|(n, _)| n == ns)
+                .map(|(_, o)| *o)
+                .min()
+            else {
+                continue;
+            };
+            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
+                record(tail.to_string(), name.to_string(), off);
+            }
+        }
+    }
+    // Single-name imports.
+    for (ns, name, off) in &import_one {
+        if registry.get(name).is_some() {
+            continue;
+        }
+        let qualified = format!("{ns}::{name}");
+        if registry.get(&qualified).is_some_and(|s| s.is_namespace_exported) {
+            record(name.clone(), qualified, *off);
+        }
+    }
+    aliases
+}
+
 fn collect_entries(
     source: &str,
     dialect: &str,
@@ -2550,6 +3044,11 @@ fn collect_entries(
             .collect()
     });
 
+    // Bare-name aliases for commands imported from an exported namespace
+    // (`namespace import tcltest::*` → `test` = `tcltest::test`).  Empty (no
+    // lookups) unless the document actually imports something.
+    let head_aliases = imported_command_aliases(source, dialect, registry);
+
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
     let ctx = ScriptCtx {
@@ -2557,8 +3056,9 @@ fn collect_entries(
         dialect,
         registry,
         line_index: &line_index,
-        inside_oo_body: false,
+        oo_grammar: None,
         regex_sources: &regex_sources,
+        head_aliases: &head_aliases,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 

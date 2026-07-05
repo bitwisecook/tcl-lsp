@@ -148,6 +148,7 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::stdlib::stdlib_command_specs());
         add(crate::commands::tcllib::tcllib_command_specs());
         add(crate::commands::argparse::argparse_command_specs());
+        add(crate::commands::itcl::itcl_command_specs());
         add(crate::commands::tk::tk_command_specs());
         add(crate::commands::irules::irules_command_specs());
         add(crate::commands::iapps::iapps_command_specs());
@@ -216,6 +217,9 @@ impl CommandRegistry {
             registry.insert(spec);
         }
         for spec in crate::commands::argparse::argparse_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::itcl::itcl_command_specs() {
             registry.insert(spec);
         }
         // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)

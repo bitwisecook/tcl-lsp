@@ -284,6 +284,11 @@ impl Analyser {
             if self.result.all_classes.contains_key(&format!("::{name}")) {
                 continue;
             }
+            // A command bound by `CLASS create NAME` — later `NAME method`
+            // dispatch is a real command call, not an unknown (issue #777).
+            if self.result.created_instance_commands.contains(name) {
+                continue;
+            }
 
             // Unresolved.  Record the call site so a cross-file consumer can run
             // its arity check independently of the W123 toggle, then emit the W123

@@ -1014,15 +1014,19 @@ mod non_literal_command {
     }
 
     #[test]
-    fn foreach_over_known_commands_fires_rust_behaviour() {
-        // `$cmd` iterating a list of *known* commands is not suppressed —
-        // that provenance is not modelled here, so W307 fires.
+    fn foreach_over_known_commands_is_suppressed() {
+        // `foreach cmd [list …]` now folds the literal list into a CONSTSET, so
+        // `$cmd` dispatch resolves to each element.  When every element is a
+        // *known* command (`puts`/`set`/`expr`) the dispatch is provably safe and
+        // W307 is suppressed.
         let known = "foreach cmd [list puts set expr] {\n    $cmd hello\n}\n";
         assert!(
-            fires(known, D, "W307"),
-            "Rust fires W307 (no known-command-list provenance)"
+            !fires(known, D, "W307"),
+            "known-command-list dispatch must not fire W307 (folded provenance)"
         );
-        // The unknown-name case fires in both.
+        // A list whose elements are *unresolved* command names is still flagged —
+        // the folded names don't resolve to real commands, so the dispatch may
+        // execute anything.
         let unknown = "foreach cmd [list unknown_cmd_a unknown_cmd_b] {\n    $cmd value\n}\n";
         assert!(fires(unknown, D, "W307"));
     }

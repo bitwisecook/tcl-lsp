@@ -435,17 +435,29 @@ fn oo_property_accessor_bodies_are_recursed() {
 #[test]
 fn top_level_method_is_not_an_oo_body() {
     // Context guard: a top-level user proc named `method` (outside any OO
-    // definition body) must NOT be treated as an OO method definition.  A
-    // bare `method a b {c}` call at top level is a plain command — its last
-    // braced word must stay an opaque string, not be recursed as a body.
+    // definition body) must NOT be treated as an OO member.  A bare
+    // `method a b {c}` call at top level is a plain command — so `method`
+    // itself is a plain command head (a `function`, NOT a `keyword` — member
+    // keywords are recognised context-sensitively from the definer grammar,
+    // exactly like snit's `typemethod`), and its last braced word stays an
+    // opaque string, not recursed as a body.
     let src = "method a b { this is not code }\n";
     let toks = decode(src, "tcl8.6");
-    // No command inside the braced word should be tokenised as a function;
-    // `this`/`is`/`not`/`code` must never surface as separate command heads.
-    assert!(
-        !toks.iter().any(|t| t.ttype == "function"),
-        "top-level `method` braced arg must not be recursed as a body: {toks:?}",
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "method").as_deref(),
+        Some("keyword"),
+        "a top-level `method` must not be a keyword (context-sensitive): {toks:?}",
     );
+    // No word inside the braced body should be recursed as a command head;
+    // `this`/`is`/`not`/`code` must never surface as separate function tokens.
+    for w in ["this", "is", "not", "code"] {
+        assert!(
+            !toks
+                .iter()
+                .any(|t| t.ttype == "function" && tok_text(src, t) == w),
+            "top-level `method` braced arg must not be recursed as a body ({w}): {toks:?}",
+        );
+    }
 }
 
 #[test]
@@ -474,11 +486,19 @@ fn oo_define_member_form_body_is_not_oo_context() {
     // opaque string (no command inside is tokenised as a function).
     let src = "oo::define C method m {} { method a b {not code} }\n";
     let toks = decode(src, "tcl9.0");
-    assert!(
-        !toks.iter().any(|t| t.ttype == "function"),
-        "nested `method a b {{not code}}` inside a member-form method body \
-         must not be recursed as an OO body: {toks:?}",
-    );
+    // The innermost `{not code}` must stay an opaque string — `not`/`code`
+    // never surface as command heads.  (The inner `method` head is an ordinary
+    // command call inside the method body, so it legitimately reads as a
+    // `function`, not a keyword — there is no definition-body context here.)
+    for w in ["not", "code"] {
+        assert!(
+            !toks
+                .iter()
+                .any(|t| t.ttype == "function" && tok_text(src, t) == w),
+            "nested `method a b {{not code}}` inside a member-form method body \
+             must not be recursed as an OO body ({w}): {toks:?}",
+        );
+    }
     // The real method body itself is still recursed (its own commands are
     // walked as ordinary code) — a `set` there would tokenise.
     let src2 = "oo::define C method m {} { set x 1 }\n";
@@ -489,6 +509,57 @@ fn oo_define_member_form_body_is_not_oo_context() {
             .any(|t| t.ttype == "function" && tok_text(src2, t) == "set"),
         "member-form method body should still tokenise its own code: {toks2:?}",
     );
+}
+
+#[test]
+fn oo_define_inline_member_keyword_is_grammar_driven() {
+    // The inline form `oo::define C method m {} {…}` puts the member keyword at
+    // an argument position; it must still highlight as a keyword, sourced from
+    // the definer's `definition_body` grammar (not a hardcoded list).  `self`
+    // introduces a second inner member keyword.
+    let src = "oo::define C method greet {} { return hi }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl9.0", "method").as_deref(),
+        Some("keyword"),
+        "inline `oo::define … method` keyword must highlight: {:?}",
+        decode(src, "tcl9.0"),
+    );
+    let src2 = "oo::objdefine obj self method m {} {}\n";
+    for kw in ["self", "method"] {
+        assert_eq!(
+            kind_of_word(src2, "tcl9.0", kw).as_deref(),
+            Some("keyword"),
+            "inline `oo::objdefine … self method` keyword `{kw}` must highlight: {:?}",
+            decode(src2, "tcl9.0"),
+        );
+    }
+}
+
+#[test]
+fn tcloo_members_are_context_sensitive_like_snit() {
+    // Parity with `snit_member_keyword_only_inside_body`: a TclOO member word
+    // used as a bare top-level command (outside any definition body) must NOT
+    // be a keyword — both class systems recognise members from the grammar
+    // context, so neither over-colours a same-named top-level command.
+    for member in ["constructor", "superclass", "classmethod"] {
+        let src = format!("{member} whatever args\n");
+        assert_ne!(
+            kind_of_word(&src, "tcl9.0", member).as_deref(),
+            Some("keyword"),
+            "top-level `{member}` must not be a keyword outside a body: {:?}",
+            decode(&src, "tcl9.0"),
+        );
+    }
+    // …but inside an `oo::class` body every one of them is a keyword.
+    let body = "oo::class create C {\n    superclass B\n    constructor {} {}\n    classmethod mk {} {}\n}\n";
+    for member in ["superclass", "constructor", "classmethod"] {
+        assert_eq!(
+            kind_of_word(body, "tcl9.0", member).as_deref(),
+            Some("keyword"),
+            "`{member}` inside an oo::class body must be a keyword: {:?}",
+            decode(body, "tcl9.0"),
+        );
+    }
 }
 
 #[test]
@@ -596,4 +667,616 @@ fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
         body.iter().any(|t| t.line == 1 && t.ttype == "comment"),
         "a real comment inside a body must still be a comment token: {body:?}",
     );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #774 — `variable a b c` inside a TclOO definition body declares every
+// name as an instance variable (the namespace-level `variable name ?value?`
+// pairs only mark the leading name). All names must highlight as variables.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn oo_body_variable_highlights_every_name() {
+    let src =
+        "oo::class create Foo {\n    variable width height depth\n    method m {} { return 1 }\n}\n";
+    // Each of `width`, `height`, `depth` in the class-body `variable`
+    // declaration is a variable, not a bareword string.
+    for name in ["width", "height", "depth"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in an oo::class body `variable` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn plain_variable_command_keeps_pair_classification() {
+    // Outside an OO definition body (a normal namespace-level `variable`), the
+    // leading name is a write target — highlighted as a variable declaration.
+    let src = "namespace eval ns {\n    variable myvar 1\n}\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "myvar").as_deref(),
+        Some("variable"),
+        "the leading `variable` name is a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #776 — a tcltest command imported into the global scope
+// (`namespace import tcltest::*`) resolves to its `tcltest::` spec, so bare
+// `test`'s options/body are recognised: `-body`/`-result` become options and
+// the `-body` script is recursed.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn imported_tcltest_test_options_are_recognised() {
+    let src = "namespace import tcltest::*\n\
+               test mytest-1.1 {desc} -body {\n    set x 1\n} -result 1\n";
+    // The `-body` / `-result` switches are recognised options (decorator), not
+    // opaque strings, and the body's `set` is recursed as a command.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "-body").as_deref(),
+        Some("decorator"),
+        "imported `test`'s -body must be an option: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "-result").as_deref(),
+        Some("decorator"),
+        "imported `test`'s -result must be an option: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "the -body script must be recursed (set is a command): {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn bare_test_without_import_stays_unresolved() {
+    // Without a `namespace import`, a bare `test` is an ordinary (user) command
+    // — its `-body` word is not treated as a tcltest option.
+    let src = "test mytest-1.1 {desc} -body {\n    set x 1\n} -result 1\n";
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "-body").as_deref(),
+        Some("decorator"),
+        "an unimported bare `test` must not resolve tcltest options: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn import_does_not_retroactively_resolve_earlier_command() {
+    // Source order: a `test` used *before* the `namespace import` must NOT be
+    // retagged as `tcltest::test` (the import isn't in effect yet), so its
+    // `-body` stays a plain word — but the `test` *after* the import resolves.
+    // Exactly one of the two `-body` words (the post-import one) is a decorator.
+    let src = "test early {d} -body {\n    set a 1\n}\n\
+               namespace import tcltest::*\n\
+               test late {d} -body {\n    set b 2\n}\n";
+    let toks = decode(src, "tcl8.6");
+    let body_decorators = toks
+        .iter()
+        .filter(|t| t.ttype == "decorator" && tok_text(src, t) == "-body")
+        .count();
+    assert_eq!(
+        body_decorators, 1,
+        "only the post-import `test`'s -body must resolve (not the earlier one): {toks:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #775 — the argument to `source` is still tokenised: a command
+// substitution `[...]` in the file-name argument is highlighted as a command
+// sequence (its head + args), not left as one opaque string.  (No behaviour
+// change on the rust branch — this locks the already-correct classification.)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn source_command_substitution_argument_is_tokenised() {
+    let src = "source [file join $dir lib.tcl]\n";
+    let toks = decode(src, "tcl8.6");
+    // `source` head.
+    assert!(
+        toks.iter()
+            .any(|t| t.character == 0 && (t.ttype == "keyword" || t.ttype == "function")),
+        "source head must be highlighted: {toks:?}",
+    );
+    // The `[file join …]` substitution is recursed: `file` is a command and
+    // `$dir` a variable — not swallowed into one opaque string.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "file").as_deref(),
+        Some("function"),
+        "the command substitution in source's argument must be tokenised: {toks:?}",
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "$dir").as_deref(),
+        Some("variable"),
+        "a variable inside source's argument substitution must be a variable: {toks:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Peer bugs of #774 — other multi-name variable-declaring commands whose
+// trailing names the registry's single leading VarWrite role leaves as
+// strings.  The analyser already tracks these correctly (via lowering hooks);
+// only the highlighting lagged.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn global_highlights_every_name() {
+    // `global a b c` declares every name — not just the first.
+    let src = "proc p {} {\n    global alpha beta gamma\n}\n";
+    for name in ["alpha", "beta", "gamma"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `global` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn namespace_variable_pairs_highlight_names_not_values() {
+    // Namespace-level `variable name value name value` — the names (even arg
+    // positions) are variables; the interleaved values keep their own kind.
+    let src = "namespace eval ns {\n    variable alpha 1 beta 2\n}\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "alpha").as_deref(),
+        Some("variable"),
+        "{:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "beta").as_deref(),
+        Some("variable"),
+        "second name must also be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The value `1` stays a number, not a variable.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "1").as_deref(),
+        Some("number"),
+        "an interleaved value must not become a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Loop-variable highlighting — `foreach` / `lmap` / `dict for` bind their
+// iteration variables, which must read as variable declarations, whether a
+// single bareword or the elements of a braced list.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn foreach_single_loop_var_is_variable() {
+    let src = "foreach item $lst { puts $item }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "item").as_deref(),
+        Some("variable"),
+        "the foreach loop variable must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn foreach_braced_loop_vars_are_variables() {
+    let src = "foreach {key val} $lst { puts $key }\n";
+    for name in ["key", "val"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in the braced foreach varlist must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn foreach_multi_pair_loop_vars_are_variables() {
+    // `foreach a $l1 b $l2 …` — the variable spec sits at every other word.
+    let src = "foreach aa $l1 bb $l2 { puts $aa }\n";
+    for name in ["aa", "bb"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in a multi-pair foreach must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn lmap_and_dict_for_loop_vars_are_variables() {
+    assert_eq!(
+        kind_of_word("lmap elem $xs { expr {$elem} }\n", "tcl8.6", "elem").as_deref(),
+        Some("variable"),
+        "lmap loop variable must be a variable",
+    );
+    let df = "dict for {dkey dval} $d { puts $dkey }\n";
+    for name in ["dkey", "dval"] {
+        assert_eq!(
+            kind_of_word(df, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `dict for` must be a variable: {:?}",
+            decode(df, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn non_loop_command_first_arg_stays_string() {
+    // A user command that merely resembles a loop must not have its first
+    // bareword argument reclassified as a loop variable.
+    let src = "myproc item $lst { puts hi }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "item").as_deref(),
+        Some("string"),
+        "a non-loop command's bareword arg must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Parameter-list highlighting — proc / method / constructor / apply-lambda
+// parameters, and the registry `LoopVarList` role for `dict map` (peer of
+// `dict for`).  Each parameter / loop name reads as a variable declaration.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn proc_parameters_are_variables() {
+    let src = "proc greet {name age} { return $name }\n";
+    for name in ["name", "age"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "proc parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn proc_parameter_default_pair_splits_name_and_value() {
+    // `{b 5}` — `b` is the parameter name (variable), `5` the default (number).
+    let src = "proc p {a {b 5} args} { return $a }\n";
+    for name in ["a", "b", "args"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` must be a parameter variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "5").as_deref(),
+        Some("number"),
+        "the default value must stay a number: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn apply_lambda_parameters_are_variables() {
+    let src = "apply {{alpha beta} { return $alpha }} 1 2\n";
+    for name in ["alpha", "beta"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "apply lambda parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn tcloo_method_and_constructor_parameters_are_variables() {
+    let src = "oo::class create C {\n    method greet {who} { return $who }\n    constructor {aa bb} { set x $aa }\n}\n";
+    for name in ["who", "aa", "bb"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "TclOO parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn snit_macro_arglist_parameters_are_variables() {
+    // `snit::macro name arglist body` — the arglist word (registry arg-role
+    // `ParamList`) holds the macro's formal parameters, so its names read as
+    // variables and the body highlights, exactly like a proc.
+    let src = "snit::macro mymac {alpha beta} { return $alpha }\n";
+    for name in ["alpha", "beta"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "snit::macro parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn dict_map_loop_vars_are_variables() {
+    // Peer of `dict for`: `dict map {k v}` binds its loop variables too.
+    let src = "dict map {mk mv} $d { set mk $mv }\n";
+    for name in ["mk", "mv"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `dict map` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// By-reference local variable highlighting — `upvar` / `namespace upvar`
+// locals and `dict update` var names read as declarations; the "other" names,
+// the level word, and dict keys stay strings.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn upvar_local_names_are_variables() {
+    let src = "upvar 1 othervar localvar\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "localvar").as_deref(),
+        Some("variable"),
+        "the upvar local must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "othervar").as_deref(),
+        Some("string"),
+        "the other-frame name must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn upvar_without_level_and_multi_pair() {
+    // No level word: the local is the second word; multi-pair marks each local.
+    let src = "upvar aone bone atwo btwo\n";
+    for local in ["bone", "btwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", local).as_deref(),
+            Some("variable"),
+            "`{local}` must be an upvar local: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    for other in ["aone", "atwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", other).as_deref(),
+            Some("string"),
+            "`{other}` must stay a string: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn namespace_upvar_locals_are_variables() {
+    let src = "namespace upvar ::ns othervar localvar\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "localvar").as_deref(),
+        Some("variable"),
+        "{:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn dict_update_var_names_are_variables() {
+    let src = "dict update mydict keyone varone keytwo vartwo { set varone 1 }\n";
+    for v in ["varone", "vartwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", v).as_deref(),
+            Some("variable"),
+            "`{v}` must be a dict-update variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // The keys are not variables.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "keyone").as_deref(),
+        Some("string"),
+        "a dict-update key must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// snit — the definition-body grammar is registry data (tcl_registry::definer),
+// so `snit::type` / `snit::widget` bodies recurse and highlight like TclOO
+// without any snit-specific code in the token walk.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn snit_type_members_highlight() {
+    let src = "snit::type Dog {\n\
+               \x20   variable barks\n\
+               \x20   method bark {volume} { return $barks }\n\
+               \x20   typemethod count {} { return 1 }\n\
+               \x20   constructor {args} { set barks 0 }\n\
+               }\n";
+    // Instance variable declaration.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "barks").as_deref(),
+        Some("variable"),
+        "snit `variable` name must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // Method parameter.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "volume").as_deref(),
+        Some("variable"),
+        "snit method parameter must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // snit-specific member keyword.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "typemethod").as_deref(),
+        Some("keyword"),
+        "`typemethod` must be a keyword inside a snit body: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The `set` inside a method body is recursed (not one opaque string).
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "a snit method body must be recursed: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn snit_widget_declarations_and_handlers() {
+    let src = "snit::widget Dial {\n\
+               \x20   typevariable count\n\
+               \x20   component inner\n\
+               \x20   onconfigure -value valuevar { set count $valuevar }\n\
+               }\n";
+    for name in ["count", "inner", "valuevar"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "snit declaration `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn snit_member_keyword_only_inside_body() {
+    // A top-level user proc named `typemethod` must NOT be a keyword — the
+    // member keywords are context-sensitive to a definition body.
+    let src = "typemethod foo bar\n";
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "typemethod").as_deref(),
+        Some("keyword"),
+        "a top-level `typemethod` must not be a keyword: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+
+// ---------------------------------------------------------------------------
+// [incr Tcl] — `itcl::class` definition bodies. Members (method / proc /
+// variable / common / constructor / destructor / inherit) plus the access
+// modifiers public / protected / private (prefix wrappers) all resolve from the
+// registry's ITCL grammar, like TclOO/snit.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn itcl_class_members_highlight() {
+    let src = "itcl::class Stack {\n\
+               \x20   inherit Deque\n\
+               \x20   variable contents {}\n\
+               \x20   constructor {aa} { set contents $aa }\n\
+               \x20   method push {value} { lappend contents $value }\n\
+               }\n";
+    // The `itcl::class` head is a keyword (like `oo::class`).
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "class").as_deref(),
+        Some("keyword"),
+        "`itcl::class` must be a keyword: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // Member keywords.
+    for kw in ["inherit", "variable", "constructor", "method"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "`{kw}` inside an itcl::class body must be a keyword: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // Instance variable declaration + method parameter are variables.
+    assert_eq!(kind_of_word(src, "tcl8.6", "contents").as_deref(), Some("variable"));
+    assert_eq!(kind_of_word(src, "tcl8.6", "value").as_deref(), Some("variable"));
+}
+
+#[test]
+fn itcl_access_modifier_wraps_inner_member() {
+    // `public method …` / `private variable …`: the modifier AND the inner
+    // member keyword are keywords, the inner param/var declarations resolve, and
+    // the inner method body recurses.
+    let src = "itcl::class C {\n\
+               \x20   public method size {ww} { return $ww }\n\
+               \x20   private variable secret 0\n\
+               }\n";
+    for kw in ["public", "method", "private", "variable"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "`{kw}` must be a keyword in an itcl body: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // The wrapped method's parameter and the wrapped variable's name resolve.
+    assert_eq!(kind_of_word(src, "tcl8.6", "ww").as_deref(), Some("variable"));
+    assert_eq!(kind_of_word(src, "tcl8.6", "secret").as_deref(), Some("variable"));
+}
+
+#[test]
+fn itcl_member_keyword_only_inside_body() {
+    // Context guard: a bare top-level `inherit` / `common` is not a keyword.
+    for kw in ["inherit", "common"] {
+        let src = format!("{kw} whatever\n");
+        assert_ne!(
+            kind_of_word(&src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "top-level `{kw}` must not be a keyword: {:?}",
+            decode(&src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn itcl_variable_config_body_recurses() {
+    // itcl `variable NAME init {configbody}` — the trailing config body is a
+    // recursable script (grammar `Body` role), so `puts` inside it is a command.
+    let src = "itcl::class C {\n\
+               \x20   variable color red { puts $color }\n\
+               }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "puts").as_deref(),
+        Some("function"),
+        "the variable config body must recurse: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The declared name is still a variable.
+    assert_eq!(kind_of_word(src, "tcl8.6", "color").as_deref(), Some("variable"));
+}
+
+
+
+#[test]
+fn itcl_body_external_definition_highlights() {
+    // `itcl::body Class::method {params} {body}` — its parameter list declares
+    // variables and its body recurses, via the registry arg-roles.
+    let src = "itcl::body C::render {ww hh} { set area [expr {$ww * $hh}] }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "itcl::body's body must recurse: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    for p in ["ww", "hh"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", p).as_deref(),
+            Some("variable"),
+            "itcl::body param `{p}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
 }

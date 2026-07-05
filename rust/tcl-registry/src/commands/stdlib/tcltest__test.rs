@@ -71,7 +71,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-body",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -127,7 +127,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-setup",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -135,7 +135,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cleanup",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "",
         dialects: None,
         aliases: &[],

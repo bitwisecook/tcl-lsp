@@ -814,12 +814,27 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
         {
             // `foreach v LIST` / `lmap v LIST` folds the
             // iteration variable to the CONSTSET of elements when
-            // LIST is a literal or resolves to a Const(String)
-            // through the lattice. Multi-variable and multi-list
+            // LIST is a literal, resolves to a Const(String)
+            // through the lattice, or is a command substitution
+            // (`[list a b c]`, `[format …]`) that folds to a
+            // constant list. Multi-variable and multi-list
             // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0]).or_else(|| {
-                resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa)
-            });
+            let elements = extract_foreach_elements(&args[0])
+                .or_else(|| {
+                    resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa)
+                })
+                .or_else(|| {
+                    // `foreach v [list a b c]` — fold the command substitution
+                    // to a constant list string, then split into elements.
+                    let arg = args[0].trim();
+                    if arg.starts_with('[') && arg.ends_with(']')
+                        && let Some(LatticeValue::Const(ConstValue::String(s))) =
+                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa)
+                    {
+                        return Some(s.split_ascii_whitespace().map(str::to_owned).collect());
+                    }
+                    None
+                });
             match elements {
                 Some(items) if items.is_empty() => LatticeValue::Overdefined,
                 Some(items) => {
@@ -1964,6 +1979,23 @@ mod tests {
                 assert_eq!(vs.len(), 3);
                 assert!(vs.contains(&ConstValue::Int(1)));
                 assert!(vs.contains(&ConstValue::Int(3)));
+            }
+            other => panic!("expected ConstSet, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn evaluate_def_foreach_list_cmd_subst_folds_constset() {
+        // `foreach v [list a b c]` folds through `try_fold_cmd_subst` to the
+        // same element CONSTSET as the braced-literal form (issue #777).
+        let mut ssa = bare_ssa();
+        let stmt = foreach_stmt(&mut ssa, "v", "[list a b c]", 1);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa);
+        match result {
+            LatticeValue::ConstSet(ref vs) => {
+                assert_eq!(vs.len(), 3);
+                assert!(vs.contains(&ConstValue::String("a".into())));
+                assert!(vs.contains(&ConstValue::String("c".into())));
             }
             other => panic!("expected ConstSet, got {other:?}"),
         }
