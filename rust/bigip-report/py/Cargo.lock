@@ -120,6 +120,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-bigip-io",
  "tcl-bigip-query",
+ "tcl-bigip-report",
  "tcl-diagram",
  "tcl-f5mku",
  "tcl-lexer",
@@ -564,6 +565,23 @@ name = "memchr"
 version = "2.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
+
+[[package]]
+name = "memo-map"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
+
+[[package]]
+name = "minijinja"
+version = "2.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb3d648e68cea56d9858d535ee28f9538404e2dd8cb08ed0bd05dca379477f39"
+dependencies = [
+ "memo-map",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "minimal-lexical"
@@ -1113,6 +1131,25 @@ dependencies = [
  "tcl-registry",
  "ureq",
  "x509-parser",
+]
+
+[[package]]
+name = "tcl-bigip-report"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "ipnet",
+ "minijinja",
+ "regex",
+ "serde",
+ "serde_json",
+ "tcl-bigip",
+ "tcl-bigip-query",
+ "tcl-diagram",
+ "tcl-f5mku",
+ "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]

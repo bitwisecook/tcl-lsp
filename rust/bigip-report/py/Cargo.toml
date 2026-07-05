@@ -55,6 +55,10 @@ pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
 tcl-bigip = { path = "../../tcl-bigip" }
 tcl-bigip-io = { path = "../../tcl-bigip-io" }
 tcl-bigip-query = { path = "../../tcl-bigip-query" }
+# The Rust report generator — reused here only for its architecture/tier
+# detection (`build_architecture`), so the Python report exposes the same
+# cross-device tier model (and diagram) without reimplementing it.
+tcl-bigip-report = { path = "../rust" }
 # F5 master-key (`f5mku`) secret decryption, shared with the wasm report.
 tcl-f5mku = { path = "../../tcl-f5mku" }
 # The real Tcl tokeniser + HTML highlighter, for the iRule source view.

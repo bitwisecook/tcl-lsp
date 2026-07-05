@@ -612,10 +612,17 @@ def collect_model(
         for k, v in d["counts"].items():
             totals[k] = totals.get(k, 0) + v
 
+    # Cross-device architecture (roles, tiers, links, topology diagram). Reuses
+    # the Rust generator's detection via the native engine so the Python report
+    # exposes the identical tier model — which the global search reads to scope
+    # `t<n>:` queries and to label results by tier.
+    architecture = json.loads(_engine.build_architecture(json.dumps(devices)))
+
     return {
         "title": title,
         "engine_version": _engine.__version__,
         "devices": devices,
+        "architecture": architecture,
         "totals": totals,
         "container_order": list(_CONTAINERS),
     }

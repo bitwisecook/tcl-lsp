@@ -559,6 +559,25 @@ fn irule_proc_call_refs(body: &str) -> String {
     serde_json::to_string(&tcl_diagram::proc_call_refs(body)).unwrap_or_else(|_| "[]".to_string())
 }
 
+/// Build the cross-device *architecture* model (roles, tiers, inter-device
+/// links, and a Mermaid topology diagram) from the report's device list.
+///
+/// `devices_json` is the JSON array of shaped device objects (`collect_model`'s
+/// `devices`); `manifest` is an optional architecture manifest (a small Tcl
+/// script declaring per-device role/tier and explicit links). Auto-detection
+/// (IP overlap between one device's members and another's virtuals) always
+/// runs; the manifest overrides it. Returns the `architecture` object as a JSON
+/// string — reusing the Rust generator's detection so the Python report exposes
+/// the identical tier model (and cross-device diagram).
+#[pyfunction]
+#[pyo3(signature = (devices_json, manifest=None))]
+fn build_architecture(devices_json: &str, manifest: Option<&str>) -> PyResult<String> {
+    let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
+        .map_err(|e| QueryError::new_err(format!("invalid devices JSON: {e}")))?;
+    let arch = tcl_bigip_report::build_architecture(&devices, manifest);
+    serde_json::to_string(&arch).map_err(|e| QueryError::new_err(e.to_string()))
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -578,5 +597,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;
     m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
     m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
+    m.add_function(wrap_pyfunction!(build_architecture, m)?)?;
     Ok(())
 }
