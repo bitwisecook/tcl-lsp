@@ -176,6 +176,135 @@ fn partition_of(full_path: &str) -> String {
     }
 }
 
+/// Decompose a BIG-IP full path `/partition/seg1/…/name` into
+/// `(partition, [folder segments], name)`. Folder segments are the parts
+/// between the partition and the leaf name (empty when the object lives in the
+/// partition root). Returns `None` for a non-`/`-rooted or partition-less path.
+fn split_full_path(full_path: &str) -> Option<(&str, Vec<&str>, &str)> {
+    let rest = full_path.strip_prefix('/')?;
+    let parts: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
+    if parts.len() < 2 {
+        return None; // need at least partition + name
+    }
+    let partition = parts[0];
+    let name = *parts.last().unwrap();
+    let segments = parts[1..parts.len() - 1].to_vec();
+    Some((partition, segments, name))
+}
+
+/// The folder path of an object (`/Common/App_X`), or `""` when it sits in the
+/// partition root. Used to display and group objects by folder.
+fn folder_of(full_path: &str) -> String {
+    match split_full_path(full_path) {
+        Some((partition, segments, _)) if !segments.is_empty() => {
+            format!("/{partition}/{}", segments.join("/"))
+        }
+        _ => String::new(),
+    }
+}
+
+/// The "application folder" key of an object: the partition plus its first
+/// sub-folder segment — the folder BIG-IP treats as an application boundary
+/// (an iApp materialises its objects under a `<name>.app` folder, so this also
+/// captures iApps). Returns `None` for objects that live directly in the
+/// partition root (no sub-folder) — those are deliberately NOT grouped into an
+/// app, so a partition with no sub-folders yields no folder-apps.
+fn app_folder_of(full_path: &str) -> Option<(String, String)> {
+    let (partition, segments, _) = split_full_path(full_path)?;
+    let first = segments.first()?;
+    Some((partition.to_owned(), (*first).to_owned()))
+}
+
+/// Singular object-kind label for a [`DISPLAY_KEYS`] container name.
+fn singular_kind(display_key: &str) -> &'static str {
+    match display_key {
+        "virtuals" => "virtual",
+        "pools" => "pool",
+        "nodes" => "node",
+        "monitors" => "monitor",
+        "rules" => "rule",
+        "dataGroups" => "data-group",
+        "profiles" => "profile",
+        "policies" => "policy",
+        "snatpools" => "snatpool",
+        "persistence" => "persistence",
+        "certificates" => "certificate",
+        _ => "object",
+    }
+}
+
+/// Derive applications from folder grouping.
+///
+/// An application is the set of objects that share an **application folder**
+/// (partition + first sub-folder segment, via [`app_folder_of`]). Objects that
+/// live directly in the partition root are deliberately left ungrouped — so a
+/// partition with no sub-folders produces no apps (no catch-all). iApps are
+/// captured for free, because their objects live under a `<name>.app` folder.
+///
+/// Membership is the folder itself; the report's ref graph / drawer still show
+/// how the members connect. Each app: `{ name, partition, folder, source,
+/// entryPoints, members:[{kind, name, fullPath, partition}], memberCount }`.
+fn build_apps(device: &Map<String, J>) -> J {
+    use std::collections::BTreeMap;
+
+    struct Acc {
+        members: Vec<J>,
+        entry_points: Vec<J>,
+    }
+    let mut apps: BTreeMap<(String, String), Acc> = BTreeMap::new();
+
+    for key in DISPLAY_KEYS {
+        let kind = singular_kind(key);
+        if let Some(J::Array(objs)) = device.get(*key) {
+            for o in objs.iter().filter_map(J::as_object) {
+                let fp = bstr(o, "fullPath");
+                let Some((part, seg)) = app_folder_of(fp) else {
+                    continue;
+                };
+                let acc = apps.entry((part.clone(), seg)).or_insert_with(|| Acc {
+                    members: Vec::new(),
+                    entry_points: Vec::new(),
+                });
+                let mut m = Map::new();
+                m.insert("kind".into(), J::String(kind.into()));
+                m.insert("name".into(), J::String(bstr(o, "name").into()));
+                m.insert("fullPath".into(), J::String(fp.into()));
+                m.insert("partition".into(), J::String(part));
+                if *key == "virtuals" {
+                    acc.entry_points.push(J::String(fp.into()));
+                }
+                acc.members.push(J::Object(m));
+            }
+        }
+    }
+
+    // BTreeMap iterates sorted by (partition, folder segment) — stable output.
+    let out: Vec<J> = apps
+        .into_iter()
+        .map(|((part, seg), acc)| {
+            // An iApp materialises its objects under a `<name>.app` folder
+            // (always lowercase `.app` in TMOS).
+            let stripped = seg.strip_suffix(".app");
+            let is_iapp = stripped.is_some();
+            let display_name = stripped.unwrap_or(&seg).to_owned();
+            let mut a = Map::new();
+            a.insert("name".into(), J::String(display_name));
+            a.insert("partition".into(), J::String(part.clone()));
+            a.insert("folder".into(), J::String(format!("/{part}/{seg}")));
+            a.insert(
+                "source".into(),
+                J::String(if is_iapp { "iapp" } else { "folder" }.into()),
+            );
+            a.insert("memberCount".into(), J::from(acc.members.len()));
+            a.insert("entryPoints".into(), J::Array(acc.entry_points));
+            a.insert("members".into(), J::Array(acc.members));
+            J::Object(a)
+        })
+        .collect();
+
+    J::Array(out)
+}
+
 /// Split a BIG-IP destination into `(address, port)`.
 fn split_dest(dest: &str) -> (String, String) {
     if dest.is_empty() {
@@ -1574,6 +1703,12 @@ fn collect_device(
                         partitions.insert(part.clone());
                     }
                     om.insert("partition".into(), J::String(part));
+                    // Folder path (`/Common/App_X`, empty for partition-root),
+                    // for display and the apps grouping.
+                    om.insert(
+                        "folder".into(),
+                        J::String(folder_of(bstr(om, "fullPath"))),
+                    );
                 }
             }
         }
@@ -1582,6 +1717,11 @@ fn collect_device(
         "partitions".into(),
         J::Array(partitions.into_iter().map(J::String).collect()),
     );
+
+    // Auto-detected applications, grouped by folder (iApps included via their
+    // `.app` folders). Objects in the partition root are left ungrouped.
+    let apps = build_apps(&device);
+    device.insert("apps".into(), apps);
 
     // Counts. Built-in / system (default) objects are excluded — the chips count
     // the estate's own objects, not the ~260 TMOS defaults.
@@ -1605,6 +1745,8 @@ fn collect_device(
         o.values().filter_map(J::as_array).map(Vec::len).sum()
     });
     counts.insert("orphans".into(), J::from(orphan_total));
+    let apps_total = device.get("apps").and_then(J::as_array).map_or(0, Vec::len);
+    counts.insert("apps".into(), J::from(apps_total));
     let cert_total = device
         .get("certificates")
         .and_then(J::as_array)
@@ -1763,4 +1905,65 @@ pub fn collect_model_full(
     model.insert("architecture".into(), architecture);
     model.insert("enrichment".into(), enrichment);
     J::Object(model)
+}
+
+#[cfg(test)]
+mod app_tests {
+    use super::*;
+
+    #[test]
+    fn folder_helpers_split_paths() {
+        assert_eq!(folder_of("/Common/appA/vs_a"), "/Common/appA");
+        assert_eq!(folder_of("/Common/webstore.app/vs"), "/Common/webstore.app");
+        // partition-root object has no folder
+        assert_eq!(folder_of("/Common/root_vs"), "");
+        assert_eq!(folder_of("not-a-path"), "");
+        assert_eq!(
+            app_folder_of("/Common/appA/pool_a"),
+            Some(("Common".to_owned(), "appA".to_owned()))
+        );
+        // deeper nesting still groups under the first sub-folder
+        assert_eq!(
+            app_folder_of("/Common/appA/sub/x"),
+            Some(("Common".to_owned(), "appA".to_owned()))
+        );
+        // root object is not grouped
+        assert_eq!(app_folder_of("/Common/root_vs"), None);
+    }
+
+    #[test]
+    fn build_apps_groups_by_folder_and_skips_root() {
+        let mut device = Map::new();
+        let mk = |name: &str, fp: &str| {
+            let mut o = Map::new();
+            o.insert("name".into(), J::String(name.into()));
+            o.insert("fullPath".into(), J::String(fp.into()));
+            J::Object(o)
+        };
+        device.insert(
+            "virtuals".into(),
+            J::Array(vec![
+                mk("root_vs", "/Common/root_vs"),
+                mk("vs_a", "/Common/appA/vs_a"),
+                mk("web_vs", "/Common/store.app/web_vs"),
+            ]),
+        );
+        device.insert(
+            "pools".into(),
+            J::Array(vec![mk("pool_a", "/Common/appA/pool_a")]),
+        );
+
+        let J::Array(apps) = build_apps(&device) else {
+            panic!("expected array");
+        };
+        // appA (folder) + store (iapp) — the root vs is NOT an app.
+        assert_eq!(apps.len(), 2);
+        let a = apps[0].as_object().unwrap();
+        assert_eq!(bstr(a, "name"), "appA");
+        assert_eq!(bstr(a, "source"), "folder");
+        assert_eq!(a.get("memberCount").and_then(J::as_u64), Some(2));
+        let b = apps[1].as_object().unwrap();
+        assert_eq!(bstr(b, "name"), "store"); // ".app" stripped
+        assert_eq!(bstr(b, "source"), "iapp");
+    }
 }

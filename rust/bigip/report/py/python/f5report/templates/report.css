@@ -326,8 +326,14 @@ tr.sys-row{display:none}
 .apps-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
 .app-card{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);
   border-radius:10px;background:var(--panel)}
-.app-open{border:none;background:none;color:var(--accent);font-weight:650;font-size:15px;cursor:pointer;flex:1;text-align:left}
+.app-open{border:none;background:none;color:var(--accent);font-weight:650;font-size:15px;cursor:pointer;text-align:left}
 .app-open.active{text-decoration:underline}
+.app-card .muted{margin-left:auto}
+.app-tag{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.03em;
+  padding:3px 7px;border-radius:999px;color:#fff}
+.app-tag-iapp{background:#8250df}
+.app-tag-folder{background:#0969da}
+.app-tag-manual{background:#6e7781}
 .app-del{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:6px;
   width:26px;height:26px;cursor:pointer}
 .app-detail-head{display:flex;align-items:baseline;gap:12px;margin:6px 0}

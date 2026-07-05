@@ -411,6 +411,88 @@ def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
     return out
 
 
+_SINGULAR_KIND = {
+    "virtuals": "virtual",
+    "pools": "pool",
+    "nodes": "node",
+    "monitors": "monitor",
+    "rules": "rule",
+    "dataGroups": "data-group",
+    "profiles": "profile",
+    "policies": "policy",
+    "snatpools": "snatpool",
+    "persistence": "persistence",
+    "certificates": "certificate",
+}
+
+
+def _split_full_path(full_path: str) -> tuple[str, list[str], str] | None:
+    """`/partition/seg1/…/name` -> (partition, [folder segments], name)."""
+    if not full_path.startswith("/"):
+        return None
+    parts = [p for p in full_path[1:].split("/") if p]
+    if len(parts) < 2:
+        return None
+    return parts[0], parts[1:-1], parts[-1]
+
+
+def _folder_of(full_path: str) -> str:
+    """Folder path (`/Common/App_X`), or `""` for a partition-root object."""
+    split = _split_full_path(full_path)
+    if not split or not split[1]:
+        return ""
+    partition, segments, _ = split
+    return "/" + "/".join([partition, *segments])
+
+
+def _app_folder_of(full_path: str) -> tuple[str, str] | None:
+    """(partition, first sub-folder segment), or None for partition-root."""
+    split = _split_full_path(full_path)
+    if not split or not split[1]:
+        return None
+    return split[0], split[1][0]
+
+
+def _build_apps(device: dict[str, Any]) -> list[dict[str, Any]]:
+    """Group objects into applications by their application folder (partition +
+    first sub-folder). Partition-root objects are left ungrouped; iApps are
+    captured via their ``<name>.app`` folders. Mirrors the Rust ``build_apps``.
+    """
+    acc: dict[tuple[str, str], dict[str, Any]] = {}
+    for key in _DISPLAY_KEYS:
+        kind = _SINGULAR_KIND.get(key, "object")
+        for o in device.get(key, []):
+            if not isinstance(o, dict):
+                continue
+            fp = o.get("fullPath", "")
+            app_folder = _app_folder_of(fp)
+            if app_folder is None:
+                continue
+            part, seg = app_folder
+            bucket = acc.setdefault((part, seg), {"members": [], "entryPoints": []})
+            bucket["members"].append(
+                {"kind": kind, "name": o.get("name", ""), "fullPath": fp, "partition": part}
+            )
+            if key == "virtuals":
+                bucket["entryPoints"].append(fp)
+
+    apps: list[dict[str, Any]] = []
+    for (part, seg), bucket in sorted(acc.items()):
+        is_iapp = seg.endswith(".app")
+        apps.append(
+            {
+                "name": seg[: -len(".app")] if is_iapp else seg,
+                "partition": part,
+                "folder": f"/{part}/{seg}",
+                "source": "iapp" if is_iapp else "folder",
+                "memberCount": len(bucket["members"]),
+                "entryPoints": bucket["entryPoints"],
+                "members": bucket["members"],
+            }
+        )
+    return apps
+
+
 def _collect_device(uri: str, source: str) -> dict[str, Any]:
     sources: Sources = [(uri, source)]
 
@@ -566,7 +648,13 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
             if part:
                 partitions.add(part)
             o["partition"] = part
+            o["folder"] = _folder_of(o.get("fullPath", ""))
     device["partitions"] = sorted(partitions)
+
+    # Auto-detected applications, grouped by folder (iApps included via their
+    # `.app` folders). Objects in the partition root are left ungrouped, so a
+    # partition with no sub-folders yields no apps.
+    device["apps"] = _build_apps(device)
 
     # Counts exclude built-in/system defaults — the chips count the estate's own
     # objects, not the ~260 TMOS defaults.
@@ -576,6 +664,7 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     }
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
     device["counts"]["orphans"] = sum(len(v) for v in device["orphans"].values())
+    device["counts"]["apps"] = len(device["apps"])
     device["counts"]["certificates"] = len(device["certificates"])
     device["counts"]["secrets"] = len(device["secrets"])
     # The Forensics tab is driven by the UCS file inventory, which is extracted

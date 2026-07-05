@@ -2228,20 +2228,41 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       function deviceKey(d) {
         return String(d.name || d.uri || "device").replace(/\s+/g, "_");
       }
-      function loadApps(d) {
+      function loadManual(d) {
         try {
           return JSON.parse(localStorage.getItem(LS_PREFIX + deviceKey(d)) || "[]") || [];
         } catch (e) {
           return [];
         }
       }
-      function storeApps(d, apps) {
+      function storeManual(d, apps) {
         try {
           localStorage.setItem(LS_PREFIX + deviceKey(d), JSON.stringify(apps));
           return true;
         } catch (e) {
           return false;
         }
+      }
+      function loadAuto(d) {
+        return (d.apps || []).map(function(a) {
+          return {
+            name: a.name,
+            oids: (a.entryPoints || []).map(function(fp) {
+              return "vs:" + fp;
+            }),
+            auto: true,
+            source: a.source,
+            // "iapp" | "folder"
+            folder: a.folder,
+            memberCount: a.memberCount
+          };
+        });
+      }
+      function loadApps(d) {
+        var manual = loadManual(d).map(function(a, mi) {
+          return { name: a.name, oids: a.oids || [], auto: false, source: "manual", manualIndex: mi };
+        });
+        return loadAuto(d).concat(manual);
       }
       function blockId(oid) {
         return "appobj:" + oid;
@@ -2393,10 +2414,11 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         if (badge) badge.textContent = String(apps.length);
         var html = '<div class="apps-list">';
         if (!apps.length) {
-          html += '<p class="muted">No saved apps yet. On the Virtual Servers tab, tick the virtual servers that make up an application, give it a name and hit <strong>Save app</strong>. Apps are stored in this browser (localStorage) and travel with this report file.</p>';
+          html += '<p class="muted">No applications detected. Apps are auto-grouped from BIG-IP folders (objects under <code>/partition/<em>app-folder</em>/\u2026</code>, including iApp <code>.app</code> folders). Objects that sit directly in a partition root are not grouped. You can also build one by hand on the Virtual Servers tab \u2014 tick the virtual servers, name it and hit <strong>Save app</strong> (stored in this browser).</p>';
         } else {
           apps.forEach(function(app, i) {
-            html += '<div class="app-card"><button class="app-open" data-i="' + i + '">' + esc(app.name) + '</button><span class="muted">' + (app.oids || []).length + ' VS</span><button class="app-del" data-i="' + i + '" title="Delete app">\u2715</button></div>';
+            var tag = app.auto ? '<span class="app-tag app-tag-' + (app.source === "iapp" ? "iapp" : "folder") + '" title="' + esc(app.folder || "") + '">' + (app.source === "iapp" ? "iApp" : "folder") + "</span>" : '<span class="app-tag app-tag-manual">manual</span>';
+            html += '<div class="app-card"><button class="app-open" data-i="' + i + '">' + esc(app.name) + "</button>" + tag + '<span class="muted">' + (app.oids || []).length + " VS" + (app.memberCount ? " \xB7 " + app.memberCount + " objs" : "") + "</span>" + (app.auto ? "" : '<button class="app-del" data-mi="' + app.manualIndex + '" title="Delete app">\u2715</button>') + "</div>";
           });
         }
         html += '</div><div class="apps-detail"></div>';
@@ -2412,9 +2434,9 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         });
         view.querySelectorAll(".app-del").forEach(function(b) {
           b.addEventListener("click", function() {
-            var a = loadApps(ix.d);
-            a.splice(parseInt(b.dataset.i, 10), 1);
-            storeApps(ix.d, a);
+            var manual = loadManual(ix.d);
+            manual.splice(parseInt(b.dataset.mi, 10), 1);
+            storeManual(ix.d, manual);
             renderAppsPanel(deviceEl, ix);
           });
         });
@@ -2466,13 +2488,13 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
             }
             return;
           }
-          var apps = loadApps(ix.d);
-          var existing = apps.filter(function(a) {
+          var manual = loadManual(ix.d);
+          var existing = manual.filter(function(a) {
             return a.name === name;
           })[0];
           if (existing) existing.oids = oids;
-          else apps.push({ name, oids });
-          storeApps(ix.d, apps);
+          else manual.push({ name, oids });
+          storeManual(ix.d, manual);
           if (nameInp) nameInp.value = "";
           picks().forEach(function(c) {
             c.checked = false;
