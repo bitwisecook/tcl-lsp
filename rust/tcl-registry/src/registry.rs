@@ -1474,6 +1474,35 @@ mod tests {
     }
 
     #[test]
+    fn bind_script_form_recurses_only_the_trailing_script() {
+        // `bind $w <KeyPress> {…}` binds a script (issue #785): the third
+        // argument is a deferred event-handler body and must be recursed for
+        // highlighting.  The `bind tag` / `bind tag sequence` query forms carry
+        // no script and must not surface a Body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>", "{…}"], ArgRole::Body),
+            vec![2],
+            "the trailing script of the three-argument form is a body",
+        );
+        // The `+script` append form is still the trailing argument.
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &[".b", "<Enter>", "+{puts hi}"], ArgRole::Body),
+            vec![2],
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w"], ArgRole::Body)
+                .is_empty(),
+            "the single-tag query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>"], ArgRole::Body)
+                .is_empty(),
+            "the tag+sequence query form has no script",
+        );
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);
