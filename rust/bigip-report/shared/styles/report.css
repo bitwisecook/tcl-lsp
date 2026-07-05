@@ -432,3 +432,35 @@ html,body{max-width:100%}
 .rule-list-block{margin:0 0 14px}
 .rule-list-name{margin:10px 0 6px;font-size:12px}
 .fw-rules td{vertical-align:top}
+
+/* ---- global "search everything" results overlay -------------------------- */
+/* Elements hidden while the cross-device results list is showing. */
+.search-obscured{display:none !important}
+.search-results{margin:18px 22px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.search-results-head{padding:12px 16px;border-bottom:1px solid var(--line);
+  color:var(--muted);font-size:13px;font-weight:600}
+.search-results-count{color:var(--ink)}
+.search-results-list{max-height:70vh;overflow-y:auto}
+.search-result{display:grid;grid-template-columns:minmax(120px,max-content) 1fr auto auto auto;
+  gap:14px;align-items:center;width:100%;text-align:left;padding:10px 16px;border:0;
+  border-bottom:1px solid var(--line);background:transparent;color:var(--ink);
+  cursor:pointer;font-family:inherit;font-size:13px}
+.search-result:last-child{border-bottom:0}
+.search-result:hover,.search-result:focus-visible{background:var(--bg);outline:none}
+.search-result .sr-type{color:var(--muted);font-size:11px;text-transform:uppercase;
+  letter-spacing:.04em;font-weight:600}
+.search-result .sr-name{font-weight:600;overflow-wrap:anywhere}
+.search-result .sr-dev{color:var(--muted);font-size:12px;white-space:nowrap}
+.search-result .sr-tier{color:var(--muted);font-size:11px;border:1px solid var(--line);
+  border-radius:10px;padding:1px 8px;white-space:nowrap}
+.search-result .sr-tier:empty{display:none}
+.search-result .sr-why{color:var(--accent);font-size:11px;white-space:nowrap;min-width:56px;text-align:right}
+@media (max-width:640px){
+  .search-result{grid-template-columns:1fr auto;gap:4px 10px}
+  .search-result .sr-type{grid-row:1;grid-column:1}
+  .search-result .sr-why{grid-row:1;grid-column:2}
+  .search-result .sr-name{grid-row:2;grid-column:1/3}
+  .search-result .sr-dev{grid-row:3;grid-column:1}
+  .search-result .sr-tier{grid-row:3;grid-column:2;justify-self:end}
+}

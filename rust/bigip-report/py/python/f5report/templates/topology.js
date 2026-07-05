@@ -2,6 +2,413 @@
 // Generated from rust/bigip-report/shared/ts — DO NOT EDIT; edit the .ts source.
 "use strict";
 (() => {
+  // ts/search/matcher.ts
+  var KIND_SCORE = {
+    exact: 100,
+    prefix: 85,
+    word: 75,
+    substring: 60,
+    subsequence: 45,
+    body: 40,
+    phonetic: 30,
+    scope: 5,
+    none: 0
+  };
+  function subsequenceMatch(hay, needle) {
+    if (!needle) return true;
+    let i = 0;
+    for (let j = 0; j < hay.length && i < needle.length; j++) {
+      if (hay[j] === needle[i]) i++;
+    }
+    return i === needle.length;
+  }
+  function nameTokens(name) {
+    return name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  }
+  function soundex(word) {
+    const s = word.toUpperCase().replace(/[^A-Z]/g, "");
+    if (!s) return "";
+    const code = (c) => {
+      if ("BFPV".includes(c)) return "1";
+      if ("CGJKQSXZ".includes(c)) return "2";
+      if ("DT".includes(c)) return "3";
+      if (c === "L") return "4";
+      if ("MN".includes(c)) return "5";
+      if (c === "R") return "6";
+      return "";
+    };
+    let out = s[0];
+    let prev = code(s[0]);
+    for (let i = 1; i < s.length && out.length < 4; i++) {
+      const d = code(s[i]);
+      if (d && d !== prev) out += d;
+      if (s[i] !== "H" && s[i] !== "W") prev = d;
+    }
+    return (out + "000").slice(0, 4);
+  }
+  function metaphone(word) {
+    let s = word.toUpperCase().replace(/[^A-Z]/g, "");
+    if (!s) return "";
+    s = s.replace(/^(AE|GN|KN|PN|WR)/, (m) => m[1]);
+    if (s.startsWith("X")) s = "S" + s.slice(1);
+    s = s.replace(/^WH/, "W");
+    const isVowel = (c) => "AEIOU".includes(c);
+    let out = "";
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      const next = s[i + 1] || "";
+      const prev = s[i - 1] || "";
+      if (c === prev && c !== "C") continue;
+      switch (c) {
+        case "A":
+        case "E":
+        case "I":
+        case "O":
+        case "U":
+          if (i === 0) out += c;
+          break;
+        case "B":
+          if (!(i === s.length - 1 && prev === "M")) out += "B";
+          break;
+        case "C":
+          if (next === "H") out += "X";
+          else if ("IEY".includes(next)) out += "S";
+          else out += "K";
+          break;
+        case "D":
+          out += "T";
+          break;
+        case "G":
+          if (next === "H" && !isVowel(s[i + 2] || "")) break;
+          out += "K";
+          break;
+        case "H":
+          if (isVowel(prev) && !isVowel(next)) break;
+          out += "H";
+          break;
+        case "K":
+          if (prev !== "C") out += "K";
+          break;
+        case "P":
+          out += next === "H" ? "F" : "P";
+          break;
+        case "Q":
+          out += "K";
+          break;
+        case "S":
+          out += next === "H" ? "X" : "S";
+          break;
+        case "T":
+          out += next === "H" ? "0" : "T";
+          break;
+        case "V":
+          out += "F";
+          break;
+        case "W":
+        case "Y":
+          if (isVowel(next)) out += c;
+          break;
+        case "X":
+          out += "KS";
+          break;
+        case "Z":
+          out += "S";
+          break;
+        default:
+          out += c;
+      }
+    }
+    return out;
+  }
+  function phoneticEqual(a, b) {
+    if (a.length < 2 || b.length < 2) return false;
+    const sa = soundex(a);
+    if (sa && sa === soundex(b)) return true;
+    const ma = metaphone(a);
+    return !!ma && ma === metaphone(b);
+  }
+  function scoreText(name, haystack, terms) {
+    const q = terms.trim();
+    if (!q) return { score: KIND_SCORE.scope, kind: "scope" };
+    const nameL = name.toLowerCase();
+    if (nameL === q) return { score: KIND_SCORE.exact, kind: "exact" };
+    if (nameL.startsWith(q)) return { score: KIND_SCORE.prefix, kind: "prefix" };
+    const tokens = nameTokens(name);
+    if (tokens.some((t) => t.startsWith(q))) return { score: KIND_SCORE.word, kind: "word" };
+    if (nameL.includes(q)) return { score: KIND_SCORE.substring, kind: "substring" };
+    if (subsequenceMatch(nameL, q)) return { score: KIND_SCORE.subsequence, kind: "subsequence" };
+    if (haystack.includes(q)) return { score: KIND_SCORE.body, kind: "body" };
+    if (!q.includes(" ") && tokens.some((t) => phoneticEqual(t, q))) {
+      return { score: KIND_SCORE.phonetic, kind: "phonetic" };
+    }
+    return { score: 0, kind: "none" };
+  }
+
+  // ts/search/query.ts
+  var EMPTY_SCOPE = { tier: null, dev: null };
+  function matchesDeviceName(prefix, deviceNames) {
+    const p = prefix.toLowerCase();
+    if (!p) return false;
+    return deviceNames.some((n) => {
+      const nl = n.toLowerCase();
+      return nl.includes(p) || subsequenceMatch(nl, p);
+    });
+  }
+  function parseQuery(raw, deviceNames) {
+    const s = raw.trim();
+    if (!s) return { scope: { ...EMPTY_SCOPE }, terms: "", hadScope: false };
+    const tierM = /^t(\d+):(.*)$/i.exec(s);
+    if (tierM) {
+      return {
+        scope: { tier: parseInt(tierM[1], 10), dev: null },
+        terms: tierM[2].trim(),
+        hadScope: true
+      };
+    }
+    const devM = /^([^:\s]+):(.*)$/.exec(s);
+    if (devM && matchesDeviceName(devM[1], deviceNames)) {
+      return {
+        scope: { tier: null, dev: devM[1] },
+        terms: devM[2].trim(),
+        hadScope: true
+      };
+    }
+    return { scope: { ...EMPTY_SCOPE }, terms: s, hadScope: false };
+  }
+  function deviceInScope(scope, deviceName, deviceTier) {
+    if (scope.tier !== null && deviceTier !== scope.tier) return false;
+    if (scope.dev !== null && !matchesDeviceName(scope.dev, [deviceName])) return false;
+    return true;
+  }
+
+  // ts/search/results.ts
+  var IP_SCORE = 65;
+  var MAX_RESULTS = 400;
+  var TYPE_LABELS = {
+    vs: "Virtual Server",
+    pool: "Pool",
+    node: "Node",
+    mon: "Monitor",
+    rule: "iRule",
+    prof: "Profile",
+    persist: "Persistence",
+    policy: "Policy",
+    snat: "SNAT Pool",
+    dg: "Data Group",
+    cert: "Certificate",
+    wideip: "GTM WideIP",
+    gtmpool: "GTM Pool",
+    gtmserver: "GTM Server",
+    gtmlistener: "GTM Listener",
+    fw: "Firewall Rule",
+    nat: "NAT"
+  };
+  function typeLabel(type) {
+    return TYPE_LABELS[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : "Object");
+  }
+  function labelForKind(kind) {
+    switch (kind) {
+      case "exact":
+        return "exact";
+      case "prefix":
+      case "word":
+        return "name";
+      case "substring":
+        return "name";
+      case "subsequence":
+        return "fuzzy";
+      case "phonetic":
+        return "phonetic";
+      case "body":
+        return "field";
+      case "ip":
+        return "address";
+      default:
+        return "";
+    }
+  }
+  function collectCandidates(deviceMeta) {
+    const out = [];
+    const devices = document.querySelectorAll(".device");
+    devices.forEach((device) => {
+      const di = parseInt(device.dataset.dev || "0", 10);
+      const meta = deviceMeta[di] || { name: `device ${di}`, tier: null };
+      const rows = device.querySelectorAll(".panel tr.searchable");
+      rows.forEach((row) => {
+        const el = row.querySelector("[data-oid]");
+        const oid = el ? el.dataset.oid || "" : "";
+        const type = oid ? oid.split(":")[0] : "";
+        const ds = row.dataset.search || row.textContent || "";
+        const name = (el && el.textContent ? el.textContent : ds.split(/\s+/)[0] || "").trim();
+        out.push({
+          row,
+          deviceIndex: di,
+          deviceName: meta.name,
+          tier: meta.tier,
+          type,
+          typeLabel: typeLabel(type),
+          name,
+          haystack: ds.toLowerCase()
+        });
+      });
+    });
+    return out;
+  }
+  function rank(candidates, pq, ipPred) {
+    const terms = pq.terms.toLowerCase();
+    const scored = [];
+    for (const cand of candidates) {
+      if (!deviceInScope(pq.scope, cand.deviceName, cand.tier)) continue;
+      let score = 0;
+      let kind = "none";
+      if (ipPred) {
+        if (ipPred(cand.haystack)) {
+          score = IP_SCORE;
+          kind = "ip";
+        }
+      } else {
+        const m = scoreText(cand.name, cand.haystack, terms);
+        score = m.score;
+        kind = m.kind;
+      }
+      if (score > 0) scored.push({ cand, score, kind });
+    }
+    scored.sort((a, b) => b.score - a.score || a.cand.name.localeCompare(b.cand.name));
+    return scored;
+  }
+  function activateDevice(deviceIndex) {
+    const tab = document.querySelector(`.dev-tab[data-dev="${deviceIndex}"]`);
+    if (tab) {
+      tab.click();
+    } else {
+      document.querySelectorAll(".device").forEach((d) => {
+        d.classList.toggle("active", d.dataset.dev === String(deviceIndex));
+      });
+    }
+  }
+  function jumpTo(cand) {
+    activateDevice(cand.deviceIndex);
+    const panel = cand.row.closest(".panel");
+    const device = cand.row.closest(".device");
+    if (panel && device) {
+      const tab = device.querySelector(`.tab[data-panel="${panel.dataset.panel}"]`);
+      if (tab) tab.click();
+    }
+    cand.row.classList.remove("hidden", "part-hidden");
+    window.requestAnimationFrame(() => {
+      cand.row.scrollIntoView({ block: "center", behavior: "smooth" });
+      cand.row.classList.add("search-hit");
+      window.setTimeout(() => cand.row.classList.remove("search-hit"), 2400);
+    });
+  }
+  var ResultsView = class {
+    constructor() {
+      this.hiddenSiblings = [];
+      this.section = document.createElement("section");
+      this.section.id = "global-search-results";
+      this.section.className = "search-results";
+      this.section.hidden = true;
+      const head = document.createElement("div");
+      head.className = "search-results-head";
+      this.countEl = document.createElement("span");
+      this.countEl.className = "search-results-count";
+      head.appendChild(this.countEl);
+      this.list = document.createElement("div");
+      this.list.className = "search-results-list";
+      this.section.appendChild(head);
+      this.section.appendChild(this.list);
+      const firstDevice = document.querySelector(".device");
+      const parent = firstDevice ? firstDevice.parentNode : document.body;
+      if (firstDevice && parent) parent.insertBefore(this.section, firstDevice);
+      else document.body.appendChild(this.section);
+    }
+    show(scored, query) {
+      const shown = scored.slice(0, MAX_RESULTS);
+      this.list.textContent = "";
+      for (const s of shown) {
+        this.list.appendChild(this.renderRow(s));
+      }
+      const total = scored.length;
+      const more = total > shown.length ? ` (showing first ${shown.length})` : "";
+      this.countEl.textContent = total ? `${total} result${total === 1 ? "" : "s"} for \u201C${query}\u201D${more}` : `No results for \u201C${query}\u201D`;
+      this.section.hidden = false;
+      this.hideSiblings();
+    }
+    hide() {
+      this.section.hidden = true;
+      this.restoreSiblings();
+    }
+    renderRow(s) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "search-result";
+      const kindLabel = labelForKind(s.kind);
+      const type = document.createElement("span");
+      type.className = "sr-type";
+      type.textContent = s.cand.typeLabel;
+      const name = document.createElement("span");
+      name.className = "sr-name mono";
+      name.textContent = s.cand.name || "(unnamed)";
+      const dev = document.createElement("span");
+      dev.className = "sr-dev";
+      dev.textContent = s.cand.deviceName;
+      const tier = document.createElement("span");
+      tier.className = "sr-tier";
+      tier.textContent = s.cand.tier === null ? "" : `tier ${s.cand.tier}`;
+      const why = document.createElement("span");
+      why.className = "sr-why";
+      why.textContent = kindLabel;
+      item.appendChild(type);
+      item.appendChild(name);
+      item.appendChild(dev);
+      item.appendChild(tier);
+      item.appendChild(why);
+      item.addEventListener("click", () => {
+        this.hide();
+        jumpTo(s.cand);
+      });
+      return item;
+    }
+    hideSiblings() {
+      if (this.hiddenSiblings.length) return;
+      const sel = ".summary, .device-switch, .device, .architecture";
+      document.querySelectorAll(sel).forEach((el) => {
+        if (el === this.section) return;
+        el.classList.add("search-obscured");
+        this.hiddenSiblings.push(el);
+      });
+    }
+    restoreSiblings() {
+      this.hiddenSiblings.forEach((el) => el.classList.remove("search-obscured"));
+      this.hiddenSiblings = [];
+    }
+  };
+  function initGlobalSearch(cfg) {
+    const input = cfg.input;
+    const deviceNames = cfg.deviceMeta.map((d) => d.name);
+    const candidates = collectCandidates(cfg.deviceMeta);
+    const view = new ResultsView();
+    function run() {
+      const raw = input.value.trim();
+      if (!raw) {
+        view.hide();
+        return;
+      }
+      const ipPred = cfg.ipMatcher ? cfg.ipMatcher(raw) : null;
+      const pq = ipPred ? { scope: { tier: null, dev: null }, terms: "", hadScope: false } : parseQuery(raw, deviceNames);
+      const scored = rank(candidates, pq, ipPred);
+      view.show(scored, raw);
+    }
+    input.addEventListener("input", run);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        input.value = "";
+        view.hide();
+      }
+    });
+    if (input.value.trim()) run();
+  }
+
   // ts/topology.ts
   (function() {
     "use strict";
@@ -70,8 +477,8 @@
       bar.dataset.dev = dEl ? dEl.dataset.dev : "0";
       bar.dataset.oid = node.oid || "";
     }
-    function setBarExpr(bar, typeLabel, expr) {
-      bar.querySelector(".f5qbar-type").textContent = typeLabel;
+    function setBarExpr(bar, typeLabel2, expr) {
+      bar.querySelector(".f5qbar-type").textContent = typeLabel2;
       bar.querySelector(".f5qbar-expr").textContent = expr;
       bar.dataset.expr = expr;
     }
@@ -724,7 +1131,7 @@
       host.querySelectorAll(".edgeLabel").forEach(function(el) {
       });
     }
-    function activateDevice(di) {
+    function activateDevice2(di) {
       var tab = document.querySelector('.dev-tab[data-dev="' + di + '"]');
       if (tab) tab.click();
       var dev = document.querySelector('.device[data-dev="' + di + '"]');
@@ -757,7 +1164,7 @@
           el.setAttribute("title", "Jump to this device");
           el.addEventListener("click", function(ev) {
             ev.stopPropagation();
-            activateDevice(di);
+            activateDevice2(di);
           });
         });
       }).catch(function(err) {
@@ -1586,109 +1993,29 @@
         if (!net) return null;
         return { net, rd, port, base: s.split("/")[0] };
       }
-      function ruleByRef(ix, rp) {
-        return ix.d.rules.find(function(r) {
-          return r.fullPath === rp || r.name === rp.split("/").pop();
-        });
-      }
-      function polByPath(ix, pp) {
-        return ix.d.policies.find(function(x) {
-          return x.fullPath === pp;
-        });
-      }
-      function virtualsReaching(ix, poolPaths) {
-        var out = {};
-        ix.d.virtuals.forEach(function(v) {
-          var reaches = poolPaths[v.pool] || (v.rules || []).some(function(rp) {
-            var r = ruleByRef(ix, rp);
-            return r && (r.refPools || []).some(function(p) {
-              return poolPaths[p];
-            });
-          }) || (v.policies || []).some(function(pp) {
-            var pol = polByPath(ix, pp);
-            return pol && pol.rules.some(function(rr) {
-              return rr.actions.some(function(a) {
-                return poolPaths[a.pool];
-              });
-            });
-          });
-          if (reaches) out["vs:" + v.fullPath] = true;
-        });
-        return out;
-      }
-      function run() {
-        var dEl = document.querySelector(".device.active");
-        if (!dEl) return;
-        var ix = IDX[parseInt(dEl.dataset.dev, 10)];
-        var raw = search.value.trim();
-        var q = raw.toLowerCase();
-        var rows = dEl.querySelectorAll(".panel tr.searchable");
-        if (!q) {
-          rows.forEach(function(r) {
-            r.classList.remove("hidden", "search-linked", "search-hit");
-            var d = detailOf(r);
-            if (d) d.classList.remove("hidden");
-          });
-          return;
-        }
+      function ipMatcher(raw) {
         var qParsed = parseIpQuery(raw);
-        var qNet = qParsed ? qParsed.net : null;
-        var info = [], direct = {};
-        rows.forEach(function(r) {
-          var el = r.querySelector("[data-oid]");
-          var oid = el ? el.dataset.oid : null;
-          var hay = (r.dataset.search || r.textContent).toLowerCase();
-          var tm = hay.indexOf(q) >= 0;
-          if (!tm && qNet) {
-            var toks = hay.match(IP_TOKEN);
-            if (toks) {
-              for (var i = 0; i < toks.length && !tm; i++) {
-                var tn = toNet(toks[i]);
-                if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) tm = true;
-              }
-            }
+        if (!qParsed) return null;
+        var qNet = qParsed.net;
+        return function(hay) {
+          var toks = hay.match(IP_TOKEN);
+          if (!toks) return false;
+          for (var i = 0; i < toks.length; i++) {
+            var tn = toNet(toks[i]);
+            if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) return true;
           }
-          info.push({ row: r, oid, tm });
-          if (tm && oid) direct[oid] = true;
-        });
-        var linked = {};
-        Object.keys(direct).forEach(function(o) {
-          Object.keys(ix.adj[o] || {}).forEach(function(nb) {
-            if (!direct[nb]) linked[nb] = true;
-          });
-        });
-        if (qParsed) {
-          var matchPools = {};
-          ix.d.pools.forEach(function(p) {
-            (p.members || []).forEach(function(m) {
-              var mn = toNet(m.address);
-              if (mn && ipOverlap(qNet, mn) && (!qParsed.port || String(m.port) === String(qParsed.port))) {
-                matchPools[p.fullPath] = true;
-              }
-            });
-          });
-          if (Object.keys(matchPools).length) {
-            var reaching = virtualsReaching(ix, matchPools);
-            Object.keys(reaching).forEach(function(o) {
-              if (!direct[o]) linked[o] = true;
-            });
-          }
-        }
-        info.forEach(function(ri) {
-          var show = ri.tm || ri.oid && linked[ri.oid];
-          ri.row.classList.toggle("hidden", !show);
-          ri.row.classList.toggle("search-hit", !!ri.tm);
-          ri.row.classList.toggle("search-linked", !!(show && !ri.tm));
-          var d = detailOf(ri.row);
-          if (d) d.classList.toggle("hidden", !show);
-        });
+          return false;
+        };
       }
-      search.addEventListener("input", run);
-      document.querySelectorAll(".dev-tab").forEach(function(b) {
-        b.addEventListener("click", function() {
-          setTimeout(run, 0);
-        });
+      var archDevs = MODEL.architecture && MODEL.architecture.devices || [];
+      var deviceMeta = MODEL.devices.map(function(d, i) {
+        var ad = archDevs[i] || {};
+        return {
+          name: ad.name || d.name || "device " + i,
+          tier: typeof ad.tier === "number" ? ad.tier : null
+        };
       });
+      initGlobalSearch({ input: search, deviceMeta, ipMatcher });
     })();
     (function initSystemToggle() {
       MODEL.devices.forEach(function(d, di) {

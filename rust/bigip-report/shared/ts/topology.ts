@@ -22,6 +22,8 @@
 // model, and drives click-to-focus, connected-component highlighting, the
 // per-virtual flow diagram, and the listener-matching table. No dependencies
 // beyond the vendored Mermaid (already loaded), no network.
+import { initGlobalSearch } from "./search/results";
+
 (function () {
   "use strict";
 
@@ -1476,120 +1478,42 @@
       if (!net) return null;
       return { net: net, rd: rd, port: port, base: s.split("/")[0] };
     }
-    function ruleByRef(ix, rp) {
-      return ix.d.rules.find(function (r) { return r.fullPath === rp || r.name === rp.split("/").pop(); });
-    }
-    function polByPath(ix, pp) {
-      return ix.d.policies.find(function (x) { return x.fullPath === pp; });
-    }
-    // Virtuals that can route to any of `poolPaths` (default pool / iRule / policy).
-    function virtualsReaching(ix, poolPaths) {
-      var out = {};
-      ix.d.virtuals.forEach(function (v) {
-        var reaches = poolPaths[v.pool]
-          || (v.rules || []).some(function (rp) {
-            var r = ruleByRef(ix, rp); return r && (r.refPools || []).some(function (p) { return poolPaths[p]; });
-          })
-          || (v.policies || []).some(function (pp) {
-            var pol = polByPath(ix, pp);
-            return pol && pol.rules.some(function (rr) {
-              return rr.actions.some(function (a) { return poolPaths[a.pool]; });
-            });
-          });
-        if (reaches) out["vs:" + v.fullPath] = true;
-      });
-      return out;
-    }
-
-    function run() {
-      var dEl = document.querySelector(".device.active");
-      if (!dEl) return;
-      var ix = IDX[parseInt(dEl.dataset.dev, 10)];
-      var raw = search.value.trim();
-      var q = raw.toLowerCase();
-      var rows = dEl.querySelectorAll(".panel tr.searchable");
-
-      if (!q) {
-        rows.forEach(function (r) {
-          r.classList.remove("hidden", "search-linked", "search-hit");
-          var d = detailOf(r); if (d) d.classList.remove("hidden");
-        });
-        return;
-      }
-
-      // If the query is an IP / CIDR (optionally `%rd` and `:port`), also match
-      // objects (nodes, members, virtuals, data-group records, iRule bodies, …)
-      // whose own fields contain an address within — or containing — it.
+    // Build a predicate that tests a row's indexed text for overlap with an IP
+    // / CIDR query (honouring BIG-IP `%route-domain` and an optional `:port`).
+    // Returns null when the query is not an address, so the search falls back to
+    // text / fuzzy / phonetic matching. Wildcard tokens (e.g. a virtual's
+    // `source 0.0.0.0/0`) are skipped so they don't "contain" every address.
+    function ipMatcher(raw) {
       var qParsed = parseIpQuery(raw);
-      var qNet = qParsed ? qParsed.net : null;
-
-      // 1st pass: direct matches on each object's OWN identity/fields
-      // (`data-search`) — including the objects it references *inside an iRule*
-      // and its data-group records — but not its cross-reference table columns.
-      var info = [], direct = {};
-      rows.forEach(function (r) {
-        var el = r.querySelector("[data-oid]");
-        var oid = el ? el.dataset.oid : null;
-        var hay = (r.dataset.search || r.textContent).toLowerCase();
-        var tm = hay.indexOf(q) >= 0;
-        if (!tm && qNet) {
-          var toks = hay.match(IP_TOKEN);
-          if (toks) {
-            for (var i = 0; i < toks.length && !tm; i++) {
-              var tn = toNet(toks[i]);
-              // skip wildcard tokens (e.g. a virtual's `source 0.0.0.0/0`),
-              // which would otherwise "contain" any address the user types.
-              if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) tm = true;
-            }
-          }
+      if (!qParsed) return null;
+      var qNet = qParsed.net;
+      return function (hay) {
+        var toks = hay.match(IP_TOKEN);
+        if (!toks) return false;
+        for (var i = 0; i < toks.length; i++) {
+          var tn = toNet(toks[i]);
+          if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) return true;
         }
-        info.push({ row: r, oid: oid, tm: tm });
-        if (tm && oid) direct[oid] = true;
-      });
-
-      // expand to one-hop neighbours of every directly-matched object
-      var linked = {};
-      Object.keys(direct).forEach(function (o) {
-        Object.keys(ix.adj[o] || {}).forEach(function (nb) {
-          if (!direct[nb]) linked[nb] = true;
-        });
-      });
-
-      // Backend lookup, from the search box: if the query is an address (a node
-      // / member IP that was hit, optionally `%rd` and `:port`), surface the
-      // virtual servers that can route to it — including pools selected via an
-      // iRule or LTM policy (which are more than one hop away in the graph).
-      if (qParsed) {
-        var matchPools = {};
-        ix.d.pools.forEach(function (p) {
-          (p.members || []).forEach(function (m) {
-            var mn = toNet(m.address);
-            if (mn && ipOverlap(qNet, mn) &&
-              (!qParsed.port || String(m.port) === String(qParsed.port))) {
-              matchPools[p.fullPath] = true;
-            }
-          });
-        });
-        if (Object.keys(matchPools).length) {
-          var reaching = virtualsReaching(ix, matchPools);
-          Object.keys(reaching).forEach(function (o) { if (!direct[o]) linked[o] = true; });
-        }
-      }
-
-      info.forEach(function (ri) {
-        var show = ri.tm || (ri.oid && linked[ri.oid]);
-        ri.row.classList.toggle("hidden", !show);
-        ri.row.classList.toggle("search-hit", !!ri.tm);            // direct match
-        ri.row.classList.toggle("search-linked", !!(show && !ri.tm)); // linked only
-        var d = detailOf(ri.row); if (d) d.classList.toggle("hidden", !show);
-      });
+        return false;
+      };
     }
 
-    search.addEventListener("input", run);
-    // re-apply when switching devices so the filter follows the visible device
-    document.querySelectorAll(".dev-tab").forEach(function (b) {
-      b.addEventListener("click", function () { setTimeout(run, 0); });
+    // Per-device name + tier, from the architecture model (both generators now
+    // emit it — see build_architecture). Falls back to the device's own name
+    // and an unknown tier when architecture is absent.
+    var archDevs = (MODEL.architecture && MODEL.architecture.devices) || [];
+    var deviceMeta = MODEL.devices.map(function (d, i) {
+      var ad = archDevs[i] || {};
+      return {
+        name: ad.name || d.name || ("device " + i),
+        tier: (typeof ad.tier === "number") ? ad.tier : null
+      };
     });
+
+    // Cross-device, cross-tier "search everything": a single ranked results
+    // list over every device's objects, with `t<n>:` / `<devname>:` scoping and
+    // substring + subsequence + phonetic matching (see ./search/*).
+    initGlobalSearch({ input: search, deviceMeta: deviceMeta, ipMatcher: ipMatcher });
   })();
 
   // ---- Built-in / system objects: hidden from the flat catalog tables by
