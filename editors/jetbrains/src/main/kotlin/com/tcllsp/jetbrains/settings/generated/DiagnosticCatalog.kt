@@ -55,6 +55,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W233", "warning", "W233: Division or modulo by a provably-zero divisor", true),
         DiagnosticDef("W240", "warning", "W240: Loop condition is a constant false", true),
         DiagnosticDef("W241", "warning", "W241: Loop is provably infinite", true),
+        DiagnosticDef("W250", "warning", "W250: Instantiating an oo::abstract class", true),
         DiagnosticDef("W210", "variable", "W210: Variable read before set", true),
         DiagnosticDef("W211", "variable", "W211: Variable set but never used", true),
         DiagnosticDef("W212", "variable", "W212: Variable substitution where name expected (set \$x, i...", true),
