@@ -59,10 +59,22 @@
 //! call site.  See [`crate::references::find_obj_method_call_sites`]
 //! for the external-site scan's coverage.
 //!
+//! Cross-document rename: procs and classes rewrite their sibling-document
+//! call / definition sites via [`cross_document_symbol_edits`] over the
+//! workspace index.  **Methods** rename across their whole override family,
+//! including sibling documents: the server resolves the family via
+//! [`crate::workspace_index::WorkspaceIndex::method_override_family`] and
+//! calls [`method_spans_in_document`] per family-member document.
+//! [`method_rename_target`] identifies the seed class + method under the
+//! cursor for that path.
+//!
 //! Limitations:
 //!
-//! * Cross-document rename is not supported (no workspace-index
-//!   integration).
+//! * A `$obj method` site is only rewritten in a document that also
+//!   *defines* the receiver's class — the same single-document constraint
+//!   under which the analyser resolves `$obj`'s class at all.  A `$obj
+//!   method` call in a file that only *uses* a class (never defines it) is
+//!   not resolvable, so it is neither found nor (mis)renamed.
 //! * `$obj method` sites embedded in quoted / word tokens
 //!   (`"prefix[$d bark]"`) — the external scan descends into
 //!   command-substitution args and proc / method bodies but
@@ -414,6 +426,69 @@ fn rename_method_in_class(
     }
     dedup_edits(&mut edits);
     Some(edits)
+}
+
+/// When the cursor sits on a renameable `TclOO` **method**, return the
+/// `(class_qualified_name, method_name)` it targets — the seed the server
+/// uses to compute the cross-file override family.  Covers both entry
+/// points the in-document rename recognises: an external `$obj method`
+/// call site (class resolved via `instance_classes`) and a cursor inside a
+/// class body on a method / classmethod name (declaration or `my method`
+/// call).  Returns `None` for non-method targets (vars, procs, classes,
+/// properties), which stay on the single-document rename path.
+#[must_use]
+pub fn method_rename_target(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<(String, String)> {
+    let line_index = LineIndex::new(source);
+    let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
+    // External `$obj method` — resolve `$obj`'s class.
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+        && method == word
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+    {
+        return Some((class_q.clone(), method));
+    }
+    // Inside a class body on one of its method / classmethod names.
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if body.start() < cursor
+            && cursor < body.end()
+            && (class_def.methods.contains_key(&word) || class_def.class_methods.contains_key(&word))
+        {
+            return Some((class_def.qualified_name.clone(), word));
+        }
+    }
+    None
+}
+
+/// Every span (declaration + intra-class `my method` calls + external
+/// `$obj method` sites) that renaming `method` on `class_q` must rewrite
+/// **within `source`**.  Empty when `class_q` is not defined in this
+/// document.  The server calls this per family-member document to assemble
+/// a cross-file method rename.
+#[must_use]
+pub fn method_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    match crate::references::method_references_for_class(source, dialect, analysis, class_q, method) {
+        Some((decl, calls)) => {
+            let mut spans = Vec::with_capacity(1 + calls.len());
+            spans.push(decl);
+            spans.extend(calls);
+            spans
+        }
+        None => Vec::new(),
+    }
 }
 
 /// The set of classes whose definition of `method` must be renamed

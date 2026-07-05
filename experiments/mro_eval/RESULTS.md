@@ -388,14 +388,21 @@ refuted lattice, and all abstain rather than guess:
 - **Go-to-definition on `next` / `nextto`** via `next_provider`
   (`definition.rs`) — the cheap, correct `next`-chain modelling the
   recommendation called out as worth keeping.
-- **Rename across the override family** (`rename.rs`). A method redefined
-  up or down the hierarchy is one polymorphic name; renaming now spans the
-  whole override-connected component instead of silently breaking the
-  override. `examples/mro_overrides.rs` sizes it: **37.9 %** of direct
-  method definitions sit in a cross-file override family, **17.8 %** within
-  a single file (the share this single-document change makes sound). The
-  cross-file remainder is a measured follow-up (needs per-class method
-  spans in the workspace index).
+- **Rename across the override family** (`rename.rs` + `workspace_index.rs`
+  + server). A method redefined up or down the hierarchy is one polymorphic
+  name; renaming now spans the whole override-connected component instead of
+  silently breaking the override. `examples/mro_overrides.rs` sizes it:
+  **37.9 %** of direct method definitions sit in a cross-file override
+  family, **17.8 %** within a single file. Both are now covered: the
+  workspace index carries each class's defined-method names and resolves the
+  **cross-file** override family (`method_override_family`, owner-aware super
+  /mixin edges), and the server rewrites the declaration + resolvable call
+  sites in every document that defines a family class — closing the ~20-point
+  within-file → cross-file gap. Bounded by the analyser's single-document
+  instance tracking: a `$obj method` site is rewritten only in a document
+  that also defines the receiver's class (the same constraint under which the
+  site resolves at all), so no resolvable site is left stale and no
+  unresolvable one is guessed at.
 
 These are the "cheap wins are already shipping" of the recommendation made
 concrete: they extend reach for TclOO users without adding a single

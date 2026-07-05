@@ -2516,6 +2516,91 @@ impl Backend {
         locations
     }
 
+    /// Cross-file rename of a `TclOO` method across its override family.
+    ///
+    /// Resolves the workspace-wide override family of `(seed_class, method)`
+    /// via the class index, then — for every document that defines a family
+    /// class — re-analyses it and collects the method's declaration,
+    /// intra-class `my method` calls, and resolvable `$obj method` sites,
+    /// converting each to an edit in that document.  Returns the per-URI
+    /// edit map (empty when the family is empty, e.g. the class isn't
+    /// indexed yet, so the caller can fall back to the single-document
+    /// path).
+    ///
+    /// Soundness is bounded by the analyser's single-document instance
+    /// tracking: a `$obj method` site is only rewritten in a document that
+    /// also *defines* the family class (the same constraint under which the
+    /// site is resolvable at all), so no unresolved site is silently left
+    /// pointing at the old name that the analysis could have caught.
+    async fn cross_file_method_rename(
+        &self,
+        seed_class: &str,
+        method: &str,
+        new_name: &str,
+    ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        // Family member classes grouped by defining document.
+        let by_uri: std::collections::HashMap<String, Vec<String>> = {
+            let index = self.workspace_index.read().await;
+            let mut m: std::collections::HashMap<String, Vec<String>> =
+                std::collections::HashMap::new();
+            for wc in index.method_override_family(seed_class, method) {
+                m.entry(wc.uri.clone()).or_default().push(wc.qualified_name.clone());
+            }
+            m
+        };
+        for (u, classes) in by_uri {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            let src = target_doc.text.clone();
+            let dialect = target_doc.dialect.clone();
+            let method_owned = method.to_owned();
+            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+                let mut all: Vec<tcl_lexer::Span> = Vec::new();
+                for cq in &classes {
+                    all.extend(core_rename::method_spans_in_document(
+                        &src,
+                        &dialect,
+                        &analysis,
+                        cq,
+                        &method_owned,
+                    ));
+                }
+                all
+            })
+            .await
+            .unwrap_or_default();
+            if spans.is_empty() {
+                continue;
+            }
+            let line_index = target_doc.line_index.clone();
+            let bucket = changes.entry(parsed).or_default();
+            for span in spans {
+                let start = line_index.position_at_utf16(span.start(), &target_doc.text);
+                let end = line_index.position_at_utf16(span.end(), &target_doc.text);
+                let edit = TextEdit {
+                    range: Range {
+                        start: Position { line: start.line, character: start.character.get() },
+                        end: Position { line: end.line, character: end.character.get() },
+                    },
+                    new_text: new_name.to_owned(),
+                };
+                if !bucket.iter().any(|e| e.range == edit.range) {
+                    bucket.push(edit);
+                }
+            }
+        }
+        changes
+    }
+
     /// Add cross-document rename edits for the proc / class at
     /// `pos` into `changes`.  Resolves the symbol, asks the core
     /// rename provider for the namespace-aware sibling-document
@@ -6724,6 +6809,29 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // Method rename → cross-file override-family path.  A method
+        // (re)defined up or down the hierarchy is one polymorphic name, and
+        // the override family can span files, so this handles the current
+        // document *and* every sibling that defines a family class
+        // uniformly (the single-document family is incomplete when the
+        // connecting ancestor lives in another file).  Falls through to the
+        // single-document path when the family is empty (e.g. the index is
+        // not yet populated) so nothing regresses.
+        if core_rename::is_safe_symbol_name(&new_name)
+            && let Some((seed_class, method)) =
+                core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        {
+            let changes = self
+                .cross_file_method_rename(&seed_class, &method, &new_name)
+                .await;
+            if !changes.is_empty() {
+                return Ok(Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    document_changes: None,
+                    change_annotations: None,
+                }));
+            }
+        }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
@@ -13294,6 +13402,46 @@ mod tests {
         let consumer_edits = &changes[&consumer];
         assert_eq!(consumer_edits.len(), 2, "{consumer_edits:?}");
         assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
+    }
+
+    #[tokio::test]
+    async fn method_rename_spans_override_family_across_documents() {
+        // Animal::speak in animal.tcl; Dog (subclass) overrides it in
+        // dog.tcl and calls it via `$d speak`.  Renaming from the base decl
+        // must rewrite the override *and* the external call site in the
+        // sibling document.
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                position: Position::new(1, 11), // on `speak` in Animal's decl
+            },
+            new_name: "vocalise".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
+        assert!(changes.contains_key(&dog), "override doc edits missing: {changes:?}");
+        // Every edit renames to `vocalise`.
+        assert!(changes.values().flatten().all(|e| e.new_text == "vocalise"));
+        // dog.tcl: the override declaration (line 2) + the `$d speak` call
+        // site (line 5) are both rewritten.
+        let dog_lines: Vec<u32> = changes[&dog].iter().map(|e| e.range.start.line).collect();
+        assert!(
+            dog_lines.contains(&2) && dog_lines.contains(&5),
+            "expected override decl (l2) + call site (l5) in dog.tcl; got {:?}",
+            changes[&dog],
+        );
     }
 
     /// Build a backend with one document registered, then disable the named

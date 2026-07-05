@@ -87,6 +87,11 @@ pub struct WorkspaceClass {
     pub superclasses: Vec<String>,
     /// Declared class-level mixin names (as written).
     pub mixins: Vec<String>,
+    /// Names of methods the class *directly defines* (instance methods +
+    /// class-side methods), for computing cross-file override families in
+    /// method rename.  Spans aren't stored — the server re-analyses each
+    /// family member's document to collect the precise decl / call sites.
+    pub defined_methods: Vec<String>,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -177,6 +182,12 @@ impl WorkspaceIndex {
                 name_span: class_def.name_span,
                 superclasses: class_def.superclasses.clone(),
                 mixins: class_def.mixins.clone(),
+                defined_methods: class_def
+                    .methods
+                    .keys()
+                    .chain(class_def.class_methods.keys())
+                    .cloned()
+                    .collect(),
             });
         }
         for inv in &analysis.command_invocations {
@@ -302,6 +313,121 @@ impl WorkspaceIndex {
                         == Some(class_qname)
                 })
             })
+            .collect()
+    }
+
+    /// The **cross-file override family** of `method` seeded at
+    /// `seed_class`: every indexed class that directly defines `method` and
+    /// sits in the same subtype-connected component as `seed_class` (or the
+    /// ancestor that provides `method` to it).
+    ///
+    /// This is the workspace-wide analogue of the single-document override
+    /// family used by method rename: a method (re)defined up or down the
+    /// hierarchy is one polymorphic name, so renaming it must touch every
+    /// class that defines it across the whole workspace.  Superclass/mixin
+    /// edges are resolved **owner-aware** (via [`resolve_class_name`]), so an
+    /// ambiguous bare parent name never fabricates a connection.  The
+    /// returned set always includes the seed's provider and is empty only
+    /// when `method` is neither defined nor inherited from any indexed
+    /// class reachable from `seed_class`.
+    #[must_use]
+    pub fn method_override_family<'a>(
+        &'a self,
+        seed_class: &str,
+        method: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let (known, tail_index) = self.class_name_universe();
+        // Owner-aware direct parents (superclasses + mixins) of each class.
+        let parents = |qname: &str| -> Vec<String> {
+            self.classes
+                .iter()
+                .find(|c| c.qualified_name == qname)
+                .map(|c| {
+                    c.superclasses
+                        .iter()
+                        .chain(c.mixins.iter())
+                        .filter_map(|s| {
+                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        // `parent` is a (transitive) ancestor of `child`.
+        let is_ancestor = |child: &str, parent: &str| -> bool {
+            let mut stack = parents(child);
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            while let Some(p) = stack.pop() {
+                if p == parent {
+                    return true;
+                }
+                if seen.insert(p.clone()) {
+                    stack.extend(parents(&p));
+                }
+            }
+            false
+        };
+        let connected = |a: &str, b: &str| a == b || is_ancestor(a, b) || is_ancestor(b, a);
+        let class_defines = |qname: &str| {
+            self.classes
+                .iter()
+                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+        };
+        // Seed: the class under the cursor if it defines `method`, else the
+        // nearest ancestor that does (any definer ancestor is in the same
+        // family, so the first one found seeds it).
+        let seed = if class_defines(seed_class) {
+            seed_class.to_string()
+        } else {
+            let mut stack = parents(seed_class);
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut found = None;
+            while let Some(p) = stack.pop() {
+                if class_defines(&p) {
+                    found = Some(p);
+                    break;
+                }
+                if seen.insert(p.clone()) {
+                    stack.extend(parents(&p));
+                }
+            }
+            match found {
+                Some(p) => p,
+                None => return Vec::new(),
+            }
+        };
+        // Every indexed definer of `method` (qualified names, de-duplicated).
+        let definers: Vec<String> = {
+            let mut ds: Vec<String> = self
+                .classes
+                .iter()
+                .filter(|c| c.defined_methods.iter().any(|m| m == method))
+                .map(|c| c.qualified_name.clone())
+                .collect();
+            ds.sort();
+            ds.dedup();
+            ds
+        };
+        // Grow the weakly-connected component of definers containing `seed`.
+        let mut family = vec![seed];
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for d in &definers {
+                if family.iter().any(|f| f == d) {
+                    continue;
+                }
+                if family.iter().any(|f| connected(f, d)) {
+                    family.push(d.clone());
+                    changed = true;
+                }
+            }
+        }
+        let family_set: std::collections::HashSet<&str> =
+            family.iter().map(String::as_str).collect();
+        self.classes
+            .iter()
+            .filter(|c| family_set.contains(c.qualified_name.as_str()))
             .collect()
     }
 
@@ -477,6 +603,53 @@ mod tests {
             index.supertype_classes(widget).is_empty(),
             "ambiguous bare superclass should resolve to nothing",
         );
+    }
+
+    #[test]
+    fn cross_file_method_override_family() {
+        // Base `speak` in a.tcl; Dog overrides it in b.tcl; Cat overrides it
+        // in c.tcl; unrelated Engine::speak in d.tcl must stay out.
+        let a = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
+        let b = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let c = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let d = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///c.tcl", &c),
+            ("file:///d.tcl", &d),
+        ]);
+        // Seed from Dog: family = Animal + Dog + Cat (across three files).
+        let mut fam: Vec<&str> = index
+            .method_override_family("::Dog", "speak")
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
+        fam.sort_unstable();
+        fam.dedup();
+        assert_eq!(fam, vec!["::Animal", "::Cat", "::Dog"], "cross-file family wrong");
+        // Unrelated Engine::speak must not be pulled in.
+        assert!(
+            !index
+                .method_override_family("::Dog", "speak")
+                .iter()
+                .any(|c| c.qualified_name == "::Engine"),
+            "unrelated same-named method must stay out of the family",
+        );
+        // Seeding from a class that only *inherits* speak still finds the
+        // family via the providing ancestor.
+        let e = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
+        let index2 = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///e.tcl", &e),
+        ]);
+        let fam2: Vec<&str> = index2
+            .method_override_family("::Puppy", "speak")
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
+        assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
     }
 
     #[test]
