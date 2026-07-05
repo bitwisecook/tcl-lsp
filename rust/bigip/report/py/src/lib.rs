@@ -506,12 +506,13 @@ fn list_secrets(text: &str) -> PyResult<String> {
 
 /// Syntax-highlight an iRule/Tcl source string to HTML.
 ///
-/// Uses the real [`tcl_lexer`] tokeniser (the same one the LSP/compiler use), so
-/// the report's iRule source view matches the engine's understanding of the
-/// code. Returns self-contained, pre-escaped HTML (`<span class="tk-…">`).
+/// Uses the real [`tcl_lexer`] tokeniser (the same one the LSP/compiler use) with
+/// the **`f5-irules`** lexer preset, so `if {expr}{body}` (`}{` valid in TMM) is
+/// tokenised correctly rather than the stock-Tcl way. Returns self-contained,
+/// pre-escaped HTML (`<span class="tk-…">`).
 #[pyfunction]
 fn highlight_tcl(body: &str) -> String {
-    tcl_lexer::highlight_tcl(body)
+    tcl_lexer::highlight_tcl_with_config(body, tcl_lexer::LexerConfig::for_dialect("f5-irules"))
 }
 
 /// Sort iRule `when` event names into canonical firing order.

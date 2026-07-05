@@ -24,15 +24,24 @@
 //! and variables deep inside event bodies are highlighted too. On any lex error
 //! it falls back to plain escaped text — the report never fails to render.
 
-use crate::{Lexer, TokenType};
+use crate::{Lexer, LexerConfig, SourceMap, TokenType};
 
 const MAX_DEPTH: usize = 64;
 
-/// Highlight an iRule/Tcl source string to HTML.
+/// Highlight an iRule/Tcl source string to HTML using stock-Tcl lexing.
 #[must_use]
 pub fn highlight_tcl(src: &str) -> String {
+    highlight_tcl_with_config(src, LexerConfig::default())
+}
+
+/// Highlight with an explicit lexer preset — pass
+/// [`LexerConfig::for_dialect("f5-irules")`](LexerConfig::for_dialect) to
+/// colour an iRule correctly, so `if {expr}{body}` (`}{` valid in TMM) is not
+/// mis-tokenised the way the stock-Tcl preset would.
+#[must_use]
+pub fn highlight_tcl_with_config(src: &str, config: LexerConfig) -> String {
     let mut out = String::with_capacity(src.len() + src.len() / 2);
-    highlight_into(src, 0, &mut out);
+    highlight_into(src, 0, config, &mut out);
     out
 }
 
@@ -56,8 +65,15 @@ pub struct HlRange {
 /// [`highlight_tcl`]'s verbatim fallback, which classes nothing).
 #[must_use]
 pub fn highlight_ranges(src: &str) -> Vec<HlRange> {
+    highlight_ranges_with_config(src, LexerConfig::default())
+}
+
+/// [`highlight_ranges`] with an explicit lexer preset (see
+/// [`highlight_tcl_with_config`]).
+#[must_use]
+pub fn highlight_ranges_with_config(src: &str, config: LexerConfig) -> Vec<HlRange> {
     let mut ranges = Vec::new();
-    collect_ranges(src, 0, 0, &mut ranges);
+    collect_ranges(src, 0, 0, config, &mut ranges);
     ranges
 }
 
@@ -66,14 +82,16 @@ pub fn highlight_ranges(src: &str) -> Vec<HlRange> {
 /// whole document, so nested braced/bracketed scripts report document-absolute
 /// spans. Kept structurally identical to `highlight_into` so the colouring can
 /// never drift (the `ranges_reproduce_highlight_html` test pins this).
-fn collect_ranges(src: &str, depth: usize, base: usize, out: &mut Vec<HlRange>) {
+fn collect_ranges(src: &str, depth: usize, base: usize, config: LexerConfig, out: &mut Vec<HlRange>) {
     if src.is_empty() {
         return;
     }
     let tokens = if depth >= MAX_DEPTH {
         None
     } else {
-        Lexer::new(src).tokenise_all().ok()
+        Lexer::with_source_map(SourceMap::new(src), config)
+            .tokenise_all()
+            .ok()
     };
     let Some(tokens) = tokens else {
         return; // verbatim fallback → nothing classed
@@ -88,8 +106,8 @@ fn collect_ranges(src: &str, depth: usize, base: usize, out: &mut Vec<HlRange>) 
             match tok.kind {
                 TokenType::Comment => out.push(range(base + s, base + e, "tk-comment")),
                 TokenType::Var => out.push(range(base + s, base + e, "tk-var")),
-                TokenType::Str => collect_recurse(text, '{', '}', depth, base + s, out),
-                TokenType::Cmd => collect_recurse(text, '[', ']', depth, base + s, out),
+                TokenType::Str => collect_recurse(text, '{', '}', depth, base + s, config, out),
+                TokenType::Cmd => collect_recurse(text, '[', ']', depth, base + s, config, out),
                 TokenType::Esc => {
                     if cmd_start {
                         out.push(range(
@@ -120,6 +138,7 @@ fn collect_recurse(
     close: char,
     depth: usize,
     text_base: usize,
+    config: LexerConfig,
     out: &mut Vec<HlRange>,
 ) {
     let mut inner = text;
@@ -131,14 +150,14 @@ fn collect_recurse(
     if inner.ends_with(close) {
         inner = &inner[..inner.len() - close.len_utf8()];
     }
-    collect_ranges(inner, depth + 1, inner_base, out);
+    collect_ranges(inner, depth + 1, inner_base, config, out);
 }
 
 const fn range(start: usize, end: usize, class: &'static str) -> HlRange {
     HlRange { start, end, class }
 }
 
-fn highlight_into(src: &str, depth: usize, out: &mut String) {
+fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String) {
     if src.is_empty() {
         return;
     }
@@ -146,7 +165,9 @@ fn highlight_into(src: &str, depth: usize, out: &mut String) {
     let tokens = if depth >= MAX_DEPTH {
         None
     } else {
-        Lexer::new(src).tokenise_all().ok()
+        Lexer::with_source_map(SourceMap::new(src), config)
+            .tokenise_all()
+            .ok()
     };
     let Some(tokens) = tokens else {
         push_escaped(src, out);
@@ -166,8 +187,8 @@ fn highlight_into(src: &str, depth: usize, out: &mut String) {
             match tok.kind {
                 TokenType::Comment => wrap(out, "tk-comment", text),
                 TokenType::Var => wrap(out, "tk-var", text),
-                TokenType::Str => recurse_wrapped(text, '{', '}', depth, out),
-                TokenType::Cmd => recurse_wrapped(text, '[', ']', depth, out),
+                TokenType::Str => recurse_wrapped(text, '{', '}', depth, config, out),
+                TokenType::Cmd => recurse_wrapped(text, '[', ']', depth, config, out),
                 TokenType::Esc => {
                     if cmd_start {
                         // A command name; a namespaced one (`HTTP::respond`) keeps
@@ -209,7 +230,7 @@ fn highlight_into(src: &str, depth: usize, out: &mut String) {
 /// delimiters from the token span (they arrive as the surrounding gap text), so
 /// the token text is normally already the inner script and is recursed
 /// directly; if a lexer path does keep the delimiters, strip them first.
-fn recurse_wrapped(text: &str, open: char, close: char, depth: usize, out: &mut String) {
+fn recurse_wrapped(text: &str, open: char, close: char, depth: usize, config: LexerConfig, out: &mut String) {
     // The token span keeps the opening delimiter but drops the closing one
     // (which arrives as the following gap); strip a leading `{`/`[`, and a
     // trailing `}`/`]` if this path happens to include it, then recurse.
@@ -223,7 +244,7 @@ fn recurse_wrapped(text: &str, open: char, close: char, depth: usize, out: &mut 
         trailer = &inner[inner.len() - close.len_utf8()..];
         inner = &inner[..inner.len() - close.len_utf8()];
     }
-    highlight_into(inner, depth + 1, out);
+    highlight_into(inner, depth + 1, config, out);
     out.push_str(trailer);
 }
 
@@ -307,6 +328,25 @@ mod tests {
                 "range render diverged from highlight_tcl for: {src:?}"
             );
         }
+    }
+
+    #[test]
+    fn f5irules_config_highlights_body_after_brace_chain() {
+        // `if {1}{ pool p }` — TMM `}{`. With the stock preset the `}{` derails
+        // command tracking so `pool` isn't seen as a command; with the f5-irules
+        // preset the ghost SEP makes `{ pool p }` a separate word, so `pool`
+        // inside it is highlighted as a command.
+        let src = "if {1}{ pool p }";
+        let irules = LexerConfig::for_dialect("f5-irules");
+        let ranges = highlight_ranges_with_config(src, irules);
+        let pool = ranges.iter().find(|r| &src[r.start..r.end] == "pool");
+        assert_eq!(
+            pool.map(|r| r.class),
+            Some("tk-cmd"),
+            "f5-irules preset should treat `pool` after `}}{{` as a command"
+        );
+        // The HTML variant agrees with the ranges variant.
+        assert!(highlight_tcl_with_config(src, irules).contains("<span class=\"tk-cmd\">pool</span>"));
     }
 
     #[test]

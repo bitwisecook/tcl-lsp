@@ -25,7 +25,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_lexer::LexerConfig;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
@@ -124,7 +125,13 @@ fn walk(
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
 ) {
-    for cmd in segment_commands_with_offset(slice, base) {
+    // Always the iRules dialect: segment with the f5-irules preset so an iRule's
+    // `if {expr}{body}` (`}{` valid in TMM) splits into distinct words and its
+    // pool/node references are attributed to the right command, not swallowed by
+    // the stock-Tcl "extra characters after close-brace" mis-segmentation.
+    for cmd in
+        segment_commands_with_offset_and_config(slice, base, LexerConfig::for_dialect("f5-irules"))
+    {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
 
         // Resolve declared references *before* mutating the binding table, so a

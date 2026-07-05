@@ -4805,6 +4805,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let config = core_formatting::FormatterConfig {
             max_line_length: self.resolved_line_length(&params.text_document.uri).await as usize,
+            lexer_config: tcl_lexer::LexerConfig::for_dialect(&doc.dialect),
             ..core_formatting::FormatterConfig::default()
         };
         let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
@@ -6457,7 +6458,7 @@ impl LanguageServer for Backend {
         // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
         // LSP contract.
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        let config = formatter_config_from(&formatting, &params.options);
+        let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
@@ -6499,7 +6500,7 @@ impl LanguageServer for Backend {
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        let config = formatter_config_from(&formatting, &params.options);
+        let config = formatter_config_from(&formatting, &params.options, &doc.dialect);
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.text.clone();
@@ -7355,9 +7356,14 @@ fn apply_docstring_formatting(
 fn formatter_config_from(
     formatting: &serde_json::Value,
     options: &tower_lsp_server::ls_types::FormattingOptions,
+    dialect: &str,
 ) -> core_formatting::FormatterConfig {
     use core_formatting::IndentStyle;
     let mut cfg = core_formatting::FormatterConfig::default();
+    // Tokenise with the document's dialect so, e.g., an `.irul` file's
+    // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as `} {`
+    // rather than left unchanged by the stock-Tcl lexer.
+    cfg.lexer_config = tcl_lexer::LexerConfig::for_dialect(dialect);
     if let Some(obj) = formatting.as_object() {
         apply_formatting_object(obj, &mut cfg);
     }
@@ -10126,20 +10132,20 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, "tcl");
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
         // A degenerate zero tabSize is ignored (editors always send >= 1), so
         // the configured / default indent size stands (4 here).
         opts.tab_size = 0;
         assert_eq!(
-            formatter_config_from(&serde_json::Value::Null, &opts).indent_size,
+            formatter_config_from(&serde_json::Value::Null, &opts, "tcl").indent_size,
             4
         );
         // insertSpaces=false selects tab indentation.
         opts.tab_size = 4;
         opts.insert_spaces = false;
-        let cfg = formatter_config_from(&serde_json::Value::Null, &opts);
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, "tcl");
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
     }
 
@@ -10161,7 +10167,7 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&formatting, &opts);
+        let cfg = formatter_config_from(&formatting, &opts, "tcl");
         assert_eq!(cfg.max_line_length, 100);
         assert_eq!(cfg.goal_line_length, 90);
         assert!(!cfg.space_between_braces);
@@ -10171,7 +10177,7 @@ mod tests {
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
         // A null formatting object falls back to defaults + LSP options.
-        let dflt = formatter_config_from(&serde_json::Value::Null, &opts);
+        let dflt = formatter_config_from(&serde_json::Value::Null, &opts, "tcl");
         assert_eq!(dflt.max_line_length, 120);
     }
 
@@ -10189,6 +10195,7 @@ mod tests {
                 "docstringDecorationWidth": 80,
             }),
             &opts,
+            "tcl",
         );
         assert_eq!(
             cfg.docstring_style,
@@ -10230,7 +10237,7 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&formatting, &opts);
+        let cfg = formatter_config_from(&formatting, &opts, "tcl");
         assert_eq!(cfg.max_line_length, 70);
         // tab_size 0 → unwrap_or(cfg.indent_size=8).max(1) = 8.
         assert_eq!(cfg.indent_size, 8);
