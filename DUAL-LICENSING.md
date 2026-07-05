@@ -58,6 +58,13 @@ examples include:
 - **Henry Spencer's Advanced Regular Expression test corpus**
   (`rust/tcl-regex/tests/data/reg.test`) — Copyright © 1998, 1999 Henry
   Spencer; retained verbatim under Spencer's permissive regex license.
+- **F5 TMOS default-profile base** (`scripts/registry-audit/data/profile_base.conf`)
+  — a verbatim `profile_base.conf` taken from the
+  [f5-corkscrew](https://github.com/f5devcentral/f5-corkscrew) project's test
+  fixtures, distributed by F5 DevCentral under the Apache License 2.0. Retained
+  solely as input to `scripts/registry-audit/gen_profile_defaults.py`, which
+  derives the registry's profile-default table
+  (`rust/registry/tcl-registry/src/profile_defaults/generated.rs`).
 
 The `tcl-regex` engine itself is an independent, idiomatic Rust reimplementation
 of the ARE semantics (not a transliteration of Spencer's C); its source is

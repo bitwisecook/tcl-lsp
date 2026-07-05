@@ -33,15 +33,25 @@
 //! BIG-IP report (to show effective values for base profiles an SCF never
 //! re-declares), and the LSP.
 //!
-//! ## Seeding vs. import
+//! ## Data + import
 //!
-//! The entries below are the stable, well-documented core defaults keyed to
-//! their applicable version range. A full per-release import is produced by
-//! diffing successive `profile_base.conf` snapshots (one range boundary per
-//! release that changed a value); until a given field has a version-specific
-//! split recorded, its baseline entry carries an open upper bound
-//! ([`VersionRange::from`] / [`VersionRange::UNBOUNDED`]) meaning "current and
-//! later". The resolver treats an open upper bound as the latest known value.
+//! [`PROFILE_DEFAULTS`] is generated (`generated.rs`) by
+//! `scripts/registry-audit/gen_profile_defaults.py` from a real
+//! `profile_base.conf` — the read-only default-profile base every BIG-IP ships
+//! (sourced from f5-corkscrew's Apache-2.0 archive fixtures). One snapshot
+//! yields version-unbounded entries; known cross-release changes a single
+//! snapshot can't express (e.g. the client/server-ssl `options` gaining
+//! `no-tlsv1.3` at 14.0) are recorded as an `OVERRIDES` table in the generator
+//! and emitted as adjacent half-open ranges. Refresh by re-running the
+//! generator against a newer `profile_base.conf`; add range boundaries to
+//! `OVERRIDES` as releases retune a default. The resolver treats an open upper
+//! bound as the latest known value.
+
+mod generated;
+
+/// The full profile default table (generated from `profile_base.conf`). See the
+/// module docs for provenance and the version-range policy.
+pub use generated::PROFILE_DEFAULTS_GENERATED as PROFILE_DEFAULTS;
 
 /// A parsed BIG-IP / TMOS version, ordered for range comparison.
 ///
@@ -261,174 +271,6 @@ fn normalise_type(t: &str) -> String {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// Seed data — stable core defaults from `/config/profile_base.conf`.
-//
-// Values here are the well-documented, release-stable TMOS defaults; where a
-// default is known to have changed at a release, the change is recorded as
-// adjacent half-open ranges (see CLIENTSSL `options` below). Fields without a
-// recorded split carry an open upper bound (current-and-later). Extend by
-// diffing `profile_base.conf` across releases.
-// ---------------------------------------------------------------------------
-
-/// `[min, ∞)` from a `major.minor` boundary — spelled out for the const table.
-const fn since(major: u16, minor: u16) -> VersionRange {
-    VersionRange::from(BigipVersion::new(major, minor, 0, 0))
-}
-
-/// `[−∞, max)` up to a `major.minor` boundary.
-const fn before(major: u16, minor: u16) -> VersionRange {
-    VersionRange::until(BigipVersion::new(major, minor, 0, 0))
-}
-
-/// Convenience: an unbounded (all-versions) field default.
-const fn any(field: &'static str, value: &'static str) -> FieldDefault {
-    FieldDefault {
-        field,
-        value,
-        range: VersionRange::UNBOUNDED,
-    }
-}
-
-/// The seed default table — one [`ProfileDefaults`] per profile type. See the
-/// module docs for the seeding-vs-import policy.
-pub static PROFILE_DEFAULTS: &[ProfileDefaults] = &[
-    ProfileDefaults {
-        profile: "TCP",
-        tmsh_kind: "ltm profile tcp",
-        fields: &[
-            any("idle-timeout", "300"),
-            any("nagle", "disabled"),
-            any("reset-on-timeout", "enabled"),
-            any("time-wait-recycle", "enabled"),
-            any("proxy-buffer-high", "49152"),
-            any("proxy-buffer-low", "32768"),
-            any("receive-window-size", "65535"),
-            any("send-buffer-size", "65535"),
-            any("keep-alive-interval", "1800"),
-            any("congestion-control", "high-speed"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "UDP",
-        tmsh_kind: "ltm profile udp",
-        fields: &[
-            any("idle-timeout", "60"),
-            any("datagram-load-balancing", "disabled"),
-            any("allow-no-payload", "disabled"),
-            any("ip-tos-to-client", "0"),
-            any("link-qos-to-client", "0"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "FASTL4",
-        tmsh_kind: "ltm profile fastl4",
-        fields: &[
-            any("idle-timeout", "300"),
-            any("reset-on-timeout", "enabled"),
-            any("tcp-handshake-timeout", "5"),
-            any("tcp-close-timeout", "5"),
-            any("pva-acceleration", "full"),
-            any("loose-initialization", "disabled"),
-            any("loose-close", "disabled"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "HTTP",
-        tmsh_kind: "ltm profile http",
-        fields: &[
-            any("insert-xforwarded-for", "disabled"),
-            any("redirect-rewrite", "none"),
-            any("encrypt-cookies", "none"),
-            any("oneconnect-transformations", "enabled"),
-            any("server-agent-name", "BigIP"),
-            any("lws-width", "80"),
-            any("max-header-count", "64"),
-            any("max-header-size", "32768"),
-            any("response-chunking", "selective"),
-            any("request-chunking", "preserve"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "ONECONNECT",
-        tmsh_kind: "ltm profile one-connect",
-        fields: &[
-            any("source-mask", "any"),
-            any("maximum-size", "10000"),
-            any("maximum-age", "86400"),
-            any("maximum-reuse", "1000"),
-            any("idle-timeout-override", "disabled"),
-            any("share-pools", "disabled"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "CLIENTSSL",
-        tmsh_kind: "ltm profile client-ssl",
-        fields: &[
-            any("ciphers", "DEFAULT"),
-            any("cert", "/Common/default.crt"),
-            any("key", "/Common/default.key"),
-            any("renegotiation", "enabled"),
-            any("secure-renegotiation", "require"),
-            // TLS 1.3 shipped disabled-by-default in the base clientssl profile
-            // from 14.0 (the base `options` gained `no-tlsv1.3`); before that
-            // the base options were just `dont-insert-empty-fragments`.
-            FieldDefault {
-                field: "options",
-                value: "dont-insert-empty-fragments",
-                range: before(14, 0),
-            },
-            FieldDefault {
-                field: "options",
-                value: "dont-insert-empty-fragments no-tlsv1.3",
-                range: since(14, 0),
-            },
-        ],
-    },
-    ProfileDefaults {
-        profile: "SERVERSSL",
-        tmsh_kind: "ltm profile server-ssl",
-        fields: &[
-            any("ciphers", "DEFAULT"),
-            any("renegotiation", "enabled"),
-            any("secure-renegotiation", "require-strict"),
-            any("ssl-forward-proxy", "disabled"),
-            any("ssl-forward-proxy-bypass", "disabled"),
-            FieldDefault {
-                field: "options",
-                value: "dont-insert-empty-fragments",
-                range: before(14, 0),
-            },
-            FieldDefault {
-                field: "options",
-                value: "dont-insert-empty-fragments no-tlsv1.3",
-                range: since(14, 0),
-            },
-        ],
-    },
-    ProfileDefaults {
-        profile: "HTTP2",
-        tmsh_kind: "ltm profile http2",
-        fields: &[
-            any("concurrent-streams-per-connection", "10"),
-            any("connection-idle-timeout", "300"),
-            any("header-table-size", "4096"),
-            any("frame-size", "2048"),
-            any("receive-window", "32"),
-            any("write-size", "16384"),
-        ],
-    },
-    ProfileDefaults {
-        profile: "FTP",
-        tmsh_kind: "ltm profile ftp",
-        fields: &[
-            any("port", "20"),
-            any("inherit-parent-profile", "disabled"),
-            any("translate-extended", "enabled"),
-            any("allow-active-mode", "enabled"),
-        ],
-    },
-];
 
 #[cfg(test)]
 mod tests {
@@ -510,6 +352,36 @@ mod tests {
         assert!(profile_field_default("TCP", "no-such-field", None).is_none());
         assert!(profile_field_default("NOPE", "idle-timeout", None).is_none());
         assert!(profile_field_defaults("NOPE", None).is_empty());
+    }
+
+    #[test]
+    fn generated_import_is_broad_and_faithful() {
+        // The generated table covers the full base-profile set, not a handful.
+        assert!(
+            profiles_with_defaults().len() >= 50,
+            "expected the full profile_base.conf import, got {}",
+            profiles_with_defaults().len()
+        );
+        // Real values from profile_base.conf (not guessed): the base tcp proxy
+        // buffer is 65535, and the profile carries dozens of fields.
+        assert_eq!(
+            profile_field_default("tcp", "proxy-buffer-high", None),
+            Some("65535")
+        );
+        assert!(profile_field_defaults("tcp", None).len() >= 40);
+        // A nested block is flattened to a faithful tmsh string.
+        assert_eq!(
+            profile_field_default("clientssl", "cert-key-chain", None),
+            Some("{ default { cert /Common/default.crt chain none key /Common/default.key passphrase none } }")
+        );
+        // Application + transport + TLS + niche types all present.
+        for ty in ["TCP", "UDP", "FASTL4", "HTTP", "HTTP2", "CLIENTSSL", "SERVERSSL", "ONECONNECT", "SCTP", "REWRITE"] {
+            assert!(
+                !profile_field_defaults(ty, None).is_empty()
+                    || profile_tmsh_kind(ty).is_some(),
+                "missing profile type {ty}"
+            );
+        }
     }
 
     #[test]
