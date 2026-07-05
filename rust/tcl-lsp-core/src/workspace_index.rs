@@ -609,21 +609,21 @@ mod tests {
     fn cross_file_method_override_family() {
         // Base `speak` in a.tcl; Dog overrides it in b.tcl; Cat overrides it
         // in c.tcl; unrelated Engine::speak in d.tcl must stay out.
-        let a = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
-        let b = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
-        let c = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
-        let d = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
+        let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
+        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let cat = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
         let index = WorkspaceIndex::from_documents([
-            ("file:///a.tcl", &a),
-            ("file:///b.tcl", &b),
-            ("file:///c.tcl", &c),
-            ("file:///d.tcl", &d),
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///c.tcl", &cat),
+            ("file:///d.tcl", &engine),
         ]);
         // Seed from Dog: family = Animal + Dog + Cat (across three files).
         let mut fam: Vec<&str> = index
             .method_override_family("::Dog", "speak")
             .iter()
-            .map(|c| c.qualified_name.as_str())
+            .map(|wc| wc.qualified_name.as_str())
             .collect();
         fam.sort_unstable();
         fam.dedup();
@@ -633,21 +633,21 @@ mod tests {
             !index
                 .method_override_family("::Dog", "speak")
                 .iter()
-                .any(|c| c.qualified_name == "::Engine"),
+                .any(|wc| wc.qualified_name == "::Engine"),
             "unrelated same-named method must stay out of the family",
         );
         // Seeding from a class that only *inherits* speak still finds the
         // family via the providing ancestor.
-        let e = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
+        let puppy = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
         let index2 = WorkspaceIndex::from_documents([
-            ("file:///a.tcl", &a),
-            ("file:///b.tcl", &b),
-            ("file:///e.tcl", &e),
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///e.tcl", &puppy),
         ]);
         let fam2: Vec<&str> = index2
             .method_override_family("::Puppy", "speak")
             .iter()
-            .map(|c| c.qualified_name.as_str())
+            .map(|wc| wc.qualified_name.as_str())
             .collect();
         assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
     }
