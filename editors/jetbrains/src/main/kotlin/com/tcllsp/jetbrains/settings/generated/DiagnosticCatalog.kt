@@ -47,6 +47,8 @@ object DiagnosticCatalog {
         DiagnosticDef("W126", "warning", "W126: Non-channel value in channel argument position", true),
         DiagnosticDef("W127", "warning", "W127: Value not in the command's allowed set", true),
         DiagnosticDef("W128", "warning", "W128: Command called after it was renamed or deleted earli...", true),
+        DiagnosticDef("W135", "warning", "W135: Command requires a newer package version than the re...", true),
+        DiagnosticDef("W136", "warning", "W136: Option requires a newer package version than the res...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

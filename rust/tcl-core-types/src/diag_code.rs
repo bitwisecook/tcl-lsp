@@ -415,6 +415,8 @@ diagnostic_codes! {
     W132 => "W132", diag(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
     W133 => "W133", diag(Tclpkg, true, "tclpkg.tcl directive not permitted in safe mode.");
     W134 => "W134", diag(Tclpkg, true, "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.");
+    W135 => "W135", diag(Warning, true, "Command requires a newer package version than the resolved `package require`.");
+    W136 => "W136", diag(Warning, true, "Option requires a newer package version than the resolved `package require`.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

@@ -198,6 +198,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W135",
+    section: "warning",
+    description: "Command requires a newer package version than the resolved `package require`.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W136",
+    section: "warning",
+    description: "Option requires a newer package version than the resolved `package require`.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",
