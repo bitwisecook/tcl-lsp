@@ -276,19 +276,29 @@ Two hard findings:
 Resolving these needs **object-container element-typing**: infer that a
 dict/list instance variable holds objects of class *C*, tracking dynamic
 population (`dict append Params $k [::Ns::Parameter new …]`) through
-`my variable` scoping and often large (analysis-guarded) method bodies. A
-lightweight syntactic pass recovers **~0** — not because the classes are
-unknowable, but because the container's element type is established by
-dynamic dict/list writes the cheap pass doesn't follow. This is a
-*materially harder* analysis than either the object→class lattice or
-interprocedural parameter flow, with its own unmeasured payoff.
+`my variable` scoping and often large (analysis-guarded) method bodies.
+
+**Prototyped and measured.** A source-level container element-typing pass
+(scan `lappend`/`dict set`/`dict append`/`set … [list …]` for
+`[Class new]` elements, key the container's element class, then type the
+`foreach x [dict values $Container]` loop var) recovers **27 / 149
+container-iteration receivers (18 %)** — but only **27 / 1,083 = 2.5 % of
+the whole `unknown` ⊤ bucket**, i.e. it would move the overall ⊤-rate from
+81.3 % to ~79.8 %. On the class-definition files alone (`SpiceGenTcl/src`)
+it types 57 % of container receivers, but the population sites are often
+cross-file or pass a `$var` element the syntactic pass can't type, and the
+container-iteration share is itself a lower bound. So the ceiling is
+**modest** even before accounting for the cost: this is a *materially
+harder* analysis than the lattice (dynamic dict/list writes, `my variable`
+scoping, guarded bodies), for a low-single-digit ⊤-rate improvement.
 
 **Upshot:** the two "next levers" beyond the lattice are, respectively,
-**refuted** (parameter typing) and **expensive with uncertain payoff**
-(container element-typing). This strengthens the negative recommendation:
-the cheap wins are already shipping (MRO/CHA + workspace index), and the
-remaining ⊤-rate is gated by container-of-objects modeling, not by any of
-the machinery this experiment prototyped.
+**refuted** (parameter typing: 0.9 % of ⊤, 0 recovered) and **low-ceiling +
+expensive** (container element-typing: 2.5 % of ⊤ at its measured
+prototype ceiling). This strengthens the negative recommendation: the cheap
+wins are already shipping (MRO/CHA + workspace index), and the residual
+⊤-rate is gated by container-of-objects modeling whose payoff is
+small-and-costly, not by any machinery this experiment prototyped.
 
 ## Adversarial check (correctness)
 
@@ -377,8 +387,11 @@ Concretely, staged by evidence:
    variables. Only invest here if go-to-definition / hover on
    `foreach x [dict values $Container]` receivers is a named priority, and
    scope it as object-container element-typing (dynamic dict/list writes +
-   `my variable` scoping + guarded-body handling) with its own up-front
-   ceiling measurement — the lightweight prototype recovered ~0.
+   `my variable` scoping + guarded-body handling). The prototype ceiling is
+   already measured: **2.5 % of the `unknown` ⊤ bucket** (27 sites) — a
+   low-single-digit ⊤-rate improvement for a substantial analysis, so only
+   worth it if `foreach x [dict values $Container]` go-to-def/hover is a
+   named priority.
 5. **Retain the ⊤ taxonomy + harnesses** as the yardstick for (4). The
    `next_provider` (`next`/`nextto`) modelling and the ⊤ instrumentation
    are cheap, correct, and useful for go-to-definition on `next` chains

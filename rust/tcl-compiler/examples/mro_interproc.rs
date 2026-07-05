@@ -90,15 +90,6 @@ struct Scope {
     params: Vec<String>,
 }
 
-/// A `foreach`/`lmap` loop: its loop-var names, the source text of the
-/// collection it iterates, and its body span.
-struct ForeachLoop {
-    vars: Vec<String>,
-    list_arg: String,
-    start: u32,
-    end: u32,
-}
-
 struct FileUnit {
     cu: CompilationUnit,
     ns: NsContext,
@@ -107,7 +98,6 @@ struct FileUnit {
     sites: Vec<tcl_compiler::analyser::state::VarCommandSite>,
     values: HashMap<String, ClassValue>,
     scopes: Vec<Scope>,
-    foreaches: Vec<ForeachLoop>,
 }
 
 /// Robust source-text classification of how a receiver `var` is bound
@@ -163,69 +153,6 @@ fn loopvar_binding<'a>(src: &'a str, lo: u32, hi: u32, var: &str) -> Option<(&'s
     None
 }
 
-/// Child scripts of a control-flow statement, for recursive walking.
-fn child_scripts(stmt: &tcl_compiler::ir::Statement) -> Vec<&tcl_compiler::ir::Script> {
-    use tcl_compiler::ir::Statement as S;
-    let mut out = Vec::new();
-    match stmt {
-        S::If { clauses, else_body, .. } => {
-            for c in clauses {
-                out.push(&c.body);
-            }
-            if let Some(e) = else_body {
-                out.push(e);
-            }
-        }
-        S::For { init, next, body, .. } => {
-            out.push(init);
-            out.push(next);
-            out.push(body);
-        }
-        S::While { body, .. } | S::Foreach { body, .. } | S::Catch { body, .. } => out.push(body),
-        S::Try { body, handlers, finally_body, .. } => {
-            out.push(body);
-            for h in handlers {
-                out.push(&h.body);
-            }
-            if let Some(f) = finally_body {
-                out.push(f);
-            }
-        }
-        S::Switch { arms, default_body, .. } => {
-            for a in arms {
-                if let Some(b) = &a.body {
-                    out.push(b);
-                }
-            }
-            if let Some(d) = default_body {
-                out.push(d);
-            }
-        }
-        _ => {}
-    }
-    out
-}
-
-/// Recursively collect every `foreach`/`lmap` loop in a script.
-fn collect_foreach(script: &tcl_compiler::ir::Script, out: &mut Vec<ForeachLoop>) {
-    use tcl_compiler::ir::Statement as S;
-    for stmt in &script.statements {
-        if let S::Foreach { iterators, body_span, .. } = stmt {
-            for it in iterators {
-                out.push(ForeachLoop {
-                    vars: it.vars.clone(),
-                    list_arg: it.list_arg.clone(),
-                    start: body_span.start(),
-                    end: body_span.end(),
-                });
-            }
-        }
-        for child in child_scripts(stmt) {
-            collect_foreach(child, out);
-        }
-    }
-}
-
 fn analyse_file(path: &Path, reg: &CommandRegistry, merged: &HashMap<String, ClassDef>) -> Option<FileUnit> {
     let src = std::fs::read_to_string(path).ok()?;
     if src.len() > 2_000_000 {
@@ -260,51 +187,7 @@ fn analyse_file(path: &Path, reg: &CommandRegistry, merged: &HashMap<String, Cla
                 });
             }
         }
-        let mut foreaches = Vec::new();
-        collect_foreach(&cu.ir_module.top_level, &mut foreaches);
-        for p in cu.ir_module.procedures.values() {
-            collect_foreach(&p.body, &mut foreaches);
-        }
-        for p in cu.ir_module.body_units.values() {
-            collect_foreach(&p.body, &mut foreaches);
-        }
-        for m in cu.ir_module.methods.values() {
-            collect_foreach(&m.body, &mut foreaches);
-        }
-        // Runtime-fallback `foreach`/`lmap` (dynamic list arg like
-        // `[dict values $Params]`) never becomes a structured `Foreach`
-        // node — it lands in the CFG as a `foreach`/`lmap` Call/Barrier.
-        // Recover the loop vars + list + a body range (the command span
-        // contains the body) so object-container iterations are counted.
-        use tcl_compiler::ir::Statement as St;
-        let cfg_units = std::iter::once(&cu.top_level)
-            .chain(cu.procedures.values())
-            .chain(cu.methods.values());
-        for fu in cfg_units {
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    let (St::Call { command, args, span, .. }
-                    | St::Barrier { command, args, span, .. }) = stmt
-                    else {
-                        continue;
-                    };
-                    if (command == "foreach" || command == "lmap") && args.len() >= 3 {
-                        // `foreach {v…} LIST BODY` — args = [varlist, list, body].
-                        let vars: Vec<String> = args[0]
-                            .split_whitespace()
-                            .map(std::string::ToString::to_string)
-                            .collect();
-                        foreaches.push(ForeachLoop {
-                            vars,
-                            list_arg: args[1].clone(),
-                            start: span.start(),
-                            end: span.end(),
-                        });
-                    }
-                }
-            }
-        }
-        FileUnit { cu, ns, result, src, sites: a.var_command_sites.clone(), values, scopes, foreaches }
+        FileUnit { cu, ns, result, src, sites: a.var_command_sites.clone(), values, scopes }
     }))
     .ok()
 }
@@ -421,81 +304,68 @@ fn main() {
         }
     };
 
-    // --- Collection element-typing map (corpus-wide) ---
-    // coll_name → set of element classes, from `lappend coll <arg>` and
-    // `set coll [list <args>]` where each arg is `[X new]` or a var that
-    // resolves to a class. This types `foreach x $coll { $x method }`.
-    use tcl_compiler::ir::Statement;
+    // --- Container element-typing map (corpus-wide, source-level) ---
+    // container_name → set of element classes. Built by scanning source for
+    // the idiomatic population statements — robust to IR lowering / analysis
+    // guarding that hid these from a CFG walk:
+    //   lappend  CONTAINER … [Class new …]
+    //   dict set CONTAINER key [Class new …]
+    //   dict append CONTAINER key [Class new …]
+    //   set CONTAINER [list [Class new …] …]
+    // An element `[Class new]` names the class directly; `$v` elements would
+    // need element flow (out of scope for this ceiling — noted).
     let mut coll_elem: HashMap<String, HashSet<String>> = HashMap::new();
-    let elem_class_of = |arg: &str, values: &HashMap<String, ClassValue>| -> HashSet<String> {
-        let a = arg.trim();
-        // `[Class new …]` literal element
-        if let Some(inner) = a.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-            let mut it = inner.split_whitespace();
-            if let (Some(head), Some(sub)) = (it.next(), it.next())
-                && (sub == "new" || sub == "create")
-            {
-                let (q, ok) = {
-                    // resolve via any file's ns is overkill; try global/bare.
-                    let bare = head.trim_start_matches("::");
-                    let cand = format!("::{bare}");
-                    if merged.contains_key(&cand) {
-                        (cand, true)
-                    } else if merged.contains_key(head) {
-                        (head.to_string(), true)
-                    } else {
-                        (cand, false)
-                    }
-                };
-                if ok {
-                    return [q].into_iter().collect();
-                }
-            }
+    // Resolve a `[Head new|create …]` element head to a class in the index.
+    let elem_ctor_class = |seg: &str| -> Option<String> {
+        let inner = seg.strip_prefix('[')?.trim_start();
+        let mut it = inner.split_whitespace();
+        let head = it.next()?;
+        let sub = it.next()?;
+        if sub != "new" && sub != "create" {
+            return None;
         }
-        // `$v` element that already resolves to a class
-        if let Some(v) = strip_dollar(a)
-            && let Some(c) = values.get(&v).and_then(classes_of)
-        {
-            return c;
+        let bare = head.trim_start_matches("::");
+        let cand = format!("::{bare}");
+        if merged.contains_key(&cand) {
+            Some(cand)
+        } else if merged.contains_key(head) {
+            Some(head.to_string())
+        } else {
+            None
         }
-        HashSet::new()
     };
+    if std::env::var("CEDBG").is_ok() {
+        let da: usize = units.iter().map(|u| u.src.lines().filter(|l| l.trim_start().starts_with("dict append")).count()).sum();
+        let srclines: usize = units.iter().map(|u| u.src.lines().count()).sum();
+        eprintln!("[CEDBG] units={} src_lines={srclines} dict-append-lines={da}", units.len());
+    }
     for u in &units {
-        let cu_units = std::iter::once(&u.cu.top_level)
-            .chain(u.cu.procedures.values())
-            .chain(u.cu.methods.values());
-        for fu in cu_units {
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    let (Statement::Call { command, args, .. }
-                    | Statement::Barrier { command, args, .. }) = stmt
-                    else {
-                        continue;
-                    };
-                    let canon = stmt.canonical_command_or_source();
-                    // `lappend COLL <elem>…`  → COLL holds those element classes.
-                    if command == "lappend" && args.len() >= 2 {
-                        for a in &args[1..] {
-                            let cls = elem_class_of(a, &u.values);
-                            if !cls.is_empty() {
-                                coll_elem.entry(args[0].clone()).or_default().extend(cls);
-                            }
-                        }
-                    }
-                    // `dict set CONTAINER key <obj>` / `dict append` → the
-                    // container's *values* are those object classes. This is
-                    // the dominant TclOO pattern (child objects kept in an
-                    // instance-variable dict keyed by name).
-                    if (command == "dict" || canon == "::dict")
-                        && matches!(args.first().map(String::as_str), Some("set" | "append" | "lappend"))
-                        && args.len() >= 4
-                    {
-                        let container = args[1].clone();
-                        let cls = elem_class_of(args.last().unwrap(), &u.values);
-                        if !cls.is_empty() {
-                            coll_elem.entry(container).or_default().extend(cls);
-                        }
-                    }
+        for raw in u.src.lines() {
+            let line = raw.trim();
+            // Identify `<verb> CONTAINER …` where verb populates a container.
+            let container = if let Some(rest) = line.strip_prefix("lappend ") {
+                rest.split_whitespace().next()
+            } else if let Some(rest) = line.strip_prefix("dict append ") {
+                rest.split_whitespace().next()
+            } else if let Some(rest) = line.strip_prefix("dict set ") {
+                rest.split_whitespace().next()
+            } else if let Some(rest) = line.strip_prefix("set ") {
+                // `set C [list …]` — only when a `[list` follows.
+                let mut w = rest.split_whitespace();
+                let name = w.next();
+                if line.contains("[list ") { name } else { None }
+            } else {
+                None
+            };
+            let Some(container) = container else { continue };
+            // Any `[Class new|create …]` on the line contributes an element
+            // class. Scan for each `[` and try to read a constructor head.
+            for (i, _) in line.match_indices('[') {
+                if let Some(cls) = elem_ctor_class(&line[i..]) {
+                    coll_elem
+                        .entry(container.to_string())
+                        .or_default()
+                        .insert(cls);
                 }
             }
         }
@@ -586,6 +456,7 @@ fn main() {
     // file's `values`; propagate to the callee's positional param.
     // Iterate: after params gain classes, a call passing `$param` propagates
     // them onward.
+    use tcl_compiler::ir::Statement;
     let mut param_class: HashMap<(String, String), HashSet<String>> = HashMap::new();
 
     // Per-file caller resolution: a var's classes = constructor `values` map
@@ -674,16 +545,6 @@ fn main() {
         eprintln!("[CEDBG] coll_elem entries: {}", coll_elem.len());
         for (k, v) in coll_elem.iter().take(15) {
             eprintln!("[CEDBG]   {k} -> {v:?}");
-        }
-    }
-    if std::env::var("FEDBG").is_ok() {
-        let total_fe: usize = units.iter().map(|u| u.foreaches.len()).sum();
-        let with_obj_disp: usize = units.iter().map(|u| u.foreaches.iter().filter(|f| f.list_arg.contains("dict values") || f.list_arg.contains("dict get")).count()).sum();
-        eprintln!("[FEDBG] total foreach loops collected: {total_fe} ({with_obj_disp} iterate dict values/get)");
-        for u in units.iter().take(3) {
-            for f in u.foreaches.iter().take(6) {
-                eprintln!("[FEDBG]   vars={:?} list_arg={:?} span=[{},{}]", f.vars, f.list_arg, f.start, f.end);
-            }
         }
     }
     println!();
