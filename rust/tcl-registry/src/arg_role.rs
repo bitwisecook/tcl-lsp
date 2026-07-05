@@ -64,4 +64,12 @@ pub enum ArgRole {
     /// role is inert for every other role consumer — they filter by the
     /// roles they care about.
     Keyword,
+    /// A command prefix — a partial command whose first word is a command
+    /// name, invoked at runtime with further arguments appended (`lsort
+    /// -command cmdPrefix`, trace callbacks).  Distinct from `Body` (a
+    /// complete script to recurse) and from a generic `Value`: the first word
+    /// is a callable reference, not a script.  Declarative for now — captured
+    /// so callback-aware tooling can resolve the prefix later; marking such a
+    /// value `Body` would wrongly recurse a bareword proc name as a script.
+    CommandPrefix,
 }

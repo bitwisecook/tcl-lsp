@@ -203,6 +203,18 @@ impl OptionValue {
         })
     }
 
+    /// A command-prefix value (`lsort -command cmdPrefix`): the first word is a
+    /// command invoked with runtime args appended, not a script body to
+    /// recurse (see [`ArgRole::CommandPrefix`]).
+    #[must_use]
+    pub const fn command_prefix(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::CommandPrefix,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
     /// A single value drawn from an enumerable set.  `closed` marks the set as
     /// exhaustive (a value outside it is flagged).
     #[must_use]

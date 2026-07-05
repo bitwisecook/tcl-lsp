@@ -45,7 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-server",
-        value: OptionValue::value("command"),
+        value: OptionValue::command_prefix("command"),
         detail: "Server accept callback.",
         dialects: None,
         aliases: &[],

@@ -1429,6 +1429,25 @@ mod tests {
     }
 
     #[test]
+    fn command_prefix_option_is_captured_but_never_a_body() {
+        // `lsort -command cmp {a b}` — the `-command` value is a CommandPrefix
+        // (Phase 6), so it is captured under that role but never returned for a
+        // Body query, i.e. a bareword prefix is not recursed as a script.
+        let reg = CommandRegistry::build_default();
+        let args = ["-command", "cmp", "{a b}"];
+        assert!(
+            reg.arg_indices_for_role("lsort", &args, ArgRole::Body)
+                .is_empty(),
+            "a command prefix must not be recursed as a body",
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("lsort", &args, ArgRole::CommandPrefix),
+            vec![1],
+            "the -command value should carry the CommandPrefix role",
+        );
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);

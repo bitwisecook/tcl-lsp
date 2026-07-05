@@ -96,7 +96,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value("cmdPrefix"),
+        value: OptionValue::command_prefix("cmdPrefix"),
         detail: "Use a custom comparison command prefix.",
         dialects: None,
         aliases: &[],
