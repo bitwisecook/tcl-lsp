@@ -1733,6 +1733,7 @@ pub fn collect_model_full(
         .collect();
 
     let architecture = crate::architecture::build_architecture(&devices, manifest);
+    let enrichment = crate::enrich::build_enrichment(&devices, &architecture);
 
     let mut totals: Map<String, J> = Map::new();
     for d in &devices {
@@ -1757,5 +1758,6 @@ pub fn collect_model_full(
     model.insert("totals".into(), J::Object(totals));
     model.insert("container_order".into(), J::Array(container_order));
     model.insert("architecture".into(), architecture);
+    model.insert("enrichment".into(), enrichment);
     J::Object(model)
 }

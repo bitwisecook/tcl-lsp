@@ -617,12 +617,18 @@ def collect_model(
     # exposes the identical tier model — which the global search reads to scope
     # `t<n>:` queries and to label results by tier.
     architecture = json.loads(_engine.build_architecture(json.dumps(devices)))
+    # Address/port enrichment (zone + CIDR-name + service labels) — same Rust
+    # resolver the native generator uses, for parity.
+    enrichment = json.loads(
+        _engine.build_enrichment(json.dumps(devices), json.dumps(architecture))
+    )
 
     return {
         "title": title,
         "engine_version": _engine.__version__,
         "devices": devices,
         "architecture": architecture,
+        "enrichment": enrichment,
         "totals": totals,
         "container_order": list(_CONTAINERS),
     }

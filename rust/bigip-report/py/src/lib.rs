@@ -593,6 +593,20 @@ fn build_architecture(devices_json: &str, manifest: Option<&str>) -> PyResult<St
     serde_json::to_string(&arch).map_err(|e| QueryError::new_err(e.to_string()))
 }
 
+/// Build the address/port *enrichment* block from the model devices and the
+/// architecture object (zone + CIDR-name labels for addresses, service names
+/// for ports). Reuses the Rust resolver so the Python report matches the native
+/// generator. Returns the `enrichment` object as JSON.
+#[pyfunction]
+fn build_enrichment(devices_json: &str, architecture_json: &str) -> PyResult<String> {
+    let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
+        .map_err(|e| QueryError::new_err(format!("invalid devices JSON: {e}")))?;
+    let arch: serde_json::Value = serde_json::from_str(architecture_json)
+        .map_err(|e| QueryError::new_err(format!("invalid architecture JSON: {e}")))?;
+    let e = tcl_bigip_report::enrich::build_enrichment(&devices, &arch);
+    serde_json::to_string(&e).map_err(|e| QueryError::new_err(e.to_string()))
+}
+
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -613,5 +627,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(irule_attach_patterns, m)?)?;
     m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
     m.add_function(wrap_pyfunction!(build_architecture, m)?)?;
+    m.add_function(wrap_pyfunction!(build_enrichment, m)?)?;
     Ok(())
 }

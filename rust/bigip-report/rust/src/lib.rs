@@ -43,6 +43,7 @@
 mod apm;
 pub mod architecture;
 mod certs;
+pub mod enrich;
 mod forensics;
 mod graph;
 mod jutil;
