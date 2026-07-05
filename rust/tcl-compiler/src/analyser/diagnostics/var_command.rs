@@ -896,6 +896,85 @@ impl Analyser {
         self.cmd_command_sites = cmd_sites;
     }
 
+    /// W250 — instantiating an `oo::abstract` class.
+    ///
+    /// `TclOO`'s `oo::abstract` removes `new` / `create` from the class, so
+    /// `AbstractClass new` / `AbstractClass create obj` is a runtime error.
+    /// Flags the direct-call shape (`Foo new …`) and the assignment shape
+    /// (`set o [Foo new …]`) where `Foo` resolves to a locally-known
+    /// abstract class.  Sound: only fires on a class whose recorded
+    /// metaclass is `oo::abstract` (never on the `oo::abstract create Foo`
+    /// definition itself, whose command word is the metaclass, not `Foo`).
+    pub(super) fn emit_abstract_instantiation_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) {
+        use crate::ir::Statement;
+        if self.disabled_diagnostics.contains("W250") {
+            return;
+        }
+        let any_abstract = self
+            .result
+            .all_classes
+            .values()
+            .any(|cd| cd.metaclass == "oo::abstract");
+        if !any_abstract {
+            return;
+        }
+        let is_abstract = |name: &str| -> bool {
+            let q = self.canonicalise_class_name(name);
+            self.result
+                .all_classes
+                .get(&q)
+                .or_else(|| self.result.all_classes.get(name))
+                .is_some_and(|cd| cd.metaclass == "oo::abstract")
+        };
+        let is_ctor_sub =
+            |sub: Option<&String>| matches!(sub.map(String::as_str), Some("new" | "create"));
+        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
+        let mut flag = |span: tcl_lexer::Span, class: &str| {
+            diags.push(super::types::Diagnostic {
+                code: DiagCode::W250,
+                span,
+                message: format!(
+                    "Instantiating abstract class '{class}' — use a concrete subclass"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        };
+        let units = std::iter::once(&cu.top_level)
+            .chain(cu.procedures.values())
+            .chain(cu.methods.values());
+        for fu in units {
+            for block in fu.cfg.blocks.values() {
+                for stmt in &block.statements {
+                    match stmt {
+                        // `Foo new …` / `Foo create obj …`
+                        Statement::Call { command, args, span, .. }
+                        | Statement::Barrier { command, args, span, .. }
+                            if is_ctor_sub(args.first()) && is_abstract(command) =>
+                        {
+                            flag(*span, command);
+                        }
+                        // `set o [Foo new …]`
+                        Statement::AssignValue { value, span, .. } => {
+                            if let Some((head, cargs)) =
+                                crate::value_shapes::parse_command_substitution(value.trim())
+                                && is_ctor_sub(cargs.first())
+                                && is_abstract(&head)
+                            {
+                                flag(*span, &head);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        self.result.diagnostics.extend(diags);
+    }
+
     /// Resolve a possibly-bare class name to its fully-qualified
     /// form keyed in `result.all_classes`.
     fn canonicalise_class_name(&self, name: &str) -> String {

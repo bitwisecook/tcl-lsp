@@ -53,6 +53,7 @@
 | W233 | warning | Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime. | ✓ |
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
 | W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
+| W250 | warning | Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |

@@ -434,6 +434,32 @@ pub struct UnknownProcInfo {
     pub has_auto_load: bool,
 }
 
+/// Lazily-built, equality-transparent cache of the [`ClassHierarchy`]
+/// derived from [`AnalysisResult::all_classes`].
+///
+/// The hierarchy is a pure function of `all_classes`, so it is excluded
+/// from equality (two results with equal classes are equal regardless of
+/// cache state) and reset on clone (rebuilt on demand).  This lets the LSP
+/// providers (hover / completion / definition / rename / type-hierarchy)
+/// share one MRO/method-provider computation per analysis instead of
+/// rebuilding it on every request.
+#[derive(Debug, Default)]
+pub struct HierarchyCache(std::sync::OnceLock<super::class_hierarchy::ClassHierarchy>);
+
+impl Clone for HierarchyCache {
+    fn clone(&self) -> Self {
+        // Fresh cache; the clone rebuilds identically on first access.
+        Self(std::sync::OnceLock::new())
+    }
+}
+
+impl PartialEq for HierarchyCache {
+    fn eq(&self, _: &Self) -> bool {
+        // A derived cache never affects analysis-result equality.
+        true
+    }
+}
+
 /// Complete analysis result for a single document.
 ///
 /// Holds the full field set the analyser can produce. Fields that
@@ -514,6 +540,27 @@ pub struct AnalysisResult {
     /// not also silence the cross-file arity error.  Empty when the W123 emitter's
     /// knowability gates fire (e.g. a dynamic `package require` / `unknown` proc).
     pub unresolved_command_sites: Vec<(Span, String)>,
+    /// Memoised class hierarchy — see [`HierarchyCache`].  Not part of the
+    /// analysis output; built on first [`Self::class_hierarchy`] call.  The
+    /// inner cache is opaque (its `OnceLock` is private), so this being
+    /// `pub` only preserves functional-update construction
+    /// (`..Default::default()`); it can't be populated from outside.
+    pub hierarchy_cache: HierarchyCache,
+}
+
+impl AnalysisResult {
+    /// The [`ClassHierarchy`](super::class_hierarchy::ClassHierarchy) for
+    /// this result's classes, built once and cached.  Prefer this over
+    /// calling [`build_class_hierarchy`](super::class_hierarchy::build_class_hierarchy)
+    /// directly so hover / completion / definition / rename /
+    /// type-hierarchy requests share one MRO computation rather than
+    /// rebuilding (and re-cloning `all_classes`) each time.
+    #[must_use]
+    pub fn class_hierarchy(&self) -> &super::class_hierarchy::ClassHierarchy {
+        self.hierarchy_cache
+            .0
+            .get_or_init(|| super::class_hierarchy::build_class_hierarchy(self.all_classes.clone()))
+    }
 }
 
 /// `package provide NAME ?VERSION?` record.

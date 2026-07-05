@@ -1,0 +1,4 @@
+# External corpus — reconstitute with fetch_corpus.sh (see MANIFEST.md).
+georgtree/
+vendor/
+repo-fixtures/
