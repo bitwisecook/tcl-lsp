@@ -253,4 +253,95 @@ suite("Semantic Tokens", () => {
       `expected 'return' inside a switch body as a keyword token, got ${JSON.stringify([...keywordWords])}`,
     );
   });
+
+  // Issue #774: `variable a b c` inside a TclOO class body declares every name
+  // as an instance variable, not just the first.
+  test("TclOO body 'variable' declares every name (issue #774)", async () => {
+    const uri = getDocUri("tclooVariable.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["width", "height", "depth"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+  // the tcltest spec — its `-body`/`-result` are options and the body recurses.
+  test("imported tcltest 'test' structure is recognised (issue #776)", async () => {
+    const uri = getDocUri("tcltestImport.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const decoratorWords = new Set(decoded.filter((t) => t.type === "decorator").map(textOf));
+    for (const opt of ["-body", "-result"]) {
+      assert.ok(
+        decoratorWords.has(opt),
+        `expected '${opt}' as an option (decorator) token, got ${JSON.stringify([...decoratorWords])}`,
+      );
+    }
+    // The -body script is recursed: `set` is a command.
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(
+      functionWords.has("set"),
+      `expected the -body script recursed ('set' as function), got ${JSON.stringify([...functionWords])}`,
+    );
+  });
+
+  // Issue #775: a command substitution in `source`'s argument is highlighted as
+  // a command sequence (its head + variables), not one opaque string.
+  test("source argument command substitution is tokenised (issue #775)", async () => {
+    const uri = getDocUri("sourceArgument.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    assert.ok(
+      decoded.some((t) => textOf(t) === "file" && t.type === "function"),
+      "expected the [file join …] substitution recursed ('file' as function)",
+    );
+    assert.ok(
+      decoded.some((t) => textOf(t) === "$currentDir" && t.type === "variable"),
+      "expected '$currentDir' inside source's argument as a variable",
+    );
+  });
 });

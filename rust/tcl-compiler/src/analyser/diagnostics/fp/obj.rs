@@ -962,6 +962,44 @@ fn fp_obj_19_created_name_via_var_no_w307() {
 }
 
 #[test]
+fn fp_obj_19_created_names_via_list_foreach_no_w307() {
+    // FP (exact repro of issue #777's screenshot): the created object names are
+    // iterated with `foreach elem [list c1 l1 …]` and dispatched via `$elem`.
+    // SCCP folds the `[list …]` to the element set, each of which is a created
+    // command, so W307 must not fire.
+    let src = "\
+C create c1 1 out 0 -c 1e-9
+L create l1 1 out 0 -l 10e-6
+C create c2 2 n002 0 -c 1e-9
+foreach elem [list c1 l1 c2] {
+    $elem actOnParam -set 1
+}
+";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch over `[list c1 l1 …]` of created names must NOT fire W307; emitted: {:?}",
+        codes(src, D),
+    );
+}
+
+#[test]
+fn fp_obj_19_uncreated_name_via_list_foreach_still_w307() {
+    // TP control: a `[list …]` containing a name that was never created keeps
+    // W307 alive — the element set is not all-known-commands.
+    let src = "\
+C create c1 1 out 0
+foreach elem [list c1 nope] {
+    $elem actOnParam
+}
+";
+    assert!(
+        fires(src, D, "W307"),
+        "a list with an uncreated name must still fire W307; emitted: {:?}",
+        codes(src, D),
+    );
+}
+
+#[test]
 fn fp_obj_19_uncreated_name_still_w123() {
     // TP control: registering `c1` must not silence a *different* undefined
     // command `d1` — it is still an unknown command.

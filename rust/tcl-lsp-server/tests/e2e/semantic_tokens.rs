@@ -934,3 +934,83 @@ fn test_clock_without_format_option() {
     let tokens = typed(&mut lsp, &lg, &uri);
     assert_eq!(tokens.iter().filter(|t| t.ttype == "clockPercent").count(), 0);
 }
+
+// -- georgtree issues #774 / #775 / #776 (end-to-end) --------------------
+
+#[test]
+fn test_tcloo_body_variable_declares_every_name() {
+    // Issue #774: `variable a b c` in a TclOO class body declares every name as
+    // an instance variable, not just the first.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "oo::class create Foo {\n    variable width height depth\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["width", "height", "depth"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` must be a variable: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_imported_tcltest_test_structure_recognised() {
+    // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+    // the tcltest spec — its `-body`/`-result` are options and the body script
+    // is recursed.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "namespace import tcltest::*\n\
+               test t-1 {desc} -body {\n    set x 1\n} -result 1\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(
+        kind_of("-body").as_deref(),
+        Some("decorator"),
+        "imported test's -body must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("-result").as_deref(),
+        Some("decorator"),
+        "imported test's -result must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("set").as_deref(),
+        Some("function"),
+        "the -body script must be recursed: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_source_command_substitution_argument_is_tokenised() {
+    // Issue #775: a command substitution in `source`'s argument is highlighted
+    // as a command sequence (locks the rust-branch behaviour).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "source [file join $currentDir testUtilities.tcl]\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    assert_eq!(
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == "file")
+            .map(|t| t.ttype.clone())
+            .as_deref(),
+        Some("function"),
+        "the [file join …] substitution must be tokenised: {tokens:?}",
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "$currentDir" && t.ttype == "variable"),
+        "the variable inside source's argument must be a variable: {tokens:?}",
+    );
+}

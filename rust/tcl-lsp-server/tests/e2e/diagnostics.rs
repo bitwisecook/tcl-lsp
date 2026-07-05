@@ -764,3 +764,43 @@ fn try_body_earlier_conditional_throw_fires() {
     let src = "proc f {c} {\n    try {\n        if {$c} { error a }\n        set x 1\n        error b\n    } on error {} {\n        puts $x\n    }\n}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
+
+// -- issue #777: `CLASS create NAME` binds a command NAME -----------------
+
+#[test]
+fn w307_silent_for_create_named_objects_iterated() {
+    // Exact repro of issue #777: object commands are bound by `C create c1`,
+    // then iterated via `foreach elem [list c1 l1 …]` and dispatched through
+    // `$elem`.  The created names are known commands, so W307 must not fire.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "\
+C create c1 1 out 0 -c 1e-9
+L create l1 1 out 0 -l 10e-6
+C create c2 2 n002 0 -c 1e-9
+foreach elem [list c1 l1 c2] {
+    $elem actOnParam -set 1
+}
+";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W307"),
+        "dispatch over created object names must not fire W307: {:?}",
+        codes(&diags),
+    );
+}
+
+#[test]
+fn w123_silent_for_create_named_object_literal_dispatch() {
+    // A known class's `create NAME` binds `NAME`; a literal `NAME method` call
+    // is a real command, not an unknown (W123).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create C { method configure args {} }\nC create c1\nc1 configure -x 2\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !on_line(&diags, "W123").contains(&2),
+        "`c1 configure` on line 2 must not be an unknown command: {:?}",
+        codes(&diags),
+    );
+}
