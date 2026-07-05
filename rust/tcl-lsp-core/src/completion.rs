@@ -58,6 +58,7 @@
 //! this module is the pure-CPU computation, no I/O, no async.
 
 use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
@@ -180,6 +181,18 @@ fn context_aware_completions(
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
+
+    // `$obj <method>` — when the command head is an instance variable whose
+    // class is known, complete the methods callable on it, gathered across
+    // the whole MRO (inherited methods included).  Checked before the
+    // registry lookup because `$obj` is not a registered command.
+    if word_idx == 1
+        && let Some(obj) = strip_instance_var(&cmd)
+        && let Some(items) = oo_method_completions(analysis, &obj, partial)
+    {
+        return Some(items);
+    }
+
     let spec = registry.get(&cmd)?;
 
     // Switch completion fires when the identifier
@@ -812,6 +825,89 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
     Some((command, word_index))
 }
 
+/// The instance-variable name in a `$obj` / `${obj}` command head, or
+/// `None` when the head is not a single bare variable reference.
+fn strip_instance_var(cmd: &str) -> Option<String> {
+    let rest = cmd.strip_prefix('$')?;
+    let inner = rest
+        .strip_prefix('{')
+        .and_then(|r| r.strip_suffix('}'))
+        .unwrap_or(rest);
+    (!inner.is_empty()
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':'))
+    .then(|| inner.to_string())
+}
+
+/// Complete the methods callable on `$obj` when its class is known —
+/// gathered across the whole MRO so **inherited** methods appear, not just
+/// the receiver class's own.  Overridden methods appear once (the
+/// most-derived provider wins).  Only public methods plus the universal
+/// `destroy` are offered (an external `$obj method` dispatch cannot reach
+/// private / unexported methods).  Returns `None` when the class is
+/// unknown or nothing matches, so the caller falls through.
+fn oo_method_completions(
+    analysis: &AnalysisResult,
+    obj: &str,
+    partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    let class_q = analysis.instance_classes.get(obj)?;
+    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let mro = hierarchy
+        .mro_map
+        .get(class_q)
+        .cloned()
+        .unwrap_or_else(|| vec![class_q.clone()]);
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut items: Vec<CompletionItem> = Vec::new();
+    for cls in &mro {
+        let Some(cd) = analysis.all_classes.get(cls) else {
+            continue;
+        };
+        let mut methods: Vec<(&String, &str)> = cd
+            .methods
+            .iter()
+            .chain(cd.class_methods.iter())
+            .filter(|(_, m)| m.visibility == "public")
+            .map(|(n, _)| (n, cls.as_str()))
+            .collect();
+        methods.sort_by(|a, b| a.0.cmp(b.0));
+        for (name, provider) in methods {
+            if !name.starts_with(partial) || !seen.insert(name.clone()) {
+                continue;
+            }
+            let detail = if provider == class_q {
+                format!("method — {class_q}")
+            } else {
+                format!("method — inherited from {provider}")
+            };
+            items.push(CompletionItem {
+                label: name.clone(),
+                insert_text: name.clone(),
+                kind: CompletionKind::Function,
+                detail: Some(detail),
+                ..CompletionItem::default()
+            });
+        }
+    }
+    // The universal object method (present on every object).
+    if "destroy".starts_with(partial) && seen.insert("destroy".to_string()) {
+        items.push(CompletionItem {
+            label: "destroy".to_string(),
+            insert_text: "destroy".to_string(),
+            kind: CompletionKind::Function,
+            detail: Some("method — oo::object builtin".to_string()),
+            ..CompletionItem::default()
+        });
+    }
+    if items.is_empty() {
+        return None;
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    Some(items)
+}
+
 /// Detect a `-switch` partial at the cursor.  Returns
 /// `Some(switch_partial)` (including the leading dash) when
 /// the character immediately preceding the identifier run
@@ -1177,6 +1273,33 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn obj_method_completion_includes_inherited() {
+        let src = "oo::class create Animal {\n    method eat {} {}\n}\noo::class create Dog {\n    superclass Animal\n    method bark {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 8.
+        let items = completions(src, 8, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
+        assert!(labels.contains(&"eat"), "inherited method missing: {labels:?}");
+        assert!(labels.contains(&"destroy"), "builtin missing: {labels:?}");
+        // The inherited one is labelled as such.
+        let eat = items.iter().find(|i| i.label == "eat").unwrap();
+        assert!(eat.detail.as_deref().unwrap_or("").contains("inherited from ::Animal"), "{:?}", eat.detail);
+    }
+
+    #[test]
+    fn obj_method_completion_filters_by_partial() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n    method sit {} {}\n}\nset d [Dog new]\n$d b\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 6, 4, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark") && labels.contains(&"beg"), "{labels:?}");
+        assert!(!labels.contains(&"sit"), "partial `b` should exclude sit: {labels:?}");
     }
 
     #[test]
