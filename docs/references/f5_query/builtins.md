@@ -40,6 +40,60 @@ exactly the same content for one builtin.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`), object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`), and jq-style tree manipulation (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `walk` / `recurse` / `until` / `repeat`).
   - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`del`](#del), [`delpaths`](#delpaths), [`env`](#env), [`f5log_load`](#f5log_load), [`from_entries`](#from_entries), [`getpath`](#getpath), [`has`](#has), [`in`](#in), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`leaf_paths`](#leaf_paths), [`length`](#length), [`path`](#path), [`paths`](#paths), [`pick`](#pick), [`recurse`](#recurse), [`recurse_down`](#recurse_down), [`repeat`](#repeat), [`setpath`](#setpath), [`source_file`](#source_file), [`str`](#str), [`to_entries`](#to_entries), [`type`](#type), [`until`](#until), [`walk`](#walk), [`with_entries`](#with_entries)
+- **[bigip](#bigip)** — BIG-IP-specific helpers backed by the profile registry: order a virtual's profiles into traffic order (`profile_order`), and recover the TMOS default field values an SCF omits, keyed by BIG-IP version (`profile_defaults` / `profile_default`).
+  - [`profile_default`](#profile_default), [`profile_defaults`](#profile_defaults), [`profile_order`](#profile_order)
+
+## bigip
+
+BIG-IP-specific helpers backed by the shared profile registry
+(`tcl_registry::profiles` / `tcl_registry::profile_defaults`).
+
+### `profile_order`
+
+- `profile_order(refs) -> list`
+
+Sort a list of profile references (names or full paths, e.g. a virtual's
+`.profiles[].name`) into **traffic order** — transport (TCP/UDP/FASTL4) nearest
+the wire, then TLS, then the application profile, with security / acceleration
+facets on top. Types are inferred from well-known profile names.
+
+```
+.ltm.virtual["/Common/web_vs"].profiles[].name | [ . ] | profile_order(.)
+```
+
+### `profile_defaults`
+
+- `profile_defaults(type) -> object`
+- `profile_defaults(type, version) -> object`
+
+The TMOS default field values of an unmodified `ltm profile <type>`, as an
+object of `field → default`. An SCF (and `tmsh list … one-line`) omits any field
+left at its default — those live in the read-only `/config/profile_base.conf` —
+so this recovers a base profile's effective configuration. `type` is a profile
+type name (`tcp`, `http`, `clientssl`, …; case- and separator-insensitive). The
+optional `version` is a BIG-IP version string (`"15.1"`, `"16.1.3.2"`); omitted
+resolves the current default. Unknown types yield an empty object.
+
+```
+profile_defaults("tcp")                      # every default field of ltm profile tcp
+profile_defaults("clientssl", "13.1.0.8")    # as they were on 13.1.0.8
+```
+
+### `profile_default`
+
+- `profile_default(type, field) -> string|null`
+- `profile_default(type, field, version) -> string|null`
+
+The TMOS default value of a single `field` of `ltm profile <type>`, or `null`
+when the type/field is unknown. Defaults are keyed by BIG-IP **version range**,
+because they drift across releases — e.g. the base `clientssl` `options` gained
+`no-tlsv1.3` (TLS 1.3 disabled by default) in 14.0:
+
+```
+profile_default("clientssl", "options", "13.1")   # "dont-insert-empty-fragments"
+profile_default("clientssl", "options", "16.1")   # "dont-insert-empty-fragments no-tlsv1.3"
+profile_default("tcp", "idle-timeout")             # "300"
+```
 
 ## stream
 
