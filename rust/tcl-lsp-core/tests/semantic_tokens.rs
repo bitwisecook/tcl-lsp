@@ -968,3 +968,77 @@ fn dict_update_var_names_are_variables() {
         decode(src, "tcl8.6"),
     );
 }
+
+// ---------------------------------------------------------------------------
+// snit — the definition-body grammar is registry data (tcl_registry::definer),
+// so `snit::type` / `snit::widget` bodies recurse and highlight like TclOO
+// without any snit-specific code in the token walk.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn snit_type_members_highlight() {
+    let src = "snit::type Dog {\n\
+               \x20   variable barks\n\
+               \x20   method bark {volume} { return $barks }\n\
+               \x20   typemethod count {} { return 1 }\n\
+               \x20   constructor {args} { set barks 0 }\n\
+               }\n";
+    // Instance variable declaration.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "barks").as_deref(),
+        Some("variable"),
+        "snit `variable` name must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // Method parameter.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "volume").as_deref(),
+        Some("variable"),
+        "snit method parameter must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // snit-specific member keyword.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "typemethod").as_deref(),
+        Some("keyword"),
+        "`typemethod` must be a keyword inside a snit body: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The `set` inside a method body is recursed (not one opaque string).
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "a snit method body must be recursed: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn snit_widget_declarations_and_handlers() {
+    let src = "snit::widget Dial {\n\
+               \x20   typevariable count\n\
+               \x20   component inner\n\
+               \x20   onconfigure -value valuevar { set count $valuevar }\n\
+               }\n";
+    for name in ["count", "inner", "valuevar"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "snit declaration `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn snit_member_keyword_only_inside_body() {
+    // A top-level user proc named `typemethod` must NOT be a keyword — the
+    // member keywords are context-sensitive to a definition body.
+    let src = "typemethod foo bar\n";
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "typemethod").as_deref(),
+        Some("keyword"),
+        "a top-level `typemethod` must not be a keyword: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}

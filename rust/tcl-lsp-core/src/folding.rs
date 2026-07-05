@@ -25,7 +25,8 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::oo_body::{inner_oo_body_indices, is_inner_oo_definition_command, next_inside_oo_body};
+use crate::oo_body::{is_member, member_body_indices, next_definition_grammar};
+use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -112,7 +113,7 @@ pub fn folding_ranges(
         config: tcl_lexer::LexerConfig::for_dialect(dialect),
     };
     collect_body_folds(
-        source, 0, 0, false, // top-level body is not inside an OO definition
+        source, 0, 0, None, // top-level body is not inside a definition body
         &mut ctx,
     );
 
@@ -334,7 +335,7 @@ fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
     depth: u32,
-    inside_oo_body: bool,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     ctx: &mut FoldCtx<'_>,
 ) {
     if depth > MAX_FOLD_DEPTH {
@@ -347,28 +348,26 @@ fn collect_body_folds(
         }
         let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
 
-        // Outer OO definition commands (`oo::class`, `oo::define`,
-        // `oo::objdefine`) carry their body-arg shapes in the
-        // registry now — `arg_indices_for_role` returns the right
-        // index. Inner OO commands (`method`, `constructor`,
-        // `destructor`, `self`, `property`, …) are
-        // context-sensitive and only count when we are walking
-        // through an outer OO body; their indices come from
-        // [`inner_oo_body_indices`].
-        let body_indices: Vec<usize> =
-            if inside_oo_body && is_inner_oo_definition_command(cmd.name()) {
-                inner_oo_body_indices(cmd.name(), &args_borrow)
-            } else {
-                ctx.registry
-                    .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
-            };
+        // Outer definer commands (`oo::class`, `oo::define`, `snit::type`, …)
+        // carry their body-arg shapes in the registry — `arg_indices_for_role`
+        // returns the right index. The context-sensitive member sub-keywords
+        // (`method`, `constructor`, `typemethod`, `self`, `property`, …) have
+        // no `CommandSpec`; their body indices come from the enclosing
+        // definition-body grammar ([`crate::oo_body`]).
+        let body_indices: Vec<usize> = match oo_grammar {
+            Some(g) if is_member(g, cmd.name()) => {
+                member_body_indices(g, cmd.name(), &args_borrow)
+            }
+            _ => ctx
+                .registry
+                .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body),
+        };
 
-        // What "inside_oo_body" should the recursion into THIS
-        // command's bodies see?  [`next_inside_oo_body`] encodes the
-        // rule: outer OO commands switch on, inner OO commands switch
+        // The grammar the recursion into THIS command's bodies should carry:
+        // outer definer bodies switch to their grammar, member bodies switch
         // off, everything else inherits.
-        let next_inside_oo_body =
-            next_inside_oo_body(cmd.name(), &args_borrow, inside_oo_body, ctx.registry);
+        let next_grammar =
+            next_definition_grammar(cmd.name(), &args_borrow, oo_grammar, ctx.registry);
 
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
@@ -415,7 +414,7 @@ fn collect_body_folds(
                 inner,
                 u32::try_from(content_start).expect("content offset fits u32"),
                 depth + 1,
-                next_inside_oo_body,
+                next_grammar,
                 ctx,
             );
         }
@@ -961,9 +960,9 @@ mod tests {
 
     /// Context-sensitivity guard: a top-level user proc named
     /// `method` must NOT be treated as an OO method definition.
-    /// The body walker only consults [`inner_oo_body_indices`] when
-    /// `inside_oo_body == true` — at top level it falls through to
-    /// the registry, which has no `method` entry.
+    /// The body walker only consults [`member_body_indices`] when an
+    /// enclosing definition-body grammar is present — at top level it
+    /// falls through to the registry, which has no `method` entry.
     #[test]
     fn top_level_method_is_not_an_oo_definition() {
         let source = concat!(

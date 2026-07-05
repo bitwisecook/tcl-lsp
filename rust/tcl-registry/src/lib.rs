@@ -38,6 +38,7 @@ pub mod cache;
 pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
+pub mod definer;
 pub mod dialects;
 mod event_descriptions;
 pub mod events;
@@ -63,6 +64,7 @@ pub mod prelude {
     pub use crate::arg_role::ArgRole;
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
+    pub use crate::definer::{DefinitionBodyGrammar, MemberSpec};
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};

@@ -65,6 +65,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
+use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -560,7 +561,7 @@ fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    inside_oo_body: bool,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
@@ -592,8 +593,8 @@ fn special_arg_kinds(
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
-    insert_multiname_var_overrides(seg, inside_oo_body, &mut overrides);
+    insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
+    insert_multiname_var_overrides(seg, oo_grammar, &mut overrides);
     insert_ref_var_overrides(seg, &mut overrides);
     insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
@@ -726,11 +727,11 @@ fn insert_ref_var_overrides(
 /// ([`insert_var_decl_overrides`], index 0) leaves as plain strings:
 ///
 /// * `global name ?name ...?` — every argument is a declared variable.
-/// * `variable name ?name ...?` **inside a `TclOO` definition body** — every
-///   argument is an instance variable (issue #774).
 /// * `variable name ?value name value ...?` at namespace level — the name sits
 ///   at every *even* argument position (0, 2, …); the interleaved values are
-///   left alone.
+///   left alone.  (A `variable` *inside a definition body* is a grammar member
+///   handled by [`insert_oo_body_overrides`], where TclOO declares every name
+///   and snit declares only the leading one.)
 ///
 /// Highlighting only: the analyser already tracks every one of these names via
 /// the commands' lowering hooks (`global` / `variable`), so no diagnostic
@@ -738,17 +739,16 @@ fn insert_ref_var_overrides(
 /// quoted word is skipped so its inner `$var` sub-tokens survive.
 fn insert_multiname_var_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    inside_oo_body: bool,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Stride over the argument words (`seg.texts[1..]`): 1 = every word is a
     // name, 2 = names at every other word (name/value pairs).
     let stride = match seg.texts[0].as_str() {
         "global" => 1,
-        // A TclOO-body `variable a b c` declares every name; the namespace-level
-        // form is name/value pairs.
-        "variable" if inside_oo_body => 1,
-        "variable" => 2,
+        // `variable` inside a definition body is a grammar member (handled
+        // elsewhere); at namespace level it is name/value pairs.
+        "variable" if oo_grammar.is_none() => 2,
         _ => return,
     };
     let mut i = 1;
@@ -766,31 +766,31 @@ fn insert_multiname_var_overrides(
     }
 }
 
-/// Mark the script-body arguments of a context-sensitive `TclOO` inner
-/// definition command (`method` / `constructor` / `destructor` / `self …`
-/// / `property -get/-set` / …) as [`ArgOverride::BodyScript`] so they are
-/// recursed into rather than emitted as one opaque `string`.
+/// Apply the enclosing definition-body grammar to a member call: recurse its
+/// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
+/// ([`ArgOverride::ParamList`]), and declare its variable names
+/// ([`ArgOverride::VarDecl`]).  The member keywords (`method`, `typemethod`,
+/// `constructor`, `variable`, …) have no standalone `CommandSpec`; their layout
+/// comes entirely from the registry grammar ([`crate::oo_body`]).
 ///
-/// Only consulted when `inside_oo_body` — i.e. this segment is a top-level
-/// word of an `oo::class create … { … }` / `oo::define … { … }` block —
-/// so a same-named user proc at top level is never misclassified.  The
-/// outer OO commands themselves carry their body roles in the registry
-/// (`arg_indices_for_role`, applied by [`insert_role_overrides`]); this
-/// covers only the bare inner sub-keywords, which have no `CommandSpec`.
+/// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
+/// word of a definition body — so a same-named user proc is never
+/// misclassified.
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    inside_oo_body: bool,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let head = &seg.texts[0];
-    if !inside_oo_body || !crate::oo_body::is_inner_oo_definition_command(head) {
+    let Some(grammar) = oo_grammar else {
+        return;
+    };
+    if !crate::oo_body::is_member(grammar, head) {
         return;
     }
-    // `inner_oo_body_indices` indexes the argument words (excluding the
-    // head); `seg.argv[idx + 1]` is the representative token (argv[0] is the
-    // head).  Only braced (`Str`) bodies recurse.
-    for idx in crate::oo_body::inner_oo_body_indices(head, arg_texts) {
+    // Script bodies — recurse (only a braced `Str` word carries a script).
+    for idx in crate::oo_body::member_body_indices(grammar, head, arg_texts) {
         if let Some(tok) = seg.argv.get(idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
@@ -799,16 +799,27 @@ fn insert_oo_body_overrides(
                 .or_insert(ArgOverride::BodyScript);
         }
     }
-    // The method/constructor parameter list — its names are declarations, like
-    // a `proc`'s (the `method` / `constructor` keywords have no CommandSpec, so
-    // the registry `ParamList` role can't reach them).
-    for idx in crate::oo_body::inner_oo_param_indices(head, arg_texts) {
+    // Parameter lists — their names are declarations, like a `proc`'s.
+    for idx in crate::oo_body::member_param_indices(grammar, head, arg_texts) {
         if let Some(tok) = seg.argv.get(idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::ParamList);
+        }
+    }
+    // Declared variable / component names (`variable a b c`, `typevariable v`,
+    // `component c`, `onconfigure -opt valueVar …`).
+    for idx in crate::oo_body::member_var_indices(grammar, head, arg_texts) {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(&seg.texts[idx + 1])
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
         }
     }
 }
@@ -1156,7 +1167,10 @@ fn insert_var_decl_overrides(
 /// `true` when `text` is a plain (non-array, non-substituted) variable name
 /// — the safe case to retag as a whole-word `Variable` declaration token.
 fn is_plain_var_name(text: &str) -> bool {
-    !text.is_empty() && !text.contains(['(', '$', '[', '{', '"', ' '])
+    // Excludes array elements (`arr(x)`), substitutions (`$`/`[`), quoted /
+    // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
+    // span clamp can leave in sub-tokenised list content.
+    !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
 }
 
 /// `switch … { pat body … }` — the braced case list (the final word, when
@@ -2028,13 +2042,15 @@ struct ScriptCtx<'a> {
     dialect: &'a str,
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
-    /// Whether this script is a `TclOO` definition body (an
-    /// `oo::class create … { … }` / `oo::define … { … }` block).  Inside
-    /// one, the context-sensitive OO sub-keywords (`method`, `constructor`,
-    /// `property`, `self …`, …) carry script bodies that must be recursed
-    /// into — see [`crate::oo_body`].  Outside one, a same-named user proc
-    /// must not be treated as an OO definition.
-    inside_oo_body: bool,
+    /// The enclosing definition-body grammar, or `None` outside any
+    /// definition body.  When `Some`, this script is a class/type definition
+    /// body (an `oo::class create … { … }`, `snit::type … { … }`, or bare
+    /// `oo::define … { … }` block) and the grammar's member sub-keywords
+    /// (`method`, `typemethod`, `constructor`, `variable`, …) carry the script
+    /// bodies / parameter lists / variable declarations to recurse and
+    /// highlight — see [`crate::oo_body`].  Outside one, a same-named user proc
+    /// is never treated as a member.
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
@@ -2306,9 +2322,28 @@ fn emit_command_head(
     head_tok: Token,
     head_text: &str,
     resolved_head: &str,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
+    // A member sub-keyword of the enclosing definition body (`method`,
+    // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
+    // same-named user proc outside a definition body is unaffected.  This
+    // covers the snit-specific members (`typemethod`, `typeconstructor`,
+    // `onconfigure`, …) that are not in [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+    if !head_text.contains("::")
+        && oo_grammar.is_some_and(|g| crate::oo_body::is_member(g, head_text))
+    {
+        push_token(
+            line_index,
+            full_source,
+            head_tok,
+            TokenKind::Keyword,
+            0,
+            entries,
+        );
+        return;
+    }
     let full_kind = classify_command_head(head_text, registry);
     // Split any `…::name` head (namespace-qualified command or keyword) into a
     // namespace prefix + final-segment command token.
@@ -2418,6 +2453,7 @@ fn collect_script(
             head_tok,
             head_text,
             resolved_head,
+            ctx.oo_grammar,
             registry,
             entries,
         );
@@ -2430,7 +2466,7 @@ fn collect_script(
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
         let mut overrides =
-            special_arg_kinds(&seg, registry, resolved_head, ctx.inside_oo_body, &arg_texts);
+            special_arg_kinds(&seg, registry, resolved_head, ctx.oo_grammar, &arg_texts);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -2448,21 +2484,21 @@ fn collect_script(
             }
         }
 
-        // The `inside_oo_body` context the recursion into THIS command's
-        // body arguments should carry: an outer OO definition body switches
-        // it on, an inner OO command (inside an OO body) switches it off,
+        // The definition-body grammar the recursion into THIS command's body
+        // arguments should carry: an outer definer body switches to its
+        // grammar, a member body (inside a definition body) switches off,
         // everything else inherits.  `oo::define`/`oo::objdefine` only switch
-        // it on for their bare script form, not their member (`method …`)
-        // forms — hence the args are consulted.  Command substitutions and
-        // expressions always run in ordinary (non-definition) context.
-        let next_oo = crate::oo_body::next_inside_oo_body(
+        // on for their bare script form, not their member (`method …`) forms —
+        // hence the args are consulted.  Command substitutions and expressions
+        // always run in ordinary (non-definition) context (see `plain_ctx`).
+        let next_oo = crate::oo_body::next_definition_grammar(
             head_text,
             &arg_texts,
-            ctx.inside_oo_body,
+            ctx.oo_grammar,
             registry,
         );
         let body_ctx = ScriptCtx {
-            inside_oo_body: next_oo,
+            oo_grammar: next_oo,
             ..ctx
         };
 
@@ -2515,10 +2551,10 @@ fn emit_arg_token(
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let tok = &tok;
-    // Command substitutions / expressions never run in OO definition
+    // Command substitutions / expressions never run in a definition-body
     // context, whatever the enclosing command is.
     let plain_ctx = ScriptCtx {
-        inside_oo_body: false,
+        oo_grammar: None,
         ..ctx
     };
     match override_kind {
@@ -2881,7 +2917,7 @@ fn collect_entries(
         dialect,
         registry,
         line_index: &line_index,
-        inside_oo_body: false,
+        oo_grammar: None,
         regex_sources: &regex_sources,
         head_aliases: &head_aliases,
     };

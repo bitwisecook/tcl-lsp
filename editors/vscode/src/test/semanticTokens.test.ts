@@ -455,4 +455,38 @@ suite("Semantic Tokens", () => {
       );
     }
   });
+
+  // snit type bodies recurse + highlight via the registry definition-body
+  // grammar, exactly like TclOO — no snit-specific token-walker code.
+  test("snit type body members highlight", async () => {
+    const uri = getDocUri("snitType.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    // Declarations + a method parameter are variables.
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["barks", "count", "volume", "args"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected snit '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+    // The snit-specific `typemethod` keyword and the recursed method body.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    assert.ok(keywordWords.has("typemethod"), "expected 'typemethod' keyword");
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(functionWords.has("set"), "expected the recursed constructor body ('set')");
+  });
 });

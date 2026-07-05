@@ -57,6 +57,39 @@ docs/             Design docs, KCS notes, references, perf reports.
 The native LSP end-to-end suite lives at
 `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
 
+## The registry is the source of truth — no per-command logic elsewhere
+
+Per-command knowledge lives in **`tcl-registry`** (`CommandSpec` and its
+attached descriptors), never as `match cmd_name { "foo" => … }` special-casing
+in the compiler, analyser, or LSP.  The compiler / analyser / LSP are **generic
+consumers** of registry data; adding or extending a command is editing (or
+adding) a spec, not adding a branch to a walker.
+
+When a command needs behaviour the existing `CommandSpec` fields can't express,
+**extend `CommandSpec`** — add a field and, if needed, a small descriptor type
+or a hook ID the compiler/analyser can dispatch on (see `hooks.rs`,
+`side_effects`, `taint_*`, `arg_role_resolver`, `definition_body`) — rather than
+teaching a consumer about the command by name.  Established examples:
+
+- **Argument roles** (`arg_roles` / `arg_role_resolver`, `ArgRole`) drive
+  variable-write / body / param-list / loop-var / expr highlighting and
+  analysis generically — the LSP token walk never names a command.
+- **Definition-body grammars** (`definition_body`, `tcl_registry::definer`)
+  describe a class/type *definer*'s body: its member sub-keywords (`method`,
+  `typemethod`, `constructor`, `variable`, …) with their body / param / var
+  layout, plus implicit member-body variables.  TclOO **and** snit are pure
+  registry data; the shared walker in `tcl-lsp-core/src/oo_body.rs` (folding +
+  semantic tokens) contains **no** command names.  A new definer (xotcl, a
+  bespoke class system) is a new `DefinitionBodyGrammar`, not new walker code.
+- Taint / side-effect / const-fold / lowering / codegen behaviour is likewise
+  spec-declared and dispatched via typed hook IDs.
+
+Migration debt is tracked, not grandfathered: where a consumer still hardcodes a
+command (e.g. the analyser's snit/OO *body* parser in
+`tcl-compiler/src/analyser/oo.rs` predates `definition_body` and should migrate
+onto it), the goal is to move that knowledge into the registry, not to add more
+of it in the consumer.
+
 ## Prerequisites
 
 - Rust 1.95+ with cargo, via [rustup](https://rustup.rs/) (the Makefile

@@ -1093,3 +1093,34 @@ fn test_upvar_and_dict_update_locals_are_variables() {
     assert_eq!(kind_of("othervar").as_deref(), Some("string"), "{tokens:?}");
     assert_eq!(kind_of("thekey").as_deref(), Some("string"), "{tokens:?}");
 }
+
+#[test]
+fn test_snit_type_body_members_highlight() {
+    // snit definition bodies are registry data (definition_body grammar), so
+    // their members recurse + highlight with no snit-specific walker code.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "snit::type Dog {\n\
+               \x20   variable barks\n\
+               \x20   method bark {volume} { return $barks }\n\
+               \x20   typemethod count {} { return 1 }\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `barks` (declaration) and `volume` (method param) are variables.
+    for name in ["barks", "volume"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "snit `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // `typemethod` is a member keyword; the method body's `return` is recursed.
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "typemethod" && t.ttype == "keyword"),
+        "`typemethod` must be a keyword: {tokens:?}",
+    );
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "return" && t.ttype == "keyword"),
+        "a snit method body must be recursed: {tokens:?}",
+    );
+}

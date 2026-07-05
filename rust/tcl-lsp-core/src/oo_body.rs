@@ -1,10 +1,9 @@
-//! Context-sensitive `TclOO` definition-body helpers, shared by the
-//! recursive script walkers ([`crate::folding`] and
-//! [`crate::semantic_tokens`]).
+//! Context-sensitive definition-body helpers, shared by the recursive script
+//! walkers ([`crate::folding`] and [`crate::semantic_tokens`]).
 //!
 //! ## The problem
 //!
-//! A `TclOO` class body —
+//! A class/type *definition body* —
 //!
 //! ```tcl
 //! oo::class create Point {
@@ -15,129 +14,185 @@
 //! }
 //! ```
 //!
-//! — is a *definition script*: its top-level words (`superclass`,
-//! `constructor`, `method`, `property`, `self`, …) are **not** ordinary
-//! commands.  They have no [`tcl_registry::CommandSpec`], so a registry
-//! lookup can't tell a walker that `method move {dx dy} { … }`'s final
-//! word is a script body to recurse into.  Without that, folding stops at
-//! the method keyword and semantic highlighting renders the whole method
-//! body as one opaque string.
-//!
-//! Worse, the sub-keywords are context-sensitive: a top-level user proc
-//! named `method` outside any class body must **not** be treated as an OO
-//! method definition.
+//! (and its `snit::type Name { … }` cousin) — is a *definition script*: its
+//! top-level words (`superclass`, `constructor`, `method`, `variable`, …) are
+//! **not** ordinary commands.  They have no [`tcl_registry::CommandSpec`], so a
+//! plain registry lookup can't tell a walker that `method move {dx dy} { … }`'s
+//! final word is a script body to recurse into.  Worse, the sub-keywords are
+//! context-sensitive: a top-level user proc named `method` outside any class
+//! body must **not** be treated as a member definition.
 //!
 //! ## The model
 //!
-//! A recursive walker threads an `inside_oo_body` flag:
+//! The member grammar lives in the registry: a definer command carries a
+//! [`DefinitionBodyGrammar`] on [`tcl_registry::CommandSpec::definition_body`]
+//! (see [`tcl_registry::definer`]).  This module is the *generic consumer* — it
+//! contains **no** command names.  A new definer (snit, a custom class system)
+//! is added by writing a grammar in the registry, never by editing here.
 //!
-//! * Recursing into the body of an *outer* OO definition body
-//!   ([`is_outer_oo_definition_command`] — a metaclass `create` / `new`
-//!   body, or the bare `oo::define` / `oo::objdefine` *script* form) enters
-//!   OO-body context (`inside_oo_body = true`).  The *member* forms of
-//!   `oo::define` / `oo::objdefine` (`… method m {} { body }`, …) do not:
-//!   their body is ordinary method code, not a definition script.
-//! * While in that context, an *inner* OO definition command
-//!   ([`is_inner_oo_definition_command`]) contributes body arguments via
-//!   [`inner_oo_body_indices`]; recursing into one of those bodies leaves
-//!   OO-body context (a method body holds ordinary Tcl code).
-//! * Every other command inherits the current flag, so control-flow
-//!   nesting (`if` / `foreach` / …) around a `method` keeps the class
-//!   body's context.
+//! A recursive walker threads the *enclosing grammar* (`None` outside any
+//! definition body):
 //!
-//! Outside `inside_oo_body`, none of the inner helpers fire, so a
-//! same-named user proc is never misclassified.
+//! * Recursing into the body of an *outer* definer
+//!   ([`outer_definition_grammar`]) switches to that definer's grammar.
+//! * While inside one, a *member* command ([`DefinitionBodyGrammar::is_member`])
+//!   contributes body / parameter / variable arguments; recursing into a
+//!   member's body leaves definition context (member bodies hold ordinary Tcl).
+//! * Every other command inherits the current grammar, so control-flow nesting
+//!   (`if` / `foreach` / …) around a `method` keeps the class body's context.
+//!
+//! Two TclOO members are structurally irregular and handled directly rather
+//! than by fixed argument roles: `self …` (a nested member) and
+//! `property … -get/-set …` (flag-keyed bodies).
 
-use tcl_registry::prelude::Traits;
+use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-/// Whether `command` carries the `IS_OO_METACLASS` trait (`oo::class`,
-/// `oo::configurable`, `oo::abstract`, `oo::singleton`, plus any
-/// dialect-registered metaclass).  Every body a metaclass takes is the
-/// definition script of a `create` / `new` / `createWithNamespace` form, so
-/// recursing into it always enters OO-body context.
-///
-/// Driven by the registry trait rather than a hardcoded name list so a
-/// newly registered metaclass is covered automatically.
+/// The definition-body grammar for `command`'s body when it is an *outer*
+/// definer — a command carrying a [`DefinitionBodyGrammar`] (a TclOO metaclass
+/// `create`/`new` body, a snit `type`/`widget` body).  For
+/// `oo::define`/`oo::objdefine`, only the bare *script* form
+/// (`oo::define Target { script }`) is a definition body; the member forms
+/// (`oo::define Target method m {} { body }`) carry ordinary method code and
+/// return `None`.  `args` excludes the command head.
 #[must_use]
-pub fn is_oo_metaclass(command: &str, registry: &CommandRegistry) -> bool {
-    registry
-        .get(command)
-        .is_some_and(|spec| spec.traits.contains(Traits::IS_OO_METACLASS))
-}
-
-/// Whether an `oo::define` / `oo::objdefine` call is the *bare script form*
-/// (`oo::define Target { script }`) rather than a member/subcommand form
-/// (`oo::define Target method m {} { body }`, `constructor …`, `self …`,
-/// `property …`, …).
-///
-/// Only the script form's body is an OO definition script; the member forms
-/// carry ordinary method bodies that must **not** switch the walker into OO
-/// context (issue #747 review — a nested `method a b { … }` inside a real
-/// method body would otherwise be mis-highlighted / mis-folded as an OO
-/// member definition).
-///
-/// Detected via the registry's authoritative body-role resolver: the script
-/// form resolves its definition body at argument index 1, while every member
-/// form resolves a (method) body at index ≥ 2.  `args` excludes the command
-/// head (`["Target", …]`), matching the resolver's calling convention.
-#[must_use]
-fn is_oo_define_script_form(command: &str, args: &[&str], registry: &CommandRegistry) -> bool {
-    registry
-        .arg_indices_for_role(command, args, ArgRole::Body)
-        .contains(&1)
-}
-
-/// Whether recursing into `command`'s body/bodies enters OO-body context —
-/// i.e. the body is a `TclOO` definition script whose top-level words are
-/// the definition sub-keywords (`method`, `superclass`, `self …`, …).
-///
-/// True for metaclass `create` / `new` bodies and for the bare
-/// `oo::define` / `oo::objdefine` script form; false for the member forms
-/// of `oo::define` / `oo::objdefine` (their bodies are ordinary method
-/// code).  `args` excludes the command head.
-#[must_use]
-pub fn is_outer_oo_definition_command(
+pub fn outer_definition_grammar(
     command: &str,
     args: &[&str],
     registry: &CommandRegistry,
-) -> bool {
-    if is_oo_metaclass(command, registry) {
-        return true;
-    }
+) -> Option<&'static DefinitionBodyGrammar> {
+    let grammar = registry.get(command)?.definition_body?;
     if matches!(command, "oo::define" | "oo::objdefine") {
-        return is_oo_define_script_form(command, args, registry);
+        // The script form resolves its definition body at argument index 1;
+        // every member form resolves a (method) body at index ≥ 2.
+        return registry
+            .arg_indices_for_role(command, args, ArgRole::Body)
+            .contains(&1)
+            .then_some(grammar);
     }
-    false
+    Some(grammar)
 }
 
-/// Inner OO definition-script commands.  These are context-sensitive: a
-/// top-level user proc named `method` outside an OO block must not be
-/// treated as an OO `method` definition.  A walker only consults
-/// [`inner_oo_body_indices`] when it is inside an outer OO body.
+/// The grammar the recursion into `command`'s body arguments should carry,
+/// given the enclosing grammar `cur` (`None` = not in a definition body).
+/// `args` excludes the command head.
 ///
-/// Recursing into one of these inner bodies leaves OO definition context —
-/// methods / constructors / destructors hold regular Tcl code.
+/// * An outer definer body switches to that definer's grammar.
+/// * A member body (while inside a definition body) is plain Tcl → `None`.
+/// * Everything else — including the *member* forms of `oo::define` — inherits
+///   `cur`, so control-flow nesting inside a class body stays in context while
+///   a member body drops out of it.
 #[must_use]
-pub fn is_inner_oo_definition_command(name: &str) -> bool {
-    matches!(
-        name,
-        "method"
-            | "classmethod"
-            | "constructor"
-            | "destructor"
-            | "initialise"
-            | "initialize"
-            | "private"
-            | "self"
-            | "property"
-    )
+pub fn next_definition_grammar(
+    command: &str,
+    args: &[&str],
+    cur: Option<&'static DefinitionBodyGrammar>,
+    registry: &CommandRegistry,
+) -> Option<&'static DefinitionBodyGrammar> {
+    if let Some(g) = outer_definition_grammar(command, args, registry) {
+        Some(g)
+    } else if cur.is_some_and(|g| is_member(g, command)) {
+        None
+    } else {
+        cur
+    }
+}
+
+/// Whether `command` is a member sub-keyword of `grammar`, including the two
+/// irregular TclOO members (`self`, `property`) the grammar does not list.
+#[must_use]
+pub fn is_member(grammar: &DefinitionBodyGrammar, command: &str) -> bool {
+    grammar.is_member(command) || matches!(command, "self" | "property")
+}
+
+/// Body-argument indices (into `args`, excluding the command head) for a member
+/// call under `grammar`.  Covers the flat members via the grammar's argument
+/// roles plus the two irregular TclOO forms.  Empty when `command` is not a
+/// member or has no body.
+#[must_use]
+pub fn member_body_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    match command {
+        "self" => self_member_indices(args, ArgRole::Body),
+        "property" => collect_property_body_indices(args),
+        _ => grammar
+            .member(command)
+            .map(|m| {
+                m.indices_for(ArgRole::Body)
+                    .filter(|&i| i < args.len())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+/// Parameter-list argument indices for a member call under `grammar` (a
+/// `method`/`typemethod`/`constructor`'s `{a b}` word).  `self method …` nests.
+#[must_use]
+pub fn member_param_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    match command {
+        "self" => self_member_indices(args, ArgRole::ParamList),
+        "property" => Vec::new(),
+        _ => grammar
+            .member(command)
+            .map(|m| {
+                m.indices_for(ArgRole::ParamList)
+                    .filter(|&i| i < args.len())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+/// Declared-variable argument indices for a member call under `grammar` — the
+/// names bound by `variable a b c` / `typevariable v` / `component c` /
+/// `onconfigure -opt valueVar …`.
+#[must_use]
+pub fn member_var_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    let Some(m) = grammar.member(command) else {
+        return Vec::new();
+    };
+    if m.all_args_var {
+        (0..args.len()).collect()
+    } else {
+        m.indices_for(ArgRole::VarWrite)
+            .filter(|&i| i < args.len())
+            .collect()
+    }
+}
+
+/// `self constructor ARGS BODY` → BODY 2 / PARAMS 1; `self destructor BODY` →
+/// BODY 1; `self method NAME ARGS BODY` → BODY last / PARAMS 2.  `role` selects
+/// which index set to return.  `args` is the `self …` call minus the `self`
+/// word's own head (so `args[0]` is `constructor`/`method`/…).
+fn self_member_indices(args: &[&str], role: ArgRole) -> Vec<usize> {
+    if args.is_empty() {
+        return Vec::new();
+    }
+    let n = args.len();
+    match (args[0], role) {
+        ("constructor", ArgRole::Body) if n >= 3 => vec![2],
+        ("constructor", ArgRole::ParamList) if n >= 3 => vec![1],
+        ("destructor", ArgRole::Body) if n >= 2 => vec![1],
+        ("method" | "classmethod", ArgRole::Body) if n >= 4 => vec![n - 1],
+        ("method" | "classmethod", ArgRole::ParamList) if n >= 4 => vec![2],
+        _ => Vec::new(),
+    }
 }
 
 /// Collect the `-set BODY` / `-get BODY` flag-value indices of an inner
-/// `property NAME ?-set BODY? ?-get BODY?` invocation.  Always called with
-/// `args` from the inner (unprefixed) form, so option scanning starts at
-/// index 0.
+/// `property NAME ?-set BODY? ?-get BODY?` invocation.
 fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
     let n = args.len();
     if n == 0 {
@@ -150,104 +205,20 @@ fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
         .collect()
 }
 
-/// Return BODY argument indices (into `args`, i.e. excluding the
-/// command-head word) for an inner OO definition-script command.  Only
-/// meaningful when the caller is inside an outer OO body — outside that
-/// context these words are ordinary calls and this must not be consulted.
-///
-/// Shapes (mirroring [`tcl_registry`]'s `oo_define_arg_roles`, minus the
-/// leading target word that the `oo::define Target …` form carries):
-///
-/// * `constructor ARGS BODY` → body at index 1.
-/// * `destructor BODY` / `initialise BODY` / `initialize BODY` /
-///   `private BODY` → body at index 0.
-/// * `method NAME ARGS BODY` / `classmethod NAME ARGS BODY` → body at the
-///   last index.
-/// * `self constructor ARGS BODY` → index 2; `self destructor BODY` →
-///   index 1; `self method NAME ARGS BODY` → last index.
-/// * `property NAME ?-set BODY? ?-get BODY?` → each flag value.
-#[must_use]
-pub fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
-    let n = args.len();
-    match command {
-        "constructor" if n >= 2 => vec![1],
-        "destructor" | "initialise" | "initialize" | "private" if n >= 1 => vec![0],
-        "method" | "classmethod" if n >= 3 => vec![n - 1],
-        "self" if n >= 1 => match args[0] {
-            "constructor" if n >= 3 => vec![2],
-            "destructor" if n >= 2 => vec![1],
-            "method" | "classmethod" if n >= 4 => vec![n - 1],
-            _ => Vec::new(),
-        },
-        "property" => collect_property_body_indices(args),
-        _ => Vec::new(),
-    }
-}
-
-/// Return the parameter-list argument index (into `args`, i.e. excluding the
-/// command-head word) for an inner `TclOO` method-defining command, or an empty
-/// vec when the form has no parameter list (`destructor`, `forward`, …) or is
-/// too short.  Only meaningful inside an outer OO body.
-///
-/// * `method NAME PARAMS BODY` / `classmethod NAME PARAMS BODY` → index 1.
-/// * `constructor PARAMS BODY` → index 0.
-/// * `self method NAME PARAMS BODY` / `self classmethod …` → index 2;
-///   `self constructor PARAMS BODY` → index 1.
-#[must_use]
-pub fn inner_oo_param_indices(command: &str, args: &[&str]) -> Vec<usize> {
-    match command {
-        "method" | "classmethod" if args.len() >= 3 => vec![1],
-        "constructor" if args.len() >= 2 => vec![0],
-        "self" if args.len() >= 2 => match args[0] {
-            "method" | "classmethod" if args.len() >= 4 => vec![2],
-            "constructor" if args.len() >= 3 => vec![1],
-            _ => Vec::new(),
-        },
-        _ => Vec::new(),
-    }
-}
-
-/// The `inside_oo_body` flag the recursion into `command`'s body arguments
-/// should carry, given the current flag `cur`.  `args` excludes the command
-/// head.
-///
-/// * An outer OO definition body (metaclass `create`/`new`, or the bare
-///   `oo::define`/`oo::objdefine` script form) *is* the OO definition
-///   script → `true`.
-/// * An inner OO definition command's body (while already inside an OO
-///   body) is plain Tcl code → `false`.
-/// * Everything else — including the *member* forms of `oo::define` /
-///   `oo::objdefine`, whose bodies are ordinary method code — inherits
-///   `cur`, so control-flow nesting inside a class body stays in OO
-///   context while a method body drops out of it.
-#[must_use]
-pub fn next_inside_oo_body(
-    command: &str,
-    args: &[&str],
-    cur: bool,
-    registry: &CommandRegistry,
-) -> bool {
-    if is_outer_oo_definition_command(command, args, registry) {
-        true
-    } else if cur && is_inner_oo_definition_command(command) {
-        false
-    } else {
-        cur
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::definer::{SNIT_GRAMMAR, TCLOO_GRAMMAR};
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        let mut r = CommandRegistry::build_default();
+        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r
     }
 
     #[test]
     fn metaclass_create_bodies_are_outer() {
         let reg = registry();
-        // Every metaclass `create`/`new` body is a definition script.
         for name in [
             "oo::class",
             "oo::configurable",
@@ -255,8 +226,19 @@ mod tests {
             "oo::singleton",
         ] {
             assert!(
-                is_outer_oo_definition_command(name, &["create", "C", "{body}"], &reg),
-                "{name} create body must be an outer OO definition body"
+                outer_definition_grammar(name, &["create", "C", "{body}"], &reg).is_some(),
+                "{name} create body must be an outer definition body"
+            );
+        }
+    }
+
+    #[test]
+    fn snit_definers_are_outer() {
+        let reg = registry();
+        for name in ["snit::type", "snit::widget", "snit::widgetadaptor"] {
+            assert!(
+                outer_definition_grammar(name, &["Name", "{body}"], &reg).is_some(),
+                "{name} body must be an outer definition body"
             );
         }
     }
@@ -264,38 +246,15 @@ mod tests {
     #[test]
     fn oo_define_script_form_is_outer_but_member_form_is_not() {
         let reg = registry();
-        // Bare script form: `oo::define Target { script }` → outer body.
         for cmd in ["oo::define", "oo::objdefine"] {
             assert!(
-                is_outer_oo_definition_command(cmd, &["Target", "{script}"], &reg),
-                "{cmd} script form must be an outer OO definition body"
-            );
-            // Member forms carry ordinary method bodies → NOT outer (issue
-            // #747 review): a nested `method a b { … }` inside them must not
-            // be treated as an OO member definition.
-            assert!(
-                !is_outer_oo_definition_command(
-                    cmd,
-                    &["Target", "method", "m", "{}", "{body}"],
-                    &reg
-                ),
-                "{cmd} member (method) form must not be an outer OO body"
+                outer_definition_grammar(cmd, &["Target", "{script}"], &reg).is_some(),
+                "{cmd} script form must be an outer definition body"
             );
             assert!(
-                !is_outer_oo_definition_command(
-                    cmd,
-                    &["Target", "constructor", "{}", "{body}"],
-                    &reg
-                ),
-                "{cmd} constructor form must not be an outer OO body"
-            );
-            assert!(
-                !is_outer_oo_definition_command(
-                    cmd,
-                    &["Target", "self", "method", "m", "{}", "{body}"],
-                    &reg
-                ),
-                "{cmd} self-method form must not be an outer OO body"
+                outer_definition_grammar(cmd, &["Target", "method", "m", "{}", "{body}"], &reg)
+                    .is_none(),
+                "{cmd} member form must not be an outer definition body"
             );
         }
     }
@@ -305,122 +264,100 @@ mod tests {
         let reg = registry();
         for name in ["proc", "set", "if", "namespace", "method"] {
             assert!(
-                !is_outer_oo_definition_command(name, &["a", "b"], &reg),
-                "{name} must not be an outer OO definition command"
+                outer_definition_grammar(name, &["a", "b"], &reg).is_none(),
+                "{name} must not be an outer definition command"
             );
         }
     }
 
     #[test]
-    fn inner_body_indices_cover_every_shape() {
+    fn tcloo_member_body_indices_cover_every_shape() {
+        let g = &TCLOO_GRAMMAR;
+        assert_eq!(member_body_indices(g, "constructor", &["{}", "body"]), vec![1]);
+        assert_eq!(member_body_indices(g, "destructor", &["body"]), vec![0]);
+        assert_eq!(member_body_indices(g, "initialise", &["body"]), vec![0]);
+        assert_eq!(member_body_indices(g, "private", &["body"]), vec![0]);
+        assert_eq!(member_body_indices(g, "method", &["n", "{}", "body"]), vec![2]);
         assert_eq!(
-            inner_oo_body_indices("constructor", &["{}", "body"]),
-            vec![1]
-        );
-        assert_eq!(inner_oo_body_indices("destructor", &["body"]), vec![0]);
-        assert_eq!(inner_oo_body_indices("initialise", &["body"]), vec![0]);
-        assert_eq!(inner_oo_body_indices("initialize", &["body"]), vec![0]);
-        assert_eq!(inner_oo_body_indices("private", &["body"]), vec![0]);
-        assert_eq!(
-            inner_oo_body_indices("method", &["name", "{}", "body"]),
+            member_body_indices(g, "classmethod", &["n", "{a}", "body"]),
             vec![2]
         );
         assert_eq!(
-            inner_oo_body_indices("classmethod", &["name", "{a}", "body"]),
+            member_body_indices(g, "self", &["constructor", "{}", "body"]),
             vec![2]
         );
+        assert_eq!(member_body_indices(g, "self", &["destructor", "body"]), vec![1]);
         assert_eq!(
-            inner_oo_body_indices("self", &["constructor", "{}", "body"]),
-            vec![2]
-        );
-        assert_eq!(
-            inner_oo_body_indices("self", &["destructor", "body"]),
-            vec![1]
-        );
-        assert_eq!(
-            inner_oo_body_indices("self", &["method", "name", "{}", "body"]),
+            member_body_indices(g, "self", &["method", "n", "{}", "body"]),
             vec![3]
         );
         assert_eq!(
-            inner_oo_body_indices("property", &["name", "-set", "s", "-get", "g"]),
+            member_body_indices(g, "property", &["name", "-set", "s", "-get", "z"]),
             vec![2, 4]
         );
     }
 
     #[test]
-    fn inner_body_indices_reject_short_forms() {
-        assert!(inner_oo_body_indices("method", &["name"]).is_empty());
-        assert!(inner_oo_body_indices("destructor", &[]).is_empty());
-        assert!(inner_oo_body_indices("set", &["x", "1"]).is_empty());
+    fn tcloo_member_param_indices() {
+        let g = &TCLOO_GRAMMAR;
+        assert_eq!(member_param_indices(g, "method", &["n", "{a}", "b"]), vec![1]);
+        assert_eq!(member_param_indices(g, "constructor", &["{a}", "b"]), vec![0]);
+        assert_eq!(
+            member_param_indices(g, "self", &["method", "n", "{a}", "b"]),
+            vec![2]
+        );
+        assert!(member_param_indices(g, "destructor", &["b"]).is_empty());
     }
 
     #[test]
-    fn inner_param_indices_cover_method_forms() {
-        assert_eq!(inner_oo_param_indices("method", &["n", "{a}", "b"]), vec![1]);
+    fn snit_member_shapes() {
+        let g = &SNIT_GRAMMAR;
         assert_eq!(
-            inner_oo_param_indices("classmethod", &["n", "{a}", "b"]),
-            vec![1]
-        );
-        assert_eq!(inner_oo_param_indices("constructor", &["{a}", "b"]), vec![0]);
-        assert_eq!(
-            inner_oo_param_indices("self", &["method", "n", "{a}", "b"]),
+            member_body_indices(g, "typemethod", &["n", "{a}", "body"]),
             vec![2]
         );
-        assert_eq!(
-            inner_oo_param_indices("self", &["constructor", "{a}", "b"]),
-            vec![1]
-        );
-        // Forms without a parameter list, or too short, surface nothing.
-        assert!(inner_oo_param_indices("destructor", &["b"]).is_empty());
-        assert!(inner_oo_param_indices("forward", &["n", "t"]).is_empty());
-        assert!(inner_oo_param_indices("method", &["n"]).is_empty());
+        assert_eq!(member_param_indices(g, "typemethod", &["n", "{a}", "b"]), vec![1]);
+        assert_eq!(member_body_indices(g, "typeconstructor", &["body"]), vec![0]);
+        assert_eq!(member_body_indices(g, "onconfigure", &["-o", "vv", "body"]), vec![2]);
+        assert_eq!(member_var_indices(g, "onconfigure", &["-o", "vv", "body"]), vec![1]);
+        assert_eq!(member_body_indices(g, "oncget", &["-o", "body"]), vec![1]);
+        assert_eq!(member_var_indices(g, "typevariable", &["v"]), vec![0]);
+        assert_eq!(member_var_indices(g, "component", &["c"]), vec![0]);
+    }
+
+    #[test]
+    fn tcloo_variable_marks_every_name() {
+        let g = &TCLOO_GRAMMAR;
+        assert_eq!(member_var_indices(g, "variable", &["a", "b", "c"]), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn member_indices_reject_short_forms() {
+        let g = &TCLOO_GRAMMAR;
+        assert!(member_body_indices(g, "method", &["n"]).is_empty());
+        assert!(member_body_indices(g, "destructor", &[]).is_empty());
+        assert!(member_body_indices(g, "set", &["x", "1"]).is_empty());
     }
 
     #[test]
     fn context_transitions() {
         let reg = registry();
+        let tcloo = Some(&TCLOO_GRAMMAR);
         // Entering an outer (metaclass create) body switches on.
-        assert!(next_inside_oo_body(
-            "oo::class",
-            &["create", "C", "{b}"],
-            false,
-            &reg
-        ));
-        assert!(next_inside_oo_body(
-            "oo::configurable",
-            &["create", "C", "{b}"],
-            false,
-            &reg
-        ));
+        assert!(next_definition_grammar("oo::class", &["create", "C", "{b}"], None, &reg).is_some());
+        assert!(next_definition_grammar("snit::type", &["C", "{b}"], None, &reg).is_some());
         // `oo::define` script form switches on; member form does not.
-        assert!(next_inside_oo_body(
-            "oo::define",
-            &["C", "{script}"],
-            false,
-            &reg
-        ));
-        assert!(!next_inside_oo_body(
-            "oo::define",
-            &["C", "method", "m", "{}", "{body}"],
-            false,
-            &reg
-        ));
+        assert!(next_definition_grammar("oo::define", &["C", "{script}"], None, &reg).is_some());
+        assert!(
+            next_definition_grammar("oo::define", &["C", "method", "m", "{}", "{b}"], None, &reg)
+                .is_none()
+        );
         // A method body inside a class body switches off.
-        assert!(!next_inside_oo_body(
-            "method",
-            &["m", "{}", "{b}"],
-            true,
-            &reg
-        ));
+        assert!(next_definition_grammar("method", &["m", "{}", "{b}"], tcloo, &reg).is_none());
         // Control flow inherits.
-        assert!(next_inside_oo_body("if", &["{c}", "{b}"], true, &reg));
-        assert!(!next_inside_oo_body("if", &["{c}", "{b}"], false, &reg));
-        // Inner commands at top level (not inside an OO body) don't fire.
-        assert!(!next_inside_oo_body(
-            "method",
-            &["m", "{}", "{b}"],
-            false,
-            &reg
-        ));
+        assert!(next_definition_grammar("if", &["{c}", "{b}"], tcloo, &reg).is_some());
+        assert!(next_definition_grammar("if", &["{c}", "{b}"], None, &reg).is_none());
+        // Inner commands at top level (no enclosing grammar) don't fire.
+        assert!(next_definition_grammar("method", &["m", "{}", "{b}"], None, &reg).is_none());
     }
 }

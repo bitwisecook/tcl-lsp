@@ -149,3 +149,25 @@ fn incomplete_body_still_folds() {
     assert!(!r.is_empty(), "unterminated proc body should still fold");
     assert!(r.iter().any(|x| x.start_line == 0));
 }
+
+#[test]
+fn snit_method_bodies_fold() {
+    // The folding walk consumes the registry definition-body grammar, so a
+    // snit method's multi-line body folds like a TclOO method's.
+    let src = "snit::type Dog {\n\
+               \x20   method bark {volume} {\n\
+               \x20       set n 0\n\
+               \x20       return $n\n\
+               \x20   }\n\
+               }\n";
+    let r = regions(src);
+    // The outer type body folds, and the inner method body folds too.
+    assert!(
+        r.iter().any(|f| f.start_line == 0),
+        "the snit type body must fold: {r:?}",
+    );
+    assert!(
+        r.iter().any(|f| f.start_line == 1 && f.end_line >= 3),
+        "the snit method body must fold: {r:?}",
+    );
+}
