@@ -203,6 +203,18 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
         ns = ns.rsplit_once("::").map_or(String::new(), |(head, _)| head.to_string());
     }
     // Globally-unique simple-name match (the `namespace import` case).
+    //
+    // Tradeoff (deliberate, retained): this can manufacture a *wrong* edge
+    // when `name` refers to a base that isn't in the class universe (e.g. an
+    // external/library class the index never saw) yet exactly one *unrelated*
+    // indexed class happens to share the tail — the fallback then links to
+    // that unrelated class.  We keep it because (a) it is the only thing that
+    // resolves the common `namespace import` idiom where a subclass names a
+    // namespaced base bare (the `SpiceGenTcl` `superclass Device` shape), and
+    // (b) it stays sound-by-abstention on the far more common failure mode: a
+    // tail shared by two or more indexed classes never links (returns `None`).
+    // The precondition — a globally *unique* tail that is nonetheless the
+    // wrong class — is rare in practice.  Revisit if false links surface.
     let tail = name.rsplit("::").next().unwrap_or(name);
     match tail_index.get(tail) {
         Some(qs) if qs.len() == 1 => Some(qs[0].clone()),
@@ -344,16 +356,25 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     // Build direct-subclass map.  Initialise with empty sets
     // for every class so callers see a non-None entry even when
     // a class has no subclasses.
+    //
+    // A class is a subtype of both its superclasses **and** its mixins — the
+    // MRO (and thus `is_subtype` / `method_target`) already treats a mixin as
+    // a supertype, so the subclass map must be built from both edges too, or
+    // it disagrees with `is_subtype` (asymmetrically, depending on which file
+    // a mixing-in subclass happens to live in).  Union supers + mixins here.
     let mut direct_subs: HashMap<String, HashSet<String>> = HashMap::new();
     for qname in classes.keys() {
         direct_subs.insert(qname.clone(), HashSet::new());
     }
     for qname in classes.keys() {
-        if let Some(parents) = supers_map.get(qname) {
-            for parent in parents {
-                if let Some(set) = direct_subs.get_mut(parent) {
-                    set.insert(qname.clone());
-                }
+        let parents = supers_map
+            .get(qname)
+            .into_iter()
+            .flatten()
+            .chain(mixins_map.get(qname).into_iter().flatten());
+        for parent in parents {
+            if let Some(set) = direct_subs.get_mut(parent) {
+                set.insert(qname.clone());
             }
         }
     }
@@ -512,6 +533,24 @@ mod tests {
         assert_eq!(a_subs.len(), 2);
         // Leaves have empty subclass sets, never None.
         assert!(h.subclasses["::B"].is_empty());
+    }
+
+    #[test]
+    fn mixin_recorded_as_subclass_edge() {
+        // `B` mixes `M`.  `is_subtype(B, M)` is true (the MRO places the
+        // mixin as a supertype), so the subclass map must list `B` under
+        // `M` too — otherwise the two views disagree.
+        let classes = map(vec![
+            cls("::M", &[], &[], &[]),
+            cls("::A", &[], &[], &[]),
+            cls("::B", &["::A"], &["::M"], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert!(h.is_subtype("::B", "::M"));
+        assert!(h.subclasses["::M"].contains("::B"), "{:?}", h.subclasses["::M"]);
+        assert!(h.subclasses["::A"].contains("::B"));
+        // Transitive closure agrees.
+        assert!(h.transitive_subtypes["::M"].contains("::B"));
     }
 
     #[test]

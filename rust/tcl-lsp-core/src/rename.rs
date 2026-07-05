@@ -491,6 +491,27 @@ pub fn method_spans_in_document(
     }
 }
 
+/// Every span that renaming `method` must rewrite **within `source`** for a
+/// class `class_q` that *inherits* `method` (does not declare it): its
+/// intra-class `my method` calls and external `$obj method` sites, with no
+/// declaration span.  Empty when `class_q` is not defined in this document.
+///
+/// The server calls this for documents that contain a purely-inheriting
+/// subclass of a rename family member but no definer of their own — the
+/// cross-file complement to [`method_spans_in_document`], so an
+/// inherited-method rename reaches `my method` / `$obj method` sites that
+/// live in a subclass-only file.
+#[must_use]
+pub fn inherited_method_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    crate::references::inherited_method_call_sites(source, dialect, analysis, class_q, method)
+}
+
 /// The set of classes whose definition of `method` must be renamed
 /// together with `seed_class`'s: every class that **directly defines**
 /// `method` and sits in the same override-connected component as
@@ -811,39 +832,30 @@ fn rename_method(
         for span in body_spans {
             scan_body_for_method_calls(scan_ctx, span, &mut edits);
         }
-        // Append external `$obj method` call sites for
-        // methods / classmethods (not properties).
+        // Methods / classmethods (not properties — those aren't dispatched
+        // through the MRO) are one polymorphic name across the whole override
+        // family: a method (re)defined by a super- or sub-class renames as a
+        // unit.  For every family member — **including the class under the
+        // cursor** — pull its declaration, intra-class `my method` sites (its
+        // own bodies *and* any purely-inheriting subclass's), and external
+        // `$obj method` sites via the shared resolver.  Routing the cursor
+        // class through it too (rather than an ad-hoc self-only scan) is what
+        // catches an inheriting subclass's `my method` / `$obj method` sites
+        // when renaming from the base declaration.
         if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
-            for span in crate::references::find_obj_method_call_sites(
-                source,
-                dialect,
-                analysis,
-                &class_def.qualified_name,
-                word,
-            ) {
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, span),
-                    new_text: new_name.to_owned(),
-                });
-            }
-            // Override family: a method (re)defined by a super- or
-            // sub-class is one polymorphic name — rename every other
-            // class in the connected component that defines it, plus
-            // each of those classes' own call sites.  (Properties are
-            // excluded: they aren't dispatched through the MRO.)
             for member in override_family(analysis, &class_def.qualified_name, word) {
-                if member == class_def.qualified_name {
-                    continue;
-                }
                 let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
                     source, dialect, analysis, &member, word,
                 ) else {
                     continue;
                 };
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, decl_span),
-                    new_text: new_name.to_owned(),
-                });
+                // The cursor class's own declaration edit is already queued.
+                if member != class_def.qualified_name {
+                    edits.push(TextEdit {
+                        range: span_to_range(source, line_index, decl_span),
+                        new_text: new_name.to_owned(),
+                    });
+                }
                 for span in call_spans {
                     edits.push(TextEdit {
                         range: span_to_range(source, line_index, span),
@@ -1817,6 +1829,55 @@ mod tests {
         assert!(
             lines.contains(&1),
             "expected base Animal::speak decl (l1) renamed; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_inherited_method_rewrites_subclass_instance_obj_sites() {
+        // Renaming an inherited method from the *base declaration* must also
+        // rewrite `$d method` sites where `$d` is an instance of a subclass
+        // that inherits (does not override) it — the exact-class-equality
+        // filter used to drop these, leaving them pointing at the old name.
+        let src = "oo::class create Animal {\n\
+                       method speak {} { return x }\n\
+                   }\n\
+                   oo::class create Dog {\n\
+                       superclass Animal\n\
+                   }\n\
+                   set d [Dog new]\n\
+                   $d speak\n";
+        let analysis = analyse(src);
+        // Cursor on `speak` in Animal's declaration (line 1 col 11).
+        let edits = rename(src, "tcl", 1, 11, "vocalise", &analysis, None);
+        assert!(edits.iter().all(|e| e.new_text == "vocalise"));
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&1) && lines.contains(&7),
+            "expected decl (l1) + inheriting-subclass instance site (l7); got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_inherited_method_rewrites_pure_inheritor_my_sites() {
+        // A subclass that inherits `speak` (no override) calls `my speak`
+        // from one of its own method bodies.  That call dispatches to the
+        // base definition, so renaming the base must rewrite it — even
+        // though the subclass is not itself a rename family member.
+        let src = "oo::class create Animal {\n\
+                       method speak {} { return x }\n\
+                   }\n\
+                   oo::class create Dog {\n\
+                       superclass Animal\n\
+                       method describe {} { my speak }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `speak` in Animal's declaration (line 1 col 11).
+        let edits = rename(src, "tcl", 1, 11, "vocalise", &analysis, None);
+        assert!(edits.iter().all(|e| e.new_text == "vocalise"));
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&1) && lines.contains(&5),
+            "expected decl (l1) + `my speak` in inheriting subclass (l5); got {edits:?}",
         );
     }
 }

@@ -1988,6 +1988,55 @@ impl Backend {
         Some(DocumentState::new(text, dialect))
     }
 
+    /// Cross-file super/subtype targets for the type-hierarchy walk, resolved
+    /// against the workspace class index.  Each entry is
+    /// `(document-uri, qualified-name, name-span)` for a class defined in some
+    /// (possibly other) document.
+    ///
+    /// For **subtypes**, the index resolves every class declaring `class_name`
+    /// as a direct owner-aware superclass/mixin.  For **supertypes**, the
+    /// written super/mixin names are read from the definition matching
+    /// `selected_uri` (the class under the cursor), so a homonymous `::C` in
+    /// an unrelated file can't contribute its own parents and the result is
+    /// deterministic; the union over every homonym is used only as a fallback
+    /// when the selected document isn't indexed.
+    async fn cross_hierarchy_targets(
+        &self,
+        subtypes: bool,
+        class_name: &str,
+        selected_uri: &str,
+    ) -> Vec<(String, String, tcl_lexer::Span)> {
+        let index = self.workspace_index.read().await;
+        let list = if subtypes {
+            index.subclasses_of(class_name)
+        } else {
+            let selected: Vec<&core_workspace_index::WorkspaceClass> = index
+                .classes_named(class_name)
+                .into_iter()
+                .filter(|c| c.uri == selected_uri)
+                .collect();
+            let definitions = if selected.is_empty() {
+                index.classes_named(class_name)
+            } else {
+                selected
+            };
+            let mut acc: Vec<&core_workspace_index::WorkspaceClass> = Vec::new();
+            let mut seen_super: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            for c in definitions {
+                for s in index.supertype_classes(c) {
+                    if seen_super.insert(s.qualified_name.clone()) {
+                        acc.push(s);
+                    }
+                }
+            }
+            acc
+        };
+        list.into_iter()
+            .map(|c| (c.uri.clone(), c.qualified_name.clone(), c.name_span))
+            .collect()
+    }
+
     /// Shared supertype (`subtypes = false`) / subtype (`subtypes = true`)
     /// walk for one type-hierarchy item, resolving against the item's
     /// document.  Returns an empty list (not an error) when the document or
@@ -2041,24 +2090,9 @@ impl Backend {
         let mut seen: std::collections::HashSet<String> =
             lifted.iter().map(|i| i.name.clone()).collect();
         seen.insert(class_name.clone());
-        let targets: Vec<(String, String, tcl_lexer::Span)> = {
-            let index = self.workspace_index.read().await;
-            let list = if subtypes {
-                index.subclasses_of(&class_name)
-            } else {
-                // Owner-aware: resolve each written super/mixin name relative
-                // to the defining class's namespace (never a bare global tail
-                // guess) via the index's `supertype_classes`.
-                index
-                    .classes_named(&class_name)
-                    .first()
-                    .map(|c| index.supertype_classes(c))
-                    .unwrap_or_default()
-            };
-            list.into_iter()
-                .map(|c| (c.uri.clone(), c.qualified_name.clone(), c.name_span))
-                .collect()
-        };
+        let targets = self
+            .cross_hierarchy_targets(subtypes, &class_name, uri.as_str())
+            .await;
         for (turi, qname, name_span) in targets {
             if !seen.insert(qname.clone()) {
                 continue;
@@ -2527,11 +2561,15 @@ impl Backend {
     /// indexed yet, so the caller can fall back to the single-document
     /// path).
     ///
-    /// Soundness is bounded by the analyser's single-document instance
-    /// tracking: a `$obj method` site is only rewritten in a document that
-    /// also *defines* the family class (the same constraint under which the
-    /// site is resolvable at all), so no unresolved site is silently left
-    /// pointing at the old name that the analysis could have caught.
+    /// Coverage is bounded by the analyser's single-document instance
+    /// tracking: a `$obj method` site is only rewritten in a document the
+    /// index knows defines or inherits the family class (the same constraint
+    /// under which the site is resolvable at all), so no unresolved site is
+    /// silently left pointing at the old name that the analysis could have
+    /// caught.  Documents holding a purely-inheriting subclass (a family
+    /// member's descendant that doesn't override the method) are visited too,
+    /// so their `my method` / `$obj method` sites are not missed just because
+    /// the subclass lives in a different file from the definer.
     async fn cross_file_method_rename(
         &self,
         seed_class: &str,
@@ -2540,17 +2578,23 @@ impl Backend {
     ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
-        // Family member classes grouped by defining document.
-        let by_uri: std::collections::HashMap<String, Vec<String>> = {
+        // Classes grouped by document: the override-family definers (whose
+        // declaration + call sites rename) and the pure inheritors (whose
+        // `my method` / `$obj method` sites rename, but which declare no copy
+        // of the method).  A document may contribute either or both.
+        let by_uri: std::collections::HashMap<String, (Vec<String>, Vec<String>)> = {
             let index = self.workspace_index.read().await;
-            let mut m: std::collections::HashMap<String, Vec<String>> =
+            let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in index.method_override_family(seed_class, method) {
-                m.entry(wc.uri.clone()).or_default().push(wc.qualified_name.clone());
+                m.entry(wc.uri.clone()).or_default().0.push(wc.qualified_name.clone());
+            }
+            for wc in index.method_inheritor_classes(seed_class, method) {
+                m.entry(wc.uri.clone()).or_default().1.push(wc.qualified_name.clone());
             }
             m
         };
-        for (u, classes) in by_uri {
+        for (u, (definers, inheritors)) in by_uri {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
@@ -2565,8 +2609,17 @@ impl Backend {
             let method_owned = method.to_owned();
             let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &classes {
+                for cq in &definers {
                     all.extend(core_rename::method_spans_in_document(
+                        &src,
+                        &dialect,
+                        &analysis,
+                        cq,
+                        &method_owned,
+                    ));
+                }
+                for cq in &inheritors {
+                    all.extend(core_rename::inherited_method_spans_in_document(
                         &src,
                         &dialect,
                         &analysis,
@@ -13440,6 +13493,48 @@ mod tests {
         assert!(
             dog_lines.contains(&2) && dog_lines.contains(&5),
             "expected override decl (l2) + call site (l5) in dog.tcl; got {:?}",
+            changes[&dog],
+        );
+    }
+
+    #[tokio::test]
+    async fn method_rename_reaches_subclass_only_document() {
+        // Animal::speak in animal.tcl; Dog *inherits* speak (no override) in
+        // dog.tcl and calls it via `my speak` and `$d speak`.  dog.tcl holds
+        // no definer, so the family-only pass never opened it; the inheritor
+        // pass must, or those sites silently keep the old name.
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                position: Position::new(1, 11), // on `speak` in Animal's decl
+            },
+            new_name: "vocalise".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&dog),
+            "subclass-only doc edits missing: {changes:?}",
+        );
+        assert!(changes.values().flatten().all(|e| e.new_text == "vocalise"));
+        // dog.tcl: `my speak` (line 2) + `$d speak` (line 5) rewritten; there
+        // is no declaration to rewrite in this file.
+        let dog_lines: Vec<u32> = changes[&dog].iter().map(|e| e.range.start.line).collect();
+        assert!(
+            dog_lines.contains(&2) && dog_lines.contains(&5),
+            "expected `my speak` (l2) + `$d speak` (l5) in dog.tcl; got {:?}",
             changes[&dog],
         );
     }

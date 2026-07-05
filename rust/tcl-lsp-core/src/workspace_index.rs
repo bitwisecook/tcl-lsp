@@ -336,6 +336,97 @@ impl WorkspaceIndex {
         seed_class: &str,
         method: &str,
     ) -> Vec<&'a WorkspaceClass> {
+        let family = self.method_family_qnames(seed_class, method);
+        let family_set: std::collections::HashSet<&str> =
+            family.iter().map(String::as_str).collect();
+        self.classes
+            .iter()
+            .filter(|c| family_set.contains(c.qualified_name.as_str()))
+            .collect()
+    }
+
+    /// Indexed classes that **inherit** `method` from the override family of
+    /// `(seed_class, method)` but do not define it themselves — the pure
+    /// inheritors whose `my method` / `$obj method` sites a rename must also
+    /// rewrite, even though they contribute no declaration.
+    ///
+    /// A class is included only when it inherits `method` (some ancestor
+    /// defines it) **and every** method-defining ancestor it can reach is in
+    /// the family.  That keeps the result sound under multiple inheritance:
+    /// if a class could resolve `method` to a definer *outside* the family
+    /// (a disjoint same-named method), it is abstained on rather than risk an
+    /// over-rename.  The workspace index carries ancestry but not a full
+    /// cross-file MRO, so this is deliberately conservative.
+    #[must_use]
+    pub fn method_inheritor_classes<'a>(
+        &'a self,
+        seed_class: &str,
+        method: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let family = self.method_family_qnames(seed_class, method);
+        if family.is_empty() {
+            return Vec::new();
+        }
+        let family_set: std::collections::HashSet<&str> =
+            family.iter().map(String::as_str).collect();
+        let (known, tail_index) = self.class_name_universe();
+        let parents = |qname: &str| -> Vec<String> {
+            self.classes
+                .iter()
+                .find(|c| c.qualified_name == qname)
+                .map(|c| {
+                    c.superclasses
+                        .iter()
+                        .chain(c.mixins.iter())
+                        .filter_map(|s| {
+                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let defines = |qname: &str| {
+            self.classes
+                .iter()
+                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+        };
+        self.classes
+            .iter()
+            .filter(|c| {
+                // A definer is handled by the family itself, not here.
+                if c.defined_methods.iter().any(|m| m == method)
+                    || family_set.contains(c.qualified_name.as_str())
+                {
+                    return false;
+                }
+                // Every method-defining ancestor this class can reach.
+                let mut stack = parents(&c.qualified_name);
+                let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut defining_ancestors: Vec<String> = Vec::new();
+                while let Some(p) = stack.pop() {
+                    if seen.insert(p.clone()) {
+                        if defines(&p) {
+                            defining_ancestors.push(p.clone());
+                        }
+                        stack.extend(parents(&p));
+                    }
+                }
+                // Inherits `method` (has a definer ancestor) and cannot resolve
+                // it to a definer outside the family.
+                !defining_ancestors.is_empty()
+                    && defining_ancestors.iter().all(|a| family_set.contains(a.as_str()))
+            })
+            .collect()
+    }
+
+    /// The qualified names of the override family of `(seed_class, method)`:
+    /// every indexed class that directly defines `method` and sits in the
+    /// same subtype-connected component as `seed_class` (or the ancestor that
+    /// provides `method` to it).  Shared by [`Self::method_override_family`]
+    /// and [`Self::method_inheritor_classes`].  Empty when `method` is neither
+    /// defined nor inherited from any indexed class reachable from
+    /// `seed_class`.
+    fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
         let (known, tail_index) = self.class_name_universe();
         // Owner-aware direct parents (superclasses + mixins) of each class.
         let parents = |qname: &str| -> Vec<String> {
@@ -423,12 +514,7 @@ impl WorkspaceIndex {
                 }
             }
         }
-        let family_set: std::collections::HashSet<&str> =
-            family.iter().map(String::as_str).collect();
-        self.classes
-            .iter()
-            .filter(|c| family_set.contains(c.qualified_name.as_str()))
-            .collect()
+        family
     }
 
     /// Procs whose simple *or* qualified name starts with
@@ -650,6 +736,60 @@ mod tests {
             .map(|wc| wc.qualified_name.as_str())
             .collect();
         assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
+    }
+
+    #[test]
+    fn cross_file_method_inheritor_classes() {
+        // Base `speak` in a.tcl; a purely-inheriting Dog (no override) in
+        // b.tcl; an unrelated Engine::speak hierarchy with its own inheritor
+        // Car in c.tcl/d.tcl.  Seeding from Animal, Dog is an inheritor and
+        // Car (disjoint hierarchy) is not.
+        let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
+        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n");
+        let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
+        let car = analyse("oo::class create Car {\n    superclass Engine\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///c.tcl", &engine),
+            ("file:///d.tcl", &car),
+        ]);
+        let inheritors: Vec<&str> = index
+            .method_inheritor_classes("::Animal", "speak")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        assert_eq!(inheritors, vec!["::Dog"], "{inheritors:?}");
+        // A definer is never returned as an inheritor.
+        assert!(
+            !index
+                .method_inheritor_classes("::Animal", "speak")
+                .iter()
+                .any(|wc| wc.qualified_name == "::Animal"),
+        );
+    }
+
+    #[test]
+    fn method_inheritor_abstains_on_disjoint_definer_ancestor() {
+        // A class that multiply-inherits from two unrelated definers of the
+        // same method could resolve to either; the family seeded from only one
+        // must NOT claim it (sound abstention, no over-rename).
+        let a = analyse("oo::class create A {\n    method run {} {}\n}\n");
+        let b = analyse("oo::class create B {\n    method run {} {}\n}\n");
+        let both = analyse("oo::class create Both {\n    superclass A B\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///both.tcl", &both),
+        ]);
+        // Family seeded from A does not include B, so `Both` (which can reach
+        // B::run too) is abstained on.
+        assert!(
+            index
+                .method_inheritor_classes("::A", "run")
+                .is_empty(),
+            "must abstain when an out-of-family definer ancestor exists",
+        );
     }
 
     #[test]

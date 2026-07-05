@@ -376,11 +376,27 @@ fn build_member_ranges(
     out
 }
 
+/// Every method / classmethod / constructor / destructor body span of `cd`
+/// — the regions re-segmented for intra-class `my <member>` call sites.
+fn collect_member_bodies(cd: &tcl_compiler::analyser::types::ClassDef) -> Vec<tcl_lexer::Span> {
+    let mut bodies: Vec<tcl_lexer::Span> = cd
+        .methods
+        .values()
+        .map(|m| m.body_span)
+        .chain(cd.class_methods.values().map(|m| m.body_span))
+        .chain(cd.constructors.iter().map(|c| c.body_span))
+        .collect();
+    if let Some(d) = &cd.destructor {
+        bodies.push(d.body_span);
+    }
+    bodies
+}
+
 /// Resolve a method's declaration span plus every call site —
-/// intra-class (re-segment the class's own method bodies) and
-/// external (`$obj method` across the document).  Returns
-/// `None` when `class_q` has no method / classmethod named
-/// `method`.
+/// intra-class (re-segment the class's own method bodies plus any
+/// inheriting subclass's bodies) and external (`$obj method` across the
+/// document).  Returns `None` when `class_q` has no method / classmethod
+/// named `method`.
 pub(crate) fn method_references_for_class(
     source: &str,
     dialect: &str,
@@ -388,7 +404,6 @@ pub(crate) fn method_references_for_class(
     class_q: &str,
     method: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::Span;
     let class_def = analysis.all_classes.get(class_q)?;
     let decl_span = class_def
@@ -398,19 +413,59 @@ pub(crate) fn method_references_for_class(
         .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))?;
 
     let mut call_spans: Vec<Span> = Vec::new();
-    // Intra-class: re-segment every method / classmethod /
-    // ctor / dtor body for bare `method` invocations.
-    let mut bodies: Vec<Span> = class_def
-        .methods
-        .values()
-        .map(|m| m.body_span)
-        .chain(class_def.class_methods.values().map(|m| m.body_span))
-        .chain(class_def.constructors.iter().map(|c| c.body_span))
-        .collect();
-    if let Some(d) = &class_def.destructor {
-        bodies.push(d.body_span);
+    // Intra-class `my method` dispatch: re-segment every method / classmethod
+    // / ctor / dtor body for `my method` invocations.  Scan `class_q`'s own
+    // bodies **and** the bodies of every subclass that *inherits* this
+    // definition — a class whose MRO resolves `method` to `class_q` (i.e. it
+    // does not override).  A pure inheritor is not itself a rename family
+    // member (it declares no copy of `method`), but its `my method` calls
+    // dispatch to `class_q`'s definition, so they must rename with it;
+    // omitting them left those call sites pointing at the old name.  A
+    // subclass that *overrides* `method` resolves to itself, not `class_q`,
+    // so its bodies are handled under its own family entry — never here.
+    let hierarchy = analysis.class_hierarchy();
+    let mut bodies: Vec<Span> = collect_member_bodies(class_def);
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q.as_str() != class_q
+            && hierarchy.method_target(other_q, method) == Some(class_q)
+        {
+            bodies.extend(collect_member_bodies(other_cd));
+        }
     }
-    for body_span in bodies {
+    call_spans.extend(scan_my_method_sites(
+        source,
+        dialect,
+        &bodies,
+        method,
+        Some(decl_span),
+    ));
+    // External `$obj method` sites.
+    call_spans.extend(find_obj_method_call_sites(
+        source, dialect, analysis, class_q, method,
+    ));
+    Some((decl_span, call_spans))
+}
+
+/// Re-segment each brace-delimited body span in `bodies` and return the
+/// name-token span of every `my <method>` invocation whose method name is
+/// `method`, skipping the token at `skip` (the declaration site, when the
+/// scanned class declares `method`).
+///
+/// Intra-class dispatch of a `TclOO` method is `my <method>` — the method
+/// name is argv[1], not the command head.  A bare head equal to the method
+/// name is *not* a call (a `TclOO` method is not a command in the body's
+/// namespace; `<method> …` without `my`/an object errors "invalid command
+/// name"), so only `my`-headed sites match.
+fn scan_my_method_sites(
+    source: &str,
+    dialect: &str,
+    bodies: &[tcl_lexer::Span],
+    method: &str,
+    skip: Option<tcl_lexer::Span>,
+) -> Vec<tcl_lexer::Span> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    for &body_span in bodies {
         if body_span.is_empty() {
             continue;
         }
@@ -432,12 +487,6 @@ pub(crate) fn method_references_for_class(
             tcl_lexer::LexerConfig::for_dialect(dialect),
         );
         for cmd in &commands {
-            // Intra-class method dispatch is `my <method>`: the method name is
-            // argv[1], not the command head. A bare head equal to the method
-            // name is NOT a call — a TclOO method is not a command in the
-            // body's namespace, so `<method> …` without `my`/an object errors
-            // with "invalid command name". (External `$obj method` sites are
-            // appended separately below.)
             let Some(head) = cmd.argv.first() else {
                 continue;
             };
@@ -454,16 +503,39 @@ pub(crate) fn method_references_for_class(
             if n_start >= source.len() || n_end > source.len() {
                 continue;
             }
-            if &source[n_start..n_end] == method && name_tok.span != decl_span {
-                call_spans.push(name_tok.span);
+            if &source[n_start..n_end] == method && Some(name_tok.span) != skip {
+                out.push(name_tok.span);
             }
         }
     }
-    // External `$obj method` sites.
-    call_spans.extend(find_obj_method_call_sites(
-        source, dialect, analysis, class_q, method,
-    ));
-    Some((decl_span, call_spans))
+    out
+}
+
+/// Call sites of an **inherited** `method` inside `class_q`, a class that
+/// does *not* declare `method` itself but inherits it (its MRO resolves
+/// `method` to an ancestor).  Returns the intra-class `my method` sites in
+/// `class_q`'s own bodies plus the external `$obj method` sites for its
+/// instances — no declaration span (there is none in this class).
+///
+/// This is the same-document scan a purely-inheriting subclass needs when it
+/// lives in a *different* file from the method's definer: the cross-file
+/// rename opens the subclass's document and collects these sites so an
+/// inherited-method rename doesn't leave them pointing at the old name.
+#[must_use]
+pub(crate) fn inherited_method_call_sites(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    let Some(class_def) = analysis.all_classes.get(class_q) else {
+        return Vec::new();
+    };
+    let bodies = collect_member_bodies(class_def);
+    let mut spans = scan_my_method_sites(source, dialect, &bodies, method, None);
+    spans.extend(find_obj_method_call_sites(source, dialect, analysis, class_q, method));
+    spans
 }
 
 /// Find a class member's declaration span plus every call
@@ -496,16 +568,7 @@ fn find_class_member_references(
         // Collect call-site spans by re-segmenting every
         // method body (the analyser doesn't walk into method
         // bodies for the `command_invocations` collection).
-        let mut bodies: Vec<Span> = class_def
-            .methods
-            .values()
-            .map(|m| m.body_span)
-            .chain(class_def.class_methods.values().map(|m| m.body_span))
-            .chain(class_def.constructors.iter().map(|c| c.body_span))
-            .collect();
-        if let Some(d) = &class_def.destructor {
-            bodies.push(d.body_span);
-        }
+        let bodies: Vec<Span> = collect_member_bodies(class_def);
         let mut call_spans: Vec<Span> = Vec::new();
         for body_span in bodies {
             if body_span.is_empty() {
@@ -606,11 +669,22 @@ pub(crate) fn find_obj_method_call_sites(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    // Variables of the target class.
+    // Variables whose `$obj method` dispatch resolves to `class_q`'s copy of
+    // `method` — its own instances **plus** instances of any subclass that
+    // *inherits* this definition (the subclass's MRO resolves `method` to
+    // `class_q`).  An exact-class-equality filter dropped the inheriting-
+    // subclass sites, silently leaving them pointing at the old name after an
+    // inherited-method rename.  A subclass that *overrides* `method` resolves
+    // to itself, so its instances are excluded here and rewritten under that
+    // subclass's own family entry — each site is attributed to exactly one
+    // family member (no double count).
+    let hierarchy = analysis.class_hierarchy();
     let var_set: FxHashSet<&str> = analysis
         .instance_classes
         .iter()
-        .filter(|(_, c)| c.as_str() == class_q)
+        .filter(|(_, c)| {
+            c.as_str() == class_q || hierarchy.method_target(c, method) == Some(class_q)
+        })
         .map(|(v, _)| v.as_str())
         .collect();
     if var_set.is_empty() {
