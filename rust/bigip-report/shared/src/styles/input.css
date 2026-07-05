@@ -1,0 +1,108 @@
+/* tcl-lsp — a language server and toolchain for Tcl
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * Styles for the shared BIG-IP report *builder* / input page
+ * (src/pages/input.ts), used by both the in-browser wasm app and the
+ * f5report web server. */
+:root {
+  --bg: #f6f8fa; --card: #ffffff; --fg: #1f2328; --muted: #656d76;
+  --border: #d0d7de; --accent: #0969da; --accent-fg: #ffffff;
+  --ok-bg: #dafbe1; --ok-fg: #1a7f37; --ok-bd: #4ac26b;
+  --warn-bg: #fff8c5; --warn-fg: #9a6700; --warn-bd: #d4a72c;
+  --err-bg: #ffebe9; --err-fg: #cf222e; --err-bd: #ff8182;
+  --shadow: 0 1px 3px rgba(31,35,40,.12), 0 8px 24px rgba(31,35,40,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --card: #161b22; --fg: #e6edf3; --muted: #9198a1;
+    --border: #30363d; --accent: #4493f8; --accent-fg: #05070a;
+    --ok-bg: #12261e; --ok-fg: #3fb950; --ok-bd: #238636;
+    --warn-bg: #2a2410; --warn-fg: #d29922; --warn-bd: #9e6a03;
+    --err-bg: #2a1214; --err-fg: #f85149; --err-bd: #b62324;
+    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+.wrap { max-width: 46rem; margin: 0 auto; padding: 2rem 1.1rem 4rem; }
+h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+.tagline { color: var(--muted); margin: 0 0 1.25rem; }
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.25rem; box-shadow: var(--shadow); margin-bottom: 1.1rem;
+}
+.privacy {
+  display: flex; gap: .8rem; align-items: flex-start;
+  background: var(--ok-bg); border: 1px solid var(--ok-bd); border-radius: 12px;
+  padding: .9rem 1.05rem; margin-bottom: 1.1rem; color: var(--fg);
+}
+.privacy .lock { font-size: 1.4rem; line-height: 1.2; }
+.privacy b { color: var(--ok-fg); }
+.privacy .small { color: var(--muted); font-size: .87rem; margin-top: .2rem; }
+label.fld { display: block; font-weight: 600; margin: .1rem 0 .35rem; }
+.hint { color: var(--muted); font-size: .85rem; margin: .3rem 0 0; }
+.drop {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 1.6rem 1rem;
+  text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  background: transparent;
+}
+.drop:hover, .drop.drag { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.drop .big { font-weight: 600; }
+.drop .sub { color: var(--muted); font-size: .87rem; margin-top: .3rem; }
+input[type=file] { display: none; }
+.files { list-style: none; margin: .8rem 0 0; padding: 0; }
+.files li {
+  display: flex; align-items: center; gap: .6rem; padding: .45rem .1rem;
+  border-top: 1px solid var(--border); font-size: .9rem;
+}
+.files li .name { font-weight: 600; overflow-wrap: anywhere; }
+.files li .sz { color: var(--muted); margin-left: auto; white-space: nowrap; }
+.files li .rm { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 1.1rem; padding: 0 .2rem; }
+.files li .lock { color: var(--warn-fg); }
+.files li .arch-role { font: inherit; font-size: .8rem; padding: .2rem .3rem; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); color: var(--fg); }
+.files li .arch-tier { width: 3.4rem; font: inherit; font-size: .8rem; padding: .2rem .35rem;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.arch-adv { margin-top: .9rem; border: 1px solid var(--border); border-radius: 8px; padding: .5rem .7rem; }
+.arch-adv summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.arch-adv textarea { width: 100%; box-sizing: border-box; margin-top: .5rem; padding: .55rem .65rem;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; resize: vertical; }
+.arch-adv-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+button.ghost { font: inherit; font-size: .82rem; padding: .3rem .6rem; border: 1px solid var(--border);
+  border-radius: 7px; background: var(--bg); color: var(--fg); cursor: pointer; }
+button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+.row { display: grid; gap: .9rem; grid-template-columns: 1fr 1fr; margin-top: 1rem; }
+@media (max-width: 34rem) { .row { grid-template-columns: 1fr; } }
+input[type=text], input[type=password] {
+  width: 100%; padding: .55rem .65rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit;
+}
+input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.check { display: flex; align-items: center; gap: .5rem; margin-top: 1rem; font-size: .92rem; }
+.actions { display: flex; align-items: center; gap: 1rem; margin-top: 1.2rem; flex-wrap: wrap; }
+button.primary {
+  background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px;
+  padding: .7rem 1.3rem; font: inherit; font-weight: 600; cursor: pointer;
+}
+button.primary:disabled { opacity: .5; cursor: not-allowed; }
+.status { font-size: .9rem; color: var(--muted); min-height: 1.2em; }
+.status.err { color: var(--err-fg); }
+.status.ok { color: var(--ok-fg); }
+.result { margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--ok-bg); border: 1px solid var(--ok-bd); display: none; }
+.result.show { display: block; }
+.result a { color: var(--accent); font-weight: 600; }
+.result .dl { display: inline-flex; gap: 1.2rem; margin-top: .5rem; }
+details { margin-top: 1.1rem; }
+summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+details p, details li { color: var(--muted); font-size: .88rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em;
+  background: color-mix(in srgb, var(--muted) 16%, transparent); padding: .1em .35em; border-radius: 5px; }
+footer { color: var(--muted); font-size: .82rem; margin-top: 2rem; text-align: center; }
+footer a { color: var(--accent); }
+.spinner { display: inline-block; width: .9em; height: .9em; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: -1px; }
+@keyframes spin { to { transform: rotate(360deg); } }

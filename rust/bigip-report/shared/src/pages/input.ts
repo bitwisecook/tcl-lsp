@@ -1,0 +1,423 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// The BIG-IP report *builder* / input page controller. Collects config files +
+// options + the architecture/topology manifest, then hands them to a
+// ReportBackend (in-browser wasm, or the f5report web server) to generate the
+// self-contained report. Ported from the wasm app's inline page; the
+// generation pipeline now lives behind ./report-backend.
+//
+// prettier-ignore-file is not used — this is hand-maintained typed code.
+
+import {
+  GenerateOptions,
+  GenerateResult,
+  ReportBackend,
+  selectBackend,
+} from "../report-backend";
+
+function byId<T extends HTMLElement>(id: string): T {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`missing #${id}`);
+  return el as T;
+}
+
+interface FileMeta {
+  role: string;
+  tier: string;
+}
+
+const ROLES = ["auto", "gtm", "ltm", "afm"];
+const LS_MANIFEST = "f5report-arch-manifest";
+const LS_META = "f5report-arch-meta";
+
+(function () {
+  "use strict";
+
+  const statusEl = byId("status");
+  const goBtn = byId<HTMLButtonElement>("go");
+  const picker = byId<HTMLInputElement>("picker");
+  const drop = byId("drop");
+  const fileListEl = byId("fileList");
+  const passEl = byId<HTMLInputElement>("pass");
+  const titleEl = byId<HTMLInputElement>("title");
+  const consoleEl = byId<HTMLInputElement>("console");
+  const resultEl = byId("result");
+  const openTab = byId<HTMLAnchorElement>("openTab");
+  const dlAgain = byId<HTMLAnchorElement>("dlAgain");
+  const verEl = byId("ver");
+  const manifestEl = byId<HTMLTextAreaElement>("manifest");
+  const mkuGroup = byId("mkuGroup");
+  const mkuNote = byId("mkuNote");
+
+  let files: File[] = [];
+  let meta: Record<string, FileMeta> = {};
+  let lastUrl: string | null = null;
+  let ready = false;
+
+  const backend: ReportBackend = selectBackend();
+
+  // Quote a word for the Tcl manifest: brace it when it carries whitespace or
+  // Tcl-special characters, so a filename with spaces stays one word.
+  function tclWord(s: string): string {
+    return /[\s{}[\]$";\\]/.test(s) ? "{" + s + "}" : s;
+  }
+
+  // Build the manifest from the per-file role/tier choices. A raw manifest
+  // (typed into the textarea) wins. Returns "" for pure auto-detection.
+  function buildManifest(): string {
+    const raw = (manifestEl.value || "").trim();
+    if (raw) return raw;
+    const lines: string[] = [];
+    for (const f of files) {
+      const m = meta[f.name] || { role: "auto", tier: "" };
+      const parts: string[] = [];
+      if (m.role && m.role !== "auto") parts.push("-role " + m.role);
+      if (m.tier !== undefined && m.tier !== "" && m.tier !== null) {
+        const t = parseInt(m.tier, 10);
+        if (!isNaN(t)) parts.push("-tier " + t);
+      }
+      if (parts.length) lines.push("device " + tclWord(f.name) + " " + parts.join(" "));
+    }
+    return lines.join("\n");
+  }
+
+  function saveManifestState(): void {
+    try {
+      localStorage.setItem(LS_MANIFEST, manifestEl.value || "");
+      localStorage.setItem(LS_META, JSON.stringify(meta));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  function restoreManifestState(): void {
+    try {
+      const m = localStorage.getItem(LS_MANIFEST);
+      if (m) manifestEl.value = m;
+      const mt = localStorage.getItem(LS_META);
+      if (mt) meta = (JSON.parse(mt) as Record<string, FileMeta>) || {};
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function setStatus(msg: string, cls?: string): void {
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  }
+
+  function fmtSize(n: number): string {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  // Heuristic for the UI hint only; the engine decides for real.
+  function looksEncrypted(file: File): boolean {
+    return /\.ucs$/i.test(file.name);
+  }
+
+  function renderFiles(): void {
+    fileListEl.textContent = "";
+    files.forEach((f, i) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = f.name;
+      const sz = document.createElement("span");
+      sz.className = "sz";
+      sz.textContent = fmtSize(f.size);
+      const rm = document.createElement("button");
+      rm.className = "rm";
+      rm.title = "Remove";
+      rm.setAttribute("aria-label", "Remove " + f.name);
+      rm.textContent = "✕";
+      rm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        files.splice(i, 1);
+        renderFiles();
+      });
+      li.appendChild(name);
+      if (looksEncrypted(f)) {
+        const lk = document.createElement("span");
+        lk.className = "lock";
+        lk.title = "may be encrypted";
+        lk.textContent = "🔒";
+        li.appendChild(lk);
+      }
+      li.appendChild(sz);
+
+      // Per-file role + tier, shown once more than one device is loaded.
+      if (files.length > 1) {
+        if (!meta[f.name]) meta[f.name] = { role: "auto", tier: "" };
+        const mrec = meta[f.name];
+
+        const role = document.createElement("select");
+        role.className = "arch-role";
+        role.title = "Device role";
+        for (const r of ROLES) {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          if (r === mrec.role) opt.selected = true;
+          role.appendChild(opt);
+        }
+        role.addEventListener("click", (e) => e.stopPropagation());
+        role.addEventListener("change", () => {
+          mrec.role = role.value;
+          saveManifestState();
+        });
+
+        const tier = document.createElement("input");
+        tier.type = "number";
+        tier.min = "0";
+        tier.className = "arch-tier";
+        tier.placeholder = "tier";
+        tier.title = "Tier (0 = front)";
+        tier.value = mrec.tier;
+        tier.addEventListener("click", (e) => e.stopPropagation());
+        tier.addEventListener("input", () => {
+          mrec.tier = tier.value;
+          saveManifestState();
+        });
+
+        li.appendChild(role);
+        li.appendChild(tier);
+      }
+
+      li.appendChild(rm);
+      fileListEl.appendChild(li);
+    });
+    byId("archAdv").style.display = files.length > 1 ? "" : "none";
+    updateReady();
+  }
+
+  function updateReady(): void {
+    goBtn.disabled = !(ready && files.length > 0);
+  }
+
+  function addFiles(list: FileList | File[]): void {
+    for (const f of Array.from(list)) {
+      if (!files.some((g) => g.name === f.name && g.size === f.size)) files.push(f);
+    }
+    renderFiles();
+    void probeSecrets();
+  }
+
+  drop.addEventListener("click", () => picker.click());
+  drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      picker.click();
+    }
+  });
+  picker.addEventListener("change", () => {
+    if (picker.files) addFiles(picker.files);
+    picker.value = "";
+  });
+  ["dragenter", "dragover"].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.add("drag");
+    }),
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.remove("drag");
+    }),
+  );
+  drop.addEventListener("drop", (e) => {
+    const dt = (e as DragEvent).dataTransfer;
+    if (dt && dt.files) addFiles(dt.files);
+  });
+
+  // --- architecture manifest: persistence + file load/save ------------------
+  (function initManifestControls() {
+    restoreManifestState();
+    manifestEl.addEventListener("input", saveManifestState);
+
+    byId("manifestFromFiles").addEventListener("click", () => {
+      const keep = manifestEl.value;
+      manifestEl.value = "";
+      const gen = buildManifest();
+      manifestEl.value = gen || keep;
+      saveManifestState();
+    });
+
+    byId("manifestSave").addEventListener("click", () => {
+      const text = manifestEl.value.trim() || buildManifest();
+      if (!text) {
+        setStatus("nothing to save — set roles/tiers or write a manifest", "err");
+        return;
+      }
+      const blob = new Blob([text + "\n"], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "architecture.tcl";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    const fileInput = byId<HTMLInputElement>("manifestFile");
+    byId("manifestLoad").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        manifestEl.value = String(r.result || "");
+        saveManifestState();
+      };
+      r.readAsText(f);
+      fileInput.value = "";
+    });
+
+    byId("manifestClear").addEventListener("click", () => {
+      manifestEl.value = "";
+      saveManifestState();
+    });
+  })();
+
+  // --- backend readiness ----------------------------------------------------
+  backend
+    .ready()
+    .then(async () => {
+      ready = true;
+      try {
+        const v = await backend.engineVersion();
+        if (v) verEl.textContent = "engine v" + v;
+      } catch {
+        /* ignore */
+      }
+      setStatus("ready — pick a config to begin", "ok");
+      updateReady();
+      void probeSecrets();
+    })
+    .catch((e: unknown) => setStatus("failed to load the engine: " + String(e), "err"));
+
+  passEl.addEventListener("input", () => void probeSecrets());
+
+  function utcStamp(): string {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    return (
+      d.getUTCFullYear() +
+      "-" +
+      p(d.getUTCMonth() + 1) +
+      "-" +
+      p(d.getUTCDate()) +
+      " " +
+      p(d.getUTCHours()) +
+      ":" +
+      p(d.getUTCMinutes()) +
+      ":" +
+      p(d.getUTCSeconds()) +
+      " UTC"
+    );
+  }
+
+  function stampName(): string {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    return (
+      "bigip-report-" +
+      d.getFullYear() +
+      p(d.getMonth() + 1) +
+      p(d.getDate()) +
+      "-" +
+      p(d.getHours()) +
+      p(d.getMinutes()) +
+      p(d.getSeconds()) +
+      ".html"
+    );
+  }
+
+  function reportId(): string {
+    const c = (window.crypto || ({} as Crypto)) as Crypto & { randomUUID?: () => string };
+    return c.randomUUID ? c.randomUUID() : "r-" + Date.now().toString(36);
+  }
+
+  function revealMku(count: number): void {
+    mkuGroup.style.display = "";
+    mkuNote.textContent =
+      count +
+      " encrypted secret" +
+      (count === 1 ? "" : "s") +
+      " detected (SSL private-key passphrases, …). Enter the unit master key (f5mku -K) to decrypt and reveal them — without it those values stay locked in the report. Decryption happens here in your browser; the key is never sent anywhere.";
+  }
+
+  async function probeSecrets(): Promise<void> {
+    if (!ready || files.length === 0 || mkuGroup.style.display !== "none") return;
+    try {
+      const { secretCount } = await backend.probe(files, passEl.value || "");
+      if (secretCount > 0) revealMku(secretCount);
+    } catch {
+      /* passphrase not ready yet — try again on the next change */
+    }
+  }
+
+  goBtn.addEventListener("click", () => {
+    if (!ready || files.length === 0) return;
+    resultEl.classList.remove("show");
+    goBtn.disabled = true;
+    statusEl.innerHTML = '<span class="spinner"></span> generating…';
+    // Let the spinner paint before the (possibly synchronous) work.
+    setTimeout(() => {
+      run().catch((e: unknown) => {
+        setStatus(e instanceof Error ? e.message : String(e), "err");
+        goBtn.disabled = false;
+      });
+    }, 30);
+  });
+
+  async function run(): Promise<void> {
+    const opts: GenerateOptions = {
+      passphrase: passEl.value || "",
+      masterKey: mkuGroup.style.display === "none" ? "" : byId<HTMLInputElement>("mku").value.trim(),
+      title: titleEl.value.trim() || "F5 BIG-IP Configuration Report",
+      embedConsole: consoleEl.checked,
+      manifest: buildManifest(),
+      generatedAt: utcStamp(),
+      reportId: reportId(),
+    };
+    const res = await backend.generate(files, opts);
+    if (res.locked) revealMku(1);
+    deliver(res);
+  }
+
+  function deliver(res: GenerateResult): void {
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    const blob = new Blob([res.html], { type: "text/html" });
+    lastUrl = URL.createObjectURL(blob);
+    const fname = stampName();
+
+    const a = document.createElement("a");
+    a.href = lastUrl;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    openTab.href = lastUrl;
+    dlAgain.href = lastUrl;
+    dlAgain.download = fname;
+    resultEl.classList.add("show");
+    const sz = fmtSize(new Blob([res.html]).size);
+    const extra = res.locked ? " · some secrets locked — enter the master key above to reveal" : "";
+    setStatus(
+      "done — " +
+        res.deviceCount +
+        " device" +
+        (res.deviceCount === 1 ? "" : "s") +
+        " · " +
+        sz +
+        extra,
+      res.locked ? "" : "ok",
+    );
+    goBtn.disabled = false;
+  }
+})();

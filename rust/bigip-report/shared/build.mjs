@@ -31,6 +31,7 @@ const pyVendor = join(pyPkg, "vendor");
 // Every front-end script, keyed by its dist basename. All are bundled so a
 // module can `import` a sibling (e.g. topology.ts pulls in ts/search/*).
 const ENTRIES = [
+  "input",
   "report",
   "topology",
   "console",
