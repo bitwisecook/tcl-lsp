@@ -101,33 +101,80 @@ impl ClassHierarchy {
 /// downstream lookups don't have to disambiguate.  Cycles in the
 /// pure-superclass hierarchy land in `result.errors`; the
 /// affected classes get a single-element MRO (themselves only).
+/// Resolve a possibly-bare superclass / mixin name written in the body of
+/// class `owner` to a qualified name keyed in `classes`.
+///
+/// A superclass declared bare (`superclass Device`) is resolved the way
+/// Tcl would resolve the command: in the **defining class's namespace**,
+/// then walking outward to the global namespace, and finally — when the
+/// simple name is *globally unique* — to that single class (covering the
+/// common `namespace import` idiom without needing per-file import data).
+/// An ambiguous simple name (several classes share the tail) stays bare,
+/// so no wrong link is ever manufactured.  This fixes cross-file
+/// inheritance where a subclass in one file names a base class defined,
+/// under a namespace, in another (the `SpiceGenTcl` `superclass Device`
+/// shape) — previously left unlinked, silently dropping inherited methods.
+fn resolve_super_name(
+    name: &str,
+    owner_qname: &str,
+    classes: &HashMap<String, ClassDef>,
+    tail_index: &HashMap<String, Vec<String>>,
+) -> String {
+    if classes.contains_key(name) {
+        return name.to_string();
+    }
+    // Walk the owner's namespace ancestry, then global.
+    let owner_ns = owner_qname.rsplit_once("::").map_or("", |(head, _)| head);
+    let mut ns = owner_ns.to_string();
+    loop {
+        let cand = if ns.is_empty() {
+            format!("::{}", name.trim_start_matches("::"))
+        } else {
+            format!("{}::{}", ns.trim_end_matches("::"), name.trim_start_matches("::"))
+        };
+        if classes.contains_key(&cand) {
+            return cand;
+        }
+        if ns.is_empty() {
+            break;
+        }
+        ns = ns.rsplit_once("::").map_or(String::new(), |(head, _)| head.to_string());
+    }
+    // Globally-unique simple-name match (the `namespace import` case).
+    let tail = name.rsplit("::").next().unwrap_or(name);
+    if let Some(qs) = tail_index.get(tail)
+        && qs.len() == 1
+    {
+        return qs[0].clone();
+    }
+    name.to_string()
+}
+
 /// Build the supers/mixins maps used by the MRO algorithm.
 fn build_supers_mixins_maps(
     classes: &HashMap<String, ClassDef>,
 ) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
     let mut supers_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut mixins_map: HashMap<String, Vec<String>> = HashMap::new();
-    let normalise = |names: &[String], classes: &HashMap<String, ClassDef>| -> Vec<String> {
+    // tail (simple name) → qualified class names sharing it.
+    let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
+    for qname in classes.keys() {
+        let tail = qname.rsplit("::").next().unwrap_or(qname);
+        tail_index
+            .entry(tail.to_string())
+            .or_default()
+            .push(qname.clone());
+    }
+    let normalise = |owner: &str, names: &[String]| -> Vec<String> {
         names
             .iter()
-            .map(|p| {
-                if p.starts_with("::") {
-                    p.clone()
-                } else {
-                    let candidate = format!("::{p}");
-                    if classes.contains_key(&candidate) {
-                        candidate
-                    } else {
-                        p.clone()
-                    }
-                }
-            })
+            .map(|p| resolve_super_name(p, owner, classes, &tail_index))
             .collect()
     };
     for (qname, cd) in classes {
-        supers_map.insert(qname.clone(), normalise(&cd.superclasses, classes));
+        supers_map.insert(qname.clone(), normalise(qname, &cd.superclasses));
         if !cd.mixins.is_empty() {
-            mixins_map.insert(qname.clone(), normalise(&cd.mixins, classes));
+            mixins_map.insert(qname.clone(), normalise(qname, &cd.mixins));
         }
     }
     (supers_map, mixins_map)
@@ -462,5 +509,48 @@ mod tests {
         assert!(impls.contains(&("::A".to_string(), "::A".to_string())));
         // ``::B`` overrides; B's m provider is ::B.
         assert!(impls.contains(&("::B".to_string(), "::B".to_string())));
+    }
+
+    #[test]
+    fn bare_superclass_links_via_namespace_ancestry() {
+        // A subclass in `::Ns::Sub` names its base bare (`Base`); the base
+        // lives at `::Ns::Base`. Ancestry resolution links them so the
+        // inherited method resolves (previously left unlinked).
+        let classes = map(vec![
+            cls("::Ns::Base", &[], &[], &["inherited"]),
+            cls("::Ns::Sub", &["Base"], &[], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.mro_map["::Ns::Sub"], vec!["::Ns::Sub", "::Ns::Base"]);
+        assert_eq!(h.method_target("::Ns::Sub", "inherited"), Some("::Ns::Base"));
+    }
+
+    #[test]
+    fn bare_superclass_links_via_unique_tail_across_namespaces() {
+        // The SpiceGenTcl shape: a global class (`::Core`, from an
+        // `namespace import`) names a base defined under a namespace
+        // (`::SpiceGenTcl::Device`). The simple name is globally unique, so
+        // the tail match links them and the inherited method resolves.
+        let classes = map(vec![
+            cls("::SpiceGenTcl::Device", &[], &[], &["genSPICEString"]),
+            cls("::Core", &["Device"], &[], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.method_target("::Core", "genSPICEString"), Some("::SpiceGenTcl::Device"));
+    }
+
+    #[test]
+    fn ambiguous_bare_superclass_stays_unlinked() {
+        // Two classes share the tail `Base`; a bare `superclass Base` from an
+        // unrelated namespace must NOT be linked to either (no wrong guess).
+        let classes = map(vec![
+            cls("::A::Base", &[], &[], &["m"]),
+            cls("::B::Base", &[], &[], &["m"]),
+            cls("::C::Sub", &["Base"], &[], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        // Sub's MRO contains only itself + the unresolved bare `Base` leaf;
+        // the method does not resolve to either candidate.
+        assert_eq!(h.method_target("::C::Sub", "m"), None);
     }
 }

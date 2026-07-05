@@ -87,7 +87,14 @@ def main(src="label_worksheet.csv", dst="labeled_sample.csv"):
             r["truth_class"] = t
             r["method_exists"] = me
             if r["resolver_verdict"] == "resolved-unknown":
-                r["notes"] = "method inherited from ::SpiceGenTcl::Device/Model; bare superclass name unlinked in merged MRO -> false W308"
+                # After the namespace-aware superclass-linking fix, the
+                # remaining resolved-unknowns are a *different* idiom: the
+                # method is defined with a dynamically-computed signature
+                # `method X {*}[info class definition <Other> X]` (copying
+                # another class's method), which method extraction does not
+                # register — so method_exists=yes and the flag is still a
+                # false W308, from a separate cause.
+                r["notes"] = "method defined via `{*}[info class definition …]` dynamic signature copy; not registered by method extraction -> false W308 (separate from superclass linking)"
             w.writerow(r)
     print(f"wrote {dst}: {len(uniq)} labeled rows "
           f"({len(unknown)} resolved-unknown, {len(nonctor)} non-ctor resolved, "

@@ -150,7 +150,7 @@ abstentions).
 |---|--:|---|
 | **class-resolution precision** | **109/109 = 100 %** | of resolved sites, the named class set contains the true receiver class — **0 false resolutions** |
 | **recall (locally-knowable)** | **109/109 = 100 %** | of sites whose class is determinable from the file, the resolver resolved (didn't abstain) — 0 knowable sites missed |
-| **`method_known` flag accuracy** | **103/109 = 94.5 %** | of resolved sites, the method flag agrees with whether the method really exists |
+| **`method_known` flag accuracy** | **104/107 = 97.2 %** | of resolved sites, the method flag agrees with whether the method really exists (was 94.5 % before the superclass-linking fix) |
 | **abstention audit** | **41/41 correct** | every abstention had an `EXTERN` (param/global) or `DYNAMIC` truth — 0 abstentions on a knowable class |
 
 Two things to read carefully:
@@ -160,15 +160,18 @@ Two things to read carefully:
   dispatch) and are *correctly* excluded from the knowable denominator.
   "Recall = 100 %" means the resolver never abstains on a site whose class
   a human could pin down locally — **not** that it resolves most sites.
-- **The 6 wrong `method_known` flags are all false W308s**, not missed
-  findings. Each is a receiver whose class defines the method **by
-  inheritance** (`superclass Device`/`Model` → `::SpiceGenTcl::Device`),
-  but the class was declared with a *bare* superclass name that the
-  cross-file MRO builder (`class_hierarchy`, which normalises only via
-  `::name`) did not link to its namespaced definition. So the resolver's
-  "new W308 candidates" would fire on valid code. This is a concrete
-  correctness limitation of cross-file resolution, and it argues *against*
-  wiring the resolver into W308.
+- **The wrong `method_known` flags are false W308s**, not missed findings.
+  The first cut had **6**, each a receiver whose class defines the method
+  **by inheritance** (`superclass Device`/`Model` → `::SpiceGenTcl::Device`)
+  but declared its superclass with a *bare* name the cross-file MRO builder
+  left unlinked. **Fixed**: `class_hierarchy` now resolves a bare
+  `superclass` via the defining class's namespace ancestry → global →
+  globally-unique tail (see "Namespace-aware superclass linking" below),
+  dropping the count to **3** and lifting method-flag accuracy 94.5 % →
+  **97.2 %**. The remaining 3 are a *different* idiom —
+  `method X {*}[info class definition <Other> X]`, a dynamically-computed
+  method signature copied from another class, which method extraction does
+  not register — a separate, narrower follow-up.
 
 ## W307/W308 delta vs. the shipping heuristic
 
@@ -178,26 +181,29 @@ reimplementation). Over the 1,803 sites:
 
 | resolver \ shipping | W307 | W308 | none |
 |---|--:|--:|--:|
-| resolved-known | 2 | 0 | 330 |
-| resolved-unknown | 3 | 0 | 3 |
+| resolved-known | 2 | 0 | 333 |
+| resolved-unknown | 3 | 0 | 0 |
 | abstain | 46 | 0 | 1,414 |
 
-The shipping heuristic fires **51 W307 and 0 W308** at these sites — it is
-already very conservative here. As a hypothetical replacement the resolver
-would:
+(After the superclass-linking fix; before it, `resolved-unknown` was
+`3 | 0 | 3`.) The shipping heuristic fires **51 W307 and 0 W308** at these
+sites — it is already very conservative here. As a hypothetical
+replacement the resolver would:
 
 - **Remove 2 W307 false positives** (`resolved-known × W307`): it proves
   the head is a valid object dispatch with a known class + method.
-- **Add 6 W308** (`resolved-unknown`, the 3 `× none` + 3 `× W307`) — but
-  per the precision audit **all 6 are false positives** (unlinked
-  inherited methods). **0 true new findings.**
+- **Add 3 W308** (`resolved-unknown × W307`, reclassifying a vaguer W307) —
+  but per the precision audit **all 3 are false positives** (the
+  `{*}[info class definition …]` dynamic-method idiom). **0 true new
+  findings.**
 - **Regress nothing** (`abstain × W308 = 0`; it never contradicts a
   shipping W308).
 - Leave 46 W307 untouched (`abstain × W307`) — no claim either way.
 
-Net: **+2 real FP removed, 6 FP introduced, 0 TP gained** — a *worse*
-diagnostic than today's heuristic, driven by the cross-file inheritance
-gap. Another data point against shipping.
+Net: **+2 real FP removed, 3 FP introduced, 0 TP gained** — still a net
+loss, now driven only by the dynamic-method idiom rather than the
+(now-fixed) inheritance gap. Another data point against sourcing W308 from
+the resolver.
 
 ## Namespace-soundness (addressing the review)
 
@@ -215,6 +221,26 @@ SpiceGenTcl cross-file resolutions were all backed by a real
 *soundly* while the removed heuristic can no longer manufacture a
 false resolution from a namespace collision. (This is also why
 class-precision is a clean 100 %.)
+
+## Namespace-aware superclass linking (a shipped precision fix)
+
+The precision audit surfaced 6 false W308s from bare `superclass Device`
+names that the MRO builder (`class_hierarchy`) left unlinked to their
+namespaced definitions — silently dropping inherited methods. **Fixed in
+shipping** `class_hierarchy::build_supers_mixins_maps`: a bare superclass /
+mixin name now resolves the way Tcl resolves the command —
+
+1. in the **defining class's namespace**, walking outward to global; then
+2. a **globally-unique simple-name** match (the `namespace import` idiom).
+
+An ambiguous simple name (several classes share the tail) stays unlinked,
+so no wrong edge is ever manufactured (unit-tested: ancestry link, unique
+cross-namespace tail link, and ambiguous-tail abstention). This is a real
+diagnostic improvement — it links cross-file inheritance the old `::name`
+normalisation missed — and it *reduces* W308 false positives, so it is
+safe to ship independently of the lattice question. Measured effect:
+method-flag accuracy 94.5 % → 97.2 % (6 → 3 false W308s); the resolved
+count is unchanged.
 
 ## Follow-up: where the ⊤-rate actually comes from
 
