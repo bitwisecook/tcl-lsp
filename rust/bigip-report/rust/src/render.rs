@@ -99,6 +99,10 @@ pub struct RenderOptions {
     /// explicit inter-device links, overriding and augmenting auto-detection.
     /// Empty = pure auto-detection.
     pub architecture: Option<String>,
+    /// Stable per-report id, embedded as `<html data-report-id>` so the in-report
+    /// architecture editor keys its localStorage per report. Empty = the report's
+    /// own JS mints and persists one on first load.
+    pub report_id: String,
 }
 
 impl Default for RenderOptions {
@@ -110,6 +114,7 @@ impl Default for RenderOptions {
             cert_pems: std::collections::HashMap::new(),
             files: std::collections::HashMap::new(),
             architecture: None,
+            report_id: String::new(),
         }
     }
 }
@@ -163,6 +168,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     // Build the render context: the data model + assets + flags.
     let mut ctx: Map<String, J> = data;
     ctx.insert("title".into(), J::String(opts.title.clone()));
+    ctx.insert("report_id".into(), J::String(opts.report_id.clone()));
     ctx.insert("model_json".into(), J::String(model_json));
     ctx.insert("report_css".into(), J::String(REPORT_CSS.into()));
     ctx.insert("topology_css".into(), J::String(TOPOLOGY_CSS.into()));

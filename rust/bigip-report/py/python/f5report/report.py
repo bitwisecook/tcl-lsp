@@ -634,6 +634,7 @@ def build_report(
     title: str = "F5 BIG-IP Configuration Report",
     embed_console: bool | None = None,
     master_key: str | None = None,
+    report_id: str = "",
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
@@ -644,4 +645,5 @@ def build_report(
     return render_report(
         collect_model(sources, title=title, master_key=master_key),
         embed_console=embed_console,
+        report_id=report_id,
     )

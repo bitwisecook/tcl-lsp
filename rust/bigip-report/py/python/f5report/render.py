@@ -83,12 +83,17 @@ def _asset_text(name: str) -> str:
     return resources.files("f5report.templates").joinpath(name).read_text("utf-8")
 
 
-def render_report(model: dict[str, Any], *, embed_console: bool | None = None) -> str:
+def render_report(
+    model: dict[str, Any], *, embed_console: bool | None = None, report_id: str = ""
+) -> str:
     """Render the report ``model`` to a standalone HTML document.
 
     ``embed_console``: ``None`` (default) embeds the in-browser WASM query console
     when its artifacts are vendored; ``False`` forces it off (a much smaller page,
     e.g. for hosting where a strict CSP would block WebAssembly instantiation).
+
+    ``report_id``: a stable per-report id embedded as ``<html data-report-id>`` so
+    the in-report architecture editor keys its localStorage per report.
     """
     env = _jinja_env()
     template = env.get_template("report.html.j2")
@@ -97,6 +102,7 @@ def render_report(model: dict[str, Any], *, embed_console: bool | None = None) -
         "generated_at",
         _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
+    model["report_id"] = report_id
     # The whole model is embedded as JSON so the client-side topology / flow /
     # listener views run with no server and no external assets.
     model["model_json"] = _script_safe_json(model)

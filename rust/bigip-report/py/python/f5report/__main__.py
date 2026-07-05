@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import uuid as _uuid
 
 from . import __version__, engine_version, load_paths
 from .report import build_report, collect_model
@@ -87,7 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             out = build_report(sources, title=args.title,
                                embed_console=False if args.no_console else None,
-                               master_key=master_key)
+                               master_key=master_key,
+                               report_id=str(_uuid.uuid4()))
     except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
         print(f"f5-report: {exc}", file=sys.stderr)
         return 2
