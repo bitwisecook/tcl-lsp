@@ -599,19 +599,18 @@ proc wire_namespace_vars {} {
     }
 
     #[test]
-    fn foreach_list_cmd_constset_diverges() {
-        // The analyser folds a *braced literal* list into a foreach CONSTSET
-        // (see `foreach_braced_list_constset`) but does NOT fold a `[list …]`
-        // command-sub there — x stays Overdefined. Sound, less precise. tclsh:
-        // `list a b c` → "a b c".
+    fn foreach_list_cmd_folds_to_constset() {
+        // A `foreach x [list a b c]` command-sub with literal args folds into a
+        // CONSTSET (each element a known value), the same as a braced literal
+        // list — sound and precise. tclsh: `list a b c` → "a b c".  (Enables
+        // suppressing dispatch on a literal command list; see the W307 checks.)
         let cu = build("foreach x [list a b c] {puts $x}");
-        for v in lats_for(&cu.top_level, "x") {
-            assert_ne!(
-                v.kind(),
-                LatticeKind::ConstSet,
-                "Rust does not fold [list …] into a foreach CONSTSET, got {v:?}"
-            );
-        }
+        let cs: Vec<_> = lats_for(&cu.top_level, "x")
+            .into_iter()
+            .filter(|v| v.kind() == LatticeKind::ConstSet)
+            .collect();
+        assert!(!cs.is_empty(), "x must fold to a CONSTSET over [list a b c]");
+        assert_constset_strs(cs[0], &["a", "b", "c"]);
     }
 
     #[test]

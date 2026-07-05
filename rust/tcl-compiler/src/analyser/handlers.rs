@@ -1388,19 +1388,25 @@ impl Analyser {
         // use the bare form for the recorded `metaclass`, so both spellings
         // produce an identical `ClassDef`).
         let cmd_name = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
-        // Which commands are TclOO class definers is registry data (a
-        // `TclOo`-family definition-body grammar), not a hardcoded name list.
-        // This deliberately excludes `oo::object` — it carries `IS_OO_METACLASS`
-        // but has no definition body: `oo::object create foo` makes an
-        // *instance*, not a class.  `oo::define`/`oo::objdefine` share the
-        // grammar but fail the `create`/`new` subcommand guard below, falling
-        // through to their own handler.
-        let is_class_definer = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .and_then(|s| s.definition_body)
-            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo);
+        // Which commands are TclOO class *creators* is registry data, not a
+        // hardcoded name list: the `IS_OO_METACLASS` trait (marks the
+        // `create`/`new`/`createWithNamespace` manufacturers) *and* a
+        // `TclOo`-family definition-body grammar.  Both are required:
+        //  - the trait alone includes `oo::object`, which has it but makes
+        //    *instances*, not classes (no definition body);
+        //  - the grammar alone includes `oo::define` / `oo::objdefine`, which
+        //    *extend* an existing class named at `args[0]` — so `oo::define
+        //    create method …` (a class literally named `create`) must not be
+        //    mistaken for a creation and stolen from `handle_oo_define_command`.
+        // define/objdefine carry no `IS_OO_METACLASS`, so they fall through.
+        let is_class_definer = self.registry.as_ref().and_then(|r| r.get(cmd_name)).is_some_and(
+            |s| {
+                s.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+                    && s.definition_body.is_some_and(|g| {
+                        g.family == tcl_registry::definer::DefinerFamily::TclOo
+                    })
+            },
+        );
         if !is_class_definer || args.len() < 2 || arg_tokens.len() < 2 {
             return false;
         }
@@ -3669,6 +3675,32 @@ mod tests {
         assert!(r.all_classes.contains_key("::C"));
         let cls = &r.all_classes["::C"];
         assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn oo_define_extends_class_named_like_a_create_subcommand() {
+        // Regression: `oo::define` / `oo::objdefine` carry a TclOO
+        // `definition_body` but no `IS_OO_METACLASS` trait, so a class literally
+        // named `create` must be *extended* by `handle_oo_define_command`, not
+        // stolen by `handle_oo_class_command` (which would record a bogus class
+        // named `method`).  The class-creator check requires the metaclass
+        // trait, which define/objdefine lack.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define create method greet {} { return hi }", "tcl");
+        // The real class is `create`, with method `greet` — not a bogus class.
+        let cls = r
+            .all_classes
+            .get("::create")
+            .expect("class `create` recorded by oo::define");
+        assert!(
+            cls.methods.contains_key("greet"),
+            "method greet must be recorded on class `create`: {:?}",
+            cls.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_classes.contains_key("::method"),
+            "no bogus class named `method` should be created",
+        );
     }
 
     #[test]
