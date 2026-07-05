@@ -1071,3 +1071,25 @@ fn test_proc_and_lambda_parameters_are_variables() {
         assert!(is_var(name), "`{name}` must be a variable declaration: {tokens:?}");
     }
 }
+
+#[test]
+fn test_upvar_and_dict_update_locals_are_variables() {
+    // `upvar` / `namespace upvar` locals and `dict update` var names read as
+    // variable declarations; the other-frame names and dict keys stay strings.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "upvar 1 othervar localvar\n\
+               dict update mydict thekey thevar { set thevar 1 }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(kind_of("localvar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("thevar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("othervar").as_deref(), Some("string"), "{tokens:?}");
+    assert_eq!(kind_of("thekey").as_deref(), Some("string"), "{tokens:?}");
+}

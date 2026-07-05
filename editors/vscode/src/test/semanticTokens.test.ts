@@ -428,4 +428,31 @@ suite("Semantic Tokens", () => {
       );
     }
   });
+
+  // `upvar` locals and `dict update` var names read as variable declarations.
+  test("upvar and dict-update locals highlight as variables", async () => {
+    const uri = getDocUri("refVariables.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["localdata", "cnt", "sum"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' as a variable declaration, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
 });

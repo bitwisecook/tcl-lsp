@@ -594,6 +594,7 @@ fn special_arg_kinds(
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
     insert_multiname_var_overrides(seg, inside_oo_body, &mut overrides);
+    insert_ref_var_overrides(seg, &mut overrides);
     insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_var_decl_overrides(seg, registry, head, &mut overrides);
@@ -663,6 +664,59 @@ fn insert_param_list_overrides(
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::ParamList);
+        }
+    }
+}
+
+/// Highlight the local-variable names bound by a by-reference command whose
+/// registry role marks only the leading (or no) target:
+///
+/// * `upvar ?level? otherVar localVar ?otherVar localVar ...?` — the *local*
+///   name of each pair.  A leading level word is present when the argument
+///   count is odd, so the first local sits at `seg.texts[3]` (level) or
+///   `seg.texts[2]` (no level), then every other word.
+/// * `namespace upvar ns otherVar localVar ?...?` — the local of each pair,
+///   starting at `seg.texts[4]`.
+/// * `dict update dictVar key varName ?key varName ...? body` — each `varName`
+///   (`seg.texts[4]`, `[6]`, …), excluding the trailing body.
+///
+/// Highlighting only: the analyser already scopes these locals.  A `$`-computed
+/// / array / quoted name is skipped.
+fn insert_ref_var_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let sub = seg.texts.get(1).map(String::as_str);
+    let positions: Vec<usize> = match (seg.texts[0].as_str(), sub) {
+        ("upvar", _) => {
+            let n = seg.texts.len() - 1; // argument count
+            if n < 2 {
+                return;
+            }
+            // A level word (present iff the argument count is odd) shifts the
+            // first local from texts[2] to texts[3].
+            let start = if n % 2 == 1 { 3 } else { 2 };
+            (start..seg.texts.len()).step_by(2).collect()
+        }
+        ("namespace", Some("upvar")) if seg.texts.len() >= 5 => {
+            (4..seg.texts.len()).step_by(2).collect()
+        }
+        ("dict", Some("update")) if seg.texts.len() >= 6 => {
+            // varNames are the even words after `dict update dictVar key`, up to
+            // but excluding the trailing body.
+            (4..seg.texts.len() - 1).step_by(2).collect()
+        }
+        _ => return,
+    };
+    for pos in positions {
+        if let Some(tok) = seg.argv.get(pos)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+            && is_plain_var_name(&seg.texts[pos])
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::VarDecl);
         }
     }
 }

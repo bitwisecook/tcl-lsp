@@ -892,3 +892,79 @@ fn dict_map_loop_vars_are_variables() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// By-reference local variable highlighting — `upvar` / `namespace upvar`
+// locals and `dict update` var names read as declarations; the "other" names,
+// the level word, and dict keys stay strings.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn upvar_local_names_are_variables() {
+    let src = "upvar 1 othervar localvar\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "localvar").as_deref(),
+        Some("variable"),
+        "the upvar local must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "othervar").as_deref(),
+        Some("string"),
+        "the other-frame name must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn upvar_without_level_and_multi_pair() {
+    // No level word: the local is the second word; multi-pair marks each local.
+    let src = "upvar aone bone atwo btwo\n";
+    for local in ["bone", "btwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", local).as_deref(),
+            Some("variable"),
+            "`{local}` must be an upvar local: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    for other in ["aone", "atwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", other).as_deref(),
+            Some("string"),
+            "`{other}` must stay a string: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn namespace_upvar_locals_are_variables() {
+    let src = "namespace upvar ::ns othervar localvar\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "localvar").as_deref(),
+        Some("variable"),
+        "{:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn dict_update_var_names_are_variables() {
+    let src = "dict update mydict keyone varone keytwo vartwo { set varone 1 }\n";
+    for v in ["varone", "vartwo"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", v).as_deref(),
+            Some("variable"),
+            "`{v}` must be a dict-update variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // The keys are not variables.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "keyone").as_deref(),
+        Some("string"),
+        "a dict-update key must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
