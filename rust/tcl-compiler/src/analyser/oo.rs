@@ -792,8 +792,14 @@ impl Analyser {
             let Some(member) = grammar.member(kw) else {
                 continue;
             };
-            if member.indices_for(ArgRole::Body).next().is_none() {
-                continue; // `variable` / `common` / `inherit` — no body to walk.
+            // `variable` / `common` are declarations (handled in pass 1) — skip
+            // them even though `variable`'s optional config body carries an
+            // `ArgRole::Body` (that body is highlighted by the token walker, not
+            // recorded as a method here).  `inherit` and the like carry no body.
+            if matches!(kw, "variable" | "common")
+                || member.indices_for(ArgRole::Body).next().is_none()
+            {
+                continue;
             }
             // A class-scoped `proc` maps to the class-method bucket; constructor
             // / destructor to their dedicated fields; everything else a method.

@@ -273,10 +273,14 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 // (optionally with an init value + config body); `common` a class/static one.
 // ---------------------------------------------------------------------------
 
-/// itcl `variable NAME ?init? ?configbody?` / `common NAME ?init?` — the leading
-/// declared name.  (The optional init value and config body are left to the
-/// default classifier; the name is what the walker binds.)
-const ITCL_VAR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
+/// itcl `variable NAME ?init? ?configbody?` — the declared name plus the
+/// optional trailing config body (the script run when the public variable is
+/// modified via `configure`); the init value between them is left to the
+/// default classifier.
+const ITCL_VAR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (2, ArgRole::Body)];
+/// itcl `common NAME ?init?` — a class/static variable; the declared name only
+/// (no config body).
+const ITCL_COMMON_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 
 const ITCL_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("method", METHOD_ROLES),
@@ -285,7 +289,7 @@ const ITCL_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("constructor", CTOR_ROLES),
     MemberSpec::flat("destructor", BODY0_ROLES),
     MemberSpec::flat("variable", ITCL_VAR_ROLES),
-    MemberSpec::flat("common", ITCL_VAR_ROLES),
+    MemberSpec::flat("common", ITCL_COMMON_ROLES),
     // Base-class list (multiple inheritance) — name references only.
     MemberSpec::keyword_only("inherit"),
     // Access modifiers: prefix wrappers around an inner member keyword.

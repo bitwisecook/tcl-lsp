@@ -1240,3 +1240,43 @@ fn itcl_member_keyword_only_inside_body() {
         );
     }
 }
+
+#[test]
+fn itcl_variable_config_body_recurses() {
+    // itcl `variable NAME init {configbody}` — the trailing config body is a
+    // recursable script (grammar `Body` role), so `puts` inside it is a command.
+    let src = "itcl::class C {\n\
+               \x20   variable color red { puts $color }\n\
+               }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "puts").as_deref(),
+        Some("function"),
+        "the variable config body must recurse: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The declared name is still a variable.
+    assert_eq!(kind_of_word(src, "tcl8.6", "color").as_deref(), Some("variable"));
+}
+
+
+
+#[test]
+fn itcl_body_external_definition_highlights() {
+    // `itcl::body Class::method {params} {body}` — its parameter list declares
+    // variables and its body recurses, via the registry arg-roles.
+    let src = "itcl::body C::render {ww hh} { set area [expr {$ww * $hh}] }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "set").as_deref(),
+        Some("function"),
+        "itcl::body's body must recurse: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    for p in ["ww", "hh"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", p).as_deref(),
+            Some("variable"),
+            "itcl::body param `{p}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
