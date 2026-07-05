@@ -76,7 +76,7 @@
 //! iRules object-reference highlighting (the code-relevant half
 //! of the BIG-IP taxonomy) is handled.
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
@@ -790,6 +790,15 @@ fn insert_format_overrides(
 /// name — never match; only a literal `-force`-style word does.
 ///
 /// [`OptionSpec`]: tcl_registry::OptionSpec
+/// Whether an option value's role is re-coloured by a later semantic-token pass
+/// (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides` for
+/// `VarWrite`).  Such values must not be claimed as `OptionValue` by the option
+/// pass, which runs first and would block the more specific role token.
+fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
+    use tcl_registry::ArgRole;
+    matches!(role, Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite))
+}
+
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -805,15 +814,23 @@ fn insert_option_and_subcommand_overrides(
     // visually an option even when it was introduced in a later Tcl release.
     let mut option_names = spec.switch_names(None);
 
-    // Names of the value-taking options (canonical + aliases).  The literal
-    // word following one of these is the option's *value*, highlighted
-    // distinctly from the switch — the option/value split of issue #748.
-    let mut value_options: FxHashSet<&str> = FxHashSet::default();
+    // Value-taking options whose value is a *generic* value — those get the
+    // distinct `OptionValue` colour (the option/value split of issue #748).
+    // Options whose value carries an analysis role (a `-command` script, a
+    // `-textvariable` name, …) are deliberately excluded here so their value
+    // is claimed by the role/var-decl passes instead (`BodyScript`, `VarDecl`,
+    // …) — those run after this pass and would otherwise be blocked by the
+    // `OptionValue` override.  Keyed name/alias → spec so multi-value arity
+    // (`Fixed`/`Rest`) can colour every value word via `value_indices`.
+    let mut value_options: FxHashMap<&str, &'static tcl_registry::hover::OptionSpec> =
+        FxHashMap::default();
     let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
         for opt in opts {
-            if opt.takes_value() {
-                value_options.insert(opt.name);
-                value_options.extend(opt.aliases.iter().copied());
+            if opt.takes_value() && !role_claimed_by_token_pass(opt.value_role()) {
+                value_options.insert(opt.name, opt);
+                for alias in opt.aliases {
+                    value_options.insert(alias, opt);
+                }
             }
         }
     };
@@ -846,20 +863,22 @@ fn insert_option_and_subcommand_overrides(
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::Decorator);
 
-            // The immediately following word is this option's value when the
-            // option takes one.  Only a *literal* value (`Esc`/`Str`) is
+            // The value word(s) this option consumes are re-coloured
+            // `OptionValue`.  Arity-aware (`value_indices` handles One / Fixed /
+            // Rest and stops at `--`); only *literal* values (`Esc`/`Str`) are
             // re-coloured — a `$var` / `[cmd]` substitution keeps its own
-            // highlight, and an option terminator (`--`) is left alone.  A
-            // next word that is itself a recognised option stays a
+            // highlight, and a value that is itself a recognised option stays a
             // `Decorator` (the `or_insert` above already claimed it).
-            if value_options.contains(text.as_str())
-                && seg.texts.get(i + 1).is_some_and(|t| t != "--")
-                && let Some(val_tok) = seg.argv.get(i + 1)
-                && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
-            {
-                overrides
-                    .entry(val_tok.span.start())
-                    .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+            if let Some(opt) = value_options.get(text.as_str()) {
+                for vi in opt.value_indices(&seg.texts, i) {
+                    if let Some(val_tok) = seg.argv.get(vi)
+                        && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+                    {
+                        overrides
+                            .entry(val_tok.span.start())
+                            .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+                    }
+                }
             }
         }
     }
