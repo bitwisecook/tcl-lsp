@@ -35,7 +35,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::body",
         traits: Traits::NEVER_INLINE_BODY,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Define the body of a previously-declared [incr Tcl] method or proc.",

@@ -38,7 +38,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::LANGUAGE_KEYWORD,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Define a new [incr Tcl] class.",

@@ -35,7 +35,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::configbody",
         traits: Traits::NEVER_INLINE_BODY,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Define the configuration body of a public [incr Tcl] variable.",
