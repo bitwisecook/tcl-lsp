@@ -270,7 +270,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "scan",
-        arity: Arity::exact(2),
+        arity: Arity::exact(3),
         detail: "Implement scanning: record scan mark, or scroll relative to a mark.",
         synopsis: "pathName scan mark|dragto x y",
         ..SubCommand::DEFAULT

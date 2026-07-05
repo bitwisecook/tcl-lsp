@@ -184,11 +184,14 @@ impl Analyser {
         if cmd_name == "after" && is_integer_word(first_arg) {
             return;
         }
-        // Tk geometry managers accept `manager pathName ?args?` as a shortcut
-        // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
-        // A window path starts with `.`, which is not a valid subcommand-name
-        // first character, so this is unambiguous.
-        if matches!(cmd_name, "grid" | "pack" | "place") && first_arg.starts_with('.') {
+        // A subcommand name never starts with `.`, so a `.`-prefixed first word
+        // is a Tk window pathname, not an unknown subcommand.  This covers both
+        // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
+        // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
+        // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
+        // the created widget's *instance* command rather than a first-word
+        // subcommand of the creator.  Either way `.path` is never W001.
+        if first_arg.starts_with('.') {
             return;
         }
         if sig.subcommands.contains_key(first_arg) {
