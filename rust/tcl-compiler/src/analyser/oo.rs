@@ -84,24 +84,28 @@ const CHAIN_TARGETS: &[&str] = &[
 /// distinguish — a `typemethod` body sees `type` but not `self`.
 const SNIT_TYPE_IMPLICIT: &[&str] = &["type"];
 
-/// The snit definer's grammar plus the class being populated and where its
-/// members live — bundled so the snit member dispatch / extraction helpers stay
-/// under the argument limit.
-struct SnitClassCtx<'a> {
+/// A definer's grammar plus the class being populated and where its members
+/// live — bundled so the snit / itcl member dispatch + extraction helpers stay
+/// under the argument limit.  Shared by both families (the extraction is
+/// grammar-driven; only the per-family dispatch differs).
+struct ClassBodyCtx<'a> {
     grammar: &'static DefinitionBodyGrammar,
     class_def: &'a mut ClassDef,
     class_qualified: &'a str,
     scope_path: &'a [usize],
 }
 
-/// A body-bearing snit member ready to extract: its grammar spec (argument
-/// layout), the target [`MethodDef::kind`], and the synthetic name for the
-/// nameless forms.  Bundled to keep [`Analyser::extract_snit_method`] under the
-/// argument limit.
-struct SnitMemberForm<'a> {
+/// A body-bearing member ready to extract: its grammar spec (argument layout),
+/// the target [`MethodDef::kind`], and the synthetic name for the nameless
+/// forms.  Bundled to keep [`Analyser::extract_class_member`] under the argument
+/// limit.
+struct MemberForm<'a> {
     member: &'a MemberSpec,
     kind: &'a str,
     label: &'a str,
+    /// The member's declared visibility (`"public"` for snit / TclOO; the itcl
+    /// access modifier `public` / `protected` / `private`).
+    visibility: &'a str,
 }
 
 /// The snit definer being parsed: its member grammar plus whether it is a
@@ -125,6 +129,33 @@ fn is_var_declaration(member: &MemberSpec) -> bool {
         .any(|(_, r)| *r == ArgRole::VarWrite);
     let has_body = member.arg_roles.iter().any(|(_, r)| *r == ArgRole::Body);
     has_var && !has_body
+}
+
+/// Strip a leading itcl access modifier (`public` / `protected` / `private`, a
+/// registry [`MemberKind::Wrapper`]) from a member call, returning the effective
+/// member keyword, its argument texts + tokens (the words *after* the keyword),
+/// and the declared visibility.  A non-wrapped member reports `"public"` (itcl's
+/// members are callable; the precise default is not modelled).  Returns `None`
+/// for an empty command or a bare modifier with no inner member.
+fn itcl_unwrap<'a>(
+    grammar: &DefinitionBodyGrammar,
+    texts: &'a [String],
+    argv: &'a [Token],
+) -> Option<(&'a str, &'a [String], &'a [Token], &'a str)> {
+    use tcl_registry::definer::MemberKind;
+    let (first, rest_texts) = texts.split_first()?;
+    let rest_toks = argv.get(1..).unwrap_or(&[]);
+    if grammar
+        .member(first)
+        .is_some_and(|m| m.kind == MemberKind::Wrapper)
+    {
+        // `<modifier> <member> args…` — the inner member follows.
+        let (inner, inner_texts) = rest_texts.split_first()?;
+        let inner_toks = rest_toks.get(1..).unwrap_or(&[]);
+        Some((inner.as_str(), inner_texts, inner_toks, first.as_str()))
+    } else {
+        Some((first.as_str(), rest_texts, rest_toks, "public"))
+    }
 }
 
 /// The synthetic name for a nameless snit member (one with no
@@ -474,7 +505,7 @@ impl Analyser {
             }
             if let Some((sub, sub_args)) = cmd.texts.split_first() {
                 let sub_tokens = cmd.argv.get(1..).unwrap_or(&[]);
-                let mut ctx = SnitClassCtx {
+                let mut ctx = ClassBodyCtx {
                     grammar,
                     class_def,
                     class_qualified,
@@ -506,7 +537,7 @@ impl Analyser {
         sub: &str,
         sub_args: &[String],
         sub_tokens: &[Token],
-        ctx: &mut SnitClassCtx<'_>,
+        ctx: &mut ClassBodyCtx<'_>,
         instance_vars: &[String],
         type_vars: &[String],
     ) {
@@ -539,12 +570,13 @@ impl Analyser {
             "method"
         };
         let label = snit_member_label(member, sub, sub_args);
-        let form = SnitMemberForm {
+        let form = MemberForm {
             member,
             kind,
             label: &label,
+            visibility: "public",
         };
-        self.extract_snit_method(sub_args, sub_tokens, ctx, seed_vars, &form);
+        self.extract_class_member(sub_args, sub_tokens, ctx, seed_vars, &form);
     }
 
     /// Analyse one snit method / constructor / etc. body in a method scope
@@ -552,18 +584,19 @@ impl Analyser {
     /// type variables) and the method's formal parameters.  The name /
     /// parameter-list / value-var / body word positions all come from
     /// `member`'s registry arg-roles — a body-less member is a no-op.
-    fn extract_snit_method(
+    fn extract_class_member(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
-        ctx: &mut SnitClassCtx<'_>,
+        ctx: &mut ClassBodyCtx<'_>,
         seed_vars: &[String],
-        form: &SnitMemberForm<'_>,
+        form: &MemberForm<'_>,
     ) {
-        let SnitMemberForm {
+        let MemberForm {
             member,
             kind,
             label,
+            visibility,
         } = *form;
         let Some(body_idx) = member.indices_for(ArgRole::Body).next() else {
             return;
@@ -613,7 +646,7 @@ impl Analyser {
             name_span,
             body_span,
             kind: kind.to_string(),
-            visibility: "public".to_string(),
+            visibility: visibility.to_string(),
             doc: String::new(),
         };
         match kind {
@@ -639,6 +672,155 @@ impl Analyser {
                 params_tok,
             };
             self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb);
+        }
+    }
+
+    /// Handle an [incr Tcl] `itcl::class Name { body }` (family `Itcl`),
+    /// modelling it as a [`ClassDef`] with method scopes exactly like
+    /// `oo::class` / `snit::type`, so `$this method` dispatch and reads of the
+    /// instance / `common` variables inside method bodies don't false-fire.
+    /// The access modifiers `public` / `protected` / `private` are prefix
+    /// wrappers (registry `MemberKind::Wrapper`) and are unwrapped here.
+    pub(super) fn handle_itcl_class_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(grammar) = self
+            .definition_grammar(cmd_name)
+            .filter(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+        else {
+            return false;
+        };
+        if args.len() < 2 || arg_tokens.len() < 2 {
+            return false;
+        }
+        let raw_name = &args[0];
+        let body = &args[1];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = super::handlers::qualify(ns_for_qualify, raw_name);
+        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let name_span = arg_tokens[0].span;
+        let body_tok = arg_tokens[1];
+        let doc = std::mem::take(&mut self.last_comment);
+        let mut class = ClassDef {
+            name: simple.clone(),
+            qualified_name: qualified.clone(),
+            name_span,
+            body_span: body_tok.span,
+            metaclass: cmd_name.to_string(),
+            doc,
+            ..Default::default()
+        };
+        if !body.is_empty() {
+            self.parse_itcl_definition_body(body, body_tok, &mut class, &qualified, scope_path, grammar);
+        }
+        self.result.all_classes.insert(qualified, class.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.classes.insert(simple, class);
+        }
+        true
+    }
+
+    /// Parse an itcl class body: `inherit` → superclasses, `variable` / `common`
+    /// → instance/class variables, `method` / `proc` / `constructor` /
+    /// `destructor` → method scopes.  Two passes (so a method can reference any
+    /// variable regardless of declaration order); access modifiers are unwrapped
+    /// via [`itcl_unwrap`].
+    fn parse_itcl_definition_body(
+        &mut self,
+        body: &str,
+        body_tok: Token,
+        class_def: &mut ClassDef,
+        class_qualified: &str,
+        scope_path: &[usize],
+        grammar: &'static DefinitionBodyGrammar,
+    ) {
+        if body_tok.kind != TokenType::Str {
+            return;
+        }
+        let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            base_offset,
+            self.lexer_config(),
+        );
+
+        // itcl injects `this` (the object's own command) into every method body.
+        let implicit_vars = grammar.implicit_vars;
+        let mut instance_vars: Vec<String> =
+            implicit_vars.iter().map(|s| (*s).to_string()).collect();
+
+        // Pass 1: declared `variable` / `common` names + `inherit` bases.
+        for cmd in &cmds {
+            if cmd.is_partial {
+                continue;
+            }
+            let Some((kw, kw_args, _kw_toks, _vis)) = itcl_unwrap(grammar, &cmd.texts, &cmd.argv)
+            else {
+                continue;
+            };
+            match kw {
+                "variable" | "common" => {
+                    if let Some(name) = kw_args.first() {
+                        instance_vars.push(name.clone());
+                    }
+                }
+                "inherit" => class_def.superclasses.extend(kw_args.iter().cloned()),
+                _ => {}
+            }
+        }
+        class_def.variables = instance_vars
+            .iter()
+            .filter(|v| !implicit_vars.contains(&v.as_str()))
+            .cloned()
+            .collect();
+
+        // Pass 2: method-bearing members in their own method scopes.
+        for cmd in &cmds {
+            if cmd.is_partial {
+                continue;
+            }
+            let Some((kw, kw_args, kw_toks, vis)) = itcl_unwrap(grammar, &cmd.texts, &cmd.argv)
+            else {
+                continue;
+            };
+            let Some(member) = grammar.member(kw) else {
+                continue;
+            };
+            if member.indices_for(ArgRole::Body).next().is_none() {
+                continue; // `variable` / `common` / `inherit` — no body to walk.
+            }
+            // A class-scoped `proc` maps to the class-method bucket; constructor
+            // / destructor to their dedicated fields; everything else a method.
+            let kind = match kw {
+                "proc" => "classmethod",
+                "constructor" => "constructor",
+                "destructor" => "destructor",
+                _ => "method",
+            };
+            let label = match kw {
+                "constructor" => "<constructor>",
+                "destructor" => "<destructor>",
+                _ => "",
+            };
+            let mut ctx = ClassBodyCtx {
+                grammar,
+                class_def,
+                class_qualified,
+                scope_path,
+            };
+            let form = MemberForm {
+                member,
+                kind,
+                label,
+                visibility: vis,
+            };
+            self.extract_class_member(kw_args, kw_toks, &mut ctx, &instance_vars, &form);
         }
     }
 
@@ -1687,6 +1869,85 @@ mod tests {
         // A plain command that merely starts with `snit` is not a definer.
         let mut a = Analyser::new();
         let r = a.analyse("snitch foo { bar }", "tcl8.6");
+        assert!(r.all_classes.is_empty());
+    }
+
+    // [incr Tcl] `itcl::class` — recorded as a `ClassDef` with method scopes,
+    // access modifiers unwrapped, `inherit` → superclasses, `this` implicit.
+
+    #[test]
+    fn itcl_class_recorded_with_members() {
+        let src = "itcl::class ::widgets::Dial {\n\
+                   inherit Base\n\
+                   variable value 0\n\
+                   common count 0\n\
+                   constructor {args} { set value 0 }\n\
+                   destructor { unset value }\n\
+                   method spin {delta} { incr value $delta }\n\
+                   proc reset {} { set count 0 }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let c = r
+            .all_classes
+            .get("::widgets::Dial")
+            .expect("Dial class recorded");
+        assert_eq!(c.metaclass, "itcl::class");
+        assert_eq!(c.superclasses, vec!["Base".to_string()]);
+        assert!(c.methods.contains_key("spin"));
+        assert!(c.class_methods.contains_key("reset"), "proc is a class method");
+        assert_eq!(c.constructors.len(), 1);
+        assert!(c.destructor.is_some());
+        // `variable` + `common` declarations are recorded (implicit `this` is
+        // filtered).
+        assert_eq!(c.variables, vec!["value".to_string(), "count".to_string()]);
+    }
+
+    #[test]
+    fn itcl_access_modifiers_unwrap_with_visibility() {
+        let src = "itcl::class C {\n\
+                   public method api {} {}\n\
+                   private method helper {} {}\n\
+                   protected variable state 0\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let c = r.all_classes.get("::C").expect("C recorded");
+        assert_eq!(c.methods["api"].visibility, "public");
+        assert_eq!(c.methods["helper"].visibility, "private");
+        // The wrapped `protected variable state` is still a declared variable.
+        assert!(c.variables.contains(&"state".to_string()));
+    }
+
+    #[test]
+    fn itcl_method_body_suppresses_this_and_instance_vars() {
+        // Inside an itcl method, `$this` dispatch and reads of instance /
+        // `common` variables must not false-fire W210/W211/W307.
+        let src = "itcl::class C {\n\
+                   variable handler\n\
+                   common registry\n\
+                   method run {} {\n\
+                       $this configure\n\
+                       $handler process\n\
+                       return $registry\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        for code in ["W210", "W211", "W214", "W307", "W308"] {
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code.as_str() == code),
+                "{code} must not fire in an itcl method body: {:?}",
+                r.diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn non_itcl_command_is_not_a_class() {
+        // A command that merely starts with `itcl` is not a definer.
+        let mut a = Analyser::new();
+        let r = a.analyse("itclish foo { bar }", "tcl8.6");
         assert!(r.all_classes.is_empty());
     }
 

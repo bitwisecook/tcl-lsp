@@ -189,3 +189,24 @@ fn snit_method_bodies_fold() {
         "the snit method body must fold: {r:?}",
     );
 }
+
+#[test]
+fn itcl_method_bodies_fold() {
+    // itcl bodies fold via the same grammar walk, including a body nested under
+    // a `public` access-modifier wrapper.
+    let src = "itcl::class Dog {\n\
+               \x20   public method bark {volume} {\n\
+               \x20       set n 0\n\
+               \x20       return $n\n\
+               \x20   }\n\
+               }\n";
+    let r = regions(src);
+    assert!(
+        r.iter().any(|f| f.start_line == 0),
+        "the itcl class body must fold: {r:?}",
+    );
+    assert!(
+        r.iter().any(|f| f.start_line == 1 && f.end_line >= 3),
+        "the itcl `public method` body must fold: {r:?}",
+    );
+}

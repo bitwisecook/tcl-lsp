@@ -16,20 +16,29 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command specification modules — one directory per dialect.
+//! `itcl::local` command ([incr Tcl] runtime).
+use crate::prelude::*;
 
-pub mod bpf;
-pub mod eda_cadence;
-pub mod eda_mentor;
-pub mod eda_quartus;
-pub mod eda_synopsys;
-pub mod eda_xilinx;
-pub mod expect;
-pub mod iapps;
-pub mod irules;
-pub mod itcl;
-pub mod sdc_base;
-pub mod stdlib;
-pub mod tcl;
-pub mod tcllib;
-pub mod tk;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "itcl::local class name ?arg ...?",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "itcl::local",
+        dialects: None,
+        arity: Arity::at_least(2),
+        hover: Some(HoverSnippet {
+            summary: "Create an object that is automatically deleted when the current call frame ends.",
+            synopsis: &["itcl::local class name ?arg ...?"],
+            snippet: "",
+            source: "[incr Tcl]",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        required_package: Some("Itcl"),
+        ..CommandSpec::DEFAULT
+    }
+}

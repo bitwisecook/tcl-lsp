@@ -417,6 +417,12 @@ impl Analyser {
             return;
         }
 
+        // [incr Tcl] `itcl::class Name { … }` — modelled as a `ClassDef` too,
+        // with `public`/`protected`/`private` access modifiers unwrapped.
+        if self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // namespace eval — opens a namespace child scope.
         if self.handle_namespace_eval_command(cmd_name, args, arg_tokens, scope_path) {
             return;

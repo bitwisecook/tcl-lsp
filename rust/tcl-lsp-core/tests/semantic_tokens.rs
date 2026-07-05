@@ -1167,3 +1167,76 @@ fn snit_member_keyword_only_inside_body() {
         decode(src, "tcl8.6"),
     );
 }
+
+
+// ---------------------------------------------------------------------------
+// [incr Tcl] — `itcl::class` definition bodies. Members (method / proc /
+// variable / common / constructor / destructor / inherit) plus the access
+// modifiers public / protected / private (prefix wrappers) all resolve from the
+// registry's ITCL grammar, like TclOO/snit.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn itcl_class_members_highlight() {
+    let src = "itcl::class Stack {\n\
+               \x20   inherit Deque\n\
+               \x20   variable contents {}\n\
+               \x20   constructor {aa} { set contents $aa }\n\
+               \x20   method push {value} { lappend contents $value }\n\
+               }\n";
+    // The `itcl::class` head is a keyword (like `oo::class`).
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "class").as_deref(),
+        Some("keyword"),
+        "`itcl::class` must be a keyword: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // Member keywords.
+    for kw in ["inherit", "variable", "constructor", "method"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "`{kw}` inside an itcl::class body must be a keyword: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // Instance variable declaration + method parameter are variables.
+    assert_eq!(kind_of_word(src, "tcl8.6", "contents").as_deref(), Some("variable"));
+    assert_eq!(kind_of_word(src, "tcl8.6", "value").as_deref(), Some("variable"));
+}
+
+#[test]
+fn itcl_access_modifier_wraps_inner_member() {
+    // `public method …` / `private variable …`: the modifier AND the inner
+    // member keyword are keywords, the inner param/var declarations resolve, and
+    // the inner method body recurses.
+    let src = "itcl::class C {\n\
+               \x20   public method size {ww} { return $ww }\n\
+               \x20   private variable secret 0\n\
+               }\n";
+    for kw in ["public", "method", "private", "variable"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "`{kw}` must be a keyword in an itcl body: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    // The wrapped method's parameter and the wrapped variable's name resolve.
+    assert_eq!(kind_of_word(src, "tcl8.6", "ww").as_deref(), Some("variable"));
+    assert_eq!(kind_of_word(src, "tcl8.6", "secret").as_deref(), Some("variable"));
+}
+
+#[test]
+fn itcl_member_keyword_only_inside_body() {
+    // Context guard: a bare top-level `inherit` / `common` is not a keyword.
+    for kw in ["inherit", "common"] {
+        let src = format!("{kw} whatever\n");
+        assert_ne!(
+            kind_of_word(&src, "tcl8.6", kw).as_deref(),
+            Some("keyword"),
+            "top-level `{kw}` must not be a keyword: {:?}",
+            decode(&src, "tcl8.6"),
+        );
+    }
+}

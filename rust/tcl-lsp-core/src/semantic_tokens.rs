@@ -83,7 +83,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
-use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -796,6 +796,19 @@ fn insert_oo_body_overrides(
     };
     if !crate::oo_body::is_member(grammar, head) {
         return;
+    }
+    // A wrapper member (`self` / itcl `public` / `protected` / `private`) nests
+    // an inner member keyword at arg 0 (`public method …`); it reads as a
+    // keyword too, context-sensitively from the grammar.
+    if grammar
+        .member(head)
+        .is_some_and(|m| m.kind == MemberKind::Wrapper)
+        && arg_texts.first().is_some_and(|inner| grammar.is_member(inner))
+        && let Some(tok) = seg.argv.get(1)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::Kind(TokenKind::Keyword));
     }
     // Script bodies — recurse (only a braced `Str` word carries a script).
     for idx in crate::oo_body::member_body_indices(grammar, head, arg_texts) {

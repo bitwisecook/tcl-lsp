@@ -63,7 +63,7 @@
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
-use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -135,80 +135,92 @@ pub fn member_body_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    match command {
-        "self" => self_member_indices(args, ArgRole::Body),
-        "property" => collect_property_body_indices(args),
-        _ => grammar
-            .member(command)
-            .map(|m| {
-                m.indices_for(ArgRole::Body)
-                    .filter(|&i| i < args.len())
-                    .collect()
-            })
-            .unwrap_or_default(),
-    }
+    member_role_indices(grammar, command, args, ArgRole::Body)
 }
 
 /// Parameter-list argument indices for a member call under `grammar` (a
-/// `method`/`typemethod`/`constructor`'s `{a b}` word).  `self method …` nests.
+/// `method`/`typemethod`/`constructor`'s `{a b}` word).  A wrapper member
+/// (`self method …`, itcl `public method …`) nests.
 #[must_use]
 pub fn member_param_indices(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    match command {
-        "self" => self_member_indices(args, ArgRole::ParamList),
-        "property" => Vec::new(),
-        _ => grammar
-            .member(command)
-            .map(|m| {
-                m.indices_for(ArgRole::ParamList)
-                    .filter(|&i| i < args.len())
-                    .collect()
-            })
-            .unwrap_or_default(),
-    }
+    member_role_indices(grammar, command, args, ArgRole::ParamList)
 }
 
 /// Declared-variable argument indices for a member call under `grammar` — the
 /// names bound by `variable a b c` / `typevariable v` / `component c` /
-/// `onconfigure -opt valueVar …`.
+/// `onconfigure -opt valueVar …` / itcl `public variable x`.
 #[must_use]
 pub fn member_var_indices(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    let Some(m) = grammar.member(command) else {
+    member_role_indices(grammar, command, args, ArgRole::VarWrite)
+}
+
+/// The argument indices carrying `role` for a member call, dispatched on the
+/// member's [`MemberKind`] — so the walker never hardcodes a member name:
+/// `Flat` reads the member's own arg-roles (or every arg for `variable a b c`);
+/// `Wrapper` recurses into the inner member nested at arg 0
+/// (`self`/`public`/`protected`/`private`); `FlagKeyed` reads the `-get`/`-set`
+/// flag-value bodies (`property`).
+fn member_role_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    role: ArgRole,
+) -> Vec<usize> {
+    let Some(member) = grammar.member(command) else {
         return Vec::new();
     };
-    if m.all_args_var {
-        (0..args.len()).collect()
-    } else {
-        m.indices_for(ArgRole::VarWrite)
-            .filter(|&i| i < args.len())
-            .collect()
+    match member.kind {
+        MemberKind::Flat => {
+            if role == ArgRole::VarWrite && member.all_args_var {
+                (0..args.len()).collect()
+            } else {
+                member
+                    .indices_for(role)
+                    .filter(|&i| i < args.len())
+                    .collect()
+            }
+        }
+        MemberKind::Wrapper => wrapper_member_indices(grammar, args, role),
+        MemberKind::FlagKeyed => {
+            if role == ArgRole::Body {
+                collect_property_body_indices(args)
+            } else {
+                Vec::new()
+            }
+        }
     }
 }
 
-/// `self constructor ARGS BODY` → BODY 2 / PARAMS 1; `self destructor BODY` →
-/// BODY 1; `self method NAME ARGS BODY` → BODY last / PARAMS 2.  `role` selects
-/// which index set to return.  `args` is the `self …` call minus the `self`
-/// word's own head (so `args[0]` is `constructor`/`method`/…).
-fn self_member_indices(args: &[&str], role: ArgRole) -> Vec<usize> {
-    if args.is_empty() {
+/// A [`MemberKind::Wrapper`] member (`self method …`, itcl `public method …`)
+/// nests an inner member keyword at `args[0]`; the inner member's own roles
+/// apply shifted one place right (past the wrapper word).  `args` is the
+/// wrapper call minus the wrapper word itself (so `args[0]` is
+/// `method`/`constructor`/`variable`/…).
+fn wrapper_member_indices(
+    grammar: &DefinitionBodyGrammar,
+    args: &[&str],
+    role: ArgRole,
+) -> Vec<usize> {
+    let Some((inner, _)) = args.split_first() else {
         return Vec::new();
-    }
-    let n = args.len();
-    match (args[0], role) {
-        ("constructor", ArgRole::Body) if n >= 3 => vec![2],
-        ("constructor", ArgRole::ParamList) if n >= 3 => vec![1],
-        ("destructor", ArgRole::Body) if n >= 2 => vec![1],
-        ("method" | "classmethod", ArgRole::Body) if n >= 4 => vec![n - 1],
-        ("method" | "classmethod", ArgRole::ParamList) if n >= 4 => vec![2],
-        _ => Vec::new(),
-    }
+    };
+    grammar
+        .member(inner)
+        .map(|m| {
+            m.indices_for(role)
+                .map(|i| i + 1)
+                .filter(|&i| i < args.len())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Collect the `-set BODY` / `-get BODY` flag-value indices of an inner

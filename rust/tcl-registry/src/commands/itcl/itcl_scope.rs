@@ -16,20 +16,29 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command specification modules — one directory per dialect.
+//! `itcl::scope` command ([incr Tcl] runtime).
+use crate::prelude::*;
 
-pub mod bpf;
-pub mod eda_cadence;
-pub mod eda_mentor;
-pub mod eda_quartus;
-pub mod eda_synopsys;
-pub mod eda_xilinx;
-pub mod expect;
-pub mod iapps;
-pub mod irules;
-pub mod itcl;
-pub mod sdc_base;
-pub mod stdlib;
-pub mod tcl;
-pub mod tcllib;
-pub mod tk;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "itcl::scope variable",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "itcl::scope",
+        dialects: None,
+        arity: Arity::exact(1),
+        hover: Some(HoverSnippet {
+            summary: "Capture a variable name in its namespace context (a scoped value).",
+            synopsis: &["itcl::scope variable"],
+            snippet: "",
+            source: "[incr Tcl]",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        required_package: Some("Itcl"),
+        ..CommandSpec::DEFAULT
+    }
+}

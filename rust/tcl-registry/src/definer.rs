@@ -38,6 +38,25 @@
 
 use crate::arg_role::ArgRole;
 
+/// How a member's argument layout is determined — most members are `Flat`
+/// (their `arg_roles` give the layout directly), but two irregular shapes recur
+/// across class systems and are described structurally so the walker never
+/// hardcodes a member name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberKind {
+    /// Ordinary member — `arg_roles` give the argument layout directly
+    /// (`method NAME PARAMS BODY`, `variable v`, …).
+    Flat,
+    /// A prefix wrapper around an inner member keyword at argument 0: TclOO's
+    /// `self method …` and itcl's access modifiers `public`/`protected`/
+    /// `private method …`.  The inner member's own roles apply shifted one
+    /// place right (past the wrapper word).
+    Wrapper,
+    /// Flag-keyed bodies rather than positional ones: TclOO's
+    /// `property NAME ?-get BODY? ?-set BODY?`.
+    FlagKeyed,
+}
+
 /// One member sub-keyword of a definition body, with the argument roles a
 /// walker should apply to its call.  `arg_roles` indices are 0-based *after*
 /// the member keyword itself (`method NAME PARAMS BODY` →
@@ -51,9 +70,43 @@ pub struct MemberSpec {
     /// When set, *every* argument is a declared variable name (the unbounded
     /// `variable a b c` form).  Overrides `arg_roles` for name collection.
     pub all_args_var: bool,
+    /// The structural shape of the member's arguments (see [`MemberKind`]).
+    pub kind: MemberKind,
 }
 
 impl MemberSpec {
+    /// An ordinary [`MemberKind::Flat`] member.
+    #[must_use]
+    const fn flat(keyword: &'static str, arg_roles: &'static [(u8, ArgRole)]) -> Self {
+        Self { keyword, arg_roles, all_args_var: false, kind: MemberKind::Flat }
+    }
+
+    /// A `variable a b c`-style member: every argument is a declared name.
+    #[must_use]
+    const fn all_vars(keyword: &'static str) -> Self {
+        Self { keyword, arg_roles: NO_ROLES, all_args_var: true, kind: MemberKind::Flat }
+    }
+
+    /// A name-reference / keyword-only member carrying nothing to recurse or
+    /// declare (`superclass A B`, `inherit Base`, `option …`).
+    #[must_use]
+    const fn keyword_only(keyword: &'static str) -> Self {
+        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::Flat }
+    }
+
+    /// A [`MemberKind::Wrapper`] member (`self`, `public`, `protected`,
+    /// `private`) — an inner member keyword follows at argument 0.
+    #[must_use]
+    const fn wrapper(keyword: &'static str) -> Self {
+        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::Wrapper }
+    }
+
+    /// A [`MemberKind::FlagKeyed`] member (`property`).
+    #[must_use]
+    const fn flag_keyed(keyword: &'static str) -> Self {
+        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::FlagKeyed }
+    }
+
     /// The argument indices (0-based after the keyword) carrying `role`.
     pub fn indices_for(&self, role: ArgRole) -> impl Iterator<Item = usize> + '_ {
         self.arg_roles
@@ -75,6 +128,8 @@ pub enum DefinerFamily {
     TclOo,
     /// snit `type` / `widget` / `widgetadaptor`.
     Snit,
+    /// [incr Tcl] `itcl::class` (and the bare `class` alias).
+    Itcl,
 }
 
 /// The grammar of a definer command's definition body: its recognised member
@@ -132,30 +187,31 @@ const VAR0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 const NO_ROLES: &[(u8, ArgRole)] = &[];
 
 const TCLOO_MEMBERS: &[MemberSpec] = &[
-    MemberSpec { keyword: "method", arg_roles: METHOD_ROLES, all_args_var: false },
-    MemberSpec { keyword: "classmethod", arg_roles: METHOD_ROLES, all_args_var: false },
-    MemberSpec { keyword: "constructor", arg_roles: CTOR_ROLES, all_args_var: false },
-    MemberSpec { keyword: "destructor", arg_roles: BODY0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "initialise", arg_roles: BODY0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "initialize", arg_roles: BODY0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "private", arg_roles: BODY0_ROLES, all_args_var: false },
+    MemberSpec::flat("method", METHOD_ROLES),
+    MemberSpec::flat("classmethod", METHOD_ROLES),
+    MemberSpec::flat("constructor", CTOR_ROLES),
+    MemberSpec::flat("destructor", BODY0_ROLES),
+    MemberSpec::flat("initialise", BODY0_ROLES),
+    MemberSpec::flat("initialize", BODY0_ROLES),
+    MemberSpec::flat("private", BODY0_ROLES),
     // `variable a b c` inside a class body declares every name.
-    MemberSpec { keyword: "variable", arg_roles: NO_ROLES, all_args_var: true },
+    MemberSpec::all_vars("variable"),
     // Name-reference-only members — recognised (so they read as keywords and a
     // same-named proc is not) but carry nothing to recurse or declare.
-    MemberSpec { keyword: "superclass", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "mixin", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "filter", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "export", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "unexport", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "forward", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "renamemethod", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "deletemethod", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "definitionnamespace", arg_roles: NO_ROLES, all_args_var: false },
-    // Structurally irregular — recognised here, but their body indices come
-    // from the walker's dedicated `self …` / `property …` handling.
-    MemberSpec { keyword: "self", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "property", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec::keyword_only("superclass"),
+    MemberSpec::keyword_only("mixin"),
+    MemberSpec::keyword_only("filter"),
+    MemberSpec::keyword_only("export"),
+    MemberSpec::keyword_only("unexport"),
+    MemberSpec::keyword_only("forward"),
+    MemberSpec::keyword_only("renamemethod"),
+    MemberSpec::keyword_only("deletemethod"),
+    MemberSpec::keyword_only("definitionnamespace"),
+    // Structurally irregular — a nested-member wrapper (`self method …`) and a
+    // flag-keyed body form (`property … -get/-set …`); their body indices come
+    // from the walker's `MemberKind`-driven handling, not a hardcoded name.
+    MemberSpec::wrapper("self"),
+    MemberSpec::flag_keyed("property"),
 ];
 
 /// The definition-body grammar for every TclOO metaclass and the bare
@@ -176,24 +232,24 @@ const ONCONFIGURE_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::VarWrite), (2, ArgRol
 const ONCGET_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::Body)];
 
 const SNIT_MEMBERS: &[MemberSpec] = &[
-    MemberSpec { keyword: "method", arg_roles: METHOD_ROLES, all_args_var: false },
-    MemberSpec { keyword: "typemethod", arg_roles: METHOD_ROLES, all_args_var: false },
+    MemberSpec::flat("method", METHOD_ROLES),
+    MemberSpec::flat("typemethod", METHOD_ROLES),
     // A type-private `proc NAME ARGS BODY` — same shape as a method.
-    MemberSpec { keyword: "proc", arg_roles: METHOD_ROLES, all_args_var: false },
-    MemberSpec { keyword: "constructor", arg_roles: CTOR_ROLES, all_args_var: false },
-    MemberSpec { keyword: "destructor", arg_roles: BODY0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "typeconstructor", arg_roles: BODY0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "onconfigure", arg_roles: ONCONFIGURE_ROLES, all_args_var: false },
-    MemberSpec { keyword: "oncget", arg_roles: ONCGET_ROLES, all_args_var: false },
-    MemberSpec { keyword: "variable", arg_roles: VAR0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "typevariable", arg_roles: VAR0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "component", arg_roles: VAR0_ROLES, all_args_var: false },
-    MemberSpec { keyword: "typecomponent", arg_roles: VAR0_ROLES, all_args_var: false },
+    MemberSpec::flat("proc", METHOD_ROLES),
+    MemberSpec::flat("constructor", CTOR_ROLES),
+    MemberSpec::flat("destructor", BODY0_ROLES),
+    MemberSpec::flat("typeconstructor", BODY0_ROLES),
+    MemberSpec::flat("onconfigure", ONCONFIGURE_ROLES),
+    MemberSpec::flat("oncget", ONCGET_ROLES),
+    MemberSpec::flat("variable", VAR0_ROLES),
+    MemberSpec::flat("typevariable", VAR0_ROLES),
+    MemberSpec::flat("component", VAR0_ROLES),
+    MemberSpec::flat("typecomponent", VAR0_ROLES),
     // Name-reference / option-declaration members — recognised keywords with
     // nothing to recurse or declare.
-    MemberSpec { keyword: "option", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "delegate", arg_roles: NO_ROLES, all_args_var: false },
-    MemberSpec { keyword: "expose", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec::keyword_only("option"),
+    MemberSpec::keyword_only("delegate"),
+    MemberSpec::keyword_only("expose"),
 ];
 
 /// The definition-body grammar for snit `type` / `widget` / `widgetadaptor`.
@@ -205,4 +261,44 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
+};
+
+// ---------------------------------------------------------------------------
+// [incr Tcl] — `itcl::class Name { … }` (and the bare `class` alias) bodies.
+//
+// The access modifiers `public` / `protected` / `private` are prefix wrappers
+// (`public method foo {args} {body}`, `private variable x`) — `MemberKind::
+// Wrapper`, handled generically like TclOO's `self`.  `inherit` lists base
+// classes (multiple inheritance).  `variable` declares an instance variable
+// (optionally with an init value + config body); `common` a class/static one.
+// ---------------------------------------------------------------------------
+
+/// itcl `variable NAME ?init? ?configbody?` / `common NAME ?init?` — the leading
+/// declared name.  (The optional init value and config body are left to the
+/// default classifier; the name is what the walker binds.)
+const ITCL_VAR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
+
+const ITCL_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::flat("method", METHOD_ROLES),
+    // A class-scoped `proc NAME ARGS BODY` — same shape as a method.
+    MemberSpec::flat("proc", METHOD_ROLES),
+    MemberSpec::flat("constructor", CTOR_ROLES),
+    MemberSpec::flat("destructor", BODY0_ROLES),
+    MemberSpec::flat("variable", ITCL_VAR_ROLES),
+    MemberSpec::flat("common", ITCL_VAR_ROLES),
+    // Base-class list (multiple inheritance) — name references only.
+    MemberSpec::keyword_only("inherit"),
+    // Access modifiers: prefix wrappers around an inner member keyword.
+    MemberSpec::wrapper("public"),
+    MemberSpec::wrapper("protected"),
+    MemberSpec::wrapper("private"),
+];
+
+/// The definition-body grammar for [incr Tcl] `itcl::class` / bare `class`.
+/// Member bodies run in the object's context with the instance/common
+/// variables and `this` in scope.
+pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    family: DefinerFamily::Itcl,
+    members: ITCL_MEMBERS,
+    implicit_vars: &["this"],
 };

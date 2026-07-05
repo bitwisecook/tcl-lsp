@@ -1142,3 +1142,38 @@ fn test_snit_type_body_members_highlight() {
         "a snit method body must be recursed: {tokens:?}",
     );
 }
+
+#[test]
+fn test_itcl_class_body_members_highlight() {
+    // [incr Tcl] class bodies are registry data (definition_body grammar) too,
+    // including the public/protected/private access-modifier wrappers.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "itcl::class Dog {\n\
+               \x20   inherit Animal\n\
+               \x20   variable barks\n\
+               \x20   public method bark {volume} { set barks $volume }\n\
+               \x20   private variable secret 0\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // Declarations + a method parameter are variables (incl. the wrapped ones).
+    for name in ["barks", "volume", "secret"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "itcl `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // The access modifier and the inner wrapped keyword are both keywords.
+    for kw in ["inherit", "public", "method", "private"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == kw && t.ttype == "keyword"),
+            "itcl `{kw}` must be a keyword: {tokens:?}",
+        );
+    }
+    // The wrapped method body is recursed (`set` is a command there).
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        "an itcl method body must be recursed: {tokens:?}",
+    );
+}

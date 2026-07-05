@@ -507,4 +507,42 @@ suite("Semantic Tokens", () => {
     const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
     assert.ok(functionWords.has("set"), "expected the recursed constructor body ('set')");
   });
+
+  // [incr Tcl] class bodies recurse + highlight via the same registry
+  // definition-body grammar, including the public/protected/private access
+  // modifiers (prefix wrappers) — no itcl-specific token-walker code.
+  test("itcl class body members highlight", async () => {
+    const uri = getDocUri("itclClass.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    // Declarations (incl. a `private variable`) + a method parameter.
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["barks", "total", "volume", "secret", "args"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected itcl '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+    // Member keywords, including the access modifiers and the inner wrapped
+    // keyword.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    for (const kw of ["inherit", "method", "public", "private", "constructor"]) {
+      assert.ok(keywordWords.has(kw), `expected itcl '${kw}' keyword`);
+    }
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(functionWords.has("set"), "expected the recursed method body ('set')");
+  });
 });

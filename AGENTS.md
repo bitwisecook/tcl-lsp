@@ -77,10 +77,14 @@ teaching a consumer about the command by name.  Established examples:
 - **Definition-body grammars** (`definition_body`, `tcl_registry::definer`)
   describe a class/type *definer*'s body: its member sub-keywords (`method`,
   `typemethod`, `constructor`, `variable`, …) with their body / param / var
-  layout, plus implicit member-body variables.  TclOO **and** snit are pure
-  registry data; the shared walker in `tcl-lsp-core/src/oo_body.rs` (folding +
-  semantic tokens) contains **no** command names.  A new definer (xotcl, a
-  bespoke class system) is a new `DefinitionBodyGrammar`, not new walker code.
+  layout (`MemberKind::Flat`), the nested-member wrappers (`self`, itcl's
+  `public`/`protected`/`private` — `MemberKind::Wrapper`), the flag-keyed forms
+  (`property` — `MemberKind::FlagKeyed`), plus implicit member-body variables.
+  TclOO, snit **and** [incr Tcl] are pure registry data; the shared walker in
+  `tcl-lsp-core/src/oo_body.rs` (folding + semantic tokens) contains **no**
+  command names — it dispatches on `MemberKind`, never a keyword.  A new definer
+  (xotcl, a bespoke class system) is a new `DefinitionBodyGrammar` + a
+  `DefinerFamily` arm, not new walker code.
 - Taint / side-effect / const-fold / lowering / codegen behaviour is likewise
   spec-declared and dispatched via typed hook IDs.
 
