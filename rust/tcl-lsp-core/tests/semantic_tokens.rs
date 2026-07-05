@@ -813,3 +813,82 @@ fn non_loop_command_first_arg_stays_string() {
         decode(src, "tcl8.6"),
     );
 }
+
+// ---------------------------------------------------------------------------
+// Parameter-list highlighting — proc / method / constructor / apply-lambda
+// parameters, and the registry `LoopVarList` role for `dict map` (peer of
+// `dict for`).  Each parameter / loop name reads as a variable declaration.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn proc_parameters_are_variables() {
+    let src = "proc greet {name age} { return $name }\n";
+    for name in ["name", "age"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "proc parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn proc_parameter_default_pair_splits_name_and_value() {
+    // `{b 5}` — `b` is the parameter name (variable), `5` the default (number).
+    let src = "proc p {a {b 5} args} { return $a }\n";
+    for name in ["a", "b", "args"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` must be a parameter variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "5").as_deref(),
+        Some("number"),
+        "the default value must stay a number: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn apply_lambda_parameters_are_variables() {
+    let src = "apply {{alpha beta} { return $alpha }} 1 2\n";
+    for name in ["alpha", "beta"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "apply lambda parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn tcloo_method_and_constructor_parameters_are_variables() {
+    let src = "oo::class create C {\n    method greet {who} { return $who }\n    constructor {aa bb} { set x $aa }\n}\n";
+    for name in ["who", "aa", "bb"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "TclOO parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn dict_map_loop_vars_are_variables() {
+    // Peer of `dict for`: `dict map {k v}` binds its loop variables too.
+    let src = "dict map {mk mv} $d { set mk $mv }\n";
+    for name in ["mk", "mv"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `dict map` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}

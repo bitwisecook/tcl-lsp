@@ -184,6 +184,29 @@ pub fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
     }
 }
 
+/// Return the parameter-list argument index (into `args`, i.e. excluding the
+/// command-head word) for an inner `TclOO` method-defining command, or an empty
+/// vec when the form has no parameter list (`destructor`, `forward`, …) or is
+/// too short.  Only meaningful inside an outer OO body.
+///
+/// * `method NAME PARAMS BODY` / `classmethod NAME PARAMS BODY` → index 1.
+/// * `constructor PARAMS BODY` → index 0.
+/// * `self method NAME PARAMS BODY` / `self classmethod …` → index 2;
+///   `self constructor PARAMS BODY` → index 1.
+#[must_use]
+pub fn inner_oo_param_indices(command: &str, args: &[&str]) -> Vec<usize> {
+    match command {
+        "method" | "classmethod" if args.len() >= 3 => vec![1],
+        "constructor" if args.len() >= 2 => vec![0],
+        "self" if args.len() >= 2 => match args[0] {
+            "method" | "classmethod" if args.len() >= 4 => vec![2],
+            "constructor" if args.len() >= 3 => vec![1],
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
 /// The `inside_oo_body` flag the recursion into `command`'s body arguments
 /// should carry, given the current flag `cur`.  `args` excludes the command
 /// head.
@@ -329,6 +352,28 @@ mod tests {
         assert!(inner_oo_body_indices("method", &["name"]).is_empty());
         assert!(inner_oo_body_indices("destructor", &[]).is_empty());
         assert!(inner_oo_body_indices("set", &["x", "1"]).is_empty());
+    }
+
+    #[test]
+    fn inner_param_indices_cover_method_forms() {
+        assert_eq!(inner_oo_param_indices("method", &["n", "{a}", "b"]), vec![1]);
+        assert_eq!(
+            inner_oo_param_indices("classmethod", &["n", "{a}", "b"]),
+            vec![1]
+        );
+        assert_eq!(inner_oo_param_indices("constructor", &["{a}", "b"]), vec![0]);
+        assert_eq!(
+            inner_oo_param_indices("self", &["method", "n", "{a}", "b"]),
+            vec![2]
+        );
+        assert_eq!(
+            inner_oo_param_indices("self", &["constructor", "{a}", "b"]),
+            vec![1]
+        );
+        // Forms without a parameter list, or too short, surface nothing.
+        assert!(inner_oo_param_indices("destructor", &["b"]).is_empty());
+        assert!(inner_oo_param_indices("forward", &["n", "t"]).is_empty());
+        assert!(inner_oo_param_indices("method", &["n"]).is_empty());
     }
 
     #[test]

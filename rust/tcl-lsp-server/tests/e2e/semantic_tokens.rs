@@ -1050,3 +1050,24 @@ fn test_foreach_loop_variables_are_variables() {
         assert!(is_var(name), "loop variable `{name}` must be a variable: {tokens:?}");
     }
 }
+
+#[test]
+fn test_proc_and_lambda_parameters_are_variables() {
+    // Procedure / method / apply-lambda parameter names read as variable
+    // declarations, and `dict map` binds its loop variables (peer of dict for).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc greet {name age} { return $name }\n\
+               apply {{alpha beta} { return $alpha }} 1 2\n\
+               dict map {mk mv} $d { set mk $mv }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["name", "age", "alpha", "beta", "mk", "mv"] {
+        assert!(is_var(name), "`{name}` must be a variable declaration: {tokens:?}");
+    }
+}

@@ -420,6 +420,10 @@ enum ArgOverride {
     /// (`foreach {k v} …`).  Each name is a variable the loop assigns on every
     /// iteration, so it is emitted as `Variable` + `declaration`.
     LoopVarList,
+    /// A procedure parameter list (`proc p {a b {c 5} args} …`).  Each
+    /// parameter name is emitted as `Variable` + `declaration`; a `{name
+    /// default}` pair emits the name as a variable and classifies its default.
+    ParamList,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -590,45 +594,75 @@ fn special_arg_kinds(
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
     insert_multiname_var_overrides(seg, inside_oo_body, &mut overrides);
-    insert_loop_var_overrides(seg, &mut overrides);
+    insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_var_decl_overrides(seg, registry, head, &mut overrides);
 
     overrides
 }
 
-/// `foreach` / `lmap` / `dict for` loop-variable specs → variable
-/// declarations.  `foreach v1 l1 ?v2 l2 …? body` binds a variable spec at every
-/// other argument before the trailing body; `dict for {k v} dict body` binds
-/// the two-element spec at index 1 (after the `for` subcommand).  Each spec is
-/// tagged [`ArgOverride::LoopVarList`] so [`collect_loop_var_list`] emits its
-/// name(s) — a bareword or the elements of a braced list — as variables.
+/// Loop-variable specs → variable declarations.  Two sources feed
+/// [`ArgOverride::LoopVarList`] (whose [`collect_loop_var_list`] emits each
+/// name — a bareword or the elements of a braced list — as a variable):
+///
+/// * The registry's [`ArgRole::LoopVarList`] (`dict for {k v} …`,
+///   `dict map {k v} …`).
+/// * `foreach` / `lmap`, whose resolvers surface only the `Body` role, so their
+///   (possibly repeated) `v1 l1 ?v2 l2 …?` variable-spec positions — every
+///   other argument before the trailing body — are added here.
+///
 /// Highlighting only: the loop bodies already resolve these reads via the
 /// analyser's scope tracking.
 fn insert_loop_var_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    // Positions (into `seg.texts`) of the variable-spec words.
-    let positions: Vec<usize> = match seg.texts[0].as_str() {
-        // `foreach v1 l1 ?v2 l2 …? body` — specs at odd `seg.texts` indices
-        // (`v1` = texts[1], `v2` = texts[3], …) up to but excluding the body
-        // (the final word).  Needs at least head + varlist + list + body.
-        "foreach" | "lmap" if seg.texts.len() >= 4 => (1..seg.texts.len() - 1).step_by(2).collect(),
-        // `dict for {k v} dict body` — the spec is texts[2].
-        "dict"
-            if seg.texts.get(1).map(String::as_str) == Some("for") && seg.texts.len() >= 5 =>
-        {
-            vec![2]
-        }
-        _ => return,
-    };
-    for pos in positions {
+    let mark = |pos: usize, overrides: &mut FxHashMap<u32, ArgOverride>| {
         if let Some(tok) = seg.argv.get(pos)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::LoopVarList);
+        }
+    };
+    // Registry-declared specs (`i` indexes the argument words → `argv[i + 1]`).
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::LoopVarList) {
+        mark(i + 1, overrides);
+    }
+    // `foreach v1 l1 ?v2 l2 …? body` — specs at odd `seg.texts` indices
+    // (`v1` = texts[1], `v2` = texts[3], …) up to but excluding the trailing
+    // body.  Needs at least head + varlist + list + body.
+    if matches!(head, "foreach" | "lmap") && seg.texts.len() >= 4 {
+        for pos in (1..seg.texts.len() - 1).step_by(2) {
+            mark(pos, overrides);
+        }
+    }
+}
+
+/// Procedure parameter lists → parameter declarations.  The registry's
+/// [`ArgRole::ParamList`] marks the braced `{a b {c default}}` word of `proc`,
+/// the iRules `proc`, and snit `method` / `typemethod`; it is tagged
+/// [`ArgOverride::ParamList`] so [`collect_param_list`] emits each parameter
+/// name as a `Variable` declaration (and classifies any default value).
+fn insert_param_list_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::ParamList) {
+        // Only a braced literal list carries statically-visible names.
+        if let Some(tok) = seg.argv.get(i + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::ParamList);
         }
     }
 }
@@ -709,6 +743,18 @@ fn insert_oo_body_overrides(
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::BodyScript);
+        }
+    }
+    // The method/constructor parameter list — its names are declarations, like
+    // a `proc`'s (the `method` / `constructor` keywords have no CommandSpec, so
+    // the registry `ParamList` role can't reach them).
+    for idx in crate::oo_body::inner_oo_param_indices(head, arg_texts) {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::ParamList);
         }
     }
 }
@@ -2063,10 +2109,13 @@ fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>
         words.extend(seg.argv.iter().copied());
     }
     for (idx, word_tok) in words.iter().enumerate() {
-        // Element 1 is the body — recurse it as a script when braced.
-        if idx == 1
+        if idx == 0 && matches!(word_tok.kind, TokenType::Str) {
+            // Element 0 is the parameter list — its names are declarations.
+            collect_param_list(ctx, *word_tok, entries);
+        } else if idx == 1
             && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
         {
+            // Element 1 is the body — recurse it as a script when braced.
             collect_script(
                 ctx,
                 body,
@@ -2112,6 +2161,83 @@ fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry
                 mods,
                 entries,
             );
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
+/// Emit a procedure parameter list's names as variable declarations.  Each
+/// top-level list element is either a bareword parameter name or a `{name
+/// ?default...?}` pair; the name is a `Variable` declaration and any default
+/// words are classified (number / string).  A non-name element is left to the
+/// default classifier.
+fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        let braced = el.value.start > 0 && inner.as_bytes().get(el.value.start - 1) == Some(&b'{');
+        if let Some(elem) = inner.get(el.value.clone()) {
+            let elem_abs = cstart + el.value.start;
+            if braced {
+                // `{name ?default...?}` — the first word is the parameter name.
+                emit_param_default_pair(full_source, line_index, elem_abs, elem, entries);
+            } else if is_plain_var_name(elem) {
+                push_span_entries(
+                    full_source,
+                    line_index,
+                    elem_abs,
+                    elem,
+                    TokenKind::Variable,
+                    MOD_DECLARATION,
+                    entries,
+                );
+            }
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
+/// Emit the name + default words of a `{name ?default...?}` parameter pair:
+/// the leading word as a `Variable` declaration, each following word by its
+/// literal classification (number / string).
+fn emit_param_default_pair(
+    source: &str,
+    line_index: &LineIndex,
+    abs: usize,
+    text: &str,
+    entries: &mut Vec<Entry>,
+) {
+    let mut scan = 0usize;
+    let mut first = true;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(text, scan) {
+        if let Some(word) = text.get(el.value.clone()) {
+            let word_abs = abs + el.value.start;
+            let (kind, mods) = if first {
+                (TokenKind::Variable, MOD_DECLARATION)
+            } else if is_number_literal(word) {
+                (TokenKind::Number, 0)
+            } else {
+                (TokenKind::String, 0)
+            };
+            if first && !is_plain_var_name(word) {
+                // Not a plain name — leave it (and the rest) to the default.
+            } else {
+                push_span_entries(source, line_index, word_abs, word, kind, mods, entries);
+            }
+            first = false;
         }
         if el.next <= scan {
             break;
@@ -2392,6 +2518,9 @@ fn emit_arg_token(
         }
         Some(ArgOverride::LoopVarList) => {
             collect_loop_var_list(ctx, *tok, entries);
+        }
+        Some(ArgOverride::ParamList) => {
+            collect_param_list(ctx, *tok, entries);
         }
         Some(ArgOverride::SubcommandKeyword) => {
             push_token(
