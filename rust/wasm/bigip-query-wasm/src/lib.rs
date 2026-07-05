@@ -112,10 +112,7 @@ pub fn manual(_topic: &str) -> String {
 /// idempotent function, so re-formatting already-formatted source is a no-op.
 #[wasm_bindgen]
 pub fn format_irule(source: &str) -> String {
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let config = tcl_lsp_core::formatting::FormatterConfig::default();
-    let formatted = tcl_lsp_core::formatting::format_tcl(source, &config, registry);
-    tcl_lexer::highlight_tcl(&formatted)
+    tcl_lexer::highlight_tcl(&analyze::format_irule_source(source))
 }
 
 /// Analyse an iRule body with the full analyser (diagnostics + optimiser

@@ -28,7 +28,23 @@
 use std::fmt::Write as _;
 
 use tcl_compiler::analyser::Analyser;
-use tcl_lexer::highlight_ranges;
+use tcl_lexer::{LexerConfig, highlight_ranges};
+use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
+
+/// Format an iRule body with the F5 iRules Style Guide formatter in the
+/// `f5-irules` dialect — the dialect matters because TMM accepts `}{` (e.g.
+/// `if {expr}{body}`), which the formatter then re-emits as `} {`. Shared by the
+/// Format button and the diagnostics pass (which normalises before analysing so
+/// spans land on the right characters).
+#[must_use]
+pub fn format_irule_source(source: &str) -> String {
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let config = FormatterConfig {
+        lexer_config: LexerConfig::for_dialect("f5-irules"),
+        ..FormatterConfig::default()
+    };
+    format_tcl(source, &config, registry)
+}
 
 /// One finding, flattened for the front-end.
 struct Finding {
@@ -51,6 +67,12 @@ struct Finding {
 /// on each underline span so the front-end can cross-link the list and the code.
 #[must_use]
 pub fn analyze_irule(source: &str) -> String {
+    // Normalise first: the analyser tracks positions on well-formed input, and
+    // an iRule's `}{` (valid in TMM) otherwise collapses inner spans onto the
+    // enclosing command. Formatting inserts the `} {` space, so diagnostics land
+    // on the right characters. The displayed code is this formatted source.
+    let formatted = format_irule_source(source);
+    let source = formatted.as_str();
     let result = Analyser::new().analyse(source, "f5-irules");
 
     let mut findings: Vec<Finding> = result
@@ -324,6 +346,41 @@ mod tests {
             json.contains("\"diagnostics\":[{") || json.contains("\"diagnostics\":[ {"),
             "expected at least one diagnostic, got: {json}"
         );
+    }
+
+    #[test]
+    fn formatter_inserts_space_in_irule_brace_chain() {
+        // TMM accepts `}{`; the formatter must normalise it to `} {`.
+        let formatted = format_irule_source("when HTTP_REQUEST {\n  if { 1 }{\n    pool p\n  }\n}");
+        assert!(
+            !formatted.contains("}{"),
+            "formatter left `}}{{` unfixed:\n{formatted}"
+        );
+        assert!(formatted.contains("} {"), "no `}} {{` in:\n{formatted}");
+    }
+
+    #[test]
+    fn diagnostics_range_correctly_through_brace_chain() {
+        // With `}{`, the analyser used to mis-attribute the `$x` read to the
+        // `if` line; formatting first fixes the span. The var read is on the
+        // `pool $x` line, so the W210 finding must NOT carry the `if` line.
+        let json = analyze_irule("when HTTP_REQUEST {\n  if { 1 }{\n    pool $x\n  }\n}");
+        assert!(json.contains("W210"), "expected W210: {json}");
+        // Read the "line" of the diagnostic object that carries code W210:
+        // in an object `{"line":N,"col":…,"code":"W210",…}` the line precedes
+        // the code, so search back from the W210 code to its `"line":`.
+        let code_at = json.find("\"code\":\"W210\"").expect("W210 present");
+        let line_key = json[..code_at].rfind("\"line\":").expect("line before code");
+        let after = &json[line_key + "\"line\":".len()..];
+        let n: usize = after
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse()
+            .expect("line number");
+        // The `if` is on line 2 of the formatted body; the `pool $x` read is
+        // below it. Collapsed-onto-if would report line 1 or 2.
+        assert!(n >= 3, "W210 reported on line {n}, looks collapsed onto the if");
     }
 
     #[test]

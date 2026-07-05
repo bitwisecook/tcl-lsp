@@ -58,6 +58,8 @@
   var SEV_ORDER = ["error", "warning", "info", "suggestion", "hint"];
 
   function setup(pre) {
+    if (pre.dataset.iruleTools) return; // already enhanced
+    pre.dataset.iruleTools = "1";
     var originalHtml = pre.innerHTML; // config's own highlighted source
     var rawSource = pre.textContent; // highlight preserves text → raw iRule
     var formattedText = null; // lazily filled once
@@ -181,5 +183,20 @@
     });
   }
 
-  document.querySelectorAll('.panel[data-panel="rules"] pre.code.tcl').forEach(setup);
+  // Enhance every iRule body: the inline rows in the iRules panel, and the
+  // per-object slide-over drawer (which builds its own <pre> on each open).
+  function enhanceAll(root) {
+    (root || document).querySelectorAll("pre.code.tcl").forEach(setup);
+  }
+  enhanceAll(document);
+
+  // The object drawer re-renders its body (new <pre>) each time you click an
+  // iRule name; watch it and enhance the fresh code block.
+  var drawer = document.getElementById("objDrawer");
+  if (drawer && typeof MutationObserver !== "undefined") {
+    new MutationObserver(function () { enhanceAll(drawer); }).observe(drawer, {
+      childList: true,
+      subtree: true,
+    });
+  }
 })();

@@ -29,6 +29,8 @@
     }
     var SEV_ORDER = ["error", "warning", "info", "suggestion", "hint"];
     function setup(pre) {
+      if (pre.dataset.iruleTools) return;
+      pre.dataset.iruleTools = "1";
       var originalHtml = pre.innerHTML;
       var rawSource = pre.textContent;
       var formattedText = null;
@@ -148,6 +150,18 @@
         });
       });
     }
-    document.querySelectorAll('.panel[data-panel="rules"] pre.code.tcl').forEach(setup);
+    function enhanceAll(root) {
+      (root || document).querySelectorAll("pre.code.tcl").forEach(setup);
+    }
+    enhanceAll(document);
+    var drawer = document.getElementById("objDrawer");
+    if (drawer && typeof MutationObserver !== "undefined") {
+      new MutationObserver(function() {
+        enhanceAll(drawer);
+      }).observe(drawer, {
+        childList: true,
+        subtree: true
+      });
+    }
   })();
 })();

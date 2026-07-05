@@ -56,6 +56,9 @@ pub fn run_format(
     let registry = registry_for_dialect(&input.dialect);
 
     let mut config = FormatterConfig::default();
+    // Tokenise with the dialect's rules so, e.g., an iRule's `}{` (valid in TMM)
+    // parses as two words and is re-emitted as `} {`.
+    config.lexer_config = tcl_lexer::LexerConfig::for_dialect(&input.dialect);
     if let Some(size) = indent_size {
         config.indent_size = size;
     }
