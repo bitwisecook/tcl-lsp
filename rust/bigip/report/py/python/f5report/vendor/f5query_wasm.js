@@ -5,6 +5,32 @@ let wasm_bindgen = (function(exports) {
     }
 
     /**
+     * Analyse an iRule body with the full analyser (diagnostics + optimiser
+     * suggestions, `f5-irules` dialect) and return a JSON object
+     * `{ html, diagnostics, counts }` — the source re-highlighted with each
+     * diagnostic range underlined inline (tooltip = code + message), plus the
+     * structured finding list for a summary panel. Client-side, so the report's
+     * inline-diagnostics toggle needs no server.
+     * @param {string} source
+     * @returns {string}
+     */
+    function analyze_irule(source) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.analyze_irule(ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    exports.analyze_irule = analyze_irule;
+
+    /**
      * Re-run cross-device architecture / topology detection for the in-report
      * architecture editor. `devices_json` is the model's `devices` array;
      * `manifest` is the topology DSL. Returns the `architecture` object as JSON.

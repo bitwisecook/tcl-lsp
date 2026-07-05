@@ -29,6 +29,8 @@
 
 use wasm_bindgen::prelude::*;
 
+mod analyze;
+
 use tcl_bigip_query::output;
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query as engine_run_query};
@@ -114,4 +116,15 @@ pub fn format_irule(source: &str) -> String {
     let config = tcl_lsp_core::formatting::FormatterConfig::default();
     let formatted = tcl_lsp_core::formatting::format_tcl(source, &config, registry);
     tcl_lexer::highlight_tcl(&formatted)
+}
+
+/// Analyse an iRule body with the full analyser (diagnostics + optimiser
+/// suggestions, `f5-irules` dialect) and return a JSON object
+/// `{ html, diagnostics, counts }` — the source re-highlighted with each
+/// diagnostic range underlined inline (tooltip = code + message), plus the
+/// structured finding list for a summary panel. Client-side, so the report's
+/// inline-diagnostics toggle needs no server.
+#[wasm_bindgen]
+pub fn analyze_irule(source: &str) -> String {
+    analyze::analyze_irule(source)
 }

@@ -36,6 +36,108 @@ pub fn highlight_tcl(src: &str) -> String {
     out
 }
 
+/// One highlighted token range, as absolute byte offsets into the source and
+/// the CSS class (`"tk-cmd"`, `"tk-var"`, …) it should carry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HlRange {
+    /// Absolute byte offset of the range start.
+    pub start: usize,
+    /// Absolute byte offset of the range end (exclusive).
+    pub end: usize,
+    /// CSS class for the token colour.
+    pub class: &'static str,
+}
+
+/// The classed token ranges of a Tcl/iRule source, as absolute byte offsets —
+/// the same colouring [`highlight_tcl`] applies, but as data rather than HTML so
+/// a caller can overlay other span layers (e.g. analyser diagnostics) before
+/// rendering. Ranges are non-overlapping and in source order; bytes not covered
+/// by any range are plain text. Returns an empty vec on lex failure (matching
+/// [`highlight_tcl`]'s verbatim fallback, which classes nothing).
+#[must_use]
+pub fn highlight_ranges(src: &str) -> Vec<HlRange> {
+    let mut ranges = Vec::new();
+    collect_ranges(src, 0, 0, &mut ranges);
+    ranges
+}
+
+/// Recursive twin of [`highlight_into`] that records absolute classed ranges
+/// instead of emitting HTML. `base` is the absolute offset of `src` within the
+/// whole document, so nested braced/bracketed scripts report document-absolute
+/// spans. Kept structurally identical to `highlight_into` so the colouring can
+/// never drift (the `ranges_reproduce_highlight_html` test pins this).
+fn collect_ranges(src: &str, depth: usize, base: usize, out: &mut Vec<HlRange>) {
+    if src.is_empty() {
+        return;
+    }
+    let tokens = if depth >= MAX_DEPTH {
+        None
+    } else {
+        Lexer::new(src).tokenise_all().ok()
+    };
+    let Some(tokens) = tokens else {
+        return; // verbatim fallback → nothing classed
+    };
+
+    let mut cmd_start = true;
+    for tok in &tokens {
+        let s = (tok.span.start() as usize).min(src.len());
+        let e = (tok.span.end() as usize).min(src.len());
+        if e > s {
+            let text = &src[s..e];
+            match tok.kind {
+                TokenType::Comment => out.push(range(base + s, base + e, "tk-comment")),
+                TokenType::Var => out.push(range(base + s, base + e, "tk-var")),
+                TokenType::Str => collect_recurse(text, '{', '}', depth, base + s, out),
+                TokenType::Cmd => collect_recurse(text, '[', ']', depth, base + s, out),
+                TokenType::Esc => {
+                    if cmd_start {
+                        out.push(range(
+                            base + s,
+                            base + e,
+                            if text.contains("::") { "tk-ns" } else { "tk-cmd" },
+                        ));
+                    } else if let Some(cls) = classify_word(text) {
+                        out.push(range(base + s, base + e, cls));
+                    }
+                }
+                _ => {}
+            }
+        }
+        match tok.kind {
+            TokenType::Eol => cmd_start = true,
+            TokenType::Sep | TokenType::Eof => {}
+            _ => cmd_start = false,
+        }
+    }
+}
+
+/// Range-collecting twin of [`recurse_wrapped`]: skip the delimiters (which are
+/// plain text) and recurse into the inner script at the right absolute base.
+fn collect_recurse(
+    text: &str,
+    open: char,
+    close: char,
+    depth: usize,
+    text_base: usize,
+    out: &mut Vec<HlRange>,
+) {
+    let mut inner = text;
+    let mut inner_base = text_base;
+    if inner.starts_with(open) {
+        inner = &inner[open.len_utf8()..];
+        inner_base += open.len_utf8();
+    }
+    if inner.ends_with(close) {
+        inner = &inner[..inner.len() - close.len_utf8()];
+    }
+    collect_ranges(inner, depth + 1, inner_base, out);
+}
+
+const fn range(start: usize, end: usize, class: &'static str) -> HlRange {
+    HlRange { start, end, class }
+}
+
 fn highlight_into(src: &str, depth: usize, out: &mut String) {
     if src.is_empty() {
         return;
@@ -160,5 +262,66 @@ fn push_escaped(s: &str, out: &mut String) {
             '"' => out.push_str("&quot;"),
             _ => out.push(c),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Render highlight ranges back to HTML the same way `highlight_tcl` does —
+    /// escaped gaps, `<span class>`-wrapped classed ranges. If this reproduces
+    /// `highlight_tcl` byte-for-byte, the data and HTML paths cannot drift.
+    fn render_from_ranges(src: &str) -> String {
+        let mut out = String::new();
+        let mut pos = 0usize;
+        for r in highlight_ranges(src) {
+            if r.start > pos {
+                push_escaped(&src[pos..r.start], &mut out);
+            }
+            wrap(&mut out, r.class, &src[r.start..r.end]);
+            pos = r.end;
+        }
+        if pos < src.len() {
+            push_escaped(&src[pos..], &mut out);
+        }
+        out
+    }
+
+    #[test]
+    fn ranges_reproduce_highlight_html() {
+        let corpus = [
+            "",
+            "pool $html-pool",
+            "when HTTP_REQUEST {\n  set x 1\n  pool css_pool\n}",
+            "log local0. \"uri=[HTTP::uri] & <tag>\"",
+            "if { [HTTP::path] ends_with \".css\" } { pool css_pool }",
+            "# a comment\nset ns::var [expr {$a + $b}]",
+            "set html-pool web1Pool\npool $html-pool",
+            "when RULE_INIT { set ::static::x {a {b} c} }",
+        ];
+        for src in corpus {
+            assert_eq!(
+                render_from_ranges(src),
+                highlight_tcl(src),
+                "range render diverged from highlight_tcl for: {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ranges_are_absolute_and_ordered() {
+        let src = "when HTTP_REQUEST {\n  pool css_pool\n}";
+        let ranges = highlight_ranges(src);
+        // ordered, non-overlapping, in-bounds
+        let mut prev_end = 0;
+        for r in &ranges {
+            assert!(r.start >= prev_end, "overlap/out-of-order at {r:?}");
+            assert!(r.end <= src.len());
+            prev_end = r.end;
+        }
+        // the event token is classed as an event, at its real offset
+        let ev = ranges.iter().find(|r| &src[r.start..r.end] == "HTTP_REQUEST");
+        assert_eq!(ev.map(|r| r.class), Some("tk-event"));
     }
 }

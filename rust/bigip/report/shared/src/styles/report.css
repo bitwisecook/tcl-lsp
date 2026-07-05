@@ -161,14 +161,45 @@ pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;o
 .records{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0}
 .records code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px}
 
-/* iRule code toolbar + Format button (injected by irule-format.js). */
+/* iRule code toolbar + Format / Diagnostics buttons (irule-format.js). */
 .code-toolbar{display:flex;justify-content:flex-end;gap:6px;margin:6px 0 -2px}
-.code-format-btn{font:600 11px/1 var(--mono);cursor:pointer;padding:4px 10px;
+.code-tool-btn{font:600 11px/1 var(--mono);cursor:pointer;padding:4px 10px;
   background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
-.code-format-btn:hover{border-color:var(--accent);color:var(--accent)}
-.code-format-btn:disabled{opacity:.6;cursor:progress}
-.code-format-btn.is-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.code-tool-btn:hover{border-color:var(--accent);color:var(--accent)}
+.code-tool-btn:disabled{opacity:.6;cursor:progress}
+.code-tool-btn.is-active{background:var(--accent);color:#fff;border-color:var(--accent)}
 @media print{.code-toolbar{display:none}}
+
+/* Inline diagnostic underlines overlaid on the highlighted iRule source. */
+pre.code.tcl .diag{text-decoration:underline wavy;text-decoration-thickness:1px;
+  text-underline-offset:2px;cursor:help;-webkit-text-decoration:underline wavy}
+pre.code.tcl .diag-error{text-decoration-color:#cf222e}
+pre.code.tcl .diag-warning{text-decoration-color:#bf8700}
+pre.code.tcl .diag-info{text-decoration-color:#0969da}
+pre.code.tcl .diag-suggestion{text-decoration-color:#8250df}
+pre.code.tcl .diag-hint{text-decoration-color:var(--muted)}
+pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
+
+/* Diagnostics summary panel below the code. */
+.irule-diags{margin:8px 0 4px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);overflow:hidden;font-size:12px}
+.irule-diags-empty{padding:10px 12px;color:var(--muted)}
+.irule-diags-head{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.diag-badge{font:600 11px/1 var(--mono);padding:3px 8px;border-radius:999px;color:#fff}
+.diag-list{list-style:none;margin:0;padding:4px 0;max-height:260px;overflow-y:auto}
+.diag-row{display:grid;grid-template-columns:auto auto auto 1fr;gap:8px;align-items:baseline;
+  padding:4px 12px;cursor:pointer}
+.diag-row:hover,.diag-row.hot{background:rgba(128,128,128,.12)}
+.diag-sev{font:600 10px/1.4 var(--mono);text-transform:uppercase;padding:2px 6px;border-radius:4px;color:#fff}
+.diag-code{font:600 11px/1.4 var(--mono);color:var(--muted)}
+.diag-loc{font:11px/1.4 var(--mono);color:var(--muted)}
+.diag-msg{font-size:12px}
+.diag-error .diag-sev,.diag-badge.diag-error{background:#cf222e}
+.diag-warning .diag-sev,.diag-badge.diag-warning{background:#bf8700}
+.diag-info .diag-sev,.diag-badge.diag-info{background:#0969da}
+.diag-suggestion .diag-sev,.diag-badge.diag-suggestion{background:#8250df}
+.diag-hint .diag-sev,.diag-badge.diag-hint{background:#6e7781}
+@media print{.irule-diags{display:none}}
 
 .foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}

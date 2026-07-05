@@ -53,6 +53,10 @@ tcl-bigip = { path = "../../bigip/tcl-bigip" }
 tcl-lsp-core = { path = "../../lsp/tcl-lsp-core" }
 tcl-lexer = { path = "../../compiler/tcl-lexer", features = ["html"] }
 tcl-registry = { path = "../../registry/tcl-registry" }
+# Analyser (diagnostics + optimiser suggestions) for the report's inline
+# iRule diagnostics toggle.
+tcl-compiler = { path = "../../compiler/tcl-compiler" }
+tcl-core-types = { path = "../../compiler/tcl-core-types" }
 wasm-bindgen = "=0.2.126"
 serde_json = { version = "1", features = ["preserve_order"] }
 # Pull chrono's `wasmbind` in via feature unification so the DSL's time builtins

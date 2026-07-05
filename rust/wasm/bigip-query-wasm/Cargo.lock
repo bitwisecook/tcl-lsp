@@ -40,6 +40,8 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-query",
+ "tcl-compiler",
+ "tcl-core-types",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",

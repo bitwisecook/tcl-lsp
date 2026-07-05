@@ -17,47 +17,137 @@
       }
       return window.__f5qReady;
     }
-    document.querySelectorAll('.panel[data-panel="rules"] pre.code.tcl').forEach(function(pre) {
-      var original = pre.innerHTML;
+    function esc(s) {
+      return String(s).replace(/[&<>]/g, function(c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c];
+      });
+    }
+    var scratch = document.createElement("div");
+    function htmlToText(html) {
+      scratch.innerHTML = html;
+      return scratch.textContent;
+    }
+    var SEV_ORDER = ["error", "warning", "info", "suggestion", "hint"];
+    function setup(pre) {
+      var originalHtml = pre.innerHTML;
+      var rawSource = pre.textContent;
+      var formattedText = null;
+      var state = { formatted: false, diags: false };
       var toolbar = document.createElement("div");
       toolbar.className = "code-toolbar";
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "code-format-btn";
-      btn.textContent = "Format";
-      btn.title = "Reformat this iRule with the F5 iRules Style Guide formatter";
-      toolbar.appendChild(btn);
+      var fmtBtn = mkBtn("Format", "Reformat with the F5 iRules Style Guide formatter");
+      var diagBtn = mkBtn("Diagnostics", "Show analyser diagnostics + optimiser suggestions inline");
+      toolbar.appendChild(fmtBtn);
+      toolbar.appendChild(diagBtn);
       pre.parentNode.insertBefore(toolbar, pre);
-      var formatted = false;
-      btn.addEventListener("click", function() {
-        if (formatted) {
-          pre.innerHTML = original;
-          btn.textContent = "Format";
-          btn.classList.remove("is-active");
-          formatted = false;
+      var panel = document.createElement("div");
+      panel.className = "irule-diags";
+      panel.hidden = true;
+      pre.parentNode.insertBefore(panel, pre.nextSibling);
+      function mkBtn(label, title) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "code-tool-btn";
+        b.textContent = label;
+        b.title = title;
+        return b;
+      }
+      function currentSource() {
+        return state.formatted && formattedText != null ? formattedText : rawSource;
+      }
+      function render() {
+        if (state.diags) {
+          var res = JSON.parse(wasm_bindgen.analyze_irule(currentSource()));
+          pre.innerHTML = res.html;
+          renderPanel(res.diagnostics, res.counts);
+          wireInlineHover();
+        } else {
+          panel.hidden = true;
+          if (state.formatted) {
+            pre.innerHTML = wasm_bindgen.format_irule(currentSource());
+          } else {
+            pre.innerHTML = originalHtml;
+          }
+        }
+        fmtBtn.classList.toggle("is-active", state.formatted);
+        diagBtn.classList.toggle("is-active", state.diags);
+      }
+      function renderPanel(diags, counts) {
+        if (!diags.length) {
+          panel.innerHTML = '<div class="irule-diags-empty">No analyser findings \u2014 clean iRule.</div>';
+          panel.hidden = false;
           return;
         }
-        var src = pre.textContent;
+        var summary = SEV_ORDER.filter(function(s) {
+          return counts[s];
+        }).map(function(s) {
+          return '<span class="diag-badge diag-' + s + '">' + counts[s] + " " + s + (counts[s] > 1 ? "s" : "") + "</span>";
+        }).join("");
+        var rows = diags.map(function(d) {
+          return '<li class="diag-row diag-' + d.severity + '" data-diag="' + d.index + '"><span class="diag-sev diag-' + d.severity + '">' + d.severity + '</span><span class="diag-code">' + esc(d.code) + '</span><span class="diag-loc">' + d.line + ":" + d.col + '</span><span class="diag-msg">' + esc(d.message) + "</span></li>";
+        }).join("");
+        panel.innerHTML = '<div class="irule-diags-head">' + summary + '</div><ul class="diag-list">' + rows + "</ul>";
+        panel.hidden = false;
+        panel.querySelectorAll(".diag-row").forEach(function(row) {
+          row.addEventListener("click", function() {
+            flashInline(row.getAttribute("data-diag"));
+          });
+        });
+      }
+      function wireInlineHover() {
+        pre.querySelectorAll(".diag[data-diag]").forEach(function(mark) {
+          mark.addEventListener("mouseenter", function() {
+            markRows(mark.getAttribute("data-diag"), true);
+          });
+          mark.addEventListener("mouseleave", function() {
+            markRows(mark.getAttribute("data-diag"), false);
+          });
+        });
+      }
+      function markRows(ids, on) {
+        (ids || "").split(/\s+/).forEach(function(id) {
+          var row = panel.querySelector('.diag-row[data-diag="' + id + '"]');
+          if (row) row.classList.toggle("hot", on);
+        });
+      }
+      function flashInline(id) {
+        var mark = pre.querySelector('.diag[data-diag~="' + id + '"]');
+        if (!mark) return;
+        mark.classList.add("flash");
+        mark.scrollIntoView({ block: "nearest" });
+        setTimeout(function() {
+          mark.classList.remove("flash");
+        }, 900);
+      }
+      function withWasm(btn, fn) {
         btn.disabled = true;
-        btn.textContent = "Formatting\u2026";
         initWasm().then(function() {
           try {
-            pre.innerHTML = wasm_bindgen.format_irule(src);
-            btn.textContent = "Restore";
-            btn.classList.add("is-active");
-            formatted = true;
-          } catch (e) {
-            btn.textContent = "Format failed";
-            if (window.console && console.error) console.error("format_irule", e);
+            fn();
           } finally {
             btn.disabled = false;
           }
         }).catch(function(e) {
           btn.disabled = false;
-          btn.textContent = "Format";
           if (window.console && console.error) console.error("wasm load failed", e);
         });
+      }
+      fmtBtn.addEventListener("click", function() {
+        withWasm(fmtBtn, function() {
+          if (!state.formatted && formattedText == null) {
+            formattedText = htmlToText(wasm_bindgen.format_irule(rawSource));
+          }
+          state.formatted = !state.formatted;
+          render();
+        });
       });
-    });
+      diagBtn.addEventListener("click", function() {
+        withWasm(diagBtn, function() {
+          state.diags = !state.diags;
+          render();
+        });
+      });
+    }
+    document.querySelectorAll('.panel[data-panel="rules"] pre.code.tcl').forEach(setup);
   })();
 })();
