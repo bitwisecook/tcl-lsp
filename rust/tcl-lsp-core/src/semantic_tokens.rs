@@ -3154,6 +3154,29 @@ mod tests {
     }
 
     #[test]
+    fn argparse_global_switch_values_classified_as_option_value() {
+        // The `argparse` package command's value-taking global switches
+        // (`-template`, `-level`, …) colour their following literal as an
+        // OptionValue, while boolean switches (`-inline`) do not. argparse is
+        // registered (package-gated), so the classifier resolves its spec.
+        let ks = kinds("argparse -template foo -level 2 -inline {d}\n", "tcl", &reg());
+        let n_val = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::OptionValue as u32)
+            .count();
+        assert_eq!(
+            n_val, 2,
+            "expected `foo` and `2` as OptionValues (not boolean -inline's `{{d}}`); got {ks:?}"
+        );
+        // A boolean global switch does not recolour the following word.
+        let ks = kinds("argparse -inline {d}\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "boolean -inline must not mark a following value; got {ks:?}"
+        );
+    }
+
+    #[test]
     fn subcommand_enum_value_classified_as_enum_member() {
         // `string is alnum $s` — `alnum` is a closed-set value declared on
         // the `is` subcommand → enumMember, not a plain string.
