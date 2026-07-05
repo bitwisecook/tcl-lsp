@@ -76,7 +76,7 @@ impl ClassHierarchy {
             .map(String::as_str)
     }
 
-    /// Resolve TclOO `next` / `nextto`: the class *after* the current
+    /// Resolve `TclOO` `next` / `nextto`: the class *after* the current
     /// provider in `class`'s MRO that provides `method`.
     ///
     /// For plain `next`, pass the class currently servicing the method as
