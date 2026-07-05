@@ -51,6 +51,8 @@
 //!   walked in the enclosing scope for variable tracking.
 
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_registry::arg_role::ArgRole;
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec};
 
 use super::scope::scope_at_mut;
 use super::state::Analyser;
@@ -74,39 +76,70 @@ const CHAIN_TARGETS: &[&str] = &[
     "original_unknown",
 ];
 
-/// snit (tcllib) type/widget definers, both bare and `::`-qualified.
-const SNIT_DEFINERS: &[&str] = &[
-    "snit::type",
-    "snit::widget",
-    "snit::widgetadaptor",
-    "::snit::type",
-    "::snit::widget",
-    "::snit::widgetadaptor",
-];
-
-/// Implicit instance variables snit injects into `method` / `constructor` /
-/// `destructor` / `onconfigure` / `oncget` bodies.
-const SNIT_INSTANCE_IMPLICIT: &[&str] = &["self", "selfns", "type", "options"];
-
 /// Implicit variable snit injects into `typemethod` / `typeconstructor` bodies.
+///
+/// The instance-body implicits (`self` / `selfns` / `type` / `options`) come
+/// from the definer's registry grammar (`implicit_vars`); this is only the
+/// narrower *type*-body subset, which the flat grammar list doesn't
+/// distinguish — a `typemethod` body sees `type` but not `self`.
 const SNIT_TYPE_IMPLICIT: &[&str] = &["type"];
 
-/// The snit class being populated plus where its members live — bundled so the
-/// snit member dispatch / extraction helpers stay under the argument limit.
+/// The snit definer's grammar plus the class being populated and where its
+/// members live — bundled so the snit member dispatch / extraction helpers stay
+/// under the argument limit.
 struct SnitClassCtx<'a> {
+    grammar: &'static DefinitionBodyGrammar,
     class_def: &'a mut ClassDef,
     class_qualified: &'a str,
     scope_path: &'a [usize],
 }
 
-/// The declaration form of a snit member: its [`MethodDef::kind`], whether its
-/// body immediately follows the keyword (`no_arglist`, e.g. `destructor` /
-/// `typeconstructor` / `oncget`), and the synthetic name for the
-/// constructor/handler forms (empty for a named `method` / `typemethod`).
-struct SnitMethodForm<'a> {
+/// A body-bearing snit member ready to extract: its grammar spec (argument
+/// layout), the target [`MethodDef::kind`], and the synthetic name for the
+/// nameless forms.  Bundled to keep [`Analyser::extract_snit_method`] under the
+/// argument limit.
+struct SnitMemberForm<'a> {
+    member: &'a MemberSpec,
     kind: &'a str,
-    no_arglist: bool,
-    synthetic_name: &'a str,
+    label: &'a str,
+}
+
+/// The snit definer being parsed: its member grammar plus whether it is a
+/// `widget` / `widgetadaptor` (which injects the extra `win` / `hull` instance
+/// variables).  Bundled to keep [`Analyser::parse_snit_definition_body`] under
+/// the argument limit.
+struct SnitDefiner {
+    grammar: &'static DefinitionBodyGrammar,
+    is_widget: bool,
+}
+
+/// Whether `member` is a pure variable/component *declaration* — it names a
+/// [`ArgRole::VarWrite`] but carries no recursable body (`variable v`,
+/// `typevariable v`, `component c`, `typecomponent c`).  Members that carry
+/// both (snit 1.x `onconfigure`'s value var) are method bodies, not
+/// declarations, and are excluded.
+fn is_var_declaration(member: &MemberSpec) -> bool {
+    let has_var = member
+        .arg_roles
+        .iter()
+        .any(|(_, r)| *r == ArgRole::VarWrite);
+    let has_body = member.arg_roles.iter().any(|(_, r)| *r == ArgRole::Body);
+    has_var && !has_body
+}
+
+/// The synthetic name for a nameless snit member (one with no
+/// [`ArgRole::Name`]): `<keyword>`, with a leading roleless option word
+/// (snit 1.x `onconfigure`/`oncget`'s `-option`) appended when present so the
+/// two option handlers for the same keyword stay distinct
+/// (`<onconfigure -foo>` vs `<onconfigure -bar>`).  Unused for named members.
+fn snit_member_label(member: &MemberSpec, keyword: &str, args: &[String]) -> String {
+    let role_at_zero = member.arg_roles.iter().any(|(i, _)| *i == 0);
+    if !role_at_zero
+        && let Some(opt) = args.first()
+    {
+        return format!("<{keyword} {opt}>");
+    }
+    format!("<{keyword}>")
 }
 
 impl Analyser {
@@ -125,10 +158,17 @@ impl Analyser {
         class_def: &mut ClassDef,
         class_qualified: &str,
         scope_path: &[usize],
+        grammar: Option<&'static DefinitionBodyGrammar>,
     ) {
         if body_tok.kind != TokenType::Str {
             return;
         }
+        // Member recognition + argument layout come from the definer's registry
+        // grammar; without one (only possible when the analyser has no registry,
+        // e.g. a direct unit-test call) there is nothing to walk.
+        let Some(grammar) = grammar else {
+            return;
+        };
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
@@ -151,16 +191,25 @@ impl Analyser {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
-            apply_oo_subcommand(&cmd.texts, &cmd.argv, class_def);
-            if let Some(mb) = collect_method_body(&cmd.texts, &cmd.argv) {
+            apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
+            if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);
             }
             match cmd.texts.first().map(String::as_str) {
                 Some("property") => {
                     collect_property_accessor_bodies(&cmd.texts, &cmd.argv, &mut accessor_bodies);
                 }
-                Some("initialise" | "initialize") => {
-                    if let (Some(body), Some(tok)) = (cmd.texts.get(1), cmd.argv.get(1).copied())
+                Some(kw @ ("initialise" | "initialize")) => {
+                    // A class-level init script: unlike a method, its body (the
+                    // member's grammar `Body` word) is walked in the *enclosing*
+                    // scope, so it is collected here rather than by
+                    // `collect_method_body`.
+                    if let Some(body_idx) = grammar
+                        .member(kw)
+                        .and_then(|m| m.indices_for(ArgRole::Body).next())
+                        .map(|i| i + 1)
+                        && let (Some(body), Some(tok)) =
+                            (cmd.texts.get(body_idx), cmd.argv.get(body_idx).copied())
                         && tok.kind == TokenType::Str
                     {
                         init_bodies.push((body.clone(), tok));
@@ -276,7 +325,20 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if !SNIT_DEFINERS.contains(&cmd_name) || args.len() < 2 || arg_tokens.len() < 2 {
+        // Which commands are snit definers, their member sub-keywords + argument
+        // layout, and the variables snit injects into member bodies are all
+        // registry data (a `Snit`-family definition-body grammar) — not a
+        // hardcoded name / member / implicit-var list.  A new snit-like definer
+        // is picked up automatically once its spec carries the grammar.  The
+        // grammar is `&'static`, so it outlives the immutable registry borrow
+        // released here before the `&mut self` work below.
+        let Some(grammar) = self
+            .definition_grammar(cmd_name)
+            .filter(|g| g.family == tcl_registry::definer::DefinerFamily::Snit)
+        else {
+            return false;
+        };
+        if args.len() < 2 || arg_tokens.len() < 2 {
             return false;
         }
         let raw_name = &args[0];
@@ -299,8 +361,14 @@ impl Analyser {
             ..Default::default()
         };
         if !body.is_empty() {
+            let definer = SnitDefiner { grammar, is_widget };
             self.parse_snit_definition_body(
-                body, body_tok, &mut class, &qualified, scope_path, is_widget,
+                body,
+                body_tok,
+                &mut class,
+                &qualified,
+                scope_path,
+                &definer,
             );
         }
         self.result.all_classes.insert(qualified, class.clone());
@@ -321,11 +389,12 @@ impl Analyser {
         class_def: &mut ClassDef,
         class_qualified: &str,
         scope_path: &[usize],
-        is_widget: bool,
+        definer: &SnitDefiner,
     ) {
         if body_tok.kind != TokenType::Str {
             return;
         }
+        let grammar = definer.grammar;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body,
@@ -333,12 +402,13 @@ impl Analyser {
             self.lexer_config(),
         );
 
-        // Snit injects these implicit variables into method / type-method bodies.
-        let mut instance_vars: Vec<String> = SNIT_INSTANCE_IMPLICIT
-            .iter()
-            .map(|s| (*s).to_string())
-            .collect();
-        if is_widget {
+        // The variables snit injects into every member body come from the
+        // definer's registry grammar (`implicit_vars`); a widget adds `win` /
+        // `hull` on top.
+        let implicit_vars = grammar.implicit_vars;
+        let mut instance_vars: Vec<String> =
+            implicit_vars.iter().map(|s| (*s).to_string()).collect();
+        if definer.is_widget {
             instance_vars.push("win".to_string());
             instance_vars.push("hull".to_string());
         }
@@ -347,7 +417,13 @@ impl Analyser {
             .map(|s| (*s).to_string())
             .collect();
 
-        // First pass: collect declared instance / type variable + component names.
+        // First pass: collect declared instance / type variable + component
+        // names.  Which members are pure declarations (a `VarWrite` arg and no
+        // body — `variable` / `typevariable` / `component` / `typecomponent`)
+        // and which argument holds the name are read from the registry grammar,
+        // not a hardcoded keyword list.  Snit names every *type*-scoped member
+        // with a `type` prefix, so that family convention routes the name to the
+        // type- vs instance-variable set.
         for cmd in &cmds {
             if cmd.is_partial {
                 continue;
@@ -355,29 +431,34 @@ impl Analyser {
             let Some((sub, sub_args)) = cmd.texts.split_first() else {
                 continue;
             };
-            match sub.as_str() {
-                "variable" | "component" => {
-                    if let Some(name) = sub_args.first() {
-                        instance_vars.push(name.clone());
-                    }
-                }
-                "typevariable" | "typecomponent" => {
-                    if let Some(name) = sub_args.first() {
-                        type_vars.push(name.clone());
-                    }
-                }
-                _ => {}
+            let Some(member) = grammar.member(sub) else {
+                continue;
+            };
+            if !is_var_declaration(member) {
+                continue;
+            }
+            let Some(name) = member
+                .indices_for(ArgRole::VarWrite)
+                .next()
+                .and_then(|i| sub_args.get(i))
+            else {
+                continue;
+            };
+            if sub.starts_with("type") {
+                type_vars.push(name.clone());
+            } else {
+                instance_vars.push(name.clone());
             }
         }
 
         // Record the *explicit* instance + type variables on the class —
         // method-scope seeding and the W307 dispatch-source suppression both
-        // read `ClassDef::variables`.  Only the four implicit scalars
+        // read `ClassDef::variables`.  The grammar's implicit scalars
         // (`self`/`selfns`/`type`/`options`) and the type-implicit `type` are
         // filtered; a widget's injected `win`/`hull` are kept.
         class_def.variables = instance_vars
             .iter()
-            .filter(|v| !SNIT_INSTANCE_IMPLICIT.contains(&v.as_str()))
+            .filter(|v| !implicit_vars.contains(&v.as_str()))
             .chain(
                 type_vars
                     .iter()
@@ -394,6 +475,7 @@ impl Analyser {
             if let Some((sub, sub_args)) = cmd.texts.split_first() {
                 let sub_tokens = cmd.argv.get(1..).unwrap_or(&[]);
                 let mut ctx = SnitClassCtx {
+                    grammar,
                     class_def,
                     class_qualified,
                     scope_path,
@@ -413,6 +495,12 @@ impl Analyser {
     /// Dispatch one snit body subcommand to the matching method extractor (or,
     /// for `proc`, the ordinary proc handler).  Split out of
     /// [`Self::parse_snit_definition_body`] so the two-pass walk stays small.
+    ///
+    /// Recognition (is this a member?) and argument layout (which words are the
+    /// name / parameter list / value var / body) are read from the registry
+    /// grammar member; only the analyser-level *semantics* — the target
+    /// [`MethodDef::kind`], whether the body sees instance or type variables,
+    /// and the synthetic name of the nameless forms — are decided here.
     fn dispatch_snit_member(
         &mut self,
         sub: &str,
@@ -422,168 +510,102 @@ impl Analyser {
         instance_vars: &[String],
         type_vars: &[String],
     ) {
-        match sub {
-            // snit allows a type-private `proc name args body` — analyse it as
-            // an ordinary proc in the enclosing scope.
-            "proc" => {
-                self.handle_proc_command("proc", sub_args, sub_tokens, ctx.scope_path);
-            }
-            "method" => self.extract_snit_method(
-                sub_args,
-                sub_tokens,
-                ctx,
-                instance_vars,
-                &SnitMethodForm {
-                    kind: "method",
-                    no_arglist: false,
-                    synthetic_name: "",
-                },
-            ),
-            "typemethod" => self.extract_snit_method(
-                sub_args,
-                sub_tokens,
-                ctx,
-                type_vars,
-                &SnitMethodForm {
-                    kind: "classmethod",
-                    no_arglist: false,
-                    synthetic_name: "",
-                },
-            ),
-            "constructor" => self.extract_snit_method(
-                sub_args,
-                sub_tokens,
-                ctx,
-                instance_vars,
-                &SnitMethodForm {
-                    kind: "constructor",
-                    no_arglist: false,
-                    synthetic_name: "<constructor>",
-                },
-            ),
-            "destructor" => self.extract_snit_method(
-                sub_args,
-                sub_tokens,
-                ctx,
-                instance_vars,
-                &SnitMethodForm {
-                    kind: "destructor",
-                    no_arglist: true,
-                    synthetic_name: "<destructor>",
-                },
-            ),
-            "typeconstructor" => self.extract_snit_method(
-                sub_args,
-                sub_tokens,
-                ctx,
-                type_vars,
-                &SnitMethodForm {
-                    kind: "classmethod",
-                    no_arglist: true,
-                    synthetic_name: "<typeconstructor>",
-                },
-            ),
-            // `onconfigure -opt valuevar { body }` / `oncget -opt { body }`
-            // (snit 1.x) — the leading `-opt` word is dropped.
-            "onconfigure" => {
-                let label = sub_args
-                    .first()
-                    .map_or(String::new(), |o| format!("<onconfigure {o}>"));
-                self.extract_snit_method(
-                    sub_args.get(1..).unwrap_or(&[]),
-                    sub_tokens.get(1..).unwrap_or(&[]),
-                    ctx,
-                    instance_vars,
-                    &SnitMethodForm {
-                        kind: "method",
-                        no_arglist: false,
-                        synthetic_name: &label,
-                    },
-                );
-            }
-            "oncget" => {
-                let label = sub_args
-                    .first()
-                    .map_or(String::new(), |o| format!("<oncget {o}>"));
-                self.extract_snit_method(
-                    sub_args.get(1..).unwrap_or(&[]),
-                    sub_tokens.get(1..).unwrap_or(&[]),
-                    ctx,
-                    instance_vars,
-                    &SnitMethodForm {
-                        kind: "method",
-                        no_arglist: true,
-                        synthetic_name: &label,
-                    },
-                );
-            }
-            _ => {}
+        // snit allows a type-private `proc name args body` — analyse it as an
+        // ordinary proc in the enclosing scope, not a method.
+        if sub == "proc" {
+            self.handle_proc_command("proc", sub_args, sub_tokens, ctx.scope_path);
+            return;
         }
+        let Some(member) = ctx.grammar.member(sub) else {
+            return;
+        };
+        // Only body-bearing members define a walkable method scope; pure
+        // declarations (`variable` …) and option/delegate members carry none.
+        if member.indices_for(ArgRole::Body).next().is_none() {
+            return;
+        }
+        // Snit names every *type*-scoped member with a `type` prefix — the
+        // family convention that decides whether the body sees the type or the
+        // instance variables, and which `MethodDef` bucket receives it.
+        let is_type = sub.starts_with("type");
+        let seed_vars = if is_type { type_vars } else { instance_vars };
+        let kind = if is_type {
+            "classmethod"
+        } else if sub == "constructor" {
+            "constructor"
+        } else if sub == "destructor" {
+            "destructor"
+        } else {
+            "method"
+        };
+        let label = snit_member_label(member, sub, sub_args);
+        let form = SnitMemberForm {
+            member,
+            kind,
+            label: &label,
+        };
+        self.extract_snit_method(sub_args, sub_tokens, ctx, seed_vars, &form);
     }
 
     /// Analyse one snit method / constructor / etc. body in a method scope
     /// seeded with `seed_vars` (snit's implicit names + declared instance or
-    /// type variables) and the method's formal parameters.  `no_arglist` is
-    /// for declarations whose body immediately follows the keyword
-    /// (`destructor` / `typeconstructor` / `oncget`); `synthetic_name` names
-    /// the synthetic constructor/handler forms.
+    /// type variables) and the method's formal parameters.  The name /
+    /// parameter-list / value-var / body word positions all come from
+    /// `member`'s registry arg-roles — a body-less member is a no-op.
     fn extract_snit_method(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         ctx: &mut SnitClassCtx<'_>,
         seed_vars: &[String],
-        form: &SnitMethodForm<'_>,
+        form: &SnitMemberForm<'_>,
     ) {
-        let SnitMethodForm {
+        let SnitMemberForm {
+            member,
             kind,
-            no_arglist,
-            synthetic_name,
+            label,
         } = *form;
-        let (name, params, body_text, body_tok, params_tok) = if no_arglist {
-            let Some(body) = args.first() else {
-                return;
-            };
-            let nm = if synthetic_name.is_empty() {
+        let Some(body_idx) = member.indices_for(ArgRole::Body).next() else {
+            return;
+        };
+        let Some(body_text) = args.get(body_idx).cloned() else {
+            return;
+        };
+        let body_tok = arg_tokens.get(body_idx).copied();
+        let name_idx = member.indices_for(ArgRole::Name).next();
+        let params_idx = member.indices_for(ArgRole::ParamList).next();
+
+        // A named member (`method NAME …`) uses its name word; the nameless
+        // forms fall back to the caller's synthetic label (`<constructor>`,
+        // `<oncget -opt>`, …), or `<body>` when even that is empty.
+        let name = name_idx.and_then(|i| args.get(i)).cloned().unwrap_or_else(|| {
+            if label.is_empty() {
                 "<body>".to_string()
             } else {
-                synthetic_name.to_string()
-            };
-            (
-                nm,
-                Vec::new(),
-                body.clone(),
-                arg_tokens.first().copied(),
-                None,
-            )
-        } else if synthetic_name.is_empty() {
-            // method / typemethod: NAME ARGLIST BODY.
-            if args.len() < 3 {
-                return;
+                label.to_string()
             }
-            (
-                args[0].clone(),
-                parse_param_list(&args[1]),
-                args[2].clone(),
-                arg_tokens.get(2).copied(),
-                arg_tokens.get(1).copied(),
-            )
-        } else {
-            // constructor / onconfigure: ARGLIST BODY (name is synthetic).
-            if args.len() < 2 {
-                return;
+        });
+        // Formal parameters: the parameter-list word, plus any `VarWrite` word
+        // (snit 1.x `onconfigure`'s value variable) modelled as a bound local.
+        let mut params: Vec<ParamDef> = params_idx
+            .and_then(|i| args.get(i))
+            .map_or_else(Vec::new, |p| parse_param_list(p));
+        for i in member.indices_for(ArgRole::VarWrite) {
+            if let Some(v) = args.get(i) {
+                params.push(ParamDef {
+                    name: v.clone(),
+                    has_default: false,
+                    default_value: None,
+                });
             }
-            (
-                synthetic_name.to_string(),
-                parse_param_list(&args[0]),
-                args[1].clone(),
-                arg_tokens.get(1).copied(),
-                arg_tokens.first().copied(),
-            )
-        };
+        }
+        let params_tok = params_idx.and_then(|i| arg_tokens.get(i).copied());
 
         let zero = Span::new(0, 0);
-        let name_span = arg_tokens.first().map_or(zero, |t| t.span);
+        let name_span = name_idx
+            .and_then(|i| arg_tokens.get(i))
+            .or_else(|| arg_tokens.first())
+            .map_or(zero, |t| t.span);
         let body_span = body_tok.map_or(name_span, |t| t.span);
         let method_def = MethodDef {
             name: name.clone(),
@@ -694,6 +716,7 @@ impl Analyser {
 /// from the body form only in how arguments are framed; the
 /// per-subcommand handling is identical.
 pub(super) fn parse_oo_define_inline(
+    grammar: &DefinitionBodyGrammar,
     args: &[String],
     arg_tokens: &[Token],
     class_def: &mut ClassDef,
@@ -703,7 +726,7 @@ pub(super) fn parse_oo_define_inline(
     }
     // Synthesise a single fake "command" matching what the
     // body walker would have produced.
-    apply_oo_subcommand(args, arg_tokens, class_def);
+    apply_oo_subcommand(grammar, args, arg_tokens, class_def);
 }
 
 /// Inspect a single IR statement for unknown-proc dispatch
@@ -839,37 +862,64 @@ struct CollectedMethodBody {
 }
 
 /// Recognise a method-defining subcommand in a class body and return its body
-/// to walk.  Covers the direct forms (`method` / `classmethod` / `constructor`
-/// / `destructor`); the `forward` form has no body, and dynamic (non-braced)
-/// bodies are filtered downstream by [`Analyser::walk_method_body`].
-fn collect_method_body(texts: &[String], argv: &[Token]) -> Option<CollectedMethodBody> {
-    match texts.first().map(String::as_str)? {
-        "method" | "classmethod" if texts.len() >= 4 => Some(CollectedMethodBody {
-            name: texts[1].clone(),
-            params: parse_param_list(&texts[2]),
-            body_text: texts[3].clone(),
-            body_tok: *argv.get(3)?,
-            params_tok: argv.get(2).copied(),
-        }),
-        "constructor" if texts.len() >= 3 => Some(CollectedMethodBody {
-            name: "<constructor>".to_string(),
-            params: parse_param_list(&texts[1]),
-            body_text: texts[2].clone(),
-            body_tok: *argv.get(2)?,
-            params_tok: argv.get(1).copied(),
-        }),
-        "destructor" if texts.len() >= 2 => Some(CollectedMethodBody {
-            name: "<destructor>".to_string(),
-            params: Vec::new(),
-            body_text: texts[1].clone(),
-            body_tok: *argv.get(1)?,
-            params_tok: None,
-        }),
-        _ => None,
+/// to walk in a fresh [`ScopeKind::Method`] scope.
+///
+/// The member's argument layout — which word is the name, the parameter list,
+/// and the recursable body — comes entirely from its registry
+/// [`MemberSpec`] arg-roles (never hardcoded indices), so a definer that adds
+/// or reshapes a method-bearing member is picked up from the grammar alone.
+///
+/// Restricted to the members whose body is a *method* body: `initialise` /
+/// `initialize` are class-level init scripts (walked in the enclosing scope by
+/// the caller) and `private` is a visibility wrapper / block, so both are
+/// excluded here even though the grammar marks them as carrying a body. The
+/// `forward` form has no body; dynamic (non-braced) bodies are filtered
+/// downstream by [`Analyser::walk_method_body`].
+fn collect_method_body(
+    grammar: &DefinitionBodyGrammar,
+    texts: &[String],
+    argv: &[Token],
+) -> Option<CollectedMethodBody> {
+    let keyword = texts.first().map(String::as_str)?;
+    if !matches!(
+        keyword,
+        "method" | "classmethod" | "constructor" | "destructor"
+    ) {
+        return None;
     }
+    let member = grammar.member(keyword)?;
+    // Arg-role indices are 0-based *after* the keyword → `+ 1` into the full
+    // `texts` / `argv` (index 0 is the keyword itself).
+    let body_idx = member.indices_for(ArgRole::Body).next()? + 1;
+    let params_idx = member.indices_for(ArgRole::ParamList).next().map(|i| i + 1);
+    let name_idx = member.indices_for(ArgRole::Name).next().map(|i| i + 1);
+
+    let body_text = texts.get(body_idx)?.clone();
+    let body_tok = *argv.get(body_idx)?;
+    // A named member (`method NAME …`) uses its name word; the nameless forms
+    // (`constructor` / `destructor`) get a synthetic `<keyword>` name.
+    let name = name_idx
+        .and_then(|i| texts.get(i))
+        .map_or_else(|| format!("<{keyword}>"), String::clone);
+    let params = params_idx
+        .and_then(|i| texts.get(i))
+        .map_or_else(Vec::new, |p| parse_param_list(p));
+    let params_tok = params_idx.and_then(|i| argv.get(i).copied());
+    Some(CollectedMethodBody {
+        name,
+        params,
+        body_text,
+        body_tok,
+        params_tok,
+    })
 }
 
-fn apply_oo_private(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
+fn apply_oo_private(
+    grammar: &DefinitionBodyGrammar,
+    sub_args: &[String],
+    sub_tokens: &[Token],
+    class_def: &mut ClassDef,
+) {
     if sub_args.is_empty() {
         return;
     }
@@ -880,16 +930,20 @@ fn apply_oo_private(sub_args: &[String], sub_tokens: &[Token], class_def: &mut C
     } else {
         &[]
     };
+    let Some(member) = grammar.member(inner_subcmd) else {
+        return;
+    };
     match inner_subcmd {
         "method" => {
-            if let Some(md) = extract_method_def(inner_args, inner_tokens, "method", "private", "")
+            if let Some(md) =
+                extract_method_def(member, inner_args, inner_tokens, "method", "private", "")
             {
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
             if let Some(md) =
-                extract_method_def(inner_args, inner_tokens, "classmethod", "private", "")
+                extract_method_def(member, inner_args, inner_tokens, "classmethod", "private", "")
             {
                 class_def.class_methods.insert(md.name.clone(), md);
             }
@@ -918,12 +972,20 @@ fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut C
     }
 }
 
-fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDef) {
+fn apply_oo_subcommand(
+    grammar: &DefinitionBodyGrammar,
+    texts: &[String],
+    argv: &[Token],
+    class_def: &mut ClassDef,
+) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
     };
     let sub_args: &[String] = if texts.len() > 1 { &texts[1..] } else { &[] };
     let sub_tokens: &[Token] = if argv.len() > 1 { &argv[1..] } else { &[] };
+    // The member's argument layout (name / params / body positions) comes from
+    // its registry grammar spec; field routing below stays analyser-local.
+    let member = grammar.member(subcmd);
 
     match subcmd {
         "superclass" => {
@@ -951,24 +1013,23 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
             }
         }
         "method" => {
-            if let Some(md) = extract_method_def(sub_args, sub_tokens, "method", "public", "") {
+            if let Some(md) =
+                member.and_then(|m| extract_method_def(m, sub_args, sub_tokens, "method", "public", ""))
+            {
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
-            if let Some(md) = extract_method_def(sub_args, sub_tokens, "classmethod", "public", "")
+            if let Some(md) = member
+                .and_then(|m| extract_method_def(m, sub_args, sub_tokens, "classmethod", "public", ""))
             {
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
         "constructor" => {
-            if let Some(mut md) = extract_method_def(
-                sub_args,
-                sub_tokens,
-                "constructor",
-                "public",
-                "<constructor>",
-            ) {
+            if let Some(mut md) = member.and_then(|m| {
+                extract_method_def(m, sub_args, sub_tokens, "constructor", "public", "<constructor>")
+            }) {
                 // Anchor the name span on the `constructor`
                 // keyword token (argv[0]) — there's no name
                 // token of its own, so editors land on the
@@ -980,9 +1041,9 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
             }
         }
         "destructor" => {
-            if let Some(mut md) =
-                extract_method_def(sub_args, sub_tokens, "destructor", "public", "<destructor>")
-            {
+            if let Some(mut md) = member.and_then(|m| {
+                extract_method_def(m, sub_args, sub_tokens, "destructor", "public", "<destructor>")
+            }) {
                 if let Some(kw) = argv.first() {
                     md.name_span = kw.span;
                 }
@@ -1005,7 +1066,7 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
         "forward" => apply_oo_forward(sub_args, sub_tokens, class_def),
-        "private" => apply_oo_private(sub_args, sub_tokens, class_def),
+        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -1110,18 +1171,19 @@ fn collect_property_accessor_bodies(
     }
 }
 
-/// Extract a [`MethodDef`] from method-style args.
+/// Extract a [`MethodDef`] from a method-shaped member's args.
 ///
-/// Three shapes:
+/// The name / parameter-list / body word positions come from `member`'s
+/// registry arg-roles (`method NAME PARAMS BODY`, `constructor PARAMS BODY`,
+/// `destructor BODY`), never hardcoded indices.  A member with no
+/// [`ArgRole::Name`] (constructor / destructor) takes `synthetic_name` as its
+/// placeholder.  `args` / `arg_tokens` are the words *after* the member
+/// keyword.
 ///
-/// - **method / classmethod**: `args = [name, params, body]`.
-/// - **constructor**: `args = [params, body]`; `synthetic_name`
-///   provides the placeholder name (``"<constructor>"``).
-/// - **destructor**: `args = [body]`; same synthetic-name trick.
-///
-/// Returns `None` when the argument count is too short to
-/// match any of the shapes.
+/// Returns `None` when the argument count is too short (no body word) to match
+/// the member's shape.
 fn extract_method_def(
+    member: &MemberSpec,
     args: &[String],
     arg_tokens: &[Token],
     kind: &str,
@@ -1129,67 +1191,43 @@ fn extract_method_def(
     synthetic_name: &str,
 ) -> Option<MethodDef> {
     let zero = tcl_lexer::Span::new(0, 0);
-    match kind {
-        "constructor" => {
-            // ``constructor PARAMS BODY``.
-            if args.len() < 2 {
-                return None;
-            }
-            let params = parse_param_list(&args[0]);
-            let name_span = zero;
-            let body_span = arg_tokens.get(1).map_or(zero, |t| t.span);
-            Some(MethodDef {
-                name: synthetic_name.to_string(),
-                params,
-                name_span,
-                body_span,
-                kind: kind.to_string(),
-                visibility: visibility.to_string(),
-                doc: String::new(),
-            })
-        }
-        "destructor" => {
-            // ``destructor BODY``.
-            if args.is_empty() {
-                return None;
-            }
-            let name_span = zero;
-            let body_span = arg_tokens.first().map_or(zero, |t| t.span);
-            Some(MethodDef {
-                name: synthetic_name.to_string(),
-                params: Vec::new(),
-                name_span,
-                body_span,
-                kind: kind.to_string(),
-                visibility: visibility.to_string(),
-                doc: String::new(),
-            })
-        }
-        _ => {
-            // ``method NAME PARAMS BODY`` / ``classmethod NAME PARAMS BODY``.
-            if args.len() < 3 {
-                return None;
-            }
-            let name = args[0].clone();
-            let params = parse_param_list(&args[1]);
-            let name_span = arg_tokens.first().map_or(zero, |t| t.span);
-            let body_span = arg_tokens.get(2).map_or(zero, |t| t.span);
-            Some(MethodDef {
-                name,
-                params,
-                name_span,
-                body_span,
-                kind: kind.to_string(),
-                visibility: visibility.to_string(),
-                doc: String::new(),
-            })
-        }
-    }
+    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    // A body word must be present for the member to be well-formed.
+    args.get(body_idx)?;
+    let name_idx = member.indices_for(ArgRole::Name).next();
+    let params_idx = member.indices_for(ArgRole::ParamList).next();
+
+    let name = name_idx
+        .and_then(|i| args.get(i))
+        .map_or_else(|| synthetic_name.to_string(), String::clone);
+    let params = params_idx
+        .and_then(|i| args.get(i))
+        .map_or_else(Vec::new, |p| parse_param_list(p));
+    let name_span = name_idx
+        .and_then(|i| arg_tokens.get(i))
+        .map_or(zero, |t| t.span);
+    let body_span = arg_tokens.get(body_idx).map_or(zero, |t| t.span);
+    Some(MethodDef {
+        name,
+        params,
+        name_span,
+        body_span,
+        kind: kind.to_string(),
+        visibility: visibility.to_string(),
+        doc: String::new(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The TclOO definition-body grammar the `apply_oo_subcommand` /
+    /// `extract_method_def` helpers read their member argument layout from —
+    /// the same `&'static` the analyser fetches from the registry at runtime.
+    fn tcloo() -> &'static DefinitionBodyGrammar {
+        &tcl_registry::definer::TCLOO_GRAMMAR
+    }
 
     fn class() -> ClassDef {
         ClassDef {
@@ -1222,7 +1260,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 10)), tok((11, 14)), tok((15, 18))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.superclasses, vec!["::A", "::B"]);
     }
 
@@ -1234,7 +1272,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 5)), tok((6, 13)), tok((14, 18)), tok((19, 23))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.mixins, vec!["::M1", "::M2"]);
     }
 
@@ -1246,7 +1284,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 6)), tok((7, 12)), tok((13, 17)), str_tok((18, 32))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert!(cd.methods.contains_key("greet"));
         let md = &cd.methods["greet"];
         assert_eq!(md.kind, "method");
@@ -1266,7 +1304,7 @@ mod tests {
             tok((18, 22)),
             str_tok((23, 38)),
         ];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert!(cd.class_methods.contains_key("build"));
         assert!(!cd.methods.contains_key("build"));
     }
@@ -1279,7 +1317,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 11)), tok((12, 16)), str_tok((17, 28))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.constructors.len(), 1);
         assert_eq!(cd.constructors[0].kind, "constructor");
         assert_eq!(cd.constructors[0].name, "<constructor>");
@@ -1298,7 +1336,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 10)), str_tok((11, 22))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         let dtor = cd.destructor.as_ref().expect("destructor recorded");
         assert_eq!(dtor.kind, "destructor");
         assert_eq!(dtor.name, "<destructor>");
@@ -1316,7 +1354,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 7)), tok((8, 16)), tok((17, 29))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert!(cd.methods.contains_key("delegate"));
         assert_eq!(cd.methods["delegate"].kind, "forward");
     }
@@ -1335,7 +1373,7 @@ mod tests {
             tok((24, 28)),
             str_tok((29, 37)),
         ];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert!(cd.methods.contains_key("internal"));
         assert_eq!(cd.methods["internal"].visibility, "private");
     }
@@ -1345,7 +1383,7 @@ mod tests {
         let mut cd = class();
         let texts: Vec<String> = ["whatever", "x"].iter().map(|s| (*s).to_string()).collect();
         let argv = [tok((0, 8)), tok((9, 10))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         // No fields populated; no panic.
         assert!(cd.methods.is_empty());
         assert!(cd.superclasses.is_empty());
@@ -1360,7 +1398,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 8)), tok((9, 10)), tok((11, 12))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.variables, vec!["x", "y"]);
     }
 
@@ -1372,7 +1410,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv = [tok((0, 6)), tok((7, 10)), tok((11, 16))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.filters, vec!["log", "trace"]);
     }
 
@@ -1384,7 +1422,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv1 = [tok((0, 6)), tok((7, 10)), tok((11, 14))];
-        apply_oo_subcommand(&texts1, &argv1, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts1, &argv1, &mut cd);
         assert!(cd.exports.contains("foo"));
         assert!(cd.exports.contains("bar"));
 
@@ -1393,7 +1431,7 @@ mod tests {
             .map(|s| (*s).to_string())
             .collect();
         let argv2 = [tok((0, 8)), tok((9, 12))];
-        apply_oo_subcommand(&texts2, &argv2, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts2, &argv2, &mut cd);
         assert!(cd.unexports.contains("baz"));
     }
 
@@ -1419,7 +1457,7 @@ mod tests {
             tok((31, 35)),
             str_tok((36, 47)),
         ];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         let pd = cd.properties.get("colour").expect("colour recorded");
         assert_eq!(pd.kind, "readable");
         assert!(pd.has_getter);
@@ -1431,7 +1469,7 @@ mod tests {
         let mut cd = class();
         let texts: Vec<String> = ["property", "x"].iter().map(|s| (*s).to_string()).collect();
         let argv = [tok((0, 8)), tok((9, 10))];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         let pd = cd.properties.get("x").expect("x recorded");
         assert_eq!(pd.kind, "readwrite");
         assert!(!pd.has_getter);
@@ -1452,7 +1490,7 @@ mod tests {
             tok((13, 18)),
             tok((19, 27)),
         ];
-        apply_oo_subcommand(&texts, &argv, &mut cd);
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.properties.len(), 2);
         assert_eq!(cd.properties["x"].kind, "writable");
         assert_eq!(cd.properties["y"].kind, "writable");
@@ -1460,10 +1498,12 @@ mod tests {
 
     #[test]
     fn extract_method_def_too_few_args_returns_none() {
-        // ``method`` with only 1 arg (just the name) — needs 3.
+        // ``method`` with only 1 arg (just the name) — needs 3 (name, params,
+        // body), so the grammar's `Body` word at index 2 is absent.
+        let member = tcloo().member("method").expect("method is a member");
         let args: Vec<String> = vec!["foo".to_string()];
         let arg_tokens: Vec<Token> = vec![tok((0, 3))];
-        let md = extract_method_def(&args, &arg_tokens, "method", "public", "");
+        let md = extract_method_def(member, &args, &arg_tokens, "method", "public", "");
         assert!(md.is_none());
     }
 

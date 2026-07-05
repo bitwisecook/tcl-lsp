@@ -55,7 +55,6 @@ pub struct MemberSpec {
 
 impl MemberSpec {
     /// The argument indices (0-based after the keyword) carrying `role`.
-    #[must_use]
     pub fn indices_for(&self, role: ArgRole) -> impl Iterator<Item = usize> + '_ {
         self.arg_roles
             .iter()
@@ -64,11 +63,27 @@ impl MemberSpec {
     }
 }
 
+/// Which class-system a definer belongs to.  Distinguishes definers that share
+/// the `definition_body` marker but need a different analyser body-parser /
+/// instance-creation shape (TclOO's `metaclass create Name { … }` vs snit's
+/// `snit::type Name { … }`).  Consumers that only walk members (folding,
+/// semantic tokens) never read this; the analyser dispatches on it instead of
+/// hardcoding definer names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinerFamily {
+    /// TclOO metaclasses and the `oo::define` / `oo::objdefine` script form.
+    TclOo,
+    /// snit `type` / `widget` / `widgetadaptor`.
+    Snit,
+}
+
 /// The grammar of a definer command's definition body: its recognised member
 /// sub-keywords plus the variables implicitly in scope inside every member
 /// body.
 #[derive(Debug, Clone, Copy)]
 pub struct DefinitionBodyGrammar {
+    /// The class-system this definer belongs to.
+    pub family: DefinerFamily,
     /// Recognised member sub-keywords.
     pub members: &'static [MemberSpec],
     /// Variables implicitly available in every member body (snit's `self` /
@@ -111,6 +126,10 @@ const CTOR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Bod
 const BODY0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Body)];
 /// A single declared variable name (`typevariable v`, `component c`).
 const VAR0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
+/// A member keyword that carries no recursable body / parameter list /
+/// variable declaration — only a class/method name reference the walker leaves
+/// to the default classifier (`superclass A B`, `mixin M`, `export foo`, …).
+const NO_ROLES: &[(u8, ArgRole)] = &[];
 
 const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec { keyword: "method", arg_roles: METHOD_ROLES, all_args_var: false },
@@ -121,12 +140,28 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec { keyword: "initialize", arg_roles: BODY0_ROLES, all_args_var: false },
     MemberSpec { keyword: "private", arg_roles: BODY0_ROLES, all_args_var: false },
     // `variable a b c` inside a class body declares every name.
-    MemberSpec { keyword: "variable", arg_roles: &[], all_args_var: true },
+    MemberSpec { keyword: "variable", arg_roles: NO_ROLES, all_args_var: true },
+    // Name-reference-only members — recognised (so they read as keywords and a
+    // same-named proc is not) but carry nothing to recurse or declare.
+    MemberSpec { keyword: "superclass", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "mixin", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "filter", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "export", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "unexport", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "forward", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "renamemethod", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "deletemethod", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "definitionnamespace", arg_roles: NO_ROLES, all_args_var: false },
+    // Structurally irregular — recognised here, but their body indices come
+    // from the walker's dedicated `self …` / `property …` handling.
+    MemberSpec { keyword: "self", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "property", arg_roles: NO_ROLES, all_args_var: false },
 ];
 
 /// The definition-body grammar for every TclOO metaclass and the bare
 /// `oo::define` / `oo::objdefine` script form.
 pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    family: DefinerFamily::TclOo,
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
 };
@@ -143,6 +178,8 @@ const ONCGET_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::Body)];
 const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec { keyword: "method", arg_roles: METHOD_ROLES, all_args_var: false },
     MemberSpec { keyword: "typemethod", arg_roles: METHOD_ROLES, all_args_var: false },
+    // A type-private `proc NAME ARGS BODY` — same shape as a method.
+    MemberSpec { keyword: "proc", arg_roles: METHOD_ROLES, all_args_var: false },
     MemberSpec { keyword: "constructor", arg_roles: CTOR_ROLES, all_args_var: false },
     MemberSpec { keyword: "destructor", arg_roles: BODY0_ROLES, all_args_var: false },
     MemberSpec { keyword: "typeconstructor", arg_roles: BODY0_ROLES, all_args_var: false },
@@ -152,13 +189,20 @@ const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec { keyword: "typevariable", arg_roles: VAR0_ROLES, all_args_var: false },
     MemberSpec { keyword: "component", arg_roles: VAR0_ROLES, all_args_var: false },
     MemberSpec { keyword: "typecomponent", arg_roles: VAR0_ROLES, all_args_var: false },
+    // Name-reference / option-declaration members — recognised keywords with
+    // nothing to recurse or declare.
+    MemberSpec { keyword: "option", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "delegate", arg_roles: NO_ROLES, all_args_var: false },
+    MemberSpec { keyword: "expose", arg_roles: NO_ROLES, all_args_var: false },
 ];
 
 /// The definition-body grammar for snit `type` / `widget` / `widgetadaptor`.
-/// The implicit variables mirror what snit injects into member bodies; a
-/// widget's extra `win` / `hull` are included and simply unreferenced by a
-/// plain type.
+/// `implicit_vars` is the set snit injects into *every* member body; a
+/// widget's extra `win` / `hull` are added by the analyser only for the widget
+/// definers (they are not implicit in a plain `snit::type`), so they are not
+/// listed in this shared grammar.
 pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
-    implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
+    implicit_vars: &["self", "selfns", "type", "options"],
 };

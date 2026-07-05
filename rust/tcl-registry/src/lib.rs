@@ -82,7 +82,7 @@ pub mod prelude {
     pub use crate::arg_role::ArgRole;
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
-    pub use crate::definer::{DefinitionBodyGrammar, MemberSpec};
+    pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberSpec};
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};

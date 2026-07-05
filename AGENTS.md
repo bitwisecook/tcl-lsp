@@ -84,11 +84,20 @@ teaching a consumer about the command by name.  Established examples:
 - Taint / side-effect / const-fold / lowering / codegen behaviour is likewise
   spec-declared and dispatched via typed hook IDs.
 
-Migration debt is tracked, not grandfathered: where a consumer still hardcodes a
-command (e.g. the analyser's snit/OO *body* parser in
-`tcl-compiler/src/analyser/oo.rs` predates `definition_body` and should migrate
-onto it), the goal is to move that knowledge into the registry, not to add more
-of it in the consumer.
+Migration debt is tracked, not grandfathered: when a consumer hardcodes a
+command, the goal is to move that knowledge into the registry, not to add more
+of it in the consumer.  The analyser's snit/OO *body* parser
+(`tcl-compiler/src/analyser/oo.rs`) has completed this migration — member
+**recognition** (`is_member` / `member`) and **argument layout** (which word is
+the name / parameter list / body / variable, via `MemberSpec::indices_for`) come
+entirely from the definer's `definition_body` grammar for both TclOO and snit;
+the walkers hold no hardcoded member-keyword list or arg-index literal.  What
+stays analyser-local is the small, irreducible *semantics* the registry does not
+model: routing a member to its `ClassDef` field / `MethodDef` kind, and whether a
+body opens a method scope (an object `destructor` and a class-level `initialise`
+are structurally identical single-body members — the difference is analyser scope
+modelling, not command structure).  Those are documented at their call sites and
+are *not* debt.
 
 ## Prerequisites
 

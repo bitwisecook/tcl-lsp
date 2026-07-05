@@ -116,11 +116,13 @@ pub fn next_definition_grammar(
     }
 }
 
-/// Whether `command` is a member sub-keyword of `grammar`, including the two
-/// irregular TclOO members (`self`, `property`) the grammar does not list.
+/// Whether `command` is a member sub-keyword of `grammar`.  A thin pass-through
+/// kept so consumers depend on `oo_body` rather than the registry type
+/// directly; the structurally irregular `self` / `property` members are listed
+/// in the grammar like any other and dispatched specially by the index helpers.
 #[must_use]
 pub fn is_member(grammar: &DefinitionBodyGrammar, command: &str) -> bool {
-    grammar.is_member(command) || matches!(command, "self" | "property")
+    grammar.is_member(command)
 }
 
 /// Body-argument indices (into `args`, excluding the command head) for a member
