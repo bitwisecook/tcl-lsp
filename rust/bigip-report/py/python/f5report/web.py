@@ -196,6 +196,7 @@ class _Handler(BaseHTTPRequestHandler):
                 embed_console=embed,
                 master_key=fields.get("masterKey") or None,
                 report_id=fields.get("reportId") or str(_uuid.uuid4()),
+                manifest=fields.get("manifest") or None,
             )
         finally:
             _rmtree(tmp)

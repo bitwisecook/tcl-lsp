@@ -681,6 +681,7 @@ def collect_model(
     *,
     title: str = "F5 BIG-IP Configuration Report",
     master_key: str | None = None,
+    manifest: str | None = None,
 ) -> dict[str, Any]:
     """Build the full report model from loaded ``(uri, text)`` sources.
 
@@ -691,6 +692,10 @@ def collect_model(
     ``master_key`` is the base64 unit master key (``f5mku -K``); when given,
     every ``$M$…`` secret in each config (SSL key passphrases, monitor / RADIUS /
     SNMP secrets, …) is decrypted before the model is built.
+
+    ``manifest`` is the optional architecture/topology DSL (roles, tiers,
+    explicit links, zones, …) from the builder page; when given it overrides the
+    engine's auto-detection, matching the WASM backend.
     """
     if master_key:
         sources = [(uri, _engine.decrypt_secrets(src, master_key)) for uri, src in sources]
@@ -704,8 +709,11 @@ def collect_model(
     # Cross-device architecture (roles, tiers, links, topology diagram). Reuses
     # the Rust generator's detection via the native engine so the Python report
     # exposes the identical tier model — which the global search reads to scope
-    # `t<n>:` queries and to label results by tier.
-    architecture = json.loads(_engine.build_architecture(json.dumps(devices)))
+    # `t<n>:` queries and to label results by tier. A builder manifest, when
+    # supplied, overrides auto-detection.
+    architecture = json.loads(
+        _engine.build_architecture(json.dumps(devices), manifest or None)
+    )
     # Address/port enrichment (zone + CIDR-name + service labels) — same Rust
     # resolver the native generator uses, for parity.
     enrichment = json.loads(
@@ -730,15 +738,17 @@ def build_report(
     embed_console: bool | None = None,
     master_key: str | None = None,
     report_id: str = "",
+    manifest: str | None = None,
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
     ``embed_console=False`` omits the in-browser WASM query console (smaller
     page; suitable for hosting behind a strict CSP). ``master_key`` (the base64
-    ``f5mku -K`` value) decrypts the config's ``$M$…`` secrets first.
+    ``f5mku -K`` value) decrypts the config's ``$M$…`` secrets first. ``manifest``
+    is the optional builder DSL that overrides architecture auto-detection.
     """
     return render_report(
-        collect_model(sources, title=title, master_key=master_key),
+        collect_model(sources, title=title, master_key=master_key, manifest=manifest),
         embed_console=embed_console,
         report_id=report_id,
     )

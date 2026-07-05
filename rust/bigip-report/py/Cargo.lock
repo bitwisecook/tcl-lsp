@@ -1128,6 +1128,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-bigip",
+ "tcl-lexer",
  "tcl-registry",
  "ureq",
  "x509-parser",
