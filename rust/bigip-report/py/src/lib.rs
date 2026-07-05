@@ -44,7 +44,7 @@ use tcl_bigip_io::{
     ucs_archive_to_scf,
 };
 use tcl_bigip_query::value::Value;
-use tcl_bigip_query::{QueryOptions, run_query};
+use tcl_bigip_query::{InputSpec, QueryOptions, SideInput, run_query};
 
 create_exception!(
     _engine,
@@ -155,7 +155,7 @@ fn coerce_sources(sources: &Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>>
 /// `per_file=True`, in which case it returns `[(uri, [values]), …]` in source
 /// order.
 #[pyfunction]
-#[pyo3(signature = (expr, sources, *, merge=false, partitions=None, enable_probes=false, per_file=false))]
+#[pyo3(signature = (expr, sources, *, merge=false, partitions=None, enable_probes=false, per_file=false, side_inputs=None))]
 fn query(
     py: Python<'_>,
     expr: &str,
@@ -164,12 +164,27 @@ fn query(
     partitions: Option<HashMap<String, String>>,
     enable_probes: bool,
     per_file: bool,
+    // Enrichment side-inputs: `[(name, kind, source_text), …]`, each parsed by
+    // the named input format (json/jsonl/csv/f5log/zone) and bound to `$name`
+    // for the query to reference (e.g. `$nat`, `$dns`, `$services`, `$cidrNames`).
+    side_inputs: Option<Vec<(String, String, String)>>,
 ) -> PyResult<Py<PyAny>> {
     let sources = coerce_sources(sources)?;
+    let side = side_inputs
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, kind, source)| SideInput {
+            uri: format!("<{kind}:{name}>"),
+            name,
+            source,
+            spec: InputSpec::new(kind),
+        })
+        .collect::<Vec<_>>();
     let opts = QueryOptions {
         partitions: partitions.unwrap_or_default(),
         enable_probes,
         merge,
+        side_inputs: side,
         ..QueryOptions::default()
     };
 
