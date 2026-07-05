@@ -63,7 +63,9 @@ _LICENSE = """\
 
 """
 
-_HEADER = _LICENSE + '''\
+_HEADER = (
+    _LICENSE
+    + '''\
 """Generated from ``dialects/f5/bigip/data/scf_port_names.csv`` — do not edit by hand.
 
 Regenerate with ``make generate`` (which runs ``scripts/codegen/port_names.py``).
@@ -76,6 +78,7 @@ from __future__ import annotations
 
 NAME_TO_PORT: dict[str, int] = {
 '''
+)
 
 _FOOTER = "}\n"
 
