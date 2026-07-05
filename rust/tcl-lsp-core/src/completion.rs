@@ -199,7 +199,8 @@ fn context_aware_completions(
             char_col_to_utf16(line_text, dash_col),
             char_col_to_utf16(line_text, cursor_col),
         );
-        return Some(switch_completions(spec, &switch_partial, edit));
+        let floor = package_version_floor(analysis, spec);
+        return Some(switch_completions(spec, &switch_partial, edit, floor));
     }
     // iRules `when EVENT { body }`: when the cursor is
     // typing the first argument of an event-handler
@@ -331,11 +332,8 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        let tk_loaded = dialect == "tk"
-            || analysis
-                .package_requires
-                .iter()
-                .any(|req| req.name == "Tk");
+        let tk_loaded =
+            dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
         items.extend(builtin_completions(
             registry, dialect, &partial, &usage, tk_loaded,
         ));
@@ -821,6 +819,27 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
 /// [`word_partial_at_position`]; the helper reconstructs the
 /// switch-aware partial by prepending the dash without
 /// re-walking the line.
+/// The guaranteed-available version floor for a command's owning package,
+/// resolved from the document's `package require` statements.
+///
+/// When several `package require <pkg> <req>` lines name the same package, the
+/// most restrictive (highest) lower bound wins.  Returns `None` when the
+/// command is not package-gated or the package was required without a version
+/// (permissive — every option surfaces).
+fn package_version_floor<'a>(
+    analysis: &'a AnalysisResult,
+    spec: &tcl_registry::CommandSpec,
+) -> Option<&'a str> {
+    let pkg = spec.owning_package()?;
+    analysis
+        .package_requires
+        .iter()
+        .filter(|req| req.name == pkg)
+        .filter_map(|req| req.version.as_deref())
+        .map(tcl_registry::version::requirement_lower_bound)
+        .max_by(|a, b| tcl_registry::version::compare(a, b))
+}
+
 fn switch_partial_at_position(
     source: &str,
     line: u32,
@@ -844,11 +863,15 @@ fn switch_completions(
     spec: &tcl_registry::CommandSpec,
     partial: &str,
     edit: (u32, u32),
+    package_version: Option<&str>,
 ) -> Vec<CompletionItem> {
     let mut opts: Vec<_> = spec
         .options
         .iter()
-        .filter(|opt| partial.is_empty() || opt.name.starts_with(partial))
+        .filter(|opt| {
+            (partial.is_empty() || opt.name.starts_with(partial))
+                && opt.available_for_version(package_version)
+        })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
     opts.into_iter()
@@ -1592,6 +1615,34 @@ mod tests {
         let mut sorted = labels.clone();
         sorted.sort_unstable();
         assert_eq!(labels, sorted);
+    }
+
+    #[test]
+    fn switch_completion_gates_options_by_package_version() {
+        // `entry -placeholder` was introduced in Tk 8.7.  Completion must gate
+        // it on the version resolved from `package require Tk <req>`.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.6\nentry .e -p\n";
+        let a1 = analyse(older);
+        let l1: Vec<String> = completions(older, 1, 11, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !l1.iter().any(|l| l == "-placeholder"),
+            "Tk 8.6 must not offer -placeholder: {l1:?}",
+        );
+
+        let newer = "package require Tk 8.7\nentry .e -p\n";
+        let a2 = analyse(newer);
+        let l2: Vec<String> = completions(newer, 1, 11, &a2, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l2.iter().any(|l| l == "-placeholder"),
+            "Tk 8.7 must offer -placeholder: {l2:?}",
+        );
     }
 
     // iRules event-name completion

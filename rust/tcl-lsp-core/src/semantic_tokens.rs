@@ -76,7 +76,7 @@
 //! iRules object-reference highlighting (the code-relevant half
 //! of the BIG-IP taxonomy) is handled.
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
@@ -156,6 +156,10 @@ enum TokenKind {
     /// A registry-known closed-set argument value (`string is alnum`,
     /// `HTTP::respond 200 content`, `when … timing enable`).
     EnumMember = 30,
+    /// The literal value argument of a recognised value-taking option
+    /// (`-name fitted`, `-type value`, `-min 0.4`) — highlighted distinctly
+    /// from the option switch itself (`Decorator`) and from a plain string.
+    OptionValue = 31,
 }
 
 /// `binary format`/`scan` specifier letters.
@@ -201,6 +205,10 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "decorator",
         "escape",
         "enumMember",
+        // Option-value words (`-name fitted`): the standard LSP `property`
+        // type gives them a distinct colour from the option switch and from a
+        // plain string in default themes.
+        "property",
     ]
 }
 
@@ -797,6 +805,23 @@ fn insert_option_and_subcommand_overrides(
     // visually an option even when it was introduced in a later Tcl release.
     let mut option_names = spec.switch_names(None);
 
+    // Names of the value-taking options (canonical + aliases).  The literal
+    // word following one of these is the option's *value*, highlighted
+    // distinctly from the switch — the option/value split of issue #748.
+    let mut value_options: FxHashSet<&str> = FxHashSet::default();
+    let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
+        for opt in opts {
+            if opt.takes_value {
+                value_options.insert(opt.name);
+                value_options.extend(opt.aliases.iter().copied());
+            }
+        }
+    };
+    collect_value_options(spec.options);
+    for form in spec.command_forms {
+        collect_value_options(form.options);
+    }
+
     // A known subcommand at arg index 1 is highlighted as a keyword, and its
     // per-subcommand options (`file delete -force`, `file link -symbolic`)
     // join the recognised set.
@@ -804,6 +829,7 @@ fn insert_option_and_subcommand_overrides(
         && let Some(sub) = spec.subcommand(sub_text)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
+        collect_value_options(sub.options);
         if let Some(tok) = seg.argv.get(1) {
             overrides
                 .entry(tok.span.start())
@@ -819,6 +845,22 @@ fn insert_option_and_subcommand_overrides(
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::Decorator);
+
+            // The immediately following word is this option's value when the
+            // option takes one.  Only a *literal* value (`Esc`/`Str`) is
+            // re-coloured — a `$var` / `[cmd]` substitution keeps its own
+            // highlight, and an option terminator (`--`) is left alone.  A
+            // next word that is itself a recognised option stays a
+            // `Decorator` (the `or_insert` above already claimed it).
+            if value_options.contains(text.as_str())
+                && seg.texts.get(i + 1).is_some_and(|t| t != "--")
+                && let Some(val_tok) = seg.argv.get(i + 1)
+                && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+            {
+                overrides
+                    .entry(val_tok.span.start())
+                    .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+            }
         }
     }
 }
@@ -2192,6 +2234,10 @@ fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mu
     }
 }
 
+// One match arm per `ArgOverride` variant (including the `Kind`-dispatched
+// option-value token); the flat dispatch reads clearer as one function than
+// split across helpers.
+#[allow(clippy::too_many_lines)]
 fn emit_arg_token(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
@@ -3097,6 +3143,34 @@ mod tests {
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-$flag is a substitution, not an option; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn value_taking_option_value_classified_as_option_value() {
+        // `lsort -index 2 $l` — `-index` takes a value, so the literal `2` is
+        // an option value (distinct from the `-index` decorator).
+        let ks = kinds("lsort -index 2 $l\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -index decorator; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected the `2` value to be an OptionValue; got {ks:?}"
+        );
+        // A boolean option takes no value — the following word is not recoloured.
+        // `lsort -unique $l`: `$l` stays a variable, not an OptionValue.
+        let ks = kinds("lsort -unique $l\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "boolean -unique must not mark a following value; got {ks:?}"
+        );
+        // A `$var` value keeps its variable highlight, not OptionValue.
+        let ks = kinds("lsort -index $i $l\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "a $var option value keeps its variable highlight; got {ks:?}"
         );
     }
 
