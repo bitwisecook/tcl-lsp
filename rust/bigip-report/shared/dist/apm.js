@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Generated from rust/bigip-report/shared/ts — DO NOT EDIT; edit the .ts source.
+// Generated from rust/bigip-report/shared/src — DO NOT EDIT; edit the .ts source.
 "use strict";
 (() => {
-  // ts/apm.ts
+  // src/pages/apm.ts
   (function() {
     "use strict";
     function renderOne(host) {

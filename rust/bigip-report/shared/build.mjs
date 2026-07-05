@@ -1,12 +1,15 @@
 // tcl-lsp — a language server and toolchain for Tcl
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Build the shared BIG-IP report front-end: bundle the TypeScript in `ts/` to
+// Build the shared BIG-IP report front-end: bundle the page entry scripts in
+// `src/pages/` (which pull in `src/search/` and are styled by `src/styles/`) to
 // plain browser IIFE scripts in `dist/`, then sync the built JS + styles +
 // vendor + the Jinja2 template into the Python `f5report` package so its wheel
 // stays self-contained (no Node needed at wheel-build time — same precedent as
-// the vendored wasm). The Rust generator embeds `dist/`, `styles/`, `vendor/`,
-// and `templates/report.minijinja.html.j2` directly via `include_str!`.
+// the vendored wasm). The Rust generator embeds `dist/`, `src/styles/`,
+// `public/vendor/`, and `public/templates/report.minijinja.html.j2` directly
+// via `include_str!`. The rendered report is always ONE self-contained HTML
+// file with every asset inlined.
 //
 // Usage: `npm run build` (from rust/bigip-report/shared).
 
@@ -17,9 +20,10 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const distDir = join(here, "dist");
-const stylesDir = join(here, "styles");
-const vendorDir = join(here, "vendor");
-const templatesDir = join(here, "templates");
+const pagesDir = join(here, "src", "pages");
+const stylesDir = join(here, "src", "styles");
+const vendorDir = join(here, "public", "vendor");
+const templatesDir = join(here, "public", "templates");
 const pyPkg = join(here, "..", "py", "python", "f5report");
 const pyTemplates = join(pyPkg, "templates");
 const pyVendor = join(pyPkg, "vendor");
@@ -39,14 +43,14 @@ const ENTRIES = [
 ];
 
 const banner = `// SPDX-License-Identifier: AGPL-3.0-or-later
-// Generated from rust/bigip-report/shared/ts — DO NOT EDIT; edit the .ts source.`;
+// Generated from rust/bigip-report/shared/src — DO NOT EDIT; edit the .ts source.`;
 
 async function build() {
   rmSync(distDir, { recursive: true, force: true });
   mkdirSync(distDir, { recursive: true });
   for (const name of ENTRIES) {
     await esbuild.build({
-      entryPoints: [join(here, "ts", `${name}.ts`)],
+      entryPoints: [join(pagesDir, `${name}.ts`)],
       outfile: join(distDir, `${name}.js`),
       bundle: true,
       format: "iife",

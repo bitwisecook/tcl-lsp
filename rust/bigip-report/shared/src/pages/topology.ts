@@ -22,7 +22,7 @@
 // model, and drives click-to-focus, connected-component highlighting, the
 // per-virtual flow diagram, and the listener-matching table. No dependencies
 // beyond the vendored Mermaid (already loaded), no network.
-import { initGlobalSearch } from "./search/results";
+import { initGlobalSearch } from "../search/results";
 
 (function () {
   "use strict";

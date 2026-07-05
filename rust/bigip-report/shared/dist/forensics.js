@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Generated from rust/bigip-report/shared/ts — DO NOT EDIT; edit the .ts source.
+// Generated from rust/bigip-report/shared/src — DO NOT EDIT; edit the .ts source.
 "use strict";
 (() => {
-  // ts/forensics.ts
+  // src/pages/forensics.ts
   (function() {
     "use strict";
     var MODEL = null;

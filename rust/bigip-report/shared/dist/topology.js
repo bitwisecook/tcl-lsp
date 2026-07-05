@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Generated from rust/bigip-report/shared/ts — DO NOT EDIT; edit the .ts source.
+// Generated from rust/bigip-report/shared/src — DO NOT EDIT; edit the .ts source.
 "use strict";
 (() => {
-  // ts/search/matcher.ts
+  // src/search/matcher.ts
   var KIND_SCORE = {
     exact: 100,
     prefix: 85,
@@ -144,7 +144,7 @@
     return { score: 0, kind: "none" };
   }
 
-  // ts/search/query.ts
+  // src/search/query.ts
   var EMPTY_SCOPE = { tier: null, dev: null };
   function matchesDeviceName(prefix, deviceNames) {
     const p = prefix.toLowerCase();
@@ -181,7 +181,7 @@
     return true;
   }
 
-  // ts/search/results.ts
+  // src/search/results.ts
   var IP_SCORE = 65;
   var MAX_RESULTS = 400;
   var TYPE_LABELS = {
@@ -409,7 +409,7 @@
     if (input.value.trim()) run();
   }
 
-  // ts/topology.ts
+  // src/pages/topology.ts
   (function() {
     "use strict";
     var MODEL = null;

@@ -108,7 +108,7 @@ jobs:
         run: bash rust/bigip-report-wasm/build-wasm.sh
 
       # ── Shared report front-end (TypeScript → dist/, synced into f5report) ─
-      # Builds rust/bigip-report/shared/ts → dist/*.js and syncs the built JS +
+      # Builds rust/bigip-report/shared/src → dist/*.js and syncs the built JS +
       # styles + freshly-vendored wasm into the Python package, so maturin
       # embeds current assets. Node is preinstalled on the runner.
       - name: Build the shared report front-end (TypeScript)

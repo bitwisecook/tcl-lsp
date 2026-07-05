@@ -1,4 +1,5 @@
 dist/
+public/
 node_modules/
-# Legacy scripts migrated verbatim from JS — formatted/typed incrementally.
-ts/*.ts
+# Legacy page scripts migrated verbatim from JS — formatted/typed incrementally.
+src/pages/*.ts

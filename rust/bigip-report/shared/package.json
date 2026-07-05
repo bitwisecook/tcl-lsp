@@ -8,8 +8,8 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint ts/search --ext .ts && prettier --check \"ts/search/**/*.ts\"",
-    "format": "prettier --write \"ts/search/**/*.ts\""
+    "lint": "eslint src/search --ext .ts && prettier --check \"src/search/**/*.ts\"",
+    "format": "prettier --write \"src/search/**/*.ts\""
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

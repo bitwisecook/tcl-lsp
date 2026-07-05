@@ -38,34 +38,36 @@ use crate::query::{ReportError, Source};
 
 // The template we own (adapted from `f5report`'s `report.html.j2` for minijinja
 // and extended with the SSL-certificate tab).
-const REPORT_TEMPLATE: &str = include_str!("../../shared/templates/report.minijinja.html.j2");
+const REPORT_TEMPLATE: &str =
+    include_str!("../../shared/public/templates/report.minijinja.html.j2");
 
-// Front-end shared with the Python `f5report` generator: TypeScript sources
-// live in `rust/bigip-report/shared/ts`, built to `shared/dist/*.js` (committed)
-// and embedded verbatim here so both generators emit the same page. Styles and
-// vendored assets live alongside in `shared/styles` and `shared/vendor`.
-const REPORT_CSS: &str = include_str!("../../shared/styles/report.css");
-const TOPOLOGY_CSS: &str = include_str!("../../shared/styles/topology.css");
+// Front-end shared with the Python `f5report` generator: TypeScript sources live
+// in `rust/bigip-report/shared/src` (`pages/`, `search/`, `styles/`), built to
+// `shared/dist/*.js` (committed) and embedded verbatim here so both generators
+// emit the same page. Vendored third-party assets live in `shared/public`. The
+// rendered report is a single self-contained HTML file — every asset inlined.
+const REPORT_CSS: &str = include_str!("../../shared/src/styles/report.css");
+const TOPOLOGY_CSS: &str = include_str!("../../shared/src/styles/topology.css");
 const REPORT_JS: &str = include_str!("../../shared/dist/report.js");
 const TOPOLOGY_JS: &str = include_str!("../../shared/dist/topology.js");
 const CONSOLE_JS: &str = include_str!("../../shared/dist/console.js");
-const MERMAID_JS: &str = include_str!("../../shared/vendor/mermaid.min.js");
-const WASM_GLUE: &str = include_str!("../../shared/vendor/f5query_wasm.js");
-const WASM_BIN: &[u8] = include_bytes!("../../shared/vendor/f5query_wasm_bg.wasm");
+const MERMAID_JS: &str = include_str!("../../shared/public/vendor/mermaid.min.js");
+const WASM_GLUE: &str = include_str!("../../shared/public/vendor/f5query_wasm.js");
+const WASM_BIN: &[u8] = include_bytes!("../../shared/public/vendor/f5query_wasm_bg.wasm");
 
 // The certificate + secrets + APM tabs (their scripts/styles also live in
 // `shared/`; APM / elk-graph are embedded only by this Rust generator).
-const CERTS_CSS: &str = include_str!("../../shared/styles/certs.css");
+const CERTS_CSS: &str = include_str!("../../shared/src/styles/certs.css");
 const CERTS_JS: &str = include_str!("../../shared/dist/certs.js");
-const SECRETS_CSS: &str = include_str!("../../shared/styles/secrets.css");
+const SECRETS_CSS: &str = include_str!("../../shared/src/styles/secrets.css");
 const SECRETS_JS: &str = include_str!("../../shared/dist/secrets.js");
-const FORENSICS_CSS: &str = include_str!("../../shared/styles/forensics.css");
+const FORENSICS_CSS: &str = include_str!("../../shared/src/styles/forensics.css");
 const FORENSICS_JS: &str = include_str!("../../shared/dist/forensics.js");
 const IRULE_FLOW_JS: &str = include_str!("../../shared/dist/irule-flow.js");
-const APM_CSS: &str = include_str!("../../shared/styles/apm.css");
+const APM_CSS: &str = include_str!("../../shared/src/styles/apm.css");
 const APM_JS: &str = include_str!("../../shared/dist/apm.js");
 // elkjs (EPL-2.0), the ELK layout engine, for the orthogonal APM graph.
-const ELK_JS: &str = include_str!("../../shared/vendor/elk.bundled.js");
+const ELK_JS: &str = include_str!("../../shared/public/vendor/elk.bundled.js");
 const ELK_GRAPH_JS: &str = include_str!("../../shared/dist/elk-graph.js");
 
 /// Options controlling report rendering.
