@@ -129,6 +129,178 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::treeview pathName ?options?",
 }];
 
+/// The command's subcommands.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "bbox",
+        arity: Arity::at_least(1),
+        detail: "Return the bounding box of the item, optionally restricted to a column.",
+        synopsis: "pathName bbox item ?column?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "children",
+        arity: Arity::new(1, 2),
+        detail: "Query or replace the list of children of the given item.",
+        synopsis: "pathName children item ?newchildren?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "column",
+        arity: Arity::at_least(1),
+        detail: "Query or modify the options of the specified column.",
+        synopsis: "pathName column column ?-option ?value ...??",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::at_least(1),
+        detail: "Delete the given items and all of their descendants.",
+        synopsis: "pathName delete itemList",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "detach",
+        arity: Arity::exact(1),
+        detail: "Unlink the given items from the tree without deleting them.",
+        synopsis: "pathName detach itemList",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::exact(1),
+        detail: "Return whether the specified item is present in the tree.",
+        synopsis: "pathName exists item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "focus",
+        arity: Arity::new(0, 1),
+        detail: "Set the focus item, or return the current focus item.",
+        synopsis: "pathName focus ?item?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "heading",
+        arity: Arity::at_least(1),
+        detail: "Query or modify the heading options for the specified column.",
+        synopsis: "pathName heading column ?-option ?value ...??",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "identify",
+        arity: Arity::at_least(1),
+        detail: "Identify the tree component at the given coordinates.",
+        synopsis: "pathName identify ?component? x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Return the integer index of the item within its parent's children.",
+        synopsis: "pathName index item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::at_least(2),
+        detail: "Create a new item as a child of parent at the given index.",
+        synopsis: "pathName insert parent index ?-id id? ?options?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "item",
+        arity: Arity::at_least(1),
+        detail: "Query or modify the options of the specified item.",
+        synopsis: "pathName item item ?-option ?value ...??",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "move",
+        arity: Arity::exact(3),
+        detail: "Move the item to the given position among the children of parent.",
+        synopsis: "pathName move item parent index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "next",
+        arity: Arity::exact(1),
+        detail: "Return the identifier of the item's next sibling.",
+        synopsis: "pathName next item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "parent",
+        arity: Arity::exact(1),
+        detail: "Return the identifier of the item's parent.",
+        synopsis: "pathName parent item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "prev",
+        arity: Arity::exact(1),
+        detail: "Return the identifier of the item's previous sibling.",
+        synopsis: "pathName prev item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "see",
+        arity: Arity::exact(1),
+        detail: "Ensure that the specified item is visible, scrolling if necessary.",
+        synopsis: "pathName see item",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "selection",
+        arity: Arity::new(0, 2),
+        detail: "Query or modify the set of selected items.",
+        synopsis: "pathName selection ?selop itemList?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::at_least(1),
+        detail: "Query or set the value of a column for the specified item.",
+        synopsis: "pathName set item ?column? ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tag",
+        arity: Arity::at_least(1),
+        detail: "Query or manipulate tags and their bindings and options.",
+        synopsis: "pathName tag args",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "instate",
+        arity: Arity::at_least(1),
+        detail: "Test whether the widget state matches statespec, optionally running a script.",
+        synopsis: "pathName instate statespec ?script?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "state",
+        arity: Arity::new(0, 1),
+        detail: "Modify or query the widget state.",
+        synopsis: "pathName state ?stateSpec?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the horizontal position of the view.",
+        synopsis: "pathName xview ?args?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "yview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the vertical position of the view.",
+        synopsis: "pathName yview ?args?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::treeview",
@@ -143,10 +315,12 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("Tk"),
+        min_version: Some("8.5"),
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

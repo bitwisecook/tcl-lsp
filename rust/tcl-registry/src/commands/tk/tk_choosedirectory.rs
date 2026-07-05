@@ -58,6 +58,22 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::command_prefix("prefix"),
+        detail: "Command prefix invoked when the dialog closes; the chosen directory is appended (macOS).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-message",
+        value: OptionValue::value("string"),
+        detail: "Message displayed in the dialog (macOS).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {

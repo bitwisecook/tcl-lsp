@@ -87,6 +87,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("Tk"),
+        min_version: Some("8.5"),
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,

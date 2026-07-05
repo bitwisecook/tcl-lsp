@@ -324,6 +324,101 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// The command's subcommands.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "bbox",
+        arity: Arity::exact(1),
+        detail: "Return the bounding box of the character at the given index.",
+        synopsis: "pathName bbox index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::new(1, 2),
+        detail: "Delete characters from first through last (or just the character at first).",
+        synopsis: "pathName delete first ?last?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::exact(0),
+        detail: "Return the spinbox's current string contents.",
+        synopsis: "pathName get",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "icursor",
+        arity: Arity::exact(1),
+        detail: "Move the insertion cursor to just before the character at the given index.",
+        synopsis: "pathName icursor index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "identify",
+        arity: Arity::exact(2),
+        detail: "Return the name of the spinbox element at the given coordinates.",
+        synopsis: "pathName identify x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Return the numerical index corresponding to the given index.",
+        synopsis: "pathName index index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(2),
+        detail: "Insert the string just before the character at the given index.",
+        synopsis: "pathName insert index string",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "invoke",
+        arity: Arity::exact(1),
+        detail: "Invoke the up or down button, incrementing or decrementing the value.",
+        synopsis: "pathName invoke element",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "scan",
+        arity: Arity::exact(2),
+        detail: "Implement fast scanning/scrolling; option is mark or dragto.",
+        synopsis: "pathName scan option arg",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "selection",
+        arity: Arity::at_least(1),
+        detail: "Manipulate the selection; option is adjust, clear, element, from, present, range, or to.",
+        synopsis: "pathName selection option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::new(0, 1),
+        detail: "Query or set the spinbox's string value.",
+        synopsis: "pathName set ?string?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "validate",
+        arity: Arity::exact(0),
+        detail: "Force revalidation of the spinbox using its -validatecommand.",
+        synopsis: "pathName validate",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the horizontal position of the text visible in the spinbox.",
+        synopsis: "pathName xview ?args?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "spinbox pathName ?option value ...?",
@@ -347,6 +442,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }
