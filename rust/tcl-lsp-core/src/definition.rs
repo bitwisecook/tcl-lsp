@@ -68,7 +68,6 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
@@ -282,12 +281,16 @@ fn next_dispatch_target(
     let cursor = byte_offset_at(line_index, source, line, character);
     let (class_q, method) = enclosing_method(analysis, cursor)?;
     let start_from: Option<String> = if keyword == "nextto" {
-        let target = word_after(source, line, character, "nextto")?;
+        // Byte offset of the cursor within its line, so `word_after` can pick
+        // the `nextto` occurrence the cursor is on (not merely the first).
+        let line_start = byte_offset_at(line_index, source, line, 0);
+        let cursor_in_line = cursor.saturating_sub(line_start) as usize;
+        let target = word_after(source, line, cursor_in_line, "nextto")?;
         Some(canonicalise_class(analysis, &target))
     } else {
         None
     };
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     let next_class =
         hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
     lookup_method_in_class(analysis, next_class, &method)
@@ -311,9 +314,32 @@ fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, S
 
 /// The whitespace-delimited word that follows `keyword` on the cursor's
 /// line (used to read the class name in `nextto Class`).
-fn word_after(source: &str, line: u32, _character: u32, keyword: &str) -> Option<String> {
+///
+/// `cursor_in_line` is the cursor's byte offset within the line.  When a
+/// line has several `keyword` occurrences (a comment, a string, or a second
+/// statement), the occurrence the cursor sits on — or the nearest one
+/// starting at or before the cursor — is chosen, so `nextto` go-to-def
+/// resolves the class the user is actually pointing at rather than the
+/// first match on the line.
+fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
-    let idx = line_text.find(keyword)?;
+    // Select the keyword occurrence anchored on the cursor.
+    let mut chosen: Option<usize> = None;
+    let mut search = 0;
+    while let Some(rel) = line_text[search..].find(keyword) {
+        let idx = search + rel;
+        let end = idx + keyword.len();
+        if idx <= cursor_in_line && cursor_in_line <= end {
+            chosen = Some(idx); // cursor is on the keyword itself
+            break;
+        }
+        if idx <= cursor_in_line {
+            chosen = Some(idx); // best occurrence at/before the cursor so far
+        }
+        search = end;
+    }
+    // Fall back to the first occurrence when the cursor precedes them all.
+    let idx = chosen.or_else(|| line_text.find(keyword))?;
     let rest = line_text[idx + keyword.len()..].trim_start();
     let word: String = rest
         .chars()
@@ -721,6 +747,20 @@ mod tests {
         let locs = definition(src, 9, 22, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1, "should land on A::greet");
+        assert_eq!(locs[0].start_character, 11);
+    }
+
+    #[test]
+    fn nextto_picks_occurrence_at_cursor_not_first_on_line() {
+        // The line has a decoy `nextto` earlier (inside a string) before the
+        // real `nextto A`.  With the cursor on the real one, resolution must
+        // read the class after *that* occurrence (A), not the first match.
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\noo::class create C {\n    superclass B\n    method greet {} { set x \"nextto Z\" ; nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor inside the real `nextto` (line 9, col 44).
+        let locs = definition(src, 9, 44, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "should land on A::greet, not the string decoy");
         assert_eq!(locs[0].start_character, 11);
     }
 

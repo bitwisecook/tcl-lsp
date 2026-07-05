@@ -58,7 +58,6 @@
 //! this module is the pure-CPU computation, no I/O, no async.
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
@@ -853,7 +852,7 @@ fn oo_method_completions(
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
     let class_q = analysis.instance_classes.get(obj)?;
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
         .mro_map
         .get(class_q)
@@ -865,10 +864,13 @@ fn oo_method_completions(
         let Some(cd) = analysis.all_classes.get(cls) else {
             continue;
         };
+        // Instance dispatch (`$obj method`) reaches *instance* methods only.
+        // Class-side methods (`self method` / classmethod) are callable on
+        // the class command, not the instance command — so they are excluded
+        // here to avoid suggesting methods that would error on `$obj`.
         let mut methods: Vec<(&String, &str)> = cd
             .methods
             .iter()
-            .chain(cd.class_methods.iter())
             .filter(|(_, m)| m.visibility == "public")
             .map(|(n, _)| (n, cls.as_str()))
             .collect();
@@ -1289,6 +1291,24 @@ mod tests {
         // The inherited one is labelled as such.
         let eat = items.iter().find(|i| i.label == "eat").unwrap();
         assert!(eat.detail.as_deref().unwrap_or("").contains("inherited from ::Animal"), "{:?}", eat.detail);
+    }
+
+    #[test]
+    fn obj_method_completion_excludes_class_side_methods() {
+        // `classmethod build` is callable on the *class* command, not on an
+        // instance.  `$obj ` completion must offer the instance method
+        // (`bark`) but not the class-side `build`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    classmethod build {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 5.
+        let items = completions(src, 5, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "instance method missing: {labels:?}");
+        assert!(
+            !labels.contains(&"build"),
+            "class-side method must not appear on an instance: {labels:?}",
+        );
     }
 
     #[test]
