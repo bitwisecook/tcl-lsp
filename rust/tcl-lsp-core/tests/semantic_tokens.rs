@@ -898,6 +898,22 @@ fn tcloo_method_and_constructor_parameters_are_variables() {
 }
 
 #[test]
+fn snit_macro_arglist_parameters_are_variables() {
+    // `snit::macro name arglist body` — the arglist word (registry arg-role
+    // `ParamList`) holds the macro's formal parameters, so its names read as
+    // variables and the body highlights, exactly like a proc.
+    let src = "snit::macro mymac {alpha beta} { return $alpha }\n";
+    for name in ["alpha", "beta"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "snit::macro parameter `{name}` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
 fn dict_map_loop_vars_are_variables() {
     // Peer of `dict for`: `dict map {k v}` binds its loop variables too.
     let src = "dict map {mk mv} $d { set mk $mv }\n";
