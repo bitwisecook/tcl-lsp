@@ -2006,11 +2006,12 @@ impl Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let class_name_for_blk = class_name.clone();
         let items = tokio::task::spawn_blocking(move || {
             if subtypes {
-                core_type_hierarchy::subtypes(&class_name, &doc.text, &analysis)
+                core_type_hierarchy::subtypes(&class_name_for_blk, &doc.text, &analysis)
             } else {
-                core_type_hierarchy::supertypes(&class_name, &doc.text, &analysis)
+                core_type_hierarchy::supertypes(&class_name_for_blk, &doc.text, &analysis)
             }
         })
         .await
@@ -2019,7 +2020,7 @@ impl Backend {
             message: format!("type_hierarchy worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted = items
+        let mut lifted: Vec<TypeHierarchyItem> = items
             .into_iter()
             .map(|i| TypeHierarchyItem {
                 name: i.name,
@@ -2032,6 +2033,63 @@ impl Backend {
                 data: None,
             })
             .collect();
+
+        // Cross-file: resolve super/subtypes defined in *other* workspace
+        // documents via the class index, converting each target's name span
+        // in its own source.  De-duplicated against the same-document
+        // results by qualified name.
+        let mut seen: std::collections::HashSet<String> =
+            lifted.iter().map(|i| i.name.clone()).collect();
+        seen.insert(class_name.clone());
+        let targets: Vec<(String, String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            let list = if subtypes {
+                index.subclasses_of(&class_name)
+            } else {
+                index
+                    .classes_named(&class_name)
+                    .first()
+                    .map(|c| {
+                        c.superclasses
+                            .iter()
+                            .chain(c.mixins.iter())
+                            .flat_map(|n| index.classes_named(n))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            };
+            list.into_iter()
+                .map(|c| (c.uri.clone(), c.qualified_name.clone(), c.name_span))
+                .collect()
+        };
+        for (turi, qname, name_span) in targets {
+            if !seen.insert(qname.clone()) {
+                continue;
+            }
+            let Ok(target_uri) = turi.parse::<Uri>() else {
+                continue;
+            };
+            let Some(tdoc) = self.read_document(&target_uri).await else {
+                continue;
+            };
+            let li = tcl_lexer::LineIndex::new(&tdoc.text);
+            let start = li.position_at_utf16(name_span.start(), &tdoc.text);
+            let end = li.position_at_utf16(name_span.end(), &tdoc.text);
+            let range = Range {
+                start: Position { line: start.line, character: start.character.get() },
+                end: Position { line: end.line, character: end.character.get() },
+            };
+            lifted.push(TypeHierarchyItem {
+                name: qname,
+                kind: SymbolKind::CLASS,
+                tags: None,
+                detail: None,
+                uri: target_uri,
+                range,
+                selection_range: range,
+                data: None,
+            });
+        }
         Ok(Some(lifted))
     }
 

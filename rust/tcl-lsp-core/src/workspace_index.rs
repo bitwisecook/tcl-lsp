@@ -81,6 +81,11 @@ pub struct WorkspaceClass {
     pub qualified_name: String,
     /// Byte span of the class's name token.
     pub name_span: Span,
+    /// Declared superclass names (as written), for cross-file type
+    /// hierarchy (subtype resolution).
+    pub superclasses: Vec<String>,
+    /// Declared class-level mixin names (as written).
+    pub mixins: Vec<String>,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -169,6 +174,8 @@ impl WorkspaceIndex {
                 name: class_def.name.clone(),
                 qualified_name: class_def.qualified_name.clone(),
                 name_span: class_def.name_span,
+                superclasses: class_def.superclasses.clone(),
+                mixins: class_def.mixins.clone(),
             });
         }
         for inv in &analysis.command_invocations {
@@ -214,6 +221,49 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn classes(&self) -> &[WorkspaceClass] {
         &self.classes
+    }
+
+    /// Workspace classes that a superclass / mixin `name` (as written in a
+    /// class body) resolves to — an exact qualified match, a `::name`
+    /// match, or a globally-unique simple-name (tail) match.  Ambiguous
+    /// tails yield nothing (no wrong guess), mirroring the analyser's
+    /// namespace-aware resolution.  Used for cross-file **supertype**
+    /// resolution.
+    #[must_use]
+    pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
+        let q = format!("::{}", name.trim_start_matches("::"));
+        let exact: Vec<&WorkspaceClass> = self
+            .classes
+            .iter()
+            .filter(|c| c.qualified_name == name || c.qualified_name == q)
+            .collect();
+        if !exact.is_empty() {
+            return exact;
+        }
+        let tail = name.rsplit("::").next().unwrap_or(name);
+        let by_tail: Vec<&WorkspaceClass> = self
+            .classes
+            .iter()
+            .filter(|c| c.qualified_name.rsplit("::").next() == Some(tail))
+            .collect();
+        // Only a *unique* tail match is safe to claim.
+        if by_tail.len() == 1 { by_tail } else { Vec::new() }
+    }
+
+    /// Workspace classes that declare `class_qname` as a direct superclass
+    /// or mixin (resolving the written name the same way `classes_named`
+    /// does).  Used for cross-file **subtype** resolution.
+    #[must_use]
+    pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
+        self.classes
+            .iter()
+            .filter(|c| {
+                c.superclasses
+                    .iter()
+                    .chain(c.mixins.iter())
+                    .any(|s| self.classes_named(s).iter().any(|t| t.qualified_name == class_qname))
+            })
+            .collect()
     }
 
     /// Procs whose simple *or* qualified name starts with
@@ -328,6 +378,30 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn cross_file_supertypes_and_subtypes() {
+        // Base in a.tcl; Dog (subclass) in b.tcl; Puppy (subclass of Dog) in c.tcl.
+        let a = analyse("oo::class create Animal {}\n");
+        let b = analyse("oo::class create Dog {\n    superclass Animal\n}\n");
+        let c = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///c.tcl", &c),
+        ]);
+        // Dog's superclass Animal resolves cross-file (a.tcl).
+        let sup = index.classes_named("Animal");
+        assert_eq!(sup.len(), 1);
+        assert_eq!(sup[0].uri, "file:///a.tcl");
+        // Animal's subclasses: Dog (b.tcl).
+        let subs = index.subclasses_of("::Animal");
+        let names: Vec<&str> = subs.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["Dog"]);
+        // Dog's subclasses: Puppy (c.tcl).
+        let dog_subs = index.subclasses_of("::Dog");
+        assert_eq!(dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Puppy"]);
     }
 
     #[test]
