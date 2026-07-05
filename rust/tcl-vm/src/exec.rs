@@ -1453,13 +1453,10 @@ impl Vm {
                     },
                     None => return Tick::Return(err("dictUpdateStart: stack underflow")),
                 };
-                let dict = match self.get_var(&dict_name) {
-                    Some(d) => d,
-                    None => {
-                        return Tick::Return(err(format!(
-                            "can't read \"{dict_name}\": no such variable"
-                        )));
-                    }
+                let Some(dict) = self.get_var(&dict_name) else {
+                    return Tick::Return(err(format!(
+                        "can't read \"{dict_name}\": no such variable"
+                    )));
                 };
                 let ps = match dict_pairs(&dict) {
                     Ok(p) => p,

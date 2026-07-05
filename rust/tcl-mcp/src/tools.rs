@@ -23,7 +23,7 @@
 //! kept stable so existing clients are unaffected.
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{AnalysisResult, Analyser, Diagnostic};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::dialects::{DialectSet, KNOWN_DIALECTS};
@@ -48,7 +48,10 @@ fn resolve_dialect(args: &Value, source: &str) -> String {
     match args.get("dialect").and_then(Value::as_str) {
         Some(d) if !d.is_empty() => d.to_owned(),
         _ => {
-            let session = session_dialect().lock().expect("session dialect lock").clone();
+            let session = session_dialect()
+                .lock()
+                .expect("session dialect lock")
+                .clone();
             // `detect_dialect`'s default must be `&'static`; map the session
             // name onto a known dialect, else fall back to the built-in default.
             let default = KNOWN_DIALECTS
@@ -108,7 +111,9 @@ fn analyse(source: &str, dialect: &str) -> AnalysisResult {
 fn arg_bool(args: &Value, key: &str) -> bool {
     match args.get(key) {
         Some(Value::Bool(b)) => *b,
-        Some(Value::String(s)) => matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes"),
+        Some(Value::String(s)) => {
+            matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes")
+        }
         _ => false,
     }
 }
@@ -306,7 +311,11 @@ fn diagram(args: &Value) -> Value {
 fn detect_dialect(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let filename = args.get("filename").and_then(Value::as_str);
-    json!(tcl_registry::detect_dialect(source, filename, DEFAULT_DIALECT))
+    json!(tcl_registry::detect_dialect(
+        source,
+        filename,
+        DEFAULT_DIALECT
+    ))
 }
 
 fn event_order(args: &Value) -> Value {
@@ -327,7 +336,8 @@ fn format_source(args: &Value) -> Value {
     if arg_str(args, "indent_style").eq_ignore_ascii_case("tabs") {
         config.indent_style = tcl_lsp_core::formatting::IndentStyle::Tabs;
     }
-    let formatted = tcl_lsp_core::formatting::engine::format_tcl(source, &config, registry(&dialect));
+    let formatted =
+        tcl_lsp_core::formatting::engine::format_tcl(source, &config, registry(&dialect));
     json!({ "formatted": formatted, "changed": formatted != source })
 }
 
@@ -341,8 +351,10 @@ fn optimize(args: &Value) -> Value {
         let p = arg_str(args, "profile");
         if p.is_empty() { "full" } else { p }
     });
-    let disabled: std::collections::HashSet<String> =
-        profile_to_disabled(profile).into_iter().map(str::to_owned).collect();
+    let disabled: std::collections::HashSet<String> = profile_to_disabled(profile)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     let (optimised, opts, iterations) = optimise_source_multipass_filtered(
         source,
         registry(&dialect),
@@ -401,7 +413,12 @@ fn compile_wasm(args: &Value) -> Value {
 /// Run a cursor-addressed refactoring, returning its result dict or `null`.
 fn refactor_at(
     args: &Value,
-    f: impl FnOnce(&str, u32, &CommandRegistry, &LineIndex) -> Option<tcl_lsp_core::refactor::Refactoring>,
+    f: impl FnOnce(
+        &str,
+        u32,
+        &CommandRegistry,
+        &LineIndex,
+    ) -> Option<tcl_lsp_core::refactor::Refactoring>,
 ) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
@@ -417,7 +434,8 @@ fn inline_variable(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, &dialect);
-    match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, registry(&dialect), &idx) {
+    match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, registry(&dialect), &idx)
+    {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -448,7 +466,11 @@ fn analyze(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let sm = SourceMap::new(source);
-    let diagnostics: Vec<Value> = analysis.diagnostics.iter().map(|d| diag_to_json(d, &sm)).collect();
+    let diagnostics: Vec<Value> = analysis
+        .diagnostics
+        .iter()
+        .map(|d| diag_to_json(d, &sm))
+        .collect();
     let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(source, &dialect)
         .iter()
         .map(doc_symbol_to_json)
@@ -770,7 +792,13 @@ fn extract_variable(args: &Value) -> Value {
         "" => "result",
         v => v,
     };
-    match tcl_lsp_core::refactor::extract_variable(source, start_off, end_off, var_name, &line_index) {
+    match tcl_lsp_core::refactor::extract_variable(
+        source,
+        start_off,
+        end_off,
+        var_name,
+        &line_index,
+    ) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -781,7 +809,8 @@ fn extract_datagroup(args: &Value) -> Value {
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
     let reg = registry(IRULES_DIALECT);
-    let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, reg, &line_index)
+    let Some(r) =
+        tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, reg, &line_index)
     else {
         return Value::Null;
     };
@@ -833,7 +862,13 @@ fn refactor(args: &Value) -> Value {
     if start_off != end_off {
         push(
             "extract_variable",
-            tcl_lsp_core::refactor::extract_variable(source, start_off, end_off, "result", &line_index),
+            tcl_lsp_core::refactor::extract_variable(
+                source,
+                start_off,
+                end_off,
+                "result",
+                &line_index,
+            ),
         );
     }
     push(
@@ -848,7 +883,10 @@ fn refactor(args: &Value) -> Value {
         "switch_to_dict",
         tcl_lsp_core::refactor::switch_to_dict(source, start_off, reg, &line_index),
     );
-    push("brace_expr", tcl_lsp_core::refactor::brace_expr(source, start_off, reg));
+    push(
+        "brace_expr",
+        tcl_lsp_core::refactor::brace_expr(source, start_off, reg),
+    );
     push(
         "extract_datagroup",
         tcl_lsp_core::refactor::extract_to_datagroup(source, start_off, "", reg, &line_index),
@@ -878,8 +916,9 @@ fn generate_docstring(args: &Value) -> Value {
     match proc {
         Some(proc) => {
             let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
-            let docstring =
-                tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");
+            let docstring = tcl_lsp_core::formatting::generate_stub_for_proc(
+                proc, tag, decoration, '.', 70, "",
+            );
             json!({ "proc": proc_name, "docstring": docstring })
         }
         None => json!({ "error": format!("Proc '{proc_name}' not found") }),
@@ -948,12 +987,17 @@ fn update_docstrings(args: &Value) -> Value {
 
     // Undocumented procs, bottom-up so earlier insertions don't shift later
     // line numbers.
-    let mut targets: Vec<_> = analysis.all_procs.values().filter(|p| p.doc.is_empty()).collect();
+    let mut targets: Vec<_> = analysis
+        .all_procs
+        .values()
+        .filter(|p| p.doc.is_empty())
+        .collect();
     targets.sort_by_key(|p| std::cmp::Reverse(line_index.line_at(p.name_span.start())));
 
     let mut lines: Vec<String> = split_keep_ends(source);
     for proc in &targets {
-        let stub = tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");
+        let stub =
+            tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");
         let at = (line_index.line_at(proc.name_span.start()) as usize).min(lines.len());
         lines.insert(at, format!("{stub}\n"));
     }
@@ -1016,63 +1060,540 @@ struct ToolDef {
 type Param = (&'static str, &'static str, &'static str);
 
 const SRC: Param = ("source", "string", "Tcl or iRules source code");
-const DIALECT: Param = ("dialect", "string", "Language dialect; auto-detected if empty");
+const DIALECT: Param = (
+    "dialect",
+    "string",
+    "Language dialect; auto-detected if empty",
+);
 const LINE: Param = ("line", "integer", "0-based line of the cursor");
 const CHAR: Param = ("character", "integer", "0-based character of the cursor");
-const START_LINE: Param = ("start_line", "integer", "0-based start line of the selection");
-const START_CHAR: Param = ("start_character", "integer", "0-based start character of the selection");
+const START_LINE: Param = (
+    "start_line",
+    "integer",
+    "0-based start line of the selection",
+);
+const START_CHAR: Param = (
+    "start_character",
+    "integer",
+    "0-based start character of the selection",
+);
 const END_LINE: Param = ("end_line", "integer", "0-based end line of the selection");
-const END_CHAR: Param = ("end_character", "integer", "0-based end character of the selection");
-const STYLE: Param = ("style", "string", "Docstring style: 'doxygen' (default) or 'plain'");
-const DECORATION: Param = ("decoration", "boolean", "Add '# ....' rule lines above/below the stub");
+const END_CHAR: Param = (
+    "end_character",
+    "integer",
+    "0-based end character of the selection",
+);
+const STYLE: Param = (
+    "style",
+    "string",
+    "Docstring style: 'doxygen' (default) or 'plain'",
+);
+const DECORATION: Param = (
+    "decoration",
+    "boolean",
+    "Add '# ....' rule lines above/below the stub",
+);
 
 const TOOLS: &[ToolDef] = &[
-    ToolDef { name: "call_graph", description: "Proc caller→callee graph with call sites, roots, and leaf procs.", params: &[SRC, DIALECT], required: &["source"], handler: call_graph },
-    ToolDef { name: "symbol_graph", description: "Scope hierarchy with proc/variable definitions, references, and package requires.", params: &[SRC, DIALECT], required: &["source"], handler: symbol_graph },
-    ToolDef { name: "dataflow_graph", description: "Taint warnings, tainted variables, and per-proc side-effect classification.", params: &[SRC, DIALECT], required: &["source"], handler: dataflow_graph },
-    ToolDef { name: "def_use_chains", description: "SSA def-use chains + memory-SSA aliases; optional variable filter.", params: &[SRC, DIALECT, ("variable", "string", "Filter to a specific variable name (optional)")], required: &["source"], handler: def_use_chains },
-    ToolDef { name: "memory_aliases", description: "Memory-SSA alias sets (upvar/global/variable) with reasons and locations.", params: &[SRC, DIALECT], required: &["source"], handler: memory_aliases },
-    ToolDef { name: "diagram", description: "Control-flow diagram data ({events, procedures}) from the IR.", params: &[SRC, DIALECT], required: &["source"], handler: diagram },
-    ToolDef { name: "detect_dialect", description: "Detect the Tcl dialect from source (+ optional filename).", params: &[SRC, ("filename", "string", "File name for extension-based detection (optional)")], required: &["source"], handler: detect_dialect },
-    ToolDef { name: "event_order", description: "iRule events in canonical firing order with multiplicity.", params: &[SRC], required: &["source"], handler: event_order },
-    ToolDef { name: "format_source", description: "Format Tcl/iRules source.", params: &[SRC, DIALECT, ("indent_size", "integer", "Spaces per indent (default 4)"), ("indent_style", "string", "'spaces' or 'tabs'"), ("max_line_length", "integer", "Max line length (default 120)")], required: &["source"], handler: format_source },
-    ToolDef { name: "optimize", description: "Find optimisation opportunities and produce rewritten source.", params: &[SRC, DIALECT, ("profile", "string", "off | readability | standard | full | aggressive")], required: &["source"], handler: optimize },
-    ToolDef { name: "compile_wasm", description: "Compile to a WebAssembly module (eval-fallback tier); returns WAT + counts.", params: &[SRC, DIALECT], required: &["source"], handler: compile_wasm },
-    ToolDef { name: "inline_variable", description: "Inline a single-use variable at the cursor.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: inline_variable },
-    ToolDef { name: "if_to_switch", description: "Convert an if/elseif chain testing one variable to a switch.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: if_to_switch },
-    ToolDef { name: "switch_to_dict", description: "Convert a switch whose arms set one variable to a dict lookup.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: switch_to_dict },
-    ToolDef { name: "brace_expr", description: "Brace an unbraced expr argument for safety/performance.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: brace_expr },
-    ToolDef { name: "analyze", description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order.", params: &[SRC, DIALECT], required: &["source"], handler: analyze },
-    ToolDef { name: "validate", description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …).", params: &[SRC, DIALECT], required: &["source"], handler: validate },
-    ToolDef { name: "review", description: "Security, taint, and thread-safety diagnostics for a focused review.", params: &[SRC, DIALECT], required: &["source"], handler: review },
-    ToolDef { name: "find-legacy", description: "Auto-convertible legacy patterns with a modernisation hint per finding.", params: &[SRC, DIALECT], required: &["source"], handler: find_legacy },
-    ToolDef { name: "event_info", description: "iRules event metadata: multiplicity, side, transport, implied profiles, valid commands.", params: &[("event_name", "string", "iRules event name, e.g. HTTP_REQUEST")], required: &["event_name"], handler: event_info },
-    ToolDef { name: "command_info", description: "Registry metadata for a command: summary, synopsis, switches, valid events.", params: &[("command_name", "string", "Command name, e.g. HTTP::uri")], required: &["command_name"], handler: command_info },
-    ToolDef { name: "symbols", description: "Document symbol tree (procs, classes, methods, variables) with ranges.", params: &[SRC, DIALECT], required: &["source"], handler: symbols },
-    ToolDef { name: "hover", description: "Hover documentation (markdown) for the symbol at the cursor.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: hover },
-    ToolDef { name: "complete", description: "Completion items at the cursor (variables, procs, switches, subcommands, snippets).", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: complete },
-    ToolDef { name: "goto_definition", description: "Definition location(s) for the symbol at the cursor.", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: goto_definition },
-    ToolDef { name: "find_references", description: "All references to the symbol at the cursor (including its declaration).", params: &[SRC, LINE, CHAR, DIALECT], required: &["source", "line", "character"], handler: find_references },
-    ToolDef { name: "rename", description: "Text edits to rename the symbol at the cursor; null when not renameable.", params: &[SRC, LINE, CHAR, ("new_name", "string", "New symbol name"), DIALECT], required: &["source", "line", "character", "new_name"], handler: rename },
-    ToolDef { name: "code_actions", description: "Code actions (quick-fixes + refactors) for a selection range.", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: code_actions },
-    ToolDef { name: "extract_variable", description: "Extract a selected expression into a new `set var …` binding.", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, ("var_name", "string", "New variable name (default 'result')")], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: extract_variable },
-    ToolDef { name: "extract_datagroup", description: "Extract an if/switch over literals into an iRules data-group + lookup.", params: &[SRC, LINE, CHAR, ("dg_name", "string", "Data-group name; auto-generated if empty")], required: &["source", "line", "character"], handler: extract_datagroup },
-    ToolDef { name: "refactor", description: "List the refactorings available at a selection (probe of all refactors).", params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT], required: &["source", "start_line", "start_character", "end_line", "end_character"], handler: refactor },
-    ToolDef { name: "generate_docstring", description: "Generate a docstring stub for a named proc.", params: &[SRC, ("proc_name", "string", "Proc to document"), STYLE, DECORATION, DIALECT], required: &["source", "proc_name"], handler: generate_docstring },
-    ToolDef { name: "read_proc_docs", description: "Structured docs for every proc: params, parsed docstring, inferred param traits.", params: &[SRC, DIALECT], required: &["source"], handler: read_proc_docs },
-    ToolDef { name: "update_docstrings", description: "Insert docstring stubs above every undocumented proc; returns rewritten source.", params: &[SRC, STYLE, DECORATION, DIALECT], required: &["source"], handler: update_docstrings },
-    ToolDef { name: "unminify_error", description: "Translate a minified error back to original symbol names / line numbers.", params: &[("error_message", "string", "The error text to translate"), ("symbol_map", "string", "Minified→original symbol map"), ("minified_source", "string", "Minified source (optional, for line remapping)"), ("original_source", "string", "Original source (optional, for line remapping)")], required: &["error_message", "symbol_map"], handler: unminify_error },
-    ToolDef { name: "set_dialect", description: "Set the session default dialect used when a tool's dialect is auto-detected.", params: &[("dialect", "string", "Dialect to make the session default (e.g. f5-irules, tcl9.0)")], required: &["dialect"], handler: set_dialect },
-    ToolDef { name: "fakecmp_which_tmm", description: "Which TMM a connection 4-tuple hashes to under the fakeCMP disaggregator.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("src_addr", "string", "Source IPv4"), ("src_port", "integer", "Source port (0-65535)"), ("dst_addr", "string", "Destination IPv4"), ("dst_port", "integer", "Destination port (0-65535)")], required: &["tmm_count", "src_addr", "src_port", "dst_addr", "dst_port"], handler: crate::fakecmp::which_tmm },
-    ToolDef { name: "fakecmp_suggest_sources", description: "Source tuples that spread test traffic across every TMM.", params: &[("tmm_count", "integer", "Number of TMMs (>= 2)"), ("count", "integer", "Tuples per TMM (default 1)"), ("dst_addr", "string", "Destination IPv4 (default 192.168.1.100)"), ("dst_port", "integer", "Destination port (default 443)")], required: &["tmm_count"], handler: crate::fakecmp::suggest_sources },
-    ToolDef { name: "irule_with_context", description: "Bundle each iRule in a BIG-IP config with the objects it references (pools, data-groups, profiles, monitors, …).", params: &[("config_text", "string", "BIG-IP config text (bigip.conf/scf)"), ("config_paths", "array", "Paths to config files to merge (optional)"), ("rule_path", "string", "Full path of a single rule to bundle (optional)"), ("format", "string", "'json' (default) or 'text'"), ("transitive", "boolean", "Follow transitive references (default true)")], required: &[], handler: crate::bigip::irule_with_context },
-    ToolDef { name: "help", description: "Search the KCS feature knowledge base (empty topic → full catalogue).", params: &[("topic", "string", "Search query; empty lists all features"), ("dialect", "string", "Filter features by dialect (optional)"), ("limit", "integer", "Max matches (default 20)")], required: &[], handler: help },
-    ToolDef { name: "xc_translate", description: "Translate an iRule to F5 Distributed Cloud (XC) config — terraform HCL + ves.io JSON, with per-command coverage.", params: &[SRC, ("output_format", "string", "'terraform', 'json', or 'both' (default)")], required: &["source"], handler: crate::xc::xc_translate },
-    ToolDef { name: "explain_flow", description: "Narrate a captured session (pcap) against a BIG-IP config: matched VS, profiles, HTTP/TLS, ordered iRule events, pool decision, optional simulation.", params: &[("pcap_path", "string", "Path to the pcap/pcapng capture"), ("config_text", "string", "Inline BIG-IP config (optional)"), ("config_paths", "array", "Config file paths to merge (optional)"), ("use_tshark", "boolean", "Use the tshark overlay for L7/TLS decode"), ("keylog_path", "string", "TLS keylog file for decryption (optional)"), ("tshark_filter", "string", "Extra tshark display filter (optional)"), ("max_event_body_lines", "integer", "Max iRule body lines per event (default 8)"), ("simulate", "boolean", "Run the iRule simulation pass")], required: &["pcap_path"], handler: crate::bigip::explain_flow },
-    ToolDef { name: "tk_layout", description: "Extract the Tk widget tree (types, geometry managers, visual options) + pack/grid conflicts for preview.", params: &[SRC], required: &["source"], handler: crate::tk::tk_layout },
-    ToolDef { name: "irule_cfg_paths", description: "Enumerate CFG paths through an iRule to terminal actions (pool/reject/redirect/…), each annotated with priority, relevant taint warnings, and test-generation questions.", params: &[SRC], required: &["source"], handler: crate::irule_test::irule_cfg_paths },
-    ToolDef { name: "suggest_datagroup_extractions", description: "Scan iRules source for if/switch patterns extractable to data-groups; returns per-candidate value type, CIDR flag, body-shape, confidence, and whether the static extractor applies.", params: &[SRC], required: &["source"], handler: crate::datagroup::suggest_datagroup_extractions },
-    ToolDef { name: "generate_irule_test", description: "Generate a runnable iRule test scaffold (per-event + per-CFG-path cases, multi-TMM scenario) with extracted events/profiles/commands/pools/datagroups.", params: &[SRC], required: &["source"], handler: crate::irule_gen::generate_irule_test },
+    ToolDef {
+        name: "call_graph",
+        description: "Proc caller→callee graph with call sites, roots, and leaf procs.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: call_graph,
+    },
+    ToolDef {
+        name: "symbol_graph",
+        description: "Scope hierarchy with proc/variable definitions, references, and package requires.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: symbol_graph,
+    },
+    ToolDef {
+        name: "dataflow_graph",
+        description: "Taint warnings, tainted variables, and per-proc side-effect classification.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: dataflow_graph,
+    },
+    ToolDef {
+        name: "def_use_chains",
+        description: "SSA def-use chains + memory-SSA aliases; optional variable filter.",
+        params: &[
+            SRC,
+            DIALECT,
+            (
+                "variable",
+                "string",
+                "Filter to a specific variable name (optional)",
+            ),
+        ],
+        required: &["source"],
+        handler: def_use_chains,
+    },
+    ToolDef {
+        name: "memory_aliases",
+        description: "Memory-SSA alias sets (upvar/global/variable) with reasons and locations.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: memory_aliases,
+    },
+    ToolDef {
+        name: "diagram",
+        description: "Control-flow diagram data ({events, procedures}) from the IR.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: diagram,
+    },
+    ToolDef {
+        name: "detect_dialect",
+        description: "Detect the Tcl dialect from source (+ optional filename).",
+        params: &[
+            SRC,
+            (
+                "filename",
+                "string",
+                "File name for extension-based detection (optional)",
+            ),
+        ],
+        required: &["source"],
+        handler: detect_dialect,
+    },
+    ToolDef {
+        name: "event_order",
+        description: "iRule events in canonical firing order with multiplicity.",
+        params: &[SRC],
+        required: &["source"],
+        handler: event_order,
+    },
+    ToolDef {
+        name: "format_source",
+        description: "Format Tcl/iRules source.",
+        params: &[
+            SRC,
+            DIALECT,
+            ("indent_size", "integer", "Spaces per indent (default 4)"),
+            ("indent_style", "string", "'spaces' or 'tabs'"),
+            (
+                "max_line_length",
+                "integer",
+                "Max line length (default 120)",
+            ),
+        ],
+        required: &["source"],
+        handler: format_source,
+    },
+    ToolDef {
+        name: "optimize",
+        description: "Find optimisation opportunities and produce rewritten source.",
+        params: &[
+            SRC,
+            DIALECT,
+            (
+                "profile",
+                "string",
+                "off | readability | standard | full | aggressive",
+            ),
+        ],
+        required: &["source"],
+        handler: optimize,
+    },
+    ToolDef {
+        name: "compile_wasm",
+        description: "Compile to a WebAssembly module (eval-fallback tier); returns WAT + counts.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: compile_wasm,
+    },
+    ToolDef {
+        name: "inline_variable",
+        description: "Inline a single-use variable at the cursor.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: inline_variable,
+    },
+    ToolDef {
+        name: "if_to_switch",
+        description: "Convert an if/elseif chain testing one variable to a switch.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: if_to_switch,
+    },
+    ToolDef {
+        name: "switch_to_dict",
+        description: "Convert a switch whose arms set one variable to a dict lookup.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: switch_to_dict,
+    },
+    ToolDef {
+        name: "brace_expr",
+        description: "Brace an unbraced expr argument for safety/performance.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: brace_expr,
+    },
+    ToolDef {
+        name: "analyze",
+        description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: analyze,
+    },
+    ToolDef {
+        name: "validate",
+        description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …).",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: validate,
+    },
+    ToolDef {
+        name: "review",
+        description: "Security, taint, and thread-safety diagnostics for a focused review.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: review,
+    },
+    ToolDef {
+        name: "find-legacy",
+        description: "Auto-convertible legacy patterns with a modernisation hint per finding.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: find_legacy,
+    },
+    ToolDef {
+        name: "event_info",
+        description: "iRules event metadata: multiplicity, side, transport, implied profiles, valid commands.",
+        params: &[(
+            "event_name",
+            "string",
+            "iRules event name, e.g. HTTP_REQUEST",
+        )],
+        required: &["event_name"],
+        handler: event_info,
+    },
+    ToolDef {
+        name: "command_info",
+        description: "Registry metadata for a command: summary, synopsis, switches, valid events.",
+        params: &[("command_name", "string", "Command name, e.g. HTTP::uri")],
+        required: &["command_name"],
+        handler: command_info,
+    },
+    ToolDef {
+        name: "symbols",
+        description: "Document symbol tree (procs, classes, methods, variables) with ranges.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: symbols,
+    },
+    ToolDef {
+        name: "hover",
+        description: "Hover documentation (markdown) for the symbol at the cursor.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: hover,
+    },
+    ToolDef {
+        name: "complete",
+        description: "Completion items at the cursor (variables, procs, switches, subcommands, snippets).",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: complete,
+    },
+    ToolDef {
+        name: "goto_definition",
+        description: "Definition location(s) for the symbol at the cursor.",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: goto_definition,
+    },
+    ToolDef {
+        name: "find_references",
+        description: "All references to the symbol at the cursor (including its declaration).",
+        params: &[SRC, LINE, CHAR, DIALECT],
+        required: &["source", "line", "character"],
+        handler: find_references,
+    },
+    ToolDef {
+        name: "rename",
+        description: "Text edits to rename the symbol at the cursor; null when not renameable.",
+        params: &[
+            SRC,
+            LINE,
+            CHAR,
+            ("new_name", "string", "New symbol name"),
+            DIALECT,
+        ],
+        required: &["source", "line", "character", "new_name"],
+        handler: rename,
+    },
+    ToolDef {
+        name: "code_actions",
+        description: "Code actions (quick-fixes + refactors) for a selection range.",
+        params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT],
+        required: &[
+            "source",
+            "start_line",
+            "start_character",
+            "end_line",
+            "end_character",
+        ],
+        handler: code_actions,
+    },
+    ToolDef {
+        name: "extract_variable",
+        description: "Extract a selected expression into a new `set var …` binding.",
+        params: &[
+            SRC,
+            START_LINE,
+            START_CHAR,
+            END_LINE,
+            END_CHAR,
+            ("var_name", "string", "New variable name (default 'result')"),
+        ],
+        required: &[
+            "source",
+            "start_line",
+            "start_character",
+            "end_line",
+            "end_character",
+        ],
+        handler: extract_variable,
+    },
+    ToolDef {
+        name: "extract_datagroup",
+        description: "Extract an if/switch over literals into an iRules data-group + lookup.",
+        params: &[
+            SRC,
+            LINE,
+            CHAR,
+            (
+                "dg_name",
+                "string",
+                "Data-group name; auto-generated if empty",
+            ),
+        ],
+        required: &["source", "line", "character"],
+        handler: extract_datagroup,
+    },
+    ToolDef {
+        name: "refactor",
+        description: "List the refactorings available at a selection (probe of all refactors).",
+        params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT],
+        required: &[
+            "source",
+            "start_line",
+            "start_character",
+            "end_line",
+            "end_character",
+        ],
+        handler: refactor,
+    },
+    ToolDef {
+        name: "generate_docstring",
+        description: "Generate a docstring stub for a named proc.",
+        params: &[
+            SRC,
+            ("proc_name", "string", "Proc to document"),
+            STYLE,
+            DECORATION,
+            DIALECT,
+        ],
+        required: &["source", "proc_name"],
+        handler: generate_docstring,
+    },
+    ToolDef {
+        name: "read_proc_docs",
+        description: "Structured docs for every proc: params, parsed docstring, inferred param traits.",
+        params: &[SRC, DIALECT],
+        required: &["source"],
+        handler: read_proc_docs,
+    },
+    ToolDef {
+        name: "update_docstrings",
+        description: "Insert docstring stubs above every undocumented proc; returns rewritten source.",
+        params: &[SRC, STYLE, DECORATION, DIALECT],
+        required: &["source"],
+        handler: update_docstrings,
+    },
+    ToolDef {
+        name: "unminify_error",
+        description: "Translate a minified error back to original symbol names / line numbers.",
+        params: &[
+            ("error_message", "string", "The error text to translate"),
+            ("symbol_map", "string", "Minified→original symbol map"),
+            (
+                "minified_source",
+                "string",
+                "Minified source (optional, for line remapping)",
+            ),
+            (
+                "original_source",
+                "string",
+                "Original source (optional, for line remapping)",
+            ),
+        ],
+        required: &["error_message", "symbol_map"],
+        handler: unminify_error,
+    },
+    ToolDef {
+        name: "set_dialect",
+        description: "Set the session default dialect used when a tool's dialect is auto-detected.",
+        params: &[(
+            "dialect",
+            "string",
+            "Dialect to make the session default (e.g. f5-irules, tcl9.0)",
+        )],
+        required: &["dialect"],
+        handler: set_dialect,
+    },
+    ToolDef {
+        name: "fakecmp_which_tmm",
+        description: "Which TMM a connection 4-tuple hashes to under the fakeCMP disaggregator.",
+        params: &[
+            ("tmm_count", "integer", "Number of TMMs (>= 2)"),
+            ("src_addr", "string", "Source IPv4"),
+            ("src_port", "integer", "Source port (0-65535)"),
+            ("dst_addr", "string", "Destination IPv4"),
+            ("dst_port", "integer", "Destination port (0-65535)"),
+        ],
+        required: &["tmm_count", "src_addr", "src_port", "dst_addr", "dst_port"],
+        handler: crate::fakecmp::which_tmm,
+    },
+    ToolDef {
+        name: "fakecmp_suggest_sources",
+        description: "Source tuples that spread test traffic across every TMM.",
+        params: &[
+            ("tmm_count", "integer", "Number of TMMs (>= 2)"),
+            ("count", "integer", "Tuples per TMM (default 1)"),
+            (
+                "dst_addr",
+                "string",
+                "Destination IPv4 (default 192.168.1.100)",
+            ),
+            ("dst_port", "integer", "Destination port (default 443)"),
+        ],
+        required: &["tmm_count"],
+        handler: crate::fakecmp::suggest_sources,
+    },
+    ToolDef {
+        name: "irule_with_context",
+        description: "Bundle each iRule in a BIG-IP config with the objects it references (pools, data-groups, profiles, monitors, …).",
+        params: &[
+            (
+                "config_text",
+                "string",
+                "BIG-IP config text (bigip.conf/scf)",
+            ),
+            (
+                "config_paths",
+                "array",
+                "Paths to config files to merge (optional)",
+            ),
+            (
+                "rule_path",
+                "string",
+                "Full path of a single rule to bundle (optional)",
+            ),
+            ("format", "string", "'json' (default) or 'text'"),
+            (
+                "transitive",
+                "boolean",
+                "Follow transitive references (default true)",
+            ),
+        ],
+        required: &[],
+        handler: crate::bigip::irule_with_context,
+    },
+    ToolDef {
+        name: "help",
+        description: "Search the KCS feature knowledge base (empty topic → full catalogue).",
+        params: &[
+            ("topic", "string", "Search query; empty lists all features"),
+            ("dialect", "string", "Filter features by dialect (optional)"),
+            ("limit", "integer", "Max matches (default 20)"),
+        ],
+        required: &[],
+        handler: help,
+    },
+    ToolDef {
+        name: "xc_translate",
+        description: "Translate an iRule to F5 Distributed Cloud (XC) config — terraform HCL + ves.io JSON, with per-command coverage.",
+        params: &[
+            SRC,
+            (
+                "output_format",
+                "string",
+                "'terraform', 'json', or 'both' (default)",
+            ),
+        ],
+        required: &["source"],
+        handler: crate::xc::xc_translate,
+    },
+    ToolDef {
+        name: "explain_flow",
+        description: "Narrate a captured session (pcap) against a BIG-IP config: matched VS, profiles, HTTP/TLS, ordered iRule events, pool decision, optional simulation.",
+        params: &[
+            ("pcap_path", "string", "Path to the pcap/pcapng capture"),
+            ("config_text", "string", "Inline BIG-IP config (optional)"),
+            (
+                "config_paths",
+                "array",
+                "Config file paths to merge (optional)",
+            ),
+            (
+                "use_tshark",
+                "boolean",
+                "Use the tshark overlay for L7/TLS decode",
+            ),
+            (
+                "keylog_path",
+                "string",
+                "TLS keylog file for decryption (optional)",
+            ),
+            (
+                "tshark_filter",
+                "string",
+                "Extra tshark display filter (optional)",
+            ),
+            (
+                "max_event_body_lines",
+                "integer",
+                "Max iRule body lines per event (default 8)",
+            ),
+            ("simulate", "boolean", "Run the iRule simulation pass"),
+        ],
+        required: &["pcap_path"],
+        handler: crate::bigip::explain_flow,
+    },
+    ToolDef {
+        name: "tk_layout",
+        description: "Extract the Tk widget tree (types, geometry managers, visual options) + pack/grid conflicts for preview.",
+        params: &[SRC],
+        required: &["source"],
+        handler: crate::tk::tk_layout,
+    },
+    ToolDef {
+        name: "irule_cfg_paths",
+        description: "Enumerate CFG paths through an iRule to terminal actions (pool/reject/redirect/…), each annotated with priority, relevant taint warnings, and test-generation questions.",
+        params: &[SRC],
+        required: &["source"],
+        handler: crate::irule_test::irule_cfg_paths,
+    },
+    ToolDef {
+        name: "suggest_datagroup_extractions",
+        description: "Scan iRules source for if/switch patterns extractable to data-groups; returns per-candidate value type, CIDR flag, body-shape, confidence, and whether the static extractor applies.",
+        params: &[SRC],
+        required: &["source"],
+        handler: crate::datagroup::suggest_datagroup_extractions,
+    },
+    ToolDef {
+        name: "generate_irule_test",
+        description: "Generate a runnable iRule test scaffold (per-event + per-CFG-path cases, multi-TMM scenario) with extracted events/profiles/commands/pools/datagroups.",
+        params: &[SRC],
+        required: &["source"],
+        handler: crate::irule_gen::generate_irule_test,
+    },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
@@ -1080,7 +1601,10 @@ const TOOLS: &[ToolDef] = &[
 fn input_schema(t: &ToolDef) -> Value {
     let mut properties = Map::new();
     for (name, ty, desc) in t.params {
-        properties.insert((*name).to_owned(), json!({ "type": ty, "description": desc }));
+        properties.insert(
+            (*name).to_owned(),
+            json!({ "type": ty, "description": desc }),
+        );
     }
     json!({
         "type": "object",
@@ -1101,5 +1625,8 @@ pub fn tool_schemas() -> Vec<(&'static str, &'static str, Value)> {
 /// Run a tool by name against its JSON `arguments`, returning the raw JSON
 /// result — or `None` when the tool is unknown.
 pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
-    TOOLS.iter().find(|t| t.name == name).map(|t| (t.handler)(args))
+    TOOLS
+        .iter()
+        .find(|t| t.name == name)
+        .map(|t| (t.handler)(args))
 }

@@ -362,7 +362,8 @@ fn attach_type(command: &str) -> Option<&'static str> {
 fn walk_script(script: &Script, env: &mut HashMap<String, EnvVal>, reach: &mut AttachReach) {
     for st in &script.statements {
         match st {
-            Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
+            Statement::AssignConst { name, value, .. }
+            | Statement::AssignValue { name, value, .. } => {
                 let segs = text_to_segs(value, env);
                 update_env(env, name, segs);
             }
@@ -383,7 +384,9 @@ fn walk_script(script: &Script, env: &mut HashMap<String, EnvVal>, reach: &mut A
                     }
                 }
             }
-            Statement::If { clauses, else_body, .. } => {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
                 for c in clauses {
                     walk_script(&c.body, env, reach);
                 }
@@ -391,7 +394,9 @@ fn walk_script(script: &Script, env: &mut HashMap<String, EnvVal>, reach: &mut A
                     walk_script(body, env, reach);
                 }
             }
-            Statement::For { init, next, body, .. } => {
+            Statement::For {
+                init, next, body, ..
+            } => {
                 walk_script(init, env, reach);
                 walk_script(body, env, reach);
                 walk_script(next, env, reach);
@@ -499,7 +504,9 @@ fn collect_proc_calls(script: &Script, out: &mut Vec<String>) {
                     out.push(rule.to_string());
                 }
             }
-            Statement::If { clauses, else_body, .. } => {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
                 for c in clauses {
                     collect_proc_calls(&c.body, out);
                 }
@@ -606,8 +613,9 @@ mod tests {
 
     #[test]
     fn propagation_of_literal_prefix_variable() {
-        let r =
-            attach_reach(r#"when HTTP_REQUEST { set prefix "svc_"; pool "${prefix}[HTTP::host]" }"#);
+        let r = attach_reach(
+            r#"when HTTP_REQUEST { set prefix "svc_"; pool "${prefix}[HTTP::host]" }"#,
+        );
         assert_eq!(globs(&r.pools), vec!["svc_*"]);
     }
 
@@ -656,16 +664,14 @@ mod tests {
     #[test]
     fn proc_call_refs_cross_rule() {
         let refs = proc_call_refs(
-            r#"when HTTP_REQUEST { call MyLib::helper $x; if {1} { call /Common/Other::doit 1 } }"#,
+            r"when HTTP_REQUEST { call MyLib::helper $x; if {1} { call /Common/Other::doit 1 } }",
         );
         assert_eq!(refs, vec!["MyLib", "/Common/Other"]);
     }
 
     #[test]
     fn proc_call_refs_ignores_local_and_dedups() {
-        let refs = proc_call_refs(
-            r#"when HTTP_REQUEST { call ::plain; call Lib::a; call Lib::b }"#,
-        );
+        let refs = proc_call_refs(r"when HTTP_REQUEST { call ::plain; call Lib::a; call Lib::b }");
         assert_eq!(refs, vec!["Lib"]);
     }
 

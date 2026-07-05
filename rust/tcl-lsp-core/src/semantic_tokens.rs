@@ -157,6 +157,10 @@ enum TokenKind {
     /// A registry-known closed-set argument value (`string is alnum`,
     /// `HTTP::respond 200 content`, `when … timing enable`).
     EnumMember = 30,
+    /// The literal value argument of a recognised value-taking option
+    /// (`-name fitted`, `-type value`, `-min 0.4`) — highlighted distinctly
+    /// from the option switch itself (`Decorator`) and from a plain string.
+    OptionValue = 31,
 }
 
 /// `binary format`/`scan` specifier letters.
@@ -202,6 +206,10 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "decorator",
         "escape",
         "enumMember",
+        // Option-value words (`-name fitted`): the standard LSP `property`
+        // type gives them a distinct colour from the option switch and from a
+        // plain string in default themes.
+        "property",
     ]
 }
 
@@ -985,6 +993,15 @@ fn insert_format_overrides(
 /// name — never match; only a literal `-force`-style word does.
 ///
 /// [`OptionSpec`]: tcl_registry::OptionSpec
+/// Whether an option value's role is re-coloured by a later semantic-token pass
+/// (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides` for
+/// `VarWrite`).  Such values must not be claimed as `OptionValue` by the option
+/// pass, which runs first and would block the more specific role token.
+fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
+    use tcl_registry::ArgRole;
+    matches!(role, Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite))
+}
+
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -1000,6 +1017,38 @@ fn insert_option_and_subcommand_overrides(
     // visually an option even when it was introduced in a later Tcl release.
     let mut option_names = spec.switch_names(None);
 
+    // Value-taking options whose value is a *generic* value — those get the
+    // distinct `OptionValue` colour (the option/value split of issue #748).
+    // Options whose value carries an analysis role (a `-command` script, a
+    // `-textvariable` name, …) are deliberately excluded here so their value
+    // is claimed by the role/var-decl passes instead (`BodyScript`, `VarDecl`,
+    // …) — those run after this pass and would otherwise be blocked by the
+    // `OptionValue` override.  Keyed name/alias → spec so multi-value arity
+    // (`Fixed`/`Rest`) can colour every value word via `value_indices`.
+    let mut value_options: FxHashMap<&str, &'static tcl_registry::hover::OptionSpec> =
+        FxHashMap::default();
+    let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
+        for opt in opts {
+            // Skip options whose value carries an analysis role (claimed by the
+            // role/var passes) or a declared enum set (claimed as `EnumMember`
+            // by `insert_enum_value_overrides`) — leave those for the more
+            // specific pass; only generic values get the `OptionValue` colour.
+            if opt.takes_value()
+                && !role_claimed_by_token_pass(opt.value_role())
+                && opt.value_values().is_empty()
+            {
+                value_options.insert(opt.name, opt);
+                for alias in opt.aliases {
+                    value_options.insert(alias, opt);
+                }
+            }
+        }
+    };
+    collect_value_options(spec.options);
+    for form in spec.command_forms {
+        collect_value_options(form.options);
+    }
+
     // A known subcommand at arg index 1 is highlighted as a keyword, and its
     // per-subcommand options (`file delete -force`, `file link -symbolic`)
     // join the recognised set.
@@ -1007,6 +1056,7 @@ fn insert_option_and_subcommand_overrides(
         && let Some(sub) = spec.subcommand(sub_text)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
+        collect_value_options(sub.options);
         if let Some(tok) = seg.argv.get(1) {
             overrides
                 .entry(tok.span.start())
@@ -1022,6 +1072,24 @@ fn insert_option_and_subcommand_overrides(
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::Decorator);
+
+            // The value word(s) this option consumes are re-coloured
+            // `OptionValue`.  Arity-aware (`value_indices` handles One / Fixed /
+            // Rest and stops at `--`); only *literal* values (`Esc`/`Str`) are
+            // re-coloured — a `$var` / `[cmd]` substitution keeps its own
+            // highlight, and a value that is itself a recognised option stays a
+            // `Decorator` (the `or_insert` above already claimed it).
+            if let Some(opt) = value_options.get(text.as_str()) {
+                for vi in opt.value_indices(&seg.texts, i) {
+                    if let Some(val_tok) = seg.argv.get(vi)
+                        && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+                    {
+                        overrides
+                            .entry(val_tok.span.start())
+                            .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+                    }
+                }
+            }
         }
     }
 }
@@ -1083,6 +1151,35 @@ fn insert_enum_value_overrides(
         for (idx, values) in sub.arg_values {
             mark(*idx as usize + 2, values);
         }
+    }
+
+    // Option-value enum members — the value word(s) of a value-taking option
+    // that declares an enumerable set (`-relief raised`, `-anchor center`).
+    // Matched by name/alias, arity-aware via `value_indices`; a `$var`/`[cmd]`
+    // value falls through `mark`'s literal check.
+    let mut i = 1usize;
+    while i < seg.texts.len() {
+        let word = seg.texts[i].as_str();
+        if word == "--" {
+            break;
+        }
+        let opt = spec
+            .options
+            .iter()
+            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+            .find(|o| o.matches(word));
+        if let Some(opt) = opt {
+            let vis = opt.value_indices(&seg.texts, i);
+            let values = opt.value_values();
+            if !values.is_empty() {
+                for &vi in &vis {
+                    mark(vi, values);
+                }
+            }
+            i += 1 + vis.len();
+            continue;
+        }
+        i += 1;
     }
 }
 
@@ -2576,6 +2673,19 @@ fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mu
     }
 }
 
+/// The fixed `(kind, modifier)` for overrides that emit their token verbatim,
+/// or `None` for overrides that need custom handling (recursion / sub-tokens).
+fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
+    match ov {
+        ArgOverride::Kind(kind) => Some((kind, 0)),
+        ArgOverride::Decorator => Some((TokenKind::Decorator, 0)),
+        ArgOverride::VarDecl => Some((TokenKind::Variable, MOD_DECLARATION)),
+        ArgOverride::SubcommandKeyword => Some((TokenKind::Keyword, MOD_DEFAULT_LIBRARY)),
+        ArgOverride::ProcNameDef => Some((TokenKind::Function, MOD_DEFINITION)),
+        _ => None,
+    }
+}
+
 fn emit_arg_token(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
@@ -2593,6 +2703,11 @@ fn emit_arg_token(
         oo_grammar: None,
         ..ctx
     };
+    // Overrides that emit their token verbatim collapse to one path.
+    if let Some((kind, modifier)) = override_kind.copied().and_then(verbatim_token_kind) {
+        push_token(line_index, full_source, *tok, kind, modifier, entries);
+        return;
+    }
     match override_kind {
         Some(ArgOverride::RegexPattern) => {
             if !push_regex_subtokens(line_index, full_source, *tok, entries) {
@@ -2616,29 +2731,6 @@ fn emit_arg_token(
             let emitted = push_regsub_subtokens(line_index, full_source, *tok, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::Kind(kind)) => {
-            push_token(line_index, full_source, *tok, *kind, 0, entries);
-        }
-        Some(ArgOverride::Decorator) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Decorator,
-                0,
-                entries,
-            );
-        }
-        Some(ArgOverride::VarDecl) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Variable,
-                MOD_DECLARATION,
-                entries,
-            );
-        }
         Some(ArgOverride::ApplyLambda) => {
             collect_apply_lambda(ctx, *tok, entries, depth + 1);
         }
@@ -2647,26 +2739,6 @@ fn emit_arg_token(
         }
         Some(ArgOverride::ParamList) => {
             collect_param_list(ctx, *tok, entries);
-        }
-        Some(ArgOverride::SubcommandKeyword) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Keyword,
-                MOD_DEFAULT_LIBRARY,
-                entries,
-            );
-        }
-        Some(ArgOverride::ProcNameDef) => {
-            push_token(
-                line_index,
-                full_source,
-                *tok,
-                TokenKind::Function,
-                MOD_DEFINITION,
-                entries,
-            );
         }
         Some(ArgOverride::BodyScript) => {
             if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
@@ -2698,6 +2770,14 @@ fn emit_arg_token(
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
         }
+        // Verbatim-token overrides are handled by the early return above.
+        Some(
+            ArgOverride::Kind(_)
+            | ArgOverride::Decorator
+            | ArgOverride::VarDecl
+            | ArgOverride::SubcommandKeyword
+            | ArgOverride::ProcNameDef,
+        ) => {}
         None => emit_default_arg_token(plain_ctx, *tok, entries, depth),
     }
 }
@@ -3601,6 +3681,57 @@ mod tests {
     }
 
     #[test]
+    fn value_taking_option_value_classified_as_option_value() {
+        // `lsort -index 2 $l` — `-index` takes a value, so the literal `2` is
+        // an option value (distinct from the `-index` decorator).
+        let ks = kinds("lsort -index 2 $l\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -index decorator; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected the `2` value to be an OptionValue; got {ks:?}"
+        );
+        // A boolean option takes no value — the following word is not recoloured.
+        // `lsort -unique $l`: `$l` stays a variable, not an OptionValue.
+        let ks = kinds("lsort -unique $l\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "boolean -unique must not mark a following value; got {ks:?}"
+        );
+        // A `$var` value keeps its variable highlight, not OptionValue.
+        let ks = kinds("lsort -index $i $l\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "a $var option value keeps its variable highlight; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn argparse_global_switch_values_classified_as_option_value() {
+        // The `argparse` package command's value-taking global switches
+        // (`-template`, `-level`, …) colour their following literal as an
+        // OptionValue, while boolean switches (`-inline`) do not. argparse is
+        // registered (package-gated), so the classifier resolves its spec.
+        let ks = kinds("argparse -template foo -level 2 -inline {d}\n", "tcl", &reg());
+        let n_val = ks
+            .iter()
+            .filter(|&&k| k == TokenKind::OptionValue as u32)
+            .count();
+        assert_eq!(
+            n_val, 2,
+            "expected `foo` and `2` as OptionValues (not boolean -inline's `{{d}}`); got {ks:?}"
+        );
+        // A boolean global switch does not recolour the following word.
+        let ks = kinds("argparse -inline {d}\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::OptionValue as u32)),
+            "boolean -inline must not mark a following value; got {ks:?}"
+        );
+    }
+
+    #[test]
     fn subcommand_enum_value_classified_as_enum_member() {
         // `string is alnum $s` — `alnum` is a closed-set value declared on
         // the `is` subcommand → enumMember, not a plain string.
@@ -3702,6 +3833,44 @@ mod tests {
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
             "expected `q` declared inside the constructor body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn option_command_value_recurses_as_body_script() {
+        // `button .b -command {puts $x}` — the `-command` value is a script
+        // body (Phase 3: ArgRole::Body), so it recurses: `$x` inside the braces
+        // resolves as a Variable rather than one opaque string.
+        let toks = decode_full("button .b -command {puts $x}\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected $x resolved inside the -command body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn option_enum_value_is_enum_member() {
+        // `button .b -relief raised` — the closed-set option value is coloured
+        // as an EnumMember (Phase 5), not a generic OptionValue.
+        let toks = decode_full("button .b -relief raised\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::EnumMember as u32),
+            "expected `raised` as EnumMember; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn option_textvariable_value_is_variable_declaration() {
+        // `entry .e -textvariable myvar` — the value names a variable the widget
+        // reads/writes (Phase 3: ArgRole::VarWrite), so it is a Variable
+        // declaration, not a plain `OptionValue` string.
+        let toks = decode_full("entry .e -textvariable myvar\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected myvar as a variable declaration; got {toks:?}"
         );
     }
 

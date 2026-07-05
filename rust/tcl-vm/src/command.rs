@@ -495,7 +495,9 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // Validate the limit type before the current-interp guard so that a bad
     // type is reported ahead of the inaccessibility error (interp-35.3 vs .23).
     if &*ltype != "commands" && &*ltype != "time" {
-        return err(format!("bad limit type \"{ltype}\": must be commands or time"));
+        return err(format!(
+            "bad limit type \"{ltype}\": must be commands or time"
+        ));
     }
     if path.is_empty() {
         return err("limits on current interpreter inaccessible");

@@ -22,7 +22,6 @@
 //! the packaged server. A cross-implementation conformance surface (raw
 //! JSON-RPC): the Rust/Zed port must meet this spec.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -47,7 +46,9 @@ fn lenses(lsp: &mut Lsp, uri: &str) -> Vec<Value> {
 
 /// A lens's `data.qname`, if present.
 fn qname(lens: &Value) -> Option<&str> {
-    lens.get("data").and_then(|d| d.get("qname")).and_then(Value::as_str)
+    lens.get("data")
+        .and_then(|d| d.get("qname"))
+        .and_then(Value::as_str)
 }
 
 /// Resolve the lens whose `data.qname` equals `qname`.
@@ -65,7 +66,12 @@ fn label_text(hint: &Value) -> String {
     match hint.get("label") {
         Some(Value::Array(parts)) => parts
             .iter()
-            .map(|p| p.get("value").and_then(Value::as_str).unwrap_or("").to_owned())
+            .map(|p| {
+                p.get("value")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned()
+            })
             .collect::<String>(),
         Some(Value::String(s)) => s.clone(),
         Some(other) => other.to_string(),
@@ -83,9 +89,10 @@ fn param_labels_on_line(hints: &Value, line: i64) -> Vec<(i64, String)> {
         let pos = h.get("position").cloned().unwrap_or(Value::Null);
         let char = pos.get("character").and_then(Value::as_i64);
         if pos.get("line").and_then(Value::as_i64) == Some(line)
-            && let Some(c) = char {
-                out.push((c, label_text(&h)));
-            }
+            && let Some(c) = char
+        {
+            out.push((c, label_text(&h)));
+        }
     }
     out.sort();
     out
@@ -257,7 +264,12 @@ fn test_hint_kinds_are_valid_when_present() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc add {a b} { expr {$a + $b} }\nadd 1 2\n");
-    for hint in lsp.inlay_hints(&uri, (0, 0), (2, 0)).as_array().cloned().unwrap_or_default() {
+    for hint in lsp
+        .inlay_hints(&uri, (0, 0), (2, 0))
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    {
         let k = hint.get("kind").and_then(Value::as_i64);
         assert!(k == Some(1) || k == Some(2), "{hint:?}");
     }
@@ -285,7 +297,11 @@ fn test_two_positionals_label_channel_then_string() {
     lsp.open_ready(&uri, "puts $chan hello\n");
     let labels = param_labels_on_line(&lsp.inlay_hints(&uri, (0, 0), (1, 0)), 0);
     let names: Vec<String> = labels.iter().map(|(_, n)| n.clone()).collect();
-    assert_eq!(names, vec!["channelId:".to_owned(), "string:".to_owned()], "{labels:?}");
+    assert_eq!(
+        names,
+        vec!["channelId:".to_owned(), "string:".to_owned()],
+        "{labels:?}"
+    );
 }
 
 #[test]
@@ -336,11 +352,13 @@ fn test_parameter_hints_only_produce_labels_no_type_hints() {
     let hints = lsp.inlay_hints(&uri, (0, 0), (2, 0));
     let arr = hints.as_array().cloned().unwrap_or_default();
     assert!(
-        arr.iter().any(|h| h.get("kind").and_then(Value::as_i64) == Some(2)),
+        arr.iter()
+            .any(|h| h.get("kind").and_then(Value::as_i64) == Some(2)),
         "{arr:?}"
     ); // Parameter present
     assert!(
-        arr.iter().all(|h| h.get("kind").and_then(Value::as_i64) != Some(1)),
+        arr.iter()
+            .all(|h| h.get("kind").and_then(Value::as_i64) != Some(1)),
         "{arr:?}"
     ); // no Type leaked in
 }
@@ -361,11 +379,13 @@ fn test_type_hints_only_emit_no_parameter_labels() {
     let hints = lsp.inlay_hints(&uri, (0, 0), (2, 0));
     let arr = hints.as_array().cloned().unwrap_or_default();
     assert!(
-        arr.iter().any(|h| h.get("kind").and_then(Value::as_i64) == Some(1)),
+        arr.iter()
+            .any(|h| h.get("kind").and_then(Value::as_i64) == Some(1)),
         "{arr:?}"
     ); // Type present
     assert!(
-        arr.iter().all(|h| h.get("kind").and_then(Value::as_i64) != Some(2)),
+        arr.iter()
+            .all(|h| h.get("kind").and_then(Value::as_i64) != Some(2)),
         "{arr:?}"
     ); // no Parameter leaked in
 }
@@ -378,11 +398,9 @@ fn test_type_hints_only_emit_no_parameter_labels() {
 fn test_legacy_inlay_hints_alias_enables_type_only() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.apply_configuration_settle(
-        json!({ "features": { "inlayHints": true } }),
-        &uri,
-        |c| c["features"].get("inlayTypeHints") == Some(&json!(true)),
-    );
+    lsp.apply_configuration_settle(json!({ "features": { "inlayHints": true } }), &uri, |c| {
+        c["features"].get("inlayTypeHints") == Some(&json!(true))
+    });
     let eff = lsp.effective_config(&uri);
     assert_eq!(
         eff["features"].get("inlayTypeHints"),
@@ -400,11 +418,13 @@ fn test_legacy_inlay_hints_alias_enables_type_only() {
     let hints = lsp.inlay_hints(&uri, (0, 0), (2, 0));
     let arr = hints.as_array().cloned().unwrap_or_default();
     assert!(
-        arr.iter().any(|h| h.get("kind").and_then(Value::as_i64) == Some(1)),
+        arr.iter()
+            .any(|h| h.get("kind").and_then(Value::as_i64) == Some(1)),
         "{arr:?}"
     ); // Type present
     assert!(
-        arr.iter().all(|h| h.get("kind").and_then(Value::as_i64) != Some(2)),
+        arr.iter()
+            .all(|h| h.get("kind").and_then(Value::as_i64) != Some(2)),
         "{arr:?}"
     ); // no Parameter
 }

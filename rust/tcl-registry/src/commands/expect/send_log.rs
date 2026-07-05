@@ -20,10 +20,11 @@
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "--",
-    takes_value: false,
-    value_hint: "",
+    value: OptionValue::flag(),
     detail: "End of options.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

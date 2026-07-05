@@ -139,16 +139,29 @@ fn render_simple_route(route: &XCRoute, level: usize) -> String {
     if let Some(op) = &route.origin_pool {
         lines.push(format!("{p}  origin_pools {{"));
         lines.push(format!("{p}    pool {{"));
-        lines.push(format!("{p}      name      = volterra_origin_pool.{}.name", op.name));
-        lines.push(format!("{p}      namespace = volterra_origin_pool.{}.namespace", op.name));
+        lines.push(format!(
+            "{p}      name      = volterra_origin_pool.{}.name",
+            op.name
+        ));
+        lines.push(format!(
+            "{p}      namespace = volterra_origin_pool.{}.namespace",
+            op.name
+        ));
         lines.push(format!("{p}    }}"));
         lines.push(format!("{p}  }}"));
     }
 
     for action in &route.header_actions {
-        let target = if action.target == "request" { "request" } else { "response" };
+        let target = if action.target == "request" {
+            "request"
+        } else {
+            "response"
+        };
         if action.operation == "remove" {
-            lines.push(format!("{p}  {target}_headers_to_remove = [{}]", quote(&action.name)));
+            lines.push(format!(
+                "{p}  {target}_headers_to_remove = [{}]",
+                quote(&action.name)
+            ));
         } else {
             lines.push(format!("{p}  {target}_headers_to_add {{"));
             lines.push(format!("{p}    name  = {}", quote(&action.name)));
@@ -213,7 +226,11 @@ fn render_header_actions(actions: &[XCHeaderAction], level: usize) -> String {
     let mut lines: Vec<String> = Vec::new();
     for action in actions {
         if action.operation == "remove" {
-            lines.push(format!("{p}{}_headers_to_remove = [{}]", action.target, quote(&action.name)));
+            lines.push(format!(
+                "{p}{}_headers_to_remove = [{}]",
+                action.target,
+                quote(&action.name)
+            ));
         } else {
             lines.push(format!("{p}{}_headers_to_add {{", action.target));
             lines.push(format!("{p}  name  = {}", quote(&action.name)));
@@ -231,7 +248,10 @@ fn render_header_actions(actions: &[XCHeaderAction], level: usize) -> String {
 
 fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
     let mut lines = vec![
-        format!("resource \"volterra_service_policy\" {} {{", quote(&policy.name)),
+        format!(
+            "resource \"volterra_service_policy\" {} {{",
+            quote(&policy.name)
+        ),
         format!("  name      = {}", quote(&policy.name)),
         format!("  namespace = {}", quote(namespace)),
         format!("  algo      = \"{}\"", policy.algo),
@@ -245,7 +265,10 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
             lines.push("      metadata {".to_owned());
             lines.push(format!("        name = {}", quote(&rule.name)));
             if !rule.description.is_empty() {
-                lines.push(format!("        description = {}", quote(&rule.description)));
+                lines.push(format!(
+                    "        description = {}",
+                    quote(&rule.description)
+                ));
             }
             lines.push("      }".to_owned());
         }
@@ -264,12 +287,21 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
         }
         if let Some(hm) = &rule.host_match {
             lines.push("        host {".to_owned());
-            lines.push(format!("          {} = {}", hm.match_type, quote(&hm.value)));
+            lines.push(format!(
+                "          {} = {}",
+                hm.match_type,
+                quote(&hm.value)
+            ));
             lines.push("        }".to_owned());
         }
         if let Some(mm) = &rule.method_match {
             lines.push("        http_method {".to_owned());
-            let methods = mm.methods.iter().map(|m| quote(m)).collect::<Vec<_>>().join(", ");
+            let methods = mm
+                .methods
+                .iter()
+                .map(|m| quote(m))
+                .collect::<Vec<_>>()
+                .join(", ");
             lines.push(format!("          methods = [{methods}]"));
             if mm.invert {
                 lines.push("          invert_matcher = true".to_owned());
@@ -288,7 +320,12 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
         if !rule.ip_prefix_list.is_empty() {
             lines.push("        client_source {".to_owned());
             lines.push("          ip_prefix_list {".to_owned());
-            let prefixes = rule.ip_prefix_list.iter().map(|ip| quote(ip)).collect::<Vec<_>>().join(", ");
+            let prefixes = rule
+                .ip_prefix_list
+                .iter()
+                .map(|ip| quote(ip))
+                .collect::<Vec<_>>()
+                .join(", ");
             lines.push(format!("            prefixes = [{prefixes}]"));
             lines.push("          }".to_owned());
             lines.push("        }".to_owned());
@@ -376,8 +413,14 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
         lines.push("  active_service_policies {".to_owned());
         for policy in &result.service_policies {
             lines.push("    policies {".to_owned());
-            lines.push(format!("      name      = volterra_service_policy.{}.name", policy.name));
-            lines.push(format!("      namespace = volterra_service_policy.{}.namespace", policy.name));
+            lines.push(format!(
+                "      name      = volterra_service_policy.{}.name",
+                policy.name
+            ));
+            lines.push(format!(
+                "      namespace = volterra_service_policy.{}.namespace",
+                policy.name
+            ));
             lines.push("    }".to_owned());
         }
         lines.push("  }".to_owned());
@@ -399,26 +442,38 @@ fn render_summary(result: &XCTranslationResult) -> String {
         ),
     ];
 
-    let untranslatable: Vec<_> =
-        result.items.iter().filter(|i| i.status == TranslateStatus::Untranslatable).collect();
+    let untranslatable: Vec<_> = result
+        .items
+        .iter()
+        .filter(|i| i.status == TranslateStatus::Untranslatable)
+        .collect();
     if !untranslatable.is_empty() {
         lines.push("#".to_owned());
         lines.push("# Untranslatable constructs:".to_owned());
         for item in untranslatable {
-            lines.push(format!("#   - {}: {}", item.irule_command, item.xc_description));
+            lines.push(format!(
+                "#   - {}: {}",
+                item.irule_command, item.xc_description
+            ));
             if !item.note.is_empty() {
                 lines.push(format!("#     {}", item.note));
             }
         }
     }
 
-    let advisory: Vec<_> =
-        result.items.iter().filter(|i| i.status == TranslateStatus::Advisory).collect();
+    let advisory: Vec<_> = result
+        .items
+        .iter()
+        .filter(|i| i.status == TranslateStatus::Advisory)
+        .collect();
     if !advisory.is_empty() {
         lines.push("#".to_owned());
         lines.push("# Advisory (separate XC features):".to_owned());
         for item in advisory {
-            lines.push(format!("#   - {}: {}", item.irule_command, item.xc_description));
+            lines.push(format!(
+                "#   - {}: {}",
+                item.irule_command, item.xc_description
+            ));
         }
     }
 

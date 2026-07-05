@@ -144,7 +144,8 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     for v in barr(device, "virtuals") {
         let Some(vm) = v.as_object() else { continue };
         if let Some(ip) = bare_ip(bstr(vm, "destAddr")) {
-            out.entry(ip).or_insert_with(|| bstr(vm, "fullPath").to_string());
+            out.entry(ip)
+                .or_insert_with(|| bstr(vm, "fullPath").to_string());
         }
     }
     // Virtual-address objects carry the raw served IP as their leaf name.
@@ -161,7 +162,8 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     for l in barr(device, "gtmListeners") {
         let Some(lm) = l.as_object() else { continue };
         if let Some(ip) = bare_ip(bstr(lm, "address")) {
-            out.entry(ip).or_insert_with(|| bstr(lm, "fullPath").to_string());
+            out.entry(ip)
+                .or_insert_with(|| bstr(lm, "fullPath").to_string());
         }
     }
     out
@@ -566,9 +568,7 @@ pub(crate) fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> 
     }
 
     // Shape the links, sorted for a stable, tier-ascending render.
-    links.sort_by(|a, b| {
-        (tiers[a.from], a.from, a.to).cmp(&(tiers[b.from], b.from, b.to))
-    });
+    links.sort_by(|a, b| (tiers[a.from], a.from, a.to).cmp(&(tiers[b.from], b.from, b.to)));
     let link_json: Vec<J> = links
         .iter()
         .map(|l| {

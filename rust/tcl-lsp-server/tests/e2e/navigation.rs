@@ -20,7 +20,6 @@
 //!
 //! Type-definition and declaration navigation, end-to-end.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -73,7 +72,10 @@ fn global_var_in_proc_returns_declaration_not_set() {
 fn falls_back_to_definition_for_proc() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let locs = locations(&lsp.declaration(&uri, 1, 1));
     assert_eq!(locs.len(), 1);
     assert_eq!(locs[0].range["start"]["line"].as_i64(), Some(0));

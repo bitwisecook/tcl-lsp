@@ -28,24 +28,27 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-initialcolor",
-        takes_value: true,
-        value_hint: "colour",
+        value: OptionValue::value("colour"),
         detail: "Initial colour to display in the chooser.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-parent",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Parent window for the dialogue.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-title",
-        takes_value: true,
-        value_hint: "titleString",
+        value: OptionValue::value("titleString"),
         detail: "Title string for the dialogue window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -106,7 +106,13 @@ fn firewall_objects_are_projected() {
 
     let ports = d["firewallPortLists"].as_array().unwrap();
     assert_eq!(ports.len(), 1);
-    assert!(ports[0]["ports"].as_array().unwrap().iter().any(|p| p == "443"));
+    assert!(
+        ports[0]["ports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p == "443")
+    );
 
     let policies = d["firewallPolicies"].as_array().unwrap();
     assert_eq!(policies.len(), 1);
@@ -151,7 +157,13 @@ fn nat_objects_are_projected() {
     let src = d["natSourceTranslations"].as_array().unwrap();
     assert_eq!(src.len(), 1);
     assert_eq!(src[0]["type"], "dynamic-pat");
-    assert!(src[0]["addresses"].as_array().unwrap().iter().any(|a| a == "203.0.113.10"));
+    assert!(
+        src[0]["addresses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a == "203.0.113.10")
+    );
 
     let dst = d["natDestinationTranslations"].as_array().unwrap();
     assert_eq!(dst.len(), 1);

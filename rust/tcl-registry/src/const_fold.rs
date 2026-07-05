@@ -499,7 +499,10 @@ mod tests {
         assert_eq!(fold_lindex(&["a b c d e", "end-1"]).as_deref(), Some("d"));
         // `end--1` = end + 1 → out of range → empty.
         assert_eq!(fold_lindex(&["a b c d e", "end--1"]).as_deref(), Some(""));
-        assert_eq!(fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(), Some("c d e"));
+        assert_eq!(
+            fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(),
+            Some("c d e")
+        );
         // Still declines genuinely bad specs.
         assert_eq!(fold_lindex(&["a b c d e", "1.0"]), None);
         assert_eq!(fold_lindex(&["a b c d e", "foo"]), None);

@@ -23,7 +23,6 @@
 //! palette entries invoke. Each declared parameter is bound positionally, so the
 //! argument arrays here mirror the handler signatures exactly.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -73,10 +72,20 @@ fn minify_strips_comments() {
     lsp.open_ready(&uri, "# comment\nset   x    42\n\nputs $x\n");
     let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
     assert!(!result.is_null());
-    assert!(!source(&result).contains("# comment"), "{}", source(&result));
+    assert!(
+        !source(&result).contains("# comment"),
+        "{}",
+        source(&result)
+    );
     assert!(source(&result).contains("set x 42"), "{}", source(&result));
-    let minified = result.get("minifiedLength").and_then(Value::as_i64).unwrap();
-    let original = result.get("originalLength").and_then(Value::as_i64).unwrap();
+    let minified = result
+        .get("minifiedLength")
+        .and_then(Value::as_i64)
+        .unwrap();
+    let original = result
+        .get("originalLength")
+        .and_then(Value::as_i64)
+        .unwrap();
     assert!(minified < original);
 }
 
@@ -116,7 +125,12 @@ fn describe_event_known() {
     let mut lsp = Lsp::tcl();
     let data = lsp.execute_command("tcl-lsp.describeIruleEvent", json!(["HTTP_REQUEST"]));
     assert_eq!(data.get("known"), Some(&Value::Bool(true)));
-    assert!(data.get("validCommandCount").and_then(Value::as_i64).unwrap() >= 1);
+    assert!(
+        data.get("validCommandCount")
+            .and_then(Value::as_i64)
+            .unwrap()
+            >= 1
+    );
 }
 
 #[test]
@@ -124,7 +138,10 @@ fn describe_event_unknown() {
     let mut lsp = Lsp::tcl();
     let data = lsp.execute_command("tcl-lsp.describeIruleEvent", json!(["NOT_A_REAL_EVENT"]));
     assert_eq!(data.get("known"), Some(&Value::Bool(false)));
-    assert_eq!(data.get("validCommandCount").and_then(Value::as_i64), Some(0));
+    assert_eq!(
+        data.get("validCommandCount").and_then(Value::as_i64),
+        Some(0)
+    );
 }
 
 #[test]
@@ -132,7 +149,10 @@ fn describe_command() {
     let mut lsp = Lsp::tcl();
     let data = lsp.execute_command("tcl-lsp.describeIruleCommand", json!(["HTTP::uri"]));
     assert_eq!(data.get("found"), Some(&Value::Bool(true)));
-    assert_eq!(data.get("command").and_then(Value::as_str), Some("HTTP::uri"));
+    assert_eq!(
+        data.get("command").and_then(Value::as_str),
+        Some("HTTP::uri")
+    );
 }
 
 #[test]
@@ -202,7 +222,12 @@ fn core_commands_are_advertised() {
         .and_then(|c| c.get("executeCommandProvider"))
         .and_then(|p| p.get("commands"))
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default();
     let missing: Vec<&str> = CORE_COMMANDS
         .iter()
@@ -227,8 +252,14 @@ fn minify_compact_round_trip() {
     );
     let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, true, false, false]));
     assert!(!result.is_null());
-    let minified = result.get("minifiedLength").and_then(Value::as_i64).unwrap();
-    let original = result.get("originalLength").and_then(Value::as_i64).unwrap();
+    let minified = result
+        .get("minifiedLength")
+        .and_then(Value::as_i64)
+        .unwrap();
+    let original = result
+        .get("originalLength")
+        .and_then(Value::as_i64)
+        .unwrap();
     assert!(minified < original);
     assert!(
         !source(&result).contains("addNumbers"),
@@ -262,7 +293,10 @@ fn list_subcommands_shape() {
         })
         .unwrap_or_default();
     for expected in ["length", "range", "map"] {
-        assert!(names.contains(expected), "missing {expected:?} in {names:?}");
+        assert!(
+            names.contains(expected),
+            "missing {expected:?} in {names:?}"
+        );
     }
 }
 
@@ -290,7 +324,10 @@ fn list_known_packages_shape() {
 fn suggest_packages_for_symbol_shape() {
     let mut lsp = Lsp::tcl();
     let data = lsp.execute_command("tcl-lsp.suggestPackagesForSymbol", json!(["json::write"]));
-    assert_eq!(data.get("symbol").and_then(Value::as_str), Some("json::write"));
+    assert_eq!(
+        data.get("symbol").and_then(Value::as_str),
+        Some("json::write")
+    );
     assert!(
         data.get("suggestions").is_some_and(Value::is_array),
         "{data}"

@@ -292,8 +292,12 @@ fn per_item_matches_analyse_under_edits() {
                         (Some(w), Some(g)) => {
                             describe_analysis_divergence(&format!("{name} (seed {seed:#x})"), g, w)
                         }
-                        (Some(_), None) => format!("{name} (seed {seed:#x}): per_item panicked, analyse ok"),
-                        (None, Some(_)) => format!("{name} (seed {seed:#x}): analyse panicked, per_item ok"),
+                        (Some(_), None) => {
+                            format!("{name} (seed {seed:#x}): per_item panicked, analyse ok")
+                        }
+                        (None, Some(_)) => {
+                            format!("{name} (seed {seed:#x}): analyse panicked, per_item ok")
+                        }
                         (None, None) => unreachable!(),
                     };
                     prog.finding(&detail);
@@ -308,7 +312,10 @@ fn per_item_matches_analyse_under_edits() {
         prog.tick(start0 + idx + 1, total, &format!("{name} steps={steps}"));
     }
     let _ = std::panic::take_hook();
-    prog.finish(&format!("{checked} files, {steps} steps, {} findings", mismatches.len()));
+    prog.finish(&format!(
+        "{checked} files, {steps} steps, {} findings",
+        mismatches.len()
+    ));
 
     assert!(
         mismatches.is_empty(),

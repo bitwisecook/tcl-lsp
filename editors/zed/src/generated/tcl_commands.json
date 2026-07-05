@@ -235,6 +235,10 @@
       "summary": "Apply an anonymous function"
     },
     {
+      "name": "argparse",
+      "summary": "Parse and validate switches and parameters from an argument list."
+    },
+    {
       "name": "array",
       "summary": "Manipulate array variables",
       "subcommands": [

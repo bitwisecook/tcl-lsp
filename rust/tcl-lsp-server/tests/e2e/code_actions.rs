@@ -27,7 +27,6 @@
 //! The F5 iRules code actions (collect-bootstrap, taint quick-fixes, profile
 //! headers) run against the dedicated iRules server in `irules_e2e.rs`.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -45,14 +44,10 @@ fn range(start: (u32, u32), end: (u32, u32)) -> Value {
 /// Request code actions with an explicit `only` filter (the harness's
 /// `code_actions` has no `only` parameter, so build the request directly).
 fn code_actions_only(lsp: &mut Lsp, uri: &str, rng: Value, diags: Value, only: &[&str]) -> Value {
-    lsp.request(
-        "textDocument/codeAction",
-        json!({
-            "textDocument": { "uri": uri },
-            "range": rng,
-            "context": { "diagnostics": diags, "only": only },
-        }),
-    )
+    let mut params = json!({ "textDocument": { "uri": uri }, "context": { "only": only } });
+    params["range"] = rng;
+    params["context"]["diagnostics"] = diags;
+    lsp.request("textDocument/codeAction", params)
 }
 
 /// Every `newText` in a code-action list's workspace edits (`_new_texts`).
@@ -72,7 +67,11 @@ fn new_texts(actions: &Value) -> Vec<String> {
         }
         if let Some(doc_changes) = edit.get("documentChanges").and_then(Value::as_array) {
             for change in doc_changes {
-                for e in change.get("edits").and_then(Value::as_array).unwrap_or(&empty) {
+                for e in change
+                    .get("edits")
+                    .and_then(Value::as_array)
+                    .unwrap_or(&empty)
+                {
                     if let Some(t) = e.get("newText").and_then(Value::as_str) {
                         out.push(t.to_owned());
                     }
@@ -89,7 +88,12 @@ fn titles(actions: &Value) -> Vec<String> {
         .as_array()
         .map(|a| {
             a.iter()
-                .map(|x| x.get("title").and_then(Value::as_str).unwrap_or("").to_owned())
+                .map(|x| {
+                    x.get("title")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned()
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -148,9 +152,16 @@ fn test_w100_offers_brace_wrap() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "if $a {puts x}\n");
     let w100 = with_code(&diags, "W100");
-    assert!(!w100.is_empty(), "expected a W100 diagnostic to drive the quick fix");
+    assert!(
+        !w100.is_empty(),
+        "expected a W100 diagnostic to drive the quick fix"
+    );
     let actions = lsp.code_actions(&uri, range((0, 0), (0, 14)), json!(w100));
-    assert!(titles(&actions).iter().any(|t| t.to_lowercase().contains("brace")));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("brace"))
+    );
     assert!(new_texts(&actions).iter().any(|nt| nt.contains("{$a}")));
 }
 
@@ -161,7 +172,13 @@ fn test_w302_adds_result_capture_actions() {
     let diags = lsp.open_ready(&uri, "catch {error oops}\n");
     let w302 = with_code(&diags, "W302");
     assert!(!w302.is_empty());
-    let actions = code_actions_only(&mut lsp, &uri, range((0, 0), (0, 4)), json!(w302), &["quickfix"]);
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 0), (0, 4)),
+        json!(w302),
+        &["quickfix"],
+    );
     let snippets = new_texts(&actions);
     assert!(snippets.iter().any(|s| s == " result"));
     assert!(snippets.iter().any(|s| s == " result opts"));
@@ -180,7 +197,13 @@ fn test_w302_no_fix_when_result_present() {
         "message": "catch without a result variable silently swallows errors.",
         "source": "tcl-lsp",
     });
-    let actions = code_actions_only(&mut lsp, &uri, range((0, 0), (0, 4)), json!([d]), &["quickfix"]);
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 0), (0, 4)),
+        json!([d]),
+        &["quickfix"],
+    );
     assert!(new_texts(&actions).is_empty());
 }
 
@@ -198,7 +221,11 @@ fn test_extract_proc_available_without_diagnostics() {
         json!([]),
         &["refactor.extract"],
     );
-    assert!(titles(&actions).iter().any(|t| t.to_lowercase().contains("extract")));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("extract"))
+    );
 }
 
 // -- TestRefactorActionsExtended -----------------------------------------
@@ -218,7 +245,11 @@ fn test_extract_proc_snippets() {
     let extract = kinds(&actions, "refactor.extract");
     assert!(!extract.is_empty());
     let snippets = new_texts(&json!(extract));
-    assert!(snippets.iter().any(|s| s.contains("proc extracted_proc {value}")));
+    assert!(
+        snippets
+            .iter()
+            .any(|s| s.contains("proc extracted_proc {value}"))
+    );
     assert!(snippets.iter().any(|s| s.contains("extracted_proc $value")));
 }
 
@@ -241,13 +272,17 @@ fn test_extract_proc_attaches_rename_command() {
         cmd.get("command").and_then(Value::as_str),
         Some("tclLsp.renameSymbolAtPosition")
     );
-    let args = cmd.get("arguments").and_then(Value::as_array).cloned().unwrap_or_default();
+    let args = cmd
+        .get("arguments")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let line = args[0].as_i64().unwrap();
     let start = args[1].as_i64().unwrap();
     let end = args[2].as_i64().unwrap();
     assert_eq!(line, 0);
-    assert_eq!(start, "proc ".len() as i64);
-    assert_eq!(end, start + "extracted_proc".len() as i64);
+    assert_eq!(start, i64::try_from("proc ".len()).unwrap());
+    assert_eq!(end, start + i64::try_from("extracted_proc".len()).unwrap());
 }
 
 #[test]
@@ -264,7 +299,11 @@ fn test_inline_proc_available() {
     );
     let inline = kinds(&actions, "refactor.inline");
     assert!(!inline.is_empty());
-    assert!(new_texts(&json!(inline)).iter().any(|s| s.contains("puts Bob")));
+    assert!(
+        new_texts(&json!(inline))
+            .iter()
+            .any(|s| s.contains("puts Bob"))
+    );
 }
 
 #[test]
@@ -286,7 +325,13 @@ fn test_inline_proc_skips_returning_proc() {
 
 /// The `_rewrite` helper: request `refactor.rewrite`-only actions.
 fn rewrite(lsp: &mut Lsp, uri: &str, start: (u32, u32), end: (u32, u32)) -> Vec<Value> {
-    let actions = code_actions_only(lsp, uri, range(start, end), json!([]), &["refactor.rewrite"]);
+    let actions = code_actions_only(
+        lsp,
+        uri,
+        range(start, end),
+        json!([]),
+        &["refactor.rewrite"],
+    );
     kinds(&actions, "refactor.rewrite")
 }
 
@@ -300,7 +345,11 @@ fn test_demorgan_forward() {
         .filter(|a| action_title(a).contains("De Morgan"))
         .collect();
     assert_eq!(dm.len(), 1);
-    assert!(new_texts(&json!(dm)).iter().any(|s| s.contains("!$a || !$b")));
+    assert!(
+        new_texts(&json!(dm))
+            .iter()
+            .any(|s| s.contains("!$a || !$b"))
+    );
 }
 
 #[test]
@@ -313,7 +362,11 @@ fn test_demorgan_reverse() {
         .filter(|a| action_title(a).contains("De Morgan"))
         .collect();
     assert_eq!(dm.len(), 1);
-    assert!(new_texts(&json!(dm)).iter().any(|s| s.contains("!($a && $b)")));
+    assert!(
+        new_texts(&json!(dm))
+            .iter()
+            .any(|s| s.contains("!($a && $b)"))
+    );
 }
 
 #[test]
@@ -326,7 +379,11 @@ fn test_invert_expression() {
         .filter(|a| action_title(a).contains("Invert"))
         .collect();
     assert_eq!(inv.len(), 1);
-    assert!(new_texts(&json!(inv)).iter().any(|s| s.contains("$a != $b")));
+    assert!(
+        new_texts(&json!(inv))
+            .iter()
+            .any(|s| s.contains("$a != $b"))
+    );
 }
 
 #[test]
@@ -450,7 +507,11 @@ fn test_ipv6_mapped_offers_ipv4() {
     lsp.open_ready(&uri, "set addr ::ffff:192.168.1.1\n");
     let actions = lsp.code_actions(&uri, range((0, 12), (0, 12)), json!([]));
     assert!(titles(&actions).iter().any(|t| t.contains("IPv4")));
-    assert!(new_texts(&actions).iter().any(|s| s.contains("192.168.1.1")));
+    assert!(
+        new_texts(&actions)
+            .iter()
+            .any(|s| s.contains("192.168.1.1"))
+    );
 }
 
 #[test]
@@ -459,7 +520,11 @@ fn test_non_mapped_ipv6_no_ipv4_action() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set addr ::1\n");
     let actions = lsp.code_actions(&uri, range((0, 10), (0, 10)), json!([]));
-    assert!(!titles(&json!(kinds(&actions, "refactor"))).iter().any(|t| t.contains("IPv4")));
+    assert!(
+        !titles(&json!(kinds(&actions, "refactor")))
+            .iter()
+            .any(|t| t.contains("IPv4"))
+    );
 }
 
 #[test]
@@ -468,7 +533,11 @@ fn test_ipv4_with_prefix_preserves_suffix() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set net 10.0.0.0/8\n");
     let actions = lsp.code_actions(&uri, range((0, 10), (0, 10)), json!([]));
-    assert!(new_texts(&json!(kinds(&actions, "refactor"))).iter().any(|s| s.contains("/8")));
+    assert!(
+        new_texts(&json!(kinds(&actions, "refactor")))
+            .iter()
+            .any(|s| s.contains("/8"))
+    );
 }
 
 #[test]
@@ -530,7 +599,10 @@ fn test_offered_for_undocumented_proc() {
 fn test_not_offered_for_documented_proc() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "# Already documented\nproc greet {name} { puts $name }\n");
+    lsp.open_ready(
+        &uri,
+        "# Already documented\nproc greet {name} { puts $name }\n",
+    );
     let actions = lsp.code_actions(&uri, range((1, 0), (1, 0)), json!([]));
     let sa = kinds(&actions, "source");
     assert!(
@@ -564,7 +636,11 @@ fn test_eval_string_to_list_action() {
     let w101 = with_code(&diags, "W101");
     assert!(!w101.is_empty());
     let actions = lsp.code_actions(&uri, range((0, 0), (0, 17)), json!(w101));
-    assert!(new_texts(&actions).iter().any(|s| s.contains("[list process $x]")));
+    assert!(
+        new_texts(&actions)
+            .iter()
+            .any(|s| s.contains("[list process $x]"))
+    );
 }
 
 // -- TestProfilesNotOfferedForTcl ----------------------------------------

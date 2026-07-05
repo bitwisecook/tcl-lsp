@@ -28,7 +28,6 @@
 //! parametrise the same way, so each matrix row is unrolled into its own
 //! `#[test]` for the fire case and the silent case.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
@@ -144,7 +143,12 @@ fn assert_fires(case: &Case) {
         case.code
     );
     if case.code.starts_with('E') {
-        assert_eq!(sev, Some(1), "{} is an error code but severity={sev:?}", case.code);
+        assert_eq!(
+            sev,
+            Some(1),
+            "{} is an error code but severity={sev:?}",
+            case.code
+        );
     }
 }
 

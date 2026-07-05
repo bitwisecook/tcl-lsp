@@ -49,22 +49,24 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "SSL::extensions ?options?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-index",
-                takes_value: true,
-                value_hint: "EXT_NUMBER",
+                value: OptionValue::value("EXT_NUMBER"),
                 detail: "Return extension at specified index.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-type",
-                takes_value: true,
-                value_hint: "EXT_TYPE_VALUE",
+                value: OptionValue::value("EXT_TYPE_VALUE"),
                 detail: "Return extension matching specified type value.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,

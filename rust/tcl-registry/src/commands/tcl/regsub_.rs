@@ -59,6 +59,82 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Command spec for `regsub`.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-nocase",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-expanded",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-line",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-linestop",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-lineanchor",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-all",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-start",
+        value: OptionValue::value("index"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    // `regsub -command` is Tcl 9.0+ (TIP 463).
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::flag(),
+        detail: "Treat subSpec as a command prefix to call per match.",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
@@ -71,72 +147,7 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        options: &[
-            OptionSpec {
-                name: "-nocase",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-expanded",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-line",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-linestop",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-lineanchor",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-all",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-start",
-                takes_value: true,
-                value_hint: "index",
-                detail: "",
-                dialects: None,
-            },
-            // `regsub -command` is Tcl 9.0+ (TIP 463).
-            OptionSpec {
-                name: "-command",
-                takes_value: false,
-                value_hint: "",
-                detail: "Treat subSpec as a command prefix to call per match.",
-                dialects: Some(DialectSet::TCL90_PLUS),
-            },
-            OptionSpec {
-                name: "--",
-                takes_value: false,
-                value_hint: "",
-                detail: "",
-                dialects: None,
-            },
-        ],
+        options: OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Perform substitutions based on regular expression matching.",
             synopsis: &["regsub ?switches? exp string subSpec ?varName?"],

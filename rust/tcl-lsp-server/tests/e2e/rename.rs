@@ -25,7 +25,6 @@
 //! registered server-side and returns a `{range, placeholder}` (or `null` to
 //! reject).
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -45,7 +44,12 @@ fn texts(
         .get(uri)
         .into_iter()
         .flatten()
-        .map(|e| e.get("newText").and_then(Value::as_str).unwrap_or("").to_owned())
+        .map(|e| {
+            e.get("newText")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        })
         .collect()
 }
 
@@ -55,7 +59,10 @@ fn texts(
 fn prepare_rename_proc_name() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let result = lsp.prepare_rename(&uri, 0, 6);
     assert!(!result.is_null());
     assert_eq!(result["placeholder"], "greet");
@@ -127,7 +134,10 @@ fn rename_namespaced_proc_preserves_qualifier() {
 fn rename_from_call_site() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let result = lsp.rename(&uri, 1, 0, "welcome");
     let edits = rename_edits(&result);
     let for_uri = edits.get(&uri).cloned().unwrap_or_default();
@@ -220,7 +230,10 @@ fn rename_respects_scope() {
 fn rejects_invalid_new_symbol_name() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let result = lsp.rename(&uri, 0, 6, "bad-name");
     assert!(rename_edits(&result).is_empty());
 }
@@ -239,7 +252,10 @@ fn rejects_proc_collision() {
 fn rejects_proc_rename_to_builtin() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let result = lsp.rename(&uri, 0, 6, "puts");
     assert!(rename_edits(&result).is_empty());
 }

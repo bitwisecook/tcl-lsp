@@ -136,6 +136,11 @@ pub struct Analyser {
     /// parent widget path, accumulated across the walk and flushed
     /// post-walk so a `pack`/`grid` conflict can be decided.
     pub(super) tk_geometry: std::collections::BTreeMap<String, super::tk_checks::TkGeometryUsage>,
+    /// Version-aware diagnostics (W135 / W136): command/option uses gated behind
+    /// a package `min_version`, buffered during the walk and decided post-walk by
+    /// [`Self::flush_version_gate_diagnostics`] once every `package require` is
+    /// known.  See [`super::diagnostics::version_gate`].
+    pub(super) version_gate_sites: Vec<super::diagnostics::version_gate::VersionGateSite>,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -395,6 +400,7 @@ impl Analyser {
             tk_pending_diags: Vec::new(),
             tk_created_widgets: HashSet::new(),
             tk_geometry: std::collections::BTreeMap::new(),
+            version_gate_sites: Vec::new(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -1177,6 +1183,7 @@ impl Analyser {
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
         self.flush_tk_geometry_diagnostics();
+        self.flush_version_gate_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();

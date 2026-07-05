@@ -28,24 +28,27 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nocomplain",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Suppresses all error messages.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-keeplibrary",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "This switch will prevent unload from issuing the operating system call that will unload the library from the process.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Marks the end of switches.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

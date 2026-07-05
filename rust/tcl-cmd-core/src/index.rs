@@ -210,25 +210,55 @@ mod tests {
         // out-of-range); a `None` is a `bad index` error at runtime.
         let ok: &[(&str, i64)] = &[
             // integers, signs, whitespace
-            ("0", 0), ("1", 1), ("4", 4), ("5", 5), ("-1", -1), ("-2", -2), ("-0", 0),
-            (" 1", 1), ("1 ", 1),
+            ("0", 0),
+            ("1", 1),
+            ("4", 4),
+            ("5", 5),
+            ("-1", -1),
+            ("-2", -2),
+            ("-0", 0),
+            (" 1", 1),
+            ("1 ", 1),
             // end and end offsets (`end--1` = end - (-1) = end + 1)
-            ("end", 4), ("end-1", 3), ("end+1", 5), ("end-4", 0), ("end-5", -1),
-            ("end--1", 5), ("end+-1", 3), ("end+0", 4),
+            ("end", 4),
+            ("end-1", 3),
+            ("end+1", 5),
+            ("end-4", 0),
+            ("end-5", -1),
+            ("end--1", 5),
+            ("end+-1", 3),
+            ("end+0", 4),
             // arithmetic operands
-            ("1+1", 2), ("0-1", -1), ("2+2", 4), ("3-1", 2), ("end-2", 2),
+            ("1+1", 2),
+            ("0-1", -1),
+            ("2+2", 4),
+            ("3-1", 2),
+            ("end-2", 2),
             // radix prefixes (hex / octal / binary / 0d) — oracle accepts these
-            ("0x2", 2), ("0xa", 10), ("0xf", 15), ("0o7", 7), ("0b101", 5), ("0d5", 5),
-            ("+0x2", 2), ("-0x1", -1),
+            ("0x2", 2),
+            ("0xa", 10),
+            ("0xf", 15),
+            ("0o7", 7),
+            ("0b101", 5),
+            ("0d5", 5),
+            ("+0x2", 2),
+            ("-0x1", -1),
             // radices inside the arithmetic operands
-            ("end-0x2", 2), ("end-0o3", 1), ("0x2+1", 3), ("1+0x1", 2),
+            ("end-0x2", 2),
+            ("end-0o3", 1),
+            ("0x2+1", 3),
+            ("1+0x1", 2),
         ];
         for &(spec, want) in ok {
             assert_eq!(resolve_opt(spec, 5), Some(want), "resolve_opt({spec:?})");
         }
         // Syntactically bad — a `bad index` error at runtime.
         for spec in ["1.0", "1+", "end-", "foo", "", "1 1", "0x", "0xg", "2e0"] {
-            assert_eq!(resolve_opt(spec, 5), None, "resolve_opt({spec:?}) should be None");
+            assert_eq!(
+                resolve_opt(spec, 5),
+                None,
+                "resolve_opt({spec:?}) should be None"
+            );
         }
     }
 

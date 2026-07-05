@@ -150,13 +150,14 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(1),
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-noupdate",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "Do not propagate the header mutation to subsequent BIG-IP filters.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         hover: Some(HoverSnippet {
             summary: "Inspect or mutate HTTP headers in an iRule event.",
             synopsis: &["HTTP::header <subcommand> ?arg ...?"],

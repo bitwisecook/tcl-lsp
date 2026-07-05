@@ -21,7 +21,9 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use tcl_bigip::irule_context::{build_irule_context, context_bundle_to_json, context_bundle_to_text};
+use tcl_bigip::irule_context::{
+    build_irule_context, context_bundle_to_json, context_bundle_to_text,
+};
 use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
@@ -30,10 +32,16 @@ use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 /// `f5 irule context` pipeline: parse + merge the config(s), build one bundle
 /// per `ltm rule`, render to JSON or Tcl-flavoured text.
 pub fn irule_with_context(args: &Value) -> Value {
-    let config_text = args.get("config_text").and_then(Value::as_str).unwrap_or("");
+    let config_text = args
+        .get("config_text")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let rule_filter = args.get("rule_path").and_then(Value::as_str).unwrap_or("");
     let format = args.get("format").and_then(Value::as_str).unwrap_or("json");
-    let transitive = args.get("transitive").and_then(Value::as_bool).unwrap_or(true);
+    let transitive = args
+        .get("transitive")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
 
     // Resolve inputs: inline `config_text` plus any `config_paths` files.
     // Each entry keeps its raw text so the context builder can slice rule
@@ -62,8 +70,10 @@ pub fn irule_with_context(args: &Value) -> Value {
     }
 
     // Merge once so cross-file references resolve.
-    let config_refs: Vec<(String, &BigipConfig)> =
-        configs.iter().map(|(origin, _text, cfg)| (origin.clone(), cfg)).collect();
+    let config_refs: Vec<(String, &BigipConfig)> = configs
+        .iter()
+        .map(|(origin, _text, cfg)| (origin.clone(), cfg))
+        .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
     let registry = tcl_registry::registry_for_dialect("f5-irules");
 
@@ -114,7 +124,11 @@ pub fn explain_flow(args: &Value) -> Value {
     // Config file paths, plus inline `config_text` staged to a temp file.
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut tempfile: Option<PathBuf> = None;
-    if let Some(text) = args.get("config_text").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+    if let Some(text) = args
+        .get("config_text")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
         let mut p = std::env::temp_dir();
         p.push(format!("tcl_mcp_bigip_{}.conf", std::process::id()));
         if std::fs::write(&p, text).is_ok() {
@@ -126,14 +140,26 @@ pub fn explain_flow(args: &Value) -> Value {
         paths.extend(arr.iter().filter_map(Value::as_str).map(PathBuf::from));
     }
 
-    let keylog = args.get("keylog_path").and_then(Value::as_str).filter(|s| !s.is_empty());
-    let tshark_filter = args.get("tshark_filter").and_then(Value::as_str).filter(|s| !s.is_empty());
+    let keylog = args
+        .get("keylog_path")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
+    let tshark_filter = args
+        .get("tshark_filter")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
     let options = f5_cli::ExplainFlowOptions {
         paths: &paths,
-        tshark: args.get("use_tshark").and_then(Value::as_bool).unwrap_or(false),
+        tshark: args
+            .get("use_tshark")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         keylog: keylog.map(Path::new),
         tshark_filter,
-        simulate: args.get("simulate").and_then(Value::as_bool).unwrap_or(false),
+        simulate: args
+            .get("simulate")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         no_event_bodies: false,
         max_event_lines: args
             .get("max_event_body_lines")

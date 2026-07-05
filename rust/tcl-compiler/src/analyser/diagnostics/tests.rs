@@ -503,6 +503,46 @@ fn w004_fires_on_regsub_command_in_tcl86() {
     assert!(w004[0].message.contains("regsub"));
 }
 
+#[test]
+fn w004_skips_option_value_that_looks_like_a_flag() {
+    // `-stride` is Tcl 9.0+ and takes a value.  On tcl8.6 the switch itself is
+    // W004, but its value word — even when it looks like a flag (`-stride`
+    // again) — must not be re-tested as a second gated option (Phase 4
+    // value-skip).  Pre-fix this counted two W004s.
+    assert_eq!(
+        count_code("lsearch -stride -stride {a b} x", "W004"),
+        1,
+        "value word `-stride` was mistakenly re-tested as a second gated option"
+    );
+}
+
+#[test]
+fn w127_fires_on_invalid_option_enum_value() {
+    // `-relief` carries a closed Tk value set; a literal outside it is W127.
+    let bad = Analyser::new().analyse("button .b -relief bogus", "tk");
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127 && d.message.contains("-relief")),
+        "expected W127 on `-relief bogus`; got {:?}",
+        bad.diagnostics
+    );
+    // A member value is accepted.
+    let good = Analyser::new().analyse("button .b -relief raised", "tk");
+    assert!(
+        !good.diagnostics.iter().any(|d| d.code == DiagCode::W127),
+        "`raised` is a valid relief; got {:?}",
+        good.diagnostics
+    );
+    // A dynamic value is skipped (can't be checked statically).
+    let dynamic = Analyser::new().analyse("button .b -relief $r", "tk");
+    assert!(
+        !dynamic.diagnostics.iter().any(|d| d.code == DiagCode::W127),
+        "dynamic `-relief $r` must be skipped; got {:?}",
+        dynamic.diagnostics
+    );
+}
+
 // E002 / E003 arity
 
 #[test]
@@ -4670,13 +4710,23 @@ fn catch_body_package_require_is_conditional() {
         .iter()
         .find(|p| p.name == "Foo")
         .expect("Foo package require recorded");
-    assert!(foo.conditional, "catch-body package require must be conditional");
+    assert!(
+        foo.conditional,
+        "catch-body package require must be conditional"
+    );
 
     // A top-level `package require` stays unconditional.
     let mut b = crate::analyser::Analyser::new();
     let r2 = b.analyse("package require Bar\n", "tcl8.6");
-    let bar = r2.package_requires.iter().find(|p| p.name == "Bar").unwrap();
-    assert!(!bar.conditional, "top-level package require must be unconditional");
+    let bar = r2
+        .package_requires
+        .iter()
+        .find(|p| p.name == "Bar")
+        .unwrap();
+    assert!(
+        !bar.conditional,
+        "top-level package require must be unconditional"
+    );
 }
 
 #[test]

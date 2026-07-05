@@ -122,7 +122,11 @@ fn file_analysis_incremental_matches_full_over_corpus() {
     let outcomes: Vec<Option<String>> = files
         .par_iter()
         .map(|path| {
-            let name = path.strip_prefix(repo_root()).unwrap_or(path).display().to_string();
+            let name = path
+                .strip_prefix(repo_root())
+                .unwrap_or(path)
+                .display()
+                .to_string();
             let bad = (|| {
                 let src = std::fs::read_to_string(path).ok()?;
                 if src.is_empty() || src.len() > 400_000 {
@@ -140,7 +144,11 @@ fn file_analysis_incremental_matches_full_over_corpus() {
                 let inc = file_analysis_incremental(&db, file, cfg);
                 let full = file_analysis(&db, file, cfg);
                 (inc.diagnostics != full.diagnostics).then(|| {
-                    format!("{name}: diagnostics {}->{}", full.diagnostics.len(), inc.diagnostics.len())
+                    format!(
+                        "{name}: diagnostics {}->{}",
+                        full.diagnostics.len(),
+                        inc.diagnostics.len()
+                    )
                 })
             })();
             let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -159,7 +167,9 @@ fn file_analysis_incremental_matches_full_over_corpus() {
 
     let checked = outcomes.len();
     let bad: Vec<String> = outcomes.into_iter().flatten().take(40).collect();
-    prog.into_inner().unwrap().finish(&format!("{checked} files, {} mismatches", bad.len()));
+    prog.into_inner()
+        .unwrap()
+        .finish(&format!("{checked} files, {} mismatches", bad.len()));
 
     assert!(
         bad.is_empty(),

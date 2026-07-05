@@ -26,13 +26,14 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-normalized",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "Return the canonicalised query (URL evasion patterns rejected).",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         hover: Some(HoverSnippet {
             summary: "Returns or sets the query part of the HTTP request.",
             synopsis: &["HTTP::query (QUERY_STRING)?"],

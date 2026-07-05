@@ -20,7 +20,6 @@
 //!
 //! Call hierarchy, implementation, and linked editing — end-to-end.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -44,7 +43,10 @@ fn calls(result: &Value) -> Vec<Value> {
 }
 
 fn name_of(item: &Value) -> String {
-    item.get("name").and_then(Value::as_str).unwrap_or("").to_owned()
+    item.get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned()
 }
 
 // -- TestCallHierarchy ---------------------------------------------------
@@ -114,12 +116,30 @@ fn recursive_self_calls_linked_with_declaration() {
     lsp.open_ready(&uri, src);
     let result = lsp.linked_editing_range(&uri, 0, 6);
     assert!(!result.is_null());
-    let ranges = result.get("ranges").and_then(Value::as_array).cloned().unwrap_or_default();
+    let ranges = result
+        .get("ranges")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     assert!(ranges.len() >= 2, "{ranges:?}");
-    assert!(ranges.iter().any(|r| r["start"]["line"].as_i64() == Some(0)));
-    assert!(ranges.iter().any(|r| r["start"]["line"].as_i64() == Some(2)));
-    let word_pattern = result.get("wordPattern").and_then(Value::as_str).unwrap_or("");
-    assert!(word_pattern.contains("[A-Za-z"), "wordPattern: {word_pattern:?}");
+    assert!(
+        ranges
+            .iter()
+            .any(|r| r["start"]["line"].as_i64() == Some(0))
+    );
+    assert!(
+        ranges
+            .iter()
+            .any(|r| r["start"]["line"].as_i64() == Some(2))
+    );
+    let word_pattern = result
+        .get("wordPattern")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    assert!(
+        word_pattern.contains("[A-Za-z"),
+        "wordPattern: {word_pattern:?}"
+    );
 }
 
 #[test]

@@ -67,7 +67,10 @@ impl DocstringInfo {
             map.insert("brief".to_owned(), serde_json::json!(self.brief));
         }
         if !self.description.is_empty() {
-            map.insert("description".to_owned(), serde_json::json!(self.description));
+            map.insert(
+                "description".to_owned(),
+                serde_json::json!(self.description),
+            );
         }
         if !self.params.is_empty() {
             let params: Vec<serde_json::Value> = self
@@ -165,7 +168,12 @@ pub fn render_comment_block(
     indent: &str,
 ) -> String {
     let mut lines: Vec<String> = Vec::new();
-    let rule = || format!("{indent}# {}", decoration_char.to_string().repeat(decoration_width));
+    let rule = || {
+        format!(
+            "{indent}# {}",
+            decoration_char.to_string().repeat(decoration_width)
+        )
+    };
 
     if decoration {
         lines.push(rule());
@@ -281,9 +289,12 @@ mod tests {
 
     #[test]
     fn parse_round_trips_tags() {
-        let info = parse_docstring("# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum");
+        let info = parse_docstring(
+            "# @brief does a thing\n# @param x - the x\n# @param y\n# @return the sum",
+        );
         // The `#` prefixes are stripped by the caller; here we feed tag lines.
-        let info2 = parse_docstring("@brief does a thing\n@param x - the x\n@param y\n@return the sum");
+        let info2 =
+            parse_docstring("@brief does a thing\n@param x - the x\n@param y\n@return the sum");
         assert_eq!(info2.brief, "does a thing");
         assert_eq!(info2.params.len(), 2);
         assert_eq!(info2.params[0].name, "x");
@@ -349,7 +360,14 @@ mod tests {
 
     #[test]
     fn render_honours_indent() {
-        let out = render_comment_block(&sample(), DocstringTagStyle::Doxygen, false, '.', 70, "    ");
+        let out = render_comment_block(
+            &sample(),
+            DocstringTagStyle::Doxygen,
+            false,
+            '.',
+            70,
+            "    ",
+        );
         assert!(out.starts_with("    # @brief does a thing\n    # @param x - the x"));
     }
 

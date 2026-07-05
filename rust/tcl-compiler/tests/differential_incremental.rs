@@ -198,8 +198,8 @@ fn incremental_matches_fresh_over_corpus() {
                         let mut cmds = segment_commands(&text);
                         for round in 0..40 {
                             let new_text = random_edit(&text, &mut rng);
-                            let inc =
-                                Analyser::new().analyse_incremental(&text, &cmds, &new_text, dialect);
+                            let inc = Analyser::new()
+                                .analyse_incremental(&text, &cmds, &new_text, dialect);
                             let fresh = Analyser::new().analyse(&new_text, dialect);
                             checked += 1;
                             if inc != fresh {

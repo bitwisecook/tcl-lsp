@@ -20,7 +20,6 @@
 //!
 //! Signature help, end-to-end against the packaged server.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
@@ -41,7 +40,6 @@ fn doc_text(sig: &Value) -> String {
 /// True for a null/absent signature-help result (mirrors pytest `assert not`).
 fn is_empty(result: &Value) -> bool {
     match result {
-        Value::Null => true,
         Value::Object(o) => o
             .get("signatures")
             .and_then(Value::as_array)
@@ -66,7 +64,10 @@ fn params(sig: &Value) -> Vec<Value> {
 }
 
 fn label(sig: &Value) -> String {
-    sig.get("label").and_then(Value::as_str).unwrap_or("").to_owned()
+    sig.get("label")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned()
 }
 
 // -- TestSignatureHelpUserProcs ------------------------------------------
@@ -92,7 +93,10 @@ fn proc_active_param_tracking() {
     lsp.open_ready(&uri, "proc add {a b} { expr {$a + $b} }\nadd 1 ");
     let result = lsp.signature_help(&uri, 1, 6);
     assert!(!is_empty(&result));
-    assert_eq!(result.get("activeParameter").and_then(Value::as_i64), Some(1));
+    assert_eq!(
+        result.get("activeParameter").and_then(Value::as_i64),
+        Some(1)
+    );
 }
 
 #[test]
@@ -104,7 +108,13 @@ fn proc_with_defaults_marks_optional() {
     let result = lsp.signature_help(&uri, 1, 12);
     let ps = params(&signatures(&result)[0]);
     assert_eq!(ps.len(), 2);
-    assert!(ps[1].get("label").and_then(Value::as_str).unwrap_or("").contains('?'));
+    assert!(
+        ps[1]
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .contains('?')
+    );
 }
 
 // -- TestSignatureHelpBuiltins -------------------------------------------
@@ -161,14 +171,20 @@ fn socket_has_documentation() {
     lsp.open_ready(&uri, "socket localhost ");
     let result = lsp.signature_help(&uri, 0, 17);
     let doc = doc_text(&signatures(&result)[0]);
-    assert!(doc.contains("listening socket") || doc.to_lowercase().contains("server"), "doc: {doc:?}");
+    assert!(
+        doc.contains("listening socket") || doc.to_lowercase().contains("server"),
+        "doc: {doc:?}"
+    );
 }
 
 #[test]
 fn proc_still_has_documentation() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World ");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World ",
+    );
     let result = lsp.signature_help(&uri, 1, 12);
     assert!(label(&signatures(&result)[0]).starts_with("greet"));
 }
@@ -192,7 +208,11 @@ fn string_length() {
     lsp.open_ready(&uri, "string length ");
     let result = lsp.signature_help(&uri, 0, 14);
     assert!(!is_empty(&result));
-    assert!(signatures(&result).iter().any(|s| label(s) == "string length string"));
+    assert!(
+        signatures(&result)
+            .iter()
+            .any(|s| label(s) == "string length string")
+    );
 }
 
 #[test]
@@ -202,7 +222,11 @@ fn string_index_subcommand() {
     lsp.open_ready(&uri, "string index ");
     let result = lsp.signature_help(&uri, 0, 13);
     assert!(!is_empty(&result));
-    assert!(signatures(&result).iter().any(|s| label(s) == "string index string charIndex"));
+    assert!(
+        signatures(&result)
+            .iter()
+            .any(|s| label(s) == "string index string charIndex")
+    );
 }
 
 #[test]

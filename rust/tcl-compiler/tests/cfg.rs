@@ -306,7 +306,9 @@ fn for_rotation_requires_a_non_stale_constant_init() {
     );
     // A benign init call that cannot write the loop var keeps it guaranteed.
     assert_eq!(
-        for_header_condition(top(&cfg("for {set i 0; puts hi} {$i < 3} {incr i} {set y $i}"))),
+        for_header_condition(top(&cfg(
+            "for {set i 0; puts hi} {$i < 3} {incr i} {set y $i}"
+        ))),
         "1",
         "benign init call must not invalidate the constant",
     );
@@ -314,13 +316,17 @@ fn for_rotation_requires_a_non_stale_constant_init() {
     // Stale constant: `set i $n` overwrites `set i 0`, so the condition is
     // unknown → NOT rotated (the real `$i < 3` stays on the header).
     assert_eq!(
-        for_header_condition(top(&cfg("for {set i 0; set i $n} {$i < 3} {incr i} {set y $i}"))),
+        for_header_condition(top(&cfg(
+            "for {set i 0; set i $n} {$i < 3} {incr i} {set y $i}"
+        ))),
         "$i < 3",
         "a non-constant re-write of the loop var must not be claimed guaranteed",
     );
     // An `incr` in the init likewise invalidates the constant binding.
     assert_eq!(
-        for_header_condition(top(&cfg("for {set i 0; incr i 5} {$i < 3} {incr i} {set y $i}"))),
+        for_header_condition(top(&cfg(
+            "for {set i 0; incr i 5} {$i < 3} {incr i} {set y $i}"
+        ))),
         "$i < 3",
         "incr in for-init must not be claimed guaranteed",
     );

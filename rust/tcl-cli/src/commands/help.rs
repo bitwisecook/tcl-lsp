@@ -146,7 +146,12 @@ pub fn help_json(query: &str, dialect: &str, limit: usize) -> serde_json::Value 
     result
 }
 
-fn help_json_impl(conn: &Connection, query: &str, dialect: &str, limit: usize) -> serde_json::Value {
+fn help_json_impl(
+    conn: &Connection,
+    query: &str,
+    dialect: &str,
+    limit: usize,
+) -> serde_json::Value {
     if query.trim().is_empty() {
         let grouped = match list_features(conn) {
             Ok(g) => g,

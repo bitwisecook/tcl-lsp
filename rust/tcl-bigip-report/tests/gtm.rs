@@ -95,12 +95,18 @@ fn gtm_objects_are_projected() {
     assert_eq!(wideips[0]["name"], "app.example.com");
     // Wide-IP pool references use the leaf name, as written in the config.
     assert_eq!(wideips[0]["pools"].as_array().unwrap()[0], "app_pool");
-    assert_eq!(wideips[0]["aliases"].as_array().unwrap()[0], "www.example.com");
+    assert_eq!(
+        wideips[0]["aliases"].as_array().unwrap()[0],
+        "www.example.com"
+    );
 
     let pools = gtm["gtmPools"].as_array().unwrap();
     assert_eq!(pools.len(), 1);
     assert_eq!(pools[0]["lbMode"], "global-availability");
-    assert_eq!(pools[0]["members"].as_array().unwrap()[0]["name"], "ltm-edge:app_vs");
+    assert_eq!(
+        pools[0]["members"].as_array().unwrap()[0]["name"],
+        "ltm-edge:app_vs"
+    );
 
     let servers = gtm["gtmServers"].as_array().unwrap();
     assert_eq!(servers.len(), 1);
