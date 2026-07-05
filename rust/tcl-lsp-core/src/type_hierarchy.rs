@@ -18,12 +18,17 @@
 
 //! Type-hierarchy provider.
 //!
-//! Resolves a `TclOO` class at the cursor and returns a
-//! single hierarchy item.  Supertype / subtype walks are
-//! stub-empty; computing them requires the class-hierarchy
-//! index that the analyser populates.
+//! Resolves a `TclOO` class at the cursor ([`prepare`]) and walks its
+//! [`supertypes`] (direct superclasses + mixins) and [`subtypes`] (direct
+//! subclasses) via the class-hierarchy index.  Resolution is within the
+//! analysed document; cross-file super/subtypes need the workspace index
+//! (a follow-up).
+
+use std::collections::HashSet;
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
+use tcl_compiler::analyser::types::ClassDef;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
@@ -61,23 +66,92 @@ pub fn prepare(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
-            let name_range = span_to_range(source, &line_index, class_def.name_span);
-            let body_range = span_to_range(source, &line_index, class_def.body_span);
-            let full_range = LspRange {
-                start_line: name_range.start_line,
-                start_character: name_range.start_character,
-                end_line: body_range.end_line,
-                end_character: body_range.end_character,
-            };
-            return vec![TypeHierarchyItem {
-                name: class_def.qualified_name.clone(),
-                detail: Some(class_def.metaclass.clone()),
-                range: full_range,
-                selection_range: name_range,
-            }];
+            return vec![item_for(class_def, source, &line_index)];
         }
     }
     Vec::new()
+}
+
+/// Direct supertypes of `class_name`: its declared superclasses and
+/// class-level mixins, in declaration order (supers then mixins),
+/// de-duplicated.  Empty when the class is unknown or has none in this
+/// document.
+#[must_use]
+pub fn supertypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+    let line_index = LineIndex::new(source);
+    let Some(cd) = resolve_class(class_name, analysis) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for name in cd.superclasses.iter().chain(cd.mixins.iter()) {
+        if let Some(target) = resolve_class(name, analysis)
+            && seen.insert(target.qualified_name.clone())
+        {
+            out.push(item_for(target, source, &line_index));
+        }
+    }
+    out
+}
+
+/// Direct subtypes of `class_name`: the classes that declare it as a
+/// superclass, via the (namespace-aware) class-hierarchy subclass map.
+/// Sorted by qualified name for determinism.
+#[must_use]
+pub fn subtypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+    let line_index = LineIndex::new(source);
+    let Some(cd) = resolve_class(class_name, analysis) else {
+        return Vec::new();
+    };
+    let target = cd.qualified_name.clone();
+    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let Some(subs) = hierarchy.subclasses.get(&target) else {
+        return Vec::new();
+    };
+    let mut names: Vec<&String> = subs.iter().collect();
+    names.sort();
+    names
+        .into_iter()
+        .filter_map(|s| analysis.all_classes.get(s))
+        .map(|cd| item_for(cd, source, &line_index))
+        .collect()
+}
+
+/// Resolve a class name to its `ClassDef` in the analysed document —
+/// exact, `::name`, or a unique simple-name (tail) match.
+fn resolve_class<'a>(name: &str, analysis: &'a AnalysisResult) -> Option<&'a ClassDef> {
+    if let Some(cd) = analysis.all_classes.get(name) {
+        return Some(cd);
+    }
+    let q = format!("::{}", name.trim_start_matches("::"));
+    if let Some(cd) = analysis.all_classes.get(&q) {
+        return Some(cd);
+    }
+    let tail = name.rsplit("::").next().unwrap_or(name);
+    let mut it = analysis
+        .all_classes
+        .values()
+        .filter(|cd| cd.qualified_name.rsplit("::").next() == Some(tail));
+    let first = it.next()?;
+    it.next().is_none().then_some(first)
+}
+
+/// Build a hierarchy item for `class_def` from its spans in `source`.
+fn item_for(class_def: &ClassDef, source: &str, line_index: &LineIndex) -> TypeHierarchyItem {
+    let name_range = span_to_range(source, line_index, class_def.name_span);
+    let body_range = span_to_range(source, line_index, class_def.body_span);
+    let full_range = LspRange {
+        start_line: name_range.start_line,
+        start_character: name_range.start_character,
+        end_line: body_range.end_line,
+        end_character: body_range.end_character,
+    };
+    TypeHierarchyItem {
+        name: class_def.qualified_name.clone(),
+        detail: Some(class_def.metaclass.clone()),
+        range: full_range,
+        selection_range: name_range,
+    }
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -109,5 +183,31 @@ mod tests {
         if !items.is_empty() {
             assert!(items[0].name.contains("Greeter"));
         }
+    }
+
+    #[test]
+    fn supertypes_returns_superclasses_and_mixins() {
+        let src = "oo::class create Animal {}\noo::class create Legs {}\noo::class create Dog {\n    superclass Animal\n    mixin Legs\n}\n";
+        let analysis = analyse(src);
+        let sup = supertypes("::Dog", src, &analysis);
+        let names: Vec<&str> = sup.iter().map(|i| i.name.as_str()).collect();
+        assert!(names.contains(&"::Animal"), "{names:?}");
+        assert!(names.contains(&"::Legs"), "{names:?}");
+    }
+
+    #[test]
+    fn subtypes_returns_direct_subclasses() {
+        let src = "oo::class create Animal {}\noo::class create Dog {\n    superclass Animal\n}\noo::class create Cat {\n    superclass Animal\n}\n";
+        let analysis = analyse(src);
+        let sub = subtypes("::Animal", src, &analysis);
+        let mut names: Vec<&str> = sub.iter().map(|i| i.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["::Cat", "::Dog"], "{names:?}");
+    }
+
+    #[test]
+    fn supertypes_of_unknown_class_is_empty() {
+        let analysis = analyse("oo::class create A {}\n");
+        assert!(supertypes("::Nope", "oo::class create A {}\n", &analysis).is_empty());
     }
 }

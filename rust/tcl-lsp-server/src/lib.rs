@@ -1988,6 +1988,53 @@ impl Backend {
         Some(DocumentState::new(text, dialect))
     }
 
+    /// Shared supertype (`subtypes = false`) / subtype (`subtypes = true`)
+    /// walk for one type-hierarchy item, resolving against the item's
+    /// document.  Returns an empty list (not an error) when the document or
+    /// class cannot be resolved, so the editor's hierarchy view degrades
+    /// cleanly.
+    async fn type_hierarchy_walk(
+        &self,
+        item: TypeHierarchyItem,
+        subtypes: bool,
+    ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+        let uri = item.uri.clone();
+        let class_name = item.name.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(Some(Vec::new()));
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let items = tokio::task::spawn_blocking(move || {
+            if subtypes {
+                core_type_hierarchy::subtypes(&class_name, &doc.text, &analysis)
+            } else {
+                core_type_hierarchy::supertypes(&class_name, &doc.text, &analysis)
+            }
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("type_hierarchy worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted = items
+            .into_iter()
+            .map(|i| TypeHierarchyItem {
+                name: i.name,
+                kind: SymbolKind::CLASS,
+                tags: None,
+                detail: i.detail,
+                uri: uri.clone(),
+                range: lift_lsp_range(i.range),
+                selection_range: lift_lsp_range(i.selection_range),
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
     /// Compute the packed semantic-token stream for `uri` — from the memoised
     /// query when warm, else a worker-thread fallback so a parser panic surfaces
     /// as a JSON-RPC error rather than crashing the server.
@@ -5569,20 +5616,16 @@ impl LanguageServer for Backend {
 
     async fn supertypes(
         &self,
-        _params: TypeHierarchySupertypesParams,
+        params: TypeHierarchySupertypesParams,
     ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
-        // Supertype resolution needs the class-hierarchy index the analyser
-        // does not yet populate; report no supertypes rather than an error.
-        Ok(Some(Vec::new()))
+        self.type_hierarchy_walk(params.item, false).await
     }
 
     async fn subtypes(
         &self,
-        _params: TypeHierarchySubtypesParams,
+        params: TypeHierarchySubtypesParams,
     ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
-        // Subtype resolution needs the class-hierarchy index the analyser
-        // does not yet populate; report no subtypes rather than an error.
-        Ok(Some(Vec::new()))
+        self.type_hierarchy_walk(params.item, true).await
     }
 
     async fn linked_editing_range(
