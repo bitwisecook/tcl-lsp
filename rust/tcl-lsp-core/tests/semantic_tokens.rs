@@ -435,17 +435,29 @@ fn oo_property_accessor_bodies_are_recursed() {
 #[test]
 fn top_level_method_is_not_an_oo_body() {
     // Context guard: a top-level user proc named `method` (outside any OO
-    // definition body) must NOT be treated as an OO method definition.  A
-    // bare `method a b {c}` call at top level is a plain command — its last
-    // braced word must stay an opaque string, not be recursed as a body.
+    // definition body) must NOT be treated as an OO member.  A bare
+    // `method a b {c}` call at top level is a plain command — so `method`
+    // itself is a plain command head (a `function`, NOT a `keyword` — member
+    // keywords are recognised context-sensitively from the definer grammar,
+    // exactly like snit's `typemethod`), and its last braced word stays an
+    // opaque string, not recursed as a body.
     let src = "method a b { this is not code }\n";
     let toks = decode(src, "tcl8.6");
-    // No command inside the braced word should be tokenised as a function;
-    // `this`/`is`/`not`/`code` must never surface as separate command heads.
-    assert!(
-        !toks.iter().any(|t| t.ttype == "function"),
-        "top-level `method` braced arg must not be recursed as a body: {toks:?}",
+    assert_ne!(
+        kind_of_word(src, "tcl8.6", "method").as_deref(),
+        Some("keyword"),
+        "a top-level `method` must not be a keyword (context-sensitive): {toks:?}",
     );
+    // No word inside the braced body should be recursed as a command head;
+    // `this`/`is`/`not`/`code` must never surface as separate function tokens.
+    for w in ["this", "is", "not", "code"] {
+        assert!(
+            !toks
+                .iter()
+                .any(|t| t.ttype == "function" && tok_text(src, t) == w),
+            "top-level `method` braced arg must not be recursed as a body ({w}): {toks:?}",
+        );
+    }
 }
 
 #[test]
@@ -474,11 +486,19 @@ fn oo_define_member_form_body_is_not_oo_context() {
     // opaque string (no command inside is tokenised as a function).
     let src = "oo::define C method m {} { method a b {not code} }\n";
     let toks = decode(src, "tcl9.0");
-    assert!(
-        !toks.iter().any(|t| t.ttype == "function"),
-        "nested `method a b {{not code}}` inside a member-form method body \
-         must not be recursed as an OO body: {toks:?}",
-    );
+    // The innermost `{not code}` must stay an opaque string — `not`/`code`
+    // never surface as command heads.  (The inner `method` head is an ordinary
+    // command call inside the method body, so it legitimately reads as a
+    // `function`, not a keyword — there is no definition-body context here.)
+    for w in ["not", "code"] {
+        assert!(
+            !toks
+                .iter()
+                .any(|t| t.ttype == "function" && tok_text(src, t) == w),
+            "nested `method a b {{not code}}` inside a member-form method body \
+             must not be recursed as an OO body ({w}): {toks:?}",
+        );
+    }
     // The real method body itself is still recursed (its own commands are
     // walked as ordinary code) — a `set` there would tokenise.
     let src2 = "oo::define C method m {} { set x 1 }\n";
@@ -489,6 +509,57 @@ fn oo_define_member_form_body_is_not_oo_context() {
             .any(|t| t.ttype == "function" && tok_text(src2, t) == "set"),
         "member-form method body should still tokenise its own code: {toks2:?}",
     );
+}
+
+#[test]
+fn oo_define_inline_member_keyword_is_grammar_driven() {
+    // The inline form `oo::define C method m {} {…}` puts the member keyword at
+    // an argument position; it must still highlight as a keyword, sourced from
+    // the definer's `definition_body` grammar (not a hardcoded list).  `self`
+    // introduces a second inner member keyword.
+    let src = "oo::define C method greet {} { return hi }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl9.0", "method").as_deref(),
+        Some("keyword"),
+        "inline `oo::define … method` keyword must highlight: {:?}",
+        decode(src, "tcl9.0"),
+    );
+    let src2 = "oo::objdefine obj self method m {} {}\n";
+    for kw in ["self", "method"] {
+        assert_eq!(
+            kind_of_word(src2, "tcl9.0", kw).as_deref(),
+            Some("keyword"),
+            "inline `oo::objdefine … self method` keyword `{kw}` must highlight: {:?}",
+            decode(src2, "tcl9.0"),
+        );
+    }
+}
+
+#[test]
+fn tcloo_members_are_context_sensitive_like_snit() {
+    // Parity with `snit_member_keyword_only_inside_body`: a TclOO member word
+    // used as a bare top-level command (outside any definition body) must NOT
+    // be a keyword — both class systems recognise members from the grammar
+    // context, so neither over-colours a same-named top-level command.
+    for member in ["constructor", "superclass", "classmethod"] {
+        let src = format!("{member} whatever args\n");
+        assert_ne!(
+            kind_of_word(&src, "tcl9.0", member).as_deref(),
+            Some("keyword"),
+            "top-level `{member}` must not be a keyword outside a body: {:?}",
+            decode(&src, "tcl9.0"),
+        );
+    }
+    // …but inside an `oo::class` body every one of them is a keyword.
+    let body = "oo::class create C {\n    superclass B\n    constructor {} {}\n    classmethod mk {} {}\n}\n";
+    for member in ["superclass", "constructor", "classmethod"] {
+        assert_eq!(
+            kind_of_word(body, "tcl9.0", member).as_deref(),
+            Some("keyword"),
+            "`{member}` inside an oo::class body must be a keyword: {:?}",
+            decode(body, "tcl9.0"),
+        );
+    }
 }
 
 #[test]

@@ -226,11 +226,19 @@ const MOD_DECLARATION: u32 = 1 << 0;
 
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
-/// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
-/// and `TclOO` definition-/method-context words.  The standalone
-/// commands (`if`, `while`, `proc`, `when`, `oo::*`, …) are sourced
-/// from the registry's `LANGUAGE_KEYWORD` trait instead of a
-/// hardcoded list.
+/// `LANGUAGE_KEYWORD` trait, **and** are not definition-body members.
+///
+/// Definition-body member sub-keywords (`method`, `constructor`, `typemethod`,
+/// `variable`, …) are deliberately **absent**: they are recognised
+/// context-sensitively from the enclosing definer's `definition_body` grammar
+/// (via [`crate::oo_body::is_member`] in [`emit_command_head`] for the script
+/// form and [`insert_oo_define_keyword_overrides`] for the inline form), so a
+/// same-named user proc outside a definition body is never mis-coloured and
+/// `TclOO` and snit members behave identically. This list is only the residue
+/// the grammar does not model: clause keywords of `if`/`try`/`switch` and the
+/// `TclOO` method-*body* helper commands. The standalone commands (`if`,
+/// `while`, `proc`, `when`, `oo::*`, …) come from the registry's
+/// `LANGUAGE_KEYWORD` trait.
 const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     // Clause keywords of if / try / switch — not standalone commands.
     "else",
@@ -238,26 +246,8 @@ const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     "on",
     "trap",
     "finally",
-    // TclOO definition-context keywords without a standalone CommandSpec.
-    "method",
-    "constructor",
-    "destructor",
-    "forward",
-    "mixin",
-    "filter",
-    "superclass",
-    "renamemethod",
-    "deletemethod",
-    "export",
-    "unexport",
-    // TclOO definition-context keywords (9.0+).
-    "classmethod",
-    "definitionnamespace",
-    "initialise",
-    "initialize",
-    "private",
-    "property",
-    // TclOO method-body keywords without a standalone CommandSpec.
+    // TclOO method-body helper commands (used inside a method body, not
+    // definition-context members) without a standalone CommandSpec.
     "callback",
     "mymethod",
     "link",
@@ -607,7 +597,7 @@ fn special_arg_kinds(
 
     insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, &mut overrides);
-    insert_oo_define_keyword_overrides(seg, &mut overrides);
+    insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
@@ -1086,24 +1076,33 @@ fn insert_enum_value_overrides(
 /// `oo::define` / `oo::objdefine` inline definition keywords → `Keyword`.
 ///
 /// In the *script* form (`oo::define Cls { method … }`) the definition words
-/// are command heads inside the recursed body and are already highlighted.
-/// The *inline* form (`oo::define Cls method name args body`) puts the
-/// definition word at an argument position, where it would otherwise render
-/// as a plain string.  The target (class / object) sits at `seg.texts[1]`,
-/// so the definition keyword is `seg.texts[2]`; `self` introduces a second,
-/// inner keyword at `seg.texts[3]`.  The recognised words are the `TclOO`
-/// definition sub-keywords already enumerated in
-/// [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+/// are command heads inside the recursed body and are already highlighted by
+/// [`emit_command_head`]'s grammar-member check.  The *inline* form
+/// (`oo::define Cls method name args body`) puts the definition word at an
+/// argument position, where it would otherwise render as a plain string.  The
+/// target (class / object) sits at `seg.texts[1]`, so the definition keyword is
+/// `seg.texts[2]`; `self` introduces a second, inner keyword at `seg.texts[3]`.
+///
+/// Which words are members comes from the definer command's own
+/// `definition_body` grammar (`is_member`), not a hardcoded list — the same
+/// source of truth the script form uses.  The *set of commands* that accept
+/// inline member args (`oo::define` / `oo::objdefine`) is the outer-call shape,
+/// which the member grammar does not model, so it stays an explicit guard
+/// (`oo::class create Name …` puts a class name, not a member, at `texts[2]`).
 fn insert_oo_define_keyword_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !matches!(seg.texts[0].as_str(), "oo::define" | "oo::objdefine") {
         return;
     }
-    // A definition word is `self` (the object-instance directive, not in the
-    // sub-keyword list) or one of the TclOO definition sub-keywords.
-    let is_def_word = |w: &str| w == "self" || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w);
+    let Some(grammar) = registry
+        .get(seg.texts[0].as_str())
+        .and_then(|s| s.definition_body)
+    else {
+        return;
+    };
     let mut mark_keyword = |pos: usize| {
         if let Some(tok) = seg.argv.get(pos) {
             overrides
@@ -1116,7 +1115,7 @@ fn insert_oo_define_keyword_overrides(
     let Some(first) = seg.texts.get(2) else {
         return;
     };
-    if !is_def_word(first) {
+    if !grammar.is_member(first) {
         return;
     }
     mark_keyword(2);
@@ -1126,7 +1125,7 @@ fn insert_oo_define_keyword_overrides(
         && seg
             .texts
             .get(3)
-            .is_some_and(|w| LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&w.as_str()))
+            .is_some_and(|w| grammar.is_member(w))
     {
         mark_keyword(3);
     }
