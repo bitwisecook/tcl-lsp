@@ -202,14 +202,19 @@ impl Analyser {
         self.result.diagnostics.extend(new_diags);
     }
 
-    /// The highest guaranteed lower bound among this file's `package require
+    /// The highest *guaranteed* lower bound among this file's `package require
     /// <pkg> <req>` lines; `None` when `pkg` is not required, or required
     /// without a version (permissive — every version is accepted).
+    ///
+    /// Conditional requires — an optional probe such as
+    /// `catch {package require Tk 8.7}` or a `package require` inside an `if`
+    /// arm — are excluded: they do not guarantee the version on every path, so
+    /// counting them would raise the floor and wrongly suppress a real W135/W136.
     fn package_version_floor(&self, pkg: &str) -> Option<&str> {
         self.result
             .package_requires
             .iter()
-            .filter(|r| r.name == pkg)
+            .filter(|r| r.name == pkg && !r.conditional)
             .filter_map(|r| r.version.as_deref())
             .map(tcl_registry::version::requirement_lower_bound)
             .max_by(|a, b| tcl_registry::version::compare(a, b))
@@ -280,5 +285,15 @@ mod tests {
     fn command_met_by_floor_is_silent() {
         let src = "package require Tk 8.6\nttk::button .b\n";
         assert!(!fires(src, "W135"), "{:?}", version_diags(src));
+    }
+
+    #[test]
+    fn conditional_probe_does_not_raise_floor() {
+        // An optional `catch {package require Tk 8.7}` does not guarantee 8.7;
+        // the guaranteed floor is the unconditional 8.6, so W136 still fires.
+        let src = "package require Tk 8.6\n\
+                   catch {package require Tk 8.7}\n\
+                   entry .e -placeholder hi\n";
+        assert!(fires(src, "W136"), "{:?}", version_diags(src));
     }
 }

@@ -335,7 +335,7 @@ pub fn completions(
         let tk_loaded =
             dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
         items.extend(builtin_completions(
-            registry, dialect, &partial, &usage, tk_loaded,
+            registry, dialect, &partial, &usage, tk_loaded, analysis,
         ));
     }
     // Workspace-wide proc enumeration: surface procs defined in
@@ -834,7 +834,10 @@ fn package_version_floor<'a>(
     analysis
         .package_requires
         .iter()
-        .filter(|req| req.name == pkg)
+        // Only *unconditional* requires guarantee the version; an optional
+        // probe (`catch {package require Tk 8.7}`, or a `require` inside an
+        // `if` arm) must not raise the floor and hide a gated option/command.
+        .filter(|req| req.name == pkg && !req.conditional)
         .filter_map(|req| req.version.as_deref())
         .map(tcl_registry::version::requirement_lower_bound)
         .max_by(|a, b| tcl_registry::version::compare(a, b))
@@ -1053,6 +1056,7 @@ fn builtin_completions(
     partial: &str,
     usage: &FxHashMap<String, usize>,
     tk_loaded: bool,
+    analysis: &AnalysisResult,
 ) -> Vec<CompletionItem> {
     // Version-gate the command list: a command whose spec restricts itself to
     // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
@@ -1077,6 +1081,16 @@ fn builtin_completions(
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
+        })
+        // Package-version gate: a command introduced in a later package release
+        // (`ttk::*` needs Tk 8.5) must not be offered when this file's
+        // `package require <pkg> <req>` guarantees only an older version — the
+        // same floor W135 checks.  A package required without a version, or not
+        // required at all, yields no floor and stays permissive.
+        .filter(|n| {
+            registry
+                .get(n)
+                .is_none_or(|spec| spec.available_for_version(package_version_floor(analysis, spec)))
         })
         .collect();
     names.sort_unstable();
@@ -1642,6 +1656,34 @@ mod tests {
         assert!(
             l2.iter().any(|l| l == "-placeholder"),
             "Tk 8.7 must offer -placeholder: {l2:?}",
+        );
+    }
+
+    #[test]
+    fn command_completion_gates_commands_by_package_version() {
+        // `ttk::button` needs Tk 8.5.  A buffer requiring only Tk 8.4 must not
+        // offer it; requiring 8.5 must.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.4\nttk::b\n";
+        let a1 = analyse(older);
+        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !l1.iter().any(|l| l == "ttk::button"),
+            "Tk 8.4 must not offer ttk::button: {l1:?}",
+        );
+
+        let newer = "package require Tk 8.5\nttk::b\n";
+        let a2 = analyse(newer);
+        let l2: Vec<String> = completions(newer, 1, 6, &a2, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l2.iter().any(|l| l == "ttk::button"),
+            "Tk 8.5 must offer ttk::button: {l2:?}",
         );
     }
 
