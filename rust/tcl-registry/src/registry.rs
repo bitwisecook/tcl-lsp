@@ -1546,6 +1546,28 @@ mod tests {
     }
 
     #[test]
+    fn ttk_widgets_require_tk_8_5() {
+        // ttk (themed Tk) widgets were introduced in Tk 8.5, so they must be
+        // gated out when only an older Tk is guaranteed by `package require`.
+        let reg = CommandRegistry::build_default();
+        for name in ["ttk::button", "ttk::treeview", "ttk::notebook", "ttk::style"] {
+            let spec = reg.get(name).unwrap_or_else(|| panic!("{name} registered"));
+            assert!(
+                !spec.available_for_version(Some("8.4")),
+                "{name} must not be available under Tk 8.4",
+            );
+            assert!(
+                spec.available_for_version(Some("8.5")),
+                "{name} must be available under Tk 8.5",
+            );
+            assert!(
+                spec.available_for_version(None),
+                "{name} must be permissive when no Tk version is pinned",
+            );
+        }
+    }
+
+    #[test]
     fn text_tag_bind_script_is_a_body() {
         // `pathName tag bind tagName sequence script` binds a deferred
         // event-handler script as its trailing word (issue #785 class).
