@@ -3198,6 +3198,13 @@
             },
             "description": "Additional directories to scan for Tcl packages and libraries. Paths may be absolute or relative to the workspace root.",
             "order": 4
+          },
+          "tclLsp.notifications.highlightingHealth": {
+            "scope": "window",
+            "type": "boolean",
+            "default": true,
+            "description": "Warn when semantic highlighting can't reach a Tcl file (wrong language association, or semantic highlighting disabled), which leaves grammar-only colouring that mis-highlights keywords inside braced string arguments. Each notice can also be dismissed permanently via its 'Don't show again' button.",
+            "order": 5
           }
         }
       },
