@@ -20,6 +20,8 @@ cargo run --release -p tcl-compiler --example mro_delta -- $CORPUS \
 # precision / recall from the hand-labeled ground truth
 python3 experiments/mro_eval/gen_labels.py   # → labeled_sample.csv
 python3 experiments/mro_eval/score_labels.py experiments/mro_eval/labeled_sample.csv
+# interprocedural ceiling + receiver taxonomy of the `unknown` ⊤ bucket
+cargo run --release -p tcl-compiler --example mro_interproc -- $CORPUS
 ```
 
 ## Hypothesis (restated)
@@ -214,6 +216,54 @@ SpiceGenTcl cross-file resolutions were all backed by a real
 false resolution from a namespace collision. (This is also why
 class-precision is a clean 100 %.)
 
+## Follow-up: where the ⊤-rate actually comes from
+
+The recommendation names interprocedural parameter typing as the lever on
+the 60 % `unknown` ⊤ bucket. `examples/mro_interproc.rs` measures that
+ceiling — and **overturns the assumption**. Over the 1,083 `unknown`-⊤
+sites:
+
+| receiver origin | share | recoverable by the obvious pass |
+|---|--:|---|
+| proc/method **parameter** | **10 (0.9 %)** | fixpoint caller→param class propagation: **0** |
+| **container iteration** (`foreach`/`lmap`/`dict for` over a collection) | **≥149 (≥13.8 %)** | lightweight element-typing: **0** |
+| class instance variable | 10 (0.9 %) | constructor-binding: 0 |
+| upvar alias | 0 | — |
+| global / other | 914 (84.4 %) | — |
+
+Two hard findings:
+
+1. **Interprocedural *parameter* typing is a dead end here.** Parameters
+   are 0.9 % of the residual, and a full caller→param class propagation to
+   a fixpoint (the strongest form of the "obvious" pass) recovers **0**
+   additional sites. The receivers simply are not proc parameters.
+2. **The real residual is *container-of-objects iteration*.** The dominant
+   identifiable pattern is `foreach elem [dict values $Container]` /
+   `lmap x [dict values $Container]`, where `$Container` is an
+   instance-variable dict/list of child objects (the idiomatic TclOO
+   composite — `Circuit`→elements, `Device`→`Params`/`Pins`). Measured at
+   ≥13.8 %, and this is a **lower bound**: the source scan only catches the
+   var appearing as a loop variable in its own scope, so much of the
+   84.4 % "global/other" is the same shape reached through
+   `[dict get $C $k]` binds, nested scopes, and `my variable` indirection.
+
+Resolving these needs **object-container element-typing**: infer that a
+dict/list instance variable holds objects of class *C*, tracking dynamic
+population (`dict append Params $k [::Ns::Parameter new …]`) through
+`my variable` scoping and often large (analysis-guarded) method bodies. A
+lightweight syntactic pass recovers **~0** — not because the classes are
+unknowable, but because the container's element type is established by
+dynamic dict/list writes the cheap pass doesn't follow. This is a
+*materially harder* analysis than either the object→class lattice or
+interprocedural parameter flow, with its own unmeasured payoff.
+
+**Upshot:** the two "next levers" beyond the lattice are, respectively,
+**refuted** (parameter typing) and **expensive with uncertain payoff**
+(container element-typing). This strengthens the negative recommendation:
+the cheap wins are already shipping (MRO/CHA + workspace index), and the
+remaining ⊤-rate is gated by container-of-objects modeling, not by any of
+the machinery this experiment prototyped.
+
 ## Adversarial check (correctness)
 
 `tests/mro_lattice_adversarial.rs` (9 tests, all pass) confirms the
@@ -294,16 +344,16 @@ Concretely, staged by evidence:
    inheritance through bare `superclass` names is under-linked. Cross-file
    W308 needs namespace-aware superclass normalisation *first*, and even
    then this corpus offers no true positives to gain.
-4. **If you want to move the ⊤-rate, the only lever that matters is
-   interprocedural object-type flow through parameters/returns** — that is
-   60 % of all sites (the extern/param receivers) and 100 % of the
-   `unknown` bucket. This is a *type-flow* problem, not a *lattice* one:
-   propagate `TclType::Object { class }` across call edges (the
-   interprocedural summaries already exist for taint/const). Before
-   committing, measure: instrument how many param-receiver sites have a
-   *single* concrete caller-supplied class — if most callers are
-   themselves params (turtles all the way down), even this won't help.
-5. **Retain the ⊤ taxonomy + harness** as the yardstick for (4). The
+4. **The ⊤-rate lever is *container element-typing*, not parameter flow —
+   and it is expensive.** The follow-up experiment (above) refutes the
+   parameter-typing hypothesis (0.9 % of ⊤; fixpoint recovers 0) and shows
+   the residual is iteration over object dicts/lists held in instance
+   variables. Only invest here if go-to-definition / hover on
+   `foreach x [dict values $Container]` receivers is a named priority, and
+   scope it as object-container element-typing (dynamic dict/list writes +
+   `my variable` scoping + guarded-body handling) with its own up-front
+   ceiling measurement — the lightweight prototype recovered ~0.
+5. **Retain the ⊤ taxonomy + harnesses** as the yardstick for (4). The
    `next_provider` (`next`/`nextto`) modelling and the ⊤ instrumentation
    are cheap, correct, and useful for go-to-definition on `next` chains
    independent of the lattice question.

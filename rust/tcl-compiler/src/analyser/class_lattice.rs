@@ -881,6 +881,21 @@ pub fn analyse_dispatch(
     (reports, stats)
 }
 
+/// Public accessor for the per-variable [`ClassValue`] map of one file,
+/// keyed by variable name.  Used by the interprocedural-ceiling experiment
+/// (`examples/mro_interproc.rs`) to read a caller's argument classes so it
+/// can propagate them to a callee's parameters.  Same inputs as
+/// [`analyse_dispatch`].
+#[must_use]
+pub fn class_values(
+    cu: &CompilationUnit,
+    index: &HashMap<String, ClassDef>,
+    ns: &NsContext,
+    cfg: &AblationConfig,
+) -> HashMap<String, ClassValue> {
+    build_class_values(cu, index, ns, cfg).0
+}
+
 /// Model TclOO `next` / `nextto`: given the receiver `class`, the method,
 /// and the class currently servicing it (`current_provider`), return the
 /// *next* class down the MRO chain that provides `method`.
