@@ -113,6 +113,7 @@ def render_report(
     model["mermaid_js"] = _vendor_text("mermaid.min.js")
     model["report_css"] = _asset_text("report.css")
     model["topology_css"] = _asset_text("topology.css")
+    model["print_css"] = _asset_text("print.css")
     model["certs_css"] = _asset_text("certs.css")
     model["secrets_css"] = _asset_text("secrets.css")
     model["forensics_css"] = _asset_text("forensics.css")
@@ -122,6 +123,7 @@ def render_report(
     model["secrets_js"] = _asset_text("secrets.js")
     model["forensics_js"] = _asset_text("forensics.js")
     model["irule_flow_js"] = _asset_text("irule-flow.js")
+    model["print_js"] = _asset_text("print.js")
 
     # In-browser query console: the wasm build of the query engine, inlined.
     # Optional — a report still renders (minus the console) if the wasm artifacts

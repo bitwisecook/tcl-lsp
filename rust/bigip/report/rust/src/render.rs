@@ -65,6 +65,8 @@ const FORENSICS_CSS: &str = include_str!("../../shared/src/styles/forensics.css"
 const FORENSICS_JS: &str = include_str!("../../shared/dist/forensics.js");
 const IRULE_FLOW_JS: &str = include_str!("../../shared/dist/irule-flow.js");
 const IRULE_FORMAT_JS: &str = include_str!("../../shared/dist/irule-format.js");
+const PRINT_CSS: &str = include_str!("../../shared/src/styles/print.css");
+const PRINT_JS: &str = include_str!("../../shared/dist/print.js");
 const APM_CSS: &str = include_str!("../../shared/src/styles/apm.css");
 const APM_JS: &str = include_str!("../../shared/dist/apm.js");
 // elkjs (EPL-2.0), the ELK layout engine, for the orthogonal APM graph.
@@ -177,6 +179,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("model_json".into(), J::String(model_json));
     ctx.insert("report_css".into(), J::String(REPORT_CSS.into()));
     ctx.insert("topology_css".into(), J::String(TOPOLOGY_CSS.into()));
+    ctx.insert("print_css".into(), J::String(PRINT_CSS.into()));
     ctx.insert("certs_css".into(), J::String(CERTS_CSS.into()));
     ctx.insert("secrets_css".into(), J::String(SECRETS_CSS.into()));
     ctx.insert("forensics_css".into(), J::String(FORENSICS_CSS.into()));
@@ -186,6 +189,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("secrets_js".into(), J::String(SECRETS_JS.into()));
     ctx.insert("forensics_js".into(), J::String(FORENSICS_JS.into()));
     ctx.insert("irule_flow_js".into(), J::String(IRULE_FLOW_JS.into()));
+    ctx.insert("print_js".into(), J::String(PRINT_JS.into()));
     ctx.insert("apm_css".into(), J::String(APM_CSS.into()));
     ctx.insert("apm_js".into(), J::String(APM_JS.into()));
     ctx.insert("elk_js".into(), J::String(ELK_JS.into()));

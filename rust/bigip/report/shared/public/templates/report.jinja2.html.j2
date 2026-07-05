@@ -13,6 +13,7 @@
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
 {{ forensics_css | safe }}
+{{ print_css | safe }}
 </style>
 </head>
 <body>
@@ -675,5 +676,9 @@
 {{ irule_format_js | safe }}
 </script>
 {% endif %}
+<!-- Print (loads last, so it sees every device/section + the wasm engine) -->
+<script>
+{{ print_js | safe }}
+</script>
 </body>
 </html>
