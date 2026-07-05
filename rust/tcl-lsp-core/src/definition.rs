@@ -68,6 +68,7 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
@@ -143,6 +144,15 @@ pub fn definition(
     if let Some((inst, method)) = instance_method_at_cursor(source, line, character)
         && let Some(class_q) = analysis.instance_classes.get(&inst)
         && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
+    {
+        return vec![span_to_range(source, &line_index, span)];
+    }
+    // `next` / `nextto` inside a method body — jump to the super-method in
+    // the MRO chain that the enclosing method overrides (`next`), or to the
+    // named class's copy of it (`nextto Cls`).
+    if (word == "next" || word == "nextto")
+        && let Some(span) =
+            next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -251,6 +261,79 @@ fn lookup_method_in_class(
         .map(|m| m.name_span)
         .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))
         .or_else(|| class_def.properties.get(method).map(|p| p.name_span))
+}
+
+/// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
+/// `name_span`.
+///
+/// `next` inside `method m` of class `C` dispatches `m` one step further
+/// down the object's MRO — statically we resolve it in `C`'s own MRO (the
+/// sound single-dispatch approximation): the next class after `C` that
+/// provides `m`.  `nextto Base` restarts the search at `Base`.  The
+/// enclosing class + method are found from the cursor's byte offset.
+fn next_dispatch_target(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    line: u32,
+    character: u32,
+    keyword: &str,
+) -> Option<tcl_lexer::Span> {
+    let cursor = byte_offset_at(line_index, source, line, character);
+    let (class_q, method) = enclosing_method(analysis, cursor)?;
+    let start_from: Option<String> = if keyword == "nextto" {
+        let target = word_after(source, line, character, "nextto")?;
+        Some(canonicalise_class(analysis, &target))
+    } else {
+        None
+    };
+    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let next_class =
+        hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
+    lookup_method_in_class(analysis, next_class, &method)
+}
+
+/// The `(qualified_class, method_name)` whose method body contains the
+/// cursor offset, or `None` when the cursor is not inside a method body.
+fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
+    for cd in analysis.all_classes.values() {
+        if !(cd.body_span.start() <= cursor && cursor <= cd.body_span.end()) {
+            continue;
+        }
+        for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
+            if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
+                return Some((cd.qualified_name.clone(), mname.clone()));
+            }
+        }
+    }
+    None
+}
+
+/// The whitespace-delimited word that follows `keyword` on the cursor's
+/// line (used to read the class name in `nextto Class`).
+fn word_after(source: &str, line: u32, _character: u32, keyword: &str) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let idx = line_text.find(keyword)?;
+    let rest = line_text[idx + keyword.len()..].trim_start();
+    let word: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+        .collect();
+    (!word.is_empty()).then_some(word)
+}
+
+/// Canonicalise a class name to the qualified form keyed in `all_classes`
+/// (adds a leading `::` when that resolves).
+fn canonicalise_class(analysis: &AnalysisResult, name: &str) -> String {
+    if analysis.all_classes.contains_key(name) {
+        return name.to_string();
+    }
+    let q = format!("::{name}");
+    if analysis.all_classes.contains_key(&q) {
+        q
+    } else {
+        name.to_string()
+    }
 }
 
 /// Detect a `$obj method ...` / `[$obj method ...]` call where
@@ -614,6 +697,31 @@ mod tests {
         // The proc name span is on line 0 starting at column 5.
         assert_eq!(locs[0].start_line, 0);
         assert_eq!(locs[0].start_character, 5);
+    }
+
+    #[test]
+    fn jump_to_next_super_method() {
+        // `next` inside B::greet jumps to the overridden A::greet.
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `next` (line 5). `    method greet {} { next }`
+        let locs = definition(src, 5, 23, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // A::greet's name is on line 1 at column 11.
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 11);
+    }
+
+    #[test]
+    fn jump_to_nextto_named_class_method() {
+        // `nextto A` inside C::greet jumps to A::greet (skipping B).
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\noo::class create C {\n    superclass B\n    method greet {} { nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` (line 9). `    method greet {} { nextto A }`
+        let locs = definition(src, 9, 22, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "should land on A::greet");
+        assert_eq!(locs[0].start_character, 11);
     }
 
     #[test]

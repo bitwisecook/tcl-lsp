@@ -76,6 +76,42 @@ impl ClassHierarchy {
             .map(String::as_str)
     }
 
+    /// Resolve TclOO `next` / `nextto`: the class *after* the current
+    /// provider in `class`'s MRO that provides `method`.
+    ///
+    /// For plain `next`, pass the class currently servicing the method as
+    /// `current` and `start_from = None`; the search begins one past
+    /// `current`.  For `nextto SomeClass`, pass `start_from =
+    /// Some("::SomeClass")`; the search begins *at* that class.  Returns the
+    /// qualified name of the next providing class, or `None` when the chain
+    /// is exhausted (a `next` past the last provider — a runtime error in
+    /// Tcl — surfaces here as "no next").
+    #[must_use]
+    pub fn next_provider(
+        &self,
+        class: &str,
+        method: &str,
+        current: &str,
+        start_from: Option<&str>,
+    ) -> Option<&str> {
+        let mro = self.mro_map.get(class)?;
+        let anchor = start_from.unwrap_or(current);
+        let anchor_pos = mro.iter().position(|c| c == anchor)?;
+        let scan_from = if start_from.is_some() {
+            anchor_pos
+        } else {
+            anchor_pos + 1
+        };
+        mro.iter().skip(scan_from).find_map(|c| {
+            self.classes
+                .get(c)
+                .filter(|cd| {
+                    cd.methods.contains_key(method) || cd.class_methods.contains_key(method)
+                })
+                .map(|_| c.as_str())
+        })
+    }
+
     /// Return all `(class, defining_class)` pairs that
     /// implement `method_name`.  Order matches the iteration
     /// order of `method_providers` (`HashMap` — non-deterministic
@@ -537,6 +573,35 @@ mod tests {
         ]);
         let h = build_class_hierarchy(classes);
         assert_eq!(h.method_target("::Core", "genSPICEString"), Some("::SpiceGenTcl::Device"));
+    }
+
+    #[test]
+    fn next_provider_walks_and_nextto_restarts() {
+        // C -> B -> A, all define `m`.
+        let classes = map(vec![
+            cls("::A", &[], &[], &["m"]),
+            cls("::B", &["::A"], &[], &["m"]),
+            cls("::C", &["::B"], &[], &["m"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        // `next` from C's m → B, then A, then exhausted.
+        assert_eq!(h.next_provider("::C", "m", "::C", None), Some("::B"));
+        assert_eq!(h.next_provider("::C", "m", "::B", None), Some("::A"));
+        assert_eq!(h.next_provider("::C", "m", "::A", None), None);
+        // `nextto ::A` jumps straight to A.
+        assert_eq!(h.next_provider("::C", "m", "::C", Some("::A")), Some("::A"));
+    }
+
+    #[test]
+    fn next_provider_skips_classes_without_the_method() {
+        // C -> B -> A; only C and A define `m`. `next` from C skips B → A.
+        let classes = map(vec![
+            cls("::A", &[], &[], &["m"]),
+            cls("::B", &["::A"], &[], &[]),
+            cls("::C", &["::B"], &[], &["m"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.next_provider("::C", "m", "::C", None), Some("::A"));
     }
 
     #[test]

@@ -896,16 +896,11 @@ pub fn class_values(
     build_class_values(cu, index, ns, cfg).0
 }
 
-/// Model TclOO `next` / `nextto`: given the receiver `class`, the method,
-/// and the class currently servicing it (`current_provider`), return the
-/// *next* class down the MRO chain that provides `method`.
-///
-/// `next` continues from the class after `current_provider` in the
-/// receiver's MRO; `nextto SomeClass method` restarts the search from
-/// `SomeClass`.  Pass `start_from = Some("::SomeClass")` for the `nextto`
-/// form, or `None` for plain `next`.  Returns `None` when the chain is
-/// exhausted (a call to `next` past the last provider is a runtime error
-/// in Tcl, which we surface as "no next").
+/// Model TclOO `next` / `nextto`: the *next* class down `class`'s MRO that
+/// provides `method`, after `current_provider` (or from `start_from` for
+/// `nextto`).  Thin wrapper over the shipping
+/// [`ClassHierarchy::next_provider`] (the canonical implementation, now
+/// also used by go-to-definition).
 #[must_use]
 pub fn next_provider(
     hierarchy: &ClassHierarchy,
@@ -914,25 +909,9 @@ pub fn next_provider(
     current_provider: &str,
     start_from: Option<&str>,
 ) -> Option<String> {
-    let mro = hierarchy.mro_map.get(class)?;
-    // For `next`, begin just after `current_provider`.  For `nextto C`,
-    // begin at `C` itself.
-    let anchor = start_from.unwrap_or(current_provider);
-    let anchor_pos = mro.iter().position(|c| c == anchor)?;
-    // Plain `next` steps one past the current provider; `nextto` includes
-    // the named class as a candidate.
-    let scan_from = if start_from.is_some() {
-        anchor_pos
-    } else {
-        anchor_pos + 1
-    };
-    mro.iter().skip(scan_from).find_map(|c| {
-        hierarchy
-            .classes
-            .get(c)
-            .filter(|cd| cd.methods.contains_key(method) || cd.class_methods.contains_key(method))
-            .map(|_| c.clone())
-    })
+    hierarchy
+        .next_provider(class, method, current_provider, start_from)
+        .map(str::to_string)
 }
 
 #[cfg(test)]
