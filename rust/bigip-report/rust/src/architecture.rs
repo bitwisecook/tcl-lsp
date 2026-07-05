@@ -500,6 +500,7 @@ fn assign_tiers(n: usize, links: &[Link], overrides: &BTreeMap<usize, i64>) -> V
 /// Build the `architecture` model object from the shaped device list and an
 /// optional manifest. Auto-detection always runs; the manifest (when present and
 /// well-formed) overrides roles/tiers and augments links.
+#[must_use]
 pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
     let n = devices.len();
 
