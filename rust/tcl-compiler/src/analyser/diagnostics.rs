@@ -303,6 +303,9 @@ impl Analyser {
         // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
 
+        // W250 — instantiating an `oo::abstract` class.
+        self.emit_abstract_instantiation_diagnostics(cu);
+
         // Suppress W123 for command-name
         // heads with partial interpolations like ``foo$suffix``
         // when ``$suffix`` resolves cleanly to a finite set of

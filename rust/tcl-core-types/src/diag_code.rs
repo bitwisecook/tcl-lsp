@@ -432,6 +432,7 @@ diagnostic_codes! {
     W240 => "W240", diag(Warning, true, "Loop condition is a constant false — body never executes.");
     W241 => "W241", diag(Warning, true, "Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.");
     W242 => "W242", diag(Hint, false, "Loop termination cannot be proven — counter not provably modified by the loop body or step.");
+    W250 => "W250", diag(Warning, true, "Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.");
     W300 => "W300", diag(Security, true, "`source` with variable argument — code execution risk.");
     W301 => "W301", diag(Security, true, "`uplevel` with string-built script — injection risk.");
     W302 => "W302", diag(Security, true, "`catch` without result variable — errors are silently swallowed.");

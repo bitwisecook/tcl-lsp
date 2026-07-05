@@ -23,6 +23,35 @@
 use super::{D, codes, fires};
 
 // ---------------------------------------------------------------------------
+// W250 — instantiating an `oo::abstract` class (new / create is a runtime
+// error; abstract classes must be subclassed).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn w250_fires_on_abstract_new_and_create() {
+    for shape in ["Base new", "Base create obj", "set o [Base new]"] {
+        let src = format!("oo::abstract create Base {{}}\n{shape}\n");
+        assert!(
+            fires(&src, D, "W250"),
+            "abstract instantiation `{shape}` did not fire W250: {:?}",
+            codes(&src, D)
+        );
+    }
+}
+
+#[test]
+fn w250_not_on_definition_or_concrete_subclass() {
+    // The `oo::abstract create Base` definition must not fire; a concrete
+    // subclass `Sub` (metaclass oo::class) instantiated normally must not.
+    let src = "oo::abstract create Base {}\noo::class create Sub {\n    superclass Base\n}\nSub new\nset s [Sub create obj]\n";
+    assert!(
+        !fires(src, D, "W250"),
+        "W250 false positive on definition / concrete subclass: {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
 // FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) are method
 // dispatch on the current object, not stray non-literal command words.
 // ---------------------------------------------------------------------------
