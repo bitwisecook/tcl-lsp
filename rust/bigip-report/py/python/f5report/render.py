@@ -35,6 +35,8 @@ from typing import Any
 
 import jinja2
 
+from . import _engine
+
 
 def _jinja_env() -> jinja2.Environment:
     env = jinja2.Environment(
@@ -103,6 +105,8 @@ def render_report(
         _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
     model["report_id"] = report_id
+    # The full f5-query manual, embedded as a reference panel by the console.
+    model["f5q_manual"] = _engine.manual()
     # The whole model is embedded as JSON so the client-side topology / flow /
     # listener views run with no server and no external assets.
     model["model_json"] = _script_safe_json(model)

@@ -298,6 +298,13 @@ pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, 
     serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
 }
 
+/// The full f5-query manual (grammar + builtins + cookbook) for the builder's
+/// reference panel. `topic` is currently ignored (the whole manual is returned).
+#[wasm_bindgen]
+pub fn manual(_topic: &str) -> String {
+    tcl_bigip_report::format_manual()
+}
+
 /// The report engine version string (for the page's status line).
 #[wasm_bindgen]
 pub fn engine_version() -> String {

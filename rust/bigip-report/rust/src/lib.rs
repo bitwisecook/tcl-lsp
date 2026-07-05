@@ -62,5 +62,8 @@ pub use model::{
 };
 pub use architecture::build_architecture;
 pub use query::{ReportError, Source};
+/// The full f5-query manual (grammar + builtins + cookbook), re-exported so the
+/// wasm builder / report can embed a reference panel.
+pub use tcl_bigip_query::manual::format_manual;
 pub use render::{RenderOptions, build_report};
 pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};

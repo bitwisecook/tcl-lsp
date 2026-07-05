@@ -169,6 +169,10 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     let mut ctx: Map<String, J> = data;
     ctx.insert("title".into(), J::String(opts.title.clone()));
     ctx.insert("report_id".into(), J::String(opts.report_id.clone()));
+    ctx.insert(
+        "f5q_manual".into(),
+        J::String(tcl_bigip_query::manual::format_manual()),
+    );
     ctx.insert("model_json".into(), J::String(model_json));
     ctx.insert("report_css".into(), J::String(REPORT_CSS.into()));
     ctx.insert("topology_css".into(), J::String(TOPOLOGY_CSS.into()));

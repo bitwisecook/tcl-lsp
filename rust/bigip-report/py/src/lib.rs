@@ -593,6 +593,13 @@ fn build_architecture(devices_json: &str, manifest: Option<&str>) -> PyResult<St
     serde_json::to_string(&arch).map_err(|e| QueryError::new_err(e.to_string()))
 }
 
+/// The full f5-query manual (grammar + builtins + cookbook), for embedding a
+/// reference panel next to the report's query console.
+#[pyfunction]
+fn manual() -> String {
+    tcl_bigip_query::manual::format_manual()
+}
+
 /// Build the address/port *enrichment* block from the model devices and the
 /// architecture object (zone + CIDR-name labels for addresses, service names
 /// for ports). Reuses the Rust resolver so the Python report matches the native
@@ -628,5 +635,6 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(irule_proc_call_refs, m)?)?;
     m.add_function(wrap_pyfunction!(build_architecture, m)?)?;
     m.add_function(wrap_pyfunction!(build_enrichment, m)?)?;
+    m.add_function(wrap_pyfunction!(manual, m)?)?;
     Ok(())
 }

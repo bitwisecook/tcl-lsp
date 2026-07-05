@@ -464,3 +464,11 @@ html,body{max-width:100%}
   .search-result .sr-dev{grid-row:3;grid-column:1}
   .search-result .sr-tier{grid-row:3;grid-column:2;justify-self:end}
 }
+
+/* ---- embedded f5-query manual panel -------------------------------------- */
+.f5q-manual{margin:18px 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.f5q-manual>summary{padding:12px 16px;cursor:pointer;font-weight:600;color:var(--ink)}
+.f5q-manual>summary:hover{color:var(--accent)}
+.f5q-manual-body{margin:0;padding:0 16px 16px;max-height:70vh;overflow:auto;
+  font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;
+  line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
