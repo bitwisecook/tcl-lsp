@@ -1,13 +1,51 @@
-//! A pure-Rust implementation of Tcl 9's Henry-Spencer Advanced Regular Expression (ARE)
-//! engine. The goal is behavioural fidelity with `tclsh` 9.0 — the same match
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! A pure-Rust implementation of Tcl 9's Advanced Regular Expression (ARE)
+//! dialect. The goal is behavioural fidelity with `tclsh` 9.0 — the same match
 //! positions, submatch participation, [`Regex::nsub`], [`Regex::info`] bits,
-//! and [`ErrorCode`] compile errors — verified against the engine itself
-//! through the `reg.test` corpus (see `tests/`).
+//! and [`ErrorCode`] compile errors.
 //!
-//! The implementation is idiomatic Rust, not a transliteration of the C: the
-//! pattern compiles to a typed [`ast::Node`] tree ([`parser`]) and matches via
-//! a reachable-set simulator plus a submatch dissector ([`exec`]). See those
-//! modules for the algorithmic mapping back to `regcomp.c` / `regexec.c`.
+//! # Relationship to Henry Spencer's engine
+//!
+//! The ARE dialect and its reference implementation are the work of Henry
+//! Spencer (Copyright © 1998, 1999 Henry Spencer). **This crate is an
+//! independent, from-scratch implementation: it shares no source code with
+//! Spencer's C, and it uses a different matching algorithm and different data
+//! structures.** Spencer's engine compiles the pattern to a *colored NFA* and
+//! matches with a lazily-built *DFA superstate cache* plus a recursive
+//! `cdissect` pass (`regcomp.c`, `regc_nfa.c`, `regc_color.c`, `regexec.c`,
+//! `rege_dfa.c`). This crate instead parses to a typed [`ast::Node`] tree
+//! ([`parser`]) and matches it *directly* by reachable-set (Thompson-style)
+//! simulation plus a recursive submatch dissector, with a separate
+//! continuation-passing backtracker for backreferences ([`exec`]). There is no
+//! color map, no NFA of states and arcs, and no DFA construction anywhere in
+//! this crate.
+//!
+//! What this implementation takes from Spencer is the *specification*, not the
+//! code: the ARE syntax and semantics it must reproduce, a few well-known
+//! design ideas it deliberately mirrors (the extent-then-dissect two-phase
+//! structure, and the `x{m,n}` → `x{m-1,n-1} x` bound transform), and the
+//! interface constant values ([`InfoFlag`] / [`ErrorCode`]). Compliance is
+//! verified against Spencer's own regression corpus, `reg.test` (see `tests/`),
+//! which is reproduced verbatim under its original permissive license
+//! (Copyright © 1998, 1999 Henry Spencer) and is **not** covered by this
+//! crate's license. See `DUAL-LICENSING.md` at the repository root.
 
 // Codepoints and octal flag-bit constants are clearer without digit
 // separators; the engine carries codepoints as i64 internally but every
