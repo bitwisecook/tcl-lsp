@@ -89,7 +89,7 @@ export interface HealthContext {
   resolveSemantic(document: TextDocument): SemanticStatus;
   notify(message: string, ...actions: string[]): Thenable<string | undefined>;
   switchLanguage(document: TextDocument, languageId: string): void;
-  enableSemantic(reason: SemanticReason): void;
+  enableSemantic(reason: SemanticReason, document: TextDocument): void;
 }
 
 /** Register the highlighting-health checks against the active editor. */
@@ -190,7 +190,7 @@ async function checkSemanticHighlighting(
     DISMISS_ACTION,
   );
   if (choice === ENABLE_ACTION) {
-    ctx.enableSemantic(status.reason);
+    ctx.enableSemantic(status.reason, document);
   } else if (choice === DISMISS_ACTION) {
     ctx.dismiss(DISMISS_SEMANTIC_OFF);
   }
@@ -207,7 +207,7 @@ function buildProductionContext(context: ExtensionContext): HealthContext {
     notify: (message, ...actions) => window.showWarningMessage(message, ...actions),
     switchLanguage: (document, languageId) =>
       void languages.setTextDocumentLanguage(document, languageId),
-    enableSemantic: (reason) => void enableSemanticHighlighting(reason),
+    enableSemantic: (reason, document) => void enableSemanticHighlighting(reason, document),
   };
 }
 
@@ -299,18 +299,79 @@ function themeSupportsSemanticHighlighting(): boolean | undefined {
   return undefined;
 }
 
-async function enableSemanticHighlighting(reason: SemanticReason): Promise<void> {
-  if (reason === "featureOff") {
-    await workspace
-      .getConfiguration("tclLsp")
-      .update("features.semanticTokens", true, ConfigurationTarget.Global);
-  } else {
-    // Setting this to `true` forces semantic highlighting on regardless of the
-    // theme's opt-in, covering both editorOff and themeUnsupported.
-    await workspace
-      .getConfiguration("editor")
-      .update("semanticHighlighting.enabled", true, ConfigurationTarget.Global);
+/** The subset of `WorkspaceConfiguration.inspect()` scope values we consult. */
+export interface ConfigInspection {
+  workspaceFolderLanguageValue?: unknown;
+  workspaceFolderValue?: unknown;
+  workspaceLanguageValue?: unknown;
+  workspaceValue?: unknown;
+  globalLanguageValue?: unknown;
+  globalValue?: unknown;
+}
+
+export interface EnableTarget {
+  target: ConfigurationTarget;
+  overrideInLanguage: boolean;
+}
+
+/**
+ * Choose where to write `true` so the setting actually becomes effective for the
+ * document. Writing only to Global is wrong: a Workspace/Folder/language-scoped
+ * `false` (or theme-driven `configuredByTheme`) is more specific and would keep
+ * the effective value off. So we override at the *narrowest* scope that
+ * currently forces the value off; if nothing explicitly forces it off (e.g. a
+ * theme-driven default), we override at the narrowest writable scope. Exported
+ * for unit testing.
+ */
+export function chooseEnableTarget(
+  info: ConfigInspection | undefined,
+  isOff: (value: unknown) => boolean,
+  scope: { hasFolder: boolean; hasWorkspace: boolean },
+): EnableTarget {
+  // Scopes ordered most-specific → least-specific (VS Code merge precedence).
+  const scopes: Array<[unknown, ConfigurationTarget, boolean]> = info
+    ? [
+        [info.workspaceFolderLanguageValue, ConfigurationTarget.WorkspaceFolder, true],
+        [info.workspaceFolderValue, ConfigurationTarget.WorkspaceFolder, false],
+        [info.workspaceLanguageValue, ConfigurationTarget.Workspace, true],
+        [info.workspaceValue, ConfigurationTarget.Workspace, false],
+        [info.globalLanguageValue, ConfigurationTarget.Global, true],
+        [info.globalValue, ConfigurationTarget.Global, false],
+      ]
+    : [];
+  const offScope = scopes.find(([value]) => value !== undefined && isOff(value));
+  if (offScope) {
+    return { target: offScope[1], overrideInLanguage: offScope[2] };
   }
+  const target = scope.hasFolder
+    ? ConfigurationTarget.WorkspaceFolder
+    : scope.hasWorkspace
+      ? ConfigurationTarget.Workspace
+      : ConfigurationTarget.Global;
+  return { target, overrideInLanguage: false };
+}
+
+async function enableSemanticHighlighting(
+  reason: SemanticReason,
+  document: TextDocument,
+): Promise<void> {
+  const [section, key, isOff]: [string, string, (value: unknown) => boolean] =
+    reason === "featureOff"
+      ? ["tclLsp", "features.semanticTokens", (value) => value === false]
+      : // editorOff is an explicit `false`; themeUnsupported means the value is
+        // (or defaults to) "configuredByTheme" and the theme doesn't opt in.
+        [
+          "editor",
+          "semanticHighlighting.enabled",
+          (value) => value === false || value === "configuredByTheme",
+        ];
+
+  const config = workspace.getConfiguration(section, document);
+  const { target, overrideInLanguage } = chooseEnableTarget(config.inspect(key), isOff, {
+    hasFolder: workspace.getWorkspaceFolder(document.uri) !== undefined,
+    hasWorkspace: (workspace.workspaceFolders?.length ?? 0) > 0,
+  });
+  await config.update(key, true, target, overrideInLanguage);
   window.showInformationMessage("Semantic highlighting enabled for Tcl.");
 }
 

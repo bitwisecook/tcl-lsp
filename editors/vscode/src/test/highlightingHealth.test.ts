@@ -17,11 +17,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as assert from "assert";
+import { ConfigurationTarget } from "vscode";
 import type { TextDocument } from "vscode";
 import {
   DISMISS_LANGUAGE_MISMATCH,
   HealthContext,
   SemanticStatus,
+  chooseEnableTarget,
   decideSemanticStatus,
   filterOwnedExtensions,
   resetHighlightingHealthSession,
@@ -126,6 +128,51 @@ suite("Highlighting Health — helpers", () => {
     assert.strictEqual(tclLanguageIdForExtension(".irule"), "tcl-irule");
     assert.strictEqual(tclLanguageIdForExtension(".iapp"), "tcl-iapp");
     assert.strictEqual(tclLanguageIdForExtension(".iappimpl"), "tcl-iapp");
+  });
+});
+
+suite("Highlighting Health — enable-target selection", () => {
+  const isFalse = (v: unknown) => v === false;
+  const noScope = { hasFolder: false, hasWorkspace: false };
+
+  test("overrides the narrowest scope that forces the value off, not Global", () => {
+    const t = chooseEnableTarget({ workspaceValue: false, globalValue: false }, isFalse, {
+      hasFolder: false,
+      hasWorkspace: true,
+    });
+    assert.strictEqual(t.target, ConfigurationTarget.Workspace);
+    assert.strictEqual(t.overrideInLanguage, false);
+  });
+
+  test("prefers a language-scoped off value over a resource value at the same scope", () => {
+    const t = chooseEnableTarget(
+      { workspaceFolderLanguageValue: false, workspaceValue: false },
+      isFalse,
+      { hasFolder: true, hasWorkspace: true },
+    );
+    assert.strictEqual(t.target, ConfigurationTarget.WorkspaceFolder);
+    assert.strictEqual(t.overrideInLanguage, true);
+  });
+
+  test("falls back to the narrowest writable scope when nothing is explicitly off", () => {
+    assert.strictEqual(
+      chooseEnableTarget({}, isFalse, { hasFolder: true, hasWorkspace: true }).target,
+      ConfigurationTarget.WorkspaceFolder,
+    );
+    assert.strictEqual(
+      chooseEnableTarget(undefined, isFalse, { hasFolder: false, hasWorkspace: true }).target,
+      ConfigurationTarget.Workspace,
+    );
+    assert.strictEqual(chooseEnableTarget({}, isFalse, noScope).target, ConfigurationTarget.Global);
+  });
+
+  test("treats configuredByTheme as off for the editor-setting predicate", () => {
+    const isEditorOff = (v: unknown) => v === false || v === "configuredByTheme";
+    const t = chooseEnableTarget({ workspaceValue: "configuredByTheme" }, isEditorOff, {
+      hasFolder: false,
+      hasWorkspace: true,
+    });
+    assert.strictEqual(t.target, ConfigurationTarget.Workspace);
   });
 });
 
