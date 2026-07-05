@@ -85,6 +85,7 @@ for historical reference.
 - [W240 — loop condition is constant false](kcs-diagnostic-w240-loop-constant-false.md)
 - [W241 — loop is provably infinite](kcs-diagnostic-w241-loop-provably-infinite.md)
 - [W242 — loop termination not provable (opt-in)](kcs-diagnostic-w242-loop-termination-unprovable.md)
+- [W250 — instantiating an abstract class](kcs-diagnostic-w250-abstract-instantiation.md)
 
 ## Security (W1xx, W3xx)
 
