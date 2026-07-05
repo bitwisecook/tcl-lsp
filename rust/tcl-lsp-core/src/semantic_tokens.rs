@@ -738,7 +738,7 @@ fn insert_ref_var_overrides(
 /// * `variable name ?value name value ...?` at namespace level — the name sits
 ///   at every *even* argument position (0, 2, …); the interleaved values are
 ///   left alone.  (A `variable` *inside a definition body* is a grammar member
-///   handled by [`insert_oo_body_overrides`], where TclOO declares every name
+///   handled by [`insert_oo_body_overrides`], where `TclOO` declares every name
 ///   and snit declares only the leading one.)
 ///
 /// Highlighting only: the analyser already tracks every one of these names via

@@ -103,7 +103,7 @@ struct MemberForm<'a> {
     member: &'a MemberSpec,
     kind: &'a str,
     label: &'a str,
-    /// The member's declared visibility (`"public"` for snit / TclOO; the itcl
+    /// The member's declared visibility (`"public"` for snit / `TclOO`; the itcl
     /// access modifier `public` / `protected` / `private`).
     visibility: &'a str,
 }

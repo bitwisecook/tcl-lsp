@@ -132,7 +132,7 @@ fn non_recursive_proc_returns_none() {
         || result
             .get("ranges")
             .and_then(Value::as_array)
-            .is_none_or(|a| a.is_empty());
+            .is_none_or(std::vec::Vec::is_empty);
     assert!(empty, "{result:?}");
 }
 

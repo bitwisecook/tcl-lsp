@@ -353,7 +353,7 @@ pub struct CommandSpec {
 
     /// Definition-body grammar — `Some` when this command is a class/type
     /// *definer* whose `ArgRole::Body` argument is a definition script (a
-    /// TclOO metaclass `create` body, the bare `oo::define` script form, a
+    /// `TclOO` metaclass `create` body, the bare `oo::define` script form, a
     /// `snit::type` / `snit::widget` body).  The grammar describes the body's
     /// member sub-keywords (`method`, `typemethod`, `constructor`, …) so the
     /// definition-body walker (folding + semantic tokens) recurses and

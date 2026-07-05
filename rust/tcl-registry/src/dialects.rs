@@ -652,7 +652,7 @@ fn detect_content_signals(head: &str) -> Option<&'static str> {
 ///    `.tcl` file's *content* is a stronger signal than its name;
 /// 6. the caller's `default` (the editor / LSP / XDG configuration).
 ///
-/// The BigIP config-object tier (tier between content and extension in the
+/// The `BigIP` config-object tier (tier between content and extension in the
 /// project's model) is applied by the `tcl-bigip` layer, which wraps this
 /// detector — it isn't reachable from the registry crate.
 ///

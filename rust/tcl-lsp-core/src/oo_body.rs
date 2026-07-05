@@ -59,7 +59,7 @@
 //! * Every other command inherits the current grammar, so control-flow nesting
 //!   (`if` / `foreach` / …) around a `method` keeps the class body's context.
 //!
-//! Two TclOO members are structurally irregular and handled directly rather
+//! Two `TclOO` members are structurally irregular and handled directly rather
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
@@ -67,7 +67,7 @@ use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
-/// definer — a command carrying a [`DefinitionBodyGrammar`] (a TclOO metaclass
+/// definer — a command carrying a [`DefinitionBodyGrammar`] (a `TclOO` metaclass
 /// `create`/`new` body, a snit `type`/`widget` body).  For
 /// `oo::define`/`oo::objdefine`, only the bare *script* form
 /// (`oo::define Target { script }`) is a definition body; the member forms
@@ -127,7 +127,7 @@ pub fn is_member(grammar: &DefinitionBodyGrammar, command: &str) -> bool {
 
 /// Body-argument indices (into `args`, excluding the command head) for a member
 /// call under `grammar`.  Covers the flat members via the grammar's argument
-/// roles plus the two irregular TclOO forms.  Empty when `command` is not a
+/// roles plus the two irregular `TclOO` forms.  Empty when `command` is not a
 /// member or has no body.
 #[must_use]
 pub fn member_body_indices(

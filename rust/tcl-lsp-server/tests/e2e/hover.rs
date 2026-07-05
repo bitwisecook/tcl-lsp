@@ -230,7 +230,7 @@ fn var_hover() {
     lsp.open_ready(&uri, "set x 42\nputs $x\n");
     let text = hover(&mut lsp, &uri, 1, 7);
     assert!(text.contains("Variable"), "hover: {text:?}");
-    assert!(text.contains("x"), "hover: {text:?}");
+    assert!(text.contains('x'), "hover: {text:?}");
 }
 
 #[test]

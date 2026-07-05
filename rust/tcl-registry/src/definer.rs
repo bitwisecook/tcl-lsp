@@ -47,12 +47,12 @@ pub enum MemberKind {
     /// Ordinary member — `arg_roles` give the argument layout directly
     /// (`method NAME PARAMS BODY`, `variable v`, …).
     Flat,
-    /// A prefix wrapper around an inner member keyword at argument 0: TclOO's
+    /// A prefix wrapper around an inner member keyword at argument 0: `TclOO`'s
     /// `self method …` and itcl's access modifiers `public`/`protected`/
     /// `private method …`.  The inner member's own roles apply shifted one
     /// place right (past the wrapper word).
     Wrapper,
-    /// Flag-keyed bodies rather than positional ones: TclOO's
+    /// Flag-keyed bodies rather than positional ones: `TclOO`'s
     /// `property NAME ?-get BODY? ?-set BODY?`.
     FlagKeyed,
 }
@@ -118,13 +118,13 @@ impl MemberSpec {
 
 /// Which class-system a definer belongs to.  Distinguishes definers that share
 /// the `definition_body` marker but need a different analyser body-parser /
-/// instance-creation shape (TclOO's `metaclass create Name { … }` vs snit's
+/// instance-creation shape (`TclOO`'s `metaclass create Name { … }` vs snit's
 /// `snit::type Name { … }`).  Consumers that only walk members (folding,
 /// semantic tokens) never read this; the analyser dispatches on it instead of
 /// hardcoding definer names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DefinerFamily {
-    /// TclOO metaclasses and the `oo::define` / `oo::objdefine` script form.
+    /// `TclOO` metaclasses and the `oo::define` / `oo::objdefine` script form.
     TclOo,
     /// snit `type` / `widget` / `widgetadaptor`.
     Snit,
@@ -172,7 +172,7 @@ impl DefinitionBodyGrammar {
 // member is described here.
 // ---------------------------------------------------------------------------
 
-/// `method NAME PARAMS BODY` — shared by TclOO and snit.
+/// `method NAME PARAMS BODY` — shared by `TclOO` and snit.
 const METHOD_ROLES: &[(u8, ArgRole)] =
     &[(0, ArgRole::Name), (1, ArgRole::ParamList), (2, ArgRole::Body)];
 /// `constructor PARAMS BODY`.
@@ -214,7 +214,7 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flag_keyed("property"),
 ];
 
-/// The definition-body grammar for every TclOO metaclass and the bare
+/// The definition-body grammar for every `TclOO` metaclass and the bare
 /// `oo::define` / `oo::objdefine` script form.
 pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::TclOo,

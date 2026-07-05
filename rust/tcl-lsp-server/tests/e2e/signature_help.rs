@@ -25,7 +25,7 @@ use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 
-/// The `documentation` text of a signature (string or MarkupContent).
+/// The `documentation` text of a signature (string or `MarkupContent`).
 fn doc_text(sig: &Value) -> String {
     match sig.get("documentation") {
         Some(Value::String(s)) => s.clone(),
@@ -45,7 +45,7 @@ fn is_empty(result: &Value) -> bool {
         Value::Object(o) => o
             .get("signatures")
             .and_then(Value::as_array)
-            .is_none_or(|a| a.is_empty()),
+            .is_none_or(std::vec::Vec::is_empty),
         _ => true,
     }
 }

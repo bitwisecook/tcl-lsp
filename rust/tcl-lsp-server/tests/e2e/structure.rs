@@ -203,11 +203,10 @@ fn partial_match() {
     let result = lsp.workspace_symbols("calc");
     let found = result
         .as_array()
-        .map(|arr| {
+        .is_some_and(|arr| {
             arr.iter()
                 .any(|s| s.get("name").and_then(Value::as_str) == Some("calculate_total_zzz"))
-        })
-        .unwrap_or(false);
+        });
     assert!(found);
 }
 
@@ -219,10 +218,9 @@ fn no_match() {
     let result = lsp.workspace_symbols("zzz_no_such_symbol_qqq");
     let all_ne = result
         .as_array()
-        .map(|arr| {
+        .map_or(true, |arr| {
             arr.iter()
                 .all(|s| s.get("name").and_then(Value::as_str) != Some("zzz_no_such_symbol_qqq"))
-        })
-        .unwrap_or(true);
+        });
     assert!(all_ne);
 }

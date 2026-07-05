@@ -50,7 +50,7 @@ use serde_json::{Value, json};
 /// Default per-request timeout, matching the pytest harness (`timeout=30.0`).
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// Process-wide counter so `unique_uri` never collides across tests in one
 /// integration-test binary (each binary is its own process).
@@ -295,12 +295,10 @@ impl Lsp {
                     return resp.get("result").cloned().unwrap_or(Value::Null);
                 }
             }
-            if Instant::now() >= deadline {
-                panic!(
-                    "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
-                    self.stderr_text()
-                );
-            }
+            assert!(Instant::now() < deadline, 
+                "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
+                self.stderr_text()
+            );
             std::thread::sleep(Duration::from_millis(2));
         }
     }
@@ -419,11 +417,10 @@ impl Lsp {
                 if params.get("uri").and_then(Value::as_str) != Some(uri) {
                     continue;
                 }
-                if let Some(v) = version {
-                    if params.get("version").and_then(Value::as_i64) != Some(v) {
+                if let Some(v) = version
+                    && params.get("version").and_then(Value::as_i64) != Some(v) {
                         continue;
                     }
-                }
                 matched = Some(
                     params
                         .get("diagnostics")
@@ -436,9 +433,7 @@ impl Lsp {
                 return diags;
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}");
-            }
+            assert!(!remaining.is_zero(), "no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}");
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -468,9 +463,7 @@ impl Lsp {
                 }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no window/logMessage containing all of {needles:?} within {timeout:?}");
-            }
+            assert!(!remaining.is_zero(), "no window/logMessage containing all of {needles:?} within {timeout:?}");
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -492,9 +485,7 @@ impl Lsp {
                 return note.clone();
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no {method:?} notification within {timeout:?}");
-            }
+            assert!(!remaining.is_zero(), "no {method:?} notification within {timeout:?}");
             let (guard, _) = self
                 .shared
                 .notify_cv

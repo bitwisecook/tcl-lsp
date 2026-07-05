@@ -287,12 +287,9 @@ fn builtin_command_hover_text(
     // `test` under `namespace import ::tcltest::*` hovers as `tcltest::test`
     // (mirrors the analyser's imported-command body resolution, scoped + ordered
     // to imports actually in effect at the cursor).
-    let (name, spec): (Cow<'_, str>, _) = match registry.get(name) {
-        Some(spec) => (Cow::Borrowed(name), spec),
-        None => {
-            let (qual, spec) = resolve_imported_command(registry, name, analysis, cursor_offset)?;
-            (Cow::Owned(qual), spec)
-        }
+    let (name, spec): (Cow<'_, str>, _) = if let Some(spec) = registry.get(name) { (Cow::Borrowed(name), spec) } else {
+        let (qual, spec) = resolve_imported_command(registry, name, analysis, cursor_offset)?;
+        (Cow::Owned(qual), spec)
     };
     let name = name.as_ref();
     let hover = spec.hover.as_ref()?;
