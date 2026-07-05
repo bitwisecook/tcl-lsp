@@ -71,6 +71,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -78,6 +80,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -95,6 +99,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -102,6 +108,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -178,6 +186,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-namespace",
@@ -185,6 +195,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "ns",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -192,6 +204,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT

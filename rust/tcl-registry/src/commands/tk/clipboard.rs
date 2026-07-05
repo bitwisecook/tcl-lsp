@@ -58,6 +58,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "window",
         detail: "Specifies the display for the clipboard operation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -65,6 +67,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "format",
         detail: "Specifies the representation format for the data (append).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-type",
@@ -72,6 +76,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "type",
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

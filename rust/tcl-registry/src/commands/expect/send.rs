@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Send to the specified spawn id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-raw",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Send without any translation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-null",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Send null characters.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-break",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Send a break condition.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-s",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Send slowly (obey send_slow parameters).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-h",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Send as if a human were typing (obey send_human parameters).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "--",
@@ -67,6 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "End of options.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

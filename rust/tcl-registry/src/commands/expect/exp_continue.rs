@@ -24,6 +24,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "",
     detail: "Do not restart the timeout timer.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

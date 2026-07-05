@@ -24,6 +24,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "file",
     detail: "Log diagnostics to the specified file.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

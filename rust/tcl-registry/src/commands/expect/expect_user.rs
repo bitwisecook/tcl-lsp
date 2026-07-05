@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match as regular expression.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ex",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match as exact string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gl",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match as glob (default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Case-insensitive matching.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-timeout",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "seconds",
         detail: "Override the timeout.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-indices",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Store match indices.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-notransfer",
@@ -67,6 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not consume matched output.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

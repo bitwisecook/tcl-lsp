@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "addr",
         detail: "Client-side local interface.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-myport",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "port",
         detail: "Client-side local port.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-async",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Connect asynchronously.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-server",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "command",
         detail: "Server accept callback.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-reuseaddr",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Allow server address reuse (default 1).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-reuseport",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Allow server port reuse (default 0).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

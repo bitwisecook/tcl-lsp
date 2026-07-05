@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "string",
         detail: "Text to display in the label.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-textvariable",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "varName",
         detail: "Variable whose value is used as the label text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-image",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "imageName",
         detail: "Image to display in the label.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-compound",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "compoundType",
         detail: "How to display image relative to text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "width",
         detail: "Desired width of the label.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "anchorPos",
         detail: "How the text or image is positioned within the widget.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-justify",
@@ -74,6 +86,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "justification",
         detail: "How to justify multiple lines of text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-wraplength",
@@ -81,6 +95,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "length",
         detail: "Maximum line length for word wrapping.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-style",
@@ -88,6 +104,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "style",
         detail: "Style to use for the widget.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-class",
@@ -95,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "className",
         detail: "Widget class name for option-database lookups.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -102,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "cursor",
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -109,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "focusSpec",
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-padding",
@@ -116,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "padSpec",
         detail: "Internal padding around the widget content.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-underline",
@@ -123,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "index",
         detail: "Index of the character to underline for mnemonic activation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -130,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "relief",
         detail: "Border relief style for the label.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -137,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "font",
         detail: "Font to use for the label text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-foreground",
@@ -144,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "colour",
         detail: "Foreground colour for the label text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
@@ -151,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "colour",
         detail: "Background colour for the label.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

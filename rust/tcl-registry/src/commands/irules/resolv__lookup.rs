@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Query for type A (IPv4) records.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-aaaa",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Query for type AAAA (IPv6) records.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ptr",
@@ -56,6 +60,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Query for PTR records.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-txt",
@@ -63,6 +69,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Query for TXT records.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-mx",
@@ -70,6 +78,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Query for MX records.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

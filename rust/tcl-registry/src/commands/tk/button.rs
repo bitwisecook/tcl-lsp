@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Text to display in the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-textvariable",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Name of a variable whose value will be used as the button text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Tcl command to invoke when the button is pressed.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-state",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "State of the button: normal, active, or disabled.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired width of the button in characters (text) or pixels (image).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-height",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired height of the button in lines (text) or pixels (image).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -74,6 +86,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -81,6 +95,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
@@ -88,6 +104,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Normal background colour of the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fg",
@@ -95,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -foreground.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-foreground",
@@ -102,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Normal foreground colour of the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -109,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Font to use for the button text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-image",
@@ -116,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Image to display in the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bitmap",
@@ -123,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Bitmap to display in the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-compound",
@@ -130,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether to display both image and text: none, bottom, top, left, right, or center.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-padx",
@@ -137,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Extra horizontal padding inside the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-pady",
@@ -144,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Extra vertical padding inside the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -151,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "How information is positioned: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-justify",
@@ -158,6 +194,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Justification of multi-line text: left, center, or right.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-wraplength",
@@ -165,6 +203,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Maximum line length for word wrapping, in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-underline",
@@ -172,6 +212,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Index of character to underline for keyboard traversal (0-based).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -179,6 +221,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour when the button is active (mouse over).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activeforeground",
@@ -186,6 +230,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour when the button is active.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -193,6 +239,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour when the button is disabled.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -200,6 +248,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the button does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -207,6 +257,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the button has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -214,6 +266,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -221,6 +275,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -228,6 +284,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the button accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -235,6 +293,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds before auto-repeat begins when button is held.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -242,6 +302,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds between auto-repeat invocations.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-overrelief",
@@ -249,6 +311,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Relief to use when the mouse cursor is over the button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-default",
@@ -256,6 +320,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Default ring state: normal, active, or disabled.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

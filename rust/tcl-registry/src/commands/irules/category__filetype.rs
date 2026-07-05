@@ -52,6 +52,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "TYPE",
                 detail: "Variable name to store MIME type.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-mimesubtype",
@@ -59,6 +61,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SUBTYPE",
                 detail: "Variable name to store MIME subtype.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

@@ -34,6 +34,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return all matches.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-value",
@@ -41,6 +43,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value instead of name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-name",
@@ -48,6 +52,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-index",
@@ -55,6 +61,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return index.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-element",
@@ -62,6 +70,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return full element.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nocase",
@@ -69,6 +79,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Case-insensitive comparison.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -76,6 +88,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -93,6 +107,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return all matches.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-value",
@@ -100,6 +116,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value instead of name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-name",
@@ -107,6 +125,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-index",
@@ -114,6 +134,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return index.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-element",
@@ -121,6 +143,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return full element.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nocase",
@@ -128,6 +152,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Case-insensitive comparison.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -135,6 +161,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -160,6 +188,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value instead of name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-name",
@@ -167,6 +197,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -174,6 +206,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -215,6 +249,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Case-insensitive comparison.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-list",
@@ -222,6 +258,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value always as a list.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -229,6 +267,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -246,6 +286,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Case-insensitive comparison.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-list",
@@ -253,6 +295,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value always as a list.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -260,6 +304,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -283,6 +329,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return value instead of name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-name",
@@ -290,6 +338,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Return name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -297,6 +347,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -347,6 +399,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return all matches.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-value",
@@ -354,6 +408,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return value instead of name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-name",
@@ -361,6 +417,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return name.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-index",
@@ -368,6 +426,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return index.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-element",
@@ -375,6 +435,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return full element.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nocase",
@@ -382,6 +444,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Case-insensitive comparison.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-list",
@@ -389,6 +453,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return value always as a list.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         subcommands: SUBCOMMANDS,

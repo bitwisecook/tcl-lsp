@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Orientation of the scrollbar: horizontal or vertical.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Command prefix to invoke when the scrollbar is moved.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired narrow dimension of the scrollbar in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour of the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour when the mouse is over the scrollbar elements.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-troughcolor",
@@ -74,6 +86,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the trough area behind the slider.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -81,6 +95,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -88,6 +104,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-elementborderwidth",
@@ -95,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the borders around the internal elements of the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-jump",
@@ -102,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether to delay updates until the mouse button is released.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activerelief",
@@ -109,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Relief to use for the active element of the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -116,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -123,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the scrollbar accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -130,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the scrollbar does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -137,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the scrollbar has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -144,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the scrollbar.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-repeatdelay",
@@ -151,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds before auto-repeat begins when an arrow is held.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-repeatinterval",
@@ -158,6 +194,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds between auto-repeat invocations.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

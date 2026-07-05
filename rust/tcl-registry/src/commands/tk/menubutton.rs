@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Text to display in the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-textvariable",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Name of a variable whose value will be used as the menubutton text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-menu",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Path name of the menu widget to post when the menubutton is pressed.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-direction",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Direction to post the menu: above, below, flush, left, or right.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-image",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Image to display in the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bitmap",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Bitmap to display in the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-compound",
@@ -74,6 +86,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether to display both image and text: none, bottom, top, left, right, or center.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -81,6 +95,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired width of the menubutton in characters (text) or pixels (image).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-height",
@@ -88,6 +104,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired height of the menubutton in lines (text) or pixels (image).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -95,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "How information is positioned: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-justify",
@@ -102,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Justification of multi-line text: left, center, or right.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-wraplength",
@@ -109,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Maximum line length for word wrapping, in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-underline",
@@ -116,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Index of character to underline for keyboard traversal (0-based).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-state",
@@ -123,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "State of the menubutton: normal, active, or disabled.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -130,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -137,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fg",
@@ -144,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -foreground.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -151,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Font to use for the menubutton text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-padx",
@@ -158,6 +194,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Extra horizontal padding inside the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-pady",
@@ -165,6 +203,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Extra vertical padding inside the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -172,6 +212,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour when the menubutton is active (mouse over).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activeforeground",
@@ -179,6 +221,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour when the menubutton is active.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -186,6 +230,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour when the menubutton is disabled.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -193,6 +239,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the menubutton does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -200,6 +248,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the menubutton has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -207,6 +257,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -214,6 +266,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the menubutton.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -221,6 +275,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the menubutton accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-indicatoron",
@@ -228,6 +284,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether to display a small indicator showing the menu direction.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

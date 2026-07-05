@@ -42,6 +42,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -49,6 +51,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "mode",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -56,6 +60,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "size",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -63,6 +69,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "encoding",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -70,6 +78,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "chars",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-translation",
@@ -77,6 +87,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "mode",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
     OptionSpec {
@@ -85,6 +97,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-keepalive",
@@ -92,6 +106,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-inputmode",
@@ -99,6 +115,8 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         value_hint: "mode",
         detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
     },
 ];
 
@@ -440,6 +458,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Set blocking mode.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buffering",
@@ -447,6 +467,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "mode",
         detail: "Set buffering mode (full, line, none).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buffersize",
@@ -454,6 +476,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "size",
         detail: "Set buffer size in bytes.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-encoding",
@@ -461,6 +485,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "encoding",
         detail: "Set character encoding.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-eofchar",
@@ -468,6 +494,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "chars",
         detail: "Set end-of-file character(s).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-profile",
@@ -475,6 +503,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "profile",
         detail: "Set encoding profile (strict, tcl8, replace).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-translation",
@@ -482,6 +512,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "mode",
         detail: "Set line-ending translation mode.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

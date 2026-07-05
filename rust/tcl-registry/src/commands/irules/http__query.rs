@@ -32,6 +32,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Return the canonicalised query (URL evasion patterns rejected).",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Returns or sets the query part of the HTTP request.",

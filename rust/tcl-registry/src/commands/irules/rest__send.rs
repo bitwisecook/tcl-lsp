@@ -41,6 +41,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "METHOD",
             detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

@@ -44,6 +44,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "ALG",
                 detail: "Hash algorithm.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ctx",
@@ -51,6 +53,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "CTX_VAR",
                 detail: "Context variable for multi-step operations.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-final",
@@ -58,6 +62,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Finalize context-based operation.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

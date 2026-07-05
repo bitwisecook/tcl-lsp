@@ -178,6 +178,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the menu should include a tear-off entry at the top.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-title",
@@ -185,6 +187,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Title string for the tear-off menu window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-type",
@@ -192,6 +196,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Type of the menu: menubar, tearoff, or normal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -199,6 +205,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
@@ -206,6 +214,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour of the menu.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fg",
@@ -213,6 +223,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -foreground.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-foreground",
@@ -220,6 +232,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour for menu entries.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -227,6 +241,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Font to use for text in the menu.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activebackground",
@@ -234,6 +250,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour for the active menu entry.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activeforeground",
@@ -241,6 +259,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour for the active menu entry.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-activeborderwidth",
@@ -248,6 +268,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border drawn around active entries.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-disabledforeground",
@@ -255,6 +277,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour for disabled menu entries.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectcolor",
@@ -262,6 +286,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the indicator for checkbutton and radiobutton entries.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -269,6 +295,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -276,6 +304,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around the menu.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-postcommand",
@@ -283,6 +313,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Tcl command to invoke just before the menu is posted.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-tearoffcommand",
@@ -290,6 +322,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Tcl command to invoke when the menu is torn off.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -297,6 +331,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the menu.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -304,6 +340,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the menu accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

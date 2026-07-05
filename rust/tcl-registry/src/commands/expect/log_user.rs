@@ -24,6 +24,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "",
     detail: "Return current setting.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

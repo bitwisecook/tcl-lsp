@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Suppress echoing of the command.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-console",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Redirect console output to spawn.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ignore",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "signal",
         detail: "Ignore the named signal in the spawned process.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-leaveopen",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Leave the file descriptor open.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-pty",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Open a pty for the process.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nottycopy",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not copy tty modes.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nottyinit",
@@ -67,6 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not initialise the tty.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-open",
@@ -74,6 +88,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "fileId",
         detail: "Use an already-open file id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-trap",
@@ -81,6 +97,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Enable signal trapping.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

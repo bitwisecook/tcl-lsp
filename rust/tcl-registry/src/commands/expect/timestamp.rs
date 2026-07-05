@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "N",
         detail: "Specify epoch seconds instead of current time.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "fmt",
         detail: "strftime-style format string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Use GMT instead of local time.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

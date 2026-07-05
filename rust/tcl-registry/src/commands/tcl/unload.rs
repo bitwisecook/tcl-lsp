@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Suppresses all error messages.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-keeplibrary",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "This switch will prevent unload from issuing the operating system call that will unload the library from the process.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "--",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Marks the end of switches.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -35,6 +35,8 @@ static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
     value_hint: "PROFILE",
     detail: "Encoding profile used for invalid input.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 /// One `unicode to<form>` normalization subcommand: `?-profile PROFILE? STRING`

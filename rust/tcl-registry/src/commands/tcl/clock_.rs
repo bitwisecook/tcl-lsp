@@ -34,6 +34,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "seconds",
         detail: "Base date/time used for partial input.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -41,6 +43,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "format",
         detail: "Explicit format string (defaults to free-form parser).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -48,6 +52,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Use UTC instead of local time.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-locale",
@@ -55,6 +61,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "locale",
         detail: "Locale for month / day-of-week names.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -62,6 +70,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "tz",
         detail: "Time zone for interpretation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     // `-validate` is Tcl 9.0+ (TIP 532).
     OptionSpec {
@@ -70,6 +80,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Validate the input date/time strictly (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
     },
 ];
 
@@ -298,6 +310,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "timeVal",
         detail: "Base time for relative scanning.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -305,6 +319,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "format",
         detail: "strftime-style format string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -312,6 +328,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Use GMT instead of local time.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-locale",
@@ -319,6 +337,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "locale",
         detail: "Locale for month/day names.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -326,6 +346,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "zone",
         detail: "Time zone for conversion.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-validate",
@@ -333,6 +355,8 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Validate date fields strictly.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

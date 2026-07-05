@@ -41,6 +41,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "IPFIX_POS",
             detail: "Position index for duplicate field types.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

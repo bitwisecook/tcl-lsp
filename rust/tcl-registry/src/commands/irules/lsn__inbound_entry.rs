@@ -44,6 +44,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Option -mirror.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,

@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Starting value for the numeric range.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-to",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Ending value for the numeric range.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-increment",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Amount to increment or decrement the value on each arrow press.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-values",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "List of values to cycle through instead of a numeric range.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-textvariable",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Name of a variable linked to the spinbox's contents.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired width of the spinbox in average-size characters.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-state",
@@ -74,6 +86,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "State of the spinbox: normal, disabled, or readonly.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -81,6 +95,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Format string for displaying the value (e.g. %5.2f).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-wrap",
@@ -88,6 +104,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the value wraps around when the range limit is reached.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
@@ -95,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Tcl command to invoke when the value is changed via the arrows.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-validate",
@@ -102,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Validation mode: none, focus, focusin, focusout, key, or all.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-validatecommand",
@@ -109,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-invalidcommand",
@@ -116,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Script to evaluate when validation fails.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -123,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Font to use for text in the spinbox.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -130,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fg",
@@ -137,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -foreground.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-readonlybackground",
@@ -144,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour when the spinbox is in readonly state.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buttonbackground",
@@ -151,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour of the increment/decrement buttons.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buttoncursor",
@@ -158,6 +194,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the buttons.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buttondownrelief",
@@ -165,6 +203,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Relief of the down (decrement) button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-buttonuprelief",
@@ -172,6 +212,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Relief of the up (increment) button.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -179,6 +221,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectbackground",
@@ -186,6 +230,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour for selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectborderwidth",
@@ -193,6 +239,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectforeground",
@@ -200,6 +248,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour for selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertbackground",
@@ -207,6 +257,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertborderwidth",
@@ -214,6 +266,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertofftime",
@@ -221,6 +275,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertontime",
@@ -228,6 +284,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertwidth",
@@ -235,6 +293,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-xscrollcommand",
@@ -242,6 +302,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-exportselection",
@@ -249,6 +311,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -256,6 +320,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the spinbox.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -263,6 +329,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the spinbox accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -270,6 +338,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the spinbox does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -277,6 +347,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the spinbox has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -284,6 +356,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the spinbox.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

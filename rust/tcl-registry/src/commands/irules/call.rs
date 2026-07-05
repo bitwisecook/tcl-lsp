@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Enable debug mode.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,

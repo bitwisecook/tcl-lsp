@@ -44,6 +44,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "ALG",
                 detail: "Verification algorithm.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ctx",
@@ -51,6 +53,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "CTX_VAR",
                 detail: "Context variable for multi-step operations.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-final",
@@ -58,6 +62,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Finalize context-based operation.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-key",
@@ -65,6 +71,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "KEY",
                 detail: "Binary key.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-keyhex",
@@ -72,6 +80,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "KEY_HEX",
                 detail: "Hex-encoded key.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-signature",
@@ -79,6 +89,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SIGNATURE",
                 detail: "Signature to verify against.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

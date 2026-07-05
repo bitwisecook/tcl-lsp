@@ -65,6 +65,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "window",
         detail: "Specifies the display for the selection operation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selection",
@@ -72,6 +74,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "selection",
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-type",
@@ -79,6 +83,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "type",
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
@@ -86,6 +92,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "format",
         detail: "Specifies the representation format for the selection data.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
@@ -93,6 +101,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "command",
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

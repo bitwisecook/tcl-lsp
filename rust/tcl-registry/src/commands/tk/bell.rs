@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "window",
         detail: "Specifies the display on which to ring the bell.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nice",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not reset the screen saver when ringing the bell.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

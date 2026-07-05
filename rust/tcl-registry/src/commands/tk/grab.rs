@@ -64,6 +64,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "",
     detail: "Make the grab global (applies to all displays).",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

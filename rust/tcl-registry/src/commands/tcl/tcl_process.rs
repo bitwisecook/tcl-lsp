@@ -61,6 +61,8 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         value_hint: "",
         detail: "Block until status is available.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "--",
@@ -68,6 +70,8 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         value_hint: "",
         detail: "Marks end of switches.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

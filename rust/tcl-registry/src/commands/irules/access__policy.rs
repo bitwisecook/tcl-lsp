@@ -46,6 +46,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "SESSION_ID",
             detail: "Session ID.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -67,6 +69,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "SESSION_ID",
             detail: "Session ID.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,

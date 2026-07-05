@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Wait for the specified spawn id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nowait",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Non-blocking wait.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Append to existing log file.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-noappend",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Overwrite existing log file.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-open",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "fileId",
         detail: "Log to an already-open Tcl file id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-leaveopen",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Leave the file open on close.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-info",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Return current log file settings.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

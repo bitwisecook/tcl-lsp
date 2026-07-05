@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "colour",
         detail: "Initial colour to display in the chooser.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-parent",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "window",
         detail: "Parent window for the dialogue.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-title",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "titleString",
         detail: "Title string for the dialogue window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "command",
         detail: "Register a handler to run at exit.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-noexit",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Prepare for exit without exiting.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

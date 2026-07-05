@@ -51,6 +51,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Evaluate L7 ACLs.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,

@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "MSEC",
                 detail: "Timeout in milliseconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

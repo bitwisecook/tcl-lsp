@@ -55,6 +55,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-keepnewline",
@@ -62,6 +64,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -69,6 +73,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet::brief(

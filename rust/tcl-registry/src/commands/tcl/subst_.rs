@@ -33,6 +33,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocommands",
@@ -40,6 +42,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-novariables",
@@ -47,6 +51,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     // Tcl 9.1 (TIP) adds positive forms that enable *only* the named
     // substitution.  Positive and negated options may not be combined in one
@@ -57,6 +63,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Enable only backslash substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-commands",
@@ -64,6 +72,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Enable only command substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-variables",
@@ -71,6 +81,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Enable only variable substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -83,6 +83,19 @@ pub struct OptionSpec {
     /// -validate` is Tcl 9.0+) so the option doesn't surface in
     /// older dialects.
     pub dialects: Option<DialectSet>,
+    /// Documented alternate spellings Tcl accepts for this same option
+    /// (e.g. `-bd` for `-borderwidth`, `-bg` for `-background`).  These are
+    /// *explicit* aliases the command's own option table recognises — not the
+    /// general unambiguous-prefix matching Tcl also allows.  Validation,
+    /// value-arity, and option lookup treat an alias exactly like `name`;
+    /// completion offers only the canonical `name`.
+    pub aliases: &'static [&'static str],
+    /// Minimum *package* version that introduced this option, as a dotted Tcl
+    /// version string (e.g. `entry -placeholder` needs Tk `8.7`).  `None`
+    /// means "present in every version of the owning package".  Gated against
+    /// the version resolved from `package require` — orthogonal to `dialects`
+    /// (which gates on the Tcl *core* version).
+    pub min_version: Option<&'static str>,
 }
 
 impl OptionSpec {
@@ -108,6 +121,26 @@ impl OptionSpec {
             return true;
         };
         parent.contains(active)
+    }
+
+    /// Whether `option_name` is this option's canonical name or an alias.
+    #[must_use]
+    pub fn matches(&self, option_name: &str) -> bool {
+        self.name == option_name || self.aliases.contains(&option_name)
+    }
+
+    /// Whether this option exists given the resolved *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor derived from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` (no version constraint known) is permissive; an option with no
+    /// `min_version` is always available.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        match (self.min_version, package_version) {
+            (Some(min), Some(have)) => crate::version::meets_min(have, min),
+            _ => true,
+        }
     }
 }
 
@@ -160,6 +193,8 @@ mod tests {
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         };
         // No parent: always available.
         assert!(opt.supports_dialect(Some(DialectSet::TCL84), None));
@@ -181,6 +216,8 @@ mod tests {
             value_hint: "int",
             detail: "",
             dialects: Some(DialectSet::TCL86_PLUS),
+            aliases: &[],
+            min_version: None,
         };
         assert!(opt.supports_dialect(Some(DialectSet::TCL86), Some(DialectSet::ALL_TCL)));
         assert!(opt.supports_dialect(Some(DialectSet::TCL90), Some(DialectSet::ALL_TCL)));
@@ -198,6 +235,8 @@ mod tests {
             value_hint: "",
             detail: "",
             dialects: Some(DialectSet::TCL90),
+            aliases: &[],
+            min_version: None,
         };
         assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
     }

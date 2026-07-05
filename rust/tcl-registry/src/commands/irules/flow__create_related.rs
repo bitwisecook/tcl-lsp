@@ -54,6 +54,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Option -translation-loose.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-hairpin",
@@ -61,6 +63,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Option -hairpin.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

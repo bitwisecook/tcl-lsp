@@ -24,6 +24,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "spawn_id",
     detail: "Query the specified spawn id.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

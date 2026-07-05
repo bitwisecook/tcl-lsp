@@ -28,6 +28,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Compare as ASCII strings (the default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-dictionary",
@@ -35,6 +37,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Compare using dictionary-style ordering (case-insensitive, embedded numbers).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-integer",
@@ -42,6 +46,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Compare elements as integers.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-real",
@@ -49,6 +55,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Compare elements as floating-point values.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -56,6 +64,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Case-insensitive comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-increasing",
@@ -63,6 +73,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Sort in increasing order (the default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-decreasing",
@@ -70,6 +82,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Sort in decreasing order.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-indices",
@@ -77,6 +91,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Return the indices of the sorted elements rather than the elements.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-unique",
@@ -84,6 +100,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Retain only the last of a run of equal elements.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
@@ -91,6 +109,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "cmdPrefix",
         detail: "Use a custom comparison command prefix.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-index",
@@ -98,6 +118,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "index",
         detail: "Sort on a sub-element selected by index path.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-stride",
@@ -105,6 +127,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "length",
         detail: "Treat the list as groups of this many elements and sort by group.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -46,6 +46,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "dir",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-join",
@@ -53,6 +55,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nocomplain",
@@ -60,6 +64,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-path",
@@ -67,6 +73,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "pathPrefix",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-tails",
@@ -74,6 +82,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-types",
@@ -81,6 +91,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "typeList",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -88,6 +100,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet {

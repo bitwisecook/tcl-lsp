@@ -34,6 +34,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Create a flow-scoped session.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-timeout",
@@ -41,6 +43,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SECONDS",
                 detail: "Session timeout in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-lifetime",
@@ -48,6 +52,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SECONDS",
                 detail: "Session lifetime in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -71,6 +77,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SESSION_ID",
                 detail: "Session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-timeout",
@@ -78,6 +86,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SECONDS",
                 detail: "Session timeout in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-lifetime",
@@ -85,6 +95,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SECONDS",
                 detail: "Session lifetime in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-remaining",
@@ -92,6 +104,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Remaining time.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -115,6 +129,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SESSION_ID",
                 detail: "Session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-state_allow",
@@ -122,6 +138,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Check for allow state.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-state_deny",
@@ -129,6 +147,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Check for deny state.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-state_redirect",
@@ -136,6 +156,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Check for redirect state.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-state_inprogress",
@@ -143,6 +165,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Check for in-progress state.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -165,6 +189,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SESSION_ID",
                 detail: "Session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-secure",
@@ -172,6 +198,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Access secure session data.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-config",
@@ -179,6 +207,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "Access config session data.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ssid",
@@ -186,6 +216,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "SESSION_ID",
                 detail: "Sub-session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -193,6 +225,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         arg_values: &[(
@@ -228,6 +262,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "SESSION_ID",
             detail: "Session ID.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -253,6 +289,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+// Data-table constructor: inline option specs (each carrying alias/version
+// metadata) push this past the pedantic line cap.
+#[allow(clippy::too_many_lines)]
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::session",
@@ -282,6 +321,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Create a flow-scoped session.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-timeout",
@@ -289,6 +330,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SECONDS",
                 detail: "Session timeout in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-lifetime",
@@ -296,6 +339,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SECONDS",
                 detail: "Session lifetime in seconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-sid",
@@ -303,6 +348,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SESSION_ID",
                 detail: "Session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-remaining",
@@ -310,6 +357,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Remaining time.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-secure",
@@ -317,6 +366,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Access secure session data.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-config",
@@ -324,6 +375,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Access config session data.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ssid",
@@ -331,6 +384,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SESSION_ID",
                 detail: "Sub-session ID.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         subcommands: SUBCOMMANDS,

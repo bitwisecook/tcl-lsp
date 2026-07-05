@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match pattern as a Tcl regular expression.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ex",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match pattern as an exact string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gl",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match pattern as a glob (default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Case-insensitive matching.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-timeout",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "seconds",
         detail: "Override the timeout for this expect.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-i",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Specify the spawn id to expect from.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-indices",
@@ -67,6 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Store match indices in expect_out.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-notransfer",
@@ -74,6 +88,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not consume matched output.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

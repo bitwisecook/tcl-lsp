@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Name of a variable linked to the entry's contents.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -39,6 +41,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired width of the entry in average-size characters.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-state",
@@ -46,6 +50,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "State of the entry: normal, disabled, or readonly.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-show",
@@ -53,6 +59,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Character to display instead of actual contents (e.g. '*' for passwords).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-font",
@@ -60,6 +68,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Font to use for text in the entry.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -67,6 +77,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fg",
@@ -74,6 +86,26 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -foreground.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-placeholder",
+        takes_value: true,
+        value_hint: "text",
+        detail: "Help text shown when the entry is empty (Tk 8.7+).",
+        dialects: None,
+        aliases: &[],
+        min_version: Some("8.7"),
+    },
+    OptionSpec {
+        name: "-placeholderforeground",
+        takes_value: true,
+        value_hint: "color",
+        detail: "Foreground colour of the placeholder text (Tk 8.7+).",
+        dialects: None,
+        aliases: &[],
+        min_version: Some("8.7"),
     },
     OptionSpec {
         name: "-relief",
@@ -81,6 +113,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-justify",
@@ -88,6 +122,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Justification of text within the entry: left, center, or right.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertbackground",
@@ -95,6 +131,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertborderwidth",
@@ -102,6 +140,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertofftime",
@@ -109,6 +149,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertontime",
@@ -116,6 +158,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertwidth",
@@ -123,6 +167,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectbackground",
@@ -130,6 +176,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour for selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectborderwidth",
@@ -137,6 +185,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectforeground",
@@ -144,6 +194,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Foreground colour for selected text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-xscrollcommand",
@@ -151,6 +203,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-exportselection",
@@ -158,6 +212,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-readonlybackground",
@@ -165,6 +221,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour when the entry is in readonly state.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-validate",
@@ -172,6 +230,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Validation mode: none, focus, focusin, focusout, key, or all.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-validatecommand",
@@ -179,6 +239,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-invalidcommand",
@@ -186,6 +248,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Script to evaluate when validation fails.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -193,6 +257,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the entry.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -200,6 +266,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the entry accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -207,6 +275,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the entry does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -214,6 +284,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the entry has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -221,6 +293,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the entry.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -61,6 +61,8 @@ const fn flag(name: &'static str) -> OptionSpec {
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     }
 }
 
@@ -81,6 +83,8 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         value_hint: "index",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     flag("-about"),
     flag("--"),

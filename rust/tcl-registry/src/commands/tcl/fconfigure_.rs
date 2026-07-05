@@ -26,6 +26,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Command spec for `fconfigure`.
+// Data-table constructor: inline option specs (each carrying alias/version
+// metadata) push this past the pedantic line cap.
+#[allow(clippy::too_many_lines)]
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
@@ -47,6 +50,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "boolean",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-buffering",
@@ -54,6 +59,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "mode",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-buffersize",
@@ -61,6 +68,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "size",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-encoding",
@@ -68,6 +77,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "encoding",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-eofchar",
@@ -75,6 +86,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "chars",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-translation",
@@ -82,6 +95,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "mode",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
             OptionSpec {
@@ -90,6 +105,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "boolean",
                 detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
                 dialects: Some(DialectSet::TCL90_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-keepalive",
@@ -97,6 +114,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "boolean",
                 detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
                 dialects: Some(DialectSet::TCL90_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-inputmode",
@@ -104,6 +123,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "mode",
                 detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
                 dialects: Some(DialectSet::TCL90_PLUS),
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet {

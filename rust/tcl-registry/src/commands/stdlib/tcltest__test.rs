@@ -75,6 +75,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "script",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-result",
@@ -82,6 +84,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-output",
@@ -89,6 +93,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-errorOutput",
@@ -96,6 +102,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-returnCodes",
@@ -103,6 +111,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-errorCode",
@@ -110,6 +120,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-match",
@@ -117,6 +129,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-setup",
@@ -124,6 +138,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "script",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cleanup",
@@ -131,6 +147,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "script",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-constraints",
@@ -138,6 +156,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -72,6 +72,7 @@ pub mod stub_overlay;
 pub mod taint;
 pub mod traits;
 pub mod types;
+pub mod version;
 
 /// Convenience prelude for command spec files.
 ///

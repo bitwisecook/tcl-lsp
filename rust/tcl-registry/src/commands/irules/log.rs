@@ -45,6 +45,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Suppress iRule name prefix in log message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,

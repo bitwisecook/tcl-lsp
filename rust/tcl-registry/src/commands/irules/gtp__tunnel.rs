@@ -41,6 +41,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "MESSAGE",
             detail: "Operate on a specific GTP message object.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

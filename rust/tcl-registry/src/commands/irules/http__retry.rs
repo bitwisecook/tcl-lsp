@@ -52,6 +52,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Reset the server-side connection.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,

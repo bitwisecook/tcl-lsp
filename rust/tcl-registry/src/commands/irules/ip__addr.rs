@@ -45,6 +45,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Swap byte order.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ipv4",
@@ -52,6 +54,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Parse as IPv4 address.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ipv6",
@@ -59,6 +63,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Parse as IPv6 address.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

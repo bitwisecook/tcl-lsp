@@ -156,6 +156,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Do not propagate the header mutation to subsequent BIG-IP filters.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Inspect or mutate HTTP headers in an iRule event.",

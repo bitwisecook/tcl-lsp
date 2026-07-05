@@ -35,6 +35,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Return list of all matching indices.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ascii",
@@ -42,6 +44,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "ASCII string comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bisect",
@@ -49,6 +53,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Binary search a sorted list (implies -sorted).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-decreasing",
@@ -56,6 +62,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "List is sorted in decreasing order (with -sorted).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-dictionary",
@@ -63,6 +71,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Dictionary-order comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-exact",
@@ -70,6 +80,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Exact equality match.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-glob",
@@ -77,6 +89,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Glob-pattern match (default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-increasing",
@@ -84,6 +98,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "List is sorted in increasing order (with -sorted).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-index",
@@ -91,6 +107,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "indexList",
         detail: "Compare against nested sub-element at indexList.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-inline",
@@ -98,6 +116,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Return matching values instead of indices.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-integer",
@@ -105,6 +125,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Integer comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocase",
@@ -112,6 +134,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Case-insensitive comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-not",
@@ -119,6 +143,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Invert the sense of the match.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-real",
@@ -126,6 +152,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Floating-point comparison.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-regexp",
@@ -133,6 +161,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Regular-expression match.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-sorted",
@@ -140,6 +170,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "List is sorted; use binary search.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-start",
@@ -147,6 +179,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "index",
         detail: "Start the search at the given index.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     // `lsearch -stride` is Tcl 9.0-only (tclsh8.6 rejects it with "bad option
     // -stride"; the 8.6 / TIP 351 `-stride` belongs to `lsort`).
@@ -156,6 +190,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "strideLength",
         detail: "Treat the list as a sequence of fixed-size records.",
         dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-subindices",
@@ -163,6 +199,8 @@ static OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Combine result with -index value for nested addressing.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     // NOTE: `lsearch` does NOT declare `--` in its option table.
     // This keeps W304 (missing-option-terminator) silent for

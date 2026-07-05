@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "RAW_DATA",
                 detail: "Raw data for JOSE header section.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-payload",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "RAW_DATA",
                 detail: "Raw data for JWS payload.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-key",
@@ -56,6 +60,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "JWK_OBJECT",
                 detail: "JWK object for signing.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-alg",
@@ -63,6 +69,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "ALG",
                 detail: "Signing algorithm.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ignore-cert-expiry",
@@ -70,6 +78,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Allow expired certificate.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

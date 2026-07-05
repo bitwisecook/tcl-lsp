@@ -46,6 +46,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Option -message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

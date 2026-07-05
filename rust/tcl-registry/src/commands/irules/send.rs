@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "MSEC",
                 detail: "Time in ms to wait for data to be sent.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-status",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "VARIABLE",
                 detail: "Save send status into variable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -56,6 +60,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

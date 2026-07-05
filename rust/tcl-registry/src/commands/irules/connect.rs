@@ -56,6 +56,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "PROTO",
                 detail: "IP protocol (default TCP).",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-myaddr",
@@ -63,6 +65,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "IP_ADDR",
                 detail: "Source address for the connection.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-myport",
@@ -70,6 +74,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "PORT",
                 detail: "Source port for the connection.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-timeout",
@@ -77,6 +83,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "MSEC",
                 detail: "Time in ms to wait for connection.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-idle",
@@ -84,6 +92,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SEC",
                 detail: "Idle timeout in seconds (default 300).",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-tos",
@@ -91,6 +101,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "TOS",
                 detail: "IP TOS value.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-status",
@@ -98,6 +110,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "VARIABLE",
                 detail: "Save connection status into variable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

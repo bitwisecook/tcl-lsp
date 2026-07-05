@@ -880,6 +880,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-length",
@@ -887,6 +889,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "int",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -906,6 +910,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-length",
@@ -913,6 +919,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "int",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -983,6 +991,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-failindex",
@@ -990,6 +1000,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "varname",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         // First sub-arg (index 0 after `is`) is the character
@@ -1038,6 +1050,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         arg_types: &[(
             0,
@@ -1061,6 +1075,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         ..SubCommand::DEFAULT
     },

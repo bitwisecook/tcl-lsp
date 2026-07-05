@@ -18,6 +18,7 @@
 
 //! Command specification modules — one directory per dialect.
 
+pub mod argparse;
 pub mod bpf;
 pub mod eda_cadence;
 pub mod eda_mentor;

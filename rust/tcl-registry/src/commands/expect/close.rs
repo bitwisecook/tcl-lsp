@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Close the slave side of the pty.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-i",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Close the specified spawn id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -82,6 +82,19 @@ use crate::spec::CommandSpec;
 /// Return all `tk` command specifications.
 #[must_use]
 pub fn tk_command_specs() -> Vec<CommandSpec> {
+    let mut specs = tk_command_specs_raw();
+    // The themed-widget set (`ttk::*`) was introduced with Tk 8.5.  Stamp the
+    // package `min_version` here rather than in every ttk spec file so the
+    // gate stays in one place.
+    for spec in &mut specs {
+        if spec.min_version.is_none() && spec.name.starts_with("ttk::") {
+            spec.min_version = Some("8.5");
+        }
+    }
+    specs
+}
+
+fn tk_command_specs_raw() -> Vec<CommandSpec> {
     vec![
         bell::spec(),
         bind::spec(),
@@ -166,5 +179,44 @@ mod tests {
         ] {
             assert!(has(cmd), "tk command `{cmd}` is registered");
         }
+    }
+
+    #[test]
+    fn ttk_widgets_are_gated_to_tk_85() {
+        let specs = tk_command_specs();
+        let ttk_button = specs.iter().find(|s| s.name == "ttk::button").unwrap();
+        assert_eq!(ttk_button.min_version, Some("8.5"));
+        // Available floor >= 8.5 -> present; older -> absent.
+        assert!(ttk_button.available_for_version(Some("8.5")));
+        assert!(ttk_button.available_for_version(Some("9.0")));
+        assert!(!ttk_button.available_for_version(Some("8.4")));
+        // A plain widget carries no package min_version.
+        let button = specs.iter().find(|s| s.name == "button").unwrap();
+        assert_eq!(button.min_version, None);
+    }
+
+    #[test]
+    fn entry_placeholder_is_gated_to_tk_87() {
+        let specs = tk_command_specs();
+        let entry = specs.iter().find(|s| s.name == "entry").unwrap();
+        // Floor derived from `package require Tk <req>`.
+        let floor = crate::version::requirement_lower_bound;
+        // Tk 8.7+ -> -placeholder available; 8.6 -> not; unversioned -> permissive.
+        assert!(
+            entry
+                .find_option("-placeholder", None, Some(floor("8.7")))
+                .is_some()
+        );
+        assert!(
+            entry
+                .find_option("-placeholder", None, Some(floor("8.6")))
+                .is_none()
+        );
+        assert!(entry.find_option("-placeholder", None, None).is_some());
+        // Completion (canonical, version-gated) hides -placeholder under 8.6.
+        let names_86 = entry.switch_names_ext(None, false, Some(floor("8.6")));
+        assert!(!names_86.contains(&"-placeholder"));
+        let names_87 = entry.switch_names_ext(None, false, Some(floor("8.7")));
+        assert!(names_87.contains(&"-placeholder"));
     }
 }

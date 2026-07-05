@@ -24,6 +24,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "",
     detail: "Enter debugger immediately.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

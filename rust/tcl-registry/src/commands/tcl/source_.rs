@@ -49,6 +49,8 @@ pub fn spec() -> CommandSpec {
             value_hint: "encoding",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Evaluate a file or resource as a Tcl script.",

@@ -33,6 +33,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -54,6 +56,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -76,6 +80,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -98,6 +104,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -120,6 +128,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -142,6 +152,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -181,6 +193,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "MESSAGE",
             detail: "Operate on specific message.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

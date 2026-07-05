@@ -44,6 +44,8 @@ pub fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Do not output a newline character.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Write text to a channel (stdout by default).",

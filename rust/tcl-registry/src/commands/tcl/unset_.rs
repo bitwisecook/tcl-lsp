@@ -45,6 +45,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Suppress errors for non-existent variables.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -52,6 +54,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "End of options.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

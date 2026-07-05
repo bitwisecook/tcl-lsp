@@ -59,6 +59,9 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Command spec for `regsub`.
+// Data-table constructor: inline option specs (each carrying alias/version
+// metadata) push this past the pedantic line cap.
+#[allow(clippy::too_many_lines)]
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
@@ -78,6 +81,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-expanded",
@@ -85,6 +90,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-line",
@@ -92,6 +99,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-linestop",
@@ -99,6 +108,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-lineanchor",
@@ -106,6 +117,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-all",
@@ -113,6 +126,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-start",
@@ -120,6 +135,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "index",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             // `regsub -command` is Tcl 9.0+ (TIP 463).
             OptionSpec {
@@ -128,6 +145,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Treat subSpec as a command prefix to call per match.",
                 dialects: Some(DialectSet::TCL90_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -135,6 +154,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet {

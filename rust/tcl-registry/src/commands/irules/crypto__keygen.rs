@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "ALG",
                 detail: "Key generation algorithm.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-len",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "LENGTH",
                 detail: "Key length (must be multiple of 8).",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-exp",
@@ -56,6 +60,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "EXPONENT",
                 detail: "Exponent (for RSA).",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-passphrase",
@@ -63,6 +69,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "PASSPHRASE",
                 detail: "Passphrase for key derivation.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-salt",
@@ -70,6 +78,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SALT",
                 detail: "Binary salt.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-salthex",
@@ -77,6 +87,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "SALT_HEX",
                 detail: "Hex-encoded salt.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-rounds",
@@ -84,6 +96,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "ROUNDS",
                 detail: "Rounds for PBKDF2.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

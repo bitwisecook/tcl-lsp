@@ -106,6 +106,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Exact string compare mode.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-glob",
@@ -113,6 +115,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Glob pattern mode.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-regexp",
@@ -120,6 +124,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Regular expression mode.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nocase",
@@ -127,6 +133,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Case-insensitive matching.",
                 dialects: Some(DialectSet::TCL85_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-matchvar",
@@ -134,6 +142,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "varName",
                 detail: "Store match in variable (regexp mode).",
                 dialects: Some(DialectSet::TCL85_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-indexvar",
@@ -141,6 +151,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "varName",
                 detail: "Store match indices in variable (regexp mode).",
                 dialects: Some(DialectSet::TCL85_PLUS),
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -148,6 +160,8 @@ pub fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "End of options.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet {

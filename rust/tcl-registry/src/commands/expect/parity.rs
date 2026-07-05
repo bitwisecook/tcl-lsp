@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Set the default.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-i",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Set for the specified spawn id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

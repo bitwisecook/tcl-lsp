@@ -41,6 +41,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "",
             detail: "Return as list instead of count.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,

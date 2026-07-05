@@ -54,6 +54,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Enable hairpin mode for the listener.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-inherit-main-rules",
@@ -61,6 +63,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Execute main rules attached to parent virtual.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-single-connection",
@@ -68,6 +72,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Listener expires after one connection.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-translation-loose",
@@ -75,6 +81,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Use hint data as suggestion; don't fail if unusable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

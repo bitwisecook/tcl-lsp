@@ -54,6 +54,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return categories in display name format.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-id",
@@ -61,6 +63,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return categories in ID format.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

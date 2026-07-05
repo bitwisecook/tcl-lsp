@@ -93,6 +93,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Orientation of the panedwindow: horizontal or vertical.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-sashwidth",
@@ -100,6 +102,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of each sash in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-sashrelief",
@@ -107,6 +111,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Relief of the sashes: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-sashpad",
@@ -114,6 +120,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Extra padding on each side of a sash.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-sashcursor",
@@ -121,6 +129,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over a sash.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-showhandle",
@@ -128,6 +138,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether to display handles on the sashes.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-handlesize",
@@ -135,6 +147,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Size of the sash handle in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-handlepad",
@@ -142,6 +156,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Distance from the top or left end of a sash to the handle.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-opaqueresize",
@@ -149,6 +165,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether panes are resized continuously as the sash is dragged.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-width",
@@ -156,6 +174,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired width of the panedwindow in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-height",
@@ -163,6 +183,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Desired height of the panedwindow in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
@@ -170,6 +192,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
@@ -177,6 +201,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Background colour of the panedwindow.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
@@ -184,6 +210,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-borderwidth",
@@ -191,6 +219,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the border around the panedwindow.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -198,6 +228,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Cursor to display when the mouse is over the panedwindow.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -205,6 +237,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Whether the panedwindow accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
@@ -212,6 +246,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the panedwindow does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
@@ -219,6 +255,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Colour of the highlight region when the panedwindow has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
@@ -226,6 +264,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Width of the highlight rectangle drawn around the panedwindow.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

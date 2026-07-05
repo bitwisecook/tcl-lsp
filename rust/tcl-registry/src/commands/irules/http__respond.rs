@@ -55,6 +55,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "1.0 | 1.1",
                 detail: "Protocol version on the synthesised response.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-content",
@@ -62,6 +64,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "CONTENT",
                 detail: "Response body content.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ifile",
@@ -69,6 +73,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "IFILE_OBJ",
                 detail: "Serve the response body from an iFile object.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-noserver",
@@ -76,6 +82,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Suppress the auto-injected `Server` response header.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-reset",
@@ -83,6 +91,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Reset the connection after sending the response.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         hover: Some(HoverSnippet {

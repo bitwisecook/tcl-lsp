@@ -74,6 +74,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Option -periodic.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-current",
@@ -81,6 +83,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Option -current.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

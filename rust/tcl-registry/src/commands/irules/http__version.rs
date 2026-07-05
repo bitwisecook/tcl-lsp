@@ -73,6 +73,8 @@ pub const fn spec() -> CommandSpec {
             value_hint: "version",
             detail: "Get/set version as raw string.",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,

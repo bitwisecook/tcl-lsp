@@ -42,6 +42,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Suspend until end-of-line received.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-peek",
@@ -49,6 +51,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return data but leave it buffered.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-timeout",
@@ -56,6 +60,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "MSEC",
                 detail: "Time in ms to wait for data.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-status",
@@ -63,6 +69,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "VARIABLE",
                 detail: "Save recv status into variable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

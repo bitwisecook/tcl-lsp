@@ -55,6 +55,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "PRIORITY",
                 detail: "Push priority number.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-content",
@@ -62,6 +64,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "CONTENT",
                 detail: "Pushed response content.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-ifile",
@@ -69,6 +73,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "IFILE_OBJ",
                 detail: "Serve content from iFile.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-noserver",
@@ -76,6 +82,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Suppress \"Server: BigIP\" header.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-nohost",
@@ -83,6 +91,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Disable Host header requirement.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {

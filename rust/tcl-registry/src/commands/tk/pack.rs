@@ -72,6 +72,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "top|bottom|left|right",
         detail: "Specifies which side of the master the slave will be packed against.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-fill",
@@ -79,6 +81,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "none|x|y|both",
         detail: "If a slave's parcel is larger than its requested dimensions, this option may be used to stretch the slave.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-expand",
@@ -86,6 +90,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Specifies whether the slave should be expanded to consume extra space in its master.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-anchor",
@@ -93,6 +99,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "n|ne|e|se|s|sw|w|nw|center",
         detail: "Anchor must be a valid anchor position: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-padx",
@@ -100,6 +108,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "amount",
         detail: "Specifies how much external horizontal padding to leave on each side of the slave.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-pady",
@@ -107,6 +117,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "amount",
         detail: "Specifies how much external vertical padding to leave on each side of the slave.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ipadx",
@@ -114,6 +126,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "amount",
         detail: "Specifies how much internal horizontal padding to leave on each side of the slave.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ipady",
@@ -121,6 +135,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "amount",
         detail: "Specifies how much internal vertical padding to leave on each side of the slave.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-in",
@@ -128,6 +144,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "master",
         detail: "Insert the slave at the end of the packing order for the master window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-before",
@@ -135,6 +153,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "other",
         detail: "Insert the slave before the window given by other in the packing order.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-after",
@@ -142,6 +162,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "other",
         detail: "Insert the slave after the window given by other in the packing order.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

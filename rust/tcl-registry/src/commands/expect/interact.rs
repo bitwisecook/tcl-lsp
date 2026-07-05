@@ -25,6 +25,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match as regular expression.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ex",
@@ -32,6 +34,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Match as exact string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-input",
@@ -39,6 +43,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Specify input source.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-output",
@@ -46,6 +52,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Specify output destination.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-u",
@@ -53,6 +61,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Connect user to the specified process.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-o",
@@ -60,6 +70,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Apply to output.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-i",
@@ -67,6 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "spawn_id",
         detail: "Specify spawn id.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-echo",
@@ -74,6 +88,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Echo characters.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nobuffer",
@@ -81,6 +97,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Do not buffer input.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-f",
@@ -88,6 +106,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Force — do not flush.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-F",
@@ -95,6 +115,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Force — flush.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-reset",
@@ -102,6 +124,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "",
         detail: "Reset terminal modes.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

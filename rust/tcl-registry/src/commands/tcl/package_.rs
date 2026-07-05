@@ -81,6 +81,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -104,6 +106,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         ..SubCommand::DEFAULT
     },

@@ -93,6 +93,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "name",
         detail: "Font family name (e.g. Courier, Times, Helvetica).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-size",
@@ -100,6 +102,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "size",
         detail: "Desired size of the font in points (positive) or pixels (negative).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-weight",
@@ -107,6 +111,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "normal|bold",
         detail: "Weight of the font: normal or bold.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-slant",
@@ -114,6 +120,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "roman|italic",
         detail: "Slant of the font: roman or italic.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-underline",
@@ -121,6 +129,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Whether to draw an underline beneath the text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-overstrike",
@@ -128,6 +138,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "boolean",
         detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-displayof",
@@ -135,6 +147,8 @@ const OPTIONS: &[OptionSpec] = &[
         value_hint: "window",
         detail: "Specifies the display for the font query.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

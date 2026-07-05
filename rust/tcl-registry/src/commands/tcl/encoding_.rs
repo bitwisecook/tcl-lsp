@@ -32,6 +32,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     value_hint: "profile",
     detail: "Encoding profile (strict, tcl8, replace).",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

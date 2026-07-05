@@ -33,6 +33,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -54,6 +56,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -75,6 +79,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -96,6 +102,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -117,6 +125,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -138,6 +148,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -158,6 +170,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -178,6 +192,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -198,6 +214,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -218,6 +236,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
             value_hint: "",
             detail: "",
             dialects: None,
+            aliases: &[],
+            min_version: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
@@ -229,6 +249,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+// Data-table constructor: inline option specs (each carrying alias/version
+// metadata) push this past the pedantic line cap.
+#[allow(clippy::too_many_lines)]
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "table",
@@ -269,6 +292,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Fail if key does not already exist.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-excl",
@@ -276,6 +301,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Fail if key already exists.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-notouch",
@@ -283,6 +310,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Do not reset lifetime/timeout on access.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-subtable",
@@ -290,6 +319,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Operate on a named subtable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-georedundancy",
@@ -297,6 +328,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Enable geo-redundancy for this entry.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-remaining",
@@ -304,6 +337,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return remaining time.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-count",
@@ -311,6 +346,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Return count of matching keys.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-all",
@@ -318,6 +355,8 @@ pub const fn spec() -> CommandSpec {
                 value_hint: "",
                 detail: "Delete all keys in a subtable.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         subcommands: SUBCOMMANDS,

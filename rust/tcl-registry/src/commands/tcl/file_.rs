@@ -70,6 +70,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -77,6 +79,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -101,6 +105,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -108,6 +114,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -207,6 +215,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-hard",
@@ -214,6 +224,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -342,6 +354,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
@@ -349,6 +363,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 value_hint: "",
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
         ],
         side_effects: &[SideEffect {
