@@ -42,6 +42,10 @@
 
 pub mod bounds_checks;
 pub mod class_hierarchy;
+/// EXPERIMENT — object→class binding lattice + dispatch resolver.
+/// Not wired into shipping diagnostics; measured by the `mro_eval`
+/// harness.  See `docs/design/tcloo-mro-lattice.md`.
+pub mod class_lattice;
 pub mod commands;
 pub mod confusables_table;
 pub mod diagnostics;
@@ -63,6 +67,10 @@ pub mod types;
 pub mod utils;
 
 pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
+pub use class_lattice::{
+    AblationConfig, ClassValue, DispatchStats, DispatchVerdict, SiteReport, TopReason,
+    analyse_dispatch, next_provider,
+};
 pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 pub use mro::{MroError, build_mro_map, tcloo_linearise};
 pub use snapshot::AnalyserSnapshot;
