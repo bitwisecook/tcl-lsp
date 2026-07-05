@@ -47,14 +47,20 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 - Prefer `match/case` for enum/token dispatch with 3+ branches; use `if` for simple guards.
 - Prefer `x & 1` over `x % 2` for odd/even checks on integers, and use
   truthiness (`if x & 1:` rather than `if x & 1 == 1:`).
-- Put the project copyright/license header on our own original source files
-  only: the full AGPL-3.0 notice with `Copyright (C) <year> James Deucker
-  (bitwisecook)`, placed after any shebang or coding/`-*-` magic first line.
-  Never add it to vendored or third-party code, which keeps its own original
-  notices and license (for example `runtime/zig/regex_include/` and
-  `tests/external/tcllib/`). Also skip generated files, test
-  fixtures and golden corpora, and `.github/workflows/*`. See `DUAL-LICENSING.md`
-  for the licensing model.
+- Put the project copyright/license header on our own original source: the full
+  AGPL-3.0 notice with `Copyright (C) <year> James Deucker (bitwisecook)`,
+  placed after any shebang or coding/`-*-` magic first line. This includes
+  generated source we own — the curated command specs under `dialects/f5/irules/`
+  (even those banner-marked `Generated from ... reference documentation`) carry
+  the header, as does code emitted by our own generators (for example
+  `dialects/f5/bigip/_port_names_table.py` and the `editors/**/generated/`
+  catalogs); when a file is regenerated, the header is emitted from its
+  generator/template so it survives. Never add it to vendored or third-party
+  code, which keeps its own original notices and license (for example
+  `runtime/zig/regex_include/` and `tests/external/tcllib/`). Skip only files
+  that can't carry a comment header (JSON), test fixtures and golden corpora /
+  data baselines, and `.github/workflows/*`. See `DUAL-LICENSING.md` for the
+  licensing model.
 
 ## Code reuse and deduplication
 

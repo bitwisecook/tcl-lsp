@@ -626,13 +626,19 @@ is incomplete and must not be merged.
   something the code itself does not convey. Do not use banner-style comments
   (`# -----------`, `# --- Text ---`, `# -- [section] ------`). Use a plain
   `# Text` comment instead. Never add standalone dash-separator lines.
-- **Copyright headers** go on *our own original source only*: the full
-  AGPL-3.0 notice with `Copyright (C) <year> James Deucker (bitwisecook)`,
-  placed after any shebang / `-*-` / coding magic first line. **Never** add our
-  header to vendored or third-party code — it keeps its own notices and licence
-  (e.g. `runtime/zig/regex_include/`, `tests/external/tcllib/`). Also skip
-  generated files, test fixtures / golden corpora, and `.github/workflows/*`
-  (the CI token cannot push header edits to workflows). See `DUAL-LICENSING.md`.
+- **Copyright headers** go on *our own original source*: the full AGPL-3.0
+  notice with `Copyright (C) <year> James Deucker (bitwisecook)`, placed after
+  any shebang / `-*-` / coding magic first line. This includes generated source
+  we own — our curated command specs under `dialects/f5/irules/` (even those
+  banner-marked `Generated from ... reference documentation`) carry the header,
+  and code emitted by our own generators (e.g. `dialects/f5/bigip/_port_names_table.py`
+  and the `editors/**/generated/` catalogs) does too; when a file is
+  regenerated, emit the header from the generator/template so it survives.
+  **Never** add our header to vendored or third-party code — it keeps its own
+  notices and licence (e.g. `runtime/zig/regex_include/`, `tests/external/tcllib/`).
+  Skip only files that can't carry a comment header (JSON), test fixtures /
+  golden corpora / data baselines, and `.github/workflows/*` (the CI token
+  cannot push header edits to workflows). See `DUAL-LICENSING.md`.
 - See `CONTRIBUTING.md` for the full style guide.
 
 ## Editor settings codegen
