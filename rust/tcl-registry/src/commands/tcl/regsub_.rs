@@ -62,8 +62,7 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nocase",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -71,8 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-expanded",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -80,8 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-line",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -89,8 +86,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-linestop",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -98,8 +94,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-lineanchor",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -107,8 +102,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-all",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -116,8 +110,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-start",
-        takes_value: true,
-        value_hint: "index",
+        value: OptionValue::value("index"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -126,8 +119,7 @@ const OPTIONS: &[OptionSpec] = &[
     // `regsub -command` is Tcl 9.0+ (TIP 463).
     OptionSpec {
         name: "-command",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Treat subSpec as a command prefix to call per match.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -135,8 +127,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],

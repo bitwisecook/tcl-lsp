@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-default",
-        takes_value: true,
-        value_hint: "buttonName",
+        value: OptionValue::value("buttonName"),
         detail: "Name of the default button.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-detail",
-        takes_value: true,
-        value_hint: "string",
+        value: OptionValue::value("string"),
         detail: "Supplemental message text.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-icon",
-        takes_value: true,
-        value_hint: "iconImage",
+        value: OptionValue::value("iconImage"),
         detail: "Icon to display (error, info, question, warning).",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-message",
-        takes_value: true,
-        value_hint: "string",
+        value: OptionValue::value("string"),
         detail: "Main message text to display.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-parent",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Parent window for the dialogue.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-title",
-        takes_value: true,
-        value_hint: "titleString",
+        value: OptionValue::value("titleString"),
         detail: "Title string for the dialogue window.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-type",
-        takes_value: true,
-        value_hint: "predefinedType",
+        value: OptionValue::value("predefinedType"),
         detail: "Arrangement of buttons to display.",
         dialects: None,
         aliases: &[],

@@ -20,8 +20,7 @@
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-continue_timer",
-    takes_value: false,
-    value_hint: "",
+    value: OptionValue::flag(),
     detail: "Do not restart the timeout timer.",
     dialects: None,
     aliases: &[],

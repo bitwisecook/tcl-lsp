@@ -35,11 +35,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CRYPTO::keygen (('-alg' ('random' | 'pbkdf2-md5' | 'rsa'))",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-alg",
-                takes_value: true,
-                value_hint: "ALG",
+                value: OptionValue::value("ALG"),
                 detail: "Key generation algorithm.",
                 dialects: None,
                 aliases: &[],
@@ -47,8 +46,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-len",
-                takes_value: true,
-                value_hint: "LENGTH",
+                value: OptionValue::value("LENGTH"),
                 detail: "Key length (must be multiple of 8).",
                 dialects: None,
                 aliases: &[],
@@ -56,8 +54,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-exp",
-                takes_value: true,
-                value_hint: "EXPONENT",
+                value: OptionValue::value("EXPONENT"),
                 detail: "Exponent (for RSA).",
                 dialects: None,
                 aliases: &[],
@@ -65,8 +62,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-passphrase",
-                takes_value: true,
-                value_hint: "PASSPHRASE",
+                value: OptionValue::value("PASSPHRASE"),
                 detail: "Passphrase for key derivation.",
                 dialects: None,
                 aliases: &[],
@@ -74,8 +70,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-salt",
-                takes_value: true,
-                value_hint: "SALT",
+                value: OptionValue::value("SALT"),
                 detail: "Binary salt.",
                 dialects: None,
                 aliases: &[],
@@ -83,8 +78,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-salthex",
-                takes_value: true,
-                value_hint: "SALT_HEX",
+                value: OptionValue::value("SALT_HEX"),
                 detail: "Hex-encoded salt.",
                 dialects: None,
                 aliases: &[],
@@ -92,14 +86,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-rounds",
-                takes_value: true,
-                value_hint: "ROUNDS",
+                value: OptionValue::value("ROUNDS"),
                 detail: "Rounds for PBKDF2.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,

@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-textvariable",
-        takes_value: true,
-        value_hint: "varName",
+        value: OptionValue::value("varName"),
         detail: "Variable linked to the current combobox value.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-values",
-        takes_value: true,
-        value_hint: "valueList",
+        value: OptionValue::value("valueList"),
         detail: "List of values to display in the drop-down list.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "width",
+        value: OptionValue::value("width"),
         detail: "Desired width of the combobox in characters.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "height",
+        value: OptionValue::value("height"),
         detail: "Maximum number of rows in the drop-down listbox.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state",
-        takes_value: true,
-        value_hint: "stateSpec",
+        value: OptionValue::value("stateSpec"),
         detail: "Widget state (normal, readonly, or disabled).",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-postcommand",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "Script to evaluate just before displaying the drop-down list.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validate",
-        takes_value: true,
-        value_hint: "validateMode",
+        value: OptionValue::value("validateMode"),
         detail: "When to run validation (none, focus, focusin, focusout, key, all).",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "Script to evaluate for input validation.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "Command prefix for horizontal scroll communication.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exportselection",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        takes_value: true,
-        value_hint: "justification",
+        value: OptionValue::value("justification"),
         detail: "How to justify the text within the combobox.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "font",
+        value: OptionValue::value("font"),
         detail: "Font to use for the combobox text.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-foreground",
-        takes_value: true,
-        value_hint: "colour",
+        value: OptionValue::value("colour"),
         detail: "Foreground colour for the combobox text.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-style",
-        takes_value: true,
-        value_hint: "style",
+        value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "className",
+        value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "cursor",
+        value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "focusSpec",
+        value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],

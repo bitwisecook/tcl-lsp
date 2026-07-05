@@ -61,8 +61,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-x",
-        takes_value: true,
-        value_hint: "location",
+        value: OptionValue::value("location"),
         detail: "Specifies the x-coordinate of the anchor point in the master window.",
         dialects: None,
         aliases: &[],
@@ -70,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-y",
-        takes_value: true,
-        value_hint: "location",
+        value: OptionValue::value("location"),
         detail: "Specifies the y-coordinate of the anchor point in the master window.",
         dialects: None,
         aliases: &[],
@@ -79,8 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relx",
-        takes_value: true,
-        value_hint: "location",
+        value: OptionValue::value("location"),
         detail: "Specifies the x-coordinate as a fraction of the master width (0.0 to 1.0).",
         dialects: None,
         aliases: &[],
@@ -88,8 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-rely",
-        takes_value: true,
-        value_hint: "location",
+        value: OptionValue::value("location"),
         detail: "Specifies the y-coordinate as a fraction of the master height (0.0 to 1.0).",
         dialects: None,
         aliases: &[],
@@ -97,8 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Specifies the width of the slave in screen units.",
         dialects: None,
         aliases: &[],
@@ -106,8 +101,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Specifies the height of the slave in screen units.",
         dialects: None,
         aliases: &[],
@@ -115,8 +109,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relwidth",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Specifies the width as a fraction of the master width (0.0 to 1.0).",
         dialects: None,
         aliases: &[],
@@ -124,8 +117,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relheight",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Specifies the height as a fraction of the master height (0.0 to 1.0).",
         dialects: None,
         aliases: &[],
@@ -133,8 +125,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        takes_value: true,
-        value_hint: "n|ne|e|se|s|sw|w|nw|center",
+        value: OptionValue::value("n|ne|e|se|s|sw|w|nw|center"),
         detail: "Specifies which point of the slave is positioned at the (x,y) location.",
         dialects: None,
         aliases: &[],
@@ -142,8 +133,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bordermode",
-        takes_value: true,
-        value_hint: "inside|outside|ignore",
+        value: OptionValue::value("inside|outside|ignore"),
         detail: "Determines the degree to which borders within the master are used.",
         dialects: None,
         aliases: &[],
@@ -151,8 +141,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-in",
-        takes_value: true,
-        value_hint: "master",
+        value: OptionValue::value("master"),
         detail: "Specifies the master window relative to which the slave is placed.",
         dialects: None,
         aliases: &[],

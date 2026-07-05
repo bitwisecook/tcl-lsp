@@ -37,11 +37,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::lookup URL ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')? ('-ip' IP)? ('-custom_cat_match' ANY_CHARS)?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-display",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return display name of categories.",
                 dialects: None,
                 aliases: &[],
@@ -49,8 +48,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-id",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return category IDs.",
                 dialects: None,
                 aliases: &[],
@@ -58,8 +56,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ip",
-                takes_value: true,
-                value_hint: "IP",
+                value: OptionValue::value("IP"),
                 detail: "IP address to categorize.",
                 dialects: None,
                 aliases: &[],
@@ -67,14 +64,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-custom_cat_match",
-                takes_value: true,
-                value_hint: "CUSTOM_CAT",
+                value: OptionValue::value("CUSTOM_CAT"),
                 detail: "Match against a specified custom category.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,

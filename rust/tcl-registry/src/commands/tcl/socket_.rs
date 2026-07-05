@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-myaddr",
-        takes_value: true,
-        value_hint: "addr",
+        value: OptionValue::value("addr"),
         detail: "Client-side local interface.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-myport",
-        takes_value: true,
-        value_hint: "port",
+        value: OptionValue::value("port"),
         detail: "Client-side local port.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-async",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Connect asynchronously.",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-server",
-        takes_value: true,
-        value_hint: "command",
+        value: OptionValue::value("command"),
         detail: "Server accept callback.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-reuseaddr",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Allow server address reuse (default 1).",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-reuseport",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Allow server port reuse (default 0).",
         dialects: None,
         aliases: &[],

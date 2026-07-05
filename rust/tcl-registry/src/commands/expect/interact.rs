@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-re",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as regular expression.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ex",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as exact string.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-input",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Specify input source.",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-output",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Specify output destination.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-u",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Connect user to the specified process.",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-o",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Apply to output.",
         dialects: None,
         aliases: &[],
@@ -75,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-i",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Specify spawn id.",
         dialects: None,
         aliases: &[],
@@ -84,8 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-echo",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Echo characters.",
         dialects: None,
         aliases: &[],
@@ -93,8 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nobuffer",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not buffer input.",
         dialects: None,
         aliases: &[],
@@ -102,8 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-f",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Force — do not flush.",
         dialects: None,
         aliases: &[],
@@ -111,8 +101,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-F",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Force — flush.",
         dialects: None,
         aliases: &[],
@@ -120,8 +109,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-reset",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Reset terminal modes.",
         dialects: None,
         aliases: &[],

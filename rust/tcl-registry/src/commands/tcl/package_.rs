@@ -75,15 +75,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Equivalent to package require except that it does not try to load the package if it is not already loaded.",
         synopsis: "package present ?-exact? package ?requirement...?",
         return_type: Some(TclType::String),
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-exact",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -100,15 +99,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Load a package, finding and sourcing the appropriate script if needed.",
         synopsis: "package require package ?requirement...?",
         return_type: Some(TclType::String),
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-exact",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         ..SubCommand::DEFAULT
     },
     SubCommand {

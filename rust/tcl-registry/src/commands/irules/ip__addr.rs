@@ -38,11 +38,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-swap",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Swap byte order.",
                 dialects: None,
                 aliases: &[],
@@ -50,8 +49,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ipv4",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Parse as IPv4 address.",
                 dialects: None,
                 aliases: &[],
@@ -59,14 +57,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ipv6",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Parse as IPv6 address.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,

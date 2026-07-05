@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-profile",
-    takes_value: true,
-    value_hint: "profile",
+    value: OptionValue::value("profile"),
     detail: "Encoding profile (strict, tcl8, replace).",
     dialects: None,
     aliases: &[],

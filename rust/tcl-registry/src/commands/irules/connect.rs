@@ -49,11 +49,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "connect ?options? destination",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-protocol",
-                takes_value: true,
-                value_hint: "PROTO",
+                value: OptionValue::value("PROTO"),
                 detail: "IP protocol (default TCP).",
                 dialects: None,
                 aliases: &[],
@@ -61,8 +60,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-myaddr",
-                takes_value: true,
-                value_hint: "IP_ADDR",
+                value: OptionValue::value("IP_ADDR"),
                 detail: "Source address for the connection.",
                 dialects: None,
                 aliases: &[],
@@ -70,8 +68,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-myport",
-                takes_value: true,
-                value_hint: "PORT",
+                value: OptionValue::value("PORT"),
                 detail: "Source port for the connection.",
                 dialects: None,
                 aliases: &[],
@@ -79,8 +76,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-timeout",
-                takes_value: true,
-                value_hint: "MSEC",
+                value: OptionValue::value("MSEC"),
                 detail: "Time in ms to wait for connection.",
                 dialects: None,
                 aliases: &[],
@@ -88,8 +84,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-idle",
-                takes_value: true,
-                value_hint: "SEC",
+                value: OptionValue::value("SEC"),
                 detail: "Idle timeout in seconds (default 300).",
                 dialects: None,
                 aliases: &[],
@@ -97,8 +92,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-tos",
-                takes_value: true,
-                value_hint: "TOS",
+                value: OptionValue::value("TOS"),
                 detail: "IP TOS value.",
                 dialects: None,
                 aliases: &[],
@@ -106,14 +100,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-status",
-                takes_value: true,
-                value_hint: "VARIABLE",
+                value: OptionValue::value("VARIABLE"),
                 detail: "Save connection status into variable.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

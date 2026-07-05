@@ -1491,7 +1491,7 @@ fn first_positional_without_terminator(
             let consumes_value = profile
                 .options
                 .iter()
-                .any(|o| o.name == arg && o.takes_value);
+                .any(|o| o.name == arg && o.takes_value());
             if consumes_value && i < args.len() {
                 i += 1;
             }

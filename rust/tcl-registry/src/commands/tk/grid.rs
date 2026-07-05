@@ -117,8 +117,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-row",
-        takes_value: true,
-        value_hint: "n",
+        value: OptionValue::value("n"),
         detail: "Insert the slave so that it occupies the nth row in the grid.",
         dialects: None,
         aliases: &[],
@@ -126,8 +125,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-column",
-        takes_value: true,
-        value_hint: "n",
+        value: OptionValue::value("n"),
         detail: "Insert the slave so that it occupies the nth column in the grid.",
         dialects: None,
         aliases: &[],
@@ -135,8 +133,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-rowspan",
-        takes_value: true,
-        value_hint: "n",
+        value: OptionValue::value("n"),
         detail: "Insert the slave so that it occupies n rows in the grid.",
         dialects: None,
         aliases: &[],
@@ -144,8 +141,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-columnspan",
-        takes_value: true,
-        value_hint: "n",
+        value: OptionValue::value("n"),
         detail: "Insert the slave so that it occupies n columns in the grid.",
         dialects: None,
         aliases: &[],
@@ -153,8 +149,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sticky",
-        takes_value: true,
-        value_hint: "nsew",
+        value: OptionValue::value("nsew"),
         detail: "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
         dialects: None,
         aliases: &[],
@@ -162,8 +157,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padx",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies external horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
@@ -171,8 +165,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pady",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies external vertical padding for the slave.",
         dialects: None,
         aliases: &[],
@@ -180,8 +173,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ipadx",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies internal horizontal padding for the slave.",
         dialects: None,
         aliases: &[],
@@ -189,8 +181,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ipady",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies internal vertical padding for the slave.",
         dialects: None,
         aliases: &[],
@@ -198,8 +189,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-in",
-        takes_value: true,
-        value_hint: "master",
+        value: OptionValue::value("master"),
         detail: "Insert the slave into the specified master window.",
         dialects: None,
         aliases: &[],
@@ -207,8 +197,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-weight",
-        takes_value: true,
-        value_hint: "int",
+        value: OptionValue::value("int"),
         detail: "Relative weight for apportioning extra space (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
@@ -216,8 +205,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-minsize",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Minimum size of the column or row (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
@@ -225,8 +213,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pad",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Extra padding for the largest slave (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],
@@ -234,8 +221,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-uniform",
-        takes_value: true,
-        value_hint: "group",
+        value: OptionValue::value("group"),
         detail: "Group columns/rows for uniform sizing (columnconfigure/rowconfigure).",
         dialects: None,
         aliases: &[],

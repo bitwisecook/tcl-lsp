@@ -57,8 +57,7 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 const fn flag(name: &'static str) -> OptionSpec {
     OptionSpec {
         name,
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -79,8 +78,7 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
     flag("-indices"),
     OptionSpec {
         name: "-start",
-        takes_value: true,
-        value_hint: "index",
+        value: OptionValue::value("index"),
         detail: "",
         dialects: None,
         aliases: &[],

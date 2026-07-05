@@ -38,8 +38,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -47,8 +46,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffering",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -56,8 +54,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffersize",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -65,8 +62,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-encoding",
-        takes_value: true,
-        value_hint: "encoding",
+        value: OptionValue::value("encoding"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -74,8 +70,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-eofchar",
-        takes_value: true,
-        value_hint: "chars",
+        value: OptionValue::value("chars"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -83,8 +78,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-translation",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -93,8 +87,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
     OptionSpec {
         name: "-nodelay",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -102,8 +95,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-keepalive",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -111,8 +103,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-inputmode",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -454,8 +445,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Set blocking mode.",
         dialects: None,
         aliases: &[],
@@ -463,8 +453,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffering",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "Set buffering mode (full, line, none).",
         dialects: None,
         aliases: &[],
@@ -472,8 +461,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffersize",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Set buffer size in bytes.",
         dialects: None,
         aliases: &[],
@@ -481,8 +469,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-encoding",
-        takes_value: true,
-        value_hint: "encoding",
+        value: OptionValue::value("encoding"),
         detail: "Set character encoding.",
         dialects: None,
         aliases: &[],
@@ -490,8 +477,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-eofchar",
-        takes_value: true,
-        value_hint: "chars",
+        value: OptionValue::value("chars"),
         detail: "Set end-of-file character(s).",
         dialects: None,
         aliases: &[],
@@ -499,8 +485,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-profile",
-        takes_value: true,
-        value_hint: "profile",
+        value: OptionValue::value("profile"),
         detail: "Set encoding profile (strict, tcl8, replace).",
         dialects: None,
         aliases: &[],
@@ -508,8 +493,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-translation",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "Set line-ending translation mode.",
         dialects: None,
         aliases: &[],

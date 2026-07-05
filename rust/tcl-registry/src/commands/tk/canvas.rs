@@ -192,8 +192,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the canvas in screen units.",
         dialects: None,
         aliases: &[],
@@ -201,8 +200,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the canvas in screen units.",
         dialects: None,
         aliases: &[],
@@ -210,8 +208,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -219,8 +216,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the canvas.",
         dialects: None,
         aliases: &[],
@@ -228,8 +224,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -237,8 +232,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-borderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the canvas.",
         dialects: None,
         aliases: &[],
@@ -246,8 +240,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bd",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -borderwidth.",
         dialects: None,
         aliases: &[],
@@ -255,8 +248,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-scrollregion",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Bounding box of the total scrollable area (left top right bottom).",
         dialects: None,
         aliases: &[],
@@ -264,8 +256,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -273,8 +264,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
@@ -282,8 +272,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollincrement",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Horizontal scrolling increment in screen units.",
         dialects: None,
         aliases: &[],
@@ -291,8 +280,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollincrement",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Vertical scrolling increment in screen units.",
         dialects: None,
         aliases: &[],
@@ -300,8 +288,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-confine",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether scrolling is confined to the scroll region.",
         dialects: None,
         aliases: &[],
@@ -309,8 +296,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour for selected items.",
         dialects: None,
         aliases: &[],
@@ -318,8 +304,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around selected items.",
         dialects: None,
         aliases: &[],
@@ -327,8 +312,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectforeground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for selected items.",
         dialects: None,
         aliases: &[],
@@ -336,8 +320,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -345,8 +328,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -354,8 +336,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertofftime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
@@ -363,8 +344,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertontime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
@@ -372,8 +352,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
@@ -381,8 +360,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-closeenough",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Proximity threshold for mouse cursor to be considered over an item.",
         dialects: None,
         aliases: &[],
@@ -390,8 +368,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the canvas.",
         dialects: None,
         aliases: &[],
@@ -399,8 +376,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the canvas accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -408,8 +384,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the canvas does not have focus.",
         dialects: None,
         aliases: &[],
@@ -417,8 +392,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the canvas has focus.",
         dialects: None,
         aliases: &[],
@@ -426,8 +400,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the canvas.",
         dialects: None,
         aliases: &[],

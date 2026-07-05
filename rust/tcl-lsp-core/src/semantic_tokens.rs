@@ -811,7 +811,7 @@ fn insert_option_and_subcommand_overrides(
     let mut value_options: FxHashSet<&str> = FxHashSet::default();
     let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
         for opt in opts {
-            if opt.takes_value {
+            if opt.takes_value() {
                 value_options.insert(opt.name);
                 value_options.extend(opt.aliases.iter().copied());
             }

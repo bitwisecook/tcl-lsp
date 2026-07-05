@@ -741,7 +741,7 @@ fn collect_positional_args(
             }
             if let Some(opt) = options.iter().find(|o| o.name == arg_text) {
                 arg_idx += 1;
-                if opt.takes_value && arg_idx < seg.argv.len() {
+                if opt.takes_value() && arg_idx < seg.argv.len() {
                     arg_idx += 1;
                 }
                 continue;

@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-text",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Text string to display as the label of the frame.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-labelanchor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Position of the label: nw, n, ne, en, e, es, se, s, sw, ws, w, or wn.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-labelwidget",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Path name of a widget to use as the label instead of text.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the labelframe in screen units.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the labelframe in screen units.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-borderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the labelframe.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the labelframe.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-fg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-foreground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for the label text.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Font to use for the label text.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padx",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra horizontal padding inside the labelframe.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pady",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra vertical padding inside the labelframe.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Class name for the labelframe, used in option database lookups.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-colormap",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colourmap to use for the labelframe: new or inherited from a window.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-container",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the labelframe will be a container for an embedded application.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-visual",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Visual information for the labelframe.",
         dialects: None,
         aliases: &[],
@@ -190,8 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the labelframe.",
         dialects: None,
         aliases: &[],
@@ -199,8 +180,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the labelframe accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -208,8 +188,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the labelframe does not have focus.",
         dialects: None,
         aliases: &[],
@@ -217,8 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the labelframe has focus.",
         dialects: None,
         aliases: &[],
@@ -226,8 +204,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the labelframe.",
         dialects: None,
         aliases: &[],

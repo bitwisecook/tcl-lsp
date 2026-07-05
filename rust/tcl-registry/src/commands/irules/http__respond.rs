@@ -48,11 +48,10 @@ pub const fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         // Option set: `-version`/`-content`/`-ifile`/`-noserver`/`-reset`.
         // (`-status` is the positional status arg, not an option.)
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-version",
-                takes_value: true,
-                value_hint: "1.0 | 1.1",
+                value: OptionValue::value("1.0 | 1.1"),
                 detail: "Protocol version on the synthesised response.",
                 dialects: None,
                 aliases: &[],
@@ -60,8 +59,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-content",
-                takes_value: true,
-                value_hint: "CONTENT",
+                value: OptionValue::value("CONTENT"),
                 detail: "Response body content.",
                 dialects: None,
                 aliases: &[],
@@ -69,8 +67,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ifile",
-                takes_value: true,
-                value_hint: "IFILE_OBJ",
+                value: OptionValue::value("IFILE_OBJ"),
                 detail: "Serve the response body from an iFile object.",
                 dialects: None,
                 aliases: &[],
@@ -78,8 +75,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-noserver",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Suppress the auto-injected `Server` response header.",
                 dialects: None,
                 aliases: &[],
@@ -87,14 +83,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-reset",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Reset the connection after sending the response.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         hover: Some(HoverSnippet {
             summary: "Send an immediate HTTP response from an iRule.",
             synopsis: &["HTTP::respond <status> ?option value ...?"],

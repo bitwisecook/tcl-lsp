@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-textvariable",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Name of a variable linked to the entry's contents.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the entry in average-size characters.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "State of the entry: normal, disabled, or readonly.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-show",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Character to display instead of actual contents (e.g. '*' for passwords).",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Font to use for text in the entry.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-fg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-placeholder",
-        takes_value: true,
-        value_hint: "text",
+        value: OptionValue::value("text"),
         detail: "Help text shown when the entry is empty (Tk 8.7+).",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-placeholderforeground",
-        takes_value: true,
-        value_hint: "color",
+        value: OptionValue::value("color"),
         detail: "Foreground colour of the placeholder text (Tk 8.7+).",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Justification of text within the entry: left, center, or right.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertofftime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertontime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around selected text.",
         dialects: None,
         aliases: &[],
@@ -190,8 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectforeground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -199,8 +180,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -208,8 +188,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exportselection",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
@@ -217,8 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-readonlybackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour when the entry is in readonly state.",
         dialects: None,
         aliases: &[],
@@ -226,8 +204,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validate",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Validation mode: none, focus, focusin, focusout, key, or all.",
         dialects: None,
         aliases: &[],
@@ -235,8 +212,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
         aliases: &[],
@@ -244,8 +220,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -253,8 +228,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the entry.",
         dialects: None,
         aliases: &[],
@@ -262,8 +236,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the entry accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -271,8 +244,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the entry does not have focus.",
         dialects: None,
         aliases: &[],
@@ -280,8 +252,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the entry has focus.",
         dialects: None,
         aliases: &[],
@@ -289,8 +260,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the entry.",
         dialects: None,
         aliases: &[],

@@ -61,8 +61,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-displayof",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Specifies the display for the selection operation.",
         dialects: None,
         aliases: &[],
@@ -70,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selection",
-        takes_value: true,
-        value_hint: "selection",
+        value: OptionValue::value("selection"),
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
         aliases: &[],
@@ -79,8 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-type",
-        takes_value: true,
-        value_hint: "type",
+        value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
         aliases: &[],
@@ -88,8 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "format",
+        value: OptionValue::value("format"),
         detail: "Specifies the representation format for the selection data.",
         dialects: None,
         aliases: &[],
@@ -97,8 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        takes_value: true,
-        value_hint: "command",
+        value: OptionValue::value("command"),
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],

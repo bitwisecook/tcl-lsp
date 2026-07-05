@@ -40,11 +40,10 @@ pub fn spec() -> CommandSpec {
         // ``--`` is the option terminator that drives W304's
         // ``resolve_option_terminator`` lookup; the registry also
         // surfaces ``-global`` / ``-lazy`` for completion.
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-global",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -52,8 +51,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-lazy",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -61,14 +59,13 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         hover: Some(HoverSnippet {
             summary: "Load machine code and initialize new commands",
             synopsis: &[

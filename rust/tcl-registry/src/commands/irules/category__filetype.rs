@@ -45,11 +45,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::filetype HTTP_PAYLOAD ?options?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-mimetype",
-                takes_value: true,
-                value_hint: "TYPE",
+                value: OptionValue::value("TYPE"),
                 detail: "Variable name to store MIME type.",
                 dialects: None,
                 aliases: &[],
@@ -57,14 +56,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-mimesubtype",
-                takes_value: true,
-                value_hint: "SUBTYPE",
+                value: OptionValue::value("SUBTYPE"),
                 detail: "Variable name to store MIME subtype.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,

@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-text",
-        takes_value: true,
-        value_hint: "string",
+        value: OptionValue::value("string"),
         detail: "Text to display in the label.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        takes_value: true,
-        value_hint: "varName",
+        value: OptionValue::value("varName"),
         detail: "Variable whose value is used as the label text.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-image",
-        takes_value: true,
-        value_hint: "imageName",
+        value: OptionValue::value("imageName"),
         detail: "Image to display in the label.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-compound",
-        takes_value: true,
-        value_hint: "compoundType",
+        value: OptionValue::value("compoundType"),
         detail: "How to display image relative to text.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "width",
+        value: OptionValue::value("width"),
         detail: "Desired width of the label.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        takes_value: true,
-        value_hint: "anchorPos",
+        value: OptionValue::value("anchorPos"),
         detail: "How the text or image is positioned within the widget.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        takes_value: true,
-        value_hint: "justification",
+        value: OptionValue::value("justification"),
         detail: "How to justify multiple lines of text.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-wraplength",
-        takes_value: true,
-        value_hint: "length",
+        value: OptionValue::value("length"),
         detail: "Maximum line length for word wrapping.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-style",
-        takes_value: true,
-        value_hint: "style",
+        value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "className",
+        value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "cursor",
+        value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "focusSpec",
+        value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padding",
-        takes_value: true,
-        value_hint: "padSpec",
+        value: OptionValue::value("padSpec"),
         detail: "Internal padding around the widget content.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-underline",
-        takes_value: true,
-        value_hint: "index",
+        value: OptionValue::value("index"),
         detail: "Index of the character to underline for mnemonic activation.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "relief",
+        value: OptionValue::value("relief"),
         detail: "Border relief style for the label.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "font",
+        value: OptionValue::value("font"),
         detail: "Font to use for the label text.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-foreground",
-        takes_value: true,
-        value_hint: "colour",
+        value: OptionValue::value("colour"),
         detail: "Foreground colour for the label text.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "colour",
+        value: OptionValue::value("colour"),
         detail: "Background colour for the label.",
         dialects: None,
         aliases: &[],

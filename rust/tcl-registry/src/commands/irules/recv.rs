@@ -35,11 +35,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "recv ?options? ?numChars? connection ?varname?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-eol",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Suspend until end-of-line received.",
                 dialects: None,
                 aliases: &[],
@@ -47,8 +46,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-peek",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return data but leave it buffered.",
                 dialects: None,
                 aliases: &[],
@@ -56,8 +54,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-timeout",
-                takes_value: true,
-                value_hint: "MSEC",
+                value: OptionValue::value("MSEC"),
                 detail: "Time in ms to wait for data.",
                 dialects: None,
                 aliases: &[],
@@ -65,14 +62,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-status",
-                takes_value: true,
-                value_hint: "VARIABLE",
+                value: OptionValue::value("VARIABLE"),
                 detail: "Save recv status into variable.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

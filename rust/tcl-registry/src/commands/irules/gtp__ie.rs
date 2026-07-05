@@ -40,11 +40,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::ie 'exists' ('-message' MESSAGE)? (IE_PATH)?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-message",
-                takes_value: true,
-                value_hint: "MESSAGE",
+                value: OptionValue::value("MESSAGE"),
                 detail: "Operate on a specific GTP message object.",
                 dialects: None,
                 aliases: &[],
@@ -52,8 +51,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-type",
-                takes_value: true,
-                value_hint: "TYPE",
+                value: OptionValue::value("TYPE"),
                 detail: "Filter by IE type value.",
                 dialects: None,
                 aliases: &[],
@@ -61,14 +59,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-instance",
-                takes_value: true,
-                value_hint: "INSTANCE",
+                value: OptionValue::value("INSTANCE"),
                 detail: "Filter by IE instance.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

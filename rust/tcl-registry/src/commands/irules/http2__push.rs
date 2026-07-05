@@ -48,11 +48,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-priority",
-                takes_value: true,
-                value_hint: "PRIORITY",
+                value: OptionValue::value("PRIORITY"),
                 detail: "Push priority number.",
                 dialects: None,
                 aliases: &[],
@@ -60,8 +59,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-content",
-                takes_value: true,
-                value_hint: "CONTENT",
+                value: OptionValue::value("CONTENT"),
                 detail: "Pushed response content.",
                 dialects: None,
                 aliases: &[],
@@ -69,8 +67,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ifile",
-                takes_value: true,
-                value_hint: "IFILE_OBJ",
+                value: OptionValue::value("IFILE_OBJ"),
                 detail: "Serve content from iFile.",
                 dialects: None,
                 aliases: &[],
@@ -78,8 +75,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-noserver",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Suppress \"Server: BigIP\" header.",
                 dialects: None,
                 aliases: &[],
@@ -87,14 +83,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-nohost",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Disable Host header requirement.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Http2State,
             reads: false,

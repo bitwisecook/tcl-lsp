@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "width",
+        value: OptionValue::value("width"),
         detail: "Desired width of the notebook.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "height",
+        value: OptionValue::value("height"),
         detail: "Desired height of the notebook.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padding",
-        takes_value: true,
-        value_hint: "padSpec",
+        value: OptionValue::value("padSpec"),
         detail: "Internal padding around the notebook content.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-style",
-        takes_value: true,
-        value_hint: "style",
+        value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "className",
+        value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "cursor",
+        value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "focusSpec",
+        value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],

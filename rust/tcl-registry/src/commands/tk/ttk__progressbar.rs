@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-orient",
-        takes_value: true,
-        value_hint: "orientation",
+        value: OptionValue::value("orientation"),
         detail: "Orientation of the progress bar (horizontal or vertical).",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-length",
-        takes_value: true,
-        value_hint: "length",
+        value: OptionValue::value("length"),
         detail: "Length of the long axis of the progress bar.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-mode",
-        takes_value: true,
-        value_hint: "progressMode",
+        value: OptionValue::value("progressMode"),
         detail: "Mode of the progress bar (determinate or indeterminate).",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-maximum",
-        takes_value: true,
-        value_hint: "maximum",
+        value: OptionValue::value("maximum"),
         detail: "Maximum value of the progress bar.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-value",
-        takes_value: true,
-        value_hint: "value",
+        value: OptionValue::value("value"),
         detail: "Current value of the progress bar.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        takes_value: true,
-        value_hint: "varName",
+        value: OptionValue::value("varName"),
         detail: "Variable linked to the progress bar value.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-phase",
-        takes_value: true,
-        value_hint: "phase",
+        value: OptionValue::value("phase"),
         detail: "Read-only value used by the theme engine for animation.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-style",
-        takes_value: true,
-        value_hint: "style",
+        value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "className",
+        value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "cursor",
+        value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "focusSpec",
+        value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],

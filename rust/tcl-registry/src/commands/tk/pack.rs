@@ -68,8 +68,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-side",
-        takes_value: true,
-        value_hint: "top|bottom|left|right",
+        value: OptionValue::value("top|bottom|left|right"),
         detail: "Specifies which side of the master the slave will be packed against.",
         dialects: None,
         aliases: &[],
@@ -77,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-fill",
-        takes_value: true,
-        value_hint: "none|x|y|both",
+        value: OptionValue::value("none|x|y|both"),
         detail: "If a slave's parcel is larger than its requested dimensions, this option may be used to stretch the slave.",
         dialects: None,
         aliases: &[],
@@ -86,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-expand",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Specifies whether the slave should be expanded to consume extra space in its master.",
         dialects: None,
         aliases: &[],
@@ -95,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        takes_value: true,
-        value_hint: "n|ne|e|se|s|sw|w|nw|center",
+        value: OptionValue::value("n|ne|e|se|s|sw|w|nw|center"),
         detail: "Anchor must be a valid anchor position: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
         aliases: &[],
@@ -104,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padx",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies how much external horizontal padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
@@ -113,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pady",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies how much external vertical padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
@@ -122,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ipadx",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies how much internal horizontal padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
@@ -131,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ipady",
-        takes_value: true,
-        value_hint: "amount",
+        value: OptionValue::value("amount"),
         detail: "Specifies how much internal vertical padding to leave on each side of the slave.",
         dialects: None,
         aliases: &[],
@@ -140,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-in",
-        takes_value: true,
-        value_hint: "master",
+        value: OptionValue::value("master"),
         detail: "Insert the slave at the end of the packing order for the master window.",
         dialects: None,
         aliases: &[],
@@ -149,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-before",
-        takes_value: true,
-        value_hint: "other",
+        value: OptionValue::value("other"),
         detail: "Insert the slave before the window given by other in the packing order.",
         dialects: None,
         aliases: &[],
@@ -158,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-after",
-        takes_value: true,
-        value_hint: "other",
+        value: OptionValue::value("other"),
         detail: "Insert the slave after the window given by other in the packing order.",
         dialects: None,
         aliases: &[],

@@ -47,11 +47,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "FLOW::create_related (((-translation-loose) (-hairpin))#)? (FLOW_CREATE_RELATED_SUBCMDS)+",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-translation-loose",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Option -translation-loose.",
                 dialects: None,
                 aliases: &[],
@@ -59,14 +58,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-hairpin",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Option -hairpin.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FlowState,
             reads: false,

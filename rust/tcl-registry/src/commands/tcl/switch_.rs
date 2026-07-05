@@ -99,11 +99,10 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(switch_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-exact",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Exact string compare mode.",
                 dialects: None,
                 aliases: &[],
@@ -111,8 +110,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-glob",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Glob pattern mode.",
                 dialects: None,
                 aliases: &[],
@@ -120,8 +118,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-regexp",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Regular expression mode.",
                 dialects: None,
                 aliases: &[],
@@ -129,8 +126,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive matching.",
                 dialects: Some(DialectSet::TCL85_PLUS),
                 aliases: &[],
@@ -138,8 +134,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-matchvar",
-                takes_value: true,
-                value_hint: "varName",
+                value: OptionValue::value("varName"),
                 detail: "Store match in variable (regexp mode).",
                 dialects: Some(DialectSet::TCL85_PLUS),
                 aliases: &[],
@@ -147,8 +142,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-indexvar",
-                takes_value: true,
-                value_hint: "varName",
+                value: OptionValue::value("varName"),
                 detail: "Store match indices in variable (regexp mode).",
                 dialects: Some(DialectSet::TCL85_PLUS),
                 aliases: &[],
@@ -156,14 +150,13 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "End of options.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         hover: Some(HoverSnippet {
             summary: "Pattern-based branching on a subject string.",
             synopsis: &[

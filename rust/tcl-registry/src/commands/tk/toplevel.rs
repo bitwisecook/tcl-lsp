@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the toplevel in screen units.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the toplevel in screen units.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the toplevel window.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-borderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the toplevel.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-menu",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Path name of a menu widget to use as the toplevel's menu bar.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-screen",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Screen on which to place the toplevel window.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-use",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Window identifier of a container in which to embed the toplevel.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-class",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Class name for the toplevel, used in option database lookups.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-colormap",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colourmap to use for the toplevel: new or inherited from a window.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-container",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the toplevel will be a container for an embedded application.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-visual",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Visual information for the toplevel window.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the toplevel.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the toplevel accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the toplevel does not have focus.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the toplevel has focus.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the toplevel.",
         dialects: None,
         aliases: &[],

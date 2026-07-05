@@ -1879,13 +1879,13 @@ mod tests {
             profile
                 .options
                 .iter()
-                .any(|o| o.name == "-start" && o.takes_value)
+                .any(|o| o.name == "-start" && o.takes_value())
         );
         assert!(
             profile
                 .options
                 .iter()
-                .any(|o| o.name == "-nocase" && !o.takes_value)
+                .any(|o| o.name == "-nocase" && !o.takes_value())
         );
     }
 
@@ -1967,13 +1967,13 @@ mod tests {
             .iter()
             .find(|o| o.name == "-noserver")
             .unwrap();
-        assert!(!noserver.takes_value);
+        assert!(!noserver.takes_value());
         let version = respond
             .options
             .iter()
             .find(|o| o.name == "-version")
             .unwrap();
-        assert!(version.takes_value);
+        assert!(version.takes_value());
 
         let header = reg.get("HTTP::header").expect("HTTP::header loaded");
         let header_opts: Vec<&str> = header.options.iter().map(|o| o.name).collect();

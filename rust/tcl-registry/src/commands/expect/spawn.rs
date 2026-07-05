@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-noecho",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Suppress echoing of the command.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-console",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Redirect console output to spawn.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ignore",
-        takes_value: true,
-        value_hint: "signal",
+        value: OptionValue::value("signal"),
         detail: "Ignore the named signal in the spawned process.",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-leaveopen",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Leave the file descriptor open.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pty",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Open a pty for the process.",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nottycopy",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not copy tty modes.",
         dialects: None,
         aliases: &[],
@@ -75,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nottyinit",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not initialise the tty.",
         dialects: None,
         aliases: &[],
@@ -84,8 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-open",
-        takes_value: true,
-        value_hint: "fileId",
+        value: OptionValue::value("fileId"),
         detail: "Use an already-open file id.",
         dialects: None,
         aliases: &[],
@@ -93,8 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-trap",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Enable signal trapping.",
         dialects: None,
         aliases: &[],

@@ -2066,7 +2066,7 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
             let takes_value = spec
                 .options
                 .iter()
-                .any(|o| o.name == a.as_str() && o.takes_value);
+                .any(|o| o.name == a.as_str() && o.takes_value());
             i += usize::from(takes_value) + 1;
             continue;
         }
@@ -2408,7 +2408,7 @@ fn option_scan_region(
         }
         region.insert(i);
         if arg.starts_with('-')
-            && options.iter().any(|o| o.takes_value && o.name == arg)
+            && options.iter().any(|o| o.takes_value() && o.name == arg)
             && i + 1 < n
         {
             i += 2;

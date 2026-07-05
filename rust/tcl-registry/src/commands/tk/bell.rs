@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-displayof",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Specifies the display on which to ring the bell.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nice",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not reset the screen saver when ringing the bell.",
         dialects: None,
         aliases: &[],

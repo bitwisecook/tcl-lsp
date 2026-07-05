@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-re",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as regular expression.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ex",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as exact string.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gl",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as glob (default).",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nocase",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Case-insensitive matching.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "seconds",
+        value: OptionValue::value("seconds"),
         detail: "Override the timeout.",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-indices",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Store match indices.",
         dialects: None,
         aliases: &[],
@@ -75,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-notransfer",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not consume matched output.",
         dialects: None,
         aliases: &[],

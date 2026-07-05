@@ -35,11 +35,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CRYPTO::decrypt (('-padding' (pkcs | oaep | none) )",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-alg",
-                takes_value: true,
-                value_hint: "ALG",
+                value: OptionValue::value("ALG"),
                 detail: "Decryption algorithm.",
                 dialects: None,
                 aliases: &[],
@@ -47,8 +46,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ctx",
-                takes_value: true,
-                value_hint: "CTX_VAR",
+                value: OptionValue::value("CTX_VAR"),
                 detail: "Context variable for multi-step operations.",
                 dialects: None,
                 aliases: &[],
@@ -56,8 +54,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-final",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Finalize context-based operation.",
                 dialects: None,
                 aliases: &[],
@@ -65,8 +62,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-key",
-                takes_value: true,
-                value_hint: "KEY",
+                value: OptionValue::value("KEY"),
                 detail: "Binary key.",
                 dialects: None,
                 aliases: &[],
@@ -74,8 +70,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-keyhex",
-                takes_value: true,
-                value_hint: "KEY_HEX",
+                value: OptionValue::value("KEY_HEX"),
                 detail: "Hex-encoded key.",
                 dialects: None,
                 aliases: &[],
@@ -83,8 +78,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-iv",
-                takes_value: true,
-                value_hint: "IV",
+                value: OptionValue::value("IV"),
                 detail: "Initialization vector (binary).",
                 dialects: None,
                 aliases: &[],
@@ -92,8 +86,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ivhex",
-                takes_value: true,
-                value_hint: "IV_HEX",
+                value: OptionValue::value("IV_HEX"),
                 detail: "Initialization vector (hex).",
                 dialects: None,
                 aliases: &[],
@@ -101,14 +94,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-padding",
-                takes_value: true,
-                value_hint: "PADDING",
+                value: OptionValue::value("PADDING"),
                 detail: "Padding mode (pkcs, oaep, none).",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,

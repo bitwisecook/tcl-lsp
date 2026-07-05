@@ -39,11 +39,10 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-directory",
-                takes_value: true,
-                value_hint: "dir",
+                value: OptionValue::value("dir"),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -51,8 +50,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-join",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -60,8 +58,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-nocomplain",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -69,8 +66,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-path",
-                takes_value: true,
-                value_hint: "pathPrefix",
+                value: OptionValue::value("pathPrefix"),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -78,8 +74,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-tails",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -87,8 +82,7 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-types",
-                takes_value: true,
-                value_hint: "typeList",
+                value: OptionValue::value("typeList"),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -96,14 +90,13 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         hover: Some(HoverSnippet {
             summary: "Return names of files that match patterns.",
             synopsis: &["glob ?switches? ?--? pattern ?pattern ...?"],

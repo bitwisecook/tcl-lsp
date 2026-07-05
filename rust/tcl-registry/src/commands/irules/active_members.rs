@@ -45,15 +45,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "active_members ('-list')? POOL_OBJ",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-list",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "Return as list instead of count.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,

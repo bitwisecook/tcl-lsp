@@ -18,6 +18,8 @@
 
 //! Documentation and completion metadata for LSP features.
 
+use crate::arg_role::ArgRole;
+use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 
 /// Short hover content derived from man pages or vendor docs.
@@ -65,15 +67,175 @@ pub struct ArgumentValueSpec {
     pub detail: &'static str,
 }
 
+/// How many following words a value-taking option consumes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OptionArity {
+    /// Exactly one value (`-index 2`).
+    One,
+    /// A fixed number of values (`-rect x1 y1 x2 y2` → `Fixed(4)`).
+    Fixed(u8),
+    /// All following words up to the next `--` / end of the argument list.
+    Rest,
+}
+
+/// What a value-taking option consumes and how to analyse it.
+///
+/// The `role` mirrors the positional [`ArgRole`], so an option value flows
+/// through the *same* analysis passes as a positional argument of that role —
+/// body recursion, expr checks, variable flow, channel checks, symbolic-name
+/// resolution — instead of being an opaque string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionArg {
+    /// How many words the option consumes.
+    pub arity: OptionArity,
+    /// The semantic role of the value word(s).
+    pub role: ArgRole,
+    /// A second role carried at the same value position, for two-way bindings
+    /// (a `-textvariable` name is both written and read by the widget →
+    /// `role: VarWrite, also_role: Some(VarRead)`).
+    pub also_role: Option<ArgRole>,
+    /// When `role` is [`ArgRole::Body`], whether the script runs in the
+    /// caller's frame (`Plain`) or a separate definition/dispatch scope
+    /// (`Structural` — a Tk `-command` callback).
+    pub body_kind: BodyKind,
+    /// Enumerable value set for completion / closed-set checking; empty when
+    /// the value is open (an arbitrary string / number / name).
+    pub values: &'static [ArgValue],
+    /// Whether `values` is exhaustive — a value outside it is an error
+    /// (drives the option-aware closed-value check).
+    pub closed: bool,
+    /// Hint text for the value (e.g. `"channel"`), migrated from the old
+    /// `value_hint` field.
+    pub hint: &'static str,
+}
+
+impl OptionArg {
+    /// Baseline: single word, generic [`ArgRole::Value`], open set, no hint.
+    pub const DEFAULT: Self = Self {
+        arity: OptionArity::One,
+        role: ArgRole::Value,
+        also_role: None,
+        body_kind: BodyKind::Plain,
+        values: &[],
+        closed: false,
+        hint: "",
+    };
+}
+
+/// What an option consumes: nothing (a boolean flag) or a described value.
+///
+/// Replaces the old `takes_value: bool` + `value_hint` pair with a single
+/// source of truth carrying arity and value role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionValue {
+    /// A boolean switch — consumes no following word.
+    Flag,
+    /// Consumes value word(s) as described.
+    Takes(OptionArg),
+}
+
+impl OptionValue {
+    /// A boolean flag (consumes no value).
+    #[must_use]
+    pub const fn flag() -> Self {
+        Self::Flag
+    }
+
+    /// A single generic value with a completion `hint` — the common case,
+    /// equivalent to the old `takes_value: true`.
+    #[must_use]
+    pub const fn value(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single script-body value run in its own (Structural) scope — a Tk
+    /// `-command` / `-validatecommand` callback.
+    #[must_use]
+    pub const fn script() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Body,
+            body_kind: BodyKind::Structural,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single variable-name value read and written by the command
+    /// (`-textvariable`, `-variable`).
+    #[must_use]
+    pub const fn var_name() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::VarWrite,
+            also_role: Some(ArgRole::VarRead),
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single symbolic-name value — a namespace, proc, method, or class name
+    /// (`ArgRole::Name`).  Captures the reference for resolution tooling.
+    #[must_use]
+    pub const fn name(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Name,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single channel-identifier value (`expect -i spawn_id`).
+    #[must_use]
+    pub const fn channel(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Channel,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single expression value (argparse `-validate`).
+    #[must_use]
+    pub const fn expr() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Expr,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single value drawn from an enumerable set.  `closed` marks the set as
+    /// exhaustive (a value outside it is flagged).
+    #[must_use]
+    pub const fn enumerated(values: &'static [ArgValue], closed: bool, hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            values,
+            closed,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A fixed number of value words of the given `role`
+    /// (`-rect x1 y1 x2 y2` → `fixed(4, ArgRole::Value, "coord")`).
+    #[must_use]
+    pub const fn fixed(n: u8, role: ArgRole, hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            arity: OptionArity::Fixed(n),
+            role,
+            hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+}
+
 /// Metadata for a switch-like option (`-nonewline`, `-nocase`, etc.).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptionSpec {
     /// Option name (e.g. `"-nonewline"`).
     pub name: &'static str,
-    /// Whether this option consumes a following value.
-    pub takes_value: bool,
-    /// Hint text for the value (e.g. `"channel"`).
-    pub value_hint: &'static str,
+    /// What the option consumes — a boolean flag or a described value.
+    /// Replaces the old `takes_value` / `value_hint` pair.
+    pub value: OptionValue,
     /// Short description.
     pub detail: &'static str,
     /// Dialect membership.  `None` means "inherit from the parent
@@ -99,6 +261,99 @@ pub struct OptionSpec {
 }
 
 impl OptionSpec {
+    /// Default value for all fields — used with `..OptionSpec::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        name: "",
+        value: OptionValue::Flag,
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    };
+
+    /// Whether this option consumes a following value (any arity ≥ 1).
+    #[must_use]
+    pub const fn takes_value(&self) -> bool {
+        !matches!(self.value, OptionValue::Flag)
+    }
+
+    /// Completion hint for the option's value (empty for a flag).
+    #[must_use]
+    pub const fn value_hint(&self) -> &'static str {
+        match self.value {
+            OptionValue::Flag => "",
+            OptionValue::Takes(arg) => arg.hint,
+        }
+    }
+
+    /// The primary [`ArgRole`] of the option's value, if it takes one.
+    #[must_use]
+    pub const fn value_role(&self) -> Option<ArgRole> {
+        match self.value {
+            OptionValue::Flag => None,
+            OptionValue::Takes(arg) => Some(arg.role),
+        }
+    }
+
+    /// A secondary role carried at the value position (two-way var-name).
+    #[must_use]
+    pub const fn value_also_role(&self) -> Option<ArgRole> {
+        match self.value {
+            OptionValue::Flag => None,
+            OptionValue::Takes(arg) => arg.also_role,
+        }
+    }
+
+    /// The option value's enumerable set (empty when open / a flag).
+    #[must_use]
+    pub const fn value_values(&self) -> &'static [ArgValue] {
+        match self.value {
+            OptionValue::Flag => &[],
+            OptionValue::Takes(arg) => arg.values,
+        }
+    }
+
+    /// Whether the option value's set is closed (exhaustive).
+    #[must_use]
+    pub const fn value_is_closed(&self) -> bool {
+        matches!(self.value, OptionValue::Takes(arg) if arg.closed)
+    }
+
+    /// The absolute indices into `args` this option consumes as its value(s)
+    /// when the option word sits at `flag_idx`.
+    ///
+    /// Honours arity ([`OptionArity`]), clamps to the argument list, and stops
+    /// at an option terminator `--` (so `-index --` consumes nothing, matching
+    /// the existing value-colouring convention).  Empty for a
+    /// [`OptionValue::Flag`].  This is the single source of the value-span
+    /// logic shared by the option-scanning loops.
+    #[must_use]
+    pub fn value_indices(&self, args: &[&str], flag_idx: usize) -> Vec<usize> {
+        let OptionValue::Takes(arg) = self.value else {
+            return Vec::new();
+        };
+        let hard_end = args.len();
+        let start = (flag_idx + 1).min(hard_end);
+        // Value consumption stops at a `--` terminator.
+        let term = args[start..hard_end]
+            .iter()
+            .position(|w| *w == "--")
+            .map_or(hard_end, |p| start + p);
+        let want = match arg.arity {
+            OptionArity::One => 1,
+            OptionArity::Fixed(n) => usize::from(n),
+            OptionArity::Rest => term - start,
+        };
+        (start..term.min(start + want)).collect()
+    }
+
+    /// How many value words this option consumes at `flag_idx`
+    /// (see [`Self::value_indices`]).
+    #[must_use]
+    pub fn value_word_count(&self, args: &[&str], flag_idx: usize) -> usize {
+        self.value_indices(args, flag_idx).len()
+    }
+
     /// Check whether this option is available in *dialect*.
     ///
     /// If the option has its own `dialects` set, use it.  Otherwise
@@ -189,8 +444,7 @@ mod tests {
     fn supports_dialect_inherits_from_parent_when_unset() {
         let opt = OptionSpec {
             name: "-foo",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
             aliases: &[],
@@ -212,8 +466,7 @@ mod tests {
         // wins.
         let opt = OptionSpec {
             name: "-stride",
-            takes_value: true,
-            value_hint: "int",
+            value: OptionValue::value("int"),
             detail: "",
             dialects: Some(DialectSet::TCL86_PLUS),
             aliases: &[],
@@ -231,8 +484,7 @@ mod tests {
         // unscoped completion).
         let opt = OptionSpec {
             name: "-x",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: Some(DialectSet::TCL90),
             aliases: &[],

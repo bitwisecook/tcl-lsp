@@ -35,15 +35,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "REST::send -method METHOD URI ?BODY?",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-method",
-            takes_value: true,
-            value_hint: "METHOD",
+            value: OptionValue::value("METHOD"),
             detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

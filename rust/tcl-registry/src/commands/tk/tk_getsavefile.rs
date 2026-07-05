@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-confirmoverwrite",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Prompt for confirmation if the file already exists.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-defaultextension",
-        takes_value: true,
-        value_hint: "extension",
+        value: OptionValue::value("extension"),
         detail: "Default extension to append if the user does not type one.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-filetypes",
-        takes_value: true,
-        value_hint: "filePatternList",
+        value: OptionValue::value("filePatternList"),
         detail: "List of file type patterns to display in the filter.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-initialdir",
-        takes_value: true,
-        value_hint: "dirName",
+        value: OptionValue::value("dirName"),
         detail: "Initial directory to display.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-initialfile",
-        takes_value: true,
-        value_hint: "fileName",
+        value: OptionValue::value("fileName"),
         detail: "Initial file name to populate in the dialogue.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-parent",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Parent window for the dialogue.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-title",
-        takes_value: true,
-        value_hint: "titleString",
+        value: OptionValue::value("titleString"),
         detail: "Title string for the dialogue window.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-typevariable",
-        takes_value: true,
-        value_hint: "varName",
+        value: OptionValue::value("varName"),
         detail: "Variable to store the selected file type.",
         dialects: None,
         aliases: &[],

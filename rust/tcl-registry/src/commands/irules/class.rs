@@ -27,11 +27,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Match an item against a data group.",
         synopsis: "class match ?options? ?--? <item> <operator> <class>",
         pure: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-all",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return all matches.",
                 dialects: None,
                 aliases: &[],
@@ -39,8 +38,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-value",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value instead of name.",
                 dialects: None,
                 aliases: &[],
@@ -48,8 +46,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-name",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return name.",
                 dialects: None,
                 aliases: &[],
@@ -57,8 +54,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-index",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return index.",
                 dialects: None,
                 aliases: &[],
@@ -66,8 +62,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-element",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return full element.",
                 dialects: None,
                 aliases: &[],
@@ -75,8 +70,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive comparison.",
                 dialects: None,
                 aliases: &[],
@@ -84,14 +78,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -100,11 +93,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Search a data group for an item.",
         synopsis: "class search ?options? ?--? <class> <operator> <item>",
         pure: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-all",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return all matches.",
                 dialects: None,
                 aliases: &[],
@@ -112,8 +104,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-value",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value instead of name.",
                 dialects: None,
                 aliases: &[],
@@ -121,8 +112,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-name",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return name.",
                 dialects: None,
                 aliases: &[],
@@ -130,8 +120,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-index",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return index.",
                 dialects: None,
                 aliases: &[],
@@ -139,8 +128,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-element",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return full element.",
                 dialects: None,
                 aliases: &[],
@@ -148,8 +136,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive comparison.",
                 dialects: None,
                 aliases: &[],
@@ -157,14 +144,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -181,11 +167,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return an element by index.",
         synopsis: "class element ?-value|-name? ?--? <index> <class>",
         pure: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-value",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value instead of name.",
                 dialects: None,
                 aliases: &[],
@@ -193,8 +178,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-name",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return name.",
                 dialects: None,
                 aliases: &[],
@@ -202,14 +186,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -242,11 +225,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return list of data group names.",
         synopsis: "class names ?-nocase? ?-list? ?--? <class> ?pattern?",
         pure: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive comparison.",
                 dialects: None,
                 aliases: &[],
@@ -254,8 +236,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-list",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value always as a list.",
                 dialects: None,
                 aliases: &[],
@@ -263,14 +244,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -279,11 +259,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return all elements as a list.",
         synopsis: "class get ?-nocase? ?-list? ?--? <class> ?pattern?",
         pure: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive comparison.",
                 dialects: None,
                 aliases: &[],
@@ -291,8 +270,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-list",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value always as a list.",
                 dialects: None,
                 aliases: &[],
@@ -300,14 +278,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -322,11 +299,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get next element during iteration.",
         synopsis: "class nextelement ?options? ?--? <search_id>",
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-value",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value instead of name.",
                 dialects: None,
                 aliases: &[],
@@ -334,8 +310,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-name",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return name.",
                 dialects: None,
                 aliases: &[],
@@ -343,14 +318,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -392,11 +366,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "class <subcommand> ?options? ?--? args...",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-all",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return all matches.",
                 dialects: None,
                 aliases: &[],
@@ -404,8 +377,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-value",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value instead of name.",
                 dialects: None,
                 aliases: &[],
@@ -413,8 +385,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-name",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return name.",
                 dialects: None,
                 aliases: &[],
@@ -422,8 +393,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-index",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return index.",
                 dialects: None,
                 aliases: &[],
@@ -431,8 +401,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-element",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return full element.",
                 dialects: None,
                 aliases: &[],
@@ -440,8 +409,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-nocase",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Case-insensitive comparison.",
                 dialects: None,
                 aliases: &[],
@@ -449,14 +417,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-list",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Return value always as a list.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,

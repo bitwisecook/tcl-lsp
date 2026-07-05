@@ -29,8 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nobackslashes",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -38,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nocommands",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -47,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-novariables",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -59,8 +56,7 @@ const OPTIONS: &[OptionSpec] = &[
     // call.
     OptionSpec {
         name: "-backslashes",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Enable only backslash substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
@@ -68,8 +64,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-commands",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Enable only command substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],
@@ -77,8 +72,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variables",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Enable only variable substitution (Tcl 9.1).",
         dialects: Some(DialectSet::TCL91),
         aliases: &[],

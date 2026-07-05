@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-a",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Append to existing log file.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-noappend",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Overwrite existing log file.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-open",
-        takes_value: true,
-        value_hint: "fileId",
+        value: OptionValue::value("fileId"),
         detail: "Log to an already-open Tcl file id.",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-leaveopen",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Leave the file open on close.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-info",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Return current log file settings.",
         dialects: None,
         aliases: &[],

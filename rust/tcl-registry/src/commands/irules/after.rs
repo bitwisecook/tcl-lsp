@@ -67,11 +67,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "after MILLI_SECONDS (-periodic)? (NESTING_SCRIPT)?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-periodic",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Option -periodic.",
                 dialects: None,
                 aliases: &[],
@@ -79,14 +78,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-current",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Option -current.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: false,

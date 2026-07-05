@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-i",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Wait for the specified spawn id.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nowait",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Non-blocking wait.",
         dialects: None,
         aliases: &[],

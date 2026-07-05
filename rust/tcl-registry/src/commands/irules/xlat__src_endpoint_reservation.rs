@@ -39,11 +39,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "XLAT::src_endpoint_reservation create ?options? <client_ip> <client_port> <protocol> <lifetime>",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-no-persist",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Skip creation of persist entry.",
                 dialects: None,
                 aliases: &[],
@@ -51,8 +50,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-dslite",
-                takes_value: true,
-                value_hint: "LOCAL_ADDR REMOTE_ADDR",
+                value: OptionValue::value("LOCAL_ADDR REMOTE_ADDR"),
                 detail: "DS-Lite local and remote endpoint.",
                 dialects: None,
                 aliases: &[],
@@ -60,8 +58,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-pool",
-                takes_value: true,
-                value_hint: "POOL_NAME",
+                value: OptionValue::value("POOL_NAME"),
                 detail: "Specify pool for endpoint reservation.",
                 dialects: None,
                 aliases: &[],
@@ -69,8 +66,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-translation-loose",
-                takes_value: true,
-                value_hint: "IP PORT",
+                value: OptionValue::value("IP PORT"),
                 detail: "Hint data; command won't fail if hints can't be used.",
                 dialects: None,
                 aliases: &[],
@@ -78,14 +74,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-translation-strict",
-                takes_value: true,
-                value_hint: "IP PORT",
+                value: OptionValue::value("IP PORT"),
                 detail: "Hint data; command fails if hints can't be used.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,
             reads: true,

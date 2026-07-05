@@ -99,15 +99,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove a session.",
         synopsis: "ACCESS::session remove ?-sid id?",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-sid",
-            takes_value: true,
-            value_hint: "SESSION_ID",
+            value: OptionValue::value("SESSION_ID"),
             detail: "Session ID.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
@@ -135,8 +134,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 const OPTIONS_1: &[OptionSpec] = &[
     OptionSpec {
         name: "-flow",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Create a flow-scoped session.",
         dialects: None,
         aliases: &[],
@@ -144,8 +142,7 @@ const OPTIONS_1: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
@@ -153,8 +150,7 @@ const OPTIONS_1: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-lifetime",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
@@ -165,8 +161,7 @@ const OPTIONS_1: &[OptionSpec] = &[
 const OPTIONS_2: &[OptionSpec] = &[
     OptionSpec {
         name: "-sid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
@@ -174,8 +169,7 @@ const OPTIONS_2: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
@@ -183,8 +177,7 @@ const OPTIONS_2: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-lifetime",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
@@ -192,8 +185,7 @@ const OPTIONS_2: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-remaining",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Remaining time.",
         dialects: None,
         aliases: &[],
@@ -204,8 +196,7 @@ const OPTIONS_2: &[OptionSpec] = &[
 const OPTIONS_3: &[OptionSpec] = &[
     OptionSpec {
         name: "-sid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
@@ -213,8 +204,7 @@ const OPTIONS_3: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state_allow",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Check for allow state.",
         dialects: None,
         aliases: &[],
@@ -222,8 +212,7 @@ const OPTIONS_3: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state_deny",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Check for deny state.",
         dialects: None,
         aliases: &[],
@@ -231,8 +220,7 @@ const OPTIONS_3: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state_redirect",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Check for redirect state.",
         dialects: None,
         aliases: &[],
@@ -240,8 +228,7 @@ const OPTIONS_3: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state_inprogress",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Check for in-progress state.",
         dialects: None,
         aliases: &[],
@@ -252,8 +239,7 @@ const OPTIONS_3: &[OptionSpec] = &[
 const OPTIONS_4: &[OptionSpec] = &[
     OptionSpec {
         name: "-sid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
@@ -261,8 +247,7 @@ const OPTIONS_4: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-secure",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Access secure session data.",
         dialects: None,
         aliases: &[],
@@ -270,8 +255,7 @@ const OPTIONS_4: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-config",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Access config session data.",
         dialects: None,
         aliases: &[],
@@ -279,8 +263,7 @@ const OPTIONS_4: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ssid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Sub-session ID.",
         dialects: None,
         aliases: &[],
@@ -288,8 +271,7 @@ const OPTIONS_4: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -300,8 +282,7 @@ const OPTIONS_4: &[OptionSpec] = &[
 const OPTIONS_5: &[OptionSpec] = &[
     OptionSpec {
         name: "-flow",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Create a flow-scoped session.",
         dialects: None,
         aliases: &[],
@@ -309,8 +290,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session timeout in seconds.",
         dialects: None,
         aliases: &[],
@@ -318,8 +298,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-lifetime",
-        takes_value: true,
-        value_hint: "SECONDS",
+        value: OptionValue::value("SECONDS"),
         detail: "Session lifetime in seconds.",
         dialects: None,
         aliases: &[],
@@ -327,8 +306,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Session ID.",
         dialects: None,
         aliases: &[],
@@ -336,8 +314,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-remaining",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Remaining time.",
         dialects: None,
         aliases: &[],
@@ -345,8 +322,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-secure",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Access secure session data.",
         dialects: None,
         aliases: &[],
@@ -354,8 +330,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-config",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Access config session data.",
         dialects: None,
         aliases: &[],
@@ -363,8 +338,7 @@ const OPTIONS_5: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ssid",
-        takes_value: true,
-        value_hint: "SESSION_ID",
+        value: OptionValue::value("SESSION_ID"),
         detail: "Sub-session ID.",
         dialects: None,
         aliases: &[],

@@ -40,15 +40,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Evaluate an access policy.",
         synopsis: "ACCESS::policy evaluate ?-sid id?",
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-sid",
-            takes_value: true,
-            value_hint: "SESSION_ID",
+            value: OptionValue::value("SESSION_ID"),
             detail: "Session ID.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
@@ -63,15 +62,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the policy result (allow/deny/redirect).",
         synopsis: "ACCESS::policy result ?-sid id?",
         pure: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-sid",
-            takes_value: true,
-            value_hint: "SESSION_ID",
+            value: OptionValue::value("SESSION_ID"),
             detail: "Session ID.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,

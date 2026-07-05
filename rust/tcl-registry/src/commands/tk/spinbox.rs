@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-from",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Starting value for the numeric range.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-to",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Ending value for the numeric range.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-increment",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Amount to increment or decrement the value on each arrow press.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-values",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "List of values to cycle through instead of a numeric range.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Name of a variable linked to the spinbox's contents.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the spinbox in average-size characters.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "State of the spinbox: normal, disabled, or readonly.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Format string for displaying the value (e.g. %5.2f).",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-wrap",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the value wraps around when the range limit is reached.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Tcl command to invoke when the value is changed via the arrows.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validate",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Validation mode: none, focus, focusin, focusout, key, or all.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Font to use for text in the spinbox.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-fg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-readonlybackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour when the spinbox is in readonly state.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buttonbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the increment/decrement buttons.",
         dialects: None,
         aliases: &[],
@@ -190,8 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buttoncursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the buttons.",
         dialects: None,
         aliases: &[],
@@ -199,8 +180,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buttondownrelief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Relief of the down (decrement) button.",
         dialects: None,
         aliases: &[],
@@ -208,8 +188,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buttonuprelief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Relief of the up (increment) button.",
         dialects: None,
         aliases: &[],
@@ -217,8 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -226,8 +204,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -235,8 +212,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around selected text.",
         dialects: None,
         aliases: &[],
@@ -244,8 +220,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectforeground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -253,8 +228,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -262,8 +236,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -271,8 +244,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertofftime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
@@ -280,8 +252,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertontime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
@@ -289,8 +260,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
@@ -298,8 +268,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -307,8 +276,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exportselection",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
@@ -316,8 +284,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the spinbox.",
         dialects: None,
         aliases: &[],
@@ -325,8 +292,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the spinbox accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -334,8 +300,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the spinbox does not have focus.",
         dialects: None,
         aliases: &[],
@@ -343,8 +308,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the spinbox has focus.",
         dialects: None,
         aliases: &[],
@@ -352,8 +316,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the spinbox.",
         dialects: None,
         aliases: &[],

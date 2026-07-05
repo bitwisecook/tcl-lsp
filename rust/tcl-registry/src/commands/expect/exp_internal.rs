@@ -20,8 +20,7 @@
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-f",
-    takes_value: true,
-    value_hint: "file",
+    value: OptionValue::value("file"),
     detail: "Log diagnostics to the specified file.",
     dialects: None,
     aliases: &[],

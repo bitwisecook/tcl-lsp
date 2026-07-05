@@ -38,11 +38,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::ephemeral-auth create ('-user' USER) ('-auth_cfg' AUTH_CONFIG)? ('-sid' SESSION_ID)?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-user",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -user.",
                 dialects: None,
                 aliases: &[],
@@ -50,8 +49,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-auth_cfg",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -auth_cfg.",
                 dialects: None,
                 aliases: &[],
@@ -59,8 +57,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-sid",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -sid.",
                 dialects: None,
                 aliases: &[],
@@ -68,8 +65,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-password",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -password.",
                 dialects: None,
                 aliases: &[],
@@ -77,14 +73,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-protocol",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -protocol.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: false,

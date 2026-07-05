@@ -31,8 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 static OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-all",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Return list of all matching indices.",
         dialects: None,
         aliases: &[],
@@ -40,8 +39,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ascii",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "ASCII string comparison.",
         dialects: None,
         aliases: &[],
@@ -49,8 +47,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bisect",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Binary search a sorted list (implies -sorted).",
         dialects: None,
         aliases: &[],
@@ -58,8 +55,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-decreasing",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "List is sorted in decreasing order (with -sorted).",
         dialects: None,
         aliases: &[],
@@ -67,8 +63,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-dictionary",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Dictionary-order comparison.",
         dialects: None,
         aliases: &[],
@@ -76,8 +71,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exact",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Exact equality match.",
         dialects: None,
         aliases: &[],
@@ -85,8 +79,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-glob",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Glob-pattern match (default).",
         dialects: None,
         aliases: &[],
@@ -94,8 +87,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-increasing",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "List is sorted in increasing order (with -sorted).",
         dialects: None,
         aliases: &[],
@@ -103,8 +95,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-index",
-        takes_value: true,
-        value_hint: "indexList",
+        value: OptionValue::value("indexList"),
         detail: "Compare against nested sub-element at indexList.",
         dialects: None,
         aliases: &[],
@@ -112,8 +103,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-inline",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Return matching values instead of indices.",
         dialects: None,
         aliases: &[],
@@ -121,8 +111,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-integer",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Integer comparison.",
         dialects: None,
         aliases: &[],
@@ -130,8 +119,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nocase",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Case-insensitive comparison.",
         dialects: None,
         aliases: &[],
@@ -139,8 +127,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-not",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Invert the sense of the match.",
         dialects: None,
         aliases: &[],
@@ -148,8 +135,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-real",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Floating-point comparison.",
         dialects: None,
         aliases: &[],
@@ -157,8 +143,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-regexp",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Regular-expression match.",
         dialects: None,
         aliases: &[],
@@ -166,8 +151,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sorted",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "List is sorted; use binary search.",
         dialects: None,
         aliases: &[],
@@ -175,8 +159,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-start",
-        takes_value: true,
-        value_hint: "index",
+        value: OptionValue::value("index"),
         detail: "Start the search at the given index.",
         dialects: None,
         aliases: &[],
@@ -186,8 +169,7 @@ static OPTIONS: &[OptionSpec] = &[
     // -stride"; the 8.6 / TIP 351 `-stride` belongs to `lsort`).
     OptionSpec {
         name: "-stride",
-        takes_value: true,
-        value_hint: "strideLength",
+        value: OptionValue::value("strideLength"),
         detail: "Treat the list as a sequence of fixed-size records.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -195,8 +177,7 @@ static OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-subindices",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Combine result with -index value for nested addressing.",
         dialects: None,
         aliases: &[],

@@ -60,8 +60,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-global",
-    takes_value: false,
-    value_hint: "",
+    value: OptionValue::flag(),
     detail: "Make the grab global (applies to all displays).",
     dialects: None,
     aliases: &[],

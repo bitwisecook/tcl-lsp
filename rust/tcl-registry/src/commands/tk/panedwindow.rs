@@ -89,8 +89,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-orient",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Orientation of the panedwindow: horizontal or vertical.",
         dialects: None,
         aliases: &[],
@@ -98,8 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sashwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of each sash in screen units.",
         dialects: None,
         aliases: &[],
@@ -107,8 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sashrelief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Relief of the sashes: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -116,8 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sashpad",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra padding on each side of a sash.",
         dialects: None,
         aliases: &[],
@@ -125,8 +121,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-sashcursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over a sash.",
         dialects: None,
         aliases: &[],
@@ -134,8 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-showhandle",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether to display handles on the sashes.",
         dialects: None,
         aliases: &[],
@@ -143,8 +137,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-handlesize",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Size of the sash handle in screen units.",
         dialects: None,
         aliases: &[],
@@ -152,8 +145,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-handlepad",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Distance from the top or left end of a sash to the handle.",
         dialects: None,
         aliases: &[],
@@ -161,8 +153,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-opaqueresize",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether panes are resized continuously as the sash is dragged.",
         dialects: None,
         aliases: &[],
@@ -170,8 +161,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the panedwindow in screen units.",
         dialects: None,
         aliases: &[],
@@ -179,8 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the panedwindow in screen units.",
         dialects: None,
         aliases: &[],
@@ -188,8 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -197,8 +185,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the panedwindow.",
         dialects: None,
         aliases: &[],
@@ -206,8 +193,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -215,8 +201,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-borderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the panedwindow.",
         dialects: None,
         aliases: &[],
@@ -224,8 +209,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the panedwindow.",
         dialects: None,
         aliases: &[],
@@ -233,8 +217,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the panedwindow accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -242,8 +225,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the panedwindow does not have focus.",
         dialects: None,
         aliases: &[],
@@ -251,8 +233,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the panedwindow has focus.",
         dialects: None,
         aliases: &[],
@@ -260,8 +241,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the panedwindow.",
         dialects: None,
         aliases: &[],

@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the text widget in characters.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the text widget in lines.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-wrap",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Line wrapping mode: none, char, or word.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-state",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "State of the text widget: normal or disabled.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-font",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Font to use for text in the widget.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-fg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -foreground.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-spacing1",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra space above each line of text, in screen units.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-spacing2",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra space between display lines within a logical line, in screen units.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-spacing3",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra space below each line of text, in screen units.",
         dialects: None,
         aliases: &[],
@@ -127,8 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-tabs",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Tab stop positions and alignment for the text widget.",
         dialects: None,
         aliases: &[],
@@ -136,8 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -145,8 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
         aliases: &[],
@@ -154,8 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertofftime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
         aliases: &[],
@@ -163,8 +148,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertontime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
         aliases: &[],
@@ -172,8 +156,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-insertwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
         aliases: &[],
@@ -181,8 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -190,8 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around selected text.",
         dialects: None,
         aliases: &[],
@@ -199,8 +180,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-selectforeground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for selected text.",
         dialects: None,
         aliases: &[],
@@ -208,8 +188,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -217,8 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
@@ -226,8 +204,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-exportselection",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the selection is exported to the X selection.",
         dialects: None,
         aliases: &[],
@@ -235,8 +212,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-setgrid",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether this widget controls the resizing grid for its toplevel.",
         dialects: None,
         aliases: &[],
@@ -244,8 +220,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-padx",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra horizontal padding inside the text widget.",
         dialects: None,
         aliases: &[],
@@ -253,8 +228,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-pady",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Extra vertical padding inside the text widget.",
         dialects: None,
         aliases: &[],
@@ -262,8 +236,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-undo",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the undo mechanism is active.",
         dialects: None,
         aliases: &[],
@@ -271,8 +244,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-maxundo",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Maximum number of compound undo actions on the undo stack.",
         dialects: None,
         aliases: &[],
@@ -280,8 +252,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-autoseparators",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether undo separators are inserted automatically.",
         dialects: None,
         aliases: &[],
@@ -289,8 +260,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the text widget.",
         dialects: None,
         aliases: &[],
@@ -298,8 +268,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the text widget accepts focus during keyboard traversal.",
         dialects: None,
         aliases: &[],
@@ -307,8 +276,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the widget does not have focus.",
         dialects: None,
         aliases: &[],
@@ -316,8 +284,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the widget has focus.",
         dialects: None,
         aliases: &[],
@@ -325,8 +292,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the widget.",
         dialects: None,
         aliases: &[],

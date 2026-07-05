@@ -459,8 +459,8 @@ fn option_hover_text(
     if !opt.detail.is_empty() {
         let _ = write!(out, "\n{}\n", opt.detail);
     }
-    if opt.takes_value && !opt.value_hint.is_empty() {
-        let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint);
+    if opt.takes_value() && !opt.value_hint().is_empty() {
+        let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint());
     }
     Some(out)
 }

@@ -35,11 +35,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "send ?options? ?--? connection data",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-timeout",
-                takes_value: true,
-                value_hint: "MSEC",
+                value: OptionValue::value("MSEC"),
                 detail: "Time in ms to wait for data to be sent.",
                 dialects: None,
                 aliases: &[],
@@ -47,8 +46,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-status",
-                takes_value: true,
-                value_hint: "VARIABLE",
+                value: OptionValue::value("VARIABLE"),
                 detail: "Save send status into variable.",
                 dialects: None,
                 aliases: &[],
@@ -56,14 +54,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

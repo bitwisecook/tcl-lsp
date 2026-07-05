@@ -20,8 +20,7 @@
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-now",
-    takes_value: false,
-    value_hint: "",
+    value: OptionValue::flag(),
     detail: "Enter debugger immediately.",
     dialects: None,
     aliases: &[],

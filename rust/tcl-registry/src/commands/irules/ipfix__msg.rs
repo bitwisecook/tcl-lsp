@@ -35,15 +35,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "IPFIX::msg <subcommand> ?options? args...",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-pos",
-            takes_value: true,
-            value_hint: "IPFIX_POS",
+            value: OptionValue::value("IPFIX_POS"),
             detail: "Position index for duplicate field types.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

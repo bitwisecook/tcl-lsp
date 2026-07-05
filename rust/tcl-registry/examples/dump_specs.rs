@@ -198,7 +198,7 @@ fn side_effects_json(ses: &[SideEffect]) -> String {
 fn options_json(opts: &[tcl_registry::hover::OptionSpec]) -> String {
     let mut v: Vec<String> = opts
         .iter()
-        .map(|o| format!("{}|{}|{}", o.name, i32::from(o.takes_value), o.value_hint))
+        .map(|o| format!("{}|{}|{}", o.name, i32::from(o.takes_value()), o.value_hint()))
         .collect();
     v.sort_unstable();
     v.dedup();

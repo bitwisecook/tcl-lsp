@@ -35,15 +35,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::message ('-message' MESSAGE)?",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "",
+            value: OptionValue::value(""),
             detail: "Option -message.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

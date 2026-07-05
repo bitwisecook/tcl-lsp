@@ -89,7 +89,9 @@ pub mod prelude {
         ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,
         WasmCodegenHookId,
     };
-    pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
+    pub use crate::hover::{
+        ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
+    };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};

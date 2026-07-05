@@ -48,15 +48,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "MR::message clone (CLONE_ID)+",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-count",
-            takes_value: true,
-            value_hint: "",
+            value: OptionValue::value(""),
             detail: "Option -count.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
             reads: false,

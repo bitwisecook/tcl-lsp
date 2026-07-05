@@ -71,8 +71,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-body",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -80,8 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-result",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -89,8 +87,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-output",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -98,8 +95,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-errorOutput",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -107,8 +103,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-returnCodes",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -116,8 +111,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-errorCode",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -125,8 +119,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-match",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -134,8 +127,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-setup",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -143,8 +135,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-cleanup",
-        takes_value: true,
-        value_hint: "script",
+        value: OptionValue::value("script"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -152,8 +143,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-constraints",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "",
         dialects: None,
         aliases: &[],

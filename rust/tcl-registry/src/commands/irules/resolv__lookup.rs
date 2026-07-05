@@ -35,11 +35,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "RESOLV::lookup ?@nameserver? ?-type? hostname",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-a",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Query for type A (IPv4) records.",
                 dialects: None,
                 aliases: &[],
@@ -47,8 +46,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-aaaa",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Query for type AAAA (IPv6) records.",
                 dialects: None,
                 aliases: &[],
@@ -56,8 +54,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-ptr",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Query for PTR records.",
                 dialects: None,
                 aliases: &[],
@@ -65,8 +62,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-txt",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Query for TXT records.",
                 dialects: None,
                 aliases: &[],
@@ -74,14 +70,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-mx",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Query for MX records.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,

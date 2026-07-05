@@ -45,15 +45,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::safesearch URL ('-ip' IP)?",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-ip",
-            takes_value: true,
-            value_hint: "",
+            value: OptionValue::value(""),
             detail: "Option -ip.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,

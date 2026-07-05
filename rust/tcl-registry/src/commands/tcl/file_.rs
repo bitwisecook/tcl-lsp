@@ -63,11 +63,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file copy ?-force? ?--? source target",
         return_type: Some(TclType::String),
         mutator: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-force",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -75,14 +74,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,
@@ -98,11 +96,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file delete ?-force? ?--? ?pathname ...?",
         return_type: Some(TclType::String),
         mutator: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-force",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -110,14 +107,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,
@@ -208,11 +204,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the value of the link given by linkName, or creates a link.",
         synopsis: "file link ?-linktype? linkName ?target?",
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-symbolic",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -220,14 +215,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "-hard",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -347,11 +341,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file rename ?-force? ?--? source target",
         return_type: Some(TclType::String),
         mutator: true,
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-force",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
@@ -359,14 +352,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,

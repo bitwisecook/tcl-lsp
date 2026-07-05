@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-d",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Set the default.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-i",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Set for the specified spawn id.",
         dialects: None,
         aliases: &[],

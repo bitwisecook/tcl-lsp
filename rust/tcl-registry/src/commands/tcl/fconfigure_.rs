@@ -29,8 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-blocking",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -38,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffering",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -47,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-buffersize",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -56,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-encoding",
-        takes_value: true,
-        value_hint: "encoding",
+        value: OptionValue::value("encoding"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -65,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-eofchar",
-        takes_value: true,
-        value_hint: "chars",
+        value: OptionValue::value("chars"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -74,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-translation",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "",
         dialects: None,
         aliases: &[],
@@ -84,8 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
     // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
     OptionSpec {
         name: "-nodelay",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -93,8 +86,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-keepalive",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -102,8 +94,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-inputmode",
-        takes_value: true,
-        value_hint: "mode",
+        value: OptionValue::value("mode"),
         detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],

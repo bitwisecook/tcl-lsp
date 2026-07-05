@@ -30,8 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 static SCAN_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-base",
-        takes_value: true,
-        value_hint: "seconds",
+        value: OptionValue::value("seconds"),
         detail: "Base date/time used for partial input.",
         dialects: None,
         aliases: &[],
@@ -39,8 +38,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "format",
+        value: OptionValue::value("format"),
         detail: "Explicit format string (defaults to free-form parser).",
         dialects: None,
         aliases: &[],
@@ -48,8 +46,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Use UTC instead of local time.",
         dialects: None,
         aliases: &[],
@@ -57,8 +54,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-locale",
-        takes_value: true,
-        value_hint: "locale",
+        value: OptionValue::value("locale"),
         detail: "Locale for month / day-of-week names.",
         dialects: None,
         aliases: &[],
@@ -66,8 +62,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timezone",
-        takes_value: true,
-        value_hint: "tz",
+        value: OptionValue::value("tz"),
         detail: "Time zone for interpretation.",
         dialects: None,
         aliases: &[],
@@ -76,8 +71,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
     // `-validate` is Tcl 9.0+ (TIP 532).
     OptionSpec {
         name: "-validate",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Validate the input date/time strictly (Tcl 9.0+).",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
@@ -306,8 +300,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 const CMD_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-base",
-        takes_value: true,
-        value_hint: "timeVal",
+        value: OptionValue::value("timeVal"),
         detail: "Base time for relative scanning.",
         dialects: None,
         aliases: &[],
@@ -315,8 +308,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "format",
+        value: OptionValue::value("format"),
         detail: "strftime-style format string.",
         dialects: None,
         aliases: &[],
@@ -324,8 +316,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Use GMT instead of local time.",
         dialects: None,
         aliases: &[],
@@ -333,8 +324,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-locale",
-        takes_value: true,
-        value_hint: "locale",
+        value: OptionValue::value("locale"),
         detail: "Locale for month/day names.",
         dialects: None,
         aliases: &[],
@@ -342,8 +332,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timezone",
-        takes_value: true,
-        value_hint: "zone",
+        value: OptionValue::value("zone"),
         detail: "Time zone for conversion.",
         dialects: None,
         aliases: &[],
@@ -351,8 +340,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validate",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Validate date fields strictly.",
         dialects: None,
         aliases: &[],

@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-i",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Send to the specified spawn id.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-raw",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send without any translation.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-null",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send null characters.",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-break",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send a break condition.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-s",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send slowly (obey send_slow parameters).",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-h",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send as if a human were typing (obey send_human parameters).",
         dialects: None,
         aliases: &[],
@@ -75,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "End of options.",
         dialects: None,
         aliases: &[],

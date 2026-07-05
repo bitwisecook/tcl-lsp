@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-onexit",
-        takes_value: true,
-        value_hint: "command",
+        value: OptionValue::value("command"),
         detail: "Register a handler to run at exit.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-noexit",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Prepare for exit without exiting.",
         dialects: None,
         aliases: &[],

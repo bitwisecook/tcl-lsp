@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-re",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match pattern as a Tcl regular expression.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-ex",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match pattern as an exact string.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gl",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match pattern as a glob (default).",
         dialects: None,
         aliases: &[],
@@ -48,8 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nocase",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Case-insensitive matching.",
         dialects: None,
         aliases: &[],
@@ -57,8 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "seconds",
+        value: OptionValue::value("seconds"),
         detail: "Override the timeout for this expect.",
         dialects: None,
         aliases: &[],
@@ -66,8 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-i",
-        takes_value: true,
-        value_hint: "spawn_id",
+        value: OptionValue::value("spawn_id"),
         detail: "Specify the spawn id to expect from.",
         dialects: None,
         aliases: &[],
@@ -75,8 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-indices",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Store match indices in expect_out.",
         dialects: None,
         aliases: &[],
@@ -84,8 +77,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-notransfer",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Do not consume matched output.",
         dialects: None,
         aliases: &[],

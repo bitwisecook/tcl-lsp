@@ -57,8 +57,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
 static STATUS_OPTIONS: [OptionSpec; 2] = [
     OptionSpec {
         name: "-wait",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Block until status is available.",
         dialects: None,
         aliases: &[],
@@ -66,8 +65,7 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Marks end of switches.",
         dialects: None,
         aliases: &[],

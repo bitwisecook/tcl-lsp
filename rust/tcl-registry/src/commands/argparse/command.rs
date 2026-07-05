@@ -93,8 +93,11 @@ macro_rules! opt {
     ($name:literal, $takes:expr, $hint:literal, $detail:literal) => {
         OptionSpec {
             name: $name,
-            takes_value: $takes,
-            value_hint: $hint,
+            value: if $takes {
+                OptionValue::value($hint)
+            } else {
+                OptionValue::flag()
+            },
             detail: $detail,
             dialects: None,
             aliases: &[],
@@ -282,7 +285,7 @@ mod tests {
             s.options
                 .iter()
                 .find(|o| o.name == name)
-                .is_some_and(|o| o.takes_value)
+                .is_some_and(OptionSpec::takes_value)
         };
         for v in [
             "-level",

@@ -89,8 +89,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-family",
-        takes_value: true,
-        value_hint: "name",
+        value: OptionValue::value("name"),
         detail: "Font family name (e.g. Courier, Times, Helvetica).",
         dialects: None,
         aliases: &[],
@@ -98,8 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-size",
-        takes_value: true,
-        value_hint: "size",
+        value: OptionValue::value("size"),
         detail: "Desired size of the font in points (positive) or pixels (negative).",
         dialects: None,
         aliases: &[],
@@ -107,8 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-weight",
-        takes_value: true,
-        value_hint: "normal|bold",
+        value: OptionValue::value("normal|bold"),
         detail: "Weight of the font: normal or bold.",
         dialects: None,
         aliases: &[],
@@ -116,8 +113,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-slant",
-        takes_value: true,
-        value_hint: "roman|italic",
+        value: OptionValue::value("roman|italic"),
         detail: "Slant of the font: roman or italic.",
         dialects: None,
         aliases: &[],
@@ -125,8 +121,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-underline",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Whether to draw an underline beneath the text.",
         dialects: None,
         aliases: &[],
@@ -134,8 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-overstrike",
-        takes_value: true,
-        value_hint: "boolean",
+        value: OptionValue::value("boolean"),
         detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
         aliases: &[],
@@ -143,8 +137,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-displayof",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Specifies the display for the font query.",
         dialects: None,
         aliases: &[],

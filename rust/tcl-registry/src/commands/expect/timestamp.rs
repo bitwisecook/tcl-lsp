@@ -21,8 +21,7 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-seconds",
-        takes_value: true,
-        value_hint: "N",
+        value: OptionValue::value("N"),
         detail: "Specify epoch seconds instead of current time.",
         dialects: None,
         aliases: &[],
@@ -30,8 +29,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "fmt",
+        value: OptionValue::value("fmt"),
         detail: "strftime-style format string.",
         dialects: None,
         aliases: &[],
@@ -39,8 +37,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-gmt",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Use GMT instead of local time.",
         dialects: None,
         aliases: &[],

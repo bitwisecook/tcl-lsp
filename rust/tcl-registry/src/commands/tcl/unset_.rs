@@ -38,11 +38,10 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-nocomplain",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "Suppress errors for non-existent variables.",
                 dialects: None,
                 aliases: &[],
@@ -50,14 +49,13 @@ pub fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "End of options.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

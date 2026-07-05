@@ -39,11 +39,10 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "HSL::open ('-publisher' | '-pub') PUBLISHER",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-publisher",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -publisher.",
                 dialects: None,
                 aliases: &[],
@@ -51,8 +50,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-pub",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -pub.",
                 dialects: None,
                 aliases: &[],
@@ -60,8 +58,7 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-proto",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -proto.",
                 dialects: None,
                 aliases: &[],
@@ -69,14 +66,13 @@ pub const fn spec() -> CommandSpec {
             },
             OptionSpec {
                 name: "-pool",
-                takes_value: true,
-                value_hint: "",
+                value: OptionValue::value(""),
                 detail: "Option -pool.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,
             reads: false,

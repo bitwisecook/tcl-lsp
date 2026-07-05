@@ -39,15 +39,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "log ?-noname? ?facility.level? message",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-noname",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "Suppress iRule name prefix in log message.",
             dialects: None,
             aliases: &[],
             min_version: None,
-        }],
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,
             reads: false,

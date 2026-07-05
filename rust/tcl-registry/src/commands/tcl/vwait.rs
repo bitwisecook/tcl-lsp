@@ -28,8 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Marks the end of options.",
         dialects: None,
         aliases: &[],
@@ -37,8 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-all",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "All conditions for the wait operation must be met to complete the wait operation.",
         dialects: None,
         aliases: &[],
@@ -46,8 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-extended",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "An extended result in list form is returned, see below for explanation.",
         dialects: None,
         aliases: &[],
@@ -55,8 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nofileevents",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "File events are not handled in the wait operation.",
         dialects: None,
         aliases: &[],
@@ -64,8 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-noidleevents",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Idle handlers are not invoked during the wait operation.",
         dialects: None,
         aliases: &[],
@@ -73,8 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-notimerevents",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Timer handlers are not serviced during the wait operation.",
         dialects: None,
         aliases: &[],
@@ -82,8 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-nowindowevents",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Events of the windowing system are not handled during the wait operation.",
         dialects: None,
         aliases: &[],
@@ -91,8 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-readable",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Channel must name a Tcl channel open for reading.",
         dialects: None,
         aliases: &[],
@@ -100,8 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-timeout",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "The wait operation is constrained to milliseconds.",
         dialects: None,
         aliases: &[],
@@ -109,8 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "VarName must be the name of a global variable.",
         dialects: None,
         aliases: &[],
@@ -118,8 +108,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-writable",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Channel must name a Tcl channel open for writing.",
         dialects: None,
         aliases: &[],
