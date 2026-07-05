@@ -19,8 +19,93 @@
 //! `menu` command.
 use crate::prelude::*;
 
+/// Options accepted by menu entries (shared by `add`, `insert`, and
+/// `entryconfigure`). Not every option applies to every entry type, but the
+/// registry lists the full set so option values are typed correctly.
+const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::script(),
+        detail: "Tcl command to invoke when the menu entry is invoked.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-variable",
+        value: OptionValue::var_name(),
+        detail: "Global variable tied to a checkbutton or radiobutton entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-label",
+        value: OptionValue::value("string"),
+        detail: "Text displayed in the menu entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-state",
+        value: OptionValue::value("state"),
+        detail: "State of the entry: normal, active, or disabled.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-value",
+        value: OptionValue::value("value"),
+        detail: "Value stored in the variable when a radiobutton entry is selected.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-onvalue",
+        value: OptionValue::value("value"),
+        detail: "Value stored in the variable when a checkbutton entry is on.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-offvalue",
+        value: OptionValue::value("value"),
+        detail: "Value stored in the variable when a checkbutton entry is off.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-accelerator",
+        value: OptionValue::value("string"),
+        detail: "Accelerator key text displayed at the right of the entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-menu",
+        value: OptionValue::value("menu"),
+        detail: "Submenu posted by a cascade entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "activate",
+        arity: Arity::exact(1),
+        detail: "Activate (highlight) the menu entry at the given index.",
+        synopsis: "pathName activate index",
+        ..SubCommand::DEFAULT
+    },
     SubCommand {
         name: "add",
         arity: Arity::at_least(1),
@@ -51,6 +136,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ],
         )],
+        options: MENU_ENTRY_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -79,6 +165,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Query or modify options of a menu entry.",
         synopsis: "pathName entryconfigure index ?option value ...?",
+        options: MENU_ENTRY_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -118,6 +205,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ],
         )],
+        options: MENU_ENTRY_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -153,6 +241,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Unmap the menu so it is no longer displayed.",
         synopsis: "pathName unpost",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xposition",
+        arity: Arity::exact(1),
+        detail: "Return the x-coordinate of the leftmost pixel of the entry at index.",
+        synopsis: "pathName xposition index",
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -338,18 +338,26 @@
         "canvasy",
         "coords",
         "create",
+        "dchars",
         "delete",
         "dtag",
         "find",
         "focus",
         "gettags",
+        "icursor",
+        "index",
+        "insert",
+        "itemcget",
         "itemconfigure",
         "lower",
         "move",
+        "moveto",
         "postscript",
         "raise",
+        "rchars",
         "scale",
         "scan",
+        "select",
         "type",
         "xview",
         "yview"
@@ -664,7 +672,19 @@
     },
     {
       "name": "entry",
-      "summary": "Create and manipulate a single-line text entry widget."
+      "summary": "Create and manipulate a single-line text entry widget.",
+      "subcommands": [
+        "bbox",
+        "delete",
+        "get",
+        "icursor",
+        "index",
+        "insert",
+        "scan",
+        "selection",
+        "validate",
+        "xview"
+      ]
     },
     {
       "name": "eof",
@@ -1383,7 +1403,25 @@
     },
     {
       "name": "listbox",
-      "summary": "Create and manipulate a listbox widget."
+      "summary": "Create and manipulate a listbox widget.",
+      "subcommands": [
+        "activate",
+        "bbox",
+        "curselection",
+        "delete",
+        "get",
+        "index",
+        "insert",
+        "itemcget",
+        "itemconfigure",
+        "nearest",
+        "scan",
+        "see",
+        "selection",
+        "size",
+        "xview",
+        "yview"
+      ]
     },
     {
       "name": "llength",
@@ -1727,6 +1765,7 @@
       "name": "menu",
       "summary": "Create and manipulate a menu widget.",
       "subcommands": [
+        "activate",
         "add",
         "clone",
         "delete",
@@ -1739,6 +1778,7 @@
         "postcascade",
         "type",
         "unpost",
+        "xposition",
         "yposition"
       ]
     },
@@ -2302,7 +2342,22 @@
     },
     {
       "name": "spinbox",
-      "summary": "Create and manipulate a spinbox widget."
+      "summary": "Create and manipulate a spinbox widget.",
+      "subcommands": [
+        "bbox",
+        "delete",
+        "get",
+        "icursor",
+        "identify",
+        "index",
+        "insert",
+        "invoke",
+        "scan",
+        "selection",
+        "set",
+        "validate",
+        "xview"
+      ]
     },
     {
       "name": "split",
@@ -3221,7 +3276,33 @@
     },
     {
       "name": "text",
-      "summary": "Create and manipulate a multi-line text widget."
+      "summary": "Create and manipulate a multi-line text widget.",
+      "subcommands": [
+        "bbox",
+        "compare",
+        "count",
+        "debug",
+        "delete",
+        "dlineinfo",
+        "dump",
+        "edit",
+        "get",
+        "image",
+        "index",
+        "insert",
+        "mark",
+        "peer",
+        "pendingsync",
+        "replace",
+        "scan",
+        "search",
+        "see",
+        "sync",
+        "tag",
+        "window",
+        "xview",
+        "yview"
+      ]
     },
     {
       "name": "textutil::adjust",
@@ -3446,7 +3527,20 @@
     },
     {
       "name": "ttk::notebook",
-      "summary": "Create and manipulate a themed tabbed notebook widget."
+      "summary": "Create and manipulate a themed tabbed notebook widget.",
+      "subcommands": [
+        "add",
+        "forget",
+        "hide",
+        "identify",
+        "index",
+        "insert",
+        "instate",
+        "select",
+        "state",
+        "tab",
+        "tabs"
+      ]
     },
     {
       "name": "ttk::progressbar",
@@ -3478,7 +3572,33 @@
     },
     {
       "name": "ttk::treeview",
-      "summary": "Create and manipulate a themed hierarchical multicolumn data display widget."
+      "summary": "Create and manipulate a themed hierarchical multicolumn data display widget.",
+      "subcommands": [
+        "bbox",
+        "children",
+        "column",
+        "delete",
+        "detach",
+        "exists",
+        "focus",
+        "heading",
+        "identify",
+        "index",
+        "insert",
+        "instate",
+        "item",
+        "move",
+        "next",
+        "parent",
+        "prev",
+        "see",
+        "selection",
+        "set",
+        "state",
+        "tag",
+        "xview",
+        "yview"
+      ]
     },
     {
       "name": "unicode",

@@ -1474,6 +1474,148 @@ mod tests {
     }
 
     #[test]
+    fn bind_script_form_recurses_only_the_trailing_script() {
+        // `bind $w <KeyPress> {…}` binds a script (issue #785): the third
+        // argument is a deferred event-handler body and must be recursed for
+        // highlighting.  The `bind tag` / `bind tag sequence` query forms carry
+        // no script and must not surface a Body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>", "{…}"], ArgRole::Body),
+            vec![2],
+            "the trailing script of the three-argument form is a body",
+        );
+        // The `+script` append form is still the trailing argument.
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &[".b", "<Enter>", "+{puts hi}"], ArgRole::Body),
+            vec![2],
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w"], ArgRole::Body)
+                .is_empty(),
+            "the single-tag query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>"], ArgRole::Body)
+                .is_empty(),
+            "the tag+sequence query form has no script",
+        );
+    }
+
+    #[test]
+    fn wm_protocol_handler_is_a_body() {
+        // `wm protocol . WM_DELETE_WINDOW {script}` registers a deferred
+        // handler script as its third argument; the query forms carry none.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "wm",
+                &["protocol", ".", "WM_DELETE_WINDOW", "{exit}"],
+                ArgRole::Body,
+            ),
+            // subcommand path offsets by +1 for the `protocol` word.
+            vec![3],
+            "the wm protocol handler command is a script body",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", ".", "WM_DELETE_WINDOW"], ArgRole::Body)
+                .is_empty(),
+            "the two-argument `wm protocol window name` query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", "."], ArgRole::Body)
+                .is_empty(),
+            "the one-argument `wm protocol window` query form has no script",
+        );
+    }
+
+    #[test]
+    fn canvas_bind_subcommand_script_is_a_body() {
+        // `pathName bind tagOrId sequence script` binds a deferred handler.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>", "{p}"], ArgRole::Body),
+            vec![3],
+            "the canvas bind subcommand's trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>"], ArgRole::Body)
+                .is_empty(),
+            "the canvas bind query form has no script",
+        );
+    }
+
+    #[test]
+    fn ttk_widgets_require_tk_8_5() {
+        // ttk (themed Tk) widgets were introduced in Tk 8.5, so they must be
+        // gated out when only an older Tk is guaranteed by `package require`.
+        let reg = CommandRegistry::build_default();
+        for name in ["ttk::button", "ttk::treeview", "ttk::notebook", "ttk::style"] {
+            let spec = reg.get(name).unwrap_or_else(|| panic!("{name} registered"));
+            assert!(
+                !spec.available_for_version(Some("8.4")),
+                "{name} must not be available under Tk 8.4",
+            );
+            assert!(
+                spec.available_for_version(Some("8.5")),
+                "{name} must be available under Tk 8.5",
+            );
+            assert!(
+                spec.available_for_version(None),
+                "{name} must be permissive when no Tk version is pinned",
+            );
+        }
+    }
+
+    #[test]
+    fn text_tag_bind_script_is_a_body() {
+        // `pathName tag bind tagName sequence script` binds a deferred
+        // event-handler script as its trailing word (issue #785 class).
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "text",
+                &["tag", "bind", "sel", "<Key>", "{p}"],
+                ArgRole::Body,
+            ),
+            // `tag` subcommand offset (+1) plus index 3 within the tag args.
+            vec![4],
+            "the text tag bind trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("text", &["tag", "add", "sel", "1.0", "end"], ArgRole::Body)
+                .is_empty(),
+            "non-bind tag subcommands carry no script",
+        );
+    }
+
+    #[test]
+    fn selection_handle_command_is_a_command_prefix() {
+        // `selection handle window command` — the trailing command is a
+        // prefix Tk appends offset/maxChars to, not a recursed script body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::CommandPrefix),
+            vec![2],
+            "the selection handle command prefix is captured",
+        );
+        assert!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::Body)
+                .is_empty(),
+            "a command prefix is not recursed as a script body",
+        );
+        // With leading option/value pairs the command is still the last arg.
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "selection",
+                &["handle", "-format", "STRING", ".w", "getData"],
+                ArgRole::CommandPrefix,
+            ),
+            vec![4],
+        );
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);

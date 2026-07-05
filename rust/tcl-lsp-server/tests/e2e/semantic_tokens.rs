@@ -544,6 +544,44 @@ fn test_struct_list_foreachperm_body_recursion() {
     assert!(has_var, "foreachperm var not recursed: {tokens:?}");
 }
 
+#[test]
+fn test_bind_script_body_recursion() {
+    // `bind tag sequence script` — the trailing event-handler script recurses
+    // rather than being emitted as one opaque string (issue #785), so `set`
+    // inside it is a function token and `$w` a variable.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "bind $w <KeyPress> {\n if {$w eq \"Menu\"} {\n  set x 1\n }\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `set` recursed from the braced event-handler body.
+    let has_set = tokens
+        .iter()
+        .any(|t| covered(src, t) == "set" && t.ttype == "function");
+    assert!(has_set, "bind script body not recursed: {tokens:?}");
+    // `$w` recursed from inside the body.
+    let has_var = tokens.iter().any(|t| t.ttype == "variable");
+    assert!(has_var, "bind script body vars not recursed: {tokens:?}");
+    // `if` inside the body is a keyword.
+    let words = keyword_words(&mut lsp, &lg, &uri, src);
+    assert!(words.contains("if"), "expected `if` keyword in bind body: {words:?}");
+}
+
+#[test]
+fn test_bind_query_forms_do_not_recurse() {
+    // `bind tag` and `bind tag sequence` are query forms with no script — a
+    // braced word in a two-argument call is opaque, not a recursed body.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "bind $w {puts hi}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let puts_recursed = tokens
+        .iter()
+        .any(|t| covered(src, t) == "puts" && t.ttype == "function");
+    assert!(!puts_recursed, "bind query form must not recurse a body: {tokens:?}");
+}
+
 // -- TestStructuralKeywords ----------------------------------------------
 
 /// The set of source words rendered as keyword tokens.

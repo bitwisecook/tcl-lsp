@@ -19,6 +19,24 @@
 //! `wm` command.
 use crate::prelude::*;
 
+/// Dynamic arg-role resolver for `wm protocol`.
+///
+/// `wm protocol window` and `wm protocol window name` are *query* forms
+/// (they return the current handler, or the registered protocols) and
+/// carry no script.  Only the full `wm protocol window name command`
+/// form registers a handler, supplied as the trailing (third) argument
+/// — a deferred script run later from the window manager's event loop
+/// (e.g. the `WM_DELETE_WINDOW` callback), so `body_kind` is
+/// `Structural`.  Args here are those *after* the `protocol` subcommand
+/// word: `window`(0) `name`(1) `command`(2).
+fn wm_protocol_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 3 {
+        vec![(2, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -137,7 +155,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "iconphoto",
-        arity: Arity::at_least(1),
+        arity: Arity::at_least(2),
         detail: "Set the window icon from one or more photo images.",
         synopsis: "wm iconphoto window ?-default? image1 ?image2 ...?",
         ..SubCommand::DEFAULT
@@ -196,6 +214,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Register a handler for a window manager protocol.",
         synopsis: "wm protocol window ?name? ?command?",
+        arg_role_resolver: Some(wm_protocol_arg_roles),
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
