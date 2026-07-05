@@ -797,6 +797,30 @@ fn fp_w307_snit_typevariable_dispatch_silent() {
     );
 }
 
+#[test]
+fn fp_w307_itcl_instance_var_dispatch_silent() {
+    // FP: a dispatch on an itcl instance variable inside a method body is
+    // suppressed, exactly like an oo::class / snit member.
+    let src = "itcl::class C {\n    variable handle\n    method m {} { $handle op }\n}";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch on an itcl instance var must NOT fire W307; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_w307_itcl_created_instance_dispatch_silent() {
+    // FP: an itcl object captured from a factory call (`ClassName #auto`) and
+    // dispatched by `$var method` is a known-created instance — no W307.
+    let src = "itcl::class Counter { method bump {} { return 1 } }\nproc use {} {\n    set c [Counter #auto]\n    $c bump\n}\n";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch on a created itcl instance must NOT fire W307; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // VAR-as-command dispatch tests (from test_fp_obj_var_as_cmd.py)
 // Pair 1: local literal assignment of a user-proc / builtin name
@@ -924,3 +948,125 @@ fn fp_var_as_cmd_mixed_callers_conservative_silent() {
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-OBJ-19 — `CLASS create NAME` binds a command NAME; later `NAME method`
+// dispatch (and `$var method` where var provably holds NAME) is a real call,
+// not an unknown command / stray dispatch.  Issue #777.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_obj_19_external_class_create_name_no_w123() {
+    // FP: `C`/`L` are external-package classes (unknown to the analyser).  The
+    // `create NAME` idiom still binds command names `c1`/`l1`, so literal
+    // dispatch on them must NOT fire W123 (the unknown *class* command `C`/`L`
+    // itself still does — that is a separate, correct diagnostic).
+    let src = "C create c1 1 out 0\nc1 configure -c 2\n";
+    // `c1` is not among the unresolved-command sites.
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse(src, D);
+    assert!(
+        !r.unresolved_command_sites.iter().any(|(_, n)| n == "c1"),
+        "created instance command `c1` must not be an unresolved command: {:?}",
+        r.unresolved_command_sites,
+    );
+    // The unknown class command `C` is still reported.
+    assert!(
+        r.unresolved_command_sites.iter().any(|(_, n)| n == "C"),
+        "unknown class command `C` must still be reported: {:?}",
+        r.unresolved_command_sites,
+    );
+}
+
+#[test]
+fn fp_obj_19_known_class_create_name_no_w123() {
+    // FP: for a known TclOO class, `C create c1` then `c1 method` must be clean.
+    let src = "oo::class create C { method configure args {} }\nC create c1\nc1 configure -c 2\n";
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse(src, D);
+    assert!(
+        !r.unresolved_command_sites.iter().any(|(_, n)| n == "c1"),
+        "instance command of a known class must not be unresolved: {:?}",
+        r.unresolved_command_sites,
+    );
+}
+
+#[test]
+fn fp_obj_19_created_name_via_var_no_w307() {
+    // FP: a created command name flowing through a variable — the dispatch is on
+    // a value SCCP proves is a known (created) command, so W307 must not fire.
+    let src = "C create c1 1 out 0\nset e c1\n$e configure\n";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch on a var holding a created command name must NOT fire W307; emitted: {:?}",
+        codes(src, D),
+    );
+}
+
+#[test]
+fn fp_obj_19_created_names_via_list_foreach_no_w307() {
+    // FP (exact repro of issue #777's screenshot): the created object names are
+    // iterated with `foreach elem [list c1 l1 …]` and dispatched via `$elem`.
+    // SCCP folds the `[list …]` to the element set, each of which is a created
+    // command, so W307 must not fire.
+    let src = "\
+C create c1 1 out 0 -c 1e-9
+L create l1 1 out 0 -l 10e-6
+C create c2 2 n002 0 -c 1e-9
+foreach elem [list c1 l1 c2] {
+    $elem actOnParam -set 1
+}
+";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch over `[list c1 l1 …]` of created names must NOT fire W307; emitted: {:?}",
+        codes(src, D),
+    );
+}
+
+#[test]
+fn fp_obj_19_uncreated_name_via_list_foreach_still_w307() {
+    // TP control: a `[list …]` containing a name that was never created keeps
+    // W307 alive — the element set is not all-known-commands.
+    let src = "\
+C create c1 1 out 0
+foreach elem [list c1 nope] {
+    $elem actOnParam
+}
+";
+    assert!(
+        fires(src, D, "W307"),
+        "a list with an uncreated name must still fire W307; emitted: {:?}",
+        codes(src, D),
+    );
+}
+
+#[test]
+fn fp_obj_19_uncreated_name_still_w123() {
+    // TP control: registering `c1` must not silence a *different* undefined
+    // command `d1` — it is still an unknown command.
+    let src = "C create c1 1 out 0\nd1 configure\n";
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse(src, D);
+    assert!(
+        r.unresolved_command_sites.iter().any(|(_, n)| n == "d1"),
+        "an uncreated name must still be unresolved: {:?}",
+        r.unresolved_command_sites,
+    );
+}
+
+#[test]
+fn fp_obj_19_dict_create_key_is_not_a_command() {
+    // TP control: `dict create` builds a dict VALUE — its key words are not
+    // command names.  `dict` is a known builtin, so the `create NAME` idiom must
+    // not register `foo`; dispatching `foo` still fires W123.
+    let src = "dict create foo bar\nfoo x\n";
+    let mut a = crate::analyser::Analyser::new();
+    let r = a.analyse(src, D);
+    assert!(
+        r.unresolved_command_sites.iter().any(|(_, n)| n == "foo"),
+        "`dict create foo` must not register `foo` as a command: {:?}",
+        r.unresolved_command_sites,
+    );
+}
+

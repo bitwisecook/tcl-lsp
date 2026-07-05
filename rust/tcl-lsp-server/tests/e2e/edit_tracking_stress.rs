@@ -54,7 +54,7 @@ use std::time::Duration;
 
 /// Length of `s` in UTF-16 code units (astral chars count as two).
 fn utf16_len(s: &str) -> usize {
-    s.chars().map(|c| c.len_utf16()).sum()
+    s.chars().map(char::len_utf16).sum()
 }
 
 /// One LSP incremental edit: replace `[start, end)` with `text`.
@@ -741,7 +741,7 @@ fn multicursor_rename_keeps_tokens_aligned() {
     assert!(sites.len() >= 5, "{sites:?}");
     // Replace `count` with a longer `counterValue` at every site, bottom-up
     // (descending position) so offsets stay valid.
-    sites.sort();
+    sites.sort_unstable();
     sites.reverse();
     let edits: Vec<Edit> = sites
         .iter()

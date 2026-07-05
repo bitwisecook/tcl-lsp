@@ -230,7 +230,7 @@ fn var_hover() {
     lsp.open_ready(&uri, "set x 42\nputs $x\n");
     let text = hover(&mut lsp, &uri, 1, 7);
     assert!(text.contains("Variable"), "hover: {text:?}");
-    assert!(text.contains("x"), "hover: {text:?}");
+    assert!(text.contains('x'), "hover: {text:?}");
 }
 
 #[test]
@@ -468,4 +468,21 @@ fn alias_hover_with_prepended_args() {
     assert!(text.contains("Alias"), "hover: {text:?}");
     assert!(text.contains("puts"), "hover: {text:?}");
     assert!(text.contains("stdout"), "hover: {text:?}");
+}
+
+#[test]
+fn imported_command_resolves_to_qualified_spec() {
+    // Peer of #776: a bare command imported into the global scope hovers as its
+    // qualified spec — `test` after `namespace import ::tcltest::*`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace import ::tcltest::*\ntest t-1 {desc} -body { set x 1 } -result 1\n",
+    );
+    let text = hover(&mut lsp, &uri, 1, 2);
+    assert!(
+        text.contains("tcltest::test"),
+        "bare imported `test` must hover as tcltest::test: {text:?}",
+    );
 }

@@ -350,6 +350,17 @@ pub struct CommandSpec {
     /// byte sink, for the S110 byte-array-corruption check. `None` = not a
     /// byte-array payload command.
     pub byte_array_payload: Option<BytePayloadSpec>,
+
+    /// Definition-body grammar — `Some` when this command is a class/type
+    /// *definer* whose `ArgRole::Body` argument is a definition script (a
+    /// `TclOO` metaclass `create` body, the bare `oo::define` script form, a
+    /// `snit::type` / `snit::widget` body).  The grammar describes the body's
+    /// member sub-keywords (`method`, `typemethod`, `constructor`, …) so the
+    /// definition-body walker (folding + semantic tokens) recurses and
+    /// highlights them generically — see [`crate::definer`].  Keeping this in
+    /// the registry is what lets a new definer be *data*, not new
+    /// `match cmd_name` logic in the compiler / analyser / LSP.
+    pub definition_body: Option<&'static crate::definer::DefinitionBodyGrammar>,
 }
 
 impl CommandSpec {
@@ -407,6 +418,7 @@ impl CommandSpec {
         xc_operation: None,
         deprecated_replacement: None,
         byte_array_payload: None,
+        definition_body: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
