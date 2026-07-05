@@ -62,10 +62,47 @@ struct LinkSpec {
     label: Option<String>,
 }
 
-/// A parsed manifest (roles/tiers + explicit links).
+/// A named network zone (`zone dmz -cidr 192.0.2.0/24 …`) — a set of IP ranges.
+struct ZoneSpec {
+    name: String,
+    cidrs: Vec<String>,
+}
+
+/// A device interface attached to a zone (`interface edge.ucs ext0 -zone external
+/// -address 203.0.113.10`).
+struct InterfaceSpec {
+    device: String,
+    name: String,
+    zone: Option<String>,
+    address: Option<String>,
+}
+
+/// A DNS zone declaration (`dns-zone example.com -file z.zone -zone dmz`). The
+/// `file` is supplied separately (uploaded / side-input); the DSL just wires it.
+struct DnsZoneSpec {
+    name: String,
+    file: Option<String>,
+    zone: Option<String>,
+}
+
+/// A `cidr-name <cidr> <label>` enrichment entry.
+struct CidrName {
+    cidr: String,
+    label: String,
+}
+
+/// A parsed manifest: the estate topology + enrichment declarations.
 struct Manifest {
     devices: Vec<DeviceSpec>,
     links: Vec<LinkSpec>,
+    zones: Vec<ZoneSpec>,
+    interfaces: Vec<InterfaceSpec>,
+    dns_zones: Vec<DnsZoneSpec>,
+    cidr_names: Vec<CidrName>,
+    /// Optional CSV of `port,name` service overrides (default: the built-in F5 table).
+    service_map_file: Option<String>,
+    /// Optional CSV NAT map file (`source,dest[,source_cidr,dest_cidr]`).
+    nat_map_file: Option<String>,
 }
 
 /// An auto-detected or declared link between two device indices.
@@ -296,6 +333,36 @@ fn parse_manifest(text: &str) -> Result<Manifest, String> {
     let commands = tcl_commands(text)?;
     let mut devices = Vec::new();
     let mut links = Vec::new();
+    let mut zones = Vec::new();
+    let mut interfaces = Vec::new();
+    let mut dns_zones = Vec::new();
+    let mut cidr_names = Vec::new();
+    let mut service_map_file = None;
+    let mut nat_map_file = None;
+
+    // Collect every value for a repeated `-flag` (e.g. `zone dmz -cidr a -cidr b`).
+    let collect_flag = |words: &[String], flag: &str| -> Vec<String> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i + 1 < words.len() {
+            if words[i] == flag {
+                out.push(words[i + 1].clone());
+            }
+            i += 2;
+        }
+        out
+    };
+    // First value for a `-flag`, if present.
+    let first_flag = |words: &[String], flag: &str| -> Option<String> {
+        let mut i = 0;
+        while i + 1 < words.len() {
+            if words[i] == flag {
+                return Some(words[i + 1].clone());
+            }
+            i += 2;
+        }
+        None
+    };
 
     // Read `-flag value` pairs from a word slice into (role, tier, label).
     let read_opts = |words: &[String]| -> (Option<String>, Option<i64>, Option<String>) {
@@ -333,10 +400,58 @@ fn parse_manifest(text: &str) -> Result<Manifest, String> {
                     label,
                 });
             }
+            // zone <name> -cidr A -cidr B …
+            Some("zone") if cmd.len() >= 2 => {
+                zones.push(ZoneSpec {
+                    name: cmd[1].clone(),
+                    cidrs: collect_flag(&cmd[2..], "-cidr"),
+                });
+            }
+            // interface <device> <ifname> [-zone Z] [-address A]
+            Some("interface") if cmd.len() >= 3 => {
+                interfaces.push(InterfaceSpec {
+                    device: cmd[1].clone(),
+                    name: cmd[2].clone(),
+                    zone: first_flag(&cmd[3..], "-zone"),
+                    address: first_flag(&cmd[3..], "-address"),
+                });
+            }
+            // dns-zone <name> [-file F] [-zone Z]
+            Some("dns-zone") if cmd.len() >= 2 => {
+                dns_zones.push(DnsZoneSpec {
+                    name: cmd[1].clone(),
+                    file: first_flag(&cmd[2..], "-file"),
+                    zone: first_flag(&cmd[2..], "-zone"),
+                });
+            }
+            // cidr-name <cidr> <label>
+            Some("cidr-name") if cmd.len() >= 3 => {
+                cidr_names.push(CidrName {
+                    cidr: cmd[1].clone(),
+                    label: cmd[2].clone(),
+                });
+            }
+            // service-map [-file F]
+            Some("service-map") => {
+                service_map_file = first_flag(&cmd[1..], "-file");
+            }
+            // nat-map [-file F]
+            Some("nat-map") => {
+                nat_map_file = first_flag(&cmd[1..], "-file");
+            }
             _ => {}
         }
     }
-    Ok(Manifest { devices, links })
+    Ok(Manifest {
+        devices,
+        links,
+        zones,
+        interfaces,
+        dns_zones,
+        cidr_names,
+        service_map_file,
+        nat_map_file,
+    })
 }
 
 /// Split a Tcl script into commands, each a list of literal words, using the
@@ -631,10 +746,92 @@ pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
     arch.insert("tiers".into(), J::Array(tier_json));
     arch.insert("links".into(), J::Array(link_json));
     arch.insert("mermaid".into(), J::String(mermaid));
+
+    // Topology + enrichment declarations from the manifest (empty without one).
+    let (zones_json, iface_json, dns_json, maps_json) = manifest.as_ref().map_or_else(
+        || (Vec::new(), Vec::new(), Vec::new(), Map::new()),
+        manifest_enrichment_json,
+    );
+    arch.insert("zones".into(), J::Array(zones_json));
+    arch.insert("interfaces".into(), J::Array(iface_json));
+    arch.insert("dnsZones".into(), J::Array(dns_json));
+    arch.insert("maps".into(), J::Object(maps_json));
+
     if let Some(e) = manifest_error {
         arch.insert("manifestError".into(), J::String(e));
     }
     J::Object(arch)
+}
+
+/// Shape the manifest's zone / interface / dns-zone / map declarations into the
+/// `(zones, interfaces, dnsZones, maps)` JSON the report + editor consume.
+fn manifest_enrichment_json(m: &Manifest) -> (Vec<J>, Vec<J>, Vec<J>, Map<String, J>) {
+    let zones = m
+        .zones
+        .iter()
+        .map(|z| {
+            let mut o = Map::new();
+            o.insert("name".into(), J::String(z.name.clone()));
+            o.insert(
+                "cidrs".into(),
+                J::Array(z.cidrs.iter().map(|c| J::String(c.clone())).collect()),
+            );
+            J::Object(o)
+        })
+        .collect();
+    let interfaces = m
+        .interfaces
+        .iter()
+        .map(|i| {
+            let mut o = Map::new();
+            o.insert("device".into(), J::String(i.device.clone()));
+            o.insert("name".into(), J::String(i.name.clone()));
+            if let Some(z) = &i.zone {
+                o.insert("zone".into(), J::String(z.clone()));
+            }
+            if let Some(a) = &i.address {
+                o.insert("address".into(), J::String(a.clone()));
+            }
+            J::Object(o)
+        })
+        .collect();
+    let dns = m
+        .dns_zones
+        .iter()
+        .map(|d| {
+            let mut o = Map::new();
+            o.insert("name".into(), J::String(d.name.clone()));
+            if let Some(f) = &d.file {
+                o.insert("file".into(), J::String(f.clone()));
+            }
+            if let Some(z) = &d.zone {
+                o.insert("zone".into(), J::String(z.clone()));
+            }
+            J::Object(o)
+        })
+        .collect();
+    let mut maps = Map::new();
+    maps.insert(
+        "cidrNames".into(),
+        J::Array(
+            m.cidr_names
+                .iter()
+                .map(|c| {
+                    let mut o = Map::new();
+                    o.insert("cidr".into(), J::String(c.cidr.clone()));
+                    o.insert("label".into(), J::String(c.label.clone()));
+                    J::Object(o)
+                })
+                .collect(),
+        ),
+    );
+    if let Some(f) = &m.service_map_file {
+        maps.insert("serviceMap".into(), J::String(f.clone()));
+    }
+    if let Some(f) = &m.nat_map_file {
+        maps.insert("natMap".into(), J::String(f.clone()));
+    }
+    (zones, interfaces, dns, maps)
 }
 
 /// Render the architecture as a left-to-right Mermaid flowchart, one subgraph
@@ -709,5 +906,45 @@ mod tests {
         assert_eq!(bare_ip("api.example.com"), None);
         assert_eq!(bare_ip("any"), None);
         assert_eq!(bare_ip(""), None);
+    }
+
+    #[test]
+    fn manifest_dsl_topology_and_enrichment() {
+        let devices = vec![
+            serde_json::json!({"uri": "edge.ucs", "name": "edge"}),
+            serde_json::json!({"uri": "core.ucs", "name": "core"}),
+        ];
+        let manifest = r#"
+device edge.ucs -role ltm -tier 1
+zone external -cidr 0.0.0.0/0
+zone dmz -cidr 192.0.2.0/24 -cidr 2001:db8:dmz::/48
+interface edge.ucs ext0 -zone external -address 203.0.113.10
+dns-zone example.com -file example.com.zone -zone dmz
+cidr-name 10.1.0.0/16 {Datacenter A}
+service-map -file services.csv
+nat-map -file nat.csv
+"#;
+        let arch = build_architecture(&devices, Some(manifest));
+        let o = arch.as_object().unwrap();
+
+        let zones = o["zones"].as_array().unwrap();
+        assert_eq!(zones.len(), 2);
+        assert_eq!(zones[1]["name"], "dmz");
+        assert_eq!(zones[1]["cidrs"].as_array().unwrap().len(), 2);
+
+        let ifs = o["interfaces"].as_array().unwrap();
+        assert_eq!(ifs[0]["device"], "edge.ucs");
+        assert_eq!(ifs[0]["zone"], "external");
+        assert_eq!(ifs[0]["address"], "203.0.113.10");
+
+        let dns = o["dnsZones"].as_array().unwrap();
+        assert_eq!(dns[0]["name"], "example.com");
+        assert_eq!(dns[0]["file"], "example.com.zone");
+        assert_eq!(dns[0]["zone"], "dmz");
+
+        let maps = o["maps"].as_object().unwrap();
+        assert_eq!(maps["cidrNames"].as_array().unwrap()[0]["label"], "Datacenter A");
+        assert_eq!(maps["serviceMap"], "services.csv");
+        assert_eq!(maps["natMap"], "nat.csv");
     }
 }
