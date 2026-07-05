@@ -46,6 +46,7 @@
     clippy::unnecessary_wraps
 )]
 
+pub mod architecture;
 pub mod ast;
 pub mod builtins;
 pub mod edit_plan;
@@ -70,6 +71,7 @@ pub mod runner;
 pub mod special;
 pub mod value;
 
+pub use architecture::build_architecture;
 pub use ast::{Expr, LitValue, PathStep, Program};
 pub use edit_plan::{AppliedSource, EditOp, EditPlan, apply};
 pub use errors::QueryError;

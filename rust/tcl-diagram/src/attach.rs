@@ -44,7 +44,7 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::{Script, Statement};
-use tcl_lexer::{Lexer, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
 /// Cap on patterns collected per object type per rule body — a runaway-input
 /// backstop far above any real iRule.
@@ -303,7 +303,12 @@ fn var_name(tok_text: &str) -> &str {
 /// Re-tokenise an argument / value string into name segments, resolving `$var`
 /// references against `env`. The whole string is treated as one word.
 fn text_to_segs(text: &str, env: &HashMap<String, EnvVal>) -> Vec<Seg> {
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    // iRule attach reconstruction always operates on iRule bodies, so lex with
+    // the f5-irules preset (`}{` valid) to match TMM.
+    let Ok(tokens) =
+        Lexer::with_source_map(SourceMap::new(text), LexerConfig::for_dialect("f5-irules"))
+            .tokenise_all()
+    else {
         return vec![Seg::Wild];
     };
     let mut segs: Vec<Seg> = Vec::new();
@@ -448,7 +453,12 @@ pub fn attach_reach(source: &str) -> AttachReach {
         return reach;
     }
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let cu = CompilationUnit::build_for(source, registry, false);
+    let cu = CompilationUnit::build_for_with_config(
+        source,
+        registry,
+        false,
+        LexerConfig::for_dialect("f5-irules"),
+    );
 
     // Each `when` handler (and any user proc) is its own frame; walk each with a
     // fresh env in source order for stable output.
@@ -481,7 +491,12 @@ pub fn proc_call_refs(source: &str) -> Vec<String> {
         return out;
     }
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let cu = CompilationUnit::build_for(source, registry, false);
+    let cu = CompilationUnit::build_for_with_config(
+        source,
+        registry,
+        false,
+        LexerConfig::for_dialect("f5-irules"),
+    );
     let mut procs: Vec<_> = cu.ir_module.procedures.values().collect();
     procs.sort_by_key(|p| p.span.start());
     for proc in procs {

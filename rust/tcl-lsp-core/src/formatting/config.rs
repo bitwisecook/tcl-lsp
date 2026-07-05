@@ -30,6 +30,8 @@
 //! itself never rewrites an existing docstring, so none of the docstring
 //! knobs affect a plain format pass.
 
+use tcl_lexer::LexerConfig;
+
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,6 +150,13 @@ pub struct FormatterConfig {
     pub docstring_decoration_char: char,
     /// Width of docstring decoration border lines (stub generator).
     pub docstring_decoration_width: usize,
+    /// Lexer preset the formatter tokenises with. Carries the dialect's
+    /// parsing rules — notably `irules_brace_separator`, which makes an iRule's
+    /// `}{` (valid in TMM, e.g. `if {expr}{body}`) parse as two words so the
+    /// formatter re-emits it as `} {`. Defaults to plain-Tcl
+    /// ([`LexerConfig::default`]); set to [`LexerConfig::for_dialect`] to format
+    /// a specific dialect.
+    pub lexer_config: LexerConfig,
 }
 
 impl Default for FormatterConfig {
@@ -178,6 +187,7 @@ impl Default for FormatterConfig {
             docstring_decoration: false,
             docstring_decoration_char: '.',
             docstring_decoration_width: 70,
+            lexer_config: LexerConfig::default(),
         }
     }
 }

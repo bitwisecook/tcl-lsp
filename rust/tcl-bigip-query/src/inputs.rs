@@ -100,13 +100,18 @@ pub fn list_input_formats() -> Vec<InputFormatSpec> {
             summary: "JSON Lines (NDJSON) — one JSON value per non-blank line.",
             details: "",
         },
+        InputFormatSpec {
+            name: "zone",
+            summary: "DNS zone file (RFC 1035) — list of resource records (name / ttl / class / type / rdata; A/AAAA also carry 'address').",
+            details: "Honours ``$ORIGIN`` / ``$TTL``, owner-name inheritance, and parenthesised (SOA) continuations. Names are expanded to FQDNs; use it to resolve config addresses to hostnames in a report or query.",
+        },
     ]
 }
 
 /// Return whether *name* is a registered input format.
 #[must_use]
 pub fn is_registered(name: &str) -> bool {
-    matches!(name, "json" | "jsonl" | "csv" | "f5log")
+    matches!(name, "json" | "jsonl" | "csv" | "f5log" | "zone")
 }
 
 /// Parse *source* according to *spec*, returning the navigable [`Value`].
@@ -145,6 +150,8 @@ pub fn parse_input(source: &str, uri: &str, spec: &InputSpec) -> Result<Value, Q
         "csv" => parse_csv(source, spec.csv_headers.as_deref(), uri)
             .map_err(|e| QueryError::eval(format!("{uri}: invalid csv input ({e})"))),
         "f5log" => Ok(parse_f5log(source)),
+        "zone" => parse_zone(source, uri)
+            .map_err(|e| QueryError::eval(format!("{uri}: invalid zone input ({e})"))),
         _ => unreachable!("kind validated above"),
     }
 }
@@ -671,4 +678,227 @@ fn event_to_value(event: &F5LogEvent) -> Value {
     m.insert("message".to_string(), Value::Str(event.message.clone()));
     m.insert("raw".to_string(), Value::Str(event.raw.clone()));
     Value::Object(m)
+}
+
+// DNS zone files (RFC 1035)
+
+/// Parse a DNS zone file into a list of resource-record objects
+/// `{name, ttl, class, type, rdata}` (A / AAAA records also carry `address`).
+///
+/// Honours `$ORIGIN` / `$TTL`, owner-name inheritance (a record beginning with
+/// whitespace reuses the previous owner), `@` for the origin, relative-vs-FQDN
+/// names, `;` comments, and parenthesised (SOA) multi-line continuations. Names
+/// are expanded to fully-qualified form (trailing dot stripped). Lets a report
+/// or query resolve config addresses to hostnames.
+///
+/// # Errors
+/// Currently infallible for well-formed text; returns the bare parser error
+/// (wrapped by the caller as `{uri}: invalid zone input (...)`).
+pub fn parse_zone(source: &str, _uri: &str) -> Result<Value, QueryError> {
+    let mut origin = String::new();
+    let mut default_ttl = String::new();
+    let mut last_owner = String::new();
+    let mut out: Vec<Value> = Vec::new();
+
+    for line in zone_logical_lines(source) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("$ORIGIN") {
+            origin = zone_fqdn(rest.trim(), &origin);
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("$TTL") {
+            default_ttl = rest.trim().to_string();
+            continue;
+        }
+        if trimmed.starts_with('$') {
+            continue; // $INCLUDE / other directives — skipped leniently
+        }
+
+        // A line starting with whitespace inherits the previous owner name.
+        let inherit = line.starts_with([' ', '\t']);
+        let mut toks: Vec<&str> = line.split_whitespace().collect();
+        if toks.is_empty() {
+            continue;
+        }
+        let owner = if inherit {
+            last_owner.clone()
+        } else {
+            let o = zone_fqdn(toks.remove(0), &origin);
+            last_owner = o.clone();
+            o
+        };
+
+        // Optional TTL and/or class (either order) precede the type.
+        let mut ttl = default_ttl.clone();
+        let mut class = String::new();
+        while let Some(&t) = toks.first() {
+            if !t.is_empty() && t.bytes().all(|b| b.is_ascii_digit()) {
+                ttl = t.to_string();
+                toks.remove(0);
+            } else if matches!(t.to_ascii_uppercase().as_str(), "IN" | "CH" | "HS" | "CS") {
+                class = t.to_ascii_uppercase();
+                toks.remove(0);
+            } else {
+                break;
+            }
+        }
+        if toks.is_empty() {
+            continue;
+        }
+        let rtype = toks.remove(0).to_ascii_uppercase();
+        let rdata = toks.join(" ");
+
+        let mut rec: indexmap::IndexMap<String, Value> = indexmap::IndexMap::new();
+        rec.insert("name".to_string(), Value::Str(owner));
+        rec.insert("ttl".to_string(), Value::Str(ttl));
+        rec.insert(
+            "class".to_string(),
+            Value::Str(if class.is_empty() { "IN".to_string() } else { class }),
+        );
+        rec.insert("type".to_string(), Value::Str(rtype.clone()));
+        rec.insert("rdata".to_string(), Value::Str(rdata.clone()));
+        if rtype == "A" || rtype == "AAAA" {
+            let addr = rdata.split_whitespace().next().unwrap_or("").to_string();
+            rec.insert("address".to_string(), Value::Str(addr));
+        }
+        out.push(Value::Object(rec));
+    }
+    Ok(Value::List(out))
+}
+
+/// Strip everything from an unquoted `;` to end of line, preserving leading
+/// whitespace (owner inheritance depends on it).
+fn strip_zone_comment(line: &str) -> String {
+    let mut out = String::new();
+    let mut in_q = false;
+    for c in line.chars() {
+        match c {
+            '"' => {
+                in_q = !in_q;
+                out.push(c);
+            }
+            ';' if !in_q => break,
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Fold physical lines into logical records: strip comments and join lines
+/// while parentheses are unbalanced (SOA spans several lines), then flatten the
+/// parentheses away. Leading whitespace of each record's first physical line is
+/// preserved.
+fn zone_logical_lines(src: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut buf = String::new();
+    let mut depth: i32 = 0;
+    for raw in src.lines() {
+        let line = strip_zone_comment(raw);
+        let mut in_q = false;
+        for c in line.chars() {
+            match c {
+                '"' => in_q = !in_q,
+                '(' if !in_q => depth += 1,
+                ')' if !in_q => depth -= 1,
+                _ => {}
+            }
+        }
+        if buf.is_empty() {
+            buf.push_str(line.trim_end());
+        } else {
+            buf.push(' ');
+            buf.push_str(line.trim());
+        }
+        if depth <= 0 {
+            out.push(buf.replace(['(', ')'], " "));
+            buf.clear();
+            depth = 0;
+        }
+    }
+    if !buf.is_empty() {
+        out.push(buf.replace(['(', ')'], " "));
+    }
+    out
+}
+
+/// Expand a zone name to fully-qualified form against `origin` (trailing dot
+/// stripped). `@` maps to the origin; a name ending in `.` is already absolute.
+fn zone_fqdn(name: &str, origin: &str) -> String {
+    let name = name.trim();
+    let o = origin.trim_end_matches('.');
+    if name == "@" || name.is_empty() {
+        return o.to_string();
+    }
+    if let Some(abs) = name.strip_suffix('.') {
+        return abs.to_string();
+    }
+    if o.is_empty() {
+        name.to_string()
+    } else {
+        format!("{name}.{o}")
+    }
+}
+
+#[cfg(test)]
+mod zone_tests {
+    use super::*;
+
+    fn recs(v: &Value) -> &Vec<Value> {
+        match v {
+            Value::List(l) => l,
+            _ => panic!("expected list"),
+        }
+    }
+    fn field(v: &Value, k: &str) -> String {
+        match v {
+            Value::Object(m) => match m.get(k) {
+                Some(Value::Str(s)) => s.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        }
+    }
+
+    #[test]
+    fn parses_common_records_with_origin_and_inheritance() {
+        let zone = "\
+$ORIGIN example.com.
+$TTL 3600
+@   IN SOA ns1.example.com. admin.example.com. (
+        2024010101 ; serial
+        7200 3600 1209600 3600 )
+    IN NS  ns1.example.com.
+www IN A   192.0.2.10
+    IN AAAA 2001:db8::10
+api CNAME www          ; relative target
+mail 300 IN A 192.0.2.20
+";
+        let v = parse_zone(zone, "example.com.zone").unwrap();
+        let r = recs(&v);
+        // SOA, NS, A(www), AAAA(www via inheritance), CNAME(api), A(mail)
+        assert_eq!(r.len(), 6, "records: {r:?}");
+        assert_eq!(field(&r[0], "type"), "SOA");
+        assert_eq!(field(&r[0], "name"), "example.com");
+        assert_eq!(field(&r[1], "type"), "NS");
+        assert_eq!(field(&r[1], "name"), "example.com"); // inherited @ owner
+        assert_eq!(field(&r[2], "name"), "www.example.com");
+        assert_eq!(field(&r[2], "type"), "A");
+        assert_eq!(field(&r[2], "address"), "192.0.2.10");
+        assert_eq!(field(&r[3], "name"), "www.example.com"); // whitespace-inherited
+        assert_eq!(field(&r[3], "type"), "AAAA");
+        assert_eq!(field(&r[3], "address"), "2001:db8::10");
+        assert_eq!(field(&r[4], "type"), "CNAME");
+        assert_eq!(field(&r[4], "name"), "api.example.com");
+        assert_eq!(field(&r[5], "name"), "mail.example.com");
+        assert_eq!(field(&r[5], "ttl"), "300");
+    }
+
+    #[test]
+    fn registered_and_listed() {
+        assert!(is_registered("zone"));
+        assert!(list_input_formats().iter().any(|f| f.name == "zone"));
+    }
 }

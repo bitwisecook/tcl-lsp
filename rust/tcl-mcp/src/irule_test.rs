@@ -283,7 +283,11 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
 /// priority (high → normal → low).
 fn extract_test_paths(source: &str) -> Vec<PathInfo> {
     let registry = registry_for_dialect(IRULES_DIALECT);
-    let data = tcl_diagram::diagram_data(source, registry);
+    let data = tcl_diagram::diagram_data_with_config(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(IRULES_DIALECT),
+    );
     if data.get("error").is_some() {
         return Vec::new();
     }

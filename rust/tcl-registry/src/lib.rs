@@ -64,6 +64,7 @@ pub mod forms;
 pub mod hooks;
 pub mod hover;
 pub mod patterns;
+pub mod profile_defaults;
 pub mod profiles;
 pub mod registry;
 pub mod side_effects;

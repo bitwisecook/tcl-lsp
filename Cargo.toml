@@ -69,7 +69,7 @@ members = [
     "rust/tcl-bigip",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",
-    "rust/tcl-bigip-report",
+    "rust/bigip-report/rust",
     "rust/tcl-f5mku",
     "rust/tcl-irules",
     "rust/tcl-lsp-core",
@@ -94,8 +94,8 @@ exclude = [
     # Excluded for the same reason as `editors/zed`: PyO3's generated glue trips
     # the workspace `unsafe_code = "forbid"` lint, and the cdylib links
     # libpython, which the rest of the workspace must not require. See
-    # `rust/bigip-query-py/` and the `f5report` Python package it backs.
-    "rust/bigip-query-py",
+    # `rust/bigip-report/py/` and the `f5report` Python package it backs.
+    "rust/bigip-report/py",
     # wasm32 build of the query engine for the report's in-browser console.
     # Excluded for the same reasons as bigip-query-py: wasm-bindgen glue needs
     # `unsafe`, and it targets wasm32 with its own lockfile.

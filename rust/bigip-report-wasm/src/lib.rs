@@ -247,6 +247,7 @@ pub fn generate_report(
     generated_at: &str,
     embed_console: bool,
     architecture_manifest: &str,
+    report_id: &str,
 ) -> Result<String, JsError> {
     let sources: Vec<Source> = serde_json::from_str(sources_json)
         .map_err(|e| JsError::new(&format!("invalid sources JSON: {e}")))?;
@@ -279,8 +280,29 @@ pub fn generate_report(
         cert_pems,
         files,
         architecture,
+        report_id: report_id.to_owned(),
     };
     build_report(&sources, &opts).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Re-run cross-device architecture / topology detection for the builder's GUI
+/// editor. `devices_json` is the report model's `devices` array; `manifest` is
+/// the topology DSL (device/link/zone/interface/dns-zone/…). Returns the
+/// `architecture` object as JSON. Reuses the same detection the report embeds.
+#[wasm_bindgen]
+pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, JsError> {
+    let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
+        .map_err(|e| JsError::new(&format!("invalid devices JSON: {e}")))?;
+    let m = if manifest.trim().is_empty() { None } else { Some(manifest) };
+    let arch = tcl_bigip_report::build_architecture(&devices, m);
+    serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The full f5-query manual (grammar + builtins + cookbook) for the builder's
+/// reference panel. `topic` is currently ignored (the whole manual is returned).
+#[wasm_bindgen]
+pub fn manual(_topic: &str) -> String {
+    tcl_bigip_report::format_manual()
 }
 
 /// The report engine version string (for the page's status line).

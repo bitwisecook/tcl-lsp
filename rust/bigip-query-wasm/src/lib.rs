@@ -29,6 +29,8 @@
 
 use wasm_bindgen::prelude::*;
 
+mod analyze;
+
 use tcl_bigip_query::output;
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query as engine_run_query};
@@ -79,4 +81,47 @@ pub fn run_query(
 #[wasm_bindgen]
 pub fn engine_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Re-run cross-device architecture / topology detection for the in-report
+/// architecture editor. `devices_json` is the model's `devices` array;
+/// `manifest` is the topology DSL. Returns the `architecture` object as JSON.
+#[wasm_bindgen]
+pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, JsError> {
+    let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
+        .map_err(|e| JsError::new(&format!("invalid devices JSON: {e}")))?;
+    let m = if manifest.trim().is_empty() { None } else { Some(manifest) };
+    let arch = tcl_bigip_query::build_architecture(&devices, m);
+    serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The full f5-query manual (grammar + builtins + cookbook) for the console's
+/// reference panel.
+#[wasm_bindgen]
+pub fn manual(_topic: &str) -> String {
+    tcl_bigip_query::manual::format_manual()
+}
+
+/// Format an iRule / Tcl body and return **syntax-highlighted HTML** of the
+/// result, ready to drop straight into the report's `<pre class="code tcl">`.
+///
+/// Uses the same Tcl formatter the LSP and `tcl` CLI use (the F5 iRules Style
+/// Guide defaults) with the `f5-irules` command registry, then the shared
+/// highlighter — so the report's Format button runs entirely client-side, no
+/// server, keeping the report self-contained. The formatter is a pure,
+/// idempotent function, so re-formatting already-formatted source is a no-op.
+#[wasm_bindgen]
+pub fn format_irule(source: &str) -> String {
+    tcl_lexer::highlight_tcl(&analyze::format_irule_source(source))
+}
+
+/// Analyse an iRule body with the full analyser (diagnostics + optimiser
+/// suggestions, `f5-irules` dialect) and return a JSON object
+/// `{ html, diagnostics, counts }` — the source re-highlighted with each
+/// diagnostic range underlined inline (tooltip = code + message), plus the
+/// structured finding list for a summary panel. Client-side, so the report's
+/// inline-diagnostics toggle needs no server.
+#[wasm_bindgen]
+pub fn analyze_irule(source: &str) -> String {
+    analyze::analyze_irule(source)
 }

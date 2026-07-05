@@ -38,7 +38,11 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(&input.dialect);
-    let data = diagram::diagram_data(&source, registry);
+    let data = diagram::diagram_data_with_config(
+        &source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(&input.dialect),
+    );
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

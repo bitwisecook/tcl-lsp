@@ -26,7 +26,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-vendor="$here/../bigip-query-py/python/f5report/vendor"
+vendor="$here/../bigip-report/shared/public/vendor"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 

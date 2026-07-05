@@ -1,0 +1,177 @@
+/*
+ * tcl-lsp — a language server and toolchain for Tcl
+ * Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+/* f5report — topology / flow / listener view styling (appended to report.css) */
+
+/* object links (clickable names in tables + diagrams) */
+.objlink{cursor:pointer}
+td .objlink.strong,.objlink.namelink{color:var(--blue);border-bottom:1px dotted color-mix(in srgb,var(--blue) 55%,transparent)}
+.objlink:hover{filter:brightness(1.08)}
+
+/* diagram hosts */
+.diag-host{width:100%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:120px}
+.diag-host svg{max-width:100%;height:auto}
+.diag-empty,.diag-err{color:var(--muted);padding:26px;text-align:center;font-size:13px}
+.diag-err{color:var(--red)}
+
+/* topology controls */
+.topo-controls{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin-bottom:14px;
+  padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.topo-controls label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.topo-controls select{padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.topo-types{display:flex;flex-wrap:wrap;gap:4px 12px}
+.topo-types label{font-family:var(--mono);font-size:12px;color:var(--ink);cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;margin:8px 0 2px;font-size:11px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid}
+.hint{font-size:12px;color:var(--muted);margin:2px 0 12px}
+
+/* mermaid interaction states */
+.mm-node{cursor:pointer}
+.mm-node:hover :is(rect,circle,polygon,path){stroke-width:2.5px}
+.mm-hl :is(rect,circle,polygon){stroke-width:3px !important;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent))}
+path.flowchart-link.mm-hl{stroke:var(--accent) !important;stroke-width:3px !important;opacity:1}
+.mm-dim{opacity:.18;transition:opacity .12s}
+
+/* object drawer */
+#drawerScrim{position:fixed;inset:0;background:rgba(8,12,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+#drawerScrim.open{opacity:1;pointer-events:auto}
+/* height uses dynamic-viewport units so the drawer tracks the *visible* area on
+   iOS Safari — plain 100vh is the address-bar-hidden height, which pushes the
+   scrollable bottom of the drawer under the browser chrome where it can't be
+   reached ("can't scroll the object panes to see more"). vh stays as the
+   fallback for engines without dvh. */
+#objDrawer{position:fixed;top:0;right:0;height:100vh;height:100dvh;width:min(760px,94vw);background:var(--bg);
+  border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(8,12,20,.22);transform:translateX(100%);
+  transition:transform .2s ease;z-index:41;display:flex;flex-direction:column;overflow:hidden}
+#objDrawer.open{transform:translateX(0)}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.drawer-title{font-size:17px;font-weight:650}
+.drawer-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px}
+.drawer-close{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;flex:0 0 auto}
+.drawer-close:hover{border-color:var(--accent)}
+.drawer-body{padding:16px 20px 40px;overflow-y:auto;flex:1 1 auto;min-height:0;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.drawer-body h4{margin:18px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.drawer-body h4:first-child{margin-top:0}
+table.kv{border-collapse:collapse;font-size:13px}
+table.kv th{text-align:left;color:var(--muted);font-weight:500;padding:3px 16px 3px 0;white-space:nowrap;vertical-align:top}
+table.kv td{padding:3px 0;font-family:var(--mono)}
+.tagwrap{display:flex;flex-wrap:wrap;gap:4px}
+table.grid.mini{font-size:12px}
+.drawer-diag,.flow-diag{margin-top:4px}
+
+/* tag colours for the extra node types (reuse .tag base from report.css) */
+.tag.vs{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.tag.pool{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.tag.node{background:var(--tag-bg);color:var(--tag-ink)}
+.tag.mon{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
+.tag.rule{background:color-mix(in srgb,#7c3aed 18%,transparent);color:#7c3aed}
+.tag.prof{background:color-mix(in srgb,#0284c7 16%,transparent);color:#0284c7}
+:root[data-theme="dark"] .tag.rule{color:#c4b5fd}
+:root[data-theme="dark"] .tag.prof{color:#7dd3fc}
+
+/* listener matcher */
+.lm-form{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px}
+.lm-form .fld{display:flex;flex-direction:column;gap:4px}
+.lm-form label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.lm-form input,.lm-form select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;min-width:120px}
+.lm-run{padding:9px 18px;border:none;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:650;cursor:pointer}
+.lm-run:hover{filter:brightness(1.06)}
+.lm-note,.lm-field-note{font-size:12px;color:var(--muted);margin-bottom:10px}
+.tiers{display:flex;flex-direction:column;gap:0}
+.tier{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.tier.match{border-color:color-mix(in srgb,var(--green) 55%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 30%,transparent)}
+.lm-card[data-focus]{border-color:var(--green);box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 40%,transparent)}
+
+/* processing simulator */
+.lm-sim{margin-top:20px}
+.sim-head{font-size:15px;margin-bottom:12px}
+.sim-req{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+.sim-req .fld{display:flex;flex-direction:column;gap:4px}
+.sim-req .fld.grow{flex:1 1 220px}
+.sim-req label,.lm-sim .fld label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.sim-req input,.sim-req select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px}
+.lm-sim textarea.sim-headers{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:12px;margin:2px 0 14px;resize:vertical}
+.sim-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.sim-stage{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.sim-stage-t{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;font-weight:650}
+.sim-stage.ssl{border-left:3px solid #0284c7}
+.sim-stage.hud{border-left:3px solid #2563eb}
+.sim-stage.policy{border-left:3px solid #c026d3}
+.sim-stage.req{border-left:3px solid #7c3aed;grid-column:1/-1}
+.sim-stage.lb{border-left:3px solid #16a34a;grid-column:1/-1}
+.sim-notes{margin:8px 0 0;padding-left:18px;font-size:12px;color:var(--ink)}
+.sim-notes li{margin:2px 0}
+
+/* query console */
+.qc{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:14px;box-shadow:var(--shadow)}
+.qc-bar{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.qc-bar select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.qc-examples{flex:1 1 260px}
+.qc-run{padding:7px 18px;border:none;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:650;cursor:pointer}
+.qc-run:hover{filter:brightness(1.06)}
+.qc-expr{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
+  font-family:var(--mono);font-size:13px;line-height:1.5;resize:vertical}
+.qc-expr:focus{outline:2px solid var(--accent);border-color:transparent}
+.qc-status{font-size:11px;margin:8px 2px;font-family:var(--mono)}
+.qc-out{margin:0;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  font-family:var(--mono);font-size:12px;line-height:1.5;max-height:460px;overflow:auto;white-space:pre;min-height:60px}
+.qc-out.qc-err{color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,var(--line))}
+kbd{font-family:var(--mono);font-size:11px;background:var(--tag-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+
+/* floating f5-query selector status bar (fixed to the viewport bottom) */
+#f5qbar{position:fixed;left:0;right:0;bottom:0;z-index:46;display:none;align-items:center;gap:10px;
+  padding:8px 14px;background:color-mix(in srgb,var(--panel) 94%,transparent);
+  backdrop-filter:blur(8px);border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(8,12,20,.12);font-size:13px}
+#f5qbar.show{display:flex}
+.f5qbar-tag{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-ink);
+  background:var(--accent);padding:2px 8px;border-radius:20px;font-weight:700;flex:0 0 auto}
+.f5qbar-type{font-size:11px;color:var(--muted);flex:0 0 auto}
+.f5qbar-expr{flex:1 1 auto;font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:6px 10px;overflow-x:auto;white-space:nowrap;cursor:text}
+.f5qbar-copy,.f5qbar-close{flex:0 0 auto;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);color:var(--ink);cursor:pointer;font-size:14px}
+.f5qbar-copy:hover,.f5qbar-close:hover{border-color:var(--accent)}
+.f5qbar-copy.ok{color:var(--green);border-color:var(--green)}
+.f5qbar-path{flex:0 0 auto;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);color:var(--ink);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
+.f5qbar-path:hover{border-color:var(--accent)}
+.f5qbar-path.active{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+/* path-builder popover, anchored above the bar */
+.f5qbar-pop{display:none;position:absolute;right:14px;bottom:52px;z-index:47;min-width:min(680px,92vw);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(8,12,20,.28)}
+.f5qbar-pop.open{display:block}
+.pb-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pb-row label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.pb-row select{max-width:280px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.pb-arrow{color:var(--accent);font-weight:700}
+.pb-note{margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--ink)}
+/* keep page content clear of the fixed bar */
+body{padding-bottom:52px}
+.tier-key{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;font-family:var(--mono)}
+.tier-vs{display:flex;flex-wrap:wrap;gap:10px}
+.lm-card{flex:1 1 240px;min-width:220px;text-align:left;display:flex;flex-direction:column;gap:3px;
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);cursor:pointer}
+.lm-card:hover{border-color:var(--accent)}
+.lm-name{font-weight:640}
+.lm-dest{font-size:12px}
+.lm-meta{font-size:11px;color:var(--muted)}
+.tier-arrow{text-align:center;color:var(--muted);font-size:11px;padding:6px 0}

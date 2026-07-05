@@ -37,6 +37,8 @@ mod attach;
 mod data;
 mod mermaid;
 
-pub use attach::{AttachPattern, AttachReach, attach_reach, irule_attach_patterns, proc_call_refs};
-pub use data::diagram_data;
+pub use attach::{
+    AttachPattern, AttachReach, attach_reach, irule_attach_patterns, proc_call_refs,
+};
+pub use data::{diagram_data, diagram_data_with_config};
 pub use mermaid::irule_flowchart_mermaid;

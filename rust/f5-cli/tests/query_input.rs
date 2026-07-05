@@ -358,7 +358,7 @@ fn err_unknown_kind() {
             &format!("d={}", fixture("side.json")),
         ],
         2,
-        "unknown input format 'weird' (registered: csv, f5log, json, jsonl)",
+        "unknown input format 'weird' (registered: csv, f5log, json, jsonl, zone)",
     );
 }
 

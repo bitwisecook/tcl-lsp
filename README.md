@@ -9,6 +9,14 @@
 
 A language server for Tcl with multi-editor support.
 
+> **New here?** See **[docs/capabilities.md](docs/capabilities.md)** for how to
+> leverage the three capabilities — the **f5-query** engine, the **Tcl
+> compiler/analyser**, and the **BIG-IP registries** — from the CLI, Python, the
+> LSP, MCP, and the browser. Live demos:
+> [compiler explorer](https://bitwisecook.github.io/tcl-lsp/compiler-explorer/) ·
+> [BIG-IP report generator](https://bitwisecook.github.io/tcl-lsp/bigip-report-generator/) ·
+> [example report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/).
+
 <p align="center">
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
 </p>

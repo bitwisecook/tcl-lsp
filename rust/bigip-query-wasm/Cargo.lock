@@ -40,6 +40,11 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-query",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-lexer",
+ "tcl-lsp-core",
+ "tcl-registry",
  "wasm-bindgen",
 ]
 
@@ -446,6 +451,8 @@ dependencies = [
  "regex",
  "serde_json",
  "tcl-bigip",
+ "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -453,6 +460,15 @@ name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
  "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-cmd-core"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -495,15 +511,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-lsp-core"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "rustc-hash",
+ "serde_json",
+ "tcl-compiler",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-platform"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags",
  "rustc-hash",
  "sha2",
+ "tcl-cmd-core",
  "tcl-core-types",
  "tcl-lexer",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
 ]
 
 [[package]]

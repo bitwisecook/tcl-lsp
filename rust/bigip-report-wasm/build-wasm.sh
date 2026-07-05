@@ -52,19 +52,34 @@ else
     echo "    note: node not found — skipping wasm growability check"
 fi
 
-echo "==> assembling single-file dist/index.html"
-python3 - "$here/www/index.html" "$out/bigip_report_wasm.js" "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" <<'PY'
+echo "==> assembling single-file dist/index.html from the shared builder page"
+# The builder page (styles + controller) is the shared front-end; this app just
+# inlines the wasm generator behind it. `shared/dist/input.js` must be built
+# first (`cd ../bigip-report/shared && npm run build`); CI builds it before this.
+shared="$here/../bigip-report/shared"
+python3 - \
+    "$shared/public/templates/input.html" "$shared/src/styles/input.css" \
+    "$shared/dist/input.js" "$out/bigip_report_wasm.js" \
+    "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" <<'PY'
 import base64, sys
-tmpl_path, glue_path, wasm_path, out_path = sys.argv[1:5]
+tmpl_path, css_path, js_path, glue_path, wasm_path, out_path = sys.argv[1:7]
 tmpl = open(tmpl_path, encoding="utf-8").read()
+css = open(css_path, encoding="utf-8").read()
+js = open(js_path, encoding="utf-8").read()
 glue = open(glue_path, encoding="utf-8").read()
 b64 = base64.b64encode(open(wasm_path, "rb").read()).decode("ascii")
-# Inject the wasm-bindgen glue and the base64 wasm. Use replace-with-callable so
-# a stray backslash / ampersand in the payload is never treated as a regex.
-tmpl = tmpl.replace("//__WASM_BINDGEN_GLUE__", glue)
-tmpl = tmpl.replace("__WASM_B64__", b64)
-if "__WASM_B64__" in tmpl or "//__WASM_BINDGEN_GLUE__" in tmpl:
-    raise SystemExit("placeholder substitution failed")
+payload = (
+    '<script id="report-wasm" type="application/octet-stream">' + b64 + "</script>\n"
+    "<script>" + glue + "</script>"
+)
+# str.replace is a literal replace (not regex), so backslashes/ampersands in the
+# payload are safe.
+tmpl = tmpl.replace("__STYLES__", "<style>" + css + "</style>")
+tmpl = tmpl.replace("__WASM_PAYLOAD__", payload)
+tmpl = tmpl.replace("__INPUT_JS__", "<script>" + js + "</script>")
+for tok in ("__STYLES__", "__WASM_PAYLOAD__", "__INPUT_JS__"):
+    if tok in tmpl:
+        raise SystemExit(f"placeholder {tok} substitution failed")
 open(out_path, "w", encoding="utf-8").write(tmpl)
 print(f"    wrote {out_path} ({len(tmpl)/1024/1024:.2f} MiB, wasm {len(b64)/1024/1024:.2f} MiB b64)")
 PY
