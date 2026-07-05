@@ -162,6 +162,42 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
     })
 }
 
+/// Append the `args` indices consumed by value-taking options whose value role
+/// (primary or secondary) equals `role`.
+///
+/// Walks `args` from `scan_start` (1 to skip a subcommand word, else 0),
+/// matching option names/aliases literally — so `-1`, `$x`, `[cmd]` are treated
+/// as positionals, never flags — and advancing past each recognised option and
+/// the value word(s) it consumes ([`OptionSpec::value_indices`], which honours
+/// arity and the `--` terminator). The emitted indices are absolute into `args`,
+/// exactly like the positional roles, so consumers map them via `argv[idx + 1]`
+/// unchanged. A two-way binding (`role: VarWrite, also_role: VarRead`) emits its
+/// index for a query of either role — the multi-role convention, split across
+/// queries.
+fn push_option_value_roles(
+    out: &mut Vec<usize>,
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+    role: ArgRole,
+) {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = options.iter().find(|o| o.matches(args[i])) {
+            let vals = opt.value_indices(args, i);
+            if opt.value_role() == Some(role) || opt.value_also_role() == Some(role) {
+                out.extend(vals.iter().copied());
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
+}
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
@@ -664,48 +700,55 @@ impl CommandRegistry {
             return Vec::new();
         };
         let n = args.len();
+        let mut out: Vec<usize> = Vec::new();
 
         // Check subcommand
         if !spec.subcommands.is_empty()
             && !args.is_empty()
             && let Some(sub) = spec.subcommand(args[0])
         {
-            // Try dynamic resolver first
+            // Positional roles, offset by +1 for the subcommand word.
             if let Some(resolver) = sub.arg_role_resolver {
-                return resolver(&args[1..])
+                out.extend(
+                    resolver(&args[1..])
+                        .into_iter()
+                        .filter(|(_, r)| *r == role)
+                        .map(|(i, _)| i as usize + 1),
+                );
+            } else {
+                out.extend(
+                    sub.arg_roles
+                        .iter()
+                        .filter(|(_, r)| *r == role)
+                        .map(|(i, _)| *i as usize + 1),
+                );
+            }
+            // Value-taking options on the subcommand (scan past the sub word).
+            push_option_value_roles(&mut out, sub.options, args, 1, role);
+            out.retain(|&idx| idx < n);
+            return out;
+        }
+
+        // Top-level positional roles.
+        if let Some(resolver) = spec.arg_role_resolver {
+            out.extend(
+                resolver(args)
                     .into_iter()
                     .filter(|(_, r)| *r == role)
-                    .map(|(i, _)| i as usize + 1) // +1 for subcommand word
-                    .filter(|&idx| idx < n)
-                    .collect();
-            }
-            // Static roles (offset by +1 for subcommand word)
-            return sub
-                .arg_roles
-                .iter()
-                .filter(|(_, r)| *r == role)
-                .map(|(i, _)| *i as usize + 1)
-                .filter(|&idx| idx < n)
-                .collect();
+                    .map(|(i, _)| i as usize),
+            );
+        } else {
+            out.extend(
+                spec.arg_roles
+                    .iter()
+                    .filter(|(_, r)| *r == role)
+                    .map(|(i, _)| *i as usize),
+            );
         }
-
-        // Top-level: try dynamic resolver first
-        if let Some(resolver) = spec.arg_role_resolver {
-            return resolver(args)
-                .into_iter()
-                .filter(|(_, r)| *r == role)
-                .map(|(i, _)| i as usize)
-                .filter(|&idx| idx < n)
-                .collect();
-        }
-
-        // Static roles — filter by args length to avoid out-of-range indices
-        spec.arg_roles
-            .iter()
-            .filter(|(_, r)| *r == role)
-            .map(|(i, _)| *i as usize)
-            .filter(|&idx| idx < n)
-            .collect()
+        // Value-taking options carry roles at their (dynamic) value positions.
+        push_option_value_roles(&mut out, spec.options, args, 0, role);
+        out.retain(|&idx| idx < n);
+        out
     }
 
     /// Resolve a concrete call to its registry-described form.
@@ -1268,6 +1311,121 @@ mod tests {
         let kw = reg.arg_indices_for_role("try", &args, ArgRole::Keyword);
         // on@1, finally@5
         assert_eq!(kw, vec![1, 5], "{kw:?}");
+    }
+
+    // -- Option-value roles (Phase 1) ------------------------------------
+
+    fn opt(name: &'static str, value: crate::hover::OptionValue) -> crate::hover::OptionSpec {
+        crate::hover::OptionSpec {
+            name,
+            value,
+            ..crate::hover::OptionSpec::DEFAULT
+        }
+    }
+
+    fn opt_with_alias(
+        name: &'static str,
+        aliases: &'static [&'static str],
+        value: crate::hover::OptionValue,
+    ) -> crate::hover::OptionSpec {
+        crate::hover::OptionSpec {
+            name,
+            value,
+            aliases,
+            ..crate::hover::OptionSpec::DEFAULT
+        }
+    }
+
+    fn indices(options: &[crate::hover::OptionSpec], args: &[&str], role: ArgRole) -> Vec<usize> {
+        let mut out = Vec::new();
+        push_option_value_roles(&mut out, options, args, 0, role);
+        out
+    }
+
+    #[test]
+    fn option_value_role_emits_body_index() {
+        use crate::hover::OptionValue;
+        let options = [
+            opt("-command", OptionValue::script()),
+            opt("-flag", OptionValue::flag()),
+        ];
+        let args = ["-command", "{puts hi}", "-flag", "x"];
+        // The `-command` value is a Body; the flag consumes nothing.
+        assert_eq!(indices(&options, &args, ArgRole::Body), vec![1]);
+        // It is not a generic Value role.
+        assert!(indices(&options, &args, ArgRole::Value).is_empty());
+    }
+
+    #[test]
+    fn option_value_fixed_arity_emits_n_indices() {
+        use crate::hover::OptionValue;
+        let options = [opt("-rect", OptionValue::fixed(4, ArgRole::Value, "coord"))];
+        let args = ["-rect", "1", "2", "3", "4", "tail"];
+        assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn option_value_rest_arity_stops_at_terminator() {
+        let rest = crate::hover::OptionSpec {
+            name: "-rest",
+            value: crate::hover::OptionValue::Takes(crate::hover::OptionArg {
+                arity: crate::hover::OptionArity::Rest,
+                ..crate::hover::OptionArg::DEFAULT
+            }),
+            ..crate::hover::OptionSpec::DEFAULT
+        };
+        let options = [rest];
+        let args = ["-rest", "a", "b", "c", "--", "d"];
+        // Consumes a, b, c up to `--`, not d.
+        assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn option_value_terminator_stops_scan() {
+        use crate::hover::OptionValue;
+        let options = [opt("-command", OptionValue::script())];
+        let args = ["--", "-command", "{x}"];
+        assert!(indices(&options, &args, ArgRole::Body).is_empty());
+    }
+
+    #[test]
+    fn option_value_two_way_var_name_emits_for_both_roles() {
+        use crate::hover::OptionValue;
+        let options = [opt("-textvariable", OptionValue::var_name())];
+        let args = ["-textvariable", "myvar"];
+        assert_eq!(indices(&options, &args, ArgRole::VarWrite), vec![1]);
+        assert_eq!(indices(&options, &args, ArgRole::VarRead), vec![1]);
+    }
+
+    #[test]
+    fn option_value_alias_matches_and_dynamic_flag_skipped() {
+        use crate::hover::OptionValue;
+        let options = [opt_with_alias(
+            "-command",
+            &["-cmd"],
+            OptionValue::script(),
+        )];
+        // Alias resolves to the same value role.
+        assert_eq!(
+            indices(&options, &["-cmd", "{x}"], ArgRole::Body),
+            vec![1]
+        );
+        // A `$var` in flag position isn't an option name → treated as a
+        // positional, so the real `-command` after it still resolves.
+        assert_eq!(
+            indices(&options, &["$opt", "v", "-command", "{x}"], ArgRole::Body),
+            vec![3]
+        );
+    }
+
+    #[test]
+    fn options_do_not_leak_into_positional_role_queries() {
+        // A real command with value-taking options but no role annotations
+        // must not surface any option value under Body/VarWrite (inert until
+        // annotated).
+        let reg = CommandRegistry::build_default();
+        let b = reg.arg_indices_for_role("entry", &[".e", "-width", "10"], ArgRole::Body);
+        assert!(b.is_empty(), "{b:?}");
     }
 
     #[test]

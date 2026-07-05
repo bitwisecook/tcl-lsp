@@ -1487,14 +1487,13 @@ fn first_positional_without_terminator(
             return None;
         }
         if arg.starts_with('-') {
-            i += 1;
-            let consumes_value = profile
+            // Skip the option and the value word(s) it consumes (arity-aware).
+            let consumed = profile
                 .options
                 .iter()
-                .any(|o| o.name == arg && o.takes_value());
-            if consumes_value && i < args.len() {
-                i += 1;
-            }
+                .find(|o| o.matches(arg))
+                .map_or(0, |o| o.value_word_count(args, i));
+            i += 1 + consumed;
             continue;
         }
         return Some(i);

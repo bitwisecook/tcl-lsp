@@ -328,7 +328,7 @@ impl OptionSpec {
     /// [`OptionValue::Flag`].  This is the single source of the value-span
     /// logic shared by the option-scanning loops.
     #[must_use]
-    pub fn value_indices(&self, args: &[&str], flag_idx: usize) -> Vec<usize> {
+    pub fn value_indices<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> Vec<usize> {
         let OptionValue::Takes(arg) = self.value else {
             return Vec::new();
         };
@@ -337,7 +337,7 @@ impl OptionSpec {
         // Value consumption stops at a `--` terminator.
         let term = args[start..hard_end]
             .iter()
-            .position(|w| *w == "--")
+            .position(|w| w.as_ref() == "--")
             .map_or(hard_end, |p| start + p);
         let want = match arg.arity {
             OptionArity::One => 1,
@@ -350,7 +350,7 @@ impl OptionSpec {
     /// How many value words this option consumes at `flag_idx`
     /// (see [`Self::value_indices`]).
     #[must_use]
-    pub fn value_word_count(&self, args: &[&str], flag_idx: usize) -> usize {
+    pub fn value_word_count<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> usize {
         self.value_indices(args, flag_idx).len()
     }
 
