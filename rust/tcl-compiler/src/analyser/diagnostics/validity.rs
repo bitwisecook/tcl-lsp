@@ -1298,31 +1298,30 @@ before this value so it is treated as data, not an option."
                     continue;
                 }
             }
-            // Find a matching OptionSpec; if found and dialect-gated
-            // out, emit W004.
-            if let Some(opt) = options.iter().find(|o| o.name == arg)
-                && !opt.supports_dialect(Some(active), parent_dialects)
-            {
-                let span = if i < arg_tokens.len() {
-                    arg_tokens[i].span
-                } else {
-                    continue;
-                };
-                // Message
-                // exactly: `Option 'X' on 'cmd'[ sub] is not available in the
-                // active dialect (D).`
-                let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W004,
-                    span,
-                    message: format!(
-                        "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
+            // Find a matching OptionSpec (canonical name or alias).  When it is
+            // dialect-gated out, emit W004.  Either way, skip the value word(s)
+            // it consumes, so a value that itself looks like a flag
+            // (`-command -bar`) is not mistakenly tested as an option.
+            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
+                if !opt.supports_dialect(Some(active), parent_dialects) && i < arg_tokens.len() {
+                    let span = arg_tokens[i].span;
+                    // Message exactly: `Option 'X' on 'cmd'[ sub] is not
+                    // available in the active dialect (D).`
+                    let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: DiagCode::W004,
+                        span,
+                        message: format!(
+                            "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
 in the active dialect ({}).",
-                        self.dialect
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                            self.dialect
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+                i += 1 + opt.value_word_count(args, i);
+                continue;
             }
             i += 1;
         }

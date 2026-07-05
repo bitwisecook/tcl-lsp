@@ -503,6 +503,19 @@ fn w004_fires_on_regsub_command_in_tcl86() {
     assert!(w004[0].message.contains("regsub"));
 }
 
+#[test]
+fn w004_skips_option_value_that_looks_like_a_flag() {
+    // `-stride` is Tcl 9.0+ and takes a value.  On tcl8.6 the switch itself is
+    // W004, but its value word — even when it looks like a flag (`-stride`
+    // again) — must not be re-tested as a second gated option (Phase 4
+    // value-skip).  Pre-fix this counted two W004s.
+    assert_eq!(
+        count_code("lsearch -stride -stride {a b} x", "W004"),
+        1,
+        "value word `-stride` was mistakenly re-tested as a second gated option"
+    );
+}
+
 // E002 / E003 arity
 
 #[test]
