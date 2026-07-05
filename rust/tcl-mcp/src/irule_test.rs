@@ -41,8 +41,14 @@ const SECURITY_ACTIONS: &[&str] = &["reject", "drop", "discard", "HTTP::respond"
 /// Actions that indicate routing decisions (`_ROUTING_ACTIONS`).
 const ROUTING_ACTIONS: &[&str] = &["pool", "node", "snat", "snatpool", "virtual"];
 /// Taint codes that are security-critical (`_SECURITY_TAINT_CODES`).
-const SECURITY_TAINT_CODES: &[&str] =
-    &["T100", "T101", "T102", "IRULE3001", "IRULE3002", "IRULE3003"];
+const SECURITY_TAINT_CODES: &[&str] = &[
+    "T100",
+    "T101",
+    "T102",
+    "IRULE3001",
+    "IRULE3002",
+    "IRULE3003",
+];
 /// Tainted request-input references that elevate a path's priority.
 const TAINTED_REFS: &[&str] = &[
     "HTTP::uri",
@@ -204,7 +210,10 @@ impl PathInfo {
 /// Shared with `generate_irule_test` (the `cfg_paths` field + per-path cases).
 #[must_use]
 pub(crate) fn cfg_paths_json(source: &str) -> Vec<Value> {
-    extract_test_paths(source).iter().map(PathInfo::to_json).collect()
+    extract_test_paths(source)
+        .iter()
+        .map(PathInfo::to_json)
+        .collect()
 }
 
 /// MCP tool entry point: enumerate CFG paths for the `source` argument and
@@ -247,7 +256,10 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
         }
     }
 
-    let high_priority = paths.iter().filter(|p| p.priority == Priority::High).count();
+    let high_priority = paths
+        .iter()
+        .filter(|p| p.priority == Priority::High)
+        .count();
 
     json!({
         "total_paths": paths.len(),
@@ -302,12 +314,16 @@ fn extract_test_paths(source: &str) -> Vec<PathInfo> {
 
 /// The `flow` list of an event/proc dict, or an empty slice when absent.
 fn flow_of(node: &Value) -> &[Value] {
-    node.get("flow").and_then(Value::as_array).map_or(&[], Vec::as_slice)
+    node.get("flow")
+        .and_then(Value::as_array)
+        .map_or(&[], Vec::as_slice)
 }
 
 /// The child flow list under `key`, or an empty slice when absent.
 fn child_body<'a>(node: &'a Value, key: &str) -> &'a [Value] {
-    node.get(key).and_then(Value::as_array).map_or(&[], Vec::as_slice)
+    node.get(key)
+        .and_then(Value::as_array)
+        .map_or(&[], Vec::as_slice)
 }
 
 /// Recursively walk flow nodes, collecting paths to `action` terminals.
@@ -329,8 +345,15 @@ fn walk_flow(
             Some("if") => {
                 let branches = node.get("branches").and_then(Value::as_array);
                 for branch in branches.into_iter().flatten() {
-                    let cond = branch.get("condition").and_then(Value::as_str).unwrap_or("");
-                    let branch_kind = if cond == "else" { Branch::Else } else { Branch::True };
+                    let cond = branch
+                        .get("condition")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let branch_kind = if cond == "else" {
+                        Branch::Else
+                    } else {
+                        Branch::True
+                    };
                     conditions.push(Condition::If {
                         condition: cond.to_owned(),
                         branch: branch_kind,
@@ -366,7 +389,12 @@ fn walk_flow(
 fn string_array(value: Option<&Value>) -> Vec<String> {
     value
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -455,12 +483,14 @@ fn generate_questions(
     let args = &action.args;
     let cond_summary = build_condition_summary(conditions);
 
-    let q = |question: String, field: &str, suggested: Value| {
-        json!({ "question": question, "field": field, "suggested": suggested })
-    };
+    let q = |question: String, field: &str, suggested: Value| json!({ "question": question, "field": field, "suggested": suggested });
     // "When <summary>, …" phrasing, falling back to "unconditionally".
     let when = |fallback: &str| -> String {
-        if cond_summary.is_empty() { fallback.to_owned() } else { cond_summary.clone() }
+        if cond_summary.is_empty() {
+            fallback.to_owned()
+        } else {
+            cond_summary.clone()
+        }
     };
 
     match cmd {
@@ -484,7 +514,10 @@ fn generate_questions(
         "HTTP::redirect" => {
             let target = args.first().map_or("?", String::as_str);
             questions.push(q(
-                format!("When {}, what URL should the redirect go to?", when("unconditionally")),
+                format!(
+                    "When {}, what URL should the redirect go to?",
+                    when("unconditionally")
+                ),
                 "expected_redirect",
                 json!(target),
             ));
@@ -492,7 +525,10 @@ fn generate_questions(
         "HTTP::respond" => {
             let status = args.first().map_or("200", String::as_str);
             questions.push(q(
-                format!("When {}, what HTTP status should be returned?", when("unconditionally")),
+                format!(
+                    "When {}, what HTTP status should be returned?",
+                    when("unconditionally")
+                ),
                 "expected_status",
                 json!(status),
             ));
@@ -500,7 +536,10 @@ fn generate_questions(
         "node" if !args.is_empty() => {
             let node = &args[0];
             questions.push(q(
-                format!("When {}, should traffic go to node '{node}'?", when("unconditionally")),
+                format!(
+                    "When {}, should traffic go to node '{node}'?",
+                    when("unconditionally")
+                ),
                 "expected_node",
                 json!(node),
             ));
@@ -511,7 +550,10 @@ fn generate_questions(
     // For the first `else` / `default` branch, ask about the fallback input.
     for c in conditions {
         match c {
-            Condition::If { branch: Branch::Else, .. } => {
+            Condition::If {
+                branch: Branch::Else,
+                ..
+            } => {
                 questions.push(q(
                     "What input value should trigger the 'else' / fallback path?".to_owned(),
                     "fallback_input",
@@ -577,7 +619,11 @@ fn collect_taints(source: &str) -> Vec<Taint> {
             warnings
                 .iter()
                 .map(|w| Taint {
-                    code: w.get("code").and_then(Value::as_str).unwrap_or("").to_owned(),
+                    code: w
+                        .get("code")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned(),
                     sink_command: w
                         .get("sink_command")
                         .and_then(Value::as_str)

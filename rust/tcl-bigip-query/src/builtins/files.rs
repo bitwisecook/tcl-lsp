@@ -172,7 +172,10 @@ fn bi_grep(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
             if re.is_match(line) {
                 let mut row = IndexMap::new();
                 row.insert("path".into(), Value::Str(p.to_owned()));
-                row.insert("line".into(), Value::Int(i64::try_from(i + 1).unwrap_or(i64::MAX)));
+                row.insert(
+                    "line".into(),
+                    Value::Int(i64::try_from(i + 1).unwrap_or(i64::MAX)),
+                );
                 row.insert("text".into(), Value::Str(line.to_owned()));
                 hits.push(Value::Object(row));
             }
@@ -196,7 +199,10 @@ mod tests {
 
     #[test]
     fn glob_matching() {
-        assert!(glob_match("home/*/.ssh/*", "home/admin/.ssh/authorized_keys"));
+        assert!(glob_match(
+            "home/*/.ssh/*",
+            "home/admin/.ssh/authorized_keys"
+        ));
         assert!(glob_match("etc/*.conf", "etc/syslog-ng.conf"));
         assert!(!glob_match("etc/*.conf", "etc/passwd"));
         assert!(glob_match("etc/passwd", "etc/passwd"));

@@ -34,7 +34,6 @@
 //! basename (`bigip.conf`), so `bigip_uri` fixes the basename while making the
 //! directory unique per call.
 
-
 use crate::common::Lsp;
 use crate::common::helpers::*;
 
@@ -117,7 +116,9 @@ fn outline_symbols_all_have_non_empty_names() {
     let names = symbol_name_list(&syms);
     assert!(!names.is_empty(), "expected a non-empty BIG-IP outline");
     assert!(
-        names.iter().all(|n| n.as_deref().is_some_and(|s| !s.is_empty())),
+        names
+            .iter()
+            .all(|n| n.as_deref().is_some_and(|s| !s.is_empty())),
         "empty symbol name(s) in outline: {names:?}"
     );
 }
@@ -149,7 +150,8 @@ fn encrypted_marker_does_not_raise_tcl_diagnostics() {
     // W/E/S general-Tcl family must be absent on a BIG-IP conf.
     assert!(!cs.contains("W210"), "{cs:?}");
     assert!(
-        !cs.iter().any(|c| c.starts_with('W') || c.starts_with('E') || c.starts_with('S')),
+        !cs.iter()
+            .any(|c| c.starts_with('W') || c.starts_with('E') || c.starts_with('S')),
         "general Tcl diagnostics leaked on BIG-IP conf: {cs:?}"
     );
 }

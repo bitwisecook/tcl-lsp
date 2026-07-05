@@ -292,7 +292,9 @@ fn optimiser_section(order: usize) -> Value {
         m.insert("default".to_owned(), Value::Null);
         m.insert(
             "markdownDescription".to_owned(),
-            json!(format!("**{code}:** {description} (`null` = inherit from profile)")),
+            json!(format!(
+                "**{code}:** {description} (`null` = inherit from profile)"
+            )),
         );
         m.insert("order".to_owned(), json!(i + 2));
         props.insert(key.clone(), scoped_prop(&key, m));
@@ -364,7 +366,8 @@ fn is_generated_title(title: &str) -> bool {
 /// Rebuild the manifest text with the regenerated sections spliced in.
 fn rebuild() -> Result<String> {
     let path = repo_root().join(PACKAGE_JSON);
-    let text = std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let mut manifest: Value = serde_json::from_str(&text).context("parsing package.json")?;
 
     let groups = manifest
@@ -376,11 +379,19 @@ fn rebuild() -> Result<String> {
     // Find the contiguous run of generated sections (first..=last by title).
     let first = groups
         .iter()
-        .position(|g| g.get("title").and_then(Value::as_str).is_some_and(is_generated_title))
+        .position(|g| {
+            g.get("title")
+                .and_then(Value::as_str)
+                .is_some_and(is_generated_title)
+        })
         .context("no generated sections found in package.json")?;
     let last = groups
         .iter()
-        .rposition(|g| g.get("title").and_then(Value::as_str).is_some_and(is_generated_title))
+        .rposition(|g| {
+            g.get("title")
+                .and_then(Value::as_str)
+                .is_some_and(is_generated_title)
+        })
         .unwrap();
 
     let mut regenerated = formatter_sections();
@@ -420,31 +431,6 @@ pub fn run(check: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Drift guard: the committed manifest's `tclLsp.*` sections must equal what
-    /// the registries render (and every other section round-trips untouched).
-    #[test]
-    fn committed_package_json_matches_generated() {
-        let path = repo_root().join(PACKAGE_JSON);
-        let current = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
-        assert_eq!(
-            current,
-            rebuild().expect("rebuild"),
-            "{PACKAGE_JSON} generated sections are stale — run `cargo xtask gen-vscode-package`"
-        );
-    }
-
-    #[test]
-    fn snake_to_camel_works() {
-        assert_eq!(snake_to_camel("indent_size"), "indentSize");
-        assert_eq!(snake_to_camel("max_consecutive_blank_lines"), "maxConsecutiveBlankLines");
-    }
-}
-
 /// The formatter settings catalogue (6 sections, 26 settings), mirroring
 /// `tooling/formatter/config.py::FORMATTER_SETTINGS_CATALOGUE`. Defaults are the
 /// VS Code-resolved form of `FormatterConfig::default()` (enums lowercased,
@@ -476,58 +462,318 @@ fn formatter_catalogue() -> Vec<(&'static str, Vec<FmtSetting>)> {
         (
             "Formatting — Indentation",
             vec![
-                s("indent_size", json!(4), "integer", "Number of spaces per indentation level.", &[], &[], Some(1), Some(16)),
-                s("indent_style", json!("spaces"), "string", "Use spaces or tabs for indentation.", &["spaces", "tabs"], &[], None, None),
-                s("continuation_indent", json!(4), "integer", "Extra indentation for continuation lines.", &[], &[], Some(1), Some(16)),
+                s(
+                    "indent_size",
+                    json!(4),
+                    "integer",
+                    "Number of spaces per indentation level.",
+                    &[],
+                    &[],
+                    Some(1),
+                    Some(16),
+                ),
+                s(
+                    "indent_style",
+                    json!("spaces"),
+                    "string",
+                    "Use spaces or tabs for indentation.",
+                    &["spaces", "tabs"],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "continuation_indent",
+                    json!(4),
+                    "integer",
+                    "Extra indentation for continuation lines.",
+                    &[],
+                    &[],
+                    Some(1),
+                    Some(16),
+                ),
             ],
         ),
         (
             "Formatting — Braces & Style",
             vec![
-                s("brace_style", json!("k_and_r"), "string", "Brace placement style. K&R places the opening brace at the end of the line.", &["k_and_r"], &[], None, None),
-                s("space_between_braces", json!(true), "boolean", "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.", &[], &[], None, None),
-                s("enforce_braced_variables", json!(false), "boolean", "Rewrite `$var` as `${var}` for consistency.", &[], &[], None, None),
-                s("enforce_braced_expr", json!(false), "boolean", "Rewrite unbraced `expr` arguments as braced expressions.", &[], &[], None, None),
+                s(
+                    "brace_style",
+                    json!("k_and_r"),
+                    "string",
+                    "Brace placement style. K&R places the opening brace at the end of the line.",
+                    &["k_and_r"],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "space_between_braces",
+                    json!(true),
+                    "boolean",
+                    "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "enforce_braced_variables",
+                    json!(false),
+                    "boolean",
+                    "Rewrite `$var` as `${var}` for consistency.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "enforce_braced_expr",
+                    json!(false),
+                    "boolean",
+                    "Rewrite unbraced `expr` arguments as braced expressions.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
             ],
         ),
         (
             "Formatting — Line Length & Wrapping",
             vec![
-                s("max_line_length", json!(120), "integer", "Hard limit for line length. Lines exceeding this are wrapped.", &[], &[], Some(40), None),
-                s("goal_line_length", json!(100), "integer", "Soft target for line length. The formatter prefers to stay within this limit.", &[], &[], Some(40), None),
-                s("expand_single_line_bodies", json!(false), "boolean", "Expand single-line command bodies onto multiple lines.", &[], &[], None, None),
-                s("min_body_commands_for_expansion", json!(2), "integer", "Minimum commands in a body before it is expanded to multiple lines.", &[], &[], Some(1), None),
+                s(
+                    "max_line_length",
+                    json!(120),
+                    "integer",
+                    "Hard limit for line length. Lines exceeding this are wrapped.",
+                    &[],
+                    &[],
+                    Some(40),
+                    None,
+                ),
+                s(
+                    "goal_line_length",
+                    json!(100),
+                    "integer",
+                    "Soft target for line length. The formatter prefers to stay within this limit.",
+                    &[],
+                    &[],
+                    Some(40),
+                    None,
+                ),
+                s(
+                    "expand_single_line_bodies",
+                    json!(false),
+                    "boolean",
+                    "Expand single-line command bodies onto multiple lines.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "min_body_commands_for_expansion",
+                    json!(2),
+                    "integer",
+                    "Minimum commands in a body before it is expanded to multiple lines.",
+                    &[],
+                    &[],
+                    Some(1),
+                    None,
+                ),
             ],
         ),
         (
             "Formatting — Whitespace & Comments",
             vec![
-                s("space_after_comment_hash", json!(true), "boolean", "Ensure a space after `#` in comments.", &[], &[], None, None),
-                s("trim_trailing_whitespace", json!(true), "boolean", "Remove trailing whitespace from lines.", &[], &[], None, None),
-                s("align_comments_to_code", json!(true), "boolean", "Align inline comments to a consistent column.", &[], &[], None, None),
-                s("replace_semicolons_with_newlines", json!(true), "boolean", "Replace `;` command separators with newlines.", &[], &[], None, None),
+                s(
+                    "space_after_comment_hash",
+                    json!(true),
+                    "boolean",
+                    "Ensure a space after `#` in comments.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "trim_trailing_whitespace",
+                    json!(true),
+                    "boolean",
+                    "Remove trailing whitespace from lines.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "align_comments_to_code",
+                    json!(true),
+                    "boolean",
+                    "Align inline comments to a consistent column.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "replace_semicolons_with_newlines",
+                    json!(true),
+                    "boolean",
+                    "Replace `;` command separators with newlines.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
             ],
         ),
         (
             "Formatting — Blank Lines & File Format",
             vec![
-                s("blank_lines_between_procs", json!(1), "integer", "Number of blank lines between proc definitions.", &[], &[], Some(0), Some(5)),
-                s("blank_lines_between_blocks", json!(1), "integer", "Number of blank lines between top-level blocks.", &[], &[], Some(0), Some(5)),
-                s("max_consecutive_blank_lines", json!(2), "integer", "Maximum number of consecutive blank lines to keep.", &[], &[], Some(1), Some(10)),
-                s("line_ending", json!("lf"), "string", "Line ending style for formatted output.", &["lf", "crlf", "cr"], &[], None, None),
-                s("ensure_final_newline", json!(true), "boolean", "Ensure the file ends with a newline character.", &[], &[], None, None),
+                s(
+                    "blank_lines_between_procs",
+                    json!(1),
+                    "integer",
+                    "Number of blank lines between proc definitions.",
+                    &[],
+                    &[],
+                    Some(0),
+                    Some(5),
+                ),
+                s(
+                    "blank_lines_between_blocks",
+                    json!(1),
+                    "integer",
+                    "Number of blank lines between top-level blocks.",
+                    &[],
+                    &[],
+                    Some(0),
+                    Some(5),
+                ),
+                s(
+                    "max_consecutive_blank_lines",
+                    json!(2),
+                    "integer",
+                    "Maximum number of consecutive blank lines to keep.",
+                    &[],
+                    &[],
+                    Some(1),
+                    Some(10),
+                ),
+                s(
+                    "line_ending",
+                    json!("lf"),
+                    "string",
+                    "Line ending style for formatted output.",
+                    &["lf", "crlf", "cr"],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "ensure_final_newline",
+                    json!(true),
+                    "boolean",
+                    "Ensure the file ends with a newline character.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
             ],
         ),
         (
             "Formatting — Docstrings",
             vec![
-                s("docstring_style", json!("none"), "string", "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.", &["preceding", "body", "none"], &["Comment block above the proc statement.", "Comment block at the start of the proc body.", "Do not generate or reformat docstrings."], None, None),
-                s("docstring_tag_style", json!("doxygen"), "string", "Tag format used in docstrings for parameter and return documentation.", &["doxygen", "plain", "none"], &["Doxygen-style tags: @param, @return, @brief.", "Plain prose with an Arguments: section.", "Leave tag format as-is."], None, None),
-                s("docstring_decoration", json!(false), "boolean", "Add decoration border lines (e.g. `# ......`) around docstrings.", &[], &[], None, None),
-                s("docstring_decoration_char", json!("."), "string", "Character used for docstring decoration borders.", &[".", "-", "=", "*", "~"], &[], None, None),
-                s("docstring_decoration_width", json!(70), "integer", "Width of docstring decoration border lines.", &[], &[], Some(20), Some(120)),
+                s(
+                    "docstring_style",
+                    json!("none"),
+                    "string",
+                    "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.",
+                    &["preceding", "body", "none"],
+                    &[
+                        "Comment block above the proc statement.",
+                        "Comment block at the start of the proc body.",
+                        "Do not generate or reformat docstrings.",
+                    ],
+                    None,
+                    None,
+                ),
+                s(
+                    "docstring_tag_style",
+                    json!("doxygen"),
+                    "string",
+                    "Tag format used in docstrings for parameter and return documentation.",
+                    &["doxygen", "plain", "none"],
+                    &[
+                        "Doxygen-style tags: @param, @return, @brief.",
+                        "Plain prose with an Arguments: section.",
+                        "Leave tag format as-is.",
+                    ],
+                    None,
+                    None,
+                ),
+                s(
+                    "docstring_decoration",
+                    json!(false),
+                    "boolean",
+                    "Add decoration border lines (e.g. `# ......`) around docstrings.",
+                    &[],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "docstring_decoration_char",
+                    json!("."),
+                    "string",
+                    "Character used for docstring decoration borders.",
+                    &[".", "-", "=", "*", "~"],
+                    &[],
+                    None,
+                    None,
+                ),
+                s(
+                    "docstring_decoration_width",
+                    json!(70),
+                    "integer",
+                    "Width of docstring decoration border lines.",
+                    &[],
+                    &[],
+                    Some(20),
+                    Some(120),
+                ),
             ],
         ),
     ]
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drift guard: the committed manifest's `tclLsp.*` sections must equal what
+    /// the registries render (and every other section round-trips untouched).
+    #[test]
+    fn committed_package_json_matches_generated() {
+        let path = repo_root().join(PACKAGE_JSON);
+        let current = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        assert_eq!(
+            current,
+            rebuild().expect("rebuild"),
+            "{PACKAGE_JSON} generated sections are stale — run `cargo xtask gen-vscode-package`"
+        );
+    }
+
+    #[test]
+    fn snake_to_camel_works() {
+        assert_eq!(snake_to_camel("indent_size"), "indentSize");
+        assert_eq!(
+            snake_to_camel("max_consecutive_blank_lines"),
+            "maxConsecutiveBlankLines"
+        );
+    }
+}

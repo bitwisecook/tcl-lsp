@@ -23,14 +23,14 @@
 //! pool — a large build- and run-time win over one binary per suite. Files
 //! live under `tests/e2e/` (a non-target subdir); `#[path]` points at them.
 
-#[path = "e2e/common/mod.rs"]
-mod common;
 #[path = "e2e/bigip.rs"]
 mod bigip;
 #[path = "e2e/code_actions.rs"]
 mod code_actions;
 #[path = "e2e/commands.rs"]
 mod commands;
+#[path = "e2e/common/mod.rs"]
+mod common;
 #[path = "e2e/completion.rs"]
 mod completion;
 #[path = "e2e/config.rs"]

@@ -27,7 +27,10 @@ use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query};
 
 fn sources() -> Vec<(String, String)> {
-    vec![("file:///dev.ucs".to_owned(), "ltm pool /Common/p { }\n".to_owned())]
+    vec![(
+        "file:///dev.ucs".to_owned(),
+        "ltm pool /Common/p { }\n".to_owned(),
+    )]
 }
 
 fn stub_reader() -> FilesReader {
@@ -40,7 +43,10 @@ fn stub_reader() -> FilesReader {
                 ("is_text".to_owned(), Value::Bool(true)),
             ]),
             Value::object([
-                ("path".to_owned(), Value::Str("root/.ssh/authorized_keys".to_owned())),
+                (
+                    "path".to_owned(),
+                    Value::Str("root/.ssh/authorized_keys".to_owned()),
+                ),
                 ("size".to_owned(), Value::Int(40)),
                 ("sha256".to_owned(), Value::Str("bb".to_owned())),
                 ("is_text".to_owned(), Value::Bool(true)),
@@ -82,7 +88,10 @@ fn files_lists_the_inventory() {
 fn glob_filters_by_path() {
     let out = run(r#"glob("root/.ssh/*")"#);
     assert!(out.contains("authorized_keys"), "ssh key matched: {out}");
-    assert!(!out.contains("etc/passwd"), "glob must not match passwd: {out}");
+    assert!(
+        !out.contains("etc/passwd"),
+        "glob must not match passwd: {out}"
+    );
 }
 
 #[test]
@@ -94,7 +103,10 @@ fn file_attaches_content() {
 #[test]
 fn grep_returns_matching_lines_scoped_by_glob() {
     let out = run(r#"grep("backdoor", "etc/passwd")"#);
-    assert!(out.contains("\"line\"") && out.contains("backdoor"), "match row: {out}");
+    assert!(
+        out.contains("\"line\"") && out.contains("backdoor"),
+        "match row: {out}"
+    );
     // The path glob scopes grep to passwd, not the authorized_keys file.
     assert!(!out.contains("attacker"), "grep scoped by path glob: {out}");
 }

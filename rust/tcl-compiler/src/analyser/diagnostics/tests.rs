@@ -4670,13 +4670,23 @@ fn catch_body_package_require_is_conditional() {
         .iter()
         .find(|p| p.name == "Foo")
         .expect("Foo package require recorded");
-    assert!(foo.conditional, "catch-body package require must be conditional");
+    assert!(
+        foo.conditional,
+        "catch-body package require must be conditional"
+    );
 
     // A top-level `package require` stays unconditional.
     let mut b = crate::analyser::Analyser::new();
     let r2 = b.analyse("package require Bar\n", "tcl8.6");
-    let bar = r2.package_requires.iter().find(|p| p.name == "Bar").unwrap();
-    assert!(!bar.conditional, "top-level package require must be unconditional");
+    let bar = r2
+        .package_requires
+        .iter()
+        .find(|p| p.name == "Bar")
+        .unwrap();
+    assert!(
+        !bar.conditional,
+        "top-level package require must be unconditional"
+    );
 }
 
 #[test]

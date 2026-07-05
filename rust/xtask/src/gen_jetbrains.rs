@@ -32,8 +32,7 @@ use tcl_core_types::{DiagCode, DocRow};
 
 use crate::util::repo_root;
 
-const CATALOG_PATH: &str =
-    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/DiagnosticCatalog.kt";
+const CATALOG_PATH: &str = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/DiagnosticCatalog.kt";
 
 /// The section grouping `(key, title)` in table order (the three `irules*` keys
 /// share the iRules title, collapsing in `sectionTitles`/`sectionOrder`).
@@ -120,8 +119,7 @@ fn sorted_opts() -> Vec<(&'static str, &'static str)> {
 
 /// Diagnostics grouped by their deduplicated section title, in title order
 /// (only titles that have diagnostics).
-fn diag_section_groups() -> Vec<(&'static str, Vec<DiagRow>)>
-{
+fn diag_section_groups() -> Vec<(&'static str, Vec<DiagRow>)> {
     let diags = sorted_diags();
     let mut ordered_titles: Vec<&str> = Vec::new();
     for (_, title) in SECTIONS {
@@ -300,10 +298,19 @@ fn panel(current: &str) -> String {
     let mut ui = String::new();
     for (title, group) in &groups {
         let pv = panel_var_for(title);
-        let _ = writeln!(ui, "        builder.addComponent(TitledSeparator(\"{title}\"))");
-        let _ = writeln!(ui, "        val {pv} = JPanel(java.awt.GridLayout(0, 2, 8, 2))");
+        let _ = writeln!(
+            ui,
+            "        builder.addComponent(TitledSeparator(\"{title}\"))"
+        );
+        let _ = writeln!(
+            ui,
+            "        val {pv} = JPanel(java.awt.GridLayout(0, 2, 8, 2))"
+        );
         ui.push_str("        listOf(\n");
-        let refs: Vec<String> = group.iter().map(|(code, _, _, _)| format!("diag{code}")).collect();
+        let refs: Vec<String> = group
+            .iter()
+            .map(|(code, _, _, _)| format!("diag{code}"))
+            .collect();
         ui.push_str(&six_per_line(&refs));
         let _ = writeln!(ui, "        ).forEach {{ {pv}.add(it) }}");
         let _ = writeln!(ui, "        builder.addComponent({pv})");
@@ -317,7 +324,10 @@ fn panel(current: &str) -> String {
     let mut apply = String::new();
     let mut reset = String::new();
     for (code, _, _, _) in &diags {
-        let _ = writeln!(dirty, "            diag{code}.isSelected != s.diagnostic{code} ||");
+        let _ = writeln!(
+            dirty,
+            "            diag{code}.isSelected != s.diagnostic{code} ||"
+        );
         let _ = writeln!(apply, "        s.diagnostic{code} = diag{code}.isSelected");
         let _ = writeln!(reset, "        diag{code}.isSelected = s.diagnostic{code}");
     }
@@ -356,9 +366,18 @@ fn panel(current: &str) -> String {
     let mut opt_apply = String::from("        s.optimiserEnabled = optEnabled.isSelected\n");
     let mut opt_reset = String::from("        optEnabled.isSelected = s.optimiserEnabled\n");
     for (code, _) in &opts {
-        let _ = writeln!(opt_dirty, "            opt{code}.isSelected != s.optimiser{code} ||");
-        let _ = writeln!(opt_apply, "        s.optimiser{code} = opt{code}.isSelected");
-        let _ = writeln!(opt_reset, "        opt{code}.isSelected = s.optimiser{code}");
+        let _ = writeln!(
+            opt_dirty,
+            "            opt{code}.isSelected != s.optimiser{code} ||"
+        );
+        let _ = writeln!(
+            opt_apply,
+            "        s.optimiser{code} = opt{code}.isSelected"
+        );
+        let _ = writeln!(
+            opt_reset,
+            "        opt{code}.isSelected = s.optimiser{code}"
+        );
     }
     out = replace_block(&out, "opt-dirty", &opt_dirty);
     out = replace_block(&out, "opt-apply", &opt_apply);
@@ -391,12 +410,16 @@ pub fn run(check: bool) -> Result<ExitCode> {
                 drift.push(rel);
             }
         } else {
-            std::fs::write(&path, &content).with_context(|| format!("writing {}", path.display()))?;
+            std::fs::write(&path, &content)
+                .with_context(|| format!("writing {}", path.display()))?;
             eprintln!("wrote {rel}");
         }
     }
     if check && !drift.is_empty() {
-        eprintln!("{} JetBrains file(s) are stale — run `cargo xtask gen-jetbrains-catalog`:", drift.len());
+        eprintln!(
+            "{} JetBrains file(s) are stale — run `cargo xtask gen-jetbrains-catalog`:",
+            drift.len()
+        );
         for rel in &drift {
             eprintln!("  - {rel}");
         }
@@ -414,10 +437,16 @@ mod tests {
 
     #[test]
     fn short_label_truncates_and_escapes() {
-        assert_eq!(short_label("W001", "Unknown subcommand."), "W001: Unknown subcommand");
+        assert_eq!(
+            short_label("W001", "Unknown subcommand."),
+            "W001: Unknown subcommand"
+        );
         // Split on em-dash, strip backticks.
         assert_eq!(
-            short_label("W110", "Use `eq`/`ne` instead of `==`/`!=` for string comparison — foo"),
+            short_label(
+                "W110",
+                "Use `eq`/`ne` instead of `==`/`!=` for string comparison — foo"
+            ),
             "W110: Use eq/ne instead of ==/!= for string comparison"
         );
         // `$` is Kotlin-escaped.

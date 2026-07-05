@@ -62,7 +62,11 @@ impl Progress {
             start: Instant::now(),
             findings: 0,
         };
-        p.line(&format!("START {name} (skip={}, limit={:?})", Self::skip(), Self::limit()));
+        p.line(&format!(
+            "START {name} (skip={}, limit={:?})",
+            Self::skip(),
+            Self::limit()
+        ));
         p
     }
 

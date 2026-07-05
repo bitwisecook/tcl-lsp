@@ -29,7 +29,6 @@
 //! cached vs recomputed path has no JSON-RPC surface and stays in
 //! `tests/test_hover.py`.
 
-
 use crate::common::helpers::hover_text;
 use crate::common::{Lsp, unique_uri};
 
@@ -110,7 +109,7 @@ fn socket_server_option_hover_ignores_semicolon_in_quoted_arg() {
     let uri = unique_uri("tcl");
     let source = "socket \"a;b\" -server accept 8080\n";
     lsp.open_ready(&uri, source);
-    let option_pos = source.find("-server").unwrap() as u32 + 2;
+    let option_pos = u32::try_from(source.find("-server").unwrap()).unwrap() + 2;
     let text = hover(&mut lsp, &uri, 0, option_pos);
     assert!(text.contains("-server"), "hover: {text:?}");
 }
@@ -132,7 +131,10 @@ fn curated_command_hover_does_not_mark_refinement_status() {
 fn proc_signature() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let text = hover(&mut lsp, &uri, 1, 2);
     assert!(text.contains("greet"), "hover: {text:?}");
     assert!(text.contains("name"), "hover: {text:?}");
@@ -217,7 +219,10 @@ fn proc_doxygen_tags() {
 fn proc_with_defaults() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {{name World}} { puts \"Hello $name\" }\ngreet\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {{name World}} { puts \"Hello $name\" }\ngreet\n",
+    );
     assert!(hover(&mut lsp, &uri, 1, 2).contains("World"));
 }
 
@@ -230,7 +235,7 @@ fn var_hover() {
     lsp.open_ready(&uri, "set x 42\nputs $x\n");
     let text = hover(&mut lsp, &uri, 1, 7);
     assert!(text.contains("Variable"), "hover: {text:?}");
-    assert!(text.contains("x"), "hover: {text:?}");
+    assert!(text.contains('x'), "hover: {text:?}");
 }
 
 #[test]
@@ -238,7 +243,11 @@ fn var_hover_shows_refs() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set x 42\nputs $x\n");
-    assert!(hover(&mut lsp, &uri, 1, 7).to_lowercase().contains("reference"));
+    assert!(
+        hover(&mut lsp, &uri, 1, 7)
+            .to_lowercase()
+            .contains("reference")
+    );
 }
 
 #[test]

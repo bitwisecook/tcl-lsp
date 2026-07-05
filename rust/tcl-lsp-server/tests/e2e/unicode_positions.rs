@@ -25,7 +25,6 @@
 //! column resolves to the intended token) and OUTPUT (returned ranges carry
 //! UTF-16 columns, not byte columns).
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -37,7 +36,10 @@ use std::time::Duration;
 fn utf16_col(line: &str, token: &str) -> u32 {
     let idx = line.find(token).expect("token in line");
     // `len_utf16` is 1 or 2, so the conversion is always exact.
-    line[..idx].chars().map(|c| u32::try_from(c.len_utf16()).unwrap()).sum()
+    line[..idx]
+        .chars()
+        .map(|c| u32::try_from(c.len_utf16()).unwrap())
+        .sum()
 }
 
 /// The (wrong) UTF-8 byte column — what a byte-column regression would use
@@ -107,7 +109,10 @@ fn highlight_columns_are_utf16_not_bytes() {
     let dollar = utf16_col(line1, "$z");
     let name = dollar + 1;
     let bcol = byte_col(line1, "$z");
-    assert!(bcol > dollar, "test setup: multibyte prefix must shift the byte column");
+    assert!(
+        bcol > dollar,
+        "test setup: multibyte prefix must shift the byte column"
+    );
     // Request on the name; the returned highlight on line 1 must sit at the
     // UTF-16 column of either the `$` or the name — never the byte column.
     let cols: BTreeSet<i64> = starts(&lsp.document_highlight(&uri, 1, name))
@@ -116,7 +121,10 @@ fn highlight_columns_are_utf16_not_bytes() {
         .map(|(_, c)| c)
         .collect();
     let (dollar, name) = (i64::from(dollar), i64::from(name));
-    assert!(!cols.is_empty(), "expected a highlight on line 1 for $z; got none");
+    assert!(
+        !cols.is_empty(),
+        "expected a highlight on line 1 for $z; got none"
+    );
     assert!(
         cols.iter().all(|c| *c == dollar || *c == name),
         "highlight column must be UTF-16 ({dollar} or {name}), not the byte \
@@ -139,14 +147,20 @@ fn highlight_columns_are_utf16_through_astral_prefix() {
     let scalar = scalar_col(line1, "$z");
     // The 🚀 makes UTF-16 and scalar columns differ — that gap is what a
     // scalar→UTF-16 confusion would expose.
-    assert!(dollar > scalar, "test setup: astral prefix must widen the UTF-16 column");
+    assert!(
+        dollar > scalar,
+        "test setup: astral prefix must widen the UTF-16 column"
+    );
     let cols: BTreeSet<i64> = starts(&lsp.document_highlight(&uri, 1, name))
         .into_iter()
         .filter(|(line, _)| *line == 1)
         .map(|(_, c)| c)
         .collect();
     let (dollar, name) = (i64::from(dollar), i64::from(name));
-    assert!(!cols.is_empty(), "expected a highlight on line 1 for $z; got none");
+    assert!(
+        !cols.is_empty(),
+        "expected a highlight on line 1 for $z; got none"
+    );
     assert!(
         cols.iter().all(|c| *c == dollar || *c == name),
         "highlight column must be UTF-16 ({dollar} or {name}), not the scalar \
@@ -168,7 +182,11 @@ fn final_state_wins_after_rapid_replaces() {
     let names = ["beta", "gamma", "delta", "epsilon"];
     let mut version = 2;
     for n in names {
-        lsp.replace_document(&uri, version, &format!("proc {n} {{}} {{ return 1 }}\n{n}\n"));
+        lsp.replace_document(
+            &uri,
+            version,
+            &format!("proc {n} {{}} {{ return 1 }}\n{n}\n"),
+        );
         version += 1;
     }
     // The final content defines `epsilon`; its call on line 1 must resolve to
@@ -187,5 +205,8 @@ fn final_state_wins_after_rapid_replaces() {
     // And a stale name must NOT resolve anywhere (or, if it resolves, only to
     // the final definition).
     let line0 = starts(&lsp.definition(&uri, 0, 0));
-    assert!(line0.is_empty() || line0.contains(&(0, 5)), "stale resolution: {line0:?}");
+    assert!(
+        line0.is_empty() || line0.contains(&(0, 5)),
+        "stale resolution: {line0:?}"
+    );
 }

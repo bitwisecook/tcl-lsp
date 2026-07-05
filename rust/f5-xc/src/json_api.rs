@@ -109,30 +109,44 @@ fn render_simple_route(route: &XCRoute) -> Value {
         m.insert("path".to_owned(), path_match_dict(pm));
     }
     if let Some(hm) = &route.host_match {
-        m.insert("host".to_owned(), obj(vec![(hm.match_type.as_str(), json!(hm.value))]));
+        m.insert(
+            "host".to_owned(),
+            obj(vec![(hm.match_type.as_str(), json!(hm.value))]),
+        );
     }
     if !route.header_matches.is_empty() {
-        m.insert("headers".to_owned(), Value::Array(route.header_matches.iter().map(header_match_dict).collect()));
+        m.insert(
+            "headers".to_owned(),
+            Value::Array(route.header_matches.iter().map(header_match_dict).collect()),
+        );
     }
     if let Some(qm) = &route.query_match {
         m.insert("query_params".to_owned(), json!([query_match_dict(qm)]));
     }
     if !route.cookie_matches.is_empty() {
-        m.insert("cookies".to_owned(), Value::Array(route.cookie_matches.iter().map(cookie_match_dict).collect()));
+        m.insert(
+            "cookies".to_owned(),
+            Value::Array(route.cookie_matches.iter().map(cookie_match_dict).collect()),
+        );
     }
     if !m.is_empty() {
         result.insert("match".to_owned(), Value::Object(m));
     }
 
     if let Some(op) = &route.origin_pool {
-        result.insert("origin_pools".to_owned(), json!([{ "pool": { "name": op.name } }]));
+        result.insert(
+            "origin_pools".to_owned(),
+            json!([{ "pool": { "name": op.name } }]),
+        );
     }
 
     // Group header actions by `{target}_headers_to_{operation}`.
     let mut headers: Map<String, Value> = Map::new();
     for action in &route.header_actions {
         let key = format!("{}_headers_to_{}", action.target, action.operation);
-        let arr = headers.entry(key).or_insert_with(|| Value::Array(Vec::new()));
+        let arr = headers
+            .entry(key)
+            .or_insert_with(|| Value::Array(Vec::new()));
         if let Some(list) = arr.as_array_mut() {
             if action.operation == "remove" {
                 list.push(json!(action.name));
@@ -157,7 +171,11 @@ fn render_redirect_route(route: &XCRoute) -> Value {
     if let Some(redirect) = &route.redirect {
         let mut action = Map::new();
         action.insert("host_redirect".to_owned(), json!(redirect.url));
-        let code = if redirect.response_code == 301 { "MOVED_PERMANENTLY" } else { "FOUND" };
+        let code = if redirect.response_code == 301 {
+            "MOVED_PERMANENTLY"
+        } else {
+            "FOUND"
+        };
         action.insert("response_code".to_owned(), json!(code));
         result.insert("redirect_action".to_owned(), Value::Object(action));
     }
@@ -190,7 +208,10 @@ fn render_service_policy_rule(rule: &XCServicePolicyRule) -> Value {
         m.insert("path".to_owned(), path_match_dict(pm));
     }
     if let Some(hm) = &rule.host_match {
-        m.insert("host".to_owned(), obj(vec![(hm.match_type.as_str(), json!(hm.value))]));
+        m.insert(
+            "host".to_owned(),
+            obj(vec![(hm.match_type.as_str(), json!(hm.value))]),
+        );
     }
     if let Some(mm) = &rule.method_match {
         let mut method = Map::new();
@@ -201,16 +222,25 @@ fn render_service_policy_rule(rule: &XCServicePolicyRule) -> Value {
         m.insert("http_method".to_owned(), Value::Object(method));
     }
     if !rule.header_matches.is_empty() {
-        m.insert("headers".to_owned(), Value::Array(rule.header_matches.iter().map(header_match_dict).collect()));
+        m.insert(
+            "headers".to_owned(),
+            Value::Array(rule.header_matches.iter().map(header_match_dict).collect()),
+        );
     }
     if let Some(qm) = &rule.query_match {
         m.insert("query_params".to_owned(), json!([query_match_dict(qm)]));
     }
     if !rule.cookie_matches.is_empty() {
-        m.insert("cookies".to_owned(), Value::Array(rule.cookie_matches.iter().map(cookie_match_dict).collect()));
+        m.insert(
+            "cookies".to_owned(),
+            Value::Array(rule.cookie_matches.iter().map(cookie_match_dict).collect()),
+        );
     }
     if !rule.ip_prefix_list.is_empty() {
-        m.insert("client_source".to_owned(), obj(vec![("ip_prefix_list", json!(rule.ip_prefix_list))]));
+        m.insert(
+            "client_source".to_owned(),
+            obj(vec![("ip_prefix_list", json!(rule.ip_prefix_list))]),
+        );
     }
     if !m.is_empty() {
         rule_spec.insert("match".to_owned(), Value::Object(m));
@@ -222,7 +252,10 @@ fn render_service_policy_rule(rule: &XCServicePolicyRule) -> Value {
         rule_metadata.insert("description".to_owned(), json!(rule.description));
     }
 
-    obj(vec![("metadata", Value::Object(rule_metadata)), ("spec", Value::Object(rule_spec))])
+    obj(vec![
+        ("metadata", Value::Object(rule_metadata)),
+        ("spec", Value::Object(rule_spec)),
+    ])
 }
 
 fn render_waf_exclusion_rule(rule: &XCWafExclusionRule) -> Value {
@@ -273,7 +306,10 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
     lb_spec.insert("http".to_owned(), json!({ "dns_volterra_managed": false }));
 
     if !result.routes.is_empty() {
-        lb_spec.insert("routes".to_owned(), Value::Array(result.routes.iter().map(render_route).collect()));
+        lb_spec.insert(
+            "routes".to_owned(),
+            Value::Array(result.routes.iter().map(render_route).collect()),
+        );
     }
 
     let ha = &result.header_actions;
@@ -281,7 +317,11 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
         a.target == target && ((a.operation == "remove") == remove)
     };
     let add_pairs = |acts: Vec<&XCHeaderAction>| -> Value {
-        Value::Array(acts.into_iter().map(|a| json!({ "name": a.name, "value": a.value })).collect())
+        Value::Array(
+            acts.into_iter()
+                .map(|a| json!({ "name": a.name, "value": a.value }))
+                .collect(),
+        )
     };
     let names = |acts: Vec<&XCHeaderAction>| -> Value {
         Value::Array(acts.into_iter().map(|a| json!(a.name)).collect())
@@ -296,19 +336,34 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
         lb_spec.insert("request_headers_to_add".to_owned(), add_pairs(request_add));
     }
     if !request_remove.is_empty() {
-        lb_spec.insert("request_headers_to_remove".to_owned(), names(request_remove));
+        lb_spec.insert(
+            "request_headers_to_remove".to_owned(),
+            names(request_remove),
+        );
     }
     if !response_add.is_empty() {
-        lb_spec.insert("response_headers_to_add".to_owned(), add_pairs(response_add));
+        lb_spec.insert(
+            "response_headers_to_add".to_owned(),
+            add_pairs(response_add),
+        );
     }
     if !response_remove.is_empty() {
-        lb_spec.insert("response_headers_to_remove".to_owned(), names(response_remove));
+        lb_spec.insert(
+            "response_headers_to_remove".to_owned(),
+            names(response_remove),
+        );
     }
 
     if !result.waf_exclusion_rules.is_empty() {
         lb_spec.insert(
             "waf_exclusion_rules".to_owned(),
-            Value::Array(result.waf_exclusion_rules.iter().map(render_waf_exclusion_rule).collect()),
+            Value::Array(
+                result
+                    .waf_exclusion_rules
+                    .iter()
+                    .map(render_waf_exclusion_rule)
+                    .collect(),
+            ),
         );
     }
 
@@ -318,7 +373,10 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
             .iter()
             .map(|p| json!({ "name": p.name, "namespace": namespace }))
             .collect();
-        lb_spec.insert("active_service_policies".to_owned(), json!({ "policies": policies }));
+        lb_spec.insert(
+            "active_service_policies".to_owned(),
+            json!({ "policies": policies }),
+        );
     }
 
     json!({
@@ -336,16 +394,31 @@ pub fn render_json(result: &XCTranslationResult, namespace: &str, lb_name: &str)
     if !result.origin_pools.is_empty() {
         output.insert(
             "origin_pools".to_owned(),
-            Value::Array(result.origin_pools.iter().map(|p| render_origin_pool(p, namespace)).collect()),
+            Value::Array(
+                result
+                    .origin_pools
+                    .iter()
+                    .map(|p| render_origin_pool(p, namespace))
+                    .collect(),
+            ),
         );
     }
     if !result.service_policies.is_empty() {
         output.insert(
             "service_policies".to_owned(),
-            Value::Array(result.service_policies.iter().map(|p| render_service_policy(p, namespace)).collect()),
+            Value::Array(
+                result
+                    .service_policies
+                    .iter()
+                    .map(|p| render_service_policy(p, namespace))
+                    .collect(),
+            ),
         );
     }
-    output.insert("http_loadbalancer".to_owned(), render_load_balancer(result, namespace, lb_name));
+    output.insert(
+        "http_loadbalancer".to_owned(),
+        render_load_balancer(result, namespace, lb_name),
+    );
 
     let items: Vec<Value> = result
         .items

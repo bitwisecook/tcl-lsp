@@ -67,10 +67,7 @@ const SECTIONS: &[(&str, &str)] = &[
 /// The sort rank of a section key (its index in [`SECTIONS`]); unknown keys
 /// sort last.
 fn section_rank(key: &str) -> usize {
-    SECTIONS
-        .iter()
-        .position(|(k, _)| *k == key)
-        .unwrap_or(999)
+    SECTIONS.iter().position(|(k, _)| *k == key).unwrap_or(999)
 }
 
 /// A TypeScript/JSON string literal (double-quoted, standard JSON escaping, raw
@@ -217,8 +214,8 @@ mod tests {
     #[test]
     fn committed_catalog_matches_generated() {
         let path = repo_root().join(CATALOG_PATH);
-        let current = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        let current =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
         assert_eq!(
             current,
             catalog(),

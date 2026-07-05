@@ -22,7 +22,6 @@
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
@@ -252,7 +251,10 @@ fn w220_dead_store_fires() {
     // `x` is set, then overwritten before any read → the first store is dead.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "proc p {} {\n    set x 1\n    set x 2\n    return $x\n}\n");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc p {} {\n    set x 1\n    set x 2\n    return $x\n}\n",
+    );
     assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
     assert!(on_line(&diags, "W220").contains(&1));
 }

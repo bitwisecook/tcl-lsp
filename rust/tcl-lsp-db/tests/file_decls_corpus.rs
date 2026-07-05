@@ -108,9 +108,8 @@ fn file_decls_match_analyse_over_corpus() {
             if got != want {
                 let only_got: Vec<_> = got.difference(want).take(4).cloned().collect();
                 let only_want: Vec<_> = want.difference(got).take(4).cloned().collect();
-                let m = format!(
-                    "{name} {field}: only_decls={only_got:?} only_analyse={only_want:?}"
-                );
+                let m =
+                    format!("{name} {field}: only_decls={only_got:?} only_analyse={only_want:?}");
                 prog.finding(&m);
                 if mismatches.len() < 20 {
                     mismatches.push(m);
