@@ -1681,7 +1681,7 @@ pub fn collect_model_with_certs(
 }
 
 /// [`collect_model_with_certs`] plus an optional *architecture manifest* (a Tcl
-/// script; see [`crate::architecture`]).
+/// script; see [`tcl_bigip_query::architecture`]).
 ///
 /// The report always auto-detects how the loaded devices relate as tiers (an
 /// upstream device whose pool member / GTM server address is served by another
@@ -1732,7 +1732,7 @@ pub fn collect_model_full(
         })
         .collect();
 
-    let architecture = crate::architecture::build_architecture(&devices, manifest);
+    let architecture = tcl_bigip_query::build_architecture(&devices, manifest);
     let enrichment = crate::enrich::build_enrichment(&devices, &architecture);
 
     let mut totals: Map<String, J> = Map::new();

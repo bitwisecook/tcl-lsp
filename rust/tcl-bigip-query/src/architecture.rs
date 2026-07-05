@@ -45,7 +45,18 @@ use std::str::FromStr;
 
 use serde_json::{Map, Value as J};
 
-use crate::jutil::{barr, bstr};
+/// Borrow a string field from a JSON object (empty when absent / non-string).
+fn bstr<'a>(map: &'a Map<String, J>, key: &str) -> &'a str {
+    map.get(key).and_then(J::as_str).unwrap_or("")
+}
+
+/// Borrow an array field from a JSON object (empty when absent / non-array).
+fn barr<'a>(map: &'a Map<String, J>, key: &str) -> &'a [J] {
+    match map.get(key) {
+        Some(J::Array(a)) => a.as_slice(),
+        _ => &[],
+    }
+}
 
 /// One device's declared role/tier/label from a manifest entry.
 struct DeviceSpec {

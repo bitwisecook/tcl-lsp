@@ -95,7 +95,7 @@ pub struct RenderOptions {
     /// archive behind the source (e.g. a bare `bigip.conf`).
     pub files: std::collections::HashMap<String, Vec<serde_json::Value>>,
     /// Optional *architecture manifest* — a small Tcl script (see
-    /// [`crate::architecture`]). Declares each device's role/tier and can add
+    /// [`tcl_bigip_query::architecture`]). Declares each device's role/tier and can add
     /// explicit inter-device links, overriding and augmenting auto-detection.
     /// Empty = pure auto-detection.
     pub architecture: Option<String>,

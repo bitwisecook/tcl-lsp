@@ -29,6 +29,10 @@ authors.workspace = true
 
 [dependencies]
 tcl-bigip = { path = "../tcl-bigip" }
+# The real Tcl tokeniser, for parsing the architecture-manifest DSL (device /
+# link / zone / interface / dns-zone / maps). Core lexer only (no `html`), so it
+# stays wasm-safe for the report/console build.
+tcl-lexer = { path = "../tcl-lexer" }
 # Profile / event registry — the source of truth for a profile's protocol
 # stack `layer`, used to sort profiles into traffic order. Pure data + logic,
 # so it stays wasm-safe for the report/console build.

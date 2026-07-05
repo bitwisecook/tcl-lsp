@@ -41,7 +41,6 @@
 )]
 
 mod apm;
-pub mod architecture;
 mod certs;
 pub mod enrich;
 mod forensics;
@@ -60,8 +59,11 @@ pub use model::{
     ENGINE_VERSION, collect_model, collect_model_full, collect_model_with_architecture,
     collect_model_with_certs,
 };
-pub use architecture::build_architecture;
 pub use query::{ReportError, Source};
+/// Architecture / topology detection, hoisted into the query engine so the
+/// report, the Python binding, and the console wasm all share it. Re-exported
+/// here for compatibility.
+pub use tcl_bigip_query::build_architecture;
 /// The full f5-query manual (grammar + builtins + cookbook), re-exported so the
 /// wasm builder / report can embed a reference panel.
 pub use tcl_bigip_query::manual::format_manual;

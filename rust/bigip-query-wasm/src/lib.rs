@@ -80,3 +80,22 @@ pub fn run_query(
 pub fn engine_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+/// Re-run cross-device architecture / topology detection for the in-report
+/// architecture editor. `devices_json` is the model's `devices` array;
+/// `manifest` is the topology DSL. Returns the `architecture` object as JSON.
+#[wasm_bindgen]
+pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, JsError> {
+    let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
+        .map_err(|e| JsError::new(&format!("invalid devices JSON: {e}")))?;
+    let m = if manifest.trim().is_empty() { None } else { Some(manifest) };
+    let arch = tcl_bigip_query::build_architecture(&devices, m);
+    serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The full f5-query manual (grammar + builtins + cookbook) for the console's
+/// reference panel.
+#[wasm_bindgen]
+pub fn manual(_topic: &str) -> String {
+    tcl_bigip_query::manual::format_manual()
+}
