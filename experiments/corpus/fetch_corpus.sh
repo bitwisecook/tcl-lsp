@@ -25,7 +25,7 @@ for entry in "${gt_repos[@]}"; do
   read -r repo sha <<<"$entry"
   dir="georgtree/$repo"
   if [ ! -d "$dir/.git" ]; then
-    git clone -q "https://github.com/georgtree/$repo" "$dir" || { echo "  clone $repo FAILED"; continue; }
+    git clone -q --depth 1 "https://github.com/georgtree/$repo" "$dir" || { echo "  clone $repo FAILED"; continue; }
     echo "  cloned $repo"
   fi
   # Pin to the exact revision recorded in MANIFEST.md so the reproduction
