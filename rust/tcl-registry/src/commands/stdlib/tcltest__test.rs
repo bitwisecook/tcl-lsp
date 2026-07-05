@@ -19,46 +19,41 @@
 //! `tcltest::test` command.
 use crate::prelude::*;
 
-/// Dynamic arg-role resolver for `tcltest::test`.
+/// Dynamic arg-role resolver for the legacy positional form of
+/// `tcltest::test name description ?constraints? body result`, where the body
+/// is always the penultimate argument.
 ///
-/// The command has two shapes whose script bodies must be recursed into:
+/// The option form (`test name description ?option value ...?`) needs no help
+/// here: the `-setup` / `-body` / `-cleanup` options are modelled declaratively
+/// as [`OptionValue::script()`], so the shared option-value machinery
+/// (`arg_indices_for_role` / the semantic-token role pass) already recurses
+/// their bodies. This resolver only owns the shape the option model cannot
+/// express, and suppresses the positional guess when a body *option* is present
+/// (there the trailing words are option values, not a positional body).
 ///
-///   * `test name description ?option value ...?` — the values of the
-///     `-setup` / `-body` / `-cleanup` options are Tcl scripts.
-///   * `test name description ?constraints? body result` — the legacy
-///     positional form, where the body is always the penultimate argument.
-///
-/// Without these `Body` roles the analyser never descends into a `test`
-/// body, under-reporting every nested diagnostic (real `*.test` suites are
-/// almost entirely composed of `test` blocks).
+/// Without the positional `Body` role the analyser never descends into a legacy
+/// `test` body, under-reporting every nested diagnostic.
 fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     const BODY_OPTIONS: [&str; 3] = ["-setup", "-body", "-cleanup"];
-    let mut roles: Vec<(u8, ArgRole)> = Vec::new();
     let n = args.len();
-    // Skip name (0) and description (1); scan option/value *pairs*, examining
-    // only the option positions (step by 2). Advancing by 1 would let an option
-    // whose value is literally `-body`/`-setup`/`-cleanup` (e.g. `-result -body`)
-    // be misread as an option and mark the following word as a body.
-    let mut has_body_option = false;
+    // Skip name (0) and description (1); scan option positions in *pairs* so a
+    // value that is literally `-body`/`-setup`/`-cleanup` (e.g. `-result -body`)
+    // is not misread as an option.
     let mut i = 2usize;
     while i + 1 < n {
         if BODY_OPTIONS.contains(&args[i]) {
-            if let Ok(idx) = u8::try_from(i + 1) {
-                roles.push((idx, ArgRole::Body));
-            }
-            has_body_option = true;
+            // Option form — the option-value model handles the bodies.
+            return Vec::new();
         }
         i += 2;
     }
-    // Legacy positional form: the body is the penultimate argument. Only
-    // applies when no body-related options were used.
-    if !has_body_option
-        && n >= 4
+    // Legacy positional form: the body is the penultimate argument.
+    if n >= 4
         && let Ok(idx) = u8::try_from(n - 2)
     {
-        roles.push((idx, ArgRole::Body));
+        return vec![(idx, ArgRole::Body)];
     }
-    roles
+    Vec::new()
 }
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
