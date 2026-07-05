@@ -223,7 +223,7 @@ pub fn hover(
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) = builtin_command_hover_text(registry, &word, analysis) {
+        if let Some(text) = builtin_command_hover_text(registry, &word, analysis, cursor_offset) {
             return Some(Hover::markdown(text));
         }
     }
@@ -235,20 +235,29 @@ pub fn hover(
     None
 }
 
-/// Resolve an unqualified command `name` to its qualified registry spec via the
-/// document's `namespace import`s (`namespace import ::tcltest::*` → `test`
-/// resolves to `tcltest::test`).  Mirrors the analyser's imported-command body
-/// resolution (`dispatch_body_arguments`).  Returns the qualified name and its
-/// spec, or `None` when nothing matches.  Only unqualified names are resolved.
+/// Resolve an unqualified command `name` at byte offset `cursor_offset` to its
+/// qualified registry spec via the document's `namespace import`s
+/// (`namespace import ::tcltest::*` → `test` resolves to `tcltest::test`).
+/// Mirrors the analyser's imported-command body resolution, respecting the
+/// import's **scope** and **source order**: only an import made at global scope
+/// (`ns == "::"`, in effect everywhere via Tcl's unqualified-name fallback) and
+/// positioned *before* the hovered word applies — a nested-namespace import
+/// (e.g. inside `namespace eval ns { … }`) or one appearing after the cursor
+/// must not retroactively resolve a bare name here.  Returns the qualified name
+/// and its spec, or `None`.  Only unqualified names are resolved.
 fn resolve_imported_command<'r>(
     registry: &'r CommandRegistry,
     name: &str,
     analysis: &AnalysisResult,
+    cursor_offset: u32,
 ) -> Option<(String, &'r tcl_registry::CommandSpec)> {
     if name.contains("::") {
         return None;
     }
     for imp in &analysis.namespace_imports {
+        if imp.ns != "::" || imp.range.end() > cursor_offset {
+            continue;
+        }
         let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
             format!("{prefix}{name}")
         } else if imp.pattern.rsplit("::").next() == Some(name) {
@@ -270,16 +279,18 @@ fn builtin_command_hover_text(
     registry: &CommandRegistry,
     name: &str,
     analysis: &AnalysisResult,
+    cursor_offset: u32,
 ) -> Option<String> {
     use std::borrow::Cow;
     use std::fmt::Write;
     // Resolve the head through the document's `namespace import`s: a bare
     // `test` under `namespace import ::tcltest::*` hovers as `tcltest::test`
-    // (mirrors the analyser's imported-command body resolution).
+    // (mirrors the analyser's imported-command body resolution, scoped + ordered
+    // to imports actually in effect at the cursor).
     let (name, spec): (Cow<'_, str>, _) = match registry.get(name) {
         Some(spec) => (Cow::Borrowed(name), spec),
         None => {
-            let (qual, spec) = resolve_imported_command(registry, name, analysis)?;
+            let (qual, spec) = resolve_imported_command(registry, name, analysis, cursor_offset)?;
             (Cow::Owned(qual), spec)
         }
     };
@@ -2576,6 +2587,34 @@ mod tests {
     }
 
     #[test]
+    fn builtin_hover_ignores_nested_namespace_import() {
+        // An import made inside `namespace eval ns { … }` is not in scope at top
+        // level, so hovering a bare top-level `test` must NOT resolve to
+        // tcltest::test (mirrors the analyser's scope rule).
+        let src = "namespace eval ns { namespace import ::tcltest::* }\ntest t-1 {desc}\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        // `test` is on line 1 (top level) — out of the `ns` import's scope.
+        assert!(
+            hover(src, 1, 2, &analysis, Some(&registry)).is_none(),
+            "a nested-namespace import must not resolve a top-level bare `test`",
+        );
+    }
+
+    #[test]
+    fn builtin_hover_ignores_import_after_cursor() {
+        // Source order: hovering a `test` that appears *before* the
+        // `namespace import` must not resolve — the import is not yet in effect.
+        let src = "test t-1 {desc}\nnamespace import ::tcltest::*\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert!(
+            hover(src, 0, 2, &analysis, Some(&registry)).is_none(),
+            "an import after the cursor must not retroactively resolve `test`",
+        );
+    }
+
+    #[test]
     fn valid_events_for_asm_profile_requirement() {
         use tcl_registry::events::EventRequires;
         // A command requiring the ASM profile is valid only in ASM events.
@@ -2641,7 +2680,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         if let Some(text) =
-            builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""))
+            builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
         {
             assert!(text.contains("**Valid events**"), "{text}");
             assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
@@ -2658,7 +2697,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         let text =
-            builtin_command_hover_text(&registry, "DIAMETER::retransmission_default", &analyse(""))
+            builtin_command_hover_text(&registry, "DIAMETER::retransmission_default", &analyse(""), u32::MAX)
                 .expect("hover");
         assert!(
             text.contains("**Requires**: profile DIAMETER or DIAMETERSESSION or DIAMETER_ENDPOINT"),
@@ -3260,7 +3299,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "puts", &analyse("")).expect("hover");
+        let t = builtin_command_hover_text(&registry, "puts", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("built-in command"), "{t}");
         assert!(t.contains("`puts`"), "{t}");
     }
@@ -3268,7 +3307,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_lists_subcommands() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "string", &analyse("")).expect("hover");
+        let t = builtin_command_hover_text(&registry, "string", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("Subcommands:"), "{t}");
         assert!(t.contains("length"), "{t}");
     }
@@ -3277,7 +3316,7 @@ mod tests {
     fn builtin_command_hover_returns_none_for_unknown() {
         let registry = tcl_registry::CommandRegistry::build_default();
         assert!(
-            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse("")).is_none()
+            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse(""), u32::MAX).is_none()
         );
     }
 

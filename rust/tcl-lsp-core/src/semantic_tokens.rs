@@ -2073,10 +2073,13 @@ struct ScriptCtx<'a> {
     regex_sources: &'a FxHashMap<u32, Span>,
     /// Bare command names imported into the global namespace via
     /// `namespace import EXPORTING::*`, mapped to their qualified registry
-    /// spec name (`test` → `tcltest::test`).  Lets the registry-driven
+    /// spec name (`test` → `tcltest::test`) plus the byte offset of the
+    /// enabling `namespace import` statement.  Lets the registry-driven
     /// overrides resolve an unqualified imported command to its spec (issue
-    /// #776).  Empty when the document has no `namespace import`.
-    head_aliases: &'a FxHashMap<String, String>,
+    /// #776) — but only for a head at or after the import, so an import cannot
+    /// retroactively re-tag an earlier same-named command.  Empty when the
+    /// document has no `namespace import`.
+    head_aliases: &'a FxHashMap<String, (String, u32)>,
 }
 
 fn collect_switch_case_list(
@@ -2458,12 +2461,15 @@ fn collect_script(
         // Resolve an unqualified command imported from an exported namespace
         // (`namespace import tcltest::*` → `test` = `tcltest::test`) to its
         // qualified registry name, so the registry-driven overrides and the
-        // built-in modifier see the real spec (issue #776).  Falls back to the
-        // literal head when there is no import for it.
+        // built-in modifier see the real spec (issue #776).  Only applies when
+        // the enabling import precedes this head in source order (an import
+        // cannot retroactively re-tag an earlier command); falls back to the
+        // literal head otherwise.
         let resolved_head: &str = ctx
             .head_aliases
             .get(head_text)
-            .map_or(head_text.as_str(), String::as_str);
+            .filter(|(_, import_off)| head_tok.span.start() >= *import_off)
+            .map_or(head_text.as_str(), |(qualified, _)| qualified.as_str());
         emit_command_head(
             line_index,
             full_source,
@@ -2838,15 +2844,20 @@ fn imported_command_aliases(
     source: &str,
     dialect: &str,
     registry: &CommandRegistry,
-) -> FxHashMap<String, String> {
-    let mut aliases = FxHashMap::default();
+) -> FxHashMap<String, (String, u32)> {
+    let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
     // Cheap gate: `namespace import` is the only source of aliases.
     if !source.contains("namespace") {
         return aliases;
     }
-    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`).
-    let mut import_all: Vec<String> = Vec::new();
-    let mut import_one: Vec<(String, String)> = Vec::new();
+    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
+    // tagged with the byte offset of its `namespace import` statement so an
+    // alias only applies to heads at or after it (source order).  Only
+    // top-level imports are seen — a `namespace import` nested inside a
+    // `namespace eval` body is not a top-level segment, so it never leaks a
+    // global bare alias.
+    let mut import_all: Vec<(String, u32)> = Vec::new();
+    let mut import_one: Vec<(String, String, u32)> = Vec::new();
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
@@ -2855,21 +2866,34 @@ fn imported_command_aliases(
         if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
             continue;
         }
+        let import_off = seg.argv[0].span.start();
         for pat in &seg.texts[2..] {
             // Skip option flags (`-force`); computed patterns are left alone.
             if pat.starts_with('-') {
                 continue;
             }
             if let Some(ns) = pat.strip_suffix("::*") {
-                import_all.push(ns.trim_start_matches(':').to_string());
+                import_all.push((ns.trim_start_matches(':').to_string(), import_off));
             } else if let Some((ns, name)) = pat.rsplit_once("::") {
-                import_one.push((ns.trim_start_matches(':').to_string(), name.to_string()));
+                import_one.push((
+                    ns.trim_start_matches(':').to_string(),
+                    name.to_string(),
+                    import_off,
+                ));
             }
         }
     }
     if import_all.is_empty() && import_one.is_empty() {
         return aliases;
     }
+    // Record `name → (qualified, offset)`, keeping the *earliest* enabling
+    // import when several would produce the same alias.
+    let mut record = |name: String, qualified: String, off: u32| {
+        aliases
+            .entry(name)
+            .and_modify(|(_, o)| *o = (*o).min(off))
+            .or_insert((qualified, off));
+    };
     // Import-all: every exported command in an imported namespace whose bare
     // tail does not already name a global command.
     if !import_all.is_empty() {
@@ -2880,23 +2904,28 @@ fn imported_command_aliases(
             if tail.is_empty() || registry.get(tail).is_some() {
                 continue;
             }
-            if import_all.iter().any(|n| n == ns.trim_start_matches(':'))
-                && registry.get(name).is_some_and(|s| s.is_namespace_exported)
-            {
-                aliases
-                    .entry(tail.to_string())
-                    .or_insert_with(|| name.to_string());
+            let ns = ns.trim_start_matches(':');
+            let Some(off) = import_all
+                .iter()
+                .filter(|(n, _)| n == ns)
+                .map(|(_, o)| *o)
+                .min()
+            else {
+                continue;
+            };
+            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
+                record(tail.to_string(), name.to_string(), off);
             }
         }
     }
     // Single-name imports.
-    for (ns, name) in &import_one {
+    for (ns, name, off) in &import_one {
         if registry.get(name).is_some() {
             continue;
         }
         let qualified = format!("{ns}::{name}");
         if registry.get(&qualified).is_some_and(|s| s.is_namespace_exported) {
-            aliases.entry(name.clone()).or_insert(qualified);
+            record(name.clone(), qualified, *off);
         }
     }
     aliases

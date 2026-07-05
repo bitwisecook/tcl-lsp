@@ -750,6 +750,26 @@ fn bare_test_without_import_stays_unresolved() {
     );
 }
 
+#[test]
+fn import_does_not_retroactively_resolve_earlier_command() {
+    // Source order: a `test` used *before* the `namespace import` must NOT be
+    // retagged as `tcltest::test` (the import isn't in effect yet), so its
+    // `-body` stays a plain word — but the `test` *after* the import resolves.
+    // Exactly one of the two `-body` words (the post-import one) is a decorator.
+    let src = "test early {d} -body {\n    set a 1\n}\n\
+               namespace import tcltest::*\n\
+               test late {d} -body {\n    set b 2\n}\n";
+    let toks = decode(src, "tcl8.6");
+    let body_decorators = toks
+        .iter()
+        .filter(|t| t.ttype == "decorator" && tok_text(src, t) == "-body")
+        .count();
+    assert_eq!(
+        body_decorators, 1,
+        "only the post-import `test`'s -body must resolve (not the earlier one): {toks:?}",
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Issue #775 — the argument to `source` is still tokenised: a command
 // substitution `[...]` in the file-name argument is highlighted as a command
