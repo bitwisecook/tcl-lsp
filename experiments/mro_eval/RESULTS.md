@@ -22,6 +22,8 @@ python3 experiments/mro_eval/gen_labels.py   # → labeled_sample.csv
 python3 experiments/mro_eval/score_labels.py experiments/mro_eval/labeled_sample.csv
 # interprocedural ceiling + receiver taxonomy of the `unknown` ⊤ bucket
 cargo run --release -p tcl-compiler --example mro_interproc -- $CORPUS
+# method-override frequency (sizes the rename-across-overrides feature)
+cargo run --release -p tcl-compiler --example mro_overrides -- $CORPUS
 ```
 
 ## Hypothesis (restated)
@@ -359,6 +361,46 @@ classes — resolves correctly *in isolation*. See the granularity caveat.
   excluded from the "knowable" denominators by construction. The headline
   number remains the 81.3 % ⊤-rate, not the 100 % conditional recall.
 
+## Shipped editor improvements (the positive half)
+
+The lattice is a negative result, but the *question* it framed — "what
+more can the MRO/CHA half + workspace index give TclOO users?" — produced
+concrete, sound-by-abstention wins that **do** ship. All are gated on the
+already-validated MRO table + cross-file `all_classes` index, never on the
+refuted lattice, and all abstain rather than guess:
+
+- **Namespace-aware superclass linking** (`class_hierarchy.rs`). Resolves a
+  bare `superclass Device` by walking the defining class's namespace
+  ancestry → global → *globally-unique* tail, so cross-file inheritance
+  links in the merged MRO. Removes 3 of the 6 false W308s the experiment
+  surfaced (the rest need per-file import data); an ambiguous tail stays
+  unlinked, never mis-linked.
+- **W250 abstract-instantiation diagnostic** (`var_command.rs`). Flags
+  `Foo new` / `Foo create o` / `set o [Foo new]` when `Foo.metaclass ==
+  oo::abstract`. **0 false positives** on the corpus.
+- **Type Hierarchy** super/subtypes (`type_hierarchy.rs`), same-document
+  plus **cross-file** via the workspace class index (`classes_named` /
+  `subclasses_of`), de-duplicated so the richer in-document item wins.
+- **Hover**: MRO chain + direct subclasses on a class; inherited-from /
+  overrides / provided-by notes on a method (`hover.rs`).
+- **Method completion** including inherited methods, walking the MRO
+  (`completion.rs`).
+- **Go-to-definition on `next` / `nextto`** via `next_provider`
+  (`definition.rs`) — the cheap, correct `next`-chain modelling the
+  recommendation called out as worth keeping.
+- **Rename across the override family** (`rename.rs`). A method redefined
+  up or down the hierarchy is one polymorphic name; renaming now spans the
+  whole override-connected component instead of silently breaking the
+  override. `examples/mro_overrides.rs` sizes it: **37.9 %** of direct
+  method definitions sit in a cross-file override family, **17.8 %** within
+  a single file (the share this single-document change makes sound). The
+  cross-file remainder is a measured follow-up (needs per-class method
+  spans in the workspace index).
+
+These are the "cheap wins are already shipping" of the recommendation made
+concrete: they extend reach for TclOO users without adding a single
+confident-but-wrong resolution.
+
 ## Recommendation
 
 **Do not build the SSA object→class lattice (join / widening) or wire the
@@ -381,17 +423,19 @@ Concretely, staged by evidence:
    W308 needs namespace-aware superclass normalisation *first*, and even
    then this corpus offers no true positives to gain.
 4. **The ⊤-rate lever is *container element-typing*, not parameter flow —
-   and it is expensive.** The follow-up experiment (above) refutes the
-   parameter-typing hypothesis (0.9 % of ⊤; fixpoint recovers 0) and shows
-   the residual is iteration over object dicts/lists held in instance
-   variables. Only invest here if go-to-definition / hover on
-   `foreach x [dict values $Container]` receivers is a named priority, and
-   scope it as object-container element-typing (dynamic dict/list writes +
-   `my variable` scoping + guarded-body handling). The prototype ceiling is
-   already measured: **2.5 % of the `unknown` ⊤ bucket** (27 sites) — a
-   low-single-digit ⊤-rate improvement for a substantial analysis, so only
-   worth it if `foreach x [dict values $Container]` go-to-def/hover is a
-   named priority.
+   and it is expensive. Decision: not productionized.** The follow-up
+   experiment (above) refutes the parameter-typing hypothesis (0.9 % of ⊤;
+   fixpoint recovers 0) and shows the residual is iteration over object
+   dicts/lists held in instance variables. The prototype ceiling is already
+   measured: **2.5 % of the `unknown` ⊤ bucket** (27 sites) — a
+   low-single-digit ⊤-rate improvement for a *materially harder* analysis
+   than the lattice (dynamic dict/list writes + `my variable` scoping +
+   guarded-body handling). At that payoff-to-cost ratio it does **not** earn
+   a place in shipping diagnostics or resolution now; the prototype stays in
+   `class_lattice.rs` as measured, unwired. Revisit only if go-to-definition
+   / hover on `foreach x [dict values $Container]` receivers becomes a named
+   priority — the harness and ⊤ taxonomy are retained as the yardstick for
+   that decision.
 5. **Retain the ⊤ taxonomy + harnesses** as the yardstick for (4). The
    `next_provider` (`next`/`nextto`) modelling and the ⊤ instrumentation
    are cheap, correct, and useful for go-to-definition on `next` chains
