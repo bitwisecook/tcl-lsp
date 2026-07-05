@@ -1,0 +1,4 @@
+dist/
+node_modules/
+# Legacy scripts migrated verbatim from JS — formatted/typed incrementally.
+ts/*.ts

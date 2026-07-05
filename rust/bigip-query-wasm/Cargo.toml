@@ -25,7 +25,7 @@
 # / TLS / x509 dependency to break the wasm build.
 #
 # EXCLUDED from the Cargo workspace (see the root Cargo.toml `exclude` list) for
-# the same reasons as `editors/zed` and `rust/bigip-query-py`: wasm-bindgen's
+# the same reasons as `editors/zed` and `rust/bigip-report/py`: wasm-bindgen's
 # generated glue trips the workspace `unsafe_code = "forbid"` lint. Built with
 # `cargo build --target wasm32-unknown-unknown` + `wasm-bindgen` (see the
 # Makefile target / build script), not plain `cargo`.

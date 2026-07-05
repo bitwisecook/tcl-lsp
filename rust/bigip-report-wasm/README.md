@@ -9,10 +9,10 @@ then downloads it. **Nothing is uploaded**; no network request touches your data
 once the WASM has loaded (you can verify that in DevTools → Network, or just go
 offline).
 
-It is the WebAssembly sibling of the Python [`f5report`](../bigip-query-py)
+It is the WebAssembly sibling of the Python [`f5report`](../bigip-report/py)
 package: the Python version stays as the demonstration of driving the query
 engine as a **library** (PyO3), while this crate is the same generator
-([`tcl-bigip-report`](../tcl-bigip-report)) compiled for the browser.
+([`tcl-bigip-report`](../bigip-report/rust)) compiled for the browser.
 
 ## Features
 
