@@ -1031,3 +1031,22 @@ fn test_global_declares_every_name() {
         assert_eq!(t.ttype, "variable", "`{name}` in `global` must be a variable");
     }
 }
+
+#[test]
+fn test_foreach_loop_variables_are_variables() {
+    // `foreach`/`dict for` bind their iteration variables — a single bareword
+    // and each element of a braced list read as variable declarations.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "foreach item $lst { puts $item }\nforeach {key val} $pairs { puts $key }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["item", "key", "val"] {
+        assert!(is_var(name), "loop variable `{name}` must be a variable: {tokens:?}");
+    }
+}

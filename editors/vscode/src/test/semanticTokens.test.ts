@@ -372,4 +372,32 @@ suite("Semantic Tokens", () => {
       );
     }
   });
+
+  // `foreach` / `dict for` iteration variables — a single bareword and each
+  // element of a braced list — read as variable declarations.
+  test("loop variables highlight as variables", async () => {
+    const uri = getDocUri("loopVariables.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["item", "key", "val", "dkey", "dval"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected loop variable '${name}' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
 });

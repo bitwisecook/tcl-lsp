@@ -738,3 +738,78 @@ fn namespace_variable_pairs_highlight_names_not_values() {
         decode(src, "tcl8.6"),
     );
 }
+
+// ---------------------------------------------------------------------------
+// Loop-variable highlighting — `foreach` / `lmap` / `dict for` bind their
+// iteration variables, which must read as variable declarations, whether a
+// single bareword or the elements of a braced list.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn foreach_single_loop_var_is_variable() {
+    let src = "foreach item $lst { puts $item }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "item").as_deref(),
+        Some("variable"),
+        "the foreach loop variable must be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}
+
+#[test]
+fn foreach_braced_loop_vars_are_variables() {
+    let src = "foreach {key val} $lst { puts $key }\n";
+    for name in ["key", "val"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in the braced foreach varlist must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn foreach_multi_pair_loop_vars_are_variables() {
+    // `foreach a $l1 b $l2 …` — the variable spec sits at every other word.
+    let src = "foreach aa $l1 bb $l2 { puts $aa }\n";
+    for name in ["aa", "bb"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in a multi-pair foreach must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn lmap_and_dict_for_loop_vars_are_variables() {
+    assert_eq!(
+        kind_of_word("lmap elem $xs { expr {$elem} }\n", "tcl8.6", "elem").as_deref(),
+        Some("variable"),
+        "lmap loop variable must be a variable",
+    );
+    let df = "dict for {dkey dval} $d { puts $dkey }\n";
+    for name in ["dkey", "dval"] {
+        assert_eq!(
+            kind_of_word(df, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `dict for` must be a variable: {:?}",
+            decode(df, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn non_loop_command_first_arg_stays_string() {
+    // A user command that merely resembles a loop must not have its first
+    // bareword argument reclassified as a loop variable.
+    let src = "myproc item $lst { puts hi }\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "item").as_deref(),
+        Some("string"),
+        "a non-loop command's bareword arg must stay a string: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}

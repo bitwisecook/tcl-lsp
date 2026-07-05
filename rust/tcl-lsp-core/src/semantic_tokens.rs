@@ -415,6 +415,11 @@ enum ArgOverride {
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
     /// string.
     KeywordArg,
+    /// The variable-spec word of a `foreach` / `lmap` / `dict for` loop — a
+    /// single bareword (`foreach item …`) or a braced list of names
+    /// (`foreach {k v} …`).  Each name is a variable the loop assigns on every
+    /// iteration, so it is emitted as `Variable` + `declaration`.
+    LoopVarList,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -585,9 +590,47 @@ fn special_arg_kinds(
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
     insert_multiname_var_overrides(seg, inside_oo_body, &mut overrides);
+    insert_loop_var_overrides(seg, &mut overrides);
     insert_var_decl_overrides(seg, registry, head, &mut overrides);
 
     overrides
+}
+
+/// `foreach` / `lmap` / `dict for` loop-variable specs → variable
+/// declarations.  `foreach v1 l1 ?v2 l2 …? body` binds a variable spec at every
+/// other argument before the trailing body; `dict for {k v} dict body` binds
+/// the two-element spec at index 1 (after the `for` subcommand).  Each spec is
+/// tagged [`ArgOverride::LoopVarList`] so [`collect_loop_var_list`] emits its
+/// name(s) — a bareword or the elements of a braced list — as variables.
+/// Highlighting only: the loop bodies already resolve these reads via the
+/// analyser's scope tracking.
+fn insert_loop_var_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    // Positions (into `seg.texts`) of the variable-spec words.
+    let positions: Vec<usize> = match seg.texts[0].as_str() {
+        // `foreach v1 l1 ?v2 l2 …? body` — specs at odd `seg.texts` indices
+        // (`v1` = texts[1], `v2` = texts[3], …) up to but excluding the body
+        // (the final word).  Needs at least head + varlist + list + body.
+        "foreach" | "lmap" if seg.texts.len() >= 4 => (1..seg.texts.len() - 1).step_by(2).collect(),
+        // `dict for {k v} dict body` — the spec is texts[2].
+        "dict"
+            if seg.texts.get(1).map(String::as_str) == Some("for") && seg.texts.len() >= 5 =>
+        {
+            vec![2]
+        }
+        _ => return,
+    };
+    for pos in positions {
+        if let Some(tok) = seg.argv.get(pos)
+            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::LoopVarList);
+        }
+    }
 }
 
 /// Highlight the *trailing* name arguments of a multi-name variable-declaring
@@ -2037,6 +2080,46 @@ fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>
     }
 }
 
+/// Emit the name(s) of a `foreach` / `lmap` / `dict for` variable spec as
+/// variable declarations.  A single bareword is one name; a braced/quoted list
+/// is flattened via the list grammar and each element name emitted separately.
+/// A non-name element (a `$`-computed word, an array element) keeps a plain
+/// `string` classification so nothing is dropped and it does not masquerade as
+/// a variable.
+fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    let full_source = ctx.full_source;
+    let line_index = ctx.line_index;
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        if let Some(kind) = classify_arg_token(tok, full_source) {
+            push_token(line_index, full_source, tok, kind, 0, entries);
+        }
+        return;
+    };
+    let mut scan = 0usize;
+    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
+        if let Some(name) = inner.get(el.value.clone()) {
+            let (kind, mods) = if is_plain_var_name(name) {
+                (TokenKind::Variable, MOD_DECLARATION)
+            } else {
+                (TokenKind::String, 0)
+            };
+            push_span_entries(
+                full_source,
+                line_index,
+                cstart + el.value.start,
+                name,
+                kind,
+                mods,
+                entries,
+            );
+        }
+        if el.next <= scan {
+            break;
+        }
+        scan = el.next;
+    }
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
@@ -2306,6 +2389,9 @@ fn emit_arg_token(
         }
         Some(ArgOverride::ApplyLambda) => {
             collect_apply_lambda(ctx, *tok, entries, depth + 1);
+        }
+        Some(ArgOverride::LoopVarList) => {
+            collect_loop_var_list(ctx, *tok, entries);
         }
         Some(ArgOverride::SubcommandKeyword) => {
             push_token(
