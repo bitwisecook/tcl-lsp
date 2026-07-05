@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-diagram"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "iRule (Tcl) structural analysis for reports/CLI/MCP: control-flow diagram extraction ({events, procedures}) with a deterministic Mermaid serialiser, and dynamic object-attachment (pool/node/snatpool) name-pattern reconstruction. Independent of the LSP."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,18 +27,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../compiler/tcl-core-types" }
-tcl-registry = { path = "../registry/tcl-registry" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../../registry/tcl-registry" }
+serde_json = "1"
 
 [lints]
 workspace = true

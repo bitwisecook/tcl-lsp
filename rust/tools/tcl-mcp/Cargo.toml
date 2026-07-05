@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-mcp"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "Native Rust MCP server exposing the tcl-lsp analysis engine over stdio"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -28,17 +28,23 @@ repository.workspace = true
 authors.workspace = true
 
 [[bin]]
-name = "xtask"
+name = "tcl-mcp"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../compiler/tcl-core-types" }
-tcl-registry = { path = "../registry/tcl-registry" }
-serde = { version = "1", features = ["derive"] }
+tcl-diagram = { path = "../../compiler/tcl-diagram" }
+tcl-lsp-core = { path = "../../lsp/tcl-lsp-core" }
+tcl-compiler = { path = "../../compiler/tcl-compiler" }
+tcl-registry = { path = "../../registry/tcl-registry" }
+tcl-lexer = { path = "../../compiler/tcl-lexer" }
+tcl-bigip = { path = "../../bigip/tcl-bigip" }
+tcl-cli = { path = "../tcl-cli" }
+f5-xc = { path = "../../bigip/f5-xc" }
+f5-cli = { path = "../f5-cli" }
 serde_json = { version = "1", features = ["preserve_order"] }
+regex = "1"
+rmcp = { version = "2", features = ["server", "transport-io"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "io-std"] }
 
 [lints]
 workspace = true

@@ -1,0 +1,59 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The native, idiomatic Rust bytecode VM ("TCLVM").
+#
+# Executes the bytecode artifact (`tcl-bytecode`) the compiler emits, with an
+# `Rc`-based dual-rep value model (NOT the 24-byte wasm32 ABI obj) and a
+# non-recursive (NRE/trampoline) execution engine. Reuses `tcl-syntax` for the
+# expr tower / number / list semantics, and satisfies the `tcl-runtime-api`
+# Family-B contract. Stays `forbid(unsafe)` and compiler-optional (the
+# `CompileService` injection point keeps it off `tcl-compiler`).
+#
+# See `docs/design/common-runtime-emitter-architecture.md`.
+[package]
+name = "tcl-vm"
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Bytecode VM executing Tcl 9 bytecode (TCLVM)"
+
+[lib]
+name = "tcl_vm"
+
+[dependencies]
+tcl-bytecode = { path = "../../compiler/tcl-bytecode" }
+tcl-syntax = { path = "../../compiler/tcl-syntax" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-cmd-core = { path = "../../registry/tcl-cmd-core" }
+tcl-platform = { path = "../tcl-platform" }
+tcl-host-native = { path = "../tcl-host-native" }
+tcl-regex = { path = "../../compiler/tcl-regex", features = ["cmd-core"] }
+
+[dev-dependencies]
+# End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
+# library itself stays off the compiler (CompileService is the runtime seam).
+tcl-compiler = { path = "../../compiler/tcl-compiler" }
+tcl-registry = { path = "../../registry/tcl-registry" }
+
+[lints]
+workspace = true

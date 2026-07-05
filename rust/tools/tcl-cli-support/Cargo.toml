@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-cli-support"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "Shared CLI plumbing for the native tcl / f5 CLIs (input/output, dialect registries)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,18 +27,24 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../compiler/tcl-core-types" }
-tcl-registry = { path = "../registry/tcl-registry" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+tcl-lexer = { path = "../../compiler/tcl-lexer" }
+tcl-registry = { path = "../../registry/tcl-registry" }
+tcl-compiler = { path = "../../compiler/tcl-compiler" }
+tcl-lsp-core = { path = "../../lsp/tcl-lsp-core" }
+thiserror = "2"
+anstream = "1"
+anstyle = "1"
+# `default-features = false` drops the `derive` feature (and its `tabled_derive`
+# proc-macro, the sole pull of the unmaintained `proc-macro-error2`); the Builder
+# API in `render_table` needs only `std`.
+tabled = { version = "0.21", default-features = false, features = ["std"] }
+rpassword = "7"
+
+[dev-dependencies]
+# Scoped env-var mutation for the secret-input resolver tests (the workspace
+# forbids `unsafe`, so `std::env::set_var` cannot be called directly).
+temp-env = "0.3"
 
 [lints]
 workspace = true

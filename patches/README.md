@@ -14,7 +14,7 @@ for this branch:
 - the GitHub Pages workflow (`github-pages.yml`) extended to build and publish
   the **in-browser BIG-IP report generator** at `/bigip-report/` alongside the
   existing example report and compiler explorer (this mirrors
-  `rust/bigip-report/py/deploy/github-pages.yml`, the committed source copy of
+  `rust/bigip/report/py/deploy/github-pages.yml`, the committed source copy of
   that workflow, which *is* included in this branch).
 
 This branch itself keeps `.github/workflows/` identical to `main` so it can be
