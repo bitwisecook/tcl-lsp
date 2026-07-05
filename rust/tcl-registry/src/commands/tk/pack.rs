@@ -92,7 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        value: OptionValue::value("n|ne|e|se|s|sw|w|nw|center"),
+        value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
         detail: "Anchor must be a valid anchor position: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
         aliases: &[],

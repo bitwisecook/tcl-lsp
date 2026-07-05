@@ -240,6 +240,24 @@ fn context_aware_completions(
             return Some(arg_value_completions(values, partial));
         }
     }
+    // Option-value completion — when the word immediately before the cursor is
+    // a value-taking option that declares an enumerable value set, offer those
+    // values (e.g. `button .b -relief <cursor>` → flat|raised|…).  Matches by
+    // name or alias; arity-`One` covered (the value follows the switch).
+    if word_idx >= 2
+        && let Some(prev) = nth_word_on_line(source, line, word_idx - 1)
+        && prev.starts_with('-')
+        && let Some(opt) = spec
+            .options
+            .iter()
+            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+            .find(|o| o.matches(prev.as_str()))
+    {
+        let values = opt.value_values();
+        if !values.is_empty() {
+            return Some(arg_value_completions(values, partial));
+        }
+    }
     // Command-level positional arg-value completion — the
     // bareword value sets declared directly on the command
     // (not a subcommand).  Covers iRules `when EVENT timing
@@ -2023,6 +2041,22 @@ mod tests {
         let items = completions(cur_src, 1, 2, &cur, None, Some(&index), "tcl8.6");
         let count = items.iter().filter(|i| i.label == "greet").count();
         assert_eq!(count, 1, "{items:?}");
+    }
+
+    #[test]
+    fn option_enum_value_completion_offers_members() {
+        // `button .b -relief ra` — cursor on the value word after a closed-set
+        // option offers the relief members, filtered by the partial (Phase 5).
+        let src = "button .b -relief ra";
+        let cur = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let col = u32::try_from(src.len()).unwrap();
+        let items = completions(src, 0, col, &cur, Some(&registry), None, "tk");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"raised"),
+            "expected `raised` among relief completions; got {labels:?}"
+        );
     }
 
     #[test]

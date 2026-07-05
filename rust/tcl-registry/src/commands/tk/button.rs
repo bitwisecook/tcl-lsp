@@ -76,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        value: OptionValue::value(""),
+        value: OptionValue::enumerated(super::common::RELIEF, true, "relief"),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],
@@ -164,7 +164,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        value: OptionValue::value(""),
+        value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
         detail: "How information is positioned: n, ne, e, se, s, sw, w, nw, or center.",
         dialects: None,
         aliases: &[],
@@ -172,7 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        value: OptionValue::value(""),
+        value: OptionValue::enumerated(super::common::JUSTIFY, true, "justify"),
         detail: "Justification of multi-line text: left, center, or right.",
         dialects: None,
         aliases: &[],

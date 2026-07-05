@@ -196,7 +196,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        value: OptionValue::value(""),
+        value: OptionValue::enumerated(super::common::RELIEF, true, "relief"),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
         aliases: &[],

@@ -68,7 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        value: OptionValue::value("anchorPos"),
+        value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
         detail: "How the text or image is positioned within the widget.",
         dialects: None,
         aliases: &[],
@@ -76,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        value: OptionValue::value("justification"),
+        value: OptionValue::enumerated(super::common::JUSTIFY, true, "justify"),
         detail: "How to justify multiple lines of text.",
         dialects: None,
         aliases: &[],
@@ -140,7 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        value: OptionValue::value("relief"),
+        value: OptionValue::enumerated(super::common::RELIEF, true, "relief"),
         detail: "Border relief style for the label.",
         dialects: None,
         aliases: &[],

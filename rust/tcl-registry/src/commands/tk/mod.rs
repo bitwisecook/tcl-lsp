@@ -24,6 +24,7 @@ mod bell;
 mod bind;
 mod button;
 mod canvas;
+mod common;
 mod checkbutton;
 mod clipboard;
 mod destroy;

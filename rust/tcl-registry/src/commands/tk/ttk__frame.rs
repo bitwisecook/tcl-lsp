@@ -44,7 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-relief",
-        value: OptionValue::value("relief"),
+        value: OptionValue::enumerated(super::common::RELIEF, true, "relief"),
         detail: "Border relief style for the frame.",
         dialects: None,
         aliases: &[],

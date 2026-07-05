@@ -125,7 +125,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-anchor",
-        value: OptionValue::value("n|ne|e|se|s|sw|w|nw|center"),
+        value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
         detail: "Specifies which point of the slave is positioned at the (x,y) location.",
         dialects: None,
         aliases: &[],

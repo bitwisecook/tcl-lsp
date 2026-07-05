@@ -826,7 +826,14 @@ fn insert_option_and_subcommand_overrides(
         FxHashMap::default();
     let mut collect_value_options = |opts: &'static [tcl_registry::hover::OptionSpec]| {
         for opt in opts {
-            if opt.takes_value() && !role_claimed_by_token_pass(opt.value_role()) {
+            // Skip options whose value carries an analysis role (claimed by the
+            // role/var passes) or a declared enum set (claimed as `EnumMember`
+            // by `insert_enum_value_overrides`) — leave those for the more
+            // specific pass; only generic values get the `OptionValue` colour.
+            if opt.takes_value()
+                && !role_claimed_by_token_pass(opt.value_role())
+                && opt.value_values().is_empty()
+            {
                 value_options.insert(opt.name, opt);
                 for alias in opt.aliases {
                     value_options.insert(alias, opt);
@@ -941,6 +948,35 @@ fn insert_enum_value_overrides(
         for (idx, values) in sub.arg_values {
             mark(*idx as usize + 2, values);
         }
+    }
+
+    // Option-value enum members — the value word(s) of a value-taking option
+    // that declares an enumerable set (`-relief raised`, `-anchor center`).
+    // Matched by name/alias, arity-aware via `value_indices`; a `$var`/`[cmd]`
+    // value falls through `mark`'s literal check.
+    let mut i = 1usize;
+    while i < seg.texts.len() {
+        let word = seg.texts[i].as_str();
+        if word == "--" {
+            break;
+        }
+        let opt = spec
+            .options
+            .iter()
+            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+            .find(|o| o.matches(word));
+        if let Some(opt) = opt {
+            let vis = opt.value_indices(&seg.texts, i);
+            let values = opt.value_values();
+            if !values.is_empty() {
+                for &vi in &vis {
+                    mark(vi, values);
+                }
+            }
+            i += 1 + vis.len();
+            continue;
+        }
+        i += 1;
     }
 }
 
@@ -3310,6 +3346,18 @@ mod tests {
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
             "expected $x resolved inside the -command body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn option_enum_value_is_enum_member() {
+        // `button .b -relief raised` — the closed-set option value is coloured
+        // as an EnumMember (Phase 5), not a generic OptionValue.
+        let toks = decode_full("button .b -relief raised\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::EnumMember as u32),
+            "expected `raised` as EnumMember; got {toks:?}"
         );
     }
 

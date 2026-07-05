@@ -116,7 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-justify",
-        value: OptionValue::value("justification"),
+        value: OptionValue::enumerated(super::common::JUSTIFY, true, "justify"),
         detail: "How to justify the text within the entry.",
         dialects: None,
         aliases: &[],

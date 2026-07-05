@@ -516,6 +516,33 @@ fn w004_skips_option_value_that_looks_like_a_flag() {
     );
 }
 
+#[test]
+fn w127_fires_on_invalid_option_enum_value() {
+    // `-relief` carries a closed Tk value set; a literal outside it is W127.
+    let bad = Analyser::new().analyse("button .b -relief bogus", "tk");
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127 && d.message.contains("-relief")),
+        "expected W127 on `-relief bogus`; got {:?}",
+        bad.diagnostics
+    );
+    // A member value is accepted.
+    let good = Analyser::new().analyse("button .b -relief raised", "tk");
+    assert!(
+        !good.diagnostics.iter().any(|d| d.code == DiagCode::W127),
+        "`raised` is a valid relief; got {:?}",
+        good.diagnostics
+    );
+    // A dynamic value is skipped (can't be checked statically).
+    let dynamic = Analyser::new().analyse("button .b -relief $r", "tk");
+    assert!(
+        !dynamic.diagnostics.iter().any(|d| d.code == DiagCode::W127),
+        "dynamic `-relief $r` must be skipped; got {:?}",
+        dynamic.diagnostics
+    );
+}
+
 // E002 / E003 arity
 
 #[test]

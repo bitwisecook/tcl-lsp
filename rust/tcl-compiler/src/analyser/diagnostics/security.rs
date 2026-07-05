@@ -838,6 +838,79 @@ matching time on crafted input."
         }
     }
 
+    /// **W127 (option-value sibling).** A literal value word of a value-taking
+    /// option whose value set is *closed* (`OptionValue::enumerated(.., true,
+    /// ..)`) is not in that set.  Options are matched by name or alias, arity
+    /// and the `--` terminator are honoured via `value_indices`, and dynamic
+    /// values (`$var` / `[cmd]`) are skipped — mirroring the positional path
+    /// without overloading it.
+    pub(in crate::analyser) fn emit_w127_closed_option_values(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        let mut hits: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        if let Some(registry) = self.registry.as_ref() {
+            let Some(spec) = registry.get(cmd_name) else {
+                return;
+            };
+            let find_opt = |arg: &str| {
+                spec.options
+                    .iter()
+                    .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+                    .find(|o| o.matches(arg))
+            };
+            let mut i = 0usize;
+            while i < args.len() {
+                let arg = args[i].as_str();
+                if arg == "--" {
+                    break;
+                }
+                let Some(opt) = find_opt(arg) else {
+                    i += 1;
+                    continue;
+                };
+                let vals = opt.value_indices(args, i);
+                let allowed = opt.value_values();
+                if opt.value_is_closed() && !allowed.is_empty() {
+                    for &vi in &vals {
+                        let Some(value) = args.get(vi) else { continue };
+                        if value.contains('$')
+                            || value.contains('[')
+                            || allowed.iter().any(|av| av.value == value.as_str())
+                        {
+                            continue;
+                        }
+                        let allowed_list = allowed
+                            .iter()
+                            .map(|av| av.value)
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let span = arg_tokens.get(vi).map_or(cmd_tok.span, |t| t.span);
+                        hits.push((
+                            format!(
+                                "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
+                            ),
+                            span,
+                        ));
+                    }
+                }
+                i += 1 + vals.len();
+            }
+        }
+        for (message, span) in hits {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W127,
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// **W310.** Emit "hardcoded credential" for a literal secret value.
     /// Two strategies, one diagnostic per command:
     ///
