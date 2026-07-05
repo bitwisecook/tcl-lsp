@@ -409,6 +409,171 @@
     if (input.value.trim()) run();
   }
 
+  // src/arch/guide.ts
+  var DSL_GUIDE = `# Architecture & topology manifest \u2014 a small Tcl script, one command per line.
+# Comments start with '#'. Brace {a value} to keep whitespace as one word.
+
+# Devices: role (gtm/ltm/afm) + tier (0 = front) + display label.
+device edge.ucs -role ltm -tier 1 -label "Edge"
+device core.ucs -role ltm -tier 2
+
+# Explicit inter-device links (auto-detection from address overlap still runs).
+link edge.ucs core.ucs -label internal
+
+# Network zones \u2014 named sets of IP ranges (v4 and v6).
+zone external -cidr 0.0.0.0/0
+zone dmz      -cidr 192.0.2.0/24 -cidr 2001:db8:dmz::/48
+zone internal -cidr 10.0.0.0/8 -cidr 172.16.0.0/12
+
+# Device interfaces attached to a zone (+ address).
+interface edge.ucs ext0 -zone external -address 203.0.113.10
+
+# DNS zones (the .zone file is uploaded / supplied as a side-input).
+dns-zone example.com -file example.com.zone -zone dmz
+
+# Enrichment maps.
+cidr-name   10.1.0.0/16 {Datacenter A}
+service-map -file services.csv     ;# port,name overrides (default: F5 table)
+nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
+`;
+
+  // src/arch/editor.ts
+  function win() {
+    return window;
+  }
+  function readModel() {
+    const el = document.getElementById("f5-model");
+    if (!el || !el.textContent) return null;
+    try {
+      return JSON.parse(el.textContent);
+    } catch {
+      return null;
+    }
+  }
+  function reportId() {
+    const id = document.documentElement.getAttribute("data-report-id");
+    return id && id.trim() ? id.trim() : "default";
+  }
+  function b64ToBytes(b64) {
+    const bin = atob(b64.trim());
+    const u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u;
+  }
+  var wasmReady = null;
+  function initWasm() {
+    const w = win();
+    const payload = document.getElementById("f5-wasm");
+    if (typeof w.wasm_bindgen !== "function" || !payload || !payload.textContent) return null;
+    if (!wasmReady) {
+      wasmReady = Promise.resolve(w.wasm_bindgen(b64ToBytes(payload.textContent))).then(() => void 0);
+    }
+    return wasmReady;
+  }
+  function initArchEditor() {
+    const model = readModel();
+    if (!model || !model.architecture) return;
+    const anchor = document.getElementById("archDiagram") || document.querySelector(".f5q-manual") || document.querySelector(".device");
+    if (!anchor) return;
+    const insertAfter = anchor.id === "archDiagram";
+    const key = `f5arch:${reportId()}`;
+    const saved = safeGet(key);
+    const section = document.createElement("details");
+    section.className = "arch-editor";
+    section.innerHTML = `
+    <summary>\u270F\uFE0F Edit architecture &amp; topology (DSL)</summary>
+    <p class="arch-editor-hint">Describe the estate \u2014 device roles/tiers, links, network zones,
+      DNS zones and enrichment maps \u2014 in the manifest DSL. <b>Apply</b> re-runs detection and
+      redraws the diagram (needs the query console); <b>Export</b> saves a <code>.tcl</code> you can
+      feed back into the generator to pin it. Saved per report in this browser.</p>
+    <textarea class="arch-editor-ta" spellcheck="false" rows="12"></textarea>
+    <div class="arch-editor-actions">
+      <button type="button" class="arch-apply">Apply</button>
+      <button type="button" class="arch-export">Export .tcl \u2193</button>
+      <button type="button" class="arch-reset">Reset</button>
+      <span class="arch-editor-status"></span>
+    </div>
+    <details class="arch-editor-guide"><summary>DSL reference</summary><pre></pre></details>`;
+    anchor.parentNode?.insertBefore(section, insertAfter ? anchor.nextSibling : anchor);
+    const ta = section.querySelector(".arch-editor-ta");
+    const status = section.querySelector(".arch-editor-status");
+    ta.value = saved ?? "";
+    ta.placeholder = DSL_GUIDE;
+    section.querySelector(".arch-editor-guide pre").textContent = DSL_GUIDE;
+    const setStatus = (m) => {
+      status.textContent = m;
+    };
+    section.querySelector(".arch-reset").addEventListener("click", () => {
+      ta.value = "";
+      safeSet(key, "");
+      setStatus("cleared");
+    });
+    section.querySelector(".arch-export").addEventListener("click", () => {
+      const text = ta.value.trim();
+      if (!text) {
+        setStatus("nothing to export");
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([text + "\n"], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "architecture.tcl";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1e3);
+    });
+    section.querySelector(".arch-apply").addEventListener("click", () => {
+      const manifest = ta.value;
+      safeSet(key, manifest);
+      setStatus("saved");
+      void applyManifest(model, manifest, setStatus);
+    });
+    if (saved && saved.trim()) void applyManifest(model, saved, setStatus);
+  }
+  async function applyManifest(model, manifest, setStatus) {
+    const w = win();
+    if (typeof w.wasm_bindgen !== "function" || !w.wasm_bindgen.build_architecture) {
+      setStatus("saved \u2014 regenerate the report (or open the query console) to redraw");
+      return;
+    }
+    const ready = initWasm();
+    if (!ready) {
+      setStatus("saved \u2014 engine unavailable; regenerate to apply");
+      return;
+    }
+    try {
+      await ready;
+      const archJson = w.wasm_bindgen.build_architecture(JSON.stringify(model.devices ?? []), manifest);
+      const arch = JSON.parse(archJson);
+      model.architecture = arch;
+      await redrawDiagram(arch);
+      setStatus("applied \u2014 diagram updated");
+    } catch (e) {
+      setStatus("error: " + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+  async function redrawDiagram(arch) {
+    const host = document.getElementById("archDiagram");
+    const mermaid2 = win().mermaid;
+    if (!host || !arch.mermaid || !mermaid2) return;
+    const res = await mermaid2.render("archDiagram-svg-" + Date.now().toString(36), arch.mermaid);
+    host.innerHTML = res.svg;
+  }
+  function safeGet(k) {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  }
+  function safeSet(k, v) {
+    try {
+      localStorage.setItem(k, v);
+    } catch {
+    }
+  }
+
   // src/pages/topology.ts
   (function() {
     "use strict";
@@ -1940,6 +2105,11 @@
       });
     });
     initArchitecture();
+    try {
+      initArchEditor();
+    } catch (e) {
+      if (window.console) console.warn("arch editor:", e);
+    }
     var closeBtn = document.querySelector("#objDrawer .drawer-close");
     if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
     var scrim = document.getElementById("drawerScrim");

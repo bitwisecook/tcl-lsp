@@ -23,6 +23,7 @@
 // per-virtual flow diagram, and the listener-matching table. No dependencies
 // beyond the vendored Mermaid (already loaded), no network.
 import { initGlobalSearch } from "../search/results";
+import { initArchEditor } from "../arch/editor";
 
 (function () {
   "use strict";
@@ -1422,6 +1423,9 @@ import { initGlobalSearch } from "../search/results";
 
   // The cross-device architecture diagram (top-level, always visible).
   initArchitecture();
+  // The architecture / topology DSL editor (persists per-report, re-detects via
+  // the embedded engine wasm when the query console is present).
+  try { initArchEditor(); } catch (e) { if (window.console) console.warn("arch editor:", e); }
 
   // drawer close handlers
   var closeBtn = document.querySelector("#objDrawer .drawer-close");
