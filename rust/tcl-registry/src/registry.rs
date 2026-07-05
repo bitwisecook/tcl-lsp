@@ -1503,6 +1503,75 @@ mod tests {
     }
 
     #[test]
+    fn wm_protocol_handler_is_a_body() {
+        // `wm protocol . WM_DELETE_WINDOW {script}` registers a deferred
+        // handler script as its third argument; the query forms carry none.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "wm",
+                &["protocol", ".", "WM_DELETE_WINDOW", "{exit}"],
+                ArgRole::Body,
+            ),
+            // subcommand path offsets by +1 for the `protocol` word.
+            vec![3],
+            "the wm protocol handler command is a script body",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", ".", "WM_DELETE_WINDOW"], ArgRole::Body)
+                .is_empty(),
+            "the two-argument `wm protocol window name` query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", "."], ArgRole::Body)
+                .is_empty(),
+            "the one-argument `wm protocol window` query form has no script",
+        );
+    }
+
+    #[test]
+    fn canvas_bind_subcommand_script_is_a_body() {
+        // `pathName bind tagOrId sequence script` binds a deferred handler.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>", "{p}"], ArgRole::Body),
+            vec![3],
+            "the canvas bind subcommand's trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>"], ArgRole::Body)
+                .is_empty(),
+            "the canvas bind query form has no script",
+        );
+    }
+
+    #[test]
+    fn selection_handle_command_is_a_command_prefix() {
+        // `selection handle window command` — the trailing command is a
+        // prefix Tk appends offset/maxChars to, not a recursed script body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::CommandPrefix),
+            vec![2],
+            "the selection handle command prefix is captured",
+        );
+        assert!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::Body)
+                .is_empty(),
+            "a command prefix is not recursed as a script body",
+        );
+        // With leading option/value pairs the command is still the last arg.
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "selection",
+                &["handle", "-format", "STRING", ".w", "getData"],
+                ArgRole::CommandPrefix,
+            ),
+            vec![4],
+        );
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);

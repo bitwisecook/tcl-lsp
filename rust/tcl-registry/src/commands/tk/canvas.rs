@@ -19,6 +19,22 @@
 //! `canvas` command.
 use crate::prelude::*;
 
+/// Dynamic arg-role resolver for the canvas `bind` subcommand.
+///
+/// `pathName bind tagOrId ?sequence? ?command?` — like the top-level
+/// `bind` command, only the full three-argument form binds a script,
+/// supplied as the trailing (third) argument.  It is a deferred
+/// event-handler body run later from the Tk event loop, so `body_kind`
+/// is `Structural`.  Args here are those *after* the `bind` subcommand
+/// word: `tagOrId`(0) `sequence`(1) `command`(2).
+fn canvas_bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 3 {
+        vec![(2, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -38,9 +54,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bind",
         dialects: None,
-        arity: Arity::at_least(1),
+        arity: Arity::new(1, 3),
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
+        arg_role_resolver: Some(canvas_bind_arg_roles),
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
