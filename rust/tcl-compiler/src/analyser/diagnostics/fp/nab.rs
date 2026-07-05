@@ -262,12 +262,20 @@ fn fp_nab_10_dict_enabled_in_tcl_9_0_silent() {
     );
 }
 
-// FP-NAB-11 — unresolved command (W123, TP).
+// FP-NAB-11 — package-gated command used without its `package require`.
+// `argparse` is a modelled registry command (`package require argparse`), so
+// using it without the require draws W120 ("requires `package require
+// argparse`", with an add-the-require fix), not the unknown-command W123.
 #[test]
-fn fp_nab_11_unresolved_argparse_fires_w123() {
+fn fp_nab_11_unrequired_argparse_fires_w120() {
     assert!(
-        fires("argparse {x y}", D, "W123"),
-        "FP-NAB-11 TP: argparse must fire W123; {:?}",
+        fires("argparse {x y}", D, "W120"),
+        "FP-NAB-11 TP: argparse without require must fire W120; {:?}",
+        diags("argparse {x y}", D)
+    );
+    assert!(
+        !fires("argparse {x y}", D, "W123"),
+        "FP-NAB-11: a registered package command must not also draw W123; {:?}",
         diags("argparse {x y}", D)
     );
 }
