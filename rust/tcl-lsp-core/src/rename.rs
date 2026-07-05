@@ -491,6 +491,27 @@ pub fn method_spans_in_document(
     }
 }
 
+/// Every span that renaming `method` must rewrite **within `source`** for a
+/// class `class_q` that *inherits* `method` (does not declare it): its
+/// intra-class `my method` calls and external `$obj method` sites, with no
+/// declaration span.  Empty when `class_q` is not defined in this document.
+///
+/// The server calls this for documents that contain a purely-inheriting
+/// subclass of a rename family member but no definer of their own — the
+/// cross-file complement to [`method_spans_in_document`], so an
+/// inherited-method rename reaches `my method` / `$obj method` sites that
+/// live in a subclass-only file.
+#[must_use]
+pub fn inherited_method_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    crate::references::inherited_method_call_sites(source, dialect, analysis, class_q, method)
+}
+
 /// The set of classes whose definition of `method` must be renamed
 /// together with `seed_class`'s: every class that **directly defines**
 /// `method` and sits in the same override-connected component as
