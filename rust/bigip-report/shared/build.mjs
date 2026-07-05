@@ -70,8 +70,8 @@ async function build() {
 // ---- sync built assets into the self-contained Python package --------------
 // Only the assets the Jinja2 template (`report.jinja2.html.j2`) references are
 // synced; APM / elk-graph stay Rust-only, as they always have been.
-const PY_JS = ["report", "topology", "console", "certs", "secrets", "forensics", "irule-flow"];
-const PY_CSS = ["report", "topology", "certs", "secrets", "forensics"];
+const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow"];
+const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics"];
 const PY_VENDOR = ["mermaid.min.js", "mermaid.LICENSE", "f5query_wasm.js", "f5query_wasm_bg.wasm"];
 
 function sync() {
@@ -83,6 +83,8 @@ function sync() {
   // The Jinja2 template lives under its engine-specific name in shared/; the
   // Python PackageLoader still asks for "report.html.j2".
   copyFileSync(join(templatesDir, "report.jinja2.html.j2"), join(pyTemplates, "report.html.j2"));
+  // The builder page the f5report web server serves.
+  copyFileSync(join(templatesDir, "input.html"), join(pyTemplates, "input.html"));
 }
 
 await build();

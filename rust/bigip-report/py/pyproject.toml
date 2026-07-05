@@ -35,6 +35,7 @@ dependencies = [
 
 [project.scripts]
 f5-report = "f5report.__main__:main"
+f5-report-web = "f5report.web:main"
 
 [tool.maturin]
 # Mixed Rust/Python layout: the native extension (`_engine`) is compiled into
