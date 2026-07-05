@@ -797,6 +797,30 @@ fn fp_w307_snit_typevariable_dispatch_silent() {
     );
 }
 
+#[test]
+fn fp_w307_itcl_instance_var_dispatch_silent() {
+    // FP: a dispatch on an itcl instance variable inside a method body is
+    // suppressed, exactly like an oo::class / snit member.
+    let src = "itcl::class C {\n    variable handle\n    method m {} { $handle op }\n}";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch on an itcl instance var must NOT fire W307; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_w307_itcl_created_instance_dispatch_silent() {
+    // FP: an itcl object captured from a factory call (`ClassName #auto`) and
+    // dispatched by `$var method` is a known-created instance — no W307.
+    let src = "itcl::class Counter { method bump {} { return 1 } }\nproc use {} {\n    set c [Counter #auto]\n    $c bump\n}\n";
+    assert!(
+        !fires(src, D, "W307"),
+        "dispatch on a created itcl instance must NOT fire W307; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // VAR-as-command dispatch tests (from test_fp_obj_var_as_cmd.py)
 // Pair 1: local literal assignment of a user-proc / builtin name
@@ -1045,3 +1069,4 @@ fn fp_obj_19_dict_create_key_is_not_a_command() {
         r.unresolved_command_sites,
     );
 }
+
