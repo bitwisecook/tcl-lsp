@@ -42,12 +42,6 @@
 //! ```
 //! The confusion matrix + delta go to stderr; the CSV worksheet to stdout.
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
-    clippy::doc_markdown,
-    clippy::too_many_lines
-)]
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -170,40 +164,73 @@ fn shipping_code(diags: &[Diagnostic], offset: u32) -> &'static str {
 }
 
 fn main() {
+    let roots = parse_roots();
+    let files = gather_files(&roots);
+    let reg = CommandRegistry::build_default();
+    let (data, merged) = analyse_all(&files, &reg);
+    let ws = build_worksheet(&data, &merged);
+    print_delta(data.len(), merged.len(), &ws.confusion);
+    print_worksheet(&ws.resolved_rows, &ws.abstain_rows);
+}
+
+/// Parse corpus-directory arguments, exiting with a usage message if none.
+fn parse_roots() -> Vec<PathBuf> {
     let roots: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     if roots.is_empty() {
         eprintln!("usage: mro_delta <corpus dirs...>  (worksheet CSV → stdout, delta → stderr)");
         std::process::exit(1);
     }
+    roots
+}
+
+/// Collect and sort every `.tcl`/`.test` file under the given roots.
+fn gather_files(roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for r in &roots {
+    for r in roots {
         collect_tcl_files(r, &mut files);
     }
     files.sort();
+    files
+}
 
-    let reg = CommandRegistry::build_default();
+/// Analyse every file and merge the discovered classes into one index.
+fn analyse_all(
+    files: &[PathBuf],
+    reg: &CommandRegistry,
+) -> (Vec<FileData>, HashMap<String, ClassDef>) {
     let mut data: Vec<FileData> = Vec::new();
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
-    for p in &files {
-        if let Some(fd) = analyse_file(p, &reg) {
+    for p in files {
+        if let Some(fd) = analyse_file(p, reg) {
             for (k, v) in &fd.classes {
                 merged.entry(k.clone()).or_insert_with(|| v.clone());
             }
             data.push(fd);
         }
     }
+    (data, merged)
+}
 
+/// The confusion matrix plus the resolved/abstain worksheet records.
+struct Worksheet {
     // Confusion matrix: resolver verdict × shipping code.
     // resolver rows: resolved-known, resolved-unknown (W308-cand), abstain
     // shipping cols: W307, W308, none
+    confusion: HashMap<(&'static str, &'static str), usize>,
+    resolved_rows: Vec<String>,
+    abstain_rows: Vec<String>,
+}
+
+/// Run the dispatch resolver over every file and tabulate the confusion
+/// matrix alongside the per-site worksheet rows.
+fn build_worksheet(data: &[FileData], merged: &HashMap<String, ClassDef>) -> Worksheet {
     let mut confusion: HashMap<(&'static str, &'static str), usize> = HashMap::new();
-    // Worksheet records.
     let mut resolved_rows: Vec<String> = Vec::new();
     let mut abstain_rows: Vec<String> = Vec::new();
 
     let cfg = AblationConfig::full();
-    for fd in &data {
-        let (reports, _stats) = analyse_dispatch(&fd.cu, &merged, &fd.sites, &fd.ns, &cfg);
+    for fd in data {
+        let (reports, _stats) = analyse_dispatch(&fd.cu, merged, &fd.sites, &fd.ns, &cfg);
         for r in reports {
             let Some(method) = &r.method else { continue };
             let ship = shipping_code(&fd.diagnostics, r.offset);
@@ -239,12 +266,23 @@ fn main() {
             }
         }
     }
+    Worksheet {
+        confusion,
+        resolved_rows,
+        abstain_rows,
+    }
+}
 
-    // ---- stderr: the delta / confusion matrix ----
+/// stderr: the delta / confusion matrix.
+fn print_delta(
+    files: usize,
+    merged_classes: usize,
+    confusion: &HashMap<(&'static str, &'static str), usize>,
+) {
     let rows = ["resolved-known", "resolved-unknown", "abstain"];
     let get = |r: &str, c: &str| confusion.get(&(row_key(r), c)).copied().unwrap_or(0);
     eprintln!("# mro_delta — resolver × shipping-diagnostic confusion matrix");
-    eprintln!("# files={} merged_classes={}", data.len(), merged.len());
+    eprintln!("# files={files} merged_classes={merged_classes}");
     eprintln!("{:<18} {:>7} {:>7} {:>7}", "resolver \\ shipping", "W307", "W308", "none");
     for r in rows {
         eprintln!(
@@ -277,17 +315,18 @@ fn main() {
         "#  abstain × W308         = {} → resolver abstains where shipping fired W308 (removes a claim)",
         get("abstain", "W308")
     );
+}
 
-    // ---- stdout: labeling worksheet CSV ----
-    // Header + all resolved sites (the precision-critical set) + a strided
-    // abstain sample, targeting >= 120 rows total.
+/// stdout: labeling worksheet CSV (header + all resolved sites + a strided
+/// abstain sample, targeting >= 120 rows total).
+fn print_worksheet(resolved_rows: &[String], abstain_rows: &[String]) {
     println!("file,line,var,method,resolver_verdict,resolver_classes,shipping,dispatch_line,nearest_binding,truth_class,method_exists,notes");
     let emit = |rows: &[String]| {
         for row in rows {
             println!("{row},,,");
         }
     };
-    emit(&resolved_rows);
+    emit(resolved_rows);
     // Stride the abstentions so the sample spans the corpus, aiming to top
     // up to ~120 total labeled rows.
     let want_abstain = 120usize.saturating_sub(resolved_rows.len()).max(40);

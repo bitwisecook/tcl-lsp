@@ -40,7 +40,6 @@
 //!
 //! Nothing here touches shipping diagnostics.
 
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines, clippy::doc_markdown)]
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -93,6 +92,12 @@ fn connected(h: &ClassHierarchy, a: &str, b: &str) -> bool {
     a == b || h.is_subtype(a, b) || h.is_subtype(b, a)
 }
 
+/// Lossless-enough `usize` → `f64` for count/ratio reporting: saturates at
+/// `u32::MAX` so the cast never silently drops mantissa bits.
+fn as_f64(n: usize) -> f64 {
+    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+}
+
 /// Union-find root of `x` with path compression.
 fn uf_find(parent: &mut [usize], x: usize) -> usize {
     let mut r = x;
@@ -108,7 +113,9 @@ fn uf_find(parent: &mut [usize], x: usize) -> usize {
     r
 }
 
-fn main() {
+/// Resolve corpus roots from CLI args, falling back to a built-in list of
+/// well-known locations.  Exits the process when nothing usable is found.
+fn resolve_roots() -> Vec<PathBuf> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let roots: Vec<PathBuf> = if args.is_empty() {
         ["experiments/corpus", "tmp/tcllib-2.0", "tmp/tcl8.6.16/tests", "tmp/tcl9.0.3/tests"]
@@ -123,27 +130,28 @@ fn main() {
         eprintln!("no corpus roots found; pass directories as arguments");
         std::process::exit(1);
     }
+    roots
+}
 
-    println!("# mro_overrides — method-override frequency across a corpus");
-    println!(
-        "corpus roots: {:?}",
-        roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>()
-    );
-
+/// Walk every root, gather the Tcl files, and return them sorted.
+fn discover_files(roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for r in &roots {
+    for r in roots {
         collect_tcl_files(r, &mut files);
     }
     files.sort();
     println!("discovered {} Tcl files", files.len());
+    files
+}
 
-    // Merge every file's classes into one corpus-wide index (first
-    // definition wins on a name clash), then build the hierarchy once.
-    // Cache each file's class index so the within-file pass below reuses
-    // it rather than re-analysing every file a second time.
+/// Analyse every file, returning each file's class index and a corpus-wide
+/// merged index (first definition wins on a name clash).
+fn build_index(files: &[PathBuf]) -> (Vec<HashMap<String, ClassDef>>, HashMap<String, ClassDef>) {
+    // Cache each file's class index so the within-file pass below reuses it
+    // rather than re-analysing every file a second time.
     let mut per_file: Vec<HashMap<String, ClassDef>> = Vec::new();
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
-    for path in &files {
+    for path in files {
         let Some(classes) = analyse_file(path) else {
             continue;
         };
@@ -153,16 +161,18 @@ fn main() {
         per_file.push(classes);
     }
     println!("merged class index: {} classes", merged.len());
+    (per_file, merged)
+}
 
-    let hierarchy = build_class_hierarchy(merged.clone());
-
-    // Every direct method definition: (class, method).  Public + private
-    // + unexported all count — a rename must catch them regardless of
-    // visibility.  Constructors/destructors are excluded (not renameable).
-    // Definer lists are sorted for run-to-run deterministic grouping.
-    let mut definers: HashMap<String, Vec<String>> = HashMap::new(); // method -> [class]
+/// Every direct method definition, indexed `method -> [class]`, plus the
+/// total definition count.  Public + private + unexported all count — a
+/// rename must catch them regardless of visibility.  Constructors/destructors
+/// are excluded (not renameable).  Definer lists are sorted for run-to-run
+/// deterministic grouping.
+fn collect_definers(merged: &HashMap<String, ClassDef>) -> (HashMap<String, Vec<String>>, usize) {
+    let mut definers: HashMap<String, Vec<String>> = HashMap::new();
     let mut total_defs = 0usize;
-    for (qname, cd) in &merged {
+    for (qname, cd) in merged {
         for method in cd.methods.keys().chain(cd.class_methods.keys()) {
             definers.entry(method.clone()).or_default().push(qname.clone());
             total_defs += 1;
@@ -171,12 +181,18 @@ fn main() {
     for classes in definers.values_mut() {
         classes.sort();
     }
+    (definers, total_defs)
+}
 
-    // For each definition, is it part of an override family — i.e. does
-    // another connected class define the same method?  `override_defs`
-    // uses an order-independent pairwise existence test (deterministic);
-    // `family_sizes` groups the definers into true connected components via
-    // union-find so the histogram is stable across runs.
+/// Corpus-wide override-family report.  `override_defs` uses an
+/// order-independent pairwise existence test (deterministic); `family_sizes`
+/// groups the definers into true connected components via union-find so the
+/// histogram is stable across runs.
+fn report_families(
+    hierarchy: &ClassHierarchy,
+    definers: &HashMap<String, Vec<String>>,
+    total_defs: usize,
+) {
     let mut override_defs = 0usize;
     let mut family_sizes: Vec<usize> = Vec::new();
     for classes in definers.values() {
@@ -186,7 +202,7 @@ fn main() {
         // A definition is an override iff some *other* definer is connected.
         for i in 0..classes.len() {
             if (0..classes.len())
-                .any(|j| j != i && connected(&hierarchy, &classes[i], &classes[j]))
+                .any(|j| j != i && connected(hierarchy, &classes[i], &classes[j]))
             {
                 override_defs += 1;
             }
@@ -196,7 +212,7 @@ fn main() {
         let mut parent: Vec<usize> = (0..n).collect();
         for i in 0..n {
             for j in (i + 1)..n {
-                if connected(&hierarchy, &classes[i], &classes[j]) {
+                if connected(hierarchy, &classes[i], &classes[j]) {
                     let (ri, rj) = (uf_find(&mut parent, i), uf_find(&mut parent, j));
                     if ri != rj {
                         parent[ri] = rj;
@@ -216,7 +232,7 @@ fn main() {
         }
     }
 
-    let pct = |n: usize| if total_defs == 0 { 0.0 } else { 100.0 * n as f64 / total_defs as f64 };
+    let pct = |n: usize| if total_defs == 0 { 0.0 } else { 100.0 * as_f64(n) / as_f64(total_defs) };
     println!("\n## results");
     println!("total direct method definitions: {total_defs}");
     println!(
@@ -236,20 +252,22 @@ fn main() {
         sizes.sort_unstable();
         println!(
             "family size: mean {:.1}, max {max}",
-            sum as f64 / family_sizes.len() as f64,
+            as_f64(sum) / as_f64(family_sizes.len()),
         );
         println!("family-size histogram (classes-per-family: count):");
         for s in sizes {
             println!("  {s}: {}", hist[&s]);
         }
     }
+}
 
-    // Within-file portion: what a *single-document* rename can catch.
-    // Re-analyse each file in isolation and count override families whose
-    // every definer lives in that same file.
+/// Within-file portion: what a *single-document* rename can catch.
+/// Re-analyse each file in isolation and count override families whose every
+/// definer lives in that same file.
+fn report_within_file(per_file: &[HashMap<String, ClassDef>]) {
     let mut single_doc_defs = 0usize;
     let mut single_doc_override_defs = 0usize;
-    for classes in &per_file {
+    for classes in per_file {
         if classes.len() < 2 {
             // Still counts its method defs toward the denominator.
             for cd in classes.values() {
@@ -288,7 +306,7 @@ fn main() {
         if single_doc_defs == 0 {
             0.0
         } else {
-            100.0 * n as f64 / single_doc_defs as f64
+            100.0 * as_f64(n) / as_f64(single_doc_defs)
         }
     };
     println!("\n## within-file (what single-document rename catches)");
@@ -298,14 +316,16 @@ fn main() {
         single_doc_override_defs,
         sd_pct(single_doc_override_defs),
     );
+}
 
-    // A few concrete example families, sorted for determinism.
+/// Print a few concrete example override families, sorted for determinism.
+fn report_examples(hierarchy: &ClassHierarchy, definers: &HashMap<String, Vec<String>>) {
     let mut examples: Vec<(String, Vec<String>)> = Vec::new();
-    for (method, classes) in &definers {
+    for (method, classes) in definers {
         if classes.len() >= 2 {
             for i in 0..classes.len() {
                 for j in (i + 1)..classes.len() {
-                    if connected(&hierarchy, &classes[i], &classes[j]) {
+                    if connected(hierarchy, &classes[i], &classes[j]) {
                         let mut fam = classes.clone();
                         fam.sort();
                         examples.push((method.clone(), fam));
@@ -321,4 +341,23 @@ fn main() {
     for (method, classes) in examples.iter().take(15) {
         println!("  {method}: {classes:?}");
     }
+}
+
+fn main() {
+    let roots = resolve_roots();
+
+    println!("# mro_overrides — method-override frequency across a corpus");
+    println!(
+        "corpus roots: {:?}",
+        roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>()
+    );
+
+    let files = discover_files(&roots);
+    let (per_file, merged) = build_index(&files);
+    let hierarchy = build_class_hierarchy(merged.clone());
+    let (definers, total_defs) = collect_definers(&merged);
+
+    report_families(&hierarchy, &definers, total_defs);
+    report_within_file(&per_file);
+    report_examples(&hierarchy, &definers);
 }

@@ -63,15 +63,6 @@
 //! ⊤ taxonomy the scalar type lattice cannot express, the JOIN at merges,
 //! and the resolver verdict per call site.
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::doc_markdown,
-    clippy::implicit_hasher,
-    clippy::too_many_lines,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::similar_names,
-    clippy::match_wildcard_for_single_variants
-)]
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -337,12 +328,18 @@ impl DispatchStats {
     /// number.  `0.0` when there were no sites.
     #[must_use]
     pub fn top_rate(&self) -> f64 {
-        if self.total_sites == 0 {
-            0.0
-        } else {
-            self.abstain as f64 / self.total_sites as f64
-        }
+        ratio(self.abstain, self.total_sites)
     }
+}
+
+/// `num / den` as an `f64`, `0.0` when `den == 0`.  Counts convert via
+/// `u32` so the widening to `f64` is exact (no `usize`→`f64` precision loss).
+fn ratio(num: usize, den: usize) -> f64 {
+    if den == 0 {
+        return 0.0;
+    }
+    f64::from(u32::try_from(num).unwrap_or(u32::MAX))
+        / f64::from(u32::try_from(den).unwrap_or(u32::MAX))
 }
 
 // ---------------------------------------------------------------------------
@@ -470,10 +467,10 @@ fn qualify(prefix: &str, name: &str) -> String {
 /// so the A3 cross-file run cannot manufacture a confident false resolution
 /// from a namespace collision.  `offset = None` skips tier 2 (used when the
 /// call site has no known offset, e.g. canonicalising a superclass name).
-fn resolve_class_name(
+fn resolve_class_name<S: std::hash::BuildHasher + Clone>(
     name: &str,
     offset: Option<u32>,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> (String, bool) {
     // 1. Exact / global.
@@ -528,9 +525,9 @@ fn resolve_class_name(
 /// it was assigned from.  Var-name granularity (matching the current
 /// `aggregate_object_types` heuristic); the SSA type lattice supplies the
 /// version-precise object signal separately.
-fn collect_assign_kinds(
+fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> HashMap<String, Vec<AssignKind>> {
     use crate::ir::Statement;
@@ -588,10 +585,10 @@ fn strip_dollar(text: &str) -> Option<String> {
 
 /// Classify a single RHS value string.  `offset` is the source offset of
 /// the assignment, used to resolve a bare class name in its namespace.
-fn classify_rhs(
+fn classify_rhs<S: std::hash::BuildHasher + Clone>(
     value: &str,
     offset: u32,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> AssignKind {
     if let Some((head, args)) = crate::value_shapes::parse_command_substitution(value) {
@@ -629,11 +626,11 @@ fn classify_rhs(
 /// Read version-precise object bindings straight out of the SSA type
 /// lattice: for every SSA value typed `Object { class_name }`, JOIN its
 /// class into the variable's [`ClassValue`].
-fn seed_from_type_lattice(
+fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
     fu: &FunctionUnit,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
-    cfg: &AblationConfig,
+    cfg: AblationConfig,
     out: &mut HashMap<String, ClassValue>,
 ) {
     use crate::types::TypeKind;
@@ -665,11 +662,11 @@ fn seed_from_type_lattice(
 /// Also returns the set of variable names ever assigned in the file
 /// (LHS of some `set`/assign), so the caller can tell a locally-bound
 /// receiver from one that arrives via parameter / global / `upvar`.
-fn build_class_values(
+fn build_class_values<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
-    cfg: &AblationConfig,
+    cfg: AblationConfig,
 ) -> (HashMap<String, ClassValue>, std::collections::HashSet<String>) {
     let mut values: HashMap<String, ClassValue> = HashMap::new();
 
@@ -761,11 +758,11 @@ fn is_oo_builtin(method: &str) -> bool {
 }
 
 /// Resolve one dispatch: JOIN the lattice value with the MRO table.
-fn resolve(
+fn resolve<S: std::hash::BuildHasher + Clone>(
     value: &ClassValue,
     method: Option<&str>,
     hierarchy: &ClassHierarchy,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> DispatchVerdict {
     let classes = match value {
@@ -820,7 +817,7 @@ fn resolve(
 
 /// Build the MRO/provider hierarchy, honouring the mixins/filters
 /// ablation (strip class-level mixins when disabled).
-fn hierarchy_for(index: &HashMap<String, ClassDef>, cfg: &AblationConfig) -> ClassHierarchy {
+fn hierarchy_for<S: std::hash::BuildHasher + Clone>(index: &HashMap<String, ClassDef, S>, cfg: AblationConfig) -> ClassHierarchy {
     if cfg.mixins_filters {
         build_class_hierarchy(index.clone())
     } else {
@@ -843,15 +840,15 @@ fn hierarchy_for(index: &HashMap<String, ClassDef>, cfg: &AblationConfig) -> Cla
 /// class names resolve soundly (pass `&NsContext::default()` to disable —
 /// only exact / global names then resolve).
 #[must_use]
-pub fn analyse_dispatch(
+pub fn analyse_dispatch<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     sites: &[VarCommandSite],
     ns: &NsContext,
     cfg: &AblationConfig,
 ) -> (Vec<SiteReport>, DispatchStats) {
-    let hierarchy = hierarchy_for(index, cfg);
-    let (values, assigned) = build_class_values(cu, index, ns, cfg);
+    let hierarchy = hierarchy_for(index, *cfg);
+    let (values, assigned) = build_class_values(cu, index, ns, *cfg);
 
     let mut reports = Vec::with_capacity(sites.len());
     let mut stats = DispatchStats::default();
@@ -887,16 +884,16 @@ pub fn analyse_dispatch(
 /// can propagate them to a callee's parameters.  Same inputs as
 /// [`analyse_dispatch`].
 #[must_use]
-pub fn class_values(
+pub fn class_values<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
-    index: &HashMap<String, ClassDef>,
+    index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
     cfg: &AblationConfig,
 ) -> HashMap<String, ClassValue> {
-    build_class_values(cu, index, ns, cfg).0
+    build_class_values(cu, index, ns, *cfg).0
 }
 
-/// Model TclOO `next` / `nextto`: the *next* class down `class`'s MRO that
+/// Model `TclOO` `next` / `nextto`: the *next* class down `class`'s MRO that
 /// provides `method`, after `current_provider` (or from `start_from` for
 /// `nextto`).  Thin wrapper over the shipping
 /// [`ClassHierarchy::next_provider`] (the canonical implementation, now
@@ -1088,7 +1085,7 @@ mod tests {
                 assert!(method_known);
                 assert!(providers.contains("::A"));
             }
-            other => panic!("{other:?}"),
+            v @ DispatchVerdict::Abstain(_) => panic!("{v:?}"),
         }
     }
 
@@ -1100,7 +1097,7 @@ mod tests {
         let v = ClassValue::Concrete("::A".into());
         match resolve(&v, Some("fly"), &h, &index, &NsContext::default()) {
             DispatchVerdict::Resolved { method_known, .. } => assert!(!method_known),
-            other => panic!("{other:?}"),
+            v @ DispatchVerdict::Abstain(_) => panic!("{v:?}"),
         }
     }
 
@@ -1124,7 +1121,7 @@ mod tests {
                 assert_eq!(classes.len(), 2);
                 assert!(!method_known, "B lacks m, so the set is not fully known");
             }
-            other => panic!("{other:?}"),
+            v @ DispatchVerdict::Abstain(_) => panic!("{v:?}"),
         }
     }
 

@@ -13,7 +13,6 @@
 //! *designed* to handle (a control-flow join of two known classes) — a
 //! correct `Resolved` set.
 
-#![allow(clippy::match_wildcard_for_single_variants)]
 
 use tcl_compiler::analyser::class_lattice::{
     AblationConfig, DispatchVerdict, NsContext, SiteReport, analyse_dispatch,
@@ -82,7 +81,7 @@ fn factory_return_abstains() {
             assert!(classes.iter().all(|c| c == "::Dog"), "must not name a wrong class: {classes:?}");
             assert!(method_known);
         }
-        other => panic!("unexpected verdict: {other:?}"),
+        v @ DispatchVerdict::Abstain(_) => panic!("unexpected verdict: {v:?}"),
     }
 }
 
@@ -137,7 +136,7 @@ fn control_flow_join_resolves_the_set_correctly() {
             assert!(classes.contains("::Cat"), "classes={classes:?}");
             assert!(method_known, "both Dog and Cat implement speak");
         }
-        other => panic!("expected a resolved join, got {other:?}"),
+        v @ DispatchVerdict::Abstain(_) => panic!("expected a resolved join, got {v:?}"),
     }
 }
 
@@ -151,7 +150,7 @@ fn concrete_binding_resolves() {
             assert!(method_known);
             assert!(providers.contains("::Dog"));
         }
-        other => panic!("expected resolved, got {other:?}"),
+        v @ DispatchVerdict::Abstain(_) => panic!("expected resolved, got {v:?}"),
     }
 }
 
@@ -165,6 +164,6 @@ fn unknown_method_on_known_class_is_resolved_not_abstained() {
             assert!(classes.contains("::Dog"));
             assert!(!method_known, "Dog has no `fly` and no unknown handler");
         }
-        other => panic!("expected resolved-but-unknown-method, got {other:?}"),
+        v @ DispatchVerdict::Abstain(_) => panic!("expected resolved-but-unknown-method, got {v:?}"),
     }
 }

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `mro_eval` — the TclOO MRO/class-lattice **experiment harness**.
+//! `mro_eval` — the `TclOO` MRO/class-lattice **experiment harness**.
 //!
 //! Runs the prototype dispatch resolver
 //! ([`tcl_compiler::analyser::class_lattice`]) over a corpus of Tcl files
@@ -43,12 +43,6 @@
 //! `experiments/corpus`, tcllib, and the Tcl 8.6/9.0 `oo` tests) when
 //! present.  Nothing here touches shipping diagnostics.
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
-    clippy::doc_markdown,
-    clippy::too_many_lines
-)]
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -61,6 +55,12 @@ use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::ClassDef;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
+
+/// Lossless-for-realistic-counts `usize`→`f64` conversion used for the
+/// percentage/throughput metrics below (counts never exceed `u32::MAX`).
+fn as_f64(n: usize) -> f64 {
+    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+}
 
 /// One ablation row.
 struct Ablation {
@@ -164,7 +164,7 @@ fn print_stats(label: &str, s: &DispatchStats) {
         if s.total_sites == 0 {
             0.0
         } else {
-            100.0 * n as f64 / s.total_sites as f64
+            100.0 * as_f64(n) / as_f64(s.total_sites)
         }
     };
     println!("\n### {label}");
@@ -191,9 +191,23 @@ fn print_stats(label: &str, s: &DispatchStats) {
     }
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let roots: Vec<PathBuf> = if args.is_empty() {
+/// Cached products from Pass A plus the corpus-wide roll-up metrics.
+struct PassA {
+    analysed: Vec<(PathBuf, Analysed)>,
+    merged_index: HashMap<String, ClassDef>,
+}
+
+/// Qualitative + quantitative products from Pass B.
+struct PassB {
+    per_ablation: Vec<DispatchStats>,
+    resolve_time: Duration,
+    sample_abstain: Vec<(String, String, TopReason)>,
+    sample_resolved: Vec<(String, String, String)>,
+}
+
+/// Resolve the corpus roots from CLI args (or the default set).
+fn corpus_roots(args: &[String]) -> Vec<PathBuf> {
+    if args.is_empty() {
         // Default corpus set (only those that exist).
         ["experiments/corpus", "tmp/tcllib-2.0", "tmp/tcl8.6.16/tests", "tmp/tcl9.0.3/tests"]
             .iter()
@@ -202,36 +216,21 @@ fn main() {
             .collect()
     } else {
         args.iter().map(PathBuf::from).collect()
-    };
-
-    if roots.is_empty() {
-        eprintln!("no corpus roots found; pass directories as arguments");
-        std::process::exit(1);
     }
+}
 
-    println!("# mro_eval — TclOO class-lattice dispatch resolver experiment");
-    println!("corpus roots: {:?}", roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>());
-
-    let mut files = Vec::new();
-    for r in &roots {
-        collect_tcl_files(r, &mut files);
-    }
-    files.sort();
-    println!("discovered {} Tcl files", files.len());
-
-    let reg = CommandRegistry::build_default();
-
-    // Pass A: analyse every file, cache the product, and build the
-    // corpus-merged class index for the cross-file ablation.
+/// Pass A: analyse every file, cache the product, build the corpus-merged
+/// class index for the cross-file ablation, and print the roll-up summary.
+fn run_pass_a(files: &[PathBuf], reg: &CommandRegistry) -> PassA {
     let mut analysed: Vec<(PathBuf, Analysed)> = Vec::new();
     let mut merged_index: HashMap<String, ClassDef> = HashMap::new();
     let mut total_lines = 0usize;
     let mut analyse_time = Duration::ZERO;
     let mut files_with_classes = 0usize;
     let mut files_with_sites = 0usize;
-    for path in &files {
+    for path in files {
         let t0 = Instant::now();
-        let Some(a) = analyse_file(path, &reg) else {
+        let Some(a) = analyse_file(path, reg) else {
             continue;
         };
         analyse_time += t0.elapsed();
@@ -255,23 +254,24 @@ fn main() {
     println!(
         "base analysis time: {:.2}s ({:.2} ms/file, {:.1} KLOC/s)",
         analyse_time.as_secs_f64(),
-        1000.0 * analyse_time.as_secs_f64() / analysed.len().max(1) as f64,
-        total_lines as f64 / 1000.0 / analyse_time.as_secs_f64().max(1e-9),
+        1000.0 * analyse_time.as_secs_f64() / as_f64(analysed.len().max(1)),
+        as_f64(total_lines) / 1000.0 / analyse_time.as_secs_f64().max(1e-9),
     );
+    PassA { analysed, merged_index }
+}
 
-    // Pass B: run every ablation over the cached products.
+/// Pass B: run every ablation over the cached products, aggregating stats and
+/// a qualitative sample of sites from the FULL config.
+fn run_pass_b(ablations: &[Ablation], pa: &PassA) -> PassB {
     let mut resolve_time = Duration::ZERO;
-    let ablations = ablations();
     let mut per_ablation: Vec<DispatchStats> = Vec::new();
-    // For the qualitative sample: collect a few abstained + resolved sites
-    // from the FULL config.
     let mut sample_abstain: Vec<(String, String, TopReason)> = Vec::new();
     let mut sample_resolved: Vec<(String, String, String)> = Vec::new();
 
     for (ai, ab) in ablations.iter().enumerate() {
         let mut agg = DispatchStats::default();
-        for (_path, a) in &analysed {
-            let index = if ab.cross_file { &merged_index } else { &a.classes };
+        for (_path, a) in &pa.analysed {
+            let index = if ab.cross_file { &pa.merged_index } else { &a.classes };
             let t0 = Instant::now();
             let (reports, stats) = analyse_dispatch(&a.cu, index, &a.sites, &a.ns, &ab.cfg);
             resolve_time += t0.elapsed();
@@ -301,17 +301,21 @@ fn main() {
         }
         per_ablation.push(agg);
     }
+    PassB { per_ablation, resolve_time, sample_abstain, sample_resolved }
+}
 
+/// Print the ablation tables, marginal deltas, cost, and qualitative samples.
+fn print_report(ablations: &[Ablation], pa: &PassA, pb: &PassB) {
     println!("\n## Ablation results");
-    for (ab, stats) in ablations.iter().zip(&per_ablation) {
+    for (ab, stats) in ablations.iter().zip(&pb.per_ablation) {
         print_stats(ab.label, stats);
     }
 
     // Marginal deltas in resolved sites between successive ablations.
     println!("\n## Marginal value of each layer (Δ resolved sites vs previous)");
     let mut prev = 0i64;
-    for (ab, stats) in ablations.iter().zip(&per_ablation) {
-        let resolved = stats.resolved as i64;
+    for (ab, stats) in ablations.iter().zip(&pb.per_ablation) {
+        let resolved = i64::try_from(stats.resolved).unwrap_or(i64::MAX);
         let delta = resolved - prev;
         println!("  {:<40} resolved={:>5}  Δ={:+}", ab.label, resolved, delta);
         prev = resolved;
@@ -319,19 +323,47 @@ fn main() {
 
     println!(
         "\n## Cost\n  resolver time (all ablations): {:.3}s over {} files × {} ablations\n  ≈ {:.3} ms/file/ablation (added on top of base walk)",
-        resolve_time.as_secs_f64(),
-        analysed.len(),
+        pb.resolve_time.as_secs_f64(),
+        pa.analysed.len(),
         ablations.len(),
-        1000.0 * resolve_time.as_secs_f64()
-            / (analysed.len().max(1) * ablations.len()) as f64,
+        1000.0 * pb.resolve_time.as_secs_f64()
+            / as_f64(pa.analysed.len().max(1) * ablations.len()),
     );
 
     println!("\n## Sample abstentions (FULL config, ⊤ with reason)");
-    for (var, method, reason) in sample_abstain.iter().take(20) {
+    for (var, method, reason) in pb.sample_abstain.iter().take(20) {
         println!("  ${var} {method:<16} → ⊤ {reason}");
     }
     println!("\n## Sample resolutions (FULL config)");
-    for (var, method, classes) in sample_resolved.iter().take(20) {
+    for (var, method, classes) in pb.sample_resolved.iter().take(20) {
         println!("  ${var} {method:<16} → {classes}");
     }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let roots = corpus_roots(&args);
+
+    if roots.is_empty() {
+        eprintln!("no corpus roots found; pass directories as arguments");
+        std::process::exit(1);
+    }
+
+    println!("# mro_eval — TclOO class-lattice dispatch resolver experiment");
+    println!("corpus roots: {:?}", roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>());
+
+    let mut files = Vec::new();
+    for r in &roots {
+        collect_tcl_files(r, &mut files);
+    }
+    files.sort();
+    println!("discovered {} Tcl files", files.len());
+
+    let reg = CommandRegistry::build_default();
+
+    let pa = run_pass_a(&files, &reg);
+    let ablations = ablations();
+    let pb = run_pass_b(&ablations, &pa);
+
+    print_report(&ablations, &pa, &pb);
 }

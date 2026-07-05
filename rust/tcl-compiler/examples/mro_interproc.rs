@@ -39,14 +39,6 @@
 //! path sensitivity) — deliberately, since the question is "what is the
 //! most interprocedural flow could buy?".
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::doc_markdown,
-    clippy::too_many_lines,
-    clippy::similar_names,
-    clippy::needless_lifetimes,
-    clippy::items_after_statements
-)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -58,7 +50,13 @@ use tcl_compiler::analyser::class_lattice::{
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::{AnalysisResult, ClassDef};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::ir::Statement;
 use tcl_registry::CommandRegistry;
+
+/// Lossless-enough `usize`→`f64` for percentage reporting (counts fit u32).
+fn as_f64(n: usize) -> f64 {
+    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+}
 
 fn collect_tcl_files(root: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(root) else {
@@ -100,13 +98,27 @@ struct FileUnit {
     scopes: Vec<Scope>,
 }
 
+/// Aggregated receiver taxonomy over the `unknown` ⊤ abstentions, plus the
+/// parameter-receiver sites collected for the interprocedural ceiling.
+struct Taxonomy {
+    n_unknown: usize,
+    n_param: usize,
+    n_instvar: usize,
+    n_iter: usize,
+    iter_typeable: usize,
+    n_upvar: usize,
+    n_global: usize,
+    instvar_recoverable: usize,
+    param_sites: Vec<(String, String)>,
+}
+
 /// Robust source-text classification of how a receiver `var` is bound
 /// inside its enclosing scope `[lo, hi)`.  Sidesteps IR-lowering quirks
 /// (runtime-fallback `foreach` bodies get hoisted to synthetic units, so
 /// span containment fails): scans the scope source for the loop/alias
 /// construct that binds `var`, and returns the construct kind plus the
 /// collection expression it iterates (for element typing).
-fn loopvar_binding<'a>(src: &'a str, lo: u32, hi: u32, var: &str) -> Option<(&'static str, String)> {
+fn loopvar_binding(src: &str, lo: u32, hi: u32, var: &str) -> Option<(&'static str, String)> {
     let lo = (lo as usize).min(src.len());
     let hi = (hi as usize).min(src.len());
     if lo >= hi {
@@ -193,7 +205,7 @@ fn analyse_file(path: &Path, reg: &CommandRegistry, merged: &HashMap<String, Cla
 }
 
 /// Innermost scope containing `offset`.
-fn enclosing<'a>(scopes: &'a [Scope], offset: u32) -> Option<&'a Scope> {
+fn enclosing(scopes: &[Scope], offset: u32) -> Option<&Scope> {
     scopes
         .iter()
         .filter(|s| s.start <= offset && offset <= s.end)
@@ -234,6 +246,9 @@ fn container_var(list_arg: &str) -> Option<String> {
     None
 }
 
+/// Parameter → recovered class sets, keyed by `(proc_qname, param)`.
+type ParamClass = HashMap<(String, String), HashSet<String>>;
+
 fn classes_of(v: &ClassValue) -> Option<HashSet<String>> {
     match v {
         ClassValue::Concrete(c) => Some([c.clone()].into_iter().collect()),
@@ -242,14 +257,31 @@ fn classes_of(v: &ClassValue) -> Option<HashSet<String>> {
     }
 }
 
-fn main() {
-    let roots: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
-    if roots.is_empty() {
-        eprintln!("usage: mro_interproc <corpus dirs...>");
-        std::process::exit(1);
+/// Resolve a call head to a qualified proc name in the corpus registry.
+fn resolve_call(
+    head: &str,
+    proc_params: &HashMap<String, Vec<String>>,
+    bare_to_q: &HashMap<String, Vec<String>>,
+) -> Option<String> {
+    if proc_params.contains_key(head) {
+        return Some(head.to_string());
     }
+    let q = format!("::{head}");
+    if proc_params.contains_key(&q) {
+        return Some(q);
+    }
+    let bare = head.rsplit("::").next().unwrap_or(head);
+    match bare_to_q.get(bare) {
+        Some(v) if v.len() == 1 => Some(v[0].clone()),
+        _ => None,
+    }
+}
+
+/// Collect the corpus into analysed `FileUnit`s plus the merged cross-file
+/// class index.
+fn build_units(roots: &[PathBuf]) -> (Vec<FileUnit>, HashMap<String, ClassDef>) {
     let mut files = Vec::new();
-    for r in &roots {
+    for r in roots {
         collect_tcl_files(r, &mut files);
     }
     files.sort();
@@ -275,11 +307,16 @@ fn main() {
             units.push(u);
         }
     }
+    (units, merged)
+}
 
-    // Build the corpus proc registry: bare name → qualified names, for
-    // resolving call heads.
+/// Build the corpus proc registry: qualified name → params, and bare name →
+/// qualified names for resolving call heads.
+fn build_proc_registry(
+    units: &[FileUnit],
+) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
-    for u in &units {
+    for u in units {
         for (qn, pd) in &u.result.all_procs {
             proc_params.insert(qn.clone(), pd.params.iter().map(|p| p.name.clone()).collect());
         }
@@ -289,31 +326,23 @@ fn main() {
         let bare = qn.rsplit("::").next().unwrap_or(qn).to_string();
         bare_to_q.entry(bare).or_default().push(qn.clone());
     }
-    let resolve_call = |head: &str| -> Option<String> {
-        if proc_params.contains_key(head) {
-            return Some(head.to_string());
-        }
-        let q = format!("::{head}");
-        if proc_params.contains_key(&q) {
-            return Some(q);
-        }
-        let bare = head.rsplit("::").next().unwrap_or(head);
-        match bare_to_q.get(bare) {
-            Some(v) if v.len() == 1 => Some(v[0].clone()),
-            _ => None,
-        }
-    };
+    (proc_params, bare_to_q)
+}
 
-    // --- Container element-typing map (corpus-wide, source-level) ---
-    // container_name → set of element classes. Built by scanning source for
-    // the idiomatic population statements — robust to IR lowering / analysis
-    // guarding that hid these from a CFG walk:
-    //   lappend  CONTAINER … [Class new …]
-    //   dict set CONTAINER key [Class new …]
-    //   dict append CONTAINER key [Class new …]
-    //   set CONTAINER [list [Class new …] …]
-    // An element `[Class new]` names the class directly; `$v` elements would
-    // need element flow (out of scope for this ceiling — noted).
+/// Container element-typing map (corpus-wide, source-level): `container_name`
+/// → set of element classes. Built by scanning source for the idiomatic
+/// population statements — robust to IR lowering / analysis guarding that hid
+/// these from a CFG walk:
+///   lappend  CONTAINER … [Class new …]
+///   dict set CONTAINER key [Class new …]
+///   dict append CONTAINER key [Class new …]
+///   set CONTAINER [list [Class new …] …]
+/// An element `[Class new]` names the class directly; `$v` elements would
+/// need element flow (out of scope for this ceiling — noted).
+fn build_coll_elem(
+    units: &[FileUnit],
+    merged: &HashMap<String, ClassDef>,
+) -> HashMap<String, HashSet<String>> {
     let mut coll_elem: HashMap<String, HashSet<String>> = HashMap::new();
     // Resolve a `[Head new|create …]` element head to a class in the index.
     let elem_ctor_class = |seg: &str| -> Option<String> {
@@ -339,7 +368,7 @@ fn main() {
         let srclines: usize = units.iter().map(|u| u.src.lines().count()).sum();
         eprintln!("[CEDBG] units={} src_lines={srclines} dict-append-lines={da}", units.len());
     }
-    for u in &units {
+    for u in units {
         for raw in u.src.lines() {
             let line = raw.trim();
             // Identify `<verb> CONTAINER …` where verb populates a container.
@@ -370,8 +399,17 @@ fn main() {
             }
         }
     }
+    coll_elem
+}
 
-    // --- Receiver taxonomy over `unknown` abstentions ---
+/// Receiver taxonomy over every `unknown` ⊤ abstention: bucket each site by
+/// how the receiver arrives (parameter / iteration / instance-var / upvar /
+/// global), and collect the parameter-receiver sites for the ceiling pass.
+fn receiver_taxonomy(
+    units: &[FileUnit],
+    merged: &HashMap<String, ClassDef>,
+    coll_elem: &HashMap<String, HashSet<String>>,
+) -> Taxonomy {
     let mut n_unknown = 0usize;
     let mut n_param = 0usize;
     let mut n_instvar = 0usize;
@@ -379,19 +417,13 @@ fn main() {
     let mut iter_typeable = 0usize;
     let mut n_upvar = 0usize;
     let mut n_global = 0usize;
-    // Instance-variable ceiling: (class, var) → classes bound in the class body.
-    // Parameter-receiver sites, for the ceiling: (proc_qname, param) list.
     let mut param_sites: Vec<(String, String)> = Vec::new();
     let mut instvar_recoverable = 0usize;
 
-    // Pre-compute instance-var bindings: for each class, scan its methods'
-    // bodies (in the CU) for `set v [C new]` where v is a declared variable.
-    // Approximate via the file's `values` map keyed by the var name, scoped
-    // to the class body.
-    for u in &units {
+    for u in units {
         // Resolve every site in the file once (not per-site).
         let (reports, _stats) =
-            analyse_dispatch(&u.cu, &merged, &u.sites, &u.ns, &AblationConfig::full());
+            analyse_dispatch(&u.cu, merged, &u.sites, &u.ns, &AblationConfig::full());
         for rep in &reports {
             if !matches!(rep.verdict, DispatchVerdict::Abstain(TopReason::Unknown)) {
                 continue;
@@ -450,19 +482,33 @@ fn main() {
         }
     }
 
-    // --- Parameter ceiling: caller→param class propagation to a fixpoint ---
-    // param_class[(proc_qname, param)] = set of classes.
-    // Seed: over every Call `p $a $b …`, resolve each `$arg` in the caller
-    // file's `values`; propagate to the callee's positional param.
-    // Iterate: after params gain classes, a call passing `$param` propagates
-    // them onward.
-    use tcl_compiler::ir::Statement;
-    let mut param_class: HashMap<(String, String), HashSet<String>> = HashMap::new();
+    Taxonomy {
+        n_unknown,
+        n_param,
+        n_instvar,
+        n_iter,
+        iter_typeable,
+        n_upvar,
+        n_global,
+        instvar_recoverable,
+        param_sites,
+    }
+}
 
-    // Per-file caller resolution: a var's classes = constructor `values` map
-    // OR (after seeding) its own param_class if the var is a param of the
-    // enclosing scope at the call site.
-    let hop_counts = |param_class: &HashMap<(String, String), HashSet<String>>| -> usize {
+/// Parameter ceiling: caller→param class propagation to a fixpoint.
+/// `param_class[(proc_qname, param)]` = set of classes. Seed over every Call
+/// `p $a $b …` by resolving each `$arg` in the caller file's `values` and
+/// propagating to the callee's positional param; iterate so params that gain
+/// classes propagate onward when passed as `$param`.
+fn parameter_ceiling(
+    units: &[FileUnit],
+    proc_params: &HashMap<String, Vec<String>>,
+    bare_to_q: &HashMap<String, Vec<String>>,
+    param_sites: &[(String, String)],
+) -> (ParamClass, Vec<usize>) {
+    let mut param_class: ParamClass = HashMap::new();
+
+    let hop_counts = |param_class: &ParamClass| -> usize {
         param_sites
             .iter()
             .filter(|(q, p)| param_class.get(&(q.clone(), p.clone())).is_some_and(|s| !s.is_empty()))
@@ -473,7 +519,7 @@ fn main() {
     for hop in 0..12 {
         let mut next = param_class.clone();
         let mut changed = false;
-        for u in &units {
+        for u in units {
             let cu_units = std::iter::once(("::top", &u.cu.top_level))
                 .chain(u.cu.procedures.iter().map(|(q, fu)| (q.as_str(), fu)))
                 .chain(u.cu.methods.iter().map(|(q, fu)| (q.as_str(), fu)));
@@ -485,9 +531,9 @@ fn main() {
                         else {
                             continue;
                         };
-                        let Some(callee) = resolve_call(command) else { continue };
+                        let Some(callee) = resolve_call(command, proc_params, bare_to_q) else { continue };
                         let Some(params) = proc_params.get(&callee) else { continue };
-                        let caller = enclosing(&u.scopes, span.start());
+                        let caller_scope = enclosing(&u.scopes, span.start());
                         for (i, arg) in args.iter().enumerate() {
                             let Some(pname) = params.get(i) else { break };
                             let Some(v) = strip_dollar(arg) else { continue };
@@ -496,7 +542,7 @@ fn main() {
                             if let Some(c) = u.values.get(&v).and_then(classes_of) {
                                 cls.extend(c);
                             }
-                            if let Some(s) = caller
+                            if let Some(s) = caller_scope
                                 && s.params.iter().any(|p| p == &v)
                                 && let Some(c) = param_class.get(&(s.qname.clone(), v.clone()))
                             {
@@ -524,6 +570,30 @@ fn main() {
         let _ = hop;
     }
 
+    (param_class, ceiling_by_hop)
+}
+
+/// Print the ceiling report from the collected taxonomy and propagation state.
+fn print_report(
+    units: &[FileUnit],
+    merged: &HashMap<String, ClassDef>,
+    coll_elem: &HashMap<String, HashSet<String>>,
+    tax: Taxonomy,
+    param_class: &ParamClass,
+    ceiling_by_hop: &[usize],
+) {
+    let Taxonomy {
+        n_unknown,
+        n_param,
+        n_instvar,
+        n_iter,
+        iter_typeable,
+        n_upvar,
+        n_global,
+        instvar_recoverable,
+        param_sites,
+    } = tax;
+
     // Single vs multi class among recovered param sites.
     let mut recovered_single = 0usize;
     let mut recovered_multi = 0usize;
@@ -549,7 +619,7 @@ fn main() {
     }
     println!();
     println!("## Receiver taxonomy of `unknown` ⊤ abstentions");
-    let pct = |n: usize| if n_unknown == 0 { 0.0 } else { 100.0 * n as f64 / n_unknown as f64 };
+    let pct = |n: usize| if n_unknown == 0 { 0.0 } else { 100.0 * as_f64(n) / as_f64(n_unknown) };
     println!("  total unknown-⊤ sites:        {n_unknown}");
     println!("    proc/method parameter:      {n_param}  ({:.1}%)", pct(n_param));
     println!("    container iteration:        {n_iter}  ({:.1}%)   [foreach/lmap/dict-for over a collection]", pct(n_iter));
@@ -568,16 +638,32 @@ fn main() {
         let tag = if h == 0 { "1-hop" } else if h + 1 == ceiling_by_hop.len() { "fixpoint" } else { "iter" };
         println!("  after hop {}: {c} / {} param sites resolvable  [{tag}]", h + 1, param_sites.len());
     }
-    let ppct = if param_sites.is_empty() { 0.0 } else { 100.0 * param_recovered as f64 / param_sites.len() as f64 };
+    let param_pct = if param_sites.is_empty() { 0.0 } else { 100.0 * as_f64(param_recovered) / as_f64(param_sites.len()) };
     println!("  fixpoint recovered: {param_recovered} / {} ({:.1}%)  [single-class {recovered_single}, multi-class {recovered_multi}]",
-        param_sites.len(), ppct);
+        param_sites.len(), param_pct);
     println!();
     // Combined ceiling: how much of the unknown-⊤ bucket becomes resolvable.
     let combined = param_recovered + instvar_recoverable + iter_typeable;
     println!("## Combined ceiling over `unknown` ⊤ (all three levers)");
     println!("  {combined} / {n_unknown} unknown-⊤ sites recoverable ({:.1}%)",
-        if n_unknown == 0 { 0.0 } else { 100.0 * combined as f64 / n_unknown as f64 });
+        if n_unknown == 0 { 0.0 } else { 100.0 * as_f64(combined) / as_f64(n_unknown) });
     println!("    container element-typing: {iter_typeable}");
     println!("    interproc param flow:     {param_recovered}  (single-class {recovered_single})");
     println!("    instance-var binding:     {instvar_recoverable}");
+}
+
+fn main() {
+    let roots: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
+    if roots.is_empty() {
+        eprintln!("usage: mro_interproc <corpus dirs...>");
+        std::process::exit(1);
+    }
+
+    let (units, merged) = build_units(&roots);
+    let (proc_params, bare_to_q) = build_proc_registry(&units);
+    let coll_elem = build_coll_elem(&units, &merged);
+    let tax = receiver_taxonomy(&units, &merged, &coll_elem);
+    let (param_class, ceiling_by_hop) =
+        parameter_ceiling(&units, &proc_params, &bare_to_q, &tax.param_sites);
+    print_report(&units, &merged, &coll_elem, tax, &param_class, &ceiling_by_hop);
 }
