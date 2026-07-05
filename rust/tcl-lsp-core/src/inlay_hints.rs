@@ -739,11 +739,9 @@ fn collect_positional_args(
                 arg_idx += 1;
                 continue;
             }
-            if let Some(opt) = options.iter().find(|o| o.name == arg_text) {
-                arg_idx += 1;
-                if opt.takes_value && arg_idx < seg.argv.len() {
-                    arg_idx += 1;
-                }
+            if let Some(opt) = options.iter().find(|o| o.matches(arg_text)) {
+                // Skip the option and the value word(s) it consumes.
+                arg_idx += 1 + opt.value_word_count(&seg.texts, arg_idx);
                 continue;
             }
         }

@@ -41,7 +41,7 @@ pub fn spec() -> CommandSpec {
         // `url` (arg 0) is a network-address arg — SSRF sink
         // (T104); `-headers` can carry credentials.
         taint_network_sink_args: Some(&[0]),
-        credential_options: &["-headers"],
+        credential_options: const { &["-headers"] },
         required_package: Some("http"),
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

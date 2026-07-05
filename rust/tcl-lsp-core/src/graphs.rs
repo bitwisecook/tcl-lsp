@@ -226,7 +226,12 @@ pub fn symbol_graph(source: &str, dialect: &str) -> Value {
     let result = Analyser::new().analyse(source, dialect);
     let line_index = LineIndex::new(source);
 
-    let scopes = vec![scope_to_value(&result.global_scope, &result, &line_index, source)];
+    let scopes = vec![scope_to_value(
+        &result.global_scope,
+        &result,
+        &line_index,
+        source,
+    )];
 
     // proc_references: every proc's deduped call sites, source-ordered keys.
     let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
@@ -330,7 +335,8 @@ fn find_call_sites_in_scope(
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some((proc_start, proc_end)) = proc_line_span(ir_module, containing_proc, line_index) else {
+    let Some((proc_start, proc_end)) = proc_line_span(ir_module, containing_proc, line_index)
+    else {
         return Vec::new();
     };
     let short = callee_qname.trim_start_matches(':');
@@ -895,7 +901,10 @@ fn memory_location_str(loc: &tcl_compiler::memory_ssa::MemoryLocation) -> String
 }
 
 /// Serialise one function's memory-SSA to the alias wire dict.
-fn memory_function_json(name: &str, mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>) -> Value {
+fn memory_function_json(
+    name: &str,
+    mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>,
+) -> Value {
     let Some(mem) = mem else {
         return json!({ "name": name, "alias_sets": [], "memory_ops": 0 });
     };
@@ -929,12 +938,17 @@ pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &st
         .with_interprocedural(registry, Some(dialect))
         .with_memory_ssa();
 
-    let mut functions: Vec<Value> =
-        vec![memory_function_json("::top", cu.top_level.memory_ssa.as_ref())];
+    let mut functions: Vec<Value> = vec![memory_function_json(
+        "::top",
+        cu.top_level.memory_ssa.as_ref(),
+    )];
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
     proc_names.sort();
     for qname in &proc_names {
-        functions.push(memory_function_json(qname, cu.procedures[*qname].memory_ssa.as_ref()));
+        functions.push(memory_function_json(
+            qname,
+            cu.procedures[*qname].memory_ssa.as_ref(),
+        ));
     }
 
     let total_alias_sets: usize = functions

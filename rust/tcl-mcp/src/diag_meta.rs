@@ -55,7 +55,12 @@ pub struct DiagMeta {
 fn str_set(value: Option<&Value>) -> HashSet<String> {
     value
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -69,8 +74,16 @@ impl DiagMeta {
         let mut category_codes: HashMap<String, HashSet<String>> = HashMap::new();
         if let Some(cats) = categories {
             for cat in cats {
-                let key = cat.get("key").and_then(Value::as_str).unwrap_or_default().to_owned();
-                let label = cat.get("label").and_then(Value::as_str).unwrap_or_default().to_owned();
+                let key = cat
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let label = cat
+                    .get("label")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
                 let codes = str_set(cat.get("codes"));
                 for code in &codes {
                     code_to_category.insert(code.clone(), key.clone());

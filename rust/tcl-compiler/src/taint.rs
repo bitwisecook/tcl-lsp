@@ -2063,11 +2063,13 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
                 out.extend(args[i + 1..].iter().cloned());
                 break;
             }
-            let takes_value = spec
+            // Skip the option and the value word(s) it consumes (arity-aware).
+            let consumed = spec
                 .options
                 .iter()
-                .any(|o| o.name == a.as_str() && o.takes_value);
-            i += usize::from(takes_value) + 1;
+                .find(|o| o.matches(a))
+                .map_or(0, |o| o.value_word_count(args, i));
+            i += 1 + consumed;
             continue;
         }
         out.push(a.clone());
@@ -2408,11 +2410,13 @@ fn option_scan_region(
         }
         region.insert(i);
         if arg.starts_with('-')
-            && options.iter().any(|o| o.takes_value && o.name == arg)
-            && i + 1 < n
+            && let Some(opt) = options.iter().find(|o| o.matches(arg))
         {
-            i += 2;
-            continue;
+            let consumed = opt.value_word_count(args, i);
+            if consumed > 0 {
+                i += 1 + consumed;
+                continue;
+            }
         }
         i += 1;
     }

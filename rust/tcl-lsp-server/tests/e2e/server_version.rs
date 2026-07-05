@@ -23,7 +23,6 @@
 //! banner regressing to a `dev` fallback, and pins the reported version to the
 //! workspace crate version (`CARGO_PKG_VERSION`) the compiled banner comes from.
 
-
 use crate::common::Lsp;
 
 #[test]

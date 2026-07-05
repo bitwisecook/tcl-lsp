@@ -7,7 +7,7 @@
   "side": "global",
   "transport": null,
   "impliedProfiles": [],
-  "validCommandCount": 1076,
+  "validCommandCount": 1077,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -513,6 +513,7 @@
     "after",
     "append",
     "apply",
+    "argparse",
     "array",
     "b64decode",
     "b64encode",

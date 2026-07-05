@@ -218,7 +218,9 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
             ));
         }
         if inc_real != fresh_real {
-            prog.finding(&format!("iter {iter}: sampled real-file incremental != fresh"));
+            prog.finding(&format!(
+                "iter {iter}: sampled real-file incremental != fresh"
+            ));
         }
         assert_eq!(
             inc_caller, fresh_caller,

@@ -27,13 +27,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -48,13 +49,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -69,13 +71,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -90,13 +93,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -111,13 +115,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -132,13 +137,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -152,13 +158,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -172,13 +179,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -192,13 +200,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -212,13 +221,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "--",
-            takes_value: false,
-            value_hint: "",
+            value: OptionValue::flag(),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -226,6 +236,73 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
         }],
         ..SubCommand::DEFAULT
+    },
+];
+
+const OPTIONS_1: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-mustexist",
+        value: OptionValue::flag(),
+        detail: "Fail if key does not already exist.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-excl",
+        value: OptionValue::flag(),
+        detail: "Fail if key already exists.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-notouch",
+        value: OptionValue::flag(),
+        detail: "Do not reset lifetime/timeout on access.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-remaining",
+        value: OptionValue::flag(),
+        detail: "Return remaining time.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-count",
+        value: OptionValue::flag(),
+        detail: "Return count of matching keys.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-all",
+        value: OptionValue::flag(),
+        detail: "Delete all keys in a subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 
@@ -262,64 +339,7 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "table <subcommand> ?options? ?--? key ?value? ?lifetime? ?timeout?",
         }],
-        options: &[
-            OptionSpec {
-                name: "-mustexist",
-                takes_value: false,
-                value_hint: "",
-                detail: "Fail if key does not already exist.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-excl",
-                takes_value: false,
-                value_hint: "",
-                detail: "Fail if key already exists.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-notouch",
-                takes_value: false,
-                value_hint: "",
-                detail: "Do not reset lifetime/timeout on access.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-subtable",
-                takes_value: true,
-                value_hint: "",
-                detail: "Operate on a named subtable.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-georedundancy",
-                takes_value: false,
-                value_hint: "",
-                detail: "Enable geo-redundancy for this entry.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-remaining",
-                takes_value: false,
-                value_hint: "",
-                detail: "Return remaining time.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-count",
-                takes_value: false,
-                value_hint: "",
-                detail: "Return count of matching keys.",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-all",
-                takes_value: false,
-                value_hint: "",
-                detail: "Delete all keys in a subtable.",
-                dialects: None,
-            },
-        ],
+        options: OPTIONS_1,
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,

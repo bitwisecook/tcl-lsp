@@ -25,6 +25,7 @@
 
 use std::sync::Arc;
 
+use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorData, ListToolsResult,
@@ -32,7 +33,6 @@ use rmcp::model::{
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
-use rmcp::ServiceExt;
 use serde_json::{Value, json};
 
 mod bigip;
@@ -87,9 +87,7 @@ impl ServerHandler for TclMcp {
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
-        let args = request
-            .arguments
-            .map_or_else(|| json!({}), Value::Object);
+        let args = request.arguments.map_or_else(|| json!({}), Value::Object);
         match tools::dispatch(&request.name, &args) {
             Some(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 result.to_string(),

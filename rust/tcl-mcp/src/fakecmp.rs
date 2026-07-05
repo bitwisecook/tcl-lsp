@@ -48,13 +48,27 @@ fn fakecmp_hash(src: &str, src_port: u32, dst: &str, dst_port: u32, tmm_count: u
 fn validate_ipv4(addr: &str, field: &str) -> Option<Value> {
     let parts: Vec<&str> = addr.split('.').collect();
     if parts.len() != 4 {
-        return Some(field_error(field, &format!("expected IPv4 (a.b.c.d), got '{addr}'"), addr));
+        return Some(field_error(
+            field,
+            &format!("expected IPv4 (a.b.c.d), got '{addr}'"),
+            addr,
+        ));
     }
     for p in parts {
         match p.parse::<i64>() {
-            Err(_) => return Some(field_error(field, &format!("non-integer octet '{p}'"), addr)),
+            Err(_) => {
+                return Some(field_error(
+                    field,
+                    &format!("non-integer octet '{p}'"),
+                    addr,
+                ));
+            }
             Ok(v) if !(0..=255).contains(&v) => {
-                return Some(field_error(field, &format!("octet {v} out of range (0-255)"), addr));
+                return Some(field_error(
+                    field,
+                    &format!("octet {v} out of range (0-255)"),
+                    addr,
+                ));
             }
             Ok(_) => {}
         }
@@ -120,7 +134,11 @@ pub fn which_tmm(args: &Value) -> Value {
 
     let mut errors = Vec::new();
     if tmm_count.is_none_or(|c| c < 2) {
-        errors.push(field_error("tmm_count", "must be >= 2", &arg_display(args, "tmm_count")));
+        errors.push(field_error(
+            "tmm_count",
+            "must be >= 2",
+            &arg_display(args, "tmm_count"),
+        ));
     }
     if let Some(e) = validate_ipv4(src_addr, "src_addr") {
         errors.push(e);
@@ -164,7 +182,11 @@ pub fn suggest_sources(args: &Value) -> Value {
 
     let mut errors = Vec::new();
     if tmm_count.is_none_or(|c| c < 2) {
-        errors.push(field_error("tmm_count", "must be >= 2", &arg_display(args, "tmm_count")));
+        errors.push(field_error(
+            "tmm_count",
+            "must be >= 2",
+            &arg_display(args, "tmm_count"),
+        ));
     }
     if count < 1 {
         errors.push(field_error("count", "must be >= 1", &count.to_string()));

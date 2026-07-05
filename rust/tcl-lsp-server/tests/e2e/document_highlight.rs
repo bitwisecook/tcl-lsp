@@ -21,7 +21,6 @@
 //! Document highlight, end-to-end against the packaged server. Highlight kinds
 //! come back as raw LSP integers: 1=Text, 2=Read, 3=Write.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -65,7 +64,10 @@ fn test_highlights_include_declaration() {
     let result = Value::Array(highlights(&mut lsp, &uri, 0, 6));
     let lines = start_lines(&result);
     for expected in [0, 1, 2] {
-        assert!(lines.contains(&expected), "missing line {expected} in {lines:?}");
+        assert!(
+            lines.contains(&expected),
+            "missing line {expected} in {lines:?}"
+        );
     }
 }
 

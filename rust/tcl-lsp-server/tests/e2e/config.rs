@@ -31,7 +31,6 @@
 //! directions), so it is exercised explicitly here via a second
 //! `apply_configuration_settle` back to the enabled state.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -128,10 +127,13 @@ fn open_probe(lsp: &mut Lsp, uri: &str, feature: &str) {
         "hover" => lsp.open_ready(uri, "puts hello\n"),
         "completion" => lsp.open_ready(uri, "pu"),
         "documentSymbols" => lsp.open_ready(uri, "proc greet {} { return }\n"),
-        "definition" | "references" => {
-            lsp.open_ready(uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n")
+        "definition" | "references" => lsp.open_ready(
+            uri,
+            "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+        ),
+        "signatureHelp" => {
+            lsp.open_ready(uri, "proc greet {name greeting} { return }\ngreet World\n")
         }
-        "signatureHelp" => lsp.open_ready(uri, "proc greet {name greeting} { return }\ngreet World\n"),
         "folding" | "selectionRange" => {
             lsp.open_ready(uri, "proc greet {} {\n    set x 1\n    return $x\n}\n")
         }
@@ -172,11 +174,9 @@ fn disabling_feature_suppresses_its_provider(feature: &str) {
 
     // Disable just this feature; settle on the effective-config reflecting it.
     let feat = feature.to_owned();
-    lsp.apply_configuration_settle(
-        json!({ "features": { feature: false } }),
-        &uri,
-        move |c| feature_disabled(c, &feat),
-    );
+    lsp.apply_configuration_settle(json!({ "features": { feature: false } }), &uri, move |c| {
+        feature_disabled(c, &feat)
+    });
 
     let disabled = query_probe(&mut lsp, &uri, feature);
     assert!(
@@ -188,11 +188,9 @@ fn disabling_feature_suppresses_its_provider(feature: &str) {
     // both directions). Mirrors pytest's post-`config_session` "provider did not
     // recover after re-enable" assertion.
     let feat = feature.to_owned();
-    lsp.apply_configuration_settle(
-        json!({ "features": { feature: true } }),
-        &uri,
-        move |c| feature_enabled(c, &feat),
-    );
+    lsp.apply_configuration_settle(json!({ "features": { feature: true } }), &uri, move |c| {
+        feature_enabled(c, &feat)
+    });
     let recovered = query_probe(&mut lsp, &uri, feature);
     assert!(
         !is_empty(&recovered),
@@ -211,13 +209,25 @@ macro_rules! disable_feature_test {
 
 disable_feature_test!(disabling_hover_suppresses_provider, "hover");
 disable_feature_test!(disabling_completion_suppresses_provider, "completion");
-disable_feature_test!(disabling_document_symbols_suppresses_provider, "documentSymbols");
+disable_feature_test!(
+    disabling_document_symbols_suppresses_provider,
+    "documentSymbols"
+);
 disable_feature_test!(disabling_definition_suppresses_provider, "definition");
 disable_feature_test!(disabling_references_suppresses_provider, "references");
-disable_feature_test!(disabling_signature_help_suppresses_provider, "signatureHelp");
+disable_feature_test!(
+    disabling_signature_help_suppresses_provider,
+    "signatureHelp"
+);
 disable_feature_test!(disabling_folding_suppresses_provider, "folding");
-disable_feature_test!(disabling_selection_range_suppresses_provider, "selectionRange");
-disable_feature_test!(disabling_document_links_suppresses_provider, "documentLinks");
+disable_feature_test!(
+    disabling_selection_range_suppresses_provider,
+    "selectionRange"
+);
+disable_feature_test!(
+    disabling_document_links_suppresses_provider,
+    "documentLinks"
+);
 
 // -- TestOptimiserToggle -------------------------------------------------
 
@@ -230,26 +240,39 @@ fn optimiser_disable_round_trips() {
     lsp.open_ready(&uri, "puts [llength [list a b c]]\n");
 
     let on = lsp.effective_config(&uri);
-    assert_eq!(on.get("optimiser_enabled"), Some(&Value::Bool(true)), "{on}");
+    assert_eq!(
+        on.get("optimiser_enabled"),
+        Some(&Value::Bool(true)),
+        "{on}"
+    );
     let offers_on = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
-    let offers_source = offers_on.get("source").and_then(Value::as_str).unwrap_or("");
+    let offers_source = offers_on
+        .get("source")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     assert!(offers_source.contains("puts 3"), "{offers_on}");
 
-    let off = lsp.apply_configuration_settle(
-        json!({ "optimiser": { "enabled": false } }),
-        &uri,
-        |c| c.get("optimiser_enabled") == Some(&Value::Bool(false)),
+    let off =
+        lsp.apply_configuration_settle(json!({ "optimiser": { "enabled": false } }), &uri, |c| {
+            c.get("optimiser_enabled") == Some(&Value::Bool(false))
+        });
+    assert_eq!(
+        off.get("optimiser_enabled"),
+        Some(&Value::Bool(false)),
+        "{off}"
     );
-    assert_eq!(off.get("optimiser_enabled"), Some(&Value::Bool(false)), "{off}");
 
     // Round-trip: re-enable and settle — the optimiser switch flips back on
     // (pytest's post-`config_session` "# Restored." assertion).
-    let on_again = lsp.apply_configuration_settle(
-        json!({ "optimiser": { "enabled": true } }),
-        &uri,
-        |c| c.get("optimiser_enabled") == Some(&Value::Bool(true)),
+    let on_again =
+        lsp.apply_configuration_settle(json!({ "optimiser": { "enabled": true } }), &uri, |c| {
+            c.get("optimiser_enabled") == Some(&Value::Bool(true))
+        });
+    assert_eq!(
+        on_again.get("optimiser_enabled"),
+        Some(&Value::Bool(true)),
+        "{on_again}"
     );
-    assert_eq!(on_again.get("optimiser_enabled"), Some(&Value::Bool(true)), "{on_again}");
 }
 
 // -- TestFormattingIndentRoundTrip ---------------------------------------
@@ -322,19 +345,15 @@ fn repeated_cycles_keep_provider_working() {
         assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
 
         // Disable + settle: hover goes empty.
-        lsp.apply_configuration_settle(
-            json!({ "features": { "hover": false } }),
-            &uri,
-            |c| feature_disabled(c, "hover"),
-        );
+        lsp.apply_configuration_settle(json!({ "features": { "hover": false } }), &uri, |c| {
+            feature_disabled(c, "hover")
+        });
         assert!(is_empty(&lsp.hover(&uri, 0, 2)));
 
         // Re-enable + settle: hover works again — never stuck off.
-        lsp.apply_configuration_settle(
-            json!({ "features": { "hover": true } }),
-            &uri,
-            |c| feature_enabled(c, "hover"),
-        );
+        lsp.apply_configuration_settle(json!({ "features": { "hover": true } }), &uri, |c| {
+            feature_enabled(c, "hover")
+        });
         assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
     }
 }

@@ -31,10 +31,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
     name: "-profile",
-    takes_value: true,
-    value_hint: "PROFILE",
+    value: OptionValue::value("PROFILE"),
     detail: "Encoding profile used for invalid input.",
     dialects: None,
+    aliases: &[],
+    min_version: None,
 }];
 
 /// One `unicode to<form>` normalization subcommand: `?-profile PROFILE? STRING`

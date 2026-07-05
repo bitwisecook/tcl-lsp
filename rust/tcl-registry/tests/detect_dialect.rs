@@ -161,7 +161,10 @@ fn package_vsatisfies_tcl_version() {
 #[test]
 fn package_vsatisfies_non_tcl_ignored() {
     // A `vsatisfies` over some other package must not pick a Tcl dialect.
-    assert_eq!(detect("[package vsatisfies [package require Foo] 9.0]\n"), None);
+    assert_eq!(
+        detect("[package vsatisfies [package require Foo] 9.0]\n"),
+        None
+    );
 }
 
 #[test]

@@ -23,7 +23,6 @@
 //! document: well-formed ranges, disjoint `WorkspaceEdit`s, and that hostile
 //! inputs never wedge/crash the server or emit a malformed span.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -32,22 +31,33 @@ use serde_json::{Value, json};
 /// A corpus spanning clean code, every multibyte/EOL hazard, and the recovery
 /// paths. Reused by the range-invariant and robustness batteries.
 fn corpus() -> Vec<(&'static str, String)> {
-    let large: String = (0..400)
-        .map(|i| format!("proc p{i} {{a b}} {{ return [expr {{$a + $b}}] }}\n"))
-        .collect();
+    let mut large = String::new();
+    for i in 0..400 {
+        use std::fmt::Write;
+        let _ = writeln!(large, "proc p{i} {{a b}} {{ return [expr {{$a + $b}}] }}");
+    }
     let mut v: Vec<(&'static str, String)> = vec![
         (
             "clean",
             "proc greet {name} {\n    puts \"Hello $name\"\n}\ngreet World\n".to_owned(),
         ),
-        ("vars", "set x 1\nset y $x\nputs [expr {$x + $y}]\n".to_owned()),
+        (
+            "vars",
+            "set x 1\nset y $x\nputs [expr {$x + $y}]\n".to_owned(),
+        ),
         (
             "multibyte",
             "set s \"café résumé naïve\"\nputs $s\nproc f {s} { return $s }\nf $s\n".to_owned(),
         ),
-        ("emoji", "set e \"😀 🚀 🐫 done\"\nputs $e\nset n 1\n".to_owned()),
+        (
+            "emoji",
+            "set e \"😀 🚀 🐫 done\"\nputs $e\nset n 1\n".to_owned(),
+        ),
         ("unicode_ident", "set 日本語 1\nputs ${日本語}\n".to_owned()),
-        ("crlf", "proc p {} {\r\n    set x 1\r\n}\r\np\r\n".to_owned()),
+        (
+            "crlf",
+            "proc p {} {\r\n    set x 1\r\n}\r\np\r\n".to_owned(),
+        ),
         ("bom", "\u{feff}puts hello\nset x 1\n".to_owned()),
         (
             "unterminated_bracket",
@@ -58,7 +68,10 @@ fn corpus() -> Vec<(&'static str, String)> {
             "proc p {} {\n  set y [foo\n}\nset z 1\n".to_owned(),
         ),
         ("unterminated_quote", "set s \"open\nputs done\n".to_owned()),
-        ("deep_nesting", "set x [a [b [c [d [e [f [g\nputs tail\n".to_owned()),
+        (
+            "deep_nesting",
+            "set x [a [b [c [d [e [f [g\nputs tail\n".to_owned(),
+        ),
         ("empty", String::new()),
         ("blank_lines", "\n\n\n".to_owned()),
         ("only_comment", "# just a comment\n".to_owned()),
@@ -119,7 +132,12 @@ fn provider_ranges_well_formed_for(idx: usize) {
     let results = exercise_all_providers(&mut lsp, &uri);
     let mut violations: Vec<String> = Vec::new();
     for (req, res) in &results {
-        violations.extend(range_violations(res, source, &format!("{name}/{req}"), false));
+        violations.extend(range_violations(
+            res,
+            source,
+            &format!("{name}/{req}"),
+            false,
+        ));
     }
     assert!(
         violations.is_empty(),
@@ -168,7 +186,8 @@ fn test_rename_edits_do_not_overlap() {
 fn test_multisite_variable_rename_edits_are_disjoint() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc p {} {\n    set count 0\n    incr count\n    incr count\n    return $count\n}\n";
+    let src =
+        "proc p {} {\n    set count 0\n    incr count\n    incr count\n    return $count\n}\n";
     lsp.open_ready(&uri, src);
     let edit = lsp.rename(&uri, 1, 8, "counter");
     assert!(workspace_edit_violations(&edit, "var-rename").is_empty());

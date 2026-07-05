@@ -156,7 +156,11 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
     let mut checked = 0usize;
     let mut bad: Vec<String> = Vec::new();
     for (idx, path) in files.iter().enumerate() {
-        let name = path.strip_prefix(repo_root()).unwrap_or(path).display().to_string();
+        let name = path
+            .strip_prefix(repo_root())
+            .unwrap_or(path)
+            .display()
+            .to_string();
         let Ok(src) = std::fs::read_to_string(path) else {
             continue;
         };
@@ -243,7 +247,11 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
     let mut bad: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for (idx, path) in files.iter().enumerate() {
-        let name = path.strip_prefix(repo_root()).unwrap_or(path).display().to_string();
+        let name = path
+            .strip_prefix(repo_root())
+            .unwrap_or(path)
+            .display()
+            .to_string();
         let Ok(base) = std::fs::read_to_string(path) else {
             continue;
         };
@@ -279,7 +287,11 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
                 break; // one report per file is enough
             }
         }
-        prog.tick(start0 + idx + 1, total, &format!("last={name} steps={checked}"));
+        prog.tick(
+            start0 + idx + 1,
+            total,
+            &format!("last={name} steps={checked}"),
+        );
     }
     prog.finish(&format!("{checked} steps, {} findings", bad.len()));
 

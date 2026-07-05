@@ -58,7 +58,10 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
         // fall back to a tolerant scan so we still surface partial params.
         return parse_param_list_lenient(&collapsed);
     };
-    specs.iter().filter_map(|spec| spec_to_param(spec)).collect()
+    specs
+        .iter()
+        .filter_map(|spec| spec_to_param(spec))
+        .collect()
 }
 
 /// Turn one parameter *spec* (a list element value, delimiters already
@@ -346,8 +349,7 @@ fn bare_name_len(elem: &[u8]) -> usize {
                 // Escapes decoding to list whitespace: literal whitespace bytes
                 // and the `\t \n \r \v \f` letter escapes.
                 Some(
-                    b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b't' | b'n' | b'r' | b'v'
-                    | b'f',
+                    b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b't' | b'n' | b'r' | b'v' | b'f',
                 ) => return i,
                 // Any other escape (or a trailing lone `\`) stays in the name.
                 Some(_) => i += 2,
@@ -520,7 +522,10 @@ mod tests {
         let raw = "{a b\\\nc}";
         let spans = param_name_spans(raw, 0);
         // a @1..2, b @3..4 (backslash at 4 excluded), c @6..7
-        assert_eq!(spans, vec![Span::new(1, 2), Span::new(3, 4), Span::new(6, 7)]);
+        assert_eq!(
+            spans,
+            vec![Span::new(1, 2), Span::new(3, 4), Span::new(6, 7)]
+        );
     }
 
     #[test]

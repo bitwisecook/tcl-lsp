@@ -74,15 +74,27 @@ fn render() -> String {
 #[test]
 fn architecture_section_renders() {
     let html = render();
-    assert!(html.contains("class=\"architecture\""), "architecture section present");
+    assert!(
+        html.contains("class=\"architecture\""),
+        "architecture section present"
+    );
     assert!(html.contains("auto-detected"), "auto-detect note shown");
     // The GTM->LTM link with its evidencing address.
     assert!(html.contains("10.1.0.10"), "link evidence address rendered");
     // The interactive diagram host + its wiring are present.
-    assert!(html.contains("id=\"archDiagram\""), "interactive diagram host present");
-    assert!(html.contains("initArchitecture"), "architecture init wired in topology.js");
+    assert!(
+        html.contains("id=\"archDiagram\""),
+        "interactive diagram host present"
+    );
+    assert!(
+        html.contains("initArchitecture"),
+        "architecture init wired in topology.js"
+    );
     // The Mermaid definition (embedded in the model) drives the diagram.
-    assert!(html.contains("flowchart LR"), "mermaid architecture diagram source present");
+    assert!(
+        html.contains("flowchart LR"),
+        "mermaid architecture diagram source present"
+    );
 }
 
 #[test]
@@ -90,7 +102,10 @@ fn gtm_and_firewall_tabs_render() {
     let html = render();
     assert!(html.contains("data-panel=\"gtm\""), "GTM panel present");
     assert!(html.contains("app.example.com"), "wide-IP shown");
-    assert!(html.contains("data-panel=\"firewall\""), "firewall panel present");
+    assert!(
+        html.contains("data-panel=\"firewall\""),
+        "firewall panel present"
+    );
     assert!(html.contains("app-rules"), "rule-list shown");
 }
 

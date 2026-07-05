@@ -19,8 +19,8 @@
 //! `xc_translate` — iRule → F5 Distributed Cloud (XC) static translation,
 //! backed by the `f5-xc` crate (model + terraform / JSON-API renderers).
 
-use serde_json::{Map, Value, json};
 use f5_xc::model::{TranslateStatus, TranslationItem};
+use serde_json::{Map, Value, json};
 
 const NAMESPACE: &str = "default";
 const LB_NAME: &str = "translated-lb";
@@ -50,7 +50,10 @@ pub fn xc_translate(args: &Value) -> Value {
         );
     }
     if output_format == "json" || output_format == "both" {
-        output.insert("json_api".to_owned(), f5_xc::render_json(&result, NAMESPACE, LB_NAME));
+        output.insert(
+            "json_api".to_owned(),
+            f5_xc::render_json(&result, NAMESPACE, LB_NAME),
+        );
     }
     output.insert("coverage_pct".to_owned(), json!(result.coverage_pct));
 

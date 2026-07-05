@@ -35,22 +35,24 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ILX::call HANDLE ?-timeout ms? ?--? METHOD ?args ...?",
         }],
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-timeout",
-                takes_value: true,
-                value_hint: "MSEC",
+                value: OptionValue::value("MSEC"),
                 detail: "Timeout in milliseconds.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
-        ],
+        ] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

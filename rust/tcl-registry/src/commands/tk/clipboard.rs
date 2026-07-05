@@ -54,24 +54,27 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-displayof",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Specifies the display for the clipboard operation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "format",
+        value: OptionValue::value("format"),
         detail: "Specifies the representation format for the data (append).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-type",
-        takes_value: true,
-        value_hint: "type",
+        value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

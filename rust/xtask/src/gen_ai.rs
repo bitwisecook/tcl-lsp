@@ -39,7 +39,10 @@ const DIAGNOSTICS_JSON: &str = "ai/shared/diagnostics.json";
 /// AI prompt/skill templates: `(template, output)` relative paths.
 const AI_TEMPLATES: &[(&str, &str)] = &[
     ("ai/prompts/tcl_system.md.j2", "ai/prompts/tcl_system.md"),
-    ("ai/prompts/irules_system.md.j2", "ai/prompts/irules_system.md"),
+    (
+        "ai/prompts/irules_system.md.j2",
+        "ai/prompts/irules_system.md",
+    ),
     (
         "ai/claude/skills/tcl-optimise/SKILL.md.j2",
         "ai/claude/skills/tcl-optimise/SKILL.md",
@@ -82,8 +85,8 @@ fn section_to_category(section: &str) -> &'static str {
 fn ai_category_override(code: &str) -> Option<&'static str> {
     Some(match code {
         "W100" => "security",
-        "W230" | "W231" | "W232" | "W233" | "W240" | "W241" | "W242" | "IRULE1005" | "IRULE1006"
-        | "IRULE1007" | "IRULE1008" | "IRULE1201" | "IRULE1202" => "control_flow",
+        "W230" | "W231" | "W232" | "W233" | "W240" | "W241" | "W242" | "IRULE1005"
+        | "IRULE1006" | "IRULE1007" | "IRULE1008" | "IRULE1201" | "IRULE1202" => "control_flow",
         "W302" | "W304" | "IRULE2001" => "style",
         "IRULE2101" | "IRULE5001" => "performance",
         _ => return None,
@@ -104,8 +107,10 @@ const CONVERSION_MAP: &[(&str, &str)] = &[
 /// Build the `categories` array.
 fn categories() -> Value {
     // Classify every user-configurable diagnostic.
-    let mut by_cat: Vec<(&str, Vec<&str>)> =
-        CATEGORY_DEFS.iter().map(|(k, _)| (*k, Vec::new())).collect();
+    let mut by_cat: Vec<(&str, Vec<&str>)> = CATEGORY_DEFS
+        .iter()
+        .map(|(k, _)| (*k, Vec::new()))
+        .collect();
     for c in DiagCode::ALL {
         if let DocRow::Diagnostic {
             section,
@@ -133,7 +138,11 @@ fn categories() -> Value {
         CATEGORY_DEFS
             .iter()
             .map(|(key, label)| {
-                let codes = by_cat.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+                let codes = by_cat
+                    .iter()
+                    .find(|(k, _)| k == key)
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_default();
                 json!({ "key": key, "label": label, "codes": codes })
             })
             .collect(),
@@ -246,7 +255,10 @@ fn ai_context() -> AiContext {
         ],
         scalars: vec![
             ("opt_readability", opt_codes(OptCategory::Readability)),
-            ("opt_constant_folding", opt_codes(OptCategory::ConstantFolding)),
+            (
+                "opt_constant_folding",
+                opt_codes(OptCategory::ConstantFolding),
+            ),
             ("opt_pattern", opt_codes(OptCategory::Pattern)),
             ("opt_dce", opt_codes(OptCategory::Dce)),
             ("opt_code_motion", opt_codes(OptCategory::CodeMotion)),
@@ -262,16 +274,17 @@ fn ai_context() -> AiContext {
 fn render_loop(body: &str, list: &[(String, String)]) -> String {
     // Split the separator out of the body.
     let (item_tmpl, sep) = match body.split_once("{% if not loop.last %}") {
-        Some((item, rest)) => (
-            item,
-            rest.strip_suffix("{% endif %}").unwrap_or(rest),
-        ),
+        Some((item, rest)) => (item, rest.strip_suffix("{% endif %}").unwrap_or(rest)),
         None => (body, ""),
     };
     let n = list.len();
     let mut out = String::new();
     for (i, (code, desc)) in list.iter().enumerate() {
-        out.push_str(&item_tmpl.replace("{{ c.code }}", code).replace("{{ c.desc }}", desc));
+        out.push_str(
+            &item_tmpl
+                .replace("{{ c.code }}", code)
+                .replace("{{ c.desc }}", desc),
+        );
         if i + 1 < n {
             out.push_str(sep);
         }
@@ -304,7 +317,9 @@ fn render_template(template: &str, ctx: &AiContext) -> String {
     // Expand each `{% for c in NAME %}…{% endfor %}` (non-nested, inline).
     while let Some(for_start) = out.find("{% for c in ") {
         let head_end = out[for_start..].find("%}").expect("for tag closes") + for_start + 2;
-        let name = out[for_start + "{% for c in ".len()..head_end - 2].trim().to_owned();
+        let name = out[for_start + "{% for c in ".len()..head_end - 2]
+            .trim()
+            .to_owned();
         let end_tag = "{% endfor %}";
         let body_end = out[head_end..].find(end_tag).expect("endfor") + head_end;
         let body = out[head_end..body_end].to_owned();
@@ -350,12 +365,16 @@ pub fn run(check: bool) -> Result<ExitCode> {
                 drift.push(rel);
             }
         } else {
-            std::fs::write(&path, &content).with_context(|| format!("writing {}", path.display()))?;
+            std::fs::write(&path, &content)
+                .with_context(|| format!("writing {}", path.display()))?;
             eprintln!("wrote {rel}");
         }
     }
     if check && !drift.is_empty() {
-        eprintln!("{} AI file(s) are stale — run `cargo xtask gen-ai-diagnostics`:", drift.len());
+        eprintln!(
+            "{} AI file(s) are stale — run `cargo xtask gen-ai-diagnostics`:",
+            drift.len()
+        );
         for rel in &drift {
             eprintln!("  - {rel}");
         }
@@ -385,7 +404,10 @@ mod tests {
 
     #[test]
     fn render_loop_joins_with_separator() {
-        let list = vec![("E001".to_owned(), "a".to_owned()), ("E002".to_owned(), "b".to_owned())];
+        let list = vec![
+            ("E001".to_owned(), "a".to_owned()),
+            ("E002".to_owned(), "b".to_owned()),
+        ];
         let body = "{{ c.code }} ({{ c.desc }}){% if not loop.last %}, {% endif %}";
         assert_eq!(render_loop(body, &list), "E001 (a), E002 (b)");
     }

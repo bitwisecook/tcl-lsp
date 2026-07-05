@@ -32,10 +32,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// One bundled framework file: its name and contents.
 macro_rules! bundled {
     ($name:literal) => {
-        (
-            $name,
-            include_str!(concat!("../tcl/", $name)),
-        )
+        ($name, include_str!(concat!("../tcl/", $name)))
     };
 }
 

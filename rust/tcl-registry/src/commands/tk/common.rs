@@ -1,0 +1,108 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Enum value sets shared across Tk widget options.  These mirror Tk's own
+//! `Tk_GetRelief` / `Tk_GetAnchor` / `Tk_GetJustify` converters, whose accepted
+//! spellings are uniform across every core widget — so an option carrying one
+//! of these sets can mark it `closed` and let W127 flag a value outside it.
+
+use crate::prelude::*;
+
+/// Standard Tk `relief` values (`Tk_GetRelief`).
+pub(crate) const RELIEF: &[ArgValue] = &[
+    ArgValue {
+        value: "flat",
+        detail: "No 3-D border.",
+    },
+    ArgValue {
+        value: "groove",
+        detail: "Grooved (incised) border.",
+    },
+    ArgValue {
+        value: "raised",
+        detail: "Raised 3-D border.",
+    },
+    ArgValue {
+        value: "ridge",
+        detail: "Ridged (embossed) border.",
+    },
+    ArgValue {
+        value: "solid",
+        detail: "Solid one-pixel border.",
+    },
+    ArgValue {
+        value: "sunken",
+        detail: "Sunken 3-D border.",
+    },
+];
+
+/// Standard Tk `anchor` positions (`Tk_GetAnchor`).
+pub(crate) const ANCHOR: &[ArgValue] = &[
+    ArgValue {
+        value: "n",
+        detail: "North (top center).",
+    },
+    ArgValue {
+        value: "ne",
+        detail: "North-east (top right).",
+    },
+    ArgValue {
+        value: "e",
+        detail: "East (right center).",
+    },
+    ArgValue {
+        value: "se",
+        detail: "South-east (bottom right).",
+    },
+    ArgValue {
+        value: "s",
+        detail: "South (bottom center).",
+    },
+    ArgValue {
+        value: "sw",
+        detail: "South-west (bottom left).",
+    },
+    ArgValue {
+        value: "w",
+        detail: "West (left center).",
+    },
+    ArgValue {
+        value: "nw",
+        detail: "North-west (top left).",
+    },
+    ArgValue {
+        value: "center",
+        detail: "Centered.",
+    },
+];
+
+/// Standard Tk `justify` values (`Tk_GetJustify`).
+pub(crate) const JUSTIFY: &[ArgValue] = &[
+    ArgValue {
+        value: "left",
+        detail: "Left-justify lines.",
+    },
+    ArgValue {
+        value: "right",
+        detail: "Right-justify lines.",
+    },
+    ArgValue {
+        value: "center",
+        detail: "Center lines.",
+    },
+];

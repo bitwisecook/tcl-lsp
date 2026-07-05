@@ -23,7 +23,6 @@
 //! `starts(&result)` gives the `(line, character)` start set and
 //! `start_lines(&result)` the set of start lines.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -62,7 +61,8 @@ fn find_indented_proc_call() {
 fn find_qualified_proc_call_sites() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "namespace eval myns {\n    proc helper {} { return 1 }\n}\nmyns::helper\n::myns::helper\n";
+    let src =
+        "namespace eval myns {\n    proc helper {} { return 1 }\n}\nmyns::helper\n::myns::helper\n";
     lsp.open_ready(&uri, src);
     let lines = start_lines(&lsp.references(&uri, 1, 10, true));
     assert!(lines.contains(&3), "{lines:?}");

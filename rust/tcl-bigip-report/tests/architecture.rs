@@ -136,7 +136,10 @@ ltm virtual-address /Common/10.2.0.20 {
     assert_eq!(links.len(), 1, "tier hop detected from the member name");
     assert_eq!(links[0]["from"], 0);
     assert_eq!(links[0]["to"], 1);
-    assert_eq!(links[0]["vias"].as_array().unwrap()[0]["address"], "10.2.0.20");
+    assert_eq!(
+        links[0]["vias"].as_array().unwrap()[0]["address"],
+        "10.2.0.20"
+    );
 }
 
 #[test]
@@ -164,7 +167,10 @@ fn tcl_manifest_overrides_and_links() {
     let devs = a["devices"].as_array().unwrap();
     assert_eq!(devs[0]["role"], "gtm");
     assert_eq!(devs[0]["tier"], J::from(5));
-    assert_eq!(devs[0]["label"], "DNS Front", "quoted multi-word label parsed");
+    assert_eq!(
+        devs[0]["label"], "DNS Front",
+        "quoted multi-word label parsed"
+    );
     assert_eq!(devs[1]["label"], "App Tier");
 
     // Auto 0->1 plus the manifest-declared 1->0.

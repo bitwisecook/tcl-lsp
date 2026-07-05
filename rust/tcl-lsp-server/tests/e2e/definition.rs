@@ -22,7 +22,6 @@
 //! `test_definition.py` cases plus the VS Code `definition.test.ts` scenario
 //! (navigate from a call site to the proc).
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -43,7 +42,10 @@ fn start_line(loc: &Loc) -> i64 {
 fn jump_to_proc() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "proc greet {name} { puts \"Hello $name\" }\ngreet World\n");
+    lsp.open_ready(
+        &uri,
+        "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
+    );
     let result = lsp.definition(&uri, 1, 2);
     let locs = locations(&result);
     assert!(!locs.is_empty());
@@ -81,13 +83,16 @@ fn recursive_call_navigates_to_definition() {
     lsp.open_ready(&uri, src);
     // cursor on the [fib 10] call on the last line
     let lines: Vec<&str> = src.split('\n').collect();
-    let line = lines
-        .iter()
-        .position(|l| *l == "puts \"fib(10) = [fib 10]\"")
-        .expect("target line present") as u32;
+    let line = u32::try_from(
+        lines
+            .iter()
+            .position(|l| *l == "puts \"fib(10) = [fib 10]\"")
+            .expect("target line present"),
+    )
+    .unwrap();
     // Python: 'puts "fib(10) = ['.index("[") + 1 — '[' is the last char, so
     // its index is len-1 and col is len.
-    let col = "puts \"fib(10) = [".len() as u32;
+    let col = u32::try_from("puts \"fib(10) = [".len()).unwrap();
     let result = lsp.definition(&uri, line, col);
     let locs = locations(&result);
     assert!(!locs.is_empty());

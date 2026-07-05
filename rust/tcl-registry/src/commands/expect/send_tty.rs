@@ -21,17 +21,19 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-raw",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Send without translation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "--",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "End of options.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 
